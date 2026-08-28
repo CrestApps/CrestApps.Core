@@ -64,7 +64,7 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
         // caller cannot shed their per-IP allowance by logging out.
         var anonymousTiers = MultiTierRateLimitEvaluator.Normalize(
             profileSettings?.AnonymousMessageRateLimitTiers ?? siteOptions.AnonymousMessageRateLimitTiers);
-        var singleWindowTiers = MultiTierRateLimitEvaluator.Normalize([new ChatRateLimitTier(maxMessages, window)]);
+        var singleWindowTiers = MultiTierRateLimitEvaluator.Normalize([new ChatRateLimitTier { Limit = maxMessages, Window = window }]);
 
         var groups = new List<RateLimitKeyGroup>();
 

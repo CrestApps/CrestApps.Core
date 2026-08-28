@@ -10,8 +10,8 @@ public sealed class ChatRateLimitTierTextFormatterTests
     {
         var text = ChatRateLimitTierTextFormatter.Format(
         [
-            new ChatRateLimitTier(5, TimeSpan.FromSeconds(30)),
-            new ChatRateLimitTier(500, TimeSpan.FromDays(1)),
+            new ChatRateLimitTier { Limit = 5, Window = TimeSpan.FromSeconds(30) },
+            new ChatRateLimitTier { Limit = 500, Window = TimeSpan.FromDays(1) },
         ]);
 
         var lines = text.Split(Environment.NewLine);
@@ -26,10 +26,10 @@ public sealed class ChatRateLimitTierTextFormatterTests
     {
         List<ChatRateLimitTier> original =
         [
-            new ChatRateLimitTier(5, TimeSpan.FromSeconds(30)),
-            new ChatRateLimitTier(30, TimeSpan.FromMinutes(5)),
-            new ChatRateLimitTier(150, TimeSpan.FromHours(1)),
-            new ChatRateLimitTier(500, TimeSpan.FromDays(1)),
+            new ChatRateLimitTier { Limit = 5, Window = TimeSpan.FromSeconds(30) },
+            new ChatRateLimitTier { Limit = 30, Window = TimeSpan.FromMinutes(5) },
+            new ChatRateLimitTier { Limit = 150, Window = TimeSpan.FromHours(1) },
+            new ChatRateLimitTier { Limit = 500, Window = TimeSpan.FromDays(1) },
         ];
 
         var succeeded = ChatRateLimitTierTextFormatter.TryParse(

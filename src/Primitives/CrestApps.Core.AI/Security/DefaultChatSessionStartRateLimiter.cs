@@ -66,7 +66,7 @@ public sealed class DefaultChatSessionStartRateLimiter : IChatSessionStartRateLi
             var maxSessions = profileSettings?.MaxAnonymousSessionsPerWindow ?? options.MaxAnonymousSessionsPerWindow;
             var window = profileSettings?.AnonymousSessionRateLimitWindow ?? options.AnonymousSessionRateLimitWindow;
 
-            tiers = MultiTierRateLimitEvaluator.Normalize([new ChatRateLimitTier(maxSessions, window)]);
+            tiers = MultiTierRateLimitEvaluator.Normalize([new ChatRateLimitTier { Limit = maxSessions, Window = window }]);
         }
 
         if (tiers.Count == 0)

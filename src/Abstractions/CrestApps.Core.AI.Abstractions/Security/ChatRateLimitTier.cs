@@ -9,24 +9,6 @@ namespace CrestApps.Core.AI.Security;
 public sealed class ChatRateLimitTier
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="ChatRateLimitTier"/> class.
-    /// </summary>
-    public ChatRateLimitTier()
-    {
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ChatRateLimitTier"/> class.
-    /// </summary>
-    /// <param name="limit">The maximum number of events allowed within the window.</param>
-    /// <param name="window">The sliding-window duration.</param>
-    public ChatRateLimitTier(int limit, TimeSpan window)
-    {
-        Limit = limit;
-        Window = window;
-    }
-
-    /// <summary>
     /// Gets or sets the maximum number of events allowed within <see cref="Window"/>.
     /// Values of zero or less disable this tier.
     /// </summary>

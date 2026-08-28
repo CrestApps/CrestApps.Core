@@ -141,8 +141,8 @@ public sealed class DefaultChatSessionStartRateLimiterTests
             timeProvider: fakeTime,
             anonymousSessionTiers:
             [
-                new ChatRateLimitTier(2, TimeSpan.FromSeconds(30)),
-                new ChatRateLimitTier(5, TimeSpan.FromMinutes(5)),
+                new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromSeconds(30) },
+                new ChatRateLimitTier { Limit = 5, Window = TimeSpan.FromMinutes(5) },
             ]);
         var context = CreateContext();
 
@@ -165,8 +165,8 @@ public sealed class DefaultChatSessionStartRateLimiterTests
             timeProvider: fakeTime,
             anonymousSessionTiers:
             [
-                new ChatRateLimitTier(2, TimeSpan.FromSeconds(30)),
-                new ChatRateLimitTier(3, TimeSpan.FromMinutes(5)),
+                new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromSeconds(30) },
+                new ChatRateLimitTier { Limit = 3, Window = TimeSpan.FromMinutes(5) },
             ]);
         var context = CreateContext();
 

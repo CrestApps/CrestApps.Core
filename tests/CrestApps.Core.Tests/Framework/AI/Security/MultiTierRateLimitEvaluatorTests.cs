@@ -14,10 +14,10 @@ public sealed class MultiTierRateLimitEvaluatorTests
     {
         var normalized = MultiTierRateLimitEvaluator.Normalize(
         [
-            new ChatRateLimitTier(5, TimeSpan.FromSeconds(30)),
-            new ChatRateLimitTier(0, TimeSpan.FromSeconds(30)),   // limit <= 0
-            new ChatRateLimitTier(5, TimeSpan.Zero),              // window <= 0
-            new ChatRateLimitTier(-1, TimeSpan.FromMinutes(1)),   // limit < 0
+            new ChatRateLimitTier { Limit = 5, Window = TimeSpan.FromSeconds(30) },
+            new ChatRateLimitTier { Limit = 0, Window = TimeSpan.FromSeconds(30) },   // limit <= 0
+            new ChatRateLimitTier { Limit = 5, Window = TimeSpan.Zero },              // window <= 0
+            new ChatRateLimitTier { Limit = -1, Window = TimeSpan.FromMinutes(1) },   // limit < 0
             null,
         ]);
 
@@ -39,9 +39,9 @@ public sealed class MultiTierRateLimitEvaluatorTests
     {
         var max = MultiTierRateLimitEvaluator.MaxWindow(
         [
-            new ChatRateLimitTier(5, TimeSpan.FromSeconds(30)),
-            new ChatRateLimitTier(500, TimeSpan.FromDays(1)),
-            new ChatRateLimitTier(30, TimeSpan.FromMinutes(5)),
+            new ChatRateLimitTier { Limit = 5, Window = TimeSpan.FromSeconds(30) },
+            new ChatRateLimitTier { Limit = 500, Window = TimeSpan.FromDays(1) },
+            new ChatRateLimitTier { Limit = 30, Window = TimeSpan.FromMinutes(5) },
         ]);
 
         Assert.Equal(TimeSpan.FromDays(1), max);
@@ -60,7 +60,7 @@ public sealed class MultiTierRateLimitEvaluatorTests
     public void Evaluate_UnderLimit_AllowsAndRecords()
     {
         var windows = CreateWindows();
-        var tiers = Tiers(new ChatRateLimitTier(2, TimeSpan.FromSeconds(60)));
+        var tiers = Tiers(new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromSeconds(60) });
 
         var result = MultiTierRateLimitEvaluator.Evaluate(windows, ["k"], tiers, T0);
 
@@ -72,7 +72,7 @@ public sealed class MultiTierRateLimitEvaluatorTests
     public void Evaluate_AtLimit_ThrottlesWithRetryAfterAndCounts()
     {
         var windows = CreateWindows();
-        var tiers = Tiers(new ChatRateLimitTier(2, TimeSpan.FromSeconds(60)));
+        var tiers = Tiers(new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromSeconds(60) });
 
         MultiTierRateLimitEvaluator.Evaluate(windows, ["k"], tiers, T0);
         MultiTierRateLimitEvaluator.Evaluate(windows, ["k"], tiers, T0);
@@ -93,8 +93,8 @@ public sealed class MultiTierRateLimitEvaluatorTests
         var windows = CreateWindows();
         // Both tiers are exceeded; the one that keeps the caller waiting longest is reported.
         var tiers = Tiers(
-            new ChatRateLimitTier(2, TimeSpan.FromSeconds(60)),
-            new ChatRateLimitTier(2, TimeSpan.FromHours(1)));
+            new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromSeconds(60) },
+            new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromHours(1) });
 
         MultiTierRateLimitEvaluator.Evaluate(windows, ["k"], tiers, T0);
         MultiTierRateLimitEvaluator.Evaluate(windows, ["k"], tiers, T0);
@@ -110,7 +110,7 @@ public sealed class MultiTierRateLimitEvaluatorTests
     public void Evaluate_EvictsTimestampsBeyondMaxWindow()
     {
         var windows = CreateWindows();
-        var tiers = Tiers(new ChatRateLimitTier(2, TimeSpan.FromSeconds(60)));
+        var tiers = Tiers(new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromSeconds(60) });
 
         MultiTierRateLimitEvaluator.Evaluate(windows, ["k"], tiers, T0);
         MultiTierRateLimitEvaluator.Evaluate(windows, ["k"], tiers, T0);
@@ -126,7 +126,7 @@ public sealed class MultiTierRateLimitEvaluatorTests
     public void Evaluate_MultipleKeys_ThrottlesIfAnyExceeds_AndDoesNotRecordWhenThrottled()
     {
         var windows = CreateWindows();
-        var tiers = Tiers(new ChatRateLimitTier(1, TimeSpan.FromSeconds(60)));
+        var tiers = Tiers(new ChatRateLimitTier { Limit = 1, Window = TimeSpan.FromSeconds(60) });
 
         // First request fills both keys.
         MultiTierRateLimitEvaluator.Evaluate(windows, ["k1", "k2"], tiers, T0);
@@ -147,8 +147,8 @@ public sealed class MultiTierRateLimitEvaluatorTests
         var windows = CreateWindows();
         var groups = new[]
         {
-            new RateLimitKeyGroup(["user"], Tiers(new ChatRateLimitTier(5, TimeSpan.FromSeconds(60))), TimeSpan.FromSeconds(60)),
-            new RateLimitKeyGroup(["ip"], Tiers(new ChatRateLimitTier(1, TimeSpan.FromSeconds(60))), TimeSpan.FromSeconds(60)),
+            new RateLimitKeyGroup(["user"], Tiers(new ChatRateLimitTier { Limit = 5, Window = TimeSpan.FromSeconds(60) }), TimeSpan.FromSeconds(60)),
+            new RateLimitKeyGroup(["ip"], Tiers(new ChatRateLimitTier { Limit = 1, Window = TimeSpan.FromSeconds(60) }), TimeSpan.FromSeconds(60)),
         };
 
         // First request is allowed and records both keys.
@@ -165,7 +165,7 @@ public sealed class MultiTierRateLimitEvaluatorTests
     public void Evaluate_Groups_RecordsEachDistinctKeyOnce()
     {
         var windows = CreateWindows();
-        var tiers = Tiers(new ChatRateLimitTier(5, TimeSpan.FromSeconds(60)));
+        var tiers = Tiers(new ChatRateLimitTier { Limit = 5, Window = TimeSpan.FromSeconds(60) });
         var groups = new[]
         {
             new RateLimitKeyGroup(["a", "shared"], tiers, TimeSpan.FromSeconds(60)),
@@ -201,8 +201,8 @@ public sealed class MultiTierRateLimitEvaluatorTests
         // must NOT evict the wider group's history. This is what stops an authenticated (short-window)
         // message from wiping the anonymous per-IP day history and enabling a logout reset.
         var windows = CreateWindows();
-        var anonymousTiers = Tiers(new ChatRateLimitTier(2, TimeSpan.FromMinutes(5)));
-        var authenticatedTiers = Tiers(new ChatRateLimitTier(20, TimeSpan.FromSeconds(60)));
+        var anonymousTiers = Tiers(new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromMinutes(5) });
+        var authenticatedTiers = Tiers(new ChatRateLimitTier { Limit = 20, Window = TimeSpan.FromSeconds(60) });
 
         // Anonymous request records one timestamp on the shared ip bucket at T0.
         MultiTierRateLimitEvaluator.Evaluate(

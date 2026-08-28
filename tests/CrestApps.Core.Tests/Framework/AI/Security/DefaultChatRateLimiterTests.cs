@@ -301,8 +301,8 @@ public sealed class DefaultChatRateLimiterTests
             timeProvider: fakeTime,
             anonymousMessageTiers:
             [
-                new ChatRateLimitTier(2, TimeSpan.FromSeconds(30)),
-                new ChatRateLimitTier(5, TimeSpan.FromMinutes(5)),
+                new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromSeconds(30) },
+                new ChatRateLimitTier { Limit = 5, Window = TimeSpan.FromMinutes(5) },
             ]);
         var context = CreateContext();
 
@@ -326,8 +326,8 @@ public sealed class DefaultChatRateLimiterTests
             timeProvider: fakeTime,
             anonymousMessageTiers:
             [
-                new ChatRateLimitTier(2, TimeSpan.FromSeconds(30)),
-                new ChatRateLimitTier(3, TimeSpan.FromMinutes(5)),
+                new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromSeconds(30) },
+                new ChatRateLimitTier { Limit = 3, Window = TimeSpan.FromMinutes(5) },
             ]);
         var context = CreateContext();
 
@@ -353,7 +353,7 @@ public sealed class DefaultChatRateLimiterTests
     {
         var limiter = CreateLimiter(
             maxMessages: 100,
-            anonymousMessageTiers: [new ChatRateLimitTier(1, TimeSpan.FromMinutes(1))]);
+            anonymousMessageTiers: [new ChatRateLimitTier { Limit = 1, Window = TimeSpan.FromMinutes(1) }]);
         var context = CreateContext(user: TestHelpers.CreateClaimsPrincipal("user-99"));
 
         // The anonymous tier caps at 1, but an authenticated caller uses the single-window limit.
@@ -390,7 +390,7 @@ public sealed class DefaultChatRateLimiterTests
         // reset their per-IP anonymous allowance by logging out.
         var limiter = CreateLimiter(
             maxMessages: 100, // Generous per-user limit so the user cap is not what trips here.
-            anonymousMessageTiers: [new ChatRateLimitTier(2, TimeSpan.FromMinutes(5))]);
+            anonymousMessageTiers: [new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromMinutes(5) }]);
         var authenticated = CreateContext(sessionId: "s", user: TestHelpers.CreateClaimsPrincipal("user-1"), remoteAddressHash: "ip-1");
         var anonymousSameIp = CreateContext(sessionId: "s2", user: null, remoteAddressHash: "ip-1");
 

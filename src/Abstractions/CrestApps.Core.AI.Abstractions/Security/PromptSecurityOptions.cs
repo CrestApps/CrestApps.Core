@@ -101,10 +101,10 @@ public sealed class PromptSecurityOptions
     /// </summary>
     public List<ChatRateLimitTier> AnonymousMessageRateLimitTiers { get; set; } =
     [
-        new(5, TimeSpan.FromSeconds(30)),
-        new(30, TimeSpan.FromMinutes(5)),
-        new(150, TimeSpan.FromHours(1)),
-        new(500, TimeSpan.FromDays(1)),
+        new() { Limit = 5, Window = TimeSpan.FromSeconds(30) },
+        new() { Limit = 30, Window = TimeSpan.FromMinutes(5) },
+        new() { Limit = 150, Window = TimeSpan.FromHours(1) },
+        new() { Limit = 500, Window = TimeSpan.FromDays(1) },
     ];
 
     /// <summary>
@@ -130,9 +130,9 @@ public sealed class PromptSecurityOptions
     /// </summary>
     public List<ChatRateLimitTier> AnonymousSessionStartRateLimitTiers { get; set; } =
     [
-        new(5, TimeSpan.FromSeconds(30)),
-        new(10, TimeSpan.FromMinutes(5)),
-        new(150, TimeSpan.FromHours(1)),
-        new(500, TimeSpan.FromDays(1)),
+        new() { Limit = 5, Window = TimeSpan.FromSeconds(30) },
+        new() { Limit = 10, Window = TimeSpan.FromMinutes(5) },
+        new() { Limit = 150, Window = TimeSpan.FromHours(1) },
+        new() { Limit = 500, Window = TimeSpan.FromDays(1) },
     ];
 }

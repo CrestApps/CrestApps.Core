@@ -84,7 +84,7 @@ public static class ChatRateLimitTierTextFormatter
                 return false;
             }
 
-            tiers.Add(new ChatRateLimitTier(limit, window));
+            tiers.Add(new ChatRateLimitTier { Limit = limit, Window = window });
         }
 
         return true;
