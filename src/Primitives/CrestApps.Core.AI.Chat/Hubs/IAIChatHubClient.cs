@@ -15,6 +15,15 @@ public interface IAIChatHubClient
     Task ReceiveError(string error);
 
     /// <summary>
+    /// Notifies the client that a request to start a new chat session was rejected because the caller
+    /// exceeded the session-start rate limit. Distinct from <see cref="ReceiveError"/> so the client can
+    /// surface the message without treating it as a recoverable connection/session error (for example,
+    /// the embedded widget must not respond by clearing state and silently retrying).
+    /// </summary>
+    /// <param name="reason">The user-facing, non-revealing throttle message.</param>
+    Task ReceiveSessionStartRejected(string reason);
+
+    /// <summary>
     /// Loads session data on the client, replacing the current chat state.
     /// </summary>
     /// <param name="data">The serialized session data.</param>
