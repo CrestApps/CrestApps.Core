@@ -1,13 +1,18 @@
 using System.Net;
 using System.Security.Claims;
 using System.Text.Json;
+using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.AI.Tooling.Instances;
 using CrestApps.Core.AI.Tooling.Parameters;
 using CrestApps.Core.Startup.Shared.ViewModels;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
+using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Moq;
 
 namespace CrestApps.Core.Tests.Tooling;
 
@@ -596,6 +601,225 @@ public sealed class AIToolInstanceParameterTests
         var parameters = AIToolInstanceParameterViewModel.ToParameters(rows, existing: null);
 
         Assert.Equal("Query", Assert.Single(parameters).Binding);
+    }
+
+    [Fact]
+    public async Task Registry_MaterializesAToolWhoseSchemaCarriesTheDeclaredParameters()
+    {
+        // The registry is the path a configured instance actually takes to ChatOptions.Tools. A schema
+        // that only holds together when the function is constructed by hand proves nothing about what the
+        // model is shown.
+        var instance = CreateInstance(
+        [
+            new()
+            {
+                Name = "orderId",
+                Description = "The order to look up.",
+                Type = AIToolParameterType.String,
+                Fill = AIToolParameterFill.Model,
+                Required = true,
+                Binding = "Query:order_id",
+            },
+            new()
+            {
+                Name = "actingUser",
+                Type = AIToolParameterType.String,
+                Fill = AIToolParameterFill.Context,
+                ContextKey = AIToolParameterContextKeys.UserId,
+                Binding = "Header:X-Acting-User",
+            },
+        ]);
+
+        instance.Put(new HttpApiRequestToolSettings
+        {
+            BaseUrl = "https://api.example.com/v1",
+            AllowModelProvidedPath = false,
+            AllowModelProvidedQuery = false,
+            AllowModelProvidedBody = false,
+        });
+
+        var services = BuildRegistryServices(instance);
+        var registryProvider = new ToolInstanceRegistryProvider(
+            services,
+            services.GetRequiredService<ILogger<ToolInstanceRegistryProvider>>());
+
+        var context = new AICompletionContext { ToolInstanceNames = [instance.Name] };
+        var entries = await registryProvider.GetToolsAsync(context, TestContext.Current.CancellationToken);
+
+        var tool = await Assert.Single(entries).CreateAsync(services);
+        var function = Assert.IsAssignableFrom<AIFunction>(tool);
+        var properties = function.JsonSchema.GetProperty("properties");
+
+        Assert.True(properties.TryGetProperty("orderId", out var orderId));
+        Assert.Equal("string", orderId.GetProperty("type").GetString());
+        Assert.Equal("The order to look up.", orderId.GetProperty("description").GetString());
+
+        Assert.Equal(
+            ["orderId"],
+            function.JsonSchema.GetProperty("required").EnumerateArray().Select(x => x.GetString()).ToArray());
+
+        // The context parameter is resolved server-side, so it must not be advertised to the model.
+        Assert.False(properties.TryGetProperty("actingUser", out _));
+    }
+
+    [Fact]
+    public async Task ChatClient_IsGivenTheParametersAndTheModelSuppliedValuesReachTheRequest()
+    {
+        // End to end over the real Microsoft.Extensions.AI tool-calling path: the tool definition handed
+        // to the client must advertise the parameters, and the values the model then sends must arrive on
+        // the outbound HTTP request. Either half failing makes the feature useless.
+        var handler = new ParameterCapturingHandler();
+        var services = BuildServices(handler, "user-42");
+
+        var instance = CreateInstance(
+        [
+            new()
+            {
+                Name = "city",
+                Description = "The city to look up.",
+                Type = AIToolParameterType.String,
+                Fill = AIToolParameterFill.Model,
+                Required = true,
+                Binding = "Query:q",
+            },
+            new()
+            {
+                Name = "units",
+                Description = "The unit system.",
+                Type = AIToolParameterType.String,
+                Fill = AIToolParameterFill.Model,
+                AllowedValues = ["metric", "imperial"],
+                DefaultValue = "metric",
+                Binding = "Query:units",
+            },
+            new()
+            {
+                Name = "actingUser",
+                Type = AIToolParameterType.String,
+                Fill = AIToolParameterFill.Context,
+                ContextKey = AIToolParameterContextKeys.UserId,
+                Binding = "Header:X-Acting-User",
+            },
+        ]);
+
+        var settings = new HttpApiRequestToolSettings
+        {
+            BaseUrl = "https://api.example.com/v1",
+            AllowModelProvidedPath = false,
+            AllowModelProvidedQuery = false,
+            AllowModelProvidedBody = false,
+        };
+
+        var function = new HttpApiRequestToolFunction("get_weather", "Gets the weather.", settings, instance);
+
+        // Stands in for the provider: records the tool definition it is given, then answers with a tool
+        // call the way a model would.
+        var model = new ToolDefinitionCapturingChatClient("get_weather", new Dictionary<string, object>
+        {
+            ["city"] = "Seattle",
+        });
+
+        // The service provider flows into AIFunctionArguments.Services, which is how the tool reaches the
+        // HTTP client and the context resolvers at invocation time.
+        using var client = new FunctionInvokingChatClient(model, loggerFactory: null, functionInvocationServices: services);
+
+        var options = new ChatOptions
+        {
+            Tools = [function],
+        };
+
+        await client.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, "What is the weather in Seattle?")],
+            options,
+            TestContext.Current.CancellationToken);
+
+        // What the model was shown. The definition is sent on every round trip — the tool call and the
+        // follow-up that carries its result — so every one of them must advertise the parameters.
+        Assert.Equal(2, model.SeenTools.Count);
+
+        var advertised = Assert.IsAssignableFrom<AIFunction>(model.SeenTools[0]);
+        var properties = advertised.JsonSchema.GetProperty("properties");
+
+        Assert.True(properties.TryGetProperty("city", out var city));
+        Assert.Equal("The city to look up.", city.GetProperty("description").GetString());
+        Assert.True(properties.TryGetProperty("units", out var units));
+        Assert.Equal(
+            ["metric", "imperial"],
+            units.GetProperty("enum").EnumerateArray().Select(x => x.GetString()).ToArray());
+        Assert.False(properties.TryGetProperty("actingUser", out _));
+
+        // What the call actually carried: the model's value, the omitted parameter's default, and the
+        // context value the model never saw.
+        Assert.NotNull(handler.LastRequest);
+        Assert.Equal(
+            "https://api.example.com/v1?q=Seattle&units=metric",
+            handler.LastRequest.RequestUri!.ToString());
+        Assert.Equal("user-42", handler.LastRequest.Headers.GetValues("X-Acting-User").Single());
+    }
+
+    private static ServiceProvider BuildRegistryServices(AIToolInstance instance)
+    {
+        var catalog = new Mock<INamedCatalog<AIToolInstance>>();
+        catalog
+            .Setup(c => c.FindByNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string name, CancellationToken _) =>
+                string.Equals(instance.Name, name, StringComparison.OrdinalIgnoreCase) ? instance : null);
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(catalog.Object);
+        services.AddKeyedSingleton<IAIToolInstanceSource, HttpApiRequestToolInstanceSource>(HttpApiRequestToolConstants.SourceName);
+
+        return services.BuildServiceProvider();
+    }
+
+    private sealed class ToolDefinitionCapturingChatClient : IChatClient
+    {
+        private readonly string _functionName;
+        private readonly Dictionary<string, object> _arguments;
+        private bool _called;
+
+        public ToolDefinitionCapturingChatClient(string functionName, Dictionary<string, object> arguments)
+        {
+            _functionName = functionName;
+            _arguments = arguments;
+        }
+
+        public List<AITool> SeenTools { get; } = [];
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions options = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (options?.Tools is not null)
+            {
+                SeenTools.AddRange(options.Tools);
+            }
+
+            if (_called)
+            {
+                return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "Done.")));
+            }
+
+            _called = true;
+
+            var call = new FunctionCallContent(Guid.NewGuid().ToString("N"), _functionName, _arguments);
+
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, [call])));
+        }
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions options = null,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public object GetService(Type serviceType, object serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
     }
 
     private static AIToolInstance CreateInstance(List<AIToolInstanceParameter> parameters)

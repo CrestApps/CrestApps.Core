@@ -213,6 +213,8 @@ builder.AddSource<MyToolInstanceSource>("my-source", entry =>
 });
 ```
 
+Declaring capabilities is all a source has to do to get the management editor: the parameter UI in both sample hosts is driven entirely by what the source advertises, so a new source needs no view code of its own. See [Adding parameter support to your own source](#adding-parameter-support-to-your-own-source).
+
 A source that declares no capabilities does not support parameters. The management UI hides the parameter editor for it, and saving an instance with parameters against it **fails validation**. That is deliberate: a parameter declared in the schema, filled by the model, and then ignored by the source would produce a call that silently omits the value while the model reports success — worse than not offering the feature at all.
 
 ### Fill modes
@@ -269,7 +271,63 @@ A worked example — `POST https://api.example.com/v1/orders/{orderId}` with a b
 | `notify` | Boolean | Model | `Query:notify` | Optional, defaults to `false`. |
 | `actingUser` | String | Context | `Header:X-Acting-User` | Resolved from `user.id`. |
 
-### Consuming parameters from your own source
+### Adding parameter support to your own source
+
+Supporting parameters takes two steps, and **both are required**. Declaring alone gives users an editor whose values your tool ignores; consuming alone means the editor never appears.
+
+#### 1. Declare what you can honor
+
+Set `Parameters` on the registration entry. This one declaration drives the entire management experience — you write no UI code:
+
+```csharp
+.AddSource<MyToolInstanceSource>("my-source", entry =>
+{
+    entry.DisplayName = new LocalizedString("my-source", "My Source");
+
+    entry.Parameters = new AIToolInstanceParameterCapabilities
+    {
+        // Argument names your tool builds itself. A parameter may not shadow one.
+        ReservedNames = ["query"],
+        Hint = new LocalizedString("my-source", "Define what this source accepts."),
+        Bindings =
+        [
+            new AIToolParameterBindingOption("Argument")
+            {
+                DisplayName = new LocalizedString("Argument", "Call argument"),
+                Hint = new LocalizedString("Argument", "Passed to the downstream call by name."),
+            },
+            new AIToolParameterBindingOption("Credential")
+            {
+                DisplayName = new LocalizedString("Credential", "Credential"),
+
+                // The model must never be able to fill this one.
+                AllowedFills = [AIToolParameterFill.Fixed, AIToolParameterFill.Context],
+            },
+        ],
+    };
+});
+```
+
+Everything the editor shows comes from this declaration:
+
+| Property | Effect in the management UI |
+|---|---|
+| `Bindings` | The placements offered in the **Send as** dropdown. Declaring none disables parameter support entirely. |
+| `ReservedNames` | Names rejected inline as you type, because your tool already uses them. |
+| `Hint` | Explanatory text shown above the parameter list. |
+| `AIToolParameterBindingOption.DisplayName` | The option label. |
+| `AIToolParameterBindingOption.Hint` | Help text shown under the dropdown when the placement is selected. |
+| `AIToolParameterBindingOption.AllowedFills` | Fill modes the placement accepts. Others are shown disabled, and rejected on save. |
+| `AIToolParameterBindingOption.RequiresValue` | Forces a model-filled parameter here to be required or carry a default — for placements like a URL path token that have no sensible empty form. |
+| `AIToolParameterBindingOption.SupportsTargetName` | Whether the placement takes a target name distinct from the parameter name. |
+
+With that in place your source gets the full editor in both sample hosts — typed rows, fill modes, required and default values, allowed-value sets, secret handling, context keys, inline name validation, and save-time validation via `AIToolParameterValidator`. Nothing is per-source in the editors themselves.
+
+:::note
+The editors' **request preview** is the one part written for the built-in HTTP source: it recognises the placement names `Query`, `Path`, `Header`, and `Body`. A source using different placement names gets a fully working editor, but the preview panel will not illustrate its placements.
+:::
+
+#### 2. Consume them in your tool
 
 Read the declared parameters in the constructor, merge them into your schema, then resolve them at invocation:
 
@@ -301,9 +359,10 @@ public sealed class MyToolFunction : AIFunction
             return JsonSerializer.Serialize(new { success = false, error = string.Join(" ", resolution.Errors) });
         }
 
-        foreach (var resolved in resolution.ForTarget("Query"))
+        foreach (var resolved in resolution.ForTarget("Argument"))
         {
-            // resolved.Binding.Name is the target key; resolved.StringValue is the value.
+            // resolved.Binding.Name is the target name; resolved.StringValue is the value,
+            // and resolved.Value keeps the coerced type.
         }
 
         // ...
@@ -311,7 +370,13 @@ public sealed class MyToolFunction : AIFunction
 }
 ```
 
-Pass an `unprotect` delegate as the fourth argument to `Resolve` when your source stores secret fixed values under its own data-protection purpose.
+`Merge` emits only the parameters the model is meant to fill, and `Resolve` applies precedence, type coercion, allowed-value checks, and defaults for you. Pass an `unprotect` delegate as the fourth argument to `Resolve` when your source stores secret fixed values under its own data-protection purpose.
+
+Optionally call `AIToolParameterSchemaBuilder.IsStrictEligible(hasSourceArguments, parameters)` and surface the result as the `Strict` entry of `AdditionalProperties`, so a fully declared function opts into provider strict schema validation.
+
+:::warning
+Nothing forces a source that declares capabilities to actually call the binder. If you declare placements but skip step 2, the model will be shown parameters it fills and your tool will ignore them — the exact silent failure the opt-in design exists to prevent. A test that asserts your function's `JsonSchema` and then asserts the resolved values reach the call is the cheapest way to keep the two halves honest.
+:::
 
 ### Storage
 
