@@ -1,0 +1,458 @@
+@using CrestApps.Core.AI
+@using CrestApps.Core.AI.Tooling
+@using CrestApps.Core.AI.Tooling.Parameters
+@using CrestApps.Core.Startup.Shared.ViewModels
+@using Microsoft.Extensions.Options
+@inject IOptions<AIOptions> AIOptions
+@inject IEnumerable<IAIToolParameterContextResolver> ContextResolvers
+
+@*
+    The tool instance parameter editor, shared by the create and edit pages so the two stay in step.
+    The whole section only renders when the selected source declares placements it can honor: a source
+    with nowhere to put a resolved value must never be offered a parameter editor.
+*@
+
+@if (_capabilities is { Supported: true })
+{
+    <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-sliders"></i> Parameters</h5>
+
+    <p class="text-muted small">
+        @(_capabilities.Hint?.Value ??
+          "Parameters define exactly what this tool accepts. The model sees the ones you mark \"AI model provides\"; fixed and context values are applied on the server and are never shown to the model.")
+    </p>
+
+    @if (Parameters.Count == 0)
+    {
+        <div class="border rounded p-3 text-center text-muted">
+            <p class="mb-2 small">No parameters yet. The model will only see the free-form arguments enabled above.</p>
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => AddPresetAsync(Preset.Query)">Add a query parameter</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => AddPresetAsync(Preset.Path)">Add a path segment</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => AddPresetAsync(Preset.CurrentUser)">Add current user ID</button>
+        </div>
+    }
+
+    @foreach (var parameter in Parameters)
+    {
+        @* Keyed on a stable row id so inputs keep their state when a row is added, removed, or moved. *@
+        <div class="card mb-2" @key="parameter.RowId">
+            <div class="card-body py-3">
+                <div class="row g-2">
+                    <div class="col-12 col-xl-3">
+                        <label class="form-label small mb-1">Name <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm font-monospace @(NameError(parameter) is null ? null : "is-invalid")"
+                               placeholder="orderId"
+                               value="@parameter.Name"
+                               @onchange="e => OnNameChanged(parameter, e)" />
+                        @if (NameError(parameter) is { } nameError)
+                        {
+                            <div class="invalid-feedback d-block">@nameError</div>
+                        }
+                    </div>
+                    <div class="col-6 col-xl-2">
+                        <label class="form-label small mb-1">Type</label>
+                        <select class="form-select form-select-sm" value="@parameter.Type"
+                                @onchange="e => { parameter.Type = Enum.Parse<AIToolParameterType>(e.Value?.ToString() ?? nameof(AIToolParameterType.String)); }">
+                            @foreach (var type in Enum.GetValues<AIToolParameterType>())
+                            {
+                                <option value="@type">@type</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-6 col-xl-3">
+                        <label class="form-label small mb-1">Filled by</label>
+                        <select class="form-select form-select-sm" value="@parameter.Fill"
+                                @onchange="e => OnFillChanged(parameter, e)">
+                            @foreach (var fill in Enum.GetValues<AIToolParameterFill>())
+                            {
+                                <option value="@fill">@FillLabel(fill)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-10 col-xl-3">
+                        <label class="form-label small mb-1">Send as <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" value="@parameter.BindingTarget"
+                                @onchange="e => { parameter.BindingTarget = e.Value?.ToString(); }">
+                            <option value="">Choose…</option>
+                            @foreach (var binding in _capabilities.Bindings)
+                            {
+                                @* A placement the source refuses for this fill mode is disabled rather
+                                   than silently rejected on save. *@
+                                <option value="@binding.Target" disabled="@(!binding.AllowsFill(parameter.Fill))">
+                                    @(binding.DisplayName?.Value ?? binding.Target)@(binding.AllowsFill(parameter.Fill) ? null : " — not available for this fill mode")
+                                </option>
+                            }
+                        </select>
+                        @if (FindBinding(parameter)?.Hint is { } hint)
+                        {
+                            <div class="form-text">@hint.Value</div>
+                        }
+                    </div>
+                    <div class="col-2 col-xl-1 d-flex align-items-end justify-content-end">
+                        <button type="button" class="btn btn-outline-danger btn-sm" title="Remove parameter"
+                                @onclick="() => RemoveAsync(parameter)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                @if (parameter.Fill == AIToolParameterFill.Model)
+                {
+                    <div class="row g-2 mt-1">
+                        <div class="col-12 col-xl-8">
+                            <label class="form-label small mb-1">Description <span class="text-danger">*</span></label>
+                            <input class="form-control form-control-sm" placeholder="The order to look up."
+                                   @bind="parameter.Description" @bind:event="oninput" />
+                            <div class="form-text">The model reads this to decide what to pass.</div>
+                        </div>
+                        <div class="col-6 col-xl-2">
+                            <label class="form-label small mb-1">Default</label>
+                            <input class="form-control form-control-sm" @bind="parameter.DefaultValue" @bind:event="oninput" />
+                        </div>
+                        <div class="col-6 col-xl-2 d-flex align-items-center pt-3">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" checked="@parameter.Required"
+                                       @onchange="e => { parameter.Required = (bool?)e.Value ?? false; }" />
+                                <label class="form-check-label small">Required</label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Allowed values</label>
+                            <input class="form-control form-control-sm" placeholder="open, closed, cancelled"
+                                   @bind="parameter.AllowedValues" @bind:event="oninput" />
+                            <div class="form-text">Optional, comma separated. Leave blank to accept any value of the selected type.</div>
+                        </div>
+                    </div>
+                }
+                else if (parameter.Fill == AIToolParameterFill.Fixed)
+                {
+                    <div class="row g-2 mt-1">
+                        <div class="col-12 col-xl-8">
+                            <label class="form-label small mb-1">Value <span class="text-danger">*</span></label>
+                            <input class="form-control form-control-sm"
+                                   type="@(parameter.IsSecret ? "password" : "text")"
+                                   autocomplete="new-password"
+                                   placeholder="@(parameter.HasStoredSecret ? "•••• stored — leave blank to keep" : null)"
+                                   @bind="parameter.FixedValue" @bind:event="oninput" />
+                        </div>
+                        <div class="col-12 col-xl-4 d-flex align-items-center pt-3">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" checked="@parameter.IsSecret"
+                                       @onchange="e => { parameter.IsSecret = (bool?)e.Value ?? false; }" />
+                                <label class="form-check-label small">Treat as secret</label>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="row g-2 mt-1">
+                        <div class="col-12 col-xl-8">
+                            <label class="form-label small mb-1">Context key <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-sm" value="@parameter.ContextKey"
+                                    @onchange="e => { parameter.ContextKey = e.Value?.ToString(); }">
+                                <option value="">Choose…</option>
+                                @foreach (var key in _contextKeys)
+                                {
+                                    <option value="@key.Key">@key.DisplayName</option>
+                                }
+                            </select>
+                            <div class="form-text">Resolved on the server for every call. The model never sees or supplies this value.</div>
+                        </div>
+                    </div>
+                }
+
+                <div class="mt-2">
+                    <a class="small" href="#" @onclick:preventDefault @onclick="() => ToggleAdvanced(parameter.RowId)">Advanced</a>
+                    @if (_expanded.Contains(parameter.RowId))
+                    {
+                        <div class="mt-1">
+                            <label class="form-label small mb-1">Target name</label>
+                            <input class="form-control form-control-sm font-monospace"
+                                   placeholder="@parameter.Name"
+                                   @bind="parameter.BindingName" @bind:event="oninput" />
+                            <div class="form-text">The query key, header name, path token, or dotted body path. Defaults to the parameter name.</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    <button type="button" class="btn btn-sm btn-outline-primary mt-2" @onclick="() => AddPresetAsync(null)">
+        <i class="bi bi-plus-lg"></i> Add parameter
+    </button>
+
+    <div class="card bg-light mt-3">
+        <div class="card-body py-2">
+            <div class="small text-muted mb-1">Preview</div>
+            <div class="font-monospace small text-break">@BuildPreviewRequest()</div>
+            <div class="small text-muted mt-2">@BuildPreviewNotes()</div>
+        </div>
+    </div>
+}
+
+@code {
+    private enum Preset
+    {
+        Query,
+        Path,
+        CurrentUser,
+    }
+
+    private AIToolInstanceParameterCapabilities _capabilities;
+    private IReadOnlyList<AIToolParameterContextKey> _contextKeys = [];
+    private readonly HashSet<string> _expanded = [];
+
+    /// <summary>
+    /// The registered name of the source the instance is built from.
+    /// </summary>
+    [Parameter]
+    public string Source { get; set; }
+
+    /// <summary>
+    /// The editable parameter rows.
+    /// </summary>
+    [Parameter]
+    public List<AIToolInstanceParameterViewModel> Parameters { get; set; } = [];
+
+    /// <summary>
+    /// The request method, used only to render the preview.
+    /// </summary>
+    [Parameter]
+    public string HttpMethod { get; set; }
+
+    /// <summary>
+    /// The base URL, used only to render the preview.
+    /// </summary>
+    [Parameter]
+    public string BaseUrl { get; set; }
+
+    /// <summary>
+    /// The path template, used only to render the preview.
+    /// </summary>
+    [Parameter]
+    public string PathTemplate { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        _capabilities = !string.IsNullOrEmpty(Source) &&
+            AIOptions.Value.ToolInstanceSources.TryGetValue(Source, out var entry)
+                ? entry.Parameters
+                : null;
+
+        _contextKeys = ContextResolvers.SelectMany(resolver => resolver.SupportedKeys).ToList();
+    }
+
+    private static string FillLabel(AIToolParameterFill fill) => fill switch
+    {
+        AIToolParameterFill.Fixed => "Fixed value",
+        AIToolParameterFill.Context => "From context",
+        _ => "AI model provides",
+    };
+
+    private AIToolParameterBindingOption FindBinding(AIToolInstanceParameterViewModel parameter)
+        => _capabilities?.FindBinding(parameter.BindingTarget);
+
+    private void ToggleAdvanced(string rowId)
+    {
+        if (!_expanded.Remove(rowId))
+        {
+            _expanded.Add(rowId);
+        }
+    }
+
+    private void OnNameChanged(AIToolInstanceParameterViewModel parameter, ChangeEventArgs args)
+    {
+        parameter.Name = args.Value?.ToString();
+    }
+
+    private void OnFillChanged(AIToolInstanceParameterViewModel parameter, ChangeEventArgs args)
+    {
+        parameter.Fill = Enum.Parse<AIToolParameterFill>(args.Value?.ToString() ?? nameof(AIToolParameterFill.Model));
+
+        // Clear a placement the new fill mode is not allowed to use, so the row cannot be saved in a
+        // state the source would refuse.
+        var binding = FindBinding(parameter);
+
+        if (binding is not null && !binding.AllowsFill(parameter.Fill))
+        {
+            parameter.BindingTarget = null;
+        }
+
+        if (parameter.Fill != AIToolParameterFill.Fixed)
+        {
+            parameter.IsSecret = false;
+        }
+    }
+
+    private string NameError(AIToolInstanceParameterViewModel parameter)
+    {
+        var name = parameter.Name?.Trim();
+
+        if (string.IsNullOrEmpty(name))
+        {
+            return null;
+        }
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(name, "^[A-Za-z_][A-Za-z0-9_]{0,63}$"))
+        {
+            return "Use letters, digits, and underscores, starting with a letter or underscore.";
+        }
+
+        if (_capabilities?.ReservedNames?.Contains(name, StringComparer.OrdinalIgnoreCase) == true)
+        {
+            return $"'{name}' is reserved by this source.";
+        }
+
+        if (Parameters.Count(other => string.Equals(other.Name?.Trim(), name, StringComparison.OrdinalIgnoreCase)) > 1)
+        {
+            return "Parameter names must be unique.";
+        }
+
+        return null;
+    }
+
+    private Task AddPresetAsync(Preset? preset)
+    {
+        var row = preset switch
+        {
+            Preset.Query => new AIToolInstanceParameterViewModel
+            {
+                Name = "search",
+                Description = "The value to filter by.",
+                BindingTarget = "Query",
+            },
+            Preset.Path => new AIToolInstanceParameterViewModel
+            {
+                Name = "id",
+                Description = "The identifier to look up.",
+                Required = true,
+                BindingTarget = "Path",
+            },
+            Preset.CurrentUser => new AIToolInstanceParameterViewModel
+            {
+                Name = "userId",
+                Fill = AIToolParameterFill.Context,
+                ContextKey = AIToolParameterContextKeys.UserId,
+                BindingTarget = "Query",
+            },
+            _ => new AIToolInstanceParameterViewModel(),
+        };
+
+        Parameters.Add(row);
+
+        return Task.CompletedTask;
+    }
+
+    private Task RemoveAsync(AIToolInstanceParameterViewModel parameter)
+    {
+        Parameters.Remove(parameter);
+        _expanded.Remove(parameter.RowId);
+
+        return Task.CompletedTask;
+    }
+
+    private string DescribeValue(AIToolInstanceParameterViewModel parameter)
+    {
+        var name = string.IsNullOrWhiteSpace(parameter.Name) ? "value" : parameter.Name.Trim();
+
+        return parameter.Fill switch
+        {
+            AIToolParameterFill.Fixed => parameter.IsSecret
+                ? "••••"
+                : (string.IsNullOrWhiteSpace(parameter.FixedValue) ? "{" + name + "}" : parameter.FixedValue.Trim()),
+            AIToolParameterFill.Context => "<" + (string.IsNullOrWhiteSpace(parameter.ContextKey) ? "context" : parameter.ContextKey) + ">",
+            _ => "{" + name + "}",
+        };
+    }
+
+    private string BuildPreviewRequest()
+    {
+        var method = string.IsNullOrWhiteSpace(HttpMethod) ? "GET" : HttpMethod;
+        var baseUrl = (string.IsNullOrWhiteSpace(BaseUrl) ? "https://api.example.com" : BaseUrl).TrimEnd('/');
+        var path = PathTemplate?.Trim() ?? string.Empty;
+        var query = new List<string>();
+
+        foreach (var parameter in Parameters)
+        {
+            var name = parameter.Name?.Trim();
+
+            if (string.IsNullOrEmpty(name))
+            {
+                continue;
+            }
+
+            var targetName = string.IsNullOrWhiteSpace(parameter.BindingName) ? name : parameter.BindingName.Trim();
+            var value = DescribeValue(parameter);
+
+            if (string.Equals(parameter.BindingTarget, "Query", StringComparison.OrdinalIgnoreCase))
+            {
+                query.Add($"{targetName}={value}");
+            }
+            else if (string.Equals(parameter.BindingTarget, "Path", StringComparison.OrdinalIgnoreCase))
+            {
+                path = path.Replace("{" + targetName + "}", value, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        var url = baseUrl + (string.IsNullOrEmpty(path) ? string.Empty : "/" + path.TrimStart('/'));
+
+        if (query.Count > 0)
+        {
+            url += "?" + string.Join("&", query);
+        }
+
+        return $"{method} {url}";
+    }
+
+    private string BuildPreviewNotes()
+    {
+        var headers = new List<string>();
+        var body = new List<string>();
+        var modelFills = new List<string>();
+
+        foreach (var parameter in Parameters)
+        {
+            var name = parameter.Name?.Trim();
+
+            if (string.IsNullOrEmpty(name))
+            {
+                continue;
+            }
+
+            var targetName = string.IsNullOrWhiteSpace(parameter.BindingName) ? name : parameter.BindingName.Trim();
+
+            if (parameter.Fill == AIToolParameterFill.Model)
+            {
+                modelFills.Add(parameter.Required ? $"{name} (required)" : name);
+            }
+
+            if (string.Equals(parameter.BindingTarget, "Header", StringComparison.OrdinalIgnoreCase))
+            {
+                headers.Add($"{targetName}: {DescribeValue(parameter)}");
+            }
+            else if (string.Equals(parameter.BindingTarget, "Body", StringComparison.OrdinalIgnoreCase))
+            {
+                body.Add($"{targetName}={DescribeValue(parameter)}");
+            }
+        }
+
+        var notes = new List<string>();
+
+        if (headers.Count > 0)
+        {
+            notes.Add("Headers: " + string.Join(", ", headers));
+        }
+
+        if (body.Count > 0)
+        {
+            notes.Add("Body: " + string.Join(", ", body));
+        }
+
+        notes.Add(modelFills.Count > 0
+            ? "The model fills: " + string.Join(", ", modelFills)
+            : "The model fills no declared parameters.");
+
+        return string.Join(" · ", notes);
+    }
+}

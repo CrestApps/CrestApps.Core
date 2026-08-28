@@ -178,6 +178,145 @@ Each `AddSource<TSource>(name, configure)`:
 
 If `DisplayName` is left empty it defaults to the registered `name`.
 
+## Parameters
+
+By default the arguments a tool instance exposes are whatever its source hardcodes — for the HTTP source, an optional path, an untyped `query` bag, and an open-ended `body`. That leaves the model guessing which query keys the API actually accepts.
+
+**Parameters** let the person configuring the instance declare exactly what the tool takes. Each parameter carries a name, a type, a description, and two decisions that make it work:
+
+| Decision | Question it answers |
+|---|---|
+| **Fill** | Who supplies the value — the model, a value you pin, or the request context. |
+| **Binding** | Where the resolved value goes — query string, path, header, body field. |
+
+Both halves matter. The declaration alone would only tell the model what to send; the binding is what makes the value arrive.
+
+### Parameter support is opt-in per source
+
+The framework can always declare a parameter in the schema and resolve its value, but only the source can place that value into the call it makes. A source therefore advertises what it can honor at registration time:
+
+```csharp
+builder.AddSource<MyToolInstanceSource>("my-source", entry =>
+{
+    entry.DisplayName = new LocalizedString("my-source", "My Source");
+    entry.Parameters = new AIToolInstanceParameterCapabilities
+    {
+        ReservedNames = ["query"],
+        Bindings =
+        [
+            new AIToolParameterBindingOption("Query")
+            {
+                DisplayName = new LocalizedString("Query", "Query string parameter"),
+            },
+        ],
+    };
+});
+```
+
+A source that declares no capabilities does not support parameters. The management UI hides the parameter editor for it, and saving an instance with parameters against it **fails validation**. That is deliberate: a parameter declared in the schema, filled by the model, and then ignored by the source would produce a call that silently omits the value while the model reports success — worse than not offering the feature at all.
+
+### Fill modes
+
+| Fill | In the schema? | Value comes from |
+|---|---|---|
+| `Model` | Yes | The AI model, falling back to the configured default when omitted. |
+| `Fixed` | No | A value pinned by the user configuring the instance. |
+| `Context` | No | An `IAIToolParameterContextResolver`, resolved per invocation. |
+
+Only `Model` parameters are emitted into the function schema. Fixed and context values are never shown to the model — a model that can see a value will try to fill it, which would defeat the point of pinning or injecting it. A model-supplied argument that happens to share a fixed or context parameter's name is discarded, not merged.
+
+Context parameters are what let a tool instance safely call a per-user API. Bind `userId` to `user.id` and every call carries the caller's real identifier, injected server-side, with no way for a prompt-injected model to substitute somebody else's:
+
+| Key | Resolves to |
+|---|---|
+| `user.id` / `user.name` / `user.email` | The current `ClaimsPrincipal`. |
+| `resource.id` | The chat interaction or profile driving the completion. |
+| `now.utc` | The current UTC time, round-trip format. |
+
+Register your own `IAIToolParameterContextResolver` to add keys, or to override a built-in one — resolvers are tried in registration order and the first to handle a key wins.
+
+### Defaults, types, and validation
+
+Values arrive as loosely typed JSON, so a declared type is enforced by coercion: a model that sends `"3"` for an integer is accepted, one that sends `"3.5"` is not. `AllowedValues` becomes the schema `enum` and is re-checked at invocation.
+
+Defaults are applied **server-side by the binder**, not emitted as a JSON Schema `default` — providers do not reliably honor schema defaults and drop them entirely under strict mode. The default is mentioned in the property description so the model knows what omitting it means.
+
+When a parameter cannot be resolved — a required value the model omitted, a value of the wrong type, a value outside the allowed set — the tool returns an error describing the problem instead of throwing, so the model can correct the call and retry.
+
+### The built-in HTTP source
+
+The HTTP source accepts four placements:
+
+| Binding | Effect |
+|---|---|
+| `Query:<key>` | Appended to the URL as `?key=value`. |
+| `Path` | Substitutes the matching `{token}` in the new `PathTemplate` setting. |
+| `Body:<dotted.path>` | Written into the JSON body, creating intermediate objects as needed. |
+| `Header:<name>` | Sent as a request header. **Model-filled values are refused.** |
+
+A model-controlled header is a request-smuggling vector and is almost never intended, so the `Header` placement accepts only `Fixed` and `Context` fills — enforced in validation and disabled in the editor.
+
+Path and query values are escaped before they reach the URL, so a model-supplied value can neither add path segments nor traverse upwards; the existing same-host check remains as the second line of defense. Header values containing a line break are dropped rather than allowed to split the request.
+
+Binding a parameter to a placement **closes the corresponding free-form argument** — bind anything to `Query` and the untyped `query` bag disappears from the schema. A typed, described parameter is strictly better than an untyped bag, and closing the open arguments is what makes strict mode reachable: when every argument is a required scalar parameter, the function turns on provider strict schema validation automatically.
+
+A worked example — `POST https://api.example.com/v1/orders/{orderId}` with a body field, a context-injected header, and an optional flag:
+
+| Name | Type | Fill | Binding | Notes |
+|---|---|---|---|---|
+| `orderId` | String | Model | `Path` | Required; fills the `orders/{orderId}` template. |
+| `status` | String | Model | `Body:order.status` | Required; allowed values `open, shipped`. |
+| `notify` | Boolean | Model | `Query:notify` | Optional, defaults to `false`. |
+| `actingUser` | String | Context | `Header:X-Acting-User` | Resolved from `user.id`. |
+
+### Consuming parameters from your own source
+
+Read the declared parameters in the constructor, merge them into your schema, then resolve them at invocation:
+
+```csharp
+public sealed class MyToolFunction : AIFunction
+{
+    private readonly IReadOnlyList<AIToolInstanceParameter> _parameters;
+    private readonly JsonElement _jsonSchema;
+
+    public MyToolFunction(AIToolInstance instance)
+    {
+        _parameters = AIToolParameterBinder.GetParameters(instance);
+
+        // Pass your own base schema, or null when the tool has no arguments of its own.
+        _jsonSchema = AIToolParameterSchemaBuilder.Merge(BuildBaseSchema(), _parameters);
+    }
+
+    public override JsonElement JsonSchema => _jsonSchema;
+
+    protected override async ValueTask<object> InvokeCoreAsync(
+        AIFunctionArguments arguments,
+        CancellationToken cancellationToken)
+    {
+        var resolution = AIToolParameterBinder.Resolve(_parameters, arguments, arguments.Services);
+
+        if (!resolution.Succeeded)
+        {
+            // Reported to the model so it can correct the call, rather than thrown.
+            return JsonSerializer.Serialize(new { success = false, error = string.Join(" ", resolution.Errors) });
+        }
+
+        foreach (var resolved in resolution.ForTarget("Query"))
+        {
+            // resolved.Binding.Name is the target key; resolved.StringValue is the value.
+        }
+
+        // ...
+    }
+}
+```
+
+Pass an `unprotect` delegate as the fourth argument to `Resolve` when your source stores secret fixed values under its own data-protection purpose.
+
+### Storage
+
+Parameters live in the instance's properties bag as `AIToolInstanceParametersMetadata`, so they travel with the instance like any other setting. An instance that declares none produces exactly the schema it did before parameters existed, so existing instances are unaffected.
+
 ## Built-In HTTP API Request Tool
 
 The framework ships a ready-to-use source that calls arbitrary HTTP APIs. Add it with the `AddHttpApiRequestSource()` convenience, which registers its named `HttpClient` and the source:
@@ -196,6 +335,7 @@ Each instance captures:
 | Setting | Purpose |
 |---|---|
 | `BaseUrl` | The endpoint the request targets. |
+| `PathTemplate` | Optional path appended to the base URL, with `{token}` placeholders filled by path-bound [parameters](#parameters). |
 | `HttpMethod` | `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`. |
 | `AuthenticationType` | `None`, `ApiKey`, `Bearer`, `Basic`, or `OAuth2`. |
 | `ApiKey` / `ApiKeyHeaderName` | API-key auth (header defaults to `X-Api-Key`). |
@@ -203,7 +343,7 @@ Each instance captures:
 | `Username` / `Password` | HTTP basic auth, or the resource-owner credentials for the OAuth 2.0 password grant. |
 | `TokenEndpoint` / `ClientId` / `ClientSecret` / `Scope` | OAuth 2.0 settings used to obtain (and refresh) a token automatically. |
 | `DefaultHeaders` | Static headers always added. |
-| `AllowModelProvidedPath` / `…Query` / `…Body` | Which open arguments the model may supply. |
+| `AllowModelProvidedPath` / `…Query` / `…Body` | Which open arguments the model may supply. Binding a [parameter](#parameters) to a placement closes the matching open argument. |
 | `TimeoutSeconds` | Optional per-request timeout. |
 
 Credentials (`ApiKey`, `BearerToken`, `Password`, `ClientSecret`) are data-protected at rest with the `HttpApiRequestToolConstants.DataProtectionPurpose` purpose.
@@ -356,7 +496,7 @@ Register your provider and **opt out of the default one** so the built-in provid
 builder.Services.AddScoped<IToolRegistryProvider, PermissionAwareToolRegistryProvider>();
 ```
 
-This is exactly how downstream products layer their own authorization on top of the same abstractions — for example, the Orchard Core CMS integration ships a `LocalToolRegistryProvider` that checks per-instance permissions before exposing each tool.
+This is exactly how downstream products layer their own authorization on top of the same abstractions — for example, the Orchard Core CMS integration ships a `LocalToolRegistryProvider` that checks per-instance permissions before exposing each tool. Because `LocalToolRegistryProvider` builds its entries from the same `IAIToolInstanceSource`, instances it surfaces honor declared [parameters](#parameters) with no extra work; the CMS ships its own instance editor for authoring them.
 
 ## Persistence
 
@@ -432,5 +572,6 @@ The sample projects (`CrestApps.Core.Mvc.Web` and `CrestApps.Core.Blazor.Web`) r
 ## Related
 
 - [Custom AI Tools](tools) — tools whose arguments are always supplied by the model.
+- [Parameters](#parameters) — declaring typed arguments, pinned values, and context-injected values on an instance.
 - [Extensible Entity](extensible-entity) — how instance settings are persisted.
 - The Orchard Core CMS integration builds on the same abstractions; see the downstream product docs at [orchardcore.crestapps.com](https://orchardcore.crestapps.com).

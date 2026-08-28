@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.AI.Tooling.Parameters;
 using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
@@ -126,6 +127,38 @@ internal sealed class AIToolInstanceCatalogHandler : CatalogEntryHandlerBase<AIT
         }
 
         await ValidateUniqueNameAsync(context, cancellationToken);
+
+        ValidateParameters(context);
+    }
+
+    private void ValidateParameters(ValidatingContext<AIToolInstance> context)
+    {
+        var parameters = AIToolParameterBinder.GetParameters(context.Model);
+
+        if (parameters.Count == 0)
+        {
+            return;
+        }
+
+        // Parameter support is opt-in per source, because only the source can place a resolved value.
+        // Saving parameters against a source that declares no placements would produce a tool whose
+        // parameters the model fills and the source then ignores, so it is rejected here instead.
+        AIToolInstanceParameterCapabilities capabilities = null;
+
+        if (!string.IsNullOrEmpty(context.Model.Source) &&
+            _aiOptions.ToolInstanceSources.TryGetValue(context.Model.Source, out var entry))
+        {
+            capabilities = entry.Parameters;
+        }
+
+        foreach (var (index, error) in AIToolParameterValidator.Validate(parameters, capabilities))
+        {
+            var member = index >= 0
+                ? $"{nameof(AIToolInstanceParametersMetadata.Parameters)}[{index}]"
+                : nameof(AIToolInstanceParametersMetadata.Parameters);
+
+            context.Result.Fail(new ValidationResult(S[error], [member]));
+        }
     }
 
     private async Task ValidateUniqueNameAsync(ValidatingContext<AIToolInstance> context, CancellationToken cancellationToken)

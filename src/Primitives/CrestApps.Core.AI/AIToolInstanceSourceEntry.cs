@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Tooling.Parameters;
 using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI;
@@ -38,4 +39,12 @@ public sealed class AIToolInstanceSourceEntry
     /// Gets or sets an optional category used to group sources in the management UI.
     /// </summary>
     public LocalizedString Category { get; set; }
+
+    /// <summary>
+    /// Gets or sets the parameter placements this source knows how to honor. Leave <see langword="null"/>
+    /// for sources whose arguments are fixed in code: the management UI then hides the parameter editor,
+    /// and saving an instance with declared parameters against the source fails validation rather than
+    /// producing a tool whose parameters are silently ignored at invocation time.
+    /// </summary>
+    public AIToolInstanceParameterCapabilities Parameters { get; set; }
 }
