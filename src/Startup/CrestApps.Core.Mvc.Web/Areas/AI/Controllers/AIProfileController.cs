@@ -52,6 +52,7 @@ public sealed class AIProfileController : Controller
     private readonly IOptionsSnapshot<CopilotOptions> _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
+    private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
     private readonly IAIDataSourceStore _dataSourceStore;
     public AIProfileController(
         IAIProfileManager profileManager,
@@ -72,6 +73,7 @@ public sealed class AIProfileController : Controller
         IOptionsSnapshot<CopilotOptions> copilotOptions,
         GitHubOAuthService oauthService,
         IOptions<AIToolDefinitionOptions> toolOptions,
+        IAIToolAccessEvaluator toolAccessEvaluator,
         IAIDataSourceStore dataSourceStore)
     {
         _profileManager = profileManager;
@@ -92,6 +94,7 @@ public sealed class AIProfileController : Controller
         _copilotOptions = copilotOptions;
         _oauthService = oauthService;
         _toolOptions = toolOptions.Value;
+        _toolAccessEvaluator = toolAccessEvaluator;
         _dataSourceStore = dataSourceStore;
     }
 
@@ -155,7 +158,7 @@ public sealed class AIProfileController : Controller
         {
             Type = AIProfileType.Chat
         };
-        model.SelectedToolNames = GetValidToolNames(model.SelectedToolNames);
+        model.SelectedToolNames = await GetValidToolNamesAsync(model.SelectedToolNames);
         model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
         model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(model.SelectedA2AConnectionIds);
         model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(model.SelectedMcpConnectionIds);
@@ -218,7 +221,7 @@ public sealed class AIProfileController : Controller
             return NotFound();
         }
 
-        model.SelectedToolNames = GetValidToolNames(model.SelectedToolNames);
+        model.SelectedToolNames = await GetValidToolNamesAsync(model.SelectedToolNames);
         model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
         model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(model.SelectedA2AConnectionIds);
         model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(model.SelectedMcpConnectionIds);
@@ -294,7 +297,10 @@ public sealed class AIProfileController : Controller
             .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableTools = _toolOptions.GetSelectableTools().Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key), }).OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
+        // Only list tools the current user is authorized to select. The default IAIToolAccessEvaluator
+        // permits everything; replace it to enforce a real per-user tool permission model.
+        var authorizedTools = await SelectableToolAccessFilter.GetAuthorizedSelectableToolsAsync(_toolOptions, _toolAccessEvaluator, User);
+        model.AvailableTools = authorizedTools.Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key), }).OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
         var connections = await _a2aConnectionCatalog.GetAllAsync();
         var selectedConnectionIds = new HashSet<string>(model.SelectedA2AConnectionIds ?? [], StringComparer.Ordinal);
         model.AvailableA2AConnections = connections.OrderBy(connection => connection.DisplayText, StringComparer.OrdinalIgnoreCase).Select(connection => new A2AConnectionSelectionItem { ItemId = connection.ItemId, DisplayText = connection.DisplayText, Endpoint = connection.Endpoint, IsSelected = selectedConnectionIds.Contains(connection.ItemId), }).ToList();
@@ -325,9 +331,11 @@ public sealed class AIProfileController : Controller
         model.AvailablePromptTemplates = promptTemplates.Where(t => t.Metadata.IsListable).OrderBy(t => t.Metadata.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.Metadata.Title ?? t.Id, StringComparer.OrdinalIgnoreCase).Select(t => new PromptTemplateOptionItem { TemplateId = t.Id, Title = t.Metadata.Title ?? t.Id, Description = t.Metadata.Description, Category = t.Metadata.Category ?? "General", Parameters = (t.Metadata.Parameters ?? []).Select(p => new PromptTemplateParameterItem { Name = p.Name, Description = p.Description, }).ToList(), }).ToList();
     }
 
-    private string[] GetValidToolNames(IEnumerable<string> selectedNames)
+    private async Task<string[]> GetValidToolNamesAsync(IEnumerable<string> selectedNames)
     {
-        var validToolNames = _toolOptions.GetSelectableTools().Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Reject any persisted tool name the current user is not authorized to select, so a tampered
+        // form post cannot save a listable tool the author lacks access to.
+        var validToolNames = await SelectableToolAccessFilter.GetAuthorizedSelectableToolNamesAsync(_toolOptions, _toolAccessEvaluator, User);
 
         return (selectedNames ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name) && validToolNames.Contains(name))

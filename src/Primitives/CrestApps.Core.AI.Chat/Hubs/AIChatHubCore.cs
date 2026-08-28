@@ -299,6 +299,36 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     }
 
     /// <summary>
+    /// Gets the message returned to users when their message is blocked because they exceeded the
+    /// message rate limit. Unlike other security blocks, this tells the caller to slow down (and how
+    /// long to wait) instead of asking them to rephrase.
+    /// </summary>
+    /// <param name="result">The prompt security result carrying the rate-limit reason.</param>
+    protected virtual string GetRateLimitedMessage(PromptSecurityResult result)
+    {
+        return !string.IsNullOrWhiteSpace(result?.Reason)
+            ? result.Reason
+            : "You're sending messages too quickly. Please slow down and try again in a moment.";
+    }
+
+    /// <summary>
+    /// Resolves the user-facing message for a blocked prompt security result. Rate-limit blocks get a
+    /// "slow down" message; every other block gets the generic <see cref="GetPromptBlockedMessage"/>
+    /// so detection details are never disclosed.
+    /// </summary>
+    /// <param name="result">The blocked prompt security result.</param>
+    protected string GetBlockedPromptMessage(PromptSecurityResult result)
+    {
+        if (result is not null &&
+            string.Equals(result.DetectionRule, PromptSecurityResult.RateLimitDetectionRule, StringComparison.Ordinal))
+        {
+            return GetRateLimitedMessage(result);
+        }
+
+        return GetPromptBlockedMessage();
+    }
+
+    /// <summary>
     /// Gets the message returned to users when the AI-generated output is blocked by security filtering.
     /// </summary>
     protected virtual string GetOutputBlockedMessage()
@@ -1132,7 +1162,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
                 if (utilitySecurityResult.IsBlocked)
                 {
-                    await Clients.Caller.ReceiveError(GetPromptBlockedMessage());
+                    await Clients.Caller.ReceiveError(GetBlockedPromptMessage(utilitySecurityResult));
 
                     return;
                 }
@@ -1149,7 +1179,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
                 if (securityResult.IsBlocked)
                 {
-                    await Clients.Caller.ReceiveError(GetPromptBlockedMessage());
+                    await Clients.Caller.ReceiveError(GetBlockedPromptMessage(securityResult));
 
                     return;
                 }

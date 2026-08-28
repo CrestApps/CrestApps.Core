@@ -8,7 +8,15 @@ public sealed class AIChatRateLimitingOptions
     /// <summary>
     /// Gets or sets the key partitions used for authenticated chat-message throttling.
     /// </summary>
-    public ChatRateLimitPartition AuthenticatedMessagePartitions { get; set; } = ChatRateLimitPartition.AuthenticatedUser;
+    /// <remarks>
+    /// <see cref="ChatRateLimitPartition.NetworkAddress"/> is included by default so an authenticated
+    /// caller is throttled on both their user identity and their network address. The network-address
+    /// bucket is shared with anonymous throttling, so a caller cannot shed their per-IP allowance by
+    /// logging out. Remove the flag to key authenticated callers by user identity only.
+    /// </remarks>
+    public ChatRateLimitPartition AuthenticatedMessagePartitions { get; set; } =
+        ChatRateLimitPartition.AuthenticatedUser |
+        ChatRateLimitPartition.NetworkAddress;
 
     /// <summary>
     /// Gets or sets the key partitions used for anonymous chat-message throttling.

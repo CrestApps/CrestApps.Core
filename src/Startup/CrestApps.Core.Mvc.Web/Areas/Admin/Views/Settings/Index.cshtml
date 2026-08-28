@@ -291,7 +291,7 @@
                             <label asp-for="SecurityMaxMessagesPerWindow" class="form-label">Maximum messages per rate-limit window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of chat messages a single visitor or user may send within the message window before further messages are throttled. This is the site-wide default; individual AI Profiles can override it. Set to 0 to disable message throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                             <input asp-for="SecurityMaxMessagesPerWindow" class="form-control" type="number" min="0" max="1000" style="max-width: 200px;" />
                             <span asp-validation-for="SecurityMaxMessagesPerWindow" class="text-danger"></span>
-                            <div class="form-text">Anonymous and authenticated chat prompts are throttled after this many messages. Set to 0 to disable message throttling.</div>
+                            <div class="form-text">Governs <strong>authenticated</strong> callers, and anonymous callers only when no anonymous message tiers are set below. Set to 0 to disable message throttling.</div>
                         </div>
 
                         <div class="mb-3">
@@ -302,10 +302,17 @@
                         </div>
 
                         <div class="mb-3">
+                            <label asp-for="SecurityAnonymousMessageRateLimitTiers" class="form-label">Anonymous message rate-limit tiers <span class="text-muted" data-bs-toggle="tooltip" title="Multi-tier sliding-window message limits applied to anonymous callers. A message is throttled when it would exceed any tier. Leave empty to fall back to the single message window above."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <textarea asp-for="SecurityAnonymousMessageRateLimitTiers" class="form-control" rows="4" style="max-width: 400px;" placeholder="5, 00:00:30&#10;30, 00:05:00&#10;150, 01:00:00&#10;500, 1.00:00:00"></textarea>
+                            <span asp-validation-for="SecurityAnonymousMessageRateLimitTiers" class="text-danger"></span>
+                            <div class="form-text">One tier per line as <code>limit, window</code> (window as <code>hh:mm:ss</code>, e.g. <code>1.00:00:00</code> for a day). Applies to anonymous callers only; a message is throttled if it exceeds any tier. Leave empty to use the single window above.</div>
+                        </div>
+
+                        <div class="mb-3">
                             <label asp-for="SecurityMaxAnonymousSessionsPerWindow" class="form-label">Maximum anonymous sessions per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of new anonymous widget sessions that can be started from one visitor or IP bucket within the session window before starts are throttled. This is the site-wide default; individual AI Profiles can override it. Set to 0 to disable session-start throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                             <input asp-for="SecurityMaxAnonymousSessionsPerWindow" class="form-control" type="number" min="0" max="500" style="max-width: 200px;" />
                             <span asp-validation-for="SecurityMaxAnonymousSessionsPerWindow" class="text-danger"></span>
-                            <div class="form-text">Limits how many new anonymous widget sessions can be started from the same visitor/IP bucket. Set to 0 to disable session-start throttling.</div>
+                            <div class="form-text">Fallback used only when no anonymous session-start tiers are set below. Set to 0 to disable session-start throttling.</div>
                         </div>
 
                         <div class="mb-3">
@@ -313,6 +320,13 @@
                             <input asp-for="SecurityAnonymousSessionRateLimitWindowSeconds" class="form-control" type="number" min="1" max="86400" style="max-width: 200px;" />
                             <span asp-validation-for="SecurityAnonymousSessionRateLimitWindowSeconds" class="text-danger"></span>
                             <div class="form-text">Determines how long anonymous session-start counters remain active for the ASP.NET Core and hub session throttles.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="SecurityAnonymousSessionStartRateLimitTiers" class="form-label">Anonymous session-start rate-limit tiers <span class="text-muted" data-bs-toggle="tooltip" title="Multi-tier sliding-window limits on new anonymous session starts. A session start is throttled when it would exceed any tier. Leave empty to fall back to the single session window above."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <textarea asp-for="SecurityAnonymousSessionStartRateLimitTiers" class="form-control" rows="4" style="max-width: 400px;" placeholder="5, 00:00:30&#10;10, 00:05:00&#10;150, 01:00:00&#10;500, 1.00:00:00"></textarea>
+                            <span asp-validation-for="SecurityAnonymousSessionStartRateLimitTiers" class="text-danger"></span>
+                            <div class="form-text">One tier per line as <code>limit, window</code> (window as <code>hh:mm:ss</code>, e.g. <code>1.00:00:00</code> for a day). Applies to anonymous callers only; a session start is throttled if it exceeds any tier. Leave empty to use the single window above.</div>
                         </div>
                     </div>
                 </div>

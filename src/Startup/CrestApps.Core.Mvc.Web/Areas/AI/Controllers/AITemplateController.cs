@@ -48,6 +48,7 @@ public sealed class AITemplateController : Controller
     private readonly IOptionsSnapshot<CopilotOptions> _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
+    private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
     public AITemplateController(
         ICatalog<AIProfileTemplate> catalog,
         ICatalog<AIDeployment> deploymentCatalog,
@@ -64,7 +65,8 @@ public sealed class AITemplateController : Controller
         ClaudeClientService anthropicClientService,
         IOptionsSnapshot<CopilotOptions> copilotOptions,
         GitHubOAuthService oauthService,
-        IOptions<AIToolDefinitionOptions> toolOptions)
+        IOptions<AIToolDefinitionOptions> toolOptions,
+        IAIToolAccessEvaluator toolAccessEvaluator)
     {
         _catalog = catalog;
         _deploymentCatalog = deploymentCatalog;
@@ -82,6 +84,7 @@ public sealed class AITemplateController : Controller
         _copilotOptions = copilotOptions;
         _oauthService = oauthService;
         _toolOptions = toolOptions.Value;
+        _toolAccessEvaluator = toolAccessEvaluator;
     }
 
     public async Task<IActionResult> Index()
@@ -122,7 +125,7 @@ public sealed class AITemplateController : Controller
             ItemId = Guid.NewGuid().ToString("N"),
             CreatedUtc = DateTime.UtcNow,
         };
-        model.SelectedToolNames = GetValidToolNames(model.SelectedToolNames);
+        model.SelectedToolNames = await GetValidToolNamesAsync(model.SelectedToolNames);
         model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(model.SelectedA2AConnectionIds);
         model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(model.SelectedMcpConnectionIds);
         model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
@@ -166,7 +169,7 @@ public sealed class AITemplateController : Controller
             return NotFound();
         }
 
-        model.SelectedToolNames = GetValidToolNames(model.SelectedToolNames);
+        model.SelectedToolNames = await GetValidToolNamesAsync(model.SelectedToolNames);
         model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(model.SelectedA2AConnectionIds);
         model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(model.SelectedMcpConnectionIds);
         model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
@@ -204,7 +207,10 @@ public sealed class AITemplateController : Controller
         model.CopilotIsConfigured = hasCopilotOptions && copilotOptions.IsConfigured();
         await PopulateCopilotStatusAsync(model, copilotOptions);
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableTools = _toolOptions.GetSelectableTools().Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key), }).OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
+        // Only list tools the current user is authorized to select. The default IAIToolAccessEvaluator
+        // permits everything; replace it to enforce a real per-user tool permission model.
+        var authorizedTools = await SelectableToolAccessFilter.GetAuthorizedSelectableToolsAsync(_toolOptions, _toolAccessEvaluator, User);
+        model.AvailableTools = authorizedTools.Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key), }).OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
         var connections = await _a2aConnectionCatalog.GetAllAsync();
         var selectedConnectionIds = new HashSet<string>(model.SelectedA2AConnectionIds ?? [], StringComparer.Ordinal);
         model.AvailableA2AConnections = connections.OrderBy(connection => connection.DisplayText, StringComparer.OrdinalIgnoreCase).Select(connection => new A2AConnectionSelectionItem { ItemId = connection.ItemId, DisplayText = connection.DisplayText, Endpoint = connection.Endpoint, IsSelected = selectedConnectionIds.Contains(connection.ItemId), }).ToList();
@@ -236,9 +242,11 @@ public sealed class AITemplateController : Controller
         model.DataSources = dataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).Select(ds => new SelectListItem(ds.DisplayText, ds.ItemId)).ToList();
     }
 
-    private string[] GetValidToolNames(IEnumerable<string> selectedNames)
+    private async Task<string[]> GetValidToolNamesAsync(IEnumerable<string> selectedNames)
     {
-        var validToolNames = _toolOptions.GetSelectableTools().Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Reject any persisted tool name the current user is not authorized to select, so a tampered
+        // form post cannot save a listable tool the author lacks access to.
+        var validToolNames = await SelectableToolAccessFilter.GetAuthorizedSelectableToolNamesAsync(_toolOptions, _toolAccessEvaluator, User);
 
         return (selectedNames ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name) && validToolNames.Contains(name))
