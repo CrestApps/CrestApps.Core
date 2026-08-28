@@ -62,6 +62,7 @@ public sealed class ChatInteractionController : Controller
     private readonly IOptionsSnapshot<CopilotOptions> _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
+    private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
     private readonly ISourceCatalog<AIToolInstance> _toolInstanceCatalog;
 
     public ChatInteractionController(
@@ -88,6 +89,7 @@ public sealed class ChatInteractionController : Controller
         IOptionsSnapshot<CopilotOptions> copilotOptions,
         GitHubOAuthService oauthService,
         IOptions<AIToolDefinitionOptions> toolOptions,
+        IAIToolAccessEvaluator toolAccessEvaluator,
         ISourceCatalog<AIToolInstance> toolInstanceCatalog)
     {
         _interactionManager = interactionManager;
@@ -113,6 +115,7 @@ public sealed class ChatInteractionController : Controller
         _copilotOptions = copilotOptions;
         _oauthService = oauthService;
         _toolOptions = toolOptions.Value;
+        _toolAccessEvaluator = toolAccessEvaluator;
         _toolInstanceCatalog = toolInstanceCatalog;
     }
 
@@ -165,7 +168,7 @@ public sealed class ChatInteractionController : Controller
         interaction.PastMessagesCount = model.PastMessagesCount;
         interaction.A2AConnectionIds = await GetValidA2AConnectionIdsAsync(model.SelectedA2AConnectionIds);
         interaction.McpConnectionIds = await GetValidMcpConnectionIdsAsync(model.SelectedMcpConnectionIds);
-        interaction.ToolNames = GetValidToolNames(model.SelectedToolNames);
+        interaction.ToolNames = await GetValidToolNamesAsync(model.SelectedToolNames);
         interaction.AgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
         interaction.CreatedUtc = DateTime.UtcNow;
         await ApplyMetadataAsync(interaction, model);
@@ -350,7 +353,10 @@ public sealed class ChatInteractionController : Controller
 
         // AI Tools
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableTools = _toolOptions.GetSelectableTools()
+        // Only list tools the current user is authorized to select. The default IAIToolAccessEvaluator
+        // permits everything; replace it to enforce a real per-user tool permission model.
+        var authorizedTools = await SelectableToolAccessFilter.GetAuthorizedSelectableToolsAsync(_toolOptions, _toolAccessEvaluator, User);
+        model.AvailableTools = authorizedTools
             .Select(kvp => new ToolSelectionItem
             {
                 Name = kvp.Key,
@@ -505,7 +511,10 @@ public sealed class ChatInteractionController : Controller
 
         // AI Tools
         var selectedNames = new HashSet<string>(model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableTools = _toolOptions.GetSelectableTools()
+        // Only list tools the current user is authorized to select. The default IAIToolAccessEvaluator
+        // permits everything; replace it to enforce a real per-user tool permission model.
+        var authorizedTools = await SelectableToolAccessFilter.GetAuthorizedSelectableToolsAsync(_toolOptions, _toolAccessEvaluator, User);
+        model.AvailableTools = authorizedTools
             .Select(kvp => new ToolSelectionItem
             {
                 Name = kvp.Key,
@@ -732,9 +741,12 @@ public sealed class ChatInteractionController : Controller
                     .ToList();
     }
 
-    private List<string> GetValidToolNames(IEnumerable<string> selectedNames)
+    private async Task<List<string>> GetValidToolNamesAsync(IEnumerable<string> selectedNames)
     {
-        var validToolNames = _toolOptions.GetSelectableTools().Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Reject any persisted tool name the current user is not authorized to select, so a tampered
+        // form post cannot save a listable tool the caller lacks access to. This complements the
+        // runtime check performed when a Chat Interaction actually sends a message.
+        var validToolNames = await SelectableToolAccessFilter.GetAuthorizedSelectableToolNamesAsync(_toolOptions, _toolAccessEvaluator, User);
 
         return (selectedNames ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name) && validToolNames.Contains(name))

@@ -131,9 +131,30 @@ builder.Services
 
 ## Tool Access Control
 
-### `IAIToolAccessEvaluator`
+Tool access is governed differently for the two ways the AI is invoked.
 
-Override this to control which tools the current user is allowed to invoke:
+### AI Sessions — the profile is the authorization boundary
+
+For an **AI Session**, the **AI Profile is the authorization boundary**. A profile only exposes the
+tools its author selected — the profile-selected functions, the MCP connections attached to the
+profile, and the context-driven system tools. Every one of those is curated by an operator when the
+profile is configured. If a caller is allowed to run a session against a profile, they are allowed
+to use the tools that profile exposes; the runtime does **not** apply a per-user gate. This matters
+because a session may be **anonymous** — it runs the profile exactly as configured.
+
+Access is therefore decided where the profile (and which tools it may contain) is configured — for
+example, the profile's Capabilities tab in the consuming application — rather than at completion
+time. Profile editors already list only selectable (non-system, non-hidden) tools; consuming
+applications own that selection UI and any permission checks around it.
+
+### Chat Interactions — `IAIToolAccessEvaluator` re-verifies listable tools
+
+A **Chat Interaction** is different: there is no session. Each interaction persists its own settings
+(model, prompt, and the selected tool names) and starts a chat from them. Because those saved tool
+names are attacker-controllable, a caller who tampered with an interaction could reference a
+selectable tool they were never granted. To close that gap, when a Chat Interaction sends a message
+the completion pipeline re-checks every **listable** (user-selectable) tool against
+`IAIToolAccessEvaluator`:
 
 ```csharp
 public interface IAIToolAccessEvaluator
@@ -142,13 +163,20 @@ public interface IAIToolAccessEvaluator
 }
 ```
 
-The default implementation permits every tool. Hosts that enforce permissions, such as the Orchard Core integration, replace it with an authorization-aware implementation.
+Tools the caller is not authorized for are excluded from the request (and reported in a single
+`Warning` log entry) rather than failing it. Only listable tools are checked — **system tools**
+(auto-injected by the orchestrator) and **hidden/dependency tools** are never subject to the check.
+A `null` caller (a trusted server-side invocation such as a background task) skips the check
+entirely.
 
-Tools the user is not authorized for are excluded from the request instead of failing it, so the model simply answers without that capability. Because a missing tool permission usually looks like an incomplete answer, every excluded tool is reported once per request with a `Warning` log entry that lists the denied tool names.
+The default implementation permits every tool. Consuming applications that enforce per-user tool
+permissions replace it with an authorization-aware implementation, using the same permission model
+that backs the Chat Interaction tool-selection UI.
 
 ### `IUserAccessor`
 
-The principal passed to the evaluator comes from `IUserAccessor`, not from `IHttpContextAccessor`:
+The caller principal used by the completion pipeline (for auditing, rate limiting, and any
+host-side policy) comes from `IUserAccessor`, not from `IHttpContextAccessor`:
 
 ```csharp
 public interface IUserAccessor
@@ -173,12 +201,10 @@ await DoWorkAsync();
 The principal is tracked with an `AsyncLocal<T>`, exactly as `HttpContextAccessor` tracks the current request, so the assignment is confined to the invocation that made it. Concurrent connections never observe one another's caller, and the value does not leak back to the caller of the method that assigned it.
 
 :::info Null means "no caller"
-`User` returns `null` only when there is no caller at all, such as a background task, a workflow, or a recipe running server-side. Authorization is skipped in that case and every tool stays available, because trusted server-side code is not a security boundary.
-
-An unauthenticated caller is different: hubs and HTTP requests always provide a non-`null` `ClaimsPrincipal` with an unauthenticated identity, so the evaluator still runs and can grant or deny tools based on whatever the host allows anonymous users to do.
+`User` returns `null` only when there is no caller at all, such as a background task, a workflow, or a recipe running server-side. An unauthenticated caller is different: hubs and HTTP requests always provide a non-`null` `ClaimsPrincipal` with an unauthenticated identity.
 :::
 
-Custom hosts that invoke completions outside of an HTTP request or a hub should assign the caller themselves so tool authorization sees the right principal.
+Custom hosts that invoke completions outside of an HTTP request or a hub should assign the caller themselves so host-side policy sees the right principal.
 
 ## Custom Tool Registry Provider
 

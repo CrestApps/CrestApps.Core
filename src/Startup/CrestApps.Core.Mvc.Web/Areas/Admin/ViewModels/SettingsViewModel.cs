@@ -145,9 +145,13 @@ public sealed class SettingsViewModel
 
     public int SecurityRateLimitWindowSeconds { get; set; } = 60;
 
-    public int SecurityMaxAnonymousSessionsPerWindow { get; set; } = 5;
+    public string SecurityAnonymousMessageRateLimitTiers { get; set; }
+
+    public int SecurityMaxAnonymousSessionsPerWindow { get; set; } = 20;
 
     public int SecurityAnonymousSessionRateLimitWindowSeconds { get; set; } = 600;
+
+    public string SecurityAnonymousSessionStartRateLimitTiers { get; set; }
 
     public AIVisitorRemoteAddressMode SecurityRemoteAddressMode { get; set; } = AIVisitorRemoteAddressMode.Hashed;
 

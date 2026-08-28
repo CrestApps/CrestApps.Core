@@ -5,7 +5,8 @@ namespace CrestApps.Core.AI.Services;
 
 /// <summary>
 /// Default implementation that permits all tool access.
-/// Replace with an authorization-aware implementation for fine-grained control.
+/// Replace with an authorization-aware implementation to enforce per-user access to the
+/// listable tools a Chat Interaction may use.
 /// </summary>
 internal sealed class DefaultAIToolAccessEvaluator : IAIToolAccessEvaluator
 {

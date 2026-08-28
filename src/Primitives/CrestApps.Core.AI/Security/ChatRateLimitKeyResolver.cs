@@ -31,6 +31,41 @@ public static class ChatRateLimitKeyResolver
     }
 
     /// <summary>
+    /// Resolves the per-user identity key (<c>user:{id}</c>) for an authenticated caller, or
+    /// <see langword="null"/> when no user identifier is available.
+    /// </summary>
+    /// <param name="context">The prompt security context.</param>
+    /// <returns>The user identity key, or <see langword="null"/>.</returns>
+    public static string ResolveAuthenticatedUserKey(PromptSecurityContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        var userId = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? context.User?.Identity?.Name;
+
+        return string.IsNullOrWhiteSpace(userId) ? null : $"user:{userId}";
+    }
+
+    /// <summary>
+    /// Resolves the network/visitor/session/connection partition keys for the provided context and
+    /// partition flags. Unlike <see cref="ResolveMessageKeys"/>, this never includes the per-user
+    /// identity key, so it can be combined with <see cref="ResolveAuthenticatedUserKey"/> to key an
+    /// authenticated caller on both their identity and their network address.
+    /// </summary>
+    /// <param name="context">The prompt security context.</param>
+    /// <param name="partitions">The partition flags to include.</param>
+    /// <returns>The resolved context keys.</returns>
+    public static List<string> ResolveContextKeys(PromptSecurityContext context, ChatRateLimitPartition partitions)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        var keys = new List<string>();
+
+        AppendAnonymousStyleKeys(keys, context, partitions);
+
+        return keys;
+    }
+
+    /// <summary>
     /// Resolves the anonymous session-start throttling keys for the provided context.
     /// </summary>
     /// <param name="context">The prompt security context.</param>
@@ -70,26 +105,26 @@ public static class ChatRateLimitKeyResolver
     {
         var keys = new List<string>();
 
-        if (partitions.HasFlag(ChatRateLimitPartition.AuthenticatedUser))
-        {
-            var userId = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? context.User?.Identity?.Name;
-
-            if (!string.IsNullOrWhiteSpace(userId))
-            {
-                keys.Add($"user:{userId}");
-            }
-        }
-
-        if (keys.Count > 0)
-        {
-            return keys;
-        }
-
+        // Only authenticated callers are keyed through the authenticated partition set; an anonymous
+        // caller falls through to the anonymous keys in ResolveMessageKeys.
         if (context.User?.Identity?.IsAuthenticated != true)
         {
             return keys;
         }
 
+        if (partitions.HasFlag(ChatRateLimitPartition.AuthenticatedUser))
+        {
+            var userKey = ResolveAuthenticatedUserKey(context);
+
+            if (userKey is not null)
+            {
+                keys.Add(userKey);
+            }
+        }
+
+        // Include the network/visitor/session/connection keys requested for authenticated callers
+        // (for example the IP hash) in addition to the per-user key, so a caller cannot shed their
+        // per-IP allowance by logging out.
         AppendAnonymousStyleKeys(keys, context, partitions);
 
         return keys;

@@ -317,7 +317,7 @@ public sealed class MyService
 }
 ```
 
-This matters for tool authorization. `IAIToolAccessEvaluator` receives the `ClaimsPrincipal` that the completion pipeline resolved through `IUserAccessor`, and tools the caller is not authorized to use are removed from the request and reported in a warning log entry. See [Tools](./tools) for the evaluator contract and the logging behavior.
+This matters for host-side policy such as auditing, rate limiting, and the Chat Interaction tool-access check, which all run against the `ClaimsPrincipal` that the completion pipeline resolves through `IUserAccessor`. For an AI Session, tool access is decided by the AI Profile configuration; for a Chat Interaction, listable tools are re-verified per-user via `IAIToolAccessEvaluator`. See [Tools](./tools) for both models.
 
 ## Scale-out with Redis Backplane
 

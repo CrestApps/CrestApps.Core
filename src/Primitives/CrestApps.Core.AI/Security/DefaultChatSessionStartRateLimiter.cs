@@ -55,11 +55,23 @@ public sealed class DefaultChatSessionStartRateLimiter : IChatSessionStartRateLi
 
         // Resolve per-profile anti-spam overrides, falling back to site-level defaults.
         var profileSettings = context.Profile?.TryGetSettings<PromptSecurityProfileSettings>(out var ps) == true ? ps : null;
-        var maxSessions = profileSettings?.MaxAnonymousSessionsPerWindow ?? options.MaxAnonymousSessionsPerWindow;
-        var window = profileSettings?.AnonymousSessionRateLimitWindow ?? options.AnonymousSessionRateLimitWindow;
 
-        if (maxSessions <= 0)
+        // Prefer the multi-tier limits; fall back to the single-window values only when no tiers
+        // are configured (site or profile).
+        var tiers = MultiTierRateLimitEvaluator.Normalize(
+            profileSettings?.AnonymousSessionStartRateLimitTiers ?? options.AnonymousSessionStartRateLimitTiers);
+
+        if (tiers.Count == 0)
         {
+            var maxSessions = profileSettings?.MaxAnonymousSessionsPerWindow ?? options.MaxAnonymousSessionsPerWindow;
+            var window = profileSettings?.AnonymousSessionRateLimitWindow ?? options.AnonymousSessionRateLimitWindow;
+
+            tiers = MultiTierRateLimitEvaluator.Normalize([new ChatRateLimitTier { Limit = maxSessions, Window = window }]);
+        }
+
+        if (tiers.Count == 0)
+        {
+            // Rate limiting disabled.
             return ValueTask.FromResult(RateLimitResult.Allowed);
         }
 
@@ -71,54 +83,19 @@ public sealed class DefaultChatSessionStartRateLimiter : IChatSessionStartRateLi
         }
 
         var now = _timeProvider.GetUtcNow();
-        var windowStart = now - window;
+        var result = MultiTierRateLimitEvaluator.Evaluate(_windows, keys, tiers, now);
 
-        foreach (var key in keys)
+        if (result.IsThrottled)
         {
-            var entry = _windows.GetOrAdd(key, static _ => new SlidingWindowEntry());
-
-            lock (entry.Lock)
-            {
-                while (entry.Timestamps.Count > 0 && entry.Timestamps.Peek() <= windowStart)
-                {
-                    entry.Timestamps.Dequeue();
-                }
-
-                var currentCount = entry.Timestamps.Count;
-
-                if (currentCount >= maxSessions)
-                {
-                    var oldestInWindow = entry.Timestamps.Peek();
-                    var retryAfter = (int)Math.Ceiling((oldestInWindow + window - now).TotalSeconds);
-
-                    if (retryAfter < 1)
-                    {
-                        retryAfter = 1;
-                    }
-
-                    _logger.LogWarning(
-                        "Anonymous chat session start rate limit exceeded: Key={Key}, Count={Count}/{Max}, RetryAfter={RetryAfter}s",
-                        key.SanitizeForLog(),
-                        currentCount,
-                        maxSessions,
-                        retryAfter);
-
-                    return ValueTask.FromResult(RateLimitResult.Throttled(retryAfter, currentCount, maxSessions));
-                }
-            }
+            _logger.LogWarning(
+                "Anonymous chat session start rate limit exceeded: Key={Key}, Count={Count}/{Max}, RetryAfter={RetryAfter}s",
+                keys[0].SanitizeForLog(),
+                result.CurrentCount,
+                result.MaxAllowed,
+                result.RetryAfterSeconds);
         }
 
-        foreach (var key in keys)
-        {
-            var entry = _windows.GetOrAdd(key, static _ => new SlidingWindowEntry());
-
-            lock (entry.Lock)
-            {
-                entry.Timestamps.Enqueue(now);
-            }
-        }
-
-        return ValueTask.FromResult(RateLimitResult.Allowed);
+        return ValueTask.FromResult(result);
     }
 
     /// <summary>
@@ -131,12 +108,5 @@ public sealed class DefaultChatSessionStartRateLimiter : IChatSessionStartRateLi
         {
             _windows.TryRemove(key, out _);
         }
-    }
-
-    private sealed class SlidingWindowEntry
-    {
-        public object Lock { get; } = new();
-
-        public Queue<DateTimeOffset> Timestamps { get; } = new();
     }
 }

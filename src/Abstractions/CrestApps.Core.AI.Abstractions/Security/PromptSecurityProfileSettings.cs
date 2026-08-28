@@ -25,6 +25,22 @@ public sealed class PromptSecurityProfileSettings
     public TimeSpan? RateLimitWindow { get; set; }
 
     /// <summary>
+    /// Gets or sets the multi-tier sliding-window message limits applied to anonymous callers for
+    /// this profile. When <see langword="null"/>, the site-level tiers are used. Provide an empty
+    /// list to opt this profile out of tiered message limits and fall back to the single-window
+    /// values.
+    /// </summary>
+    public List<ChatRateLimitTier> AnonymousMessageRateLimitTiers { get; set; }
+
+    /// <summary>
+    /// Gets or sets the multi-tier sliding-window session-start limits applied to anonymous callers
+    /// for this profile. When <see langword="null"/>, the site-level tiers are used. Provide an
+    /// empty list to opt this profile out of tiered session-start limits and fall back to the
+    /// single-window values.
+    /// </summary>
+    public List<ChatRateLimitTier> AnonymousSessionStartRateLimitTiers { get; set; }
+
+    /// <summary>
     /// Gets or sets the maximum number of anonymous chat sessions that can be started
     /// within the anonymous session rate-limit window for this profile.
     /// When <see langword="null"/>, the site-level default is used.

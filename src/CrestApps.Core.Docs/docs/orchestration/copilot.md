@@ -450,4 +450,4 @@ This means:
 
 - MCP tools registered through the framework still work — they are passed to the SDK as server configurations.
 - You do **not** need to change MCP server registrations. The orchestrator translates them automatically.
-- Tool access control (`IAIToolAccessEvaluator`) applies only to non-MCP tools, since MCP tools are managed by the SDK.
+- Tool access is governed by the AI Profile configuration (the tools and MCP connections its author selected), not by a per-user check at completion time.

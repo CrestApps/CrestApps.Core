@@ -20,6 +20,7 @@
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Infrastructure.Indexing
 @using CrestApps.Core.Services
+@using CrestApps.Core.Startup.Shared.Services
 @using Microsoft.AspNetCore.DataProtection
 @using Microsoft.Extensions.Options
 
@@ -385,7 +386,7 @@ else
                                 {
                                     <span class="text-danger">@maxMessagesErr</span>
                                 }
-                                <div class="form-text">Anonymous and authenticated chat prompts are throttled after this many messages. Set to 0 to disable message throttling.</div>
+                                <div class="form-text">Governs <strong>authenticated</strong> callers, and anonymous callers only when no anonymous message tiers are set below. Set to 0 to disable message throttling.</div>
                             </div>
 
                             <div class="mb-3">
@@ -399,13 +400,23 @@ else
                             </div>
 
                             <div class="mb-3">
-                                <label for="securityMaxAnonymousSessionsPerWindow" class="form-label">Maximum anonymous sessions per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of new anonymous widget sessions that can be started from one visitor or IP bucket within the session window before starts are throttled. This is the site-wide default; individual AI Profiles can override it. Set to 0 to disable session-start throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                                <label for="securityAnonymousMessageRateLimitTiers" class="form-label">Anonymous message rate-limit tiers <span class="text-muted" data-bs-toggle="tooltip" title="Multi-tier sliding-window message limits applied to anonymous callers. A message is throttled when it would exceed any tier. Leave empty to fall back to the single message window above."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                                <textarea id="securityAnonymousMessageRateLimitTiers" class="form-control" rows="4" style="max-width: 400px;" placeholder="5, 00:00:30&#10;30, 00:05:00&#10;150, 01:00:00&#10;500, 1.00:00:00" @bind="_model.SecurityAnonymousMessageRateLimitTiers"></textarea>
+                                @if (_errors.TryGetValue(nameof(_model.SecurityAnonymousMessageRateLimitTiers), out var anonymousMessageTiersErr))
+                                {
+                                    <span class="text-danger">@anonymousMessageTiersErr</span>
+                                }
+                                <div class="form-text">One tier per line as <code>limit, window</code> (window as <code>hh:mm:ss</code>, e.g. <code>1.00:00:00</code> for a day). Applies to anonymous callers only; a message is throttled if it exceeds any tier. Leave empty to use the single window above.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="securityMaxAnonymousSessionsPerWindow" class="form-label">Maximum anonymous sessions per window <span class="text-muted" data-bs-toggle="tooltip" title="Fallback session-start limit used only when no anonymous session-start tiers are set below. This is the site-wide default; individual AI Profiles can override it. Set to 0 to disable session-start throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                                 <input id="securityMaxAnonymousSessionsPerWindow" class="form-control" type="number" min="0" max="500" style="max-width: 200px;" @bind="_model.SecurityMaxAnonymousSessionsPerWindow" />
                                 @if (_errors.TryGetValue(nameof(_model.SecurityMaxAnonymousSessionsPerWindow), out var maxSessionsErr))
                                 {
                                     <span class="text-danger">@maxSessionsErr</span>
                                 }
-                                <div class="form-text">Limits how many new anonymous widget sessions can be started from the same visitor/IP bucket. Set to 0 to disable session-start throttling.</div>
+                                <div class="form-text">Fallback used only when no anonymous session-start tiers are set below. Set to 0 to disable session-start throttling.</div>
                             </div>
 
                             <div class="mb-3">
@@ -416,6 +427,16 @@ else
                                     <span class="text-danger">@anonymousWindowErr</span>
                                 }
                                 <div class="form-text">Determines how long anonymous session-start counters remain active for the ASP.NET Core and hub session throttles.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="securityAnonymousSessionStartRateLimitTiers" class="form-label">Anonymous session-start rate-limit tiers <span class="text-muted" data-bs-toggle="tooltip" title="Multi-tier sliding-window limits on new anonymous session starts. A session start is throttled when it would exceed any tier. Leave empty to fall back to the single session window above."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                                <textarea id="securityAnonymousSessionStartRateLimitTiers" class="form-control" rows="4" style="max-width: 400px;" placeholder="5, 00:00:30&#10;10, 00:05:00&#10;150, 01:00:00&#10;500, 1.00:00:00" @bind="_model.SecurityAnonymousSessionStartRateLimitTiers"></textarea>
+                                @if (_errors.TryGetValue(nameof(_model.SecurityAnonymousSessionStartRateLimitTiers), out var anonymousSessionTiersErr))
+                                {
+                                    <span class="text-danger">@anonymousSessionTiersErr</span>
+                                }
+                                <div class="form-text">One tier per line as <code>limit, window</code> (window as <code>hh:mm:ss</code>, e.g. <code>1.00:00:00</code> for a day). Applies to anonymous callers only; a session start is throttled if it exceeds any tier. Leave empty to use the single window above.</div>
                             </div>
                         }
                     </div>
@@ -981,8 +1002,10 @@ else
             SecurityBlockingThreshold = promptSecuritySettings.BlockingThreshold,
             SecurityMaxMessagesPerWindow = promptSecuritySettings.MaxMessagesPerWindow,
             SecurityRateLimitWindowSeconds = (int)Math.Round(promptSecuritySettings.RateLimitWindow.TotalSeconds),
+            SecurityAnonymousMessageRateLimitTiers = ChatRateLimitTierTextFormatter.Format(promptSecuritySettings.AnonymousMessageRateLimitTiers),
             SecurityMaxAnonymousSessionsPerWindow = promptSecuritySettings.MaxAnonymousSessionsPerWindow,
             SecurityAnonymousSessionRateLimitWindowSeconds = (int)Math.Round(promptSecuritySettings.AnonymousSessionRateLimitWindow.TotalSeconds),
+            SecurityAnonymousSessionStartRateLimitTiers = ChatRateLimitTierTextFormatter.Format(promptSecuritySettings.AnonymousSessionStartRateLimitTiers),
             SecurityRemoteAddressMode = visitorIdentitySettings.RemoteAddressMode,
         };
 
@@ -1257,6 +1280,16 @@ else
             _errors[nameof(_model.SecurityAnonymousSessionRateLimitWindowSeconds)] = "Must be between 1 and 86,400 seconds.";
         }
 
+        if (!ChatRateLimitTierTextFormatter.TryParse(_model.SecurityAnonymousMessageRateLimitTiers, out _, out var anonymousMessageTiersError))
+        {
+            _errors[nameof(_model.SecurityAnonymousMessageRateLimitTiers)] = anonymousMessageTiersError;
+        }
+
+        if (!ChatRateLimitTierTextFormatter.TryParse(_model.SecurityAnonymousSessionStartRateLimitTiers, out _, out var anonymousSessionTiersError))
+        {
+            _errors[nameof(_model.SecurityAnonymousSessionStartRateLimitTiers)] = anonymousSessionTiersError;
+        }
+
         if (!string.IsNullOrWhiteSpace(_model.AdminWidgetPrimaryColor) &&
             !Regex.IsMatch(
                 _model.AdminWidgetPrimaryColor,
@@ -1426,6 +1459,9 @@ else
                 : _model.AdminWidgetPrimaryColor.Trim(),
         });
 
+        ChatRateLimitTierTextFormatter.TryParse(_model.SecurityAnonymousMessageRateLimitTiers, out var anonymousMessageTiers, out _);
+        ChatRateLimitTierTextFormatter.TryParse(_model.SecurityAnonymousSessionStartRateLimitTiers, out var anonymousSessionTiers, out _);
+
         SiteSettings.Set(new PromptSecurityOptions
         {
             EnableInjectionDetection = _model.SecurityEnabled && _model.SecurityEnableInjectionDetection,
@@ -1437,8 +1473,10 @@ else
             BlockingThreshold = _model.SecurityBlockingThreshold,
             MaxMessagesPerWindow = _model.SecurityMaxMessagesPerWindow,
             RateLimitWindow = TimeSpan.FromSeconds(_model.SecurityRateLimitWindowSeconds),
+            AnonymousMessageRateLimitTiers = anonymousMessageTiers,
             MaxAnonymousSessionsPerWindow = _model.SecurityMaxAnonymousSessionsPerWindow,
             AnonymousSessionRateLimitWindow = TimeSpan.FromSeconds(_model.SecurityAnonymousSessionRateLimitWindowSeconds),
+            AnonymousSessionStartRateLimitTiers = anonymousSessionTiers,
         });
 
         var visitorIdentitySettings = SiteSettings.Get<AIVisitorIdentityOptions>();

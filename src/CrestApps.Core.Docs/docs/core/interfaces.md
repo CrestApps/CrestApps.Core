@@ -38,7 +38,7 @@ These contracts define the provider-agnostic AI surface:
 | `IAIClientFactory`, `IAIClientProvider` | Resolve provider-specific chat, embedding, image, and speech clients |
 | `IAICompletionService`, `IAICompletionContextBuilder` | Direct completion flow and prompt/context assembly |
 | `IOrchestrator`, `IOrchestratorResolver`, `IOrchestrationContextBuilder` | Agentic orchestration and execution loops |
-| `IToolRegistry`, `IToolRegistryProvider`, `IAIToolAccessEvaluator` | Tool discovery, registration, and access control |
+| `IToolRegistry`, `IToolRegistryProvider`, `IAIToolAccessEvaluator` | Tool discovery, registration, and (for Chat Interactions) per-user access checks on listable tools |
 | `IAIProfileManager`, `IAIProfileStore`, `IAIDeploymentManager` | Profiles, deployments, and runtime configuration |
 
 ## Chat and response contracts

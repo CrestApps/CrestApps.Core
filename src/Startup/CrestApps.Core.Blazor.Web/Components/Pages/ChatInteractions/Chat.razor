@@ -34,6 +34,8 @@
 @inject IOptionsMonitor<AIDataSourceOptions> DataSourceOptions
 @inject IOptions<OrchestratorOptions> OrchestratorOptionsAccessor
 @inject IOptions<AIToolDefinitionOptions> ToolOptionsAccessor
+@inject IAIToolAccessEvaluator ToolAccessEvaluator
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject IAIDocumentStore DocumentStore
@@ -753,8 +755,11 @@ else
             })
             .ToList();
 
-        var toolOptions = ToolOptionsAccessor.Value;
-        model.AvailableTools = toolOptions.GetSelectableTools()
+        // Only list tools the current user is authorized to select. The default IAIToolAccessEvaluator
+        // permits everything; replace it to enforce a real per-user tool permission model.
+        var currentUser = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var authorizedTools = await SelectableToolAccessFilter.GetAuthorizedSelectableToolsAsync(ToolOptionsAccessor.Value, ToolAccessEvaluator, currentUser);
+        model.AvailableTools = authorizedTools
             .Select(kvp => new ToolSelectionItem
             {
                 Name = kvp.Key,

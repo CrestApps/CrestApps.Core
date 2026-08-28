@@ -292,14 +292,146 @@ public sealed class DefaultChatRateLimiterTests
         Assert.False(allowed.IsThrottled);
     }
 
+    [Fact]
+    public async Task EvaluateAsync_AnonymousBurstTier_ThrottlesWithinShortWindow()
+    {
+        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var limiter = CreateLimiter(
+            maxMessages: 1000,
+            timeProvider: fakeTime,
+            anonymousMessageTiers:
+            [
+                new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromSeconds(30) },
+                new ChatRateLimitTier { Limit = 5, Window = TimeSpan.FromMinutes(5) },
+            ]);
+        var context = CreateContext();
+
+        // The 30-second burst tier allows only 2.
+        await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+        await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+
+        var result = await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsThrottled);
+        Assert.Equal(2, result.CurrentCount);
+        Assert.Equal(2, result.MaxAllowed);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_AnonymousMultiTier_ThrottledByLongerTierAfterBurstWindowPasses()
+    {
+        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var limiter = CreateLimiter(
+            maxMessages: 1000,
+            timeProvider: fakeTime,
+            anonymousMessageTiers:
+            [
+                new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromSeconds(30) },
+                new ChatRateLimitTier { Limit = 3, Window = TimeSpan.FromMinutes(5) },
+            ]);
+        var context = CreateContext();
+
+        // Two messages at T=0 fill the 30-second burst tier.
+        await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+        await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+
+        // Past the burst window: the burst tier resets, so a third message is allowed.
+        fakeTime.Advance(TimeSpan.FromSeconds(31));
+        var allowed = await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+        Assert.False(allowed.IsThrottled);
+
+        // But the 5-minute tier now holds 3, so the next message is throttled by that tier.
+        var result = await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsThrottled);
+        Assert.Equal(3, result.CurrentCount);
+        Assert.Equal(3, result.MaxAllowed);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_AuthenticatedUser_BypassesAnonymousTiers()
+    {
+        var limiter = CreateLimiter(
+            maxMessages: 100,
+            anonymousMessageTiers: [new ChatRateLimitTier { Limit = 1, Window = TimeSpan.FromMinutes(1) }]);
+        var context = CreateContext(user: TestHelpers.CreateClaimsPrincipal("user-99"));
+
+        // The anonymous tier caps at 1, but an authenticated caller uses the single-window limit.
+        for (var i = 0; i < 5; i++)
+        {
+            var result = await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+
+            Assert.False(result.IsThrottled);
+        }
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_AuthenticatedUsers_ShareTheirNetworkAddressBucket()
+    {
+        // Two different authenticated users behind the same IP share the network-address bucket, so
+        // the second is throttled once the first has consumed the per-IP allowance.
+        var limiter = CreateLimiter(maxMessages: 2);
+        var userA = CreateContext(sessionId: "a", user: TestHelpers.CreateClaimsPrincipal("user-A"), remoteAddressHash: "ip-1");
+        var userB = CreateContext(sessionId: "b", user: TestHelpers.CreateClaimsPrincipal("user-B"), remoteAddressHash: "ip-1");
+
+        await limiter.EvaluateAsync(userA, TestContext.Current.CancellationToken);
+        await limiter.EvaluateAsync(userA, TestContext.Current.CancellationToken);
+
+        // user-B has sent nothing, but the shared ip-1 bucket is already full.
+        var result = await limiter.EvaluateAsync(userB, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsThrottled);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_AuthenticatedUsageCountsTowardIpBucket_SoLoggingOutDoesNotReset()
+    {
+        // Authenticated messages accrue against the shared network-address bucket, so a caller cannot
+        // reset their per-IP anonymous allowance by logging out.
+        var limiter = CreateLimiter(
+            maxMessages: 100, // Generous per-user limit so the user cap is not what trips here.
+            anonymousMessageTiers: [new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromMinutes(5) }]);
+        var authenticated = CreateContext(sessionId: "s", user: TestHelpers.CreateClaimsPrincipal("user-1"), remoteAddressHash: "ip-1");
+        var anonymousSameIp = CreateContext(sessionId: "s2", user: null, remoteAddressHash: "ip-1");
+
+        // Two messages while authenticated (well under the per-user limit).
+        await limiter.EvaluateAsync(authenticated, TestContext.Current.CancellationToken);
+        await limiter.EvaluateAsync(authenticated, TestContext.Current.CancellationToken);
+
+        // Logging out (same IP) does not grant a fresh allowance: the anonymous tier already sees the
+        // two authenticated messages on the shared ip-1 bucket.
+        var result = await limiter.EvaluateAsync(anonymousSameIp, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsThrottled);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_AuthenticatedUser_WithoutNetworkAddress_KeysByUserOnly()
+    {
+        // With no resolvable network address, authenticated throttling falls back to the per-user key.
+        var limiter = CreateLimiter(maxMessages: 2);
+        var context = CreateContext(user: TestHelpers.CreateClaimsPrincipal("user-1"));
+
+        await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+        await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+
+        var result = await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsThrottled);
+    }
+
     private static DefaultChatRateLimiter CreateLimiter(
         int maxMessages,
         int windowSeconds = 60,
         AIChatRateLimitingOptions rateLimitingOptions = null,
-        TimeProvider timeProvider = null)
+        TimeProvider timeProvider = null,
+        List<ChatRateLimitTier> anonymousMessageTiers = null)
     {
         var options = Options.Create(new PromptSecurityOptions
         {
+            // Default to no tiers so the single-window fallback (MaxMessagesPerWindow) is exercised;
+            // tier-specific tests pass an explicit list.
+            AnonymousMessageRateLimitTiers = anonymousMessageTiers ?? [],
             MaxMessagesPerWindow = maxMessages,
             RateLimitWindow = TimeSpan.FromSeconds(windowSeconds),
         });

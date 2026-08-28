@@ -51,76 +51,94 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
         ArgumentNullException.ThrowIfNull(context);
 
         var siteOptions = _options.Value;
+        var rateLimitingOptions = _rateLimitingOptions.Value;
 
         // Resolve per-profile rate limit overrides.
         var profileSettings = context.Profile?.TryGetSettings<PromptSecurityProfileSettings>(out var ps) == true ? ps : null;
         var maxMessages = profileSettings?.MaxMessagesPerWindow ?? siteOptions.MaxMessagesPerWindow;
         var window = profileSettings?.RateLimitWindow ?? siteOptions.RateLimitWindow;
+        var isAuthenticated = context.User?.Identity?.IsAuthenticated == true;
 
-        // A max of zero means rate limiting is disabled.
-        if (maxMessages <= 0)
+        // The anonymous tiers govern the anonymous message limit; they are also used (even for
+        // authenticated callers) to size the retention of the shared network-address bucket so a
+        // caller cannot shed their per-IP allowance by logging out.
+        var anonymousTiers = MultiTierRateLimitEvaluator.Normalize(
+            profileSettings?.AnonymousMessageRateLimitTiers ?? siteOptions.AnonymousMessageRateLimitTiers);
+        var singleWindowTiers = MultiTierRateLimitEvaluator.Normalize([new ChatRateLimitTier { Limit = maxMessages, Window = window }]);
+
+        var groups = new List<RateLimitKeyGroup>();
+
+        if (isAuthenticated)
+        {
+            // Authenticated callers keep the single-window limit, applied to both their user identity
+            // and their network address. The network-address bucket is shared with anonymous
+            // throttling, so it is retained for at least as long as the anonymous tiers need.
+            if (singleWindowTiers.Count > 0)
+            {
+                var userKey = ChatRateLimitKeyResolver.ResolveAuthenticatedUserKey(context);
+
+                if (!string.IsNullOrEmpty(userKey))
+                {
+                    groups.Add(new RateLimitKeyGroup(
+                        [userKey],
+                        singleWindowTiers,
+                        MultiTierRateLimitEvaluator.MaxWindow(singleWindowTiers)));
+                }
+
+                var contextKeys = ChatRateLimitKeyResolver.ResolveContextKeys(context, rateLimitingOptions.AuthenticatedMessagePartitions);
+
+                if (contextKeys.Count > 0)
+                {
+                    var sharedRetention = MultiTierRateLimitEvaluator.MaxWindow(singleWindowTiers);
+                    var anonymousRetention = MultiTierRateLimitEvaluator.MaxWindow(anonymousTiers);
+
+                    if (anonymousRetention > sharedRetention)
+                    {
+                        sharedRetention = anonymousRetention;
+                    }
+
+                    groups.Add(new RateLimitKeyGroup(contextKeys, singleWindowTiers, sharedRetention));
+                }
+            }
+        }
+        else
+        {
+            // Anonymous callers use the multi-tier limits, falling back to the single window only
+            // when no tiers are configured (site or profile).
+            var tiers = anonymousTiers.Count > 0 ? anonymousTiers : singleWindowTiers;
+
+            if (tiers.Count > 0)
+            {
+                var keys = ChatRateLimitKeyResolver.ResolveMessageKeys(context, rateLimitingOptions);
+
+                if (keys.Count > 0)
+                {
+                    groups.Add(new RateLimitKeyGroup(keys, tiers, MultiTierRateLimitEvaluator.MaxWindow(tiers)));
+                }
+            }
+        }
+
+        // No enforceable group means rate limiting is disabled or no key could be resolved.
+        if (groups.Count == 0)
         {
             return ValueTask.FromResult(RateLimitResult.Allowed);
         }
 
         var now = _timeProvider.GetUtcNow();
-        var windowStart = now - window;
-        var keys = ChatRateLimitKeyResolver.ResolveMessageKeys(context, _rateLimitingOptions.Value);
+        var result = MultiTierRateLimitEvaluator.Evaluate(_windows, groups, now);
 
-        if (keys.Count == 0)
+        if (result.IsThrottled)
         {
-            return ValueTask.FromResult(RateLimitResult.Allowed);
+            _logger.LogWarning(
+                "Rate limit exceeded: Key={Key}, Count={Count}/{Max}, RetryAfter={RetryAfter}s, Session={SessionId}",
+                groups[0].Keys.Count > 0 ? groups[0].Keys[0].SanitizeForLog() : "unknown",
+                result.CurrentCount,
+                result.MaxAllowed,
+                result.RetryAfterSeconds,
+                context.SessionId.SanitizeForLog());
         }
 
-        foreach (var key in keys)
-        {
-            var entry = _windows.GetOrAdd(key, static _ => new SlidingWindowEntry());
-
-            lock (entry.Lock)
-            {
-                // Evict timestamps outside the current window.
-                while (entry.Timestamps.Count > 0 && entry.Timestamps.Peek() <= windowStart)
-                {
-                    entry.Timestamps.Dequeue();
-                }
-
-                var currentCount = entry.Timestamps.Count;
-
-                if (currentCount >= maxMessages)
-                {
-                    // Calculate retry-after as the time until the oldest entry expires.
-                    var oldestInWindow = entry.Timestamps.Peek();
-                    var retryAfter = (int)Math.Ceiling((oldestInWindow + window - now).TotalSeconds);
-
-                    if (retryAfter < 1)
-                    {
-                        retryAfter = 1;
-                    }
-
-                    _logger.LogWarning(
-                        "Rate limit exceeded: Key={Key}, Count={Count}/{Max}, RetryAfter={RetryAfter}s, Session={SessionId}",
-                        key.SanitizeForLog(),
-                        currentCount,
-                        maxMessages,
-                        retryAfter,
-                        context.SessionId.SanitizeForLog());
-
-                    return ValueTask.FromResult(RateLimitResult.Throttled(retryAfter, currentCount, maxMessages));
-                }
-            }
-        }
-
-        foreach (var key in keys)
-        {
-            var entry = _windows.GetOrAdd(key, static _ => new SlidingWindowEntry());
-
-            lock (entry.Lock)
-            {
-                entry.Timestamps.Enqueue(now);
-            }
-        }
-
-        return ValueTask.FromResult(RateLimitResult.Allowed);
+        return ValueTask.FromResult(result);
     }
 
     /// <summary>
@@ -133,12 +151,5 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
         {
             _windows.TryRemove(sessionId, out _);
         }
-    }
-
-    private sealed class SlidingWindowEntry
-    {
-        public object Lock { get; } = new();
-
-        public Queue<DateTimeOffset> Timestamps { get; } = new();
     }
 }

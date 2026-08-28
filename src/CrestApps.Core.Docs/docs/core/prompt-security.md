@@ -110,10 +110,12 @@ The prompt security layer is controlled by `PromptSecurityOptions`.
 | `EnableAuditLogging` | `true` | Records suspicious prompt or output events |
 | `MaxPromptLength` | `8000` | Hard limit checked before deeper detection runs |
 | `BlockingThreshold` | `High` | Final risk level that changes a suspicious prompt from flagged to blocked |
-| `MaxMessagesPerWindow` | `20` | Maximum messages per sliding window before rate limiting kicks in |
-| `RateLimitWindow` | `00:01:00` | Duration of the sliding window for rate limiting |
-| `MaxAnonymousSessionsPerWindow` | `5` | Maximum anonymous chat sessions that can be started per window |
-| `AnonymousSessionRateLimitWindow` | `00:10:00` | Duration of the anonymous session-start rate-limit window |
+| `AnonymousMessageRateLimitTiers` | `5/30s, 30/5m, 150/1h, 500/1d` | Multi-tier message limits for anonymous callers; throttled if any tier is exceeded |
+| `MaxMessagesPerWindow` | `20` | Single-window message limit for authenticated callers, and the anonymous fallback when no tiers are configured |
+| `RateLimitWindow` | `00:01:00` | Duration of the single message window |
+| `AnonymousSessionStartRateLimitTiers` | `5/30s, 10/5m, 150/1h, 500/1d` | Multi-tier session-start limits for anonymous callers; throttled if any tier is exceeded |
+| `MaxAnonymousSessionsPerWindow` | `20` | Single-window session-start fallback used when no session-start tiers are configured |
+| `AnonymousSessionRateLimitWindow` | `00:10:00` | Duration of the single anonymous session-start window |
 
 ### Visitor identity and remote-address handling
 
@@ -155,10 +157,12 @@ Both MVC and Blazor sample hosts expose the site defaults in admin settings. AI 
 
 Per-profile overrides are intentionally scoped to anti-spam throttling only:
 
-- `MaxMessagesPerWindow` — maximum messages allowed within the message window
-- `RateLimitWindow` — the message sliding-window duration
-- `MaxAnonymousSessionsPerWindow` — maximum anonymous session starts within the session window
-- `AnonymousSessionRateLimitWindow` — the anonymous session-start window duration
+- `AnonymousMessageRateLimitTiers` — multi-tier message limits for anonymous callers (`null` inherits the site tiers; an empty list opts out and falls back to the single window)
+- `MaxMessagesPerWindow` — single-window message limit (authenticated callers, and the anonymous fallback)
+- `RateLimitWindow` — the single message-window duration
+- `AnonymousSessionStartRateLimitTiers` — multi-tier session-start limits for anonymous callers (`null` inherits the site tiers; an empty list opts out and falls back to the single window)
+- `MaxAnonymousSessionsPerWindow` — single-window session-start fallback
+- `AnonymousSessionRateLimitWindow` — the single anonymous session-start window duration
 
 High-level input and output security guards — injection detection, output filtering, the security preamble, input delimiters, the blocking threshold, and the maximum prompt length — remain **global concerns** configured only through `PromptSecurityOptions`. They are deliberately not overridable per profile so protective posture stays consistent across every profile.
 
@@ -179,10 +183,24 @@ By default, spam reduction is layered:
 
 | Option | Default | What it does |
 | --- | --- | --- |
-| `MaxMessagesPerWindow` | `20` | Maximum messages allowed within the sliding window. Set to `0` to disable. |
-| `RateLimitWindow` | `00:01:00` (1 minute) | The sliding window duration. |
-| `MaxAnonymousSessionsPerWindow` | `5` | Maximum anonymous sessions allowed within the session-start window. Set to `0` to disable. |
-| `AnonymousSessionRateLimitWindow` | `00:10:00` (10 minutes) | The anonymous session-start window duration. |
+| `AnonymousMessageRateLimitTiers` | `5/30s, 30/5m, 150/1h, 500/1d` | Multi-tier message limits for anonymous callers. A message is throttled when it would exceed any tier. Empty falls back to the single window below. |
+| `AnonymousSessionStartRateLimitTiers` | `5/30s, 10/5m, 150/1h, 500/1d` | Multi-tier session-start limits for anonymous callers. Empty falls back to the single window below. |
+| `MaxMessagesPerWindow` | `20` | Single-window message limit for authenticated callers, and the anonymous fallback. Set to `0` to disable. |
+| `RateLimitWindow` | `00:01:00` (1 minute) | The single message window duration. |
+| `MaxAnonymousSessionsPerWindow` | `20` | Single-window anonymous session-start fallback. Set to `0` to disable. |
+| `AnonymousSessionRateLimitWindow` | `00:10:00` (10 minutes) | The single anonymous session-start window duration. |
+
+Each tier is a `{ "Limit": <count>, "Window": "hh:mm:ss" }` pair. The tiers apply to **anonymous**
+traffic only: authenticated callers are governed by the single-window `MaxMessagesPerWindow` and are
+never subject to session-start throttling.
+
+Authenticated message throttling is keyed by **both** the user identity and the network address (see
+`AuthenticatedMessagePartitions`, which defaults to `AuthenticatedUser | NetworkAddress`). The
+network-address bucket is shared with anonymous throttling and retained long enough to cover the
+anonymous tiers, so a caller cannot reset their per-IP allowance by logging out — their authenticated
+activity still counts against the anonymous per-IP limit. The trade-off is that authenticated users
+behind a shared NAT or proxy draw from one IP bucket; remove `NetworkAddress` from
+`AuthenticatedMessagePartitions` to key authenticated callers by user identity only.
 
 The default limiter behavior is privacy-first but configurable through `AIChatRateLimitingOptions`:
 
@@ -306,8 +324,20 @@ That override replaces only the ASP.NET Core endpoint/hub layer. The framework's
         "BlockingThreshold": "High",
         "MaxMessagesPerWindow": 20,
         "RateLimitWindow": "00:01:00",
-        "MaxAnonymousSessionsPerWindow": 5,
+        "AnonymousMessageRateLimitTiers": [
+          { "Limit": 5, "Window": "00:00:30" },
+          { "Limit": 30, "Window": "00:05:00" },
+          { "Limit": 150, "Window": "01:00:00" },
+          { "Limit": 500, "Window": "1.00:00:00" }
+        ],
+        "MaxAnonymousSessionsPerWindow": 20,
         "AnonymousSessionRateLimitWindow": "00:10:00",
+        "AnonymousSessionStartRateLimitTiers": [
+          { "Limit": 5, "Window": "00:00:30" },
+          { "Limit": 10, "Window": "00:05:00" },
+          { "Limit": 150, "Window": "01:00:00" },
+          { "Limit": 500, "Window": "1.00:00:00" }
+        ],
         "LowRiskScoreThreshold": 10,
         "MediumRiskScoreThreshold": 20,
         "HighRiskScoreThreshold": 35,

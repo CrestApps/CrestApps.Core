@@ -1,11 +1,15 @@
 using System.Security.Claims;
+using CrestApps.Core.AI;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Security;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Tests.Core.Orchestration;
 
@@ -14,7 +18,6 @@ public sealed class FunctionInvocationAICompletionServiceHandlerTests
     [Fact]
     public async Task ConfigureAsync_StablyPrioritizesNonMcpEntriesAndPreservesDuplicatePrecedence()
     {
-        var evaluator = new RecordingToolAccessEvaluator();
         var expectedTools = new AITool[]
         {
             new TestAIFunction("local-first-tool"),
@@ -36,27 +39,17 @@ public sealed class FunctionInvocationAICompletionServiceHandlerTests
             CreateEntry("a2a", "a2a", ToolRegistryEntrySource.A2AAgent, expectedTools[3]),
             CreateEntry("local-last", "local-last", ToolRegistryEntrySource.Local, expectedTools[4]),
         ];
-        var completionContext = new AICompletionContext();
-        completionContext.AdditionalProperties[FunctionInvocationAICompletionServiceHandler.ScopedEntriesKey] = entries;
-        var context = new CompletionServiceConfigureContext(new ChatOptions(), completionContext, true);
-        var handler = new FunctionInvocationAICompletionServiceHandler(
-            evaluator,
-            new TestUserAccessor(),
-            new EmptyServiceProvider(),
-            NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
+        var context = CreateContext(entries);
+        var handler = CreateHandler();
 
         await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
 
-        Assert.Equal(
-            ["local-first", "shared", "agent", "a2a", "local-last", "shared", "mcp-first", "mcp-second"],
-            evaluator.ToolNames);
         Assert.Equal(expectedTools, context.ChatOptions.Tools);
     }
 
     [Fact]
     public async Task ConfigureAsync_SnapshotsEntriesBeforeInvokingFactories()
     {
-        var evaluator = new RecordingToolAccessEvaluator();
         var firstTool = new TestAIFunction("first-tool");
         var secondTool = new TestAIFunction("second-tool");
         List<ToolRegistryEntry> entries = null;
@@ -72,112 +65,162 @@ public sealed class FunctionInvocationAICompletionServiceHandlerTests
             CreateEntry("second", "second", ToolRegistryEntrySource.McpServer, secondTool),
             firstEntry,
         ];
-        var completionContext = new AICompletionContext();
-        completionContext.AdditionalProperties[FunctionInvocationAICompletionServiceHandler.ScopedEntriesKey] = entries;
-        var context = new CompletionServiceConfigureContext(new ChatOptions(), completionContext, true);
-        var handler = new FunctionInvocationAICompletionServiceHandler(
-            evaluator,
-            new TestUserAccessor(),
-            new EmptyServiceProvider(),
-            NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
+        var context = CreateContext(entries);
+        var handler = CreateHandler();
 
         await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
 
-        Assert.Equal(["first", "second"], evaluator.ToolNames);
         Assert.Equal([firstTool, secondTool], context.ChatOptions.Tools);
         Assert.Equal(3, entries.Count);
     }
 
     [Fact]
-    public async Task ConfigureAsync_WhenToolsAreDenied_ExcludesThemAndLogsASingleWarning()
+    public async Task ConfigureAsync_ForAISession_KeepsEveryToolWithoutConsultingEvaluator()
     {
-        var evaluator = new RecordingToolAccessEvaluator
-        {
-            DeniedToolNames = { "denied-first", "denied-second" },
-        };
+        // An AI Session runs the profile as configured. The access evaluator must not be consulted,
+        // even for a listable tool it would deny.
+        var evaluator = new RecordingToolAccessEvaluator { DeniedToolNames = { "listable" } };
+        var listableTool = new TestAIFunction("listable-tool");
+        IReadOnlyList<ToolRegistryEntry> entries =
+        [
+            CreateEntry("listable", "listable", ToolRegistryEntrySource.Local, listableTool),
+        ];
+        var context = CreateContext(entries); // No Interaction marker => AI Session.
+        var handler = CreateHandler(
+            evaluator,
+            new TestUserAccessor(),
+            CreateToolDefinitions(services => services.AddCoreAITool<RegistrationTestTool>("listable").Selectable()));
+
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.Empty(evaluator.ToolNames);
+        Assert.Equal([listableTool], context.ChatOptions.Tools);
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_ForChatInteraction_ExcludesDeniedListableToolsAndLogsWarning()
+    {
+        var evaluator = new RecordingToolAccessEvaluator { DeniedToolNames = { "denied" } };
         var allowedTool = new TestAIFunction("allowed-tool");
         IReadOnlyList<ToolRegistryEntry> entries =
         [
-            CreateEntry("denied-first", "denied-first", ToolRegistryEntrySource.Local, new TestAIFunction("denied-first-tool")),
+            CreateEntry("denied", "denied", ToolRegistryEntrySource.Local, new TestAIFunction("denied-tool")),
             CreateEntry("allowed", "allowed", ToolRegistryEntrySource.Local, allowedTool),
-            CreateEntry("denied-second", "denied-second", ToolRegistryEntrySource.McpServer, new TestAIFunction("denied-second-tool")),
         ];
-        var completionContext = new AICompletionContext();
-        completionContext.AdditionalProperties[FunctionInvocationAICompletionServiceHandler.ScopedEntriesKey] = entries;
-        var context = new CompletionServiceConfigureContext(new ChatOptions(), completionContext, true);
+        var context = CreateContext(entries, isChatInteraction: true);
         var logger = new CapturingLogger<FunctionInvocationAICompletionServiceHandler>();
-        var handler = new FunctionInvocationAICompletionServiceHandler(
+        var handler = CreateHandler(
             evaluator,
             new TestUserAccessor(),
-            new EmptyServiceProvider(),
+            CreateToolDefinitions(services =>
+            {
+                services.AddCoreAITool<RegistrationTestTool>("denied").Selectable();
+                services.AddCoreAITool<RegistrationTestTool>("allowed").Selectable();
+            }),
             logger);
 
         await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
 
         Assert.Equal([allowedTool], context.ChatOptions.Tools);
+        Assert.Equal(["denied", "allowed"], evaluator.ToolNames);
 
         var warning = Assert.Single(logger.Messages, message => message.Level == LogLevel.Warning);
-        Assert.Contains("denied-first", warning.Message);
-        Assert.Contains("denied-second", warning.Message);
+        Assert.Contains("denied", warning.Message);
     }
 
     [Fact]
-    public async Task ConfigureAsync_WhenThereIsNoCaller_SkipsAuthorizationAndKeepsEveryTool()
+    public async Task ConfigureAsync_ForChatInteraction_DoesNotGateSystemHiddenOrMcpTools()
     {
-        // Arrange
-        var evaluator = new RecordingToolAccessEvaluator
-        {
-            DeniedToolNames = { "denied" },
-        };
-        var deniedTool = new TestAIFunction("denied-tool");
+        // The evaluator denies everything, but only listable tools are checked.
+        var evaluator = new RecordingToolAccessEvaluator { DenyAll = true };
+        var systemTool = new TestAIFunction("system-tool");
+        var hiddenTool = new TestAIFunction("hidden-tool");
+        var mcpTool = new TestAIFunction("mcp-tool");
+        var unregisteredTool = new TestAIFunction("unregistered-tool");
         IReadOnlyList<ToolRegistryEntry> entries =
         [
-            CreateEntry("denied", "denied", ToolRegistryEntrySource.Local, deniedTool),
+            CreateEntry("system", "system", ToolRegistryEntrySource.System, systemTool),
+            CreateEntry("hidden", "hidden", ToolRegistryEntrySource.Local, hiddenTool),
+            CreateEntry("mcp", "mcp", ToolRegistryEntrySource.McpServer, mcpTool),
+            CreateEntry("unregistered", "unregistered", ToolRegistryEntrySource.Local, unregisteredTool),
         ];
-        var completionContext = new AICompletionContext();
-        completionContext.AdditionalProperties[FunctionInvocationAICompletionServiceHandler.ScopedEntriesKey] = entries;
-        var context = new CompletionServiceConfigureContext(new ChatOptions(), completionContext, true);
-        var handler = new FunctionInvocationAICompletionServiceHandler(
+        var context = CreateContext(entries, isChatInteraction: true);
+        var handler = CreateHandler(
+            evaluator,
+            new TestUserAccessor(),
+            CreateToolDefinitions(services =>
+            {
+                services.AddCoreAITool<RegistrationTestTool>("system"); // System tool by default.
+                services.AddCoreAITool<RegistrationTestTool>("hidden").Hidden();
+            }));
+
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        // None of these are listable, so the deny-all evaluator never removes them.
+        Assert.Equal([systemTool, hiddenTool, unregisteredTool, mcpTool], context.ChatOptions.Tools);
+        Assert.Empty(evaluator.ToolNames);
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_ForChatInteraction_WithNullCaller_KeepsEveryTool()
+    {
+        var evaluator = new RecordingToolAccessEvaluator { DenyAll = true };
+        var listableTool = new TestAIFunction("listable-tool");
+        IReadOnlyList<ToolRegistryEntry> entries =
+        [
+            CreateEntry("listable", "listable", ToolRegistryEntrySource.Local, listableTool),
+        ];
+        var context = CreateContext(entries, isChatInteraction: true);
+        var handler = CreateHandler(
             evaluator,
             new TestUserAccessor(user: null),
-            new EmptyServiceProvider(),
-            NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
+            CreateToolDefinitions(services => services.AddCoreAITool<RegistrationTestTool>("listable").Selectable()));
 
-        // Act
         await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Empty(evaluator.ToolNames);
-        Assert.Equal([deniedTool], context.ChatOptions.Tools);
+        Assert.Equal([listableTool], context.ChatOptions.Tools);
     }
 
-    [Fact]
-    public async Task ConfigureAsync_WhenCallerIsAnonymous_StillEvaluatesAuthorization()
+    private static FunctionInvocationAICompletionServiceHandler CreateHandler(
+        IAIToolAccessEvaluator evaluator = null,
+        IUserAccessor userAccessor = null,
+        IOptions<AIToolDefinitionOptions> toolDefinitions = null,
+        ILogger<FunctionInvocationAICompletionServiceHandler> logger = null)
     {
-        // Arrange
-        var evaluator = new RecordingToolAccessEvaluator
-        {
-            DeniedToolNames = { "denied" },
-        };
-        IReadOnlyList<ToolRegistryEntry> entries =
-        [
-            CreateEntry("denied", "denied", ToolRegistryEntrySource.Local, new TestAIFunction("denied-tool")),
-        ];
+        return new FunctionInvocationAICompletionServiceHandler(
+            evaluator ?? new RecordingToolAccessEvaluator(),
+            userAccessor ?? new TestUserAccessor(),
+            toolDefinitions ?? CreateToolDefinitions(_ => { }),
+            new EmptyServiceProvider(),
+            logger ?? NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
+    }
+
+    private static CompletionServiceConfigureContext CreateContext(
+        IReadOnlyList<ToolRegistryEntry> entries,
+        bool isChatInteraction = false)
+    {
         var completionContext = new AICompletionContext();
         completionContext.AdditionalProperties[FunctionInvocationAICompletionServiceHandler.ScopedEntriesKey] = entries;
-        var context = new CompletionServiceConfigureContext(new ChatOptions(), completionContext, true);
-        var handler = new FunctionInvocationAICompletionServiceHandler(
-            evaluator,
-            new TestUserAccessor(new ClaimsPrincipal(new ClaimsIdentity())),
-            new EmptyServiceProvider(),
-            NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
 
-        // Act
-        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+        if (isChatInteraction)
+        {
+            completionContext.AdditionalProperties[AICompletionContextKeys.Interaction] = new object();
+        }
 
-        // Assert
-        Assert.Equal(["denied"], evaluator.ToolNames);
-        Assert.Empty(context.ChatOptions.Tools);
+        return new CompletionServiceConfigureContext(new ChatOptions(), completionContext, true);
+    }
+
+    private static IOptions<AIToolDefinitionOptions> CreateToolDefinitions(Action<IServiceCollection> configure)
+    {
+        var services = new ServiceCollection();
+
+        services.AddOptions();
+        configure(services);
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        return Options.Create(serviceProvider.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value);
     }
 
     private static ToolRegistryEntry CreateEntry(
@@ -201,11 +244,13 @@ public sealed class FunctionInvocationAICompletionServiceHandlerTests
 
         public HashSet<string> DeniedToolNames { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+        public bool DenyAll { get; set; }
+
         public Task<bool> IsAuthorizedAsync(ClaimsPrincipal user, string toolName)
         {
             ToolNames.Add(toolName);
 
-            return Task.FromResult(!DeniedToolNames.Contains(toolName));
+            return Task.FromResult(!DenyAll && !DeniedToolNames.Contains(toolName));
         }
     }
 
@@ -250,6 +295,28 @@ public sealed class FunctionInvocationAICompletionServiceHandlerTests
         public object GetService(Type serviceType)
         {
             return null;
+        }
+    }
+
+    private sealed class RegistrationTestTool : AIFunction
+    {
+        public override string Name => "registration-test-tool";
+
+        public override string Description => Name;
+
+        public override System.Text.Json.JsonElement JsonSchema
+        {
+            get
+            {
+                return System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>("{}");
+            }
+        }
+
+        protected override ValueTask<object> InvokeCoreAsync(
+            AIFunctionArguments arguments,
+            CancellationToken cancellationToken)
+        {
+            return new ValueTask<object>(Name);
         }
     }
 

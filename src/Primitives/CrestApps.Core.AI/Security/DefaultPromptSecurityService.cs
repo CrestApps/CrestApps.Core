@@ -60,7 +60,7 @@ public sealed class DefaultPromptSecurityService : IPromptSecurityService
             var rateLimitBlockedResult = PromptSecurityResult.Blocked(
                 $"Rate limit exceeded. Please wait {rateLimitResult.RetryAfterSeconds} second(s) before sending another message.",
                 PromptRiskLevel.High,
-                "rate-limit");
+                PromptSecurityResult.RateLimitDetectionRule);
 
             if (siteOptions.EnableAuditLogging)
             {

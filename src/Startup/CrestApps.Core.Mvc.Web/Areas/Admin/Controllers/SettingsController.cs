@@ -151,8 +151,10 @@ public sealed class SettingsController : Controller
             SecurityBlockingThreshold = promptSecuritySettings.BlockingThreshold,
             SecurityMaxMessagesPerWindow = promptSecuritySettings.MaxMessagesPerWindow,
             SecurityRateLimitWindowSeconds = (int)Math.Round(promptSecuritySettings.RateLimitWindow.TotalSeconds),
+            SecurityAnonymousMessageRateLimitTiers = ChatRateLimitTierTextFormatter.Format(promptSecuritySettings.AnonymousMessageRateLimitTiers),
             SecurityMaxAnonymousSessionsPerWindow = promptSecuritySettings.MaxAnonymousSessionsPerWindow,
             SecurityAnonymousSessionRateLimitWindowSeconds = (int)Math.Round(promptSecuritySettings.AnonymousSessionRateLimitWindow.TotalSeconds),
+            SecurityAnonymousSessionStartRateLimitTiers = ChatRateLimitTierTextFormatter.Format(promptSecuritySettings.AnonymousSessionStartRateLimitTiers),
             SecurityRemoteAddressMode = visitorIdentitySettings.RemoteAddressMode,
         };
 
@@ -242,6 +244,16 @@ public sealed class SettingsController : Controller
         if (model.SecurityAnonymousSessionRateLimitWindowSeconds < 1 || model.SecurityAnonymousSessionRateLimitWindowSeconds > 86400)
         {
             ModelState.AddModelError(nameof(model.SecurityAnonymousSessionRateLimitWindowSeconds), "Must be between 1 and 86,400 seconds.");
+        }
+
+        if (!ChatRateLimitTierTextFormatter.TryParse(model.SecurityAnonymousMessageRateLimitTiers, out var anonymousMessageTiers, out var anonymousMessageTiersError))
+        {
+            ModelState.AddModelError(nameof(model.SecurityAnonymousMessageRateLimitTiers), anonymousMessageTiersError);
+        }
+
+        if (!ChatRateLimitTierTextFormatter.TryParse(model.SecurityAnonymousSessionStartRateLimitTiers, out var anonymousSessionTiers, out var anonymousSessionTiersError))
+        {
+            ModelState.AddModelError(nameof(model.SecurityAnonymousSessionStartRateLimitTiers), anonymousSessionTiersError);
         }
 
         if (!string.IsNullOrWhiteSpace(model.AdminWidgetPrimaryColor) &&
@@ -437,8 +449,10 @@ public sealed class SettingsController : Controller
             BlockingThreshold = model.SecurityBlockingThreshold,
             MaxMessagesPerWindow = model.SecurityMaxMessagesPerWindow,
             RateLimitWindow = TimeSpan.FromSeconds(model.SecurityRateLimitWindowSeconds),
+            AnonymousMessageRateLimitTiers = anonymousMessageTiers,
             MaxAnonymousSessionsPerWindow = model.SecurityMaxAnonymousSessionsPerWindow,
             AnonymousSessionRateLimitWindow = TimeSpan.FromSeconds(model.SecurityAnonymousSessionRateLimitWindowSeconds),
+            AnonymousSessionStartRateLimitTiers = anonymousSessionTiers,
         });
 
         var visitorIdentitySettings = _siteSettings.Get<AIVisitorIdentityOptions>();

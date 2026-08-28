@@ -38,3 +38,13 @@ query-filters:
   # OrchardCore admin pattern.
   - exclude:
       id: cs/web/xss
+
+  # Exclude log-injection ("log entries created from user input") alerts.
+  # Every user-derived value written to a log in this repository is passed through
+  # StringExtensions.SanitizeForLog(), which removes carriage-return and line-feed
+  # characters — the vectors for log forging/injection (see
+  # src/Utilities/CrestApps.Core.Support/StringExtensions.cs). CodeQL cannot model
+  # this custom extension method as a sanitizer, so it reports false positives for
+  # sanitized values such as the rate-limit keys logged by the chat rate limiters.
+  - exclude:
+      id: cs/log-forging
