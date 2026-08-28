@@ -61,6 +61,13 @@
             </div>
 
             <div class="mb-3">
+                <label asp-for="PathTemplate" class="form-label">Path template</label>
+                <input asp-for="PathTemplate" class="form-control font-monospace" placeholder="orders/{orderId}" />
+                <span asp-validation-for="PathTemplate" class="text-danger"></span>
+                <div class="form-text">Optional. Appended to the base URL. Use <code>{name}</code> tokens filled by parameters bound to the path.</div>
+            </div>
+
+            <div class="mb-3">
                 <label asp-for="HttpMethod" class="form-label">HTTP method</label>
                 <select asp-for="HttpMethod" class="form-select">
                     <option value="GET">GET</option>
@@ -265,6 +272,8 @@
                 </div>
             </div>
 
+            <partial name="_Parameters" model="Model" />
+
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> @(string.IsNullOrEmpty(Model.ItemId) ? "Create" : "Save")</button>
                 <a asp-action="Index" class="btn btn-secondary">Cancel</a>
@@ -287,7 +296,8 @@
         function updateSourceVisibility() {
             const selectedSource = sourceSelect ? sourceSelect.value : null;
             document.querySelectorAll('.source-fields').forEach(element => {
-                element.style.display = element.dataset.source === selectedSource ? '' : 'none';
+                const sources = (element.dataset.source || '').split(',');
+                element.style.display = sources.includes(selectedSource) ? '' : 'none';
             });
         }
 

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using CrestApps.Core.AI.Tooling.Instances;
+using CrestApps.Core.Startup.Shared.ViewModels;
 
 namespace CrestApps.Core.Blazor.Web.ViewModels;
 
@@ -34,6 +35,16 @@ public sealed class AIToolInstanceViewModel
     /// Gets or sets the base URL the request targets.
     /// </summary>
     public string BaseUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional path appended to the base URL, which may contain {parameter} tokens.
+    /// </summary>
+    public string PathTemplate { get; set; }
+
+    /// <summary>
+    /// Gets or sets the parameters declared for this instance.
+    /// </summary>
+    public List<AIToolInstanceParameterViewModel> Parameters { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the HTTP method to use.

@@ -5,6 +5,8 @@
 @using CrestApps.Core.AI.Tooling
 @using CrestApps.Core.AI.Tooling.Instances
 @using CrestApps.Core.AI.Tooling.Instances.Documentation
+@using CrestApps.Core.AI.Tooling.Parameters
+@using CrestApps.Core.Startup.Shared.ViewModels
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
 @using Microsoft.Extensions.Options
@@ -72,6 +74,12 @@ else
                 <label class="form-label">Base URL</label>
                 <InputText @bind-Value="_model.BaseUrl" class="form-control" placeholder="https://api.example.com/v1/resource" />
                 <ValidationMessage For="() => _model.BaseUrl" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Path template</label>
+                <InputText @bind-Value="_model.PathTemplate" class="form-control font-monospace" placeholder="orders/{orderId}" />
+                <div class="form-text">Optional. Appended to the base URL. Use <code>{name}</code> tokens filled by parameters bound to the path.</div>
             </div>
 
             <div class="mb-3">
@@ -307,6 +315,12 @@ else
                 </div>
             }
 
+            <ToolInstanceParameterEditor Source="@_model.Source"
+                                         Parameters="_model.Parameters"
+                                         HttpMethod="@_model.HttpMethod"
+                                         BaseUrl="@_model.BaseUrl"
+                                         PathTemplate="@_model.PathTemplate" />
+
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save</button>
                 <a href="/tooling/instances" class="btn btn-secondary">Cancel</a>
@@ -362,7 +376,7 @@ else
             return;
         }
 
-        Validate(_model, true);
+        Validate(_model, true, AIToolParameterBinder.GetParameters(instance));
 
         if (_errors.Count > 0)
         {
@@ -375,7 +389,7 @@ else
         Navigation.NavigateTo("/tooling/instances");
     }
 
-    private void Validate(AIToolInstanceViewModel model, bool isEditing)
+    private void Validate(AIToolInstanceViewModel model, bool isEditing, IReadOnlyList<AIToolInstanceParameter> existingParameters)
     {
         if (string.IsNullOrWhiteSpace(model.Name))
         {
@@ -516,12 +530,50 @@ else
         {
             _errors.Add("Timeout must be between 1 and 600 seconds.");
         }
+
+        ValidateParameters(model, existingParameters);
+    }
+
+    private void ApplyParameters(AIToolInstanceViewModel model, AIToolInstance instance)
+    {
+        var protector = DataProtectionProvider.CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose);
+
+        var parameters = AIToolInstanceParameterViewModel.ToParameters(
+            model.Parameters,
+            AIToolParameterBinder.GetParameters(instance),
+            protector.Protect);
+
+        instance.Put(new AIToolInstanceParametersMetadata { Parameters = parameters });
+    }
+
+    private void ValidateParameters(AIToolInstanceViewModel model, IReadOnlyList<AIToolInstanceParameter> existingParameters)
+    {
+        if (model.Parameters is not { Count: > 0 })
+        {
+            return;
+        }
+
+        var capabilities = !string.IsNullOrEmpty(model.Source) &&
+            AIOptions.Value.ToolInstanceSources.TryGetValue(model.Source, out var entry)
+                ? entry.Parameters
+                : null;
+
+        // The stored parameters are supplied so a secret the user left blank — meaning "keep what is
+        // stored" — is not mistaken for a missing value.
+        var parameters = AIToolInstanceParameterViewModel.ToParameters(model.Parameters, existingParameters);
+
+        foreach (var (_, error) in AIToolParameterValidator.Validate(parameters, capabilities))
+        {
+            _errors.Add(error);
+        }
     }
 
     private void Apply(AIToolInstanceViewModel model, AIToolInstance instance)
     {
         instance.Description = model.Description.Trim();
         instance.ModifiedUtc = TimeProvider.GetUtcNow().UtcDateTime;
+
+        ApplyParameters(model, instance);
 
         if (string.Equals(model.Source, DocumentationToolConstants.SitemapSourceName, StringComparison.OrdinalIgnoreCase))
         {
@@ -567,6 +619,7 @@ else
         var settings = new HttpApiRequestToolSettings
         {
             BaseUrl = model.BaseUrl?.Trim(),
+            PathTemplate = string.IsNullOrWhiteSpace(model.PathTemplate) ? null : model.PathTemplate.Trim(),
             HttpMethod = string.IsNullOrWhiteSpace(model.HttpMethod) ? "GET" : model.HttpMethod.Trim().ToUpperInvariant(),
             AuthenticationType = model.AuthenticationType,
             AllowModelProvidedPath = model.AllowModelProvidedPath,
@@ -623,6 +676,7 @@ else
         if (instance.TryGet<HttpApiRequestToolSettings>(out var settings))
         {
             model.BaseUrl = settings.BaseUrl;
+            model.PathTemplate = settings.PathTemplate;
             model.HttpMethod = string.IsNullOrWhiteSpace(settings.HttpMethod) ? "GET" : settings.HttpMethod;
             model.AuthenticationType = settings.AuthenticationType;
             model.ApiKeyHeaderName = string.IsNullOrWhiteSpace(settings.ApiKeyHeaderName) ? "X-Api-Key" : settings.ApiKeyHeaderName;
@@ -642,6 +696,8 @@ else
                 ? JsonSerializer.Serialize(settings.DefaultHeaders, _indentedJsonOptions)
                 : "{}";
         }
+
+        model.Parameters = AIToolInstanceParameterViewModel.FromParameters(AIToolParameterBinder.GetParameters(instance));
 
         if (instance.TryGet<SitemapDocumentationToolSettings>(out var sitemapSettings))
         {

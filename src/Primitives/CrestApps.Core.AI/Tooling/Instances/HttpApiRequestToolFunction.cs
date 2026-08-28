@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.AI.Tooling.Parameters;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.WebUtilities;
@@ -21,6 +22,7 @@ namespace CrestApps.Core.AI.Tooling.Instances;
 public sealed class HttpApiRequestToolFunction : AIFunction
 {
     private const int _maxResponseLength = 16000;
+    private static readonly char[] _headerLineBreaks = ['\r', '\n'];
     private static readonly HashSet<string> _bodyMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "POST",
@@ -33,7 +35,12 @@ public sealed class HttpApiRequestToolFunction : AIFunction
     private readonly string _description;
     private readonly HttpApiRequestToolSettings _settings;
     private readonly AIToolInstance _instance;
+    private readonly IReadOnlyList<AIToolInstanceParameter> _parameters;
     private readonly JsonElement _jsonSchema;
+    private readonly Dictionary<string, object> _additionalProperties;
+    private readonly bool _exposePath;
+    private readonly bool _exposeQuery;
+    private readonly bool _exposeBody;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="HttpApiRequestToolFunction"/> class.
@@ -61,7 +68,23 @@ public sealed class HttpApiRequestToolFunction : AIFunction
             : description;
         _settings = settings;
         _instance = instance;
-        _jsonSchema = BuildSchema(settings);
+        _parameters = AIToolParameterBinder.GetParameters(instance);
+
+        // A placement the user has bound a parameter to is no longer left open for the model to fill
+        // freely. A typed, described parameter is strictly better than an untyped bag, and closing the
+        // free-form argument is what makes strict schema mode reachable.
+        _exposePath = settings.AllowModelProvidedPath && !HasBinding(HttpApiRequestParameterBindings.Path);
+        _exposeQuery = settings.AllowModelProvidedQuery && !HasBinding(HttpApiRequestParameterBindings.Query);
+        _exposeBody = settings.AllowModelProvidedBody && !HasBinding(HttpApiRequestParameterBindings.Body);
+
+        _jsonSchema = AIToolParameterSchemaBuilder.Merge(
+            BuildBaseSchema(_exposePath, _exposeQuery, _exposeBody),
+            _parameters);
+
+        _additionalProperties = new Dictionary<string, object>
+        {
+            ["Strict"] = AIToolParameterSchemaBuilder.IsStrictEligible(_exposePath || _exposeQuery || _exposeBody, _parameters),
+        };
     }
 
     /// <summary>
@@ -80,13 +103,11 @@ public sealed class HttpApiRequestToolFunction : AIFunction
     public override JsonElement JsonSchema => _jsonSchema;
 
     /// <summary>
-    /// Gets additional metadata applied to the function. Strict mode is disabled because the request
-    /// body is an open-ended object.
+    /// Gets additional metadata applied to the function. Strict mode is enabled only when every argument
+    /// is a required declared parameter; the open-ended path, query, and body arguments cannot be
+    /// expressed under a strict schema.
     /// </summary>
-    public override IReadOnlyDictionary<string, object> AdditionalProperties { get; } = new Dictionary<string, object>
-    {
-        ["Strict"] = false,
-    };
+    public override IReadOnlyDictionary<string, object> AdditionalProperties => _additionalProperties;
 
     /// <summary>
     /// Issues the configured HTTP request, merging the model-provided arguments with the stored settings.
@@ -105,11 +126,30 @@ public sealed class HttpApiRequestToolFunction : AIFunction
             return Error("This tool instance is missing its base URL configuration.");
         }
 
+        var resolution = AIToolParameterBinder.Resolve(
+            _parameters,
+            arguments,
+            services,
+            value => Unprotect(services, value));
+
+        if (!resolution.Succeeded)
+        {
+            // Reported back to the model rather than thrown, so it can correct the call and retry.
+            if (logger?.IsEnabled(LogLevel.Debug) == true)
+            {
+                logger.LogDebug(
+                    "AI tool '{ToolName}' rejected a call with unusable parameters: {Errors}",
+                    _name, string.Join(" ", resolution.Errors));
+            }
+
+            return Error(string.Join(" ", resolution.Errors));
+        }
+
         Uri requestUri;
 
         try
         {
-            requestUri = BuildRequestUri(arguments);
+            requestUri = BuildRequestUri(arguments, resolution);
         }
         catch (Exception ex)
         {
@@ -122,8 +162,8 @@ public sealed class HttpApiRequestToolFunction : AIFunction
         using var request = new HttpRequestMessage(method, requestUri);
 
         await ApplyAuthenticationAsync(request, services, logger, cancellationToken);
-        ApplyDefaultHeaders(request);
-        ApplyBody(request, method, arguments);
+        ApplyDefaultHeaders(request, resolution, logger);
+        ApplyBody(request, method, arguments, resolution);
 
         var httpClient = CreateHttpClient(services);
 
@@ -169,24 +209,29 @@ public sealed class HttpApiRequestToolFunction : AIFunction
         }
     }
 
-    private Uri BuildRequestUri(AIFunctionArguments arguments)
+    private Uri BuildRequestUri(AIFunctionArguments arguments, AIToolParameterResolution resolution)
     {
         var baseUri = new Uri(_settings.BaseUrl.Trim(), UriKind.Absolute);
         var url = baseUri.ToString();
 
-        if (_settings.AllowModelProvidedPath &&
+        if (!string.IsNullOrWhiteSpace(_settings.PathTemplate))
+        {
+            url = CombineUrl(url, ApplyPathTemplate(_settings.PathTemplate.Trim(), resolution));
+        }
+
+        if (_exposePath &&
             TryGetString(arguments, "path", out var path) &&
             !string.IsNullOrWhiteSpace(path))
         {
             url = CombineUrl(url, path.Trim());
         }
 
-        if (_settings.AllowModelProvidedQuery &&
+        var pairs = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        if (_exposeQuery &&
             arguments.TryGetValue("query", out var queryValue) &&
             TryReadObject(queryValue, out var query))
         {
-            var pairs = new Dictionary<string, string>(StringComparer.Ordinal);
-
             foreach (var pair in query)
             {
                 if (pair.Value is not null)
@@ -194,11 +239,23 @@ public sealed class HttpApiRequestToolFunction : AIFunction
                     pairs[pair.Key] = pair.Value.ToString();
                 }
             }
+        }
 
-            if (pairs.Count > 0)
+        // Applied after the model's free-form query so a configured parameter always wins over a value
+        // the model invented for the same key.
+        foreach (var resolved in resolution.ForTarget(HttpApiRequestParameterBindings.Query))
+        {
+            var value = resolved.StringValue;
+
+            if (value is not null && !string.IsNullOrEmpty(resolved.Binding.Name))
             {
-                url = QueryHelpers.AddQueryString(url, pairs);
+                pairs[resolved.Binding.Name] = value;
             }
+        }
+
+        if (pairs.Count > 0)
+        {
+            url = QueryHelpers.AddQueryString(url, pairs);
         }
 
         var requestUri = new Uri(url, UriKind.Absolute);
@@ -526,41 +583,168 @@ public sealed class HttpApiRequestToolFunction : AIFunction
         }
     }
 
-    private void ApplyDefaultHeaders(HttpRequestMessage request)
+    private void ApplyDefaultHeaders(HttpRequestMessage request, AIToolParameterResolution resolution, ILogger logger)
     {
-        if (_settings.DefaultHeaders is null)
+        if (_settings.DefaultHeaders is not null)
         {
-            return;
+            foreach (var header in _settings.DefaultHeaders)
+            {
+                if (!string.IsNullOrWhiteSpace(header.Key))
+                {
+                    request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                }
+            }
         }
 
-        foreach (var header in _settings.DefaultHeaders)
+        foreach (var resolved in resolution.ForTarget(HttpApiRequestParameterBindings.Header))
         {
-            if (!string.IsNullOrWhiteSpace(header.Key))
+            var value = resolved.StringValue;
+
+            if (string.IsNullOrEmpty(resolved.Binding.Name) || value is null)
             {
-                request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                continue;
             }
+
+            // A line break in a header value splits the request. The source never accepts model-supplied
+            // header values, but a context or fixed value is still checked before it reaches the wire.
+            if (value.AsSpan().IndexOfAny(_headerLineBreaks) >= 0)
+            {
+                logger?.LogWarning(
+                    "AI tool '{ToolName}' skipped header '{HeaderName}' because its value contained a line break.",
+                    _name, resolved.Binding.Name);
+
+                continue;
+            }
+
+            request.Headers.TryAddWithoutValidation(resolved.Binding.Name, value);
         }
     }
 
-    private void ApplyBody(HttpRequestMessage request, HttpMethod method, AIFunctionArguments arguments)
+    private void ApplyBody(
+        HttpRequestMessage request,
+        HttpMethod method,
+        AIFunctionArguments arguments,
+        AIToolParameterResolution resolution)
     {
-        if (!_settings.AllowModelProvidedBody ||
-            !_bodyMethods.Contains(method.Method) ||
-            !arguments.TryGetValue("body", out var bodyValue) ||
-            bodyValue is null)
+        if (!_bodyMethods.Contains(method.Method))
         {
             return;
         }
 
-        var json = bodyValue switch
-        {
-            JsonElement element => element.GetRawText(),
-            JsonNode node => node.ToJsonString(),
-            string text => text,
-            _ => JsonSerializer.Serialize(bodyValue),
-        };
+        object bodyValue = null;
+        var hasModelBody = _exposeBody &&
+            arguments.TryGetValue("body", out bodyValue) &&
+            bodyValue is not null;
 
-        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        var bound = new List<AIToolResolvedParameter>();
+
+        foreach (var resolved in resolution.ForTarget(HttpApiRequestParameterBindings.Body))
+        {
+            bound.Add(resolved);
+        }
+
+        if (bound.Count == 0)
+        {
+            if (!hasModelBody)
+            {
+                return;
+            }
+
+            // No bound parameters, so the model's body is forwarded exactly as it was before parameter
+            // support existed.
+            var json = bodyValue switch
+            {
+                JsonElement element => element.GetRawText(),
+                JsonNode node => node.ToJsonString(),
+                string text => text,
+                _ => JsonSerializer.Serialize(bodyValue),
+            };
+
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            return;
+        }
+
+        var target = hasModelBody
+            ? ToJsonNode(bodyValue) as JsonObject ?? []
+            : [];
+
+        // Bound parameters are written last so a configured parameter wins over the same field supplied
+        // by the model.
+        foreach (var resolved in bound)
+        {
+            WriteBodyValue(target, resolved);
+        }
+
+        request.Content = new StringContent(target.ToJsonString(), Encoding.UTF8, "application/json");
+    }
+
+    private static string ApplyPathTemplate(string template, AIToolParameterResolution resolution)
+    {
+        var result = template;
+
+        foreach (var resolved in resolution.ForTarget(HttpApiRequestParameterBindings.Path))
+        {
+            if (string.IsNullOrEmpty(resolved.Binding.Name))
+            {
+                continue;
+            }
+
+            // Escaping the value as a single data segment stops it adding path segments or traversing
+            // upwards; the host check in BuildRequestUri is the second line of defense.
+            result = result.Replace(
+                "{" + resolved.Binding.Name + "}",
+                Uri.EscapeDataString(resolved.StringValue ?? string.Empty),
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (result.Contains('{', StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("The path template contains a token with no matching parameter value.");
+        }
+
+        return result;
+    }
+
+    private static void WriteBodyValue(JsonObject target, AIToolResolvedParameter resolved)
+    {
+        var segments = resolved.Binding.Name?.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (segments is not { Length: > 0 })
+        {
+            return;
+        }
+
+        var current = target;
+
+        // A dotted binding such as customer.id creates the intermediate objects it needs.
+        for (var i = 0; i < segments.Length - 1; i++)
+        {
+            if (current[segments[i]] is JsonObject existing)
+            {
+                current = existing;
+
+                continue;
+            }
+
+            var child = new JsonObject();
+            current[segments[i]] = child;
+            current = child;
+        }
+
+        current[segments[^1]] = ToJsonNode(resolved.Value);
+    }
+
+    private static JsonNode ToJsonNode(object value)
+    {
+        return value switch
+        {
+            null => null,
+            JsonElement element => JsonNode.Parse(element.GetRawText()),
+            JsonNode node => node.DeepClone(),
+            string text => JsonValue.Create(text),
+            _ => JsonSerializer.SerializeToNode(value),
+        };
     }
 
     private static HttpClient CreateHttpClient(IServiceProvider services)
@@ -691,11 +875,11 @@ public sealed class HttpApiRequestToolFunction : AIFunction
     private static string Error(string message)
         => JsonSerializer.Serialize(new { success = false, error = message });
 
-    private static JsonElement BuildSchema(HttpApiRequestToolSettings settings)
+    private static JsonObject BuildBaseSchema(bool exposePath, bool exposeQuery, bool exposeBody)
     {
         var properties = new JsonObject();
 
-        if (settings.AllowModelProvidedPath)
+        if (exposePath)
         {
             properties["path"] = new JsonObject
             {
@@ -704,7 +888,7 @@ public sealed class HttpApiRequestToolFunction : AIFunction
             };
         }
 
-        if (settings.AllowModelProvidedQuery)
+        if (exposeQuery)
         {
             properties["query"] = new JsonObject
             {
@@ -714,7 +898,7 @@ public sealed class HttpApiRequestToolFunction : AIFunction
             };
         }
 
-        if (settings.AllowModelProvidedBody)
+        if (exposeBody)
         {
             properties["body"] = new JsonObject
             {
@@ -724,14 +908,26 @@ public sealed class HttpApiRequestToolFunction : AIFunction
             };
         }
 
-        var schema = new JsonObject
+        return new JsonObject
         {
             ["type"] = "object",
             ["properties"] = properties,
-            ["additionalProperties"] = false,
         };
+    }
 
-        return JsonSerializer.SerializeToElement(schema);
+    private bool HasBinding(string target)
+    {
+        foreach (var parameter in _parameters)
+        {
+            if (parameter is not null &&
+                AIToolParameterBinding.TryParse(parameter.Binding, parameter.Name, out var binding) &&
+                binding.Is(target))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private sealed class NoopDisposable : IDisposable
