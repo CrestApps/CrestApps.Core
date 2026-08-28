@@ -637,7 +637,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
             if (sessionStartLimitResult.IsThrottled)
             {
-                await Clients.Caller.ReceiveError(GetSessionStartRateLimitMessage(sessionStartLimitResult));
+                await Clients.Caller.ReceiveSessionStartRejected(GetSessionStartRateLimitMessage(sessionStartLimitResult));
 
                 return;
             }
@@ -1241,6 +1241,12 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         {
             (chatSession, isNew) = await GetOrCreateSessionAsync(services, sessionId, profile, prompt);
         }
+        catch (ChatSessionStartRateLimitedException ex)
+        {
+            await Clients.Caller.ReceiveSessionStartRejected(ex.Message);
+
+            return;
+        }
         catch (InvalidOperationException ex)
         {
             await Clients.Caller.ReceiveError(ex.Message);
@@ -1464,6 +1470,12 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         {
             (chatSession, _) = await GetOrCreateSessionAsync(services, sessionId, parentProfile, userPrompt: profile.Name);
         }
+        catch (ChatSessionStartRateLimitedException ex)
+        {
+            await Clients.Caller.ReceiveSessionStartRejected(ex.Message);
+
+            return;
+        }
         catch (InvalidOperationException ex)
         {
             await Clients.Caller.ReceiveError(ex.Message);
@@ -1570,7 +1582,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
         if (sessionStartLimitResult.IsThrottled)
         {
-            throw new InvalidOperationException(GetSessionStartRateLimitMessage(sessionStartLimitResult));
+            throw new ChatSessionStartRateLimitedException(GetSessionStartRateLimitMessage(sessionStartLimitResult));
         }
 
         var chatSession = await sessionManager.NewAsync(profile, new NewAIChatSessionContext());
@@ -1624,14 +1636,19 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     }
 
     /// <summary>
-    /// Builds a session-start rate-limit message.
+    /// Builds a session-start rate-limit message shown to the caller.
     /// </summary>
     /// <param name="result">The rate-limit result.</param>
+    /// <remarks>
+    /// The message is intentionally generic: it never discloses the configured limit, the current
+    /// count, or the exact retry delay, since exposing those values helps an abuser tune around the
+    /// throttle. It still tells a legitimate visitor what happened and that waiting will resolve it.
+    /// </remarks>
     protected virtual string GetSessionStartRateLimitMessage(RateLimitResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
 
-        return $"Too many new chat sessions were started from this visitor. Please wait {result.RetryAfterSeconds} second(s) and try again.";
+        return "You've reached the limit for starting new chats. Please wait a few minutes and try again.";
     }
 
     private static AIVisitorIdentity ResolveVisitorIdentity(IServiceProvider services)

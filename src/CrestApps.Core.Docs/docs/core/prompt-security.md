@@ -194,6 +194,20 @@ Each tier is a `{ "Limit": <count>, "Window": "hh:mm:ss" }` pair. The tiers appl
 traffic only: authenticated callers are governed by the single-window `MaxMessagesPerWindow` and are
 never subject to session-start throttling.
 
+:::caution Tiers take precedence over the single-window values
+The single-window options (`MaxAnonymousSessionsPerWindow` / `AnonymousSessionRateLimitWindow`, and
+`MaxMessagesPerWindow` / `RateLimitWindow` for anonymous callers) are **fallbacks used only when the
+matching tiers list is empty**. Because the shipped defaults populate the tiers, changing only
+`MaxAnonymousSessionsPerWindow` has **no effect** until you also clear
+`AnonymousSessionStartRateLimitTiers`.
+
+For example, setting `MaxAnonymousSessionsPerWindow = 5` while the default `10 / 5m` tier is still
+present throttles anonymous visitors at **10**, not 5. To make the single-window value authoritative,
+clear the tiers (set `AnonymousSessionStartRateLimitTiers` to an empty list); to tighten the limit
+while keeping tiers, lower the relevant tier instead. Make sure your admin UI exposes the tiers field —
+if it only edits the single-window value, operators cannot change the effective limit.
+:::
+
 Authenticated message throttling is keyed by **both** the user identity and the network address (see
 `AuthenticatedMessagePartitions`, which defaults to `AuthenticatedUser | NetworkAddress`). The
 network-address bucket is shared with anonymous throttling and retained long enough to cover the

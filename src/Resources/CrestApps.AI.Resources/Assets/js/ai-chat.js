@@ -1154,8 +1154,31 @@ window.coreAIChatManager = function () {
                             this.stopRecording();
                         }
 
+                        // A server-side error (for example a session-start rate-limit rejection) ends the
+                        // in-flight request. Reject any pending new-session promise so the UI stops waiting
+                        // until it times out, and clear the typing indicator that a send may have shown.
+                        this.rejectPendingSessionRequest(error);
+                        this.hideTypingIndicator();
+
                         if (widgetBehavior && typeof widgetBehavior.handleReceiveError === 'function') {
                             widgetBehavior.handleReceiveError(this, error, config);
+                        } else if (!this.isNavigatingAway) {
+                            // Surface the message to the user instead of failing silently.
+                            this.addMessage(this.getErrorMessage(error));
+                        }
+                    });
+
+                    this.connection.on("ReceiveSessionStartRejected", (reason) => {
+                        // A rate-limit rejection is a definitive "wait and retry", not a recoverable
+                        // session/connection error. Unblock any pending new-session request, clear the
+                        // typing indicator, and show the message for every host (main app and widget)
+                        // without triggering the widget's clear-and-retry recovery, which would wipe the
+                        // visitor's state and fire another throttled StartSession.
+                        this.rejectPendingSessionRequest(reason);
+                        this.hideTypingIndicator();
+
+                        if (!this.isNavigatingAway) {
+                            this.addMessage(this.getErrorMessage(reason));
                         }
                     });
 
@@ -1691,6 +1714,17 @@ window.coreAIChatManager = function () {
                     };
 
                     return newMessage;
+                },
+                getErrorMessage(error) {
+                    var content = (typeof error === 'string' && error.trim())
+                        ? error
+                        : "Something went wrong. Please try again.";
+
+                    return {
+                        role: "assistant",
+                        content: content,
+                        htmlContent: "",
+                    };
                 },
                 processReferences(references, messageIndex) {
                     references = normalizeReferences(references);
