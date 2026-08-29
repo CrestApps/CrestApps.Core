@@ -55,6 +55,6 @@ public sealed class WebsiteSearchToolSource : IAIToolInstanceSource
                 ?? NullLogger<WebsiteSearchSource>.Instance;
 
             return new WebsiteSearchSource(site, options, httpClientFactory, logger);
-        });
+        }, isLiveSearch: true);
     }
 }

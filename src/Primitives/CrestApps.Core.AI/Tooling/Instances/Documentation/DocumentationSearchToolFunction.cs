@@ -42,6 +42,7 @@ public sealed class DocumentationSearchToolFunction : AIFunction
     private readonly string _description;
     private readonly AIToolInstance _instance;
     private readonly Func<IServiceProvider, IDocumentationSource> _sourceFactory;
+    private readonly bool _isLiveSearch;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DocumentationSearchToolFunction"/> class.
@@ -50,11 +51,17 @@ public sealed class DocumentationSearchToolFunction : AIFunction
     /// <param name="description">The description exposed to the AI model.</param>
     /// <param name="instance">The configured tool instance the function belongs to. Used to key the materialized source cache.</param>
     /// <param name="sourceFactory">A factory that builds the runtime documentation source from request services.</param>
+    /// <param name="isLiveSearch">
+    /// <c>true</c> when the source runs a live query against the site's own search engine (so a reworded
+    /// query can return different results); <c>false</c> when it searches a fixed local corpus. This only
+    /// affects the guidance returned to the model when a search yields no results.
+    /// </param>
     public DocumentationSearchToolFunction(
         string name,
         string description,
         AIToolInstance instance,
-        Func<IServiceProvider, IDocumentationSource> sourceFactory)
+        Func<IServiceProvider, IDocumentationSource> sourceFactory,
+        bool isLiveSearch = false)
     {
         _name = name;
         _description = string.IsNullOrWhiteSpace(description)
@@ -62,6 +69,7 @@ public sealed class DocumentationSearchToolFunction : AIFunction
             : description;
         _instance = instance;
         _sourceFactory = sourceFactory;
+        _isLiveSearch = isLiveSearch;
     }
 
     /// <summary>
@@ -150,12 +158,20 @@ public sealed class DocumentationSearchToolFunction : AIFunction
 
         if (results.Count == 0)
         {
-            // The site has already been fully crawled and searched by this point, so an empty result is
-            // final. Say so explicitly: without this, models tend to "helpfully" rephrase the query and
-            // call the tool again repeatedly, exhausting the request's tool-call iteration budget.
-            return $"No results were found for '{query}'. The site has already been fully indexed and searched, "
-                + "so calling this tool again with a reworded query will not surface additional results. "
-                + "Tell the user that this topic does not appear on the site.";
+            // Give the model a bounded recovery path: a full-sentence or misspelled query often returns
+            // nothing, and a single retry with the corrected key nouns usually succeeds. The "then stop"
+            // clause keeps this from turning into a retry loop that exhausts the tool-call iteration budget.
+            if (_isLiveSearch)
+            {
+                return $"No results were found for '{query}'. This runs a live search of the site, so a different query can return results. "
+                    + "Try once more using only the key nouns, correctly spelled, and dropping question words "
+                    + "(for example search 'century theater', not 'what is the 20th centry theater'). "
+                    + "If a simpler, corrected query also returns nothing, tell the user the site has no matching content and stop searching.";
+            }
+
+            return $"No results were found for '{query}'. Try once more using only the key nouns, correctly spelled. "
+                + "If a simpler, corrected query also returns nothing, the site has no matching content for this topic — "
+                + "tell the user and stop searching.";
         }
 
         using var builder = ZString.CreateStringBuilder();

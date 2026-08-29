@@ -51,7 +51,7 @@ public sealed class AlgoliaDocumentationToolSource : IAIToolInstanceSource
                 ?? NullLogger<AlgoliaDocumentationSource>.Instance;
 
             return new AlgoliaDocumentationSource(site, options, httpClientFactory, logger);
-        });
+        }, isLiveSearch: true);
     }
 
     private static string UnprotectApiKey(string apiKey, AIToolInstance instance, IServiceProvider services)

@@ -164,8 +164,8 @@ public sealed class DocumentationSearchTests
 
         Assert.Contains("No results were found for 'anything'.", result);
 
-        // The message must steer the model away from retrying the same fruitless search.
-        Assert.Contains("will not surface additional results", result);
+        // The message offers a bounded retry then a clear stop, so a fruitless search does not loop.
+        Assert.Contains("stop searching", result);
     }
 
     /// <summary>
@@ -638,7 +638,22 @@ public sealed class DocumentationSearchTests
         return output.ToArray();
     }
 
-    private static DocumentationSearchToolFunction CreateFunction(IDocumentationSource source)
+    /// <summary>
+    /// Verifies that a live search source, when it finds nothing, tells the model it may retry with
+    /// simpler, corrected keywords (because a reworded live query can return results) rather than stopping.
+    /// </summary>
+    [Fact]
+    public async Task InvokeAsync_WhenNoResults_LiveSource_EncouragesCorrectedRetry()
+    {
+        var function = CreateFunction(new FakeDocumentationSource("docs"), isLiveSearch: true);
+
+        var result = await InvokeAsync(function, "anything");
+
+        Assert.Contains("live search", result);
+        Assert.Contains("key nouns", result);
+    }
+
+    private static DocumentationSearchToolFunction CreateFunction(IDocumentationSource source, bool isLiveSearch = false)
     {
         var instance = new AIToolInstance
         {
@@ -647,7 +662,7 @@ public sealed class DocumentationSearchTests
             CreatedUtc = DateTime.UnixEpoch,
         };
 
-        return new DocumentationSearchToolFunction("docs", "Docs search", instance, _ => source);
+        return new DocumentationSearchToolFunction("docs", "Docs search", instance, _ => source, isLiveSearch);
     }
 
     private static async Task<string> InvokeAsync(DocumentationSearchToolFunction function, string query)
