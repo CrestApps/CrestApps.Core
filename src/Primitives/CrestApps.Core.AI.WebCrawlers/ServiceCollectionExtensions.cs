@@ -63,6 +63,7 @@ public static class ServiceCollectionExtensions
             new LocalizedString("Sitemap Strategy Description", "Discover pages through the site's sitemap(s) and scrape each page as text.")));
 
         services.TryAddScoped<IWebCrawlerReindexPlanner, WebCrawlerReindexPlanner>();
+        services.TryAddScoped<IWebCrawlerReindexService, WebCrawlerReindexService>();
         services.TryAddKeyedScoped<IAIDataSourceSourceHandler, WebAIDataSourceSourceHandler>(AIDataSourceSourceTypes.Web);
         services.TryAddKeyedSingleton<IAIReferenceLinkResolver, WebCrawlerReferenceLinkResolver>(AIDataSourceSourceTypes.Web);
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<WebCrawler>, WebCrawlerCatalogHandler>());

@@ -211,6 +211,65 @@ public sealed class WebCrawlerTests
         Assert.Equal(expected, new WebCrawlerReferenceLinkResolver().ResolveLink(referenceId, null));
     }
 
+    [Fact]
+    public async Task ReindexService_ReindexDue_OnlyRunsDueCrawlers()
+    {
+        var crawlerStore = new InMemoryCrawlerStore();
+        crawlerStore.Items.Add(new WebCrawler { ItemId = "due", Source = WebCrawlerConstants.Strategies.Sitemap, AIDataSourceId = "ds1", Enabled = true });
+        crawlerStore.Items.Add(new WebCrawler { ItemId = "notdue", Source = WebCrawlerConstants.Strategies.Sitemap, AIDataSourceId = "ds1", Enabled = true });
+        crawlerStore.Items.Add(new WebCrawler { ItemId = "disabled", Source = WebCrawlerConstants.Strategies.Sitemap, AIDataSourceId = "ds1", Enabled = false });
+
+        var stateStore = new InMemoryCrawlStateStore();
+        // "notdue" was seen just now, so it is inside its default re-index interval.
+        stateStore.Items.Add(new WebCrawlState { ItemId = "s1", Source = "notdue", Url = "https://x.com/1", LastSeenUtc = DateTime.UtcNow });
+
+        var planner = new RecordingPlanner();
+        var service = CreateReindexService(crawlerStore, stateStore, planner);
+
+        await service.ReindexDueAsync(Ct);
+
+        Assert.Contains("due", planner.Reindexed);
+        Assert.DoesNotContain("notdue", planner.Reindexed);
+        Assert.DoesNotContain("disabled", planner.Reindexed);
+    }
+
+    [Fact]
+    public async Task ReindexService_ReindexAll_RunsEveryEnabledCrawler()
+    {
+        var crawlerStore = new InMemoryCrawlerStore();
+        crawlerStore.Items.Add(new WebCrawler { ItemId = "a", Source = WebCrawlerConstants.Strategies.Sitemap, AIDataSourceId = "ds1", Enabled = true });
+        crawlerStore.Items.Add(new WebCrawler { ItemId = "b", Source = WebCrawlerConstants.Strategies.Sitemap, AIDataSourceId = "ds1", Enabled = true });
+        crawlerStore.Items.Add(new WebCrawler { ItemId = "disabled", Source = WebCrawlerConstants.Strategies.Sitemap, AIDataSourceId = "ds1", Enabled = false });
+
+        var stateStore = new InMemoryCrawlStateStore();
+        // Both enabled crawlers were seen just now, so neither is "due"; ReindexAll ignores that.
+        stateStore.Items.Add(new WebCrawlState { ItemId = "s1", Source = "a", Url = "https://x.com/1", LastSeenUtc = DateTime.UtcNow });
+        stateStore.Items.Add(new WebCrawlState { ItemId = "s2", Source = "b", Url = "https://x.com/2", LastSeenUtc = DateTime.UtcNow });
+
+        var planner = new RecordingPlanner();
+        var service = CreateReindexService(crawlerStore, stateStore, planner);
+
+        await service.ReindexAllAsync(Ct);
+
+        Assert.Contains("a", planner.Reindexed);
+        Assert.Contains("b", planner.Reindexed);
+        Assert.DoesNotContain("disabled", planner.Reindexed);
+    }
+
+    private static WebCrawlerReindexService CreateReindexService(
+        InMemoryCrawlerStore crawlerStore,
+        InMemoryCrawlStateStore stateStore,
+        IWebCrawlerReindexPlanner planner)
+    {
+        return new WebCrawlerReindexService(
+            crawlerStore,
+            stateStore,
+            planner,
+            Options.Create(new WebCrawlerOptions()),
+            TimeProvider.System,
+            NullLogger<WebCrawlerReindexService>.Instance);
+    }
+
     private static SitemapWebCrawlerStrategy CreateStrategy(IReadOnlyDictionary<string, (byte[] Body, string ContentType)> routes)
     {
         return new SitemapWebCrawlerStrategy(
@@ -312,6 +371,18 @@ public sealed class WebCrawlerTests
         public Task<IReadOnlyList<CrawledPageRef>> DiscoverAsync(WebCrawler crawler, CancellationToken cancellationToken = default) => Task.FromResult(_refs);
 
         public Task<CrawledPage> FetchAsync(WebCrawler crawler, string url, CancellationToken cancellationToken = default) => Task.FromResult(new CrawledPage("Title", "content"));
+    }
+
+    private sealed class RecordingPlanner : IWebCrawlerReindexPlanner
+    {
+        public List<string> Reindexed { get; } = [];
+
+        public Task<WebCrawlerReindexResult> PlanAndEnqueueAsync(WebCrawler crawler, CancellationToken cancellationToken = default)
+        {
+            Reindexed.Add(crawler.ItemId);
+
+            return Task.FromResult(WebCrawlerReindexResult.Empty);
+        }
     }
 
     private sealed class RecordingIndexingQueue : IAIDataSourceIndexingQueue
