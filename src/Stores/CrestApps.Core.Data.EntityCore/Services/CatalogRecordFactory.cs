@@ -83,6 +83,13 @@ internal static class CatalogRecordFactory
                 record.Type = indexProfile.Type;
                 record.CreatedUtc = indexProfile.CreatedUtc;
                 break;
+            case WebCrawler crawler:
+                // The strategy is the crawler's Source (auto-mapped above); the target data source id is
+                // denormalized into the generic reference column so crawlers can be queried per data source.
+                record.ReferenceId = crawler.AIDataSourceId;
+                record.CreatedUtc = crawler.CreatedUtc;
+                record.UpdatedUtc = crawler.ModifiedUtc;
+                break;
         }
 
         return record;

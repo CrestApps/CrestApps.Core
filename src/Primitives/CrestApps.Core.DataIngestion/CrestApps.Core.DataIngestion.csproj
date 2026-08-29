@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.DataIngestion</RootNamespace>
+    <Title>CrestApps Data Ingestion</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      Reusable document readers for Microsoft.Extensions.DataIngestion, starting with an HTML reader that
+      cleans markup into plain text for chunking and embedding.
+    </Description>
+    <PackageTags>$(PackageTags) data-ingestion html reader rag</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DataIngestion" />
+  </ItemGroup>
+
+</Project>
