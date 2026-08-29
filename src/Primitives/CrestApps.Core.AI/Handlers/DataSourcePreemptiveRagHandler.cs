@@ -189,7 +189,14 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
     {
         var orchestrationContext = context.OrchestrationContext;
         var dataSourceId = orchestrationContext.CompletionContext.DataSourceId;
-        var embeddings = await embeddingGenerator.GenerateAsync(context.Queries);
+        var searchQueries = GetSearchQueries(orchestrationContext.UserMessage, context.Queries);
+
+        if (searchQueries.Count == 0)
+        {
+            return;
+        }
+
+        var embeddings = await embeddingGenerator.GenerateAsync(searchQueries);
 
         if (embeddings == null || embeddings.Count == 0)
         {
@@ -210,8 +217,10 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             }
         }
 
-        var allResults = new List<DataSourceSearchResult>();
+        var minimumScore = _options.GetMinimumScore(ragMetadata?.Strictness);
+        var finalResults = new List<DataSourceSearchResult>();
         var seenChunkIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var candidateCount = DataSourceSearchResultSelector.GetCandidateCount(topN);
 
         foreach (var embedding in embeddings)
         {
@@ -224,7 +233,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
                 indexProfile,
                 embedding.Vector.ToArray(),
                 dataSourceId,
-                topN,
+                candidateCount,
                 providerFilter);
 
             if (results == null)
@@ -232,30 +241,26 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
                 continue;
             }
 
-            foreach (var result in results)
+            foreach (var result in DataSourceSearchResultSelector.SelectTopResults(results, candidateCount, minimumScore))
             {
                 var chunkKey = $"{result.ReferenceId}:{result.ChunkIndex}";
 
                 if (seenChunkIds.Add(chunkKey))
                 {
-                    allResults.Add(result);
+                    finalResults.Add(result);
+
+                    if (finalResults.Count >= topN)
+                    {
+                        break;
+                    }
                 }
             }
+
+            if (finalResults.Count >= topN)
+            {
+                break;
+            }
         }
-
-        var strictness = _options.GetStrictness(ragMetadata?.Strictness);
-        var query = allResults.AsEnumerable();
-
-        if (strictness > 0)
-        {
-            var threshold = strictness / (float)AIDataSourceOptions.MaxStrictness;
-            query = query.Where(result => result.Score >= threshold);
-        }
-
-        var finalResults = query
-            .OrderByDescending(result => result.Score)
-            .Take(topN)
-            .ToList();
 
         if (finalResults.Count == 0)
         {
@@ -368,6 +373,39 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
         }
 
         return normalizedTitle;
+    }
+
+    private static List<string> GetSearchQueries(string userMessage, IList<string> derivedQueries)
+    {
+        var queries = new List<string>();
+        var seenQueries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        static void AddQuery(ICollection<string> queries, ISet<string> seenQueries, string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            var trimmedValue = value.Trim();
+
+            if (seenQueries.Add(trimmedValue))
+            {
+                queries.Add(trimmedValue);
+            }
+        }
+
+        AddQuery(queries, seenQueries, userMessage);
+
+        if (derivedQueries != null)
+        {
+            foreach (var query in derivedQueries)
+            {
+                AddQuery(queries, seenQueries, query);
+            }
+        }
+
+        return queries;
     }
 
     private static AIDataSourceRagMetadata GetRagMetadata(object resource)

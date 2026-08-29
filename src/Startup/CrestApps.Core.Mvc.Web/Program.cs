@@ -1,5 +1,6 @@
 using CrestApps.Core;
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.WebCrawlers;
 using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Azure.AISearch;
@@ -187,6 +188,11 @@ builder.Services
         )
      )
  );
+
+// Opt into the strategy-based web crawlers feature and its YesSql stores. Web crawlers scrape sites
+// (starting with sitemap discovery) into any "Web" AI data source.
+builder.Services.AddCoreWebCrawlers();
+builder.Services.AddCoreWebCrawlerStoresYesSql();
 
 builder.Services.Configure<A2AHostOptions>(
      builder.Configuration.GetSection(nameof(A2AHostOptions)));

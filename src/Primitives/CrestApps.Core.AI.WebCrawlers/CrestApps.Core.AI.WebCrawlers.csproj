@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.WebCrawlers</RootNamespace>
+    <Title>CrestApps AI Web Crawlers</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      Strategy-based web crawlers that scrape public websites (starting with sitemap discovery) and
+      populate CrestApps AI data sources for retrieval-augmented generation.
+    </Description>
+    <PackageTags>$(PackageTags) web crawler scraper sitemap ai data-sources rag</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DataIngestion" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
+    <ProjectReference Include="../CrestApps.Core.DataIngestion/CrestApps.Core.DataIngestion.csproj" />
+    <ProjectReference Include="../../Abstractions/CrestApps.Core.Infrastructure.Abstractions/CrestApps.Core.Infrastructure.Abstractions.csproj" />
+    <ProjectReference Include="../CrestApps.Core.Infrastructure/CrestApps.Core.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

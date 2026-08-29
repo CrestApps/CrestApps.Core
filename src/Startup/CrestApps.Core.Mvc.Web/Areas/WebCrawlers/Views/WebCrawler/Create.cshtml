@@ -1,0 +1,115 @@
+@using CrestApps.Core.AI.WebCrawlers
+@using CrestApps.Core.Mvc.Web.Areas.WebCrawlers.ViewModels
+@model WebCrawlerViewModel
+@{
+    ViewData["Title"] = "Create Web Crawler";
+}
+
+<h2><i class="bi bi-plus-lg"></i> Create Web Crawler</h2>
+<hr />
+
+<form asp-action="Create" method="post">
+    @Html.AntiForgeryToken()
+    <div class="row">
+        <div class="col-md-8">
+            <div class="mb-3">
+                <label asp-for="DisplayText" class="form-label">Title <span class="text-danger">*</span></label>
+                <input asp-for="DisplayText" class="form-control" required placeholder="e.g., Docs site" />
+                <span asp-validation-for="DisplayText" class="text-danger"></span>
+                <div class="form-text">A human-readable name for this crawler.</div>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="AIDataSourceId" class="form-label">Target Web data source <span class="text-danger">*</span></label>
+                <select asp-for="AIDataSourceId" asp-items="Model.DataSources" class="form-select" required>
+                    <option value="">Select data source</option>
+                </select>
+                <span asp-validation-for="AIDataSourceId" class="text-danger"></span>
+                <div class="form-text">The Web data source whose knowledge base receives the scraped pages. Create one under Data Sources using the <strong>Web</strong> source type.</div>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Source" class="form-label">Strategy <span class="text-danger">*</span></label>
+                <select asp-for="Source" asp-items="Model.Strategies" id="Source" class="form-select" required>
+                    <option value="">Select strategy</option>
+                </select>
+                <span asp-validation-for="Source" class="text-danger"></span>
+                <div class="form-text">How the site is discovered and fetched.</div>
+            </div>
+
+            <div class="mb-3 form-check">
+                <input asp-for="Enabled" class="form-check-input" type="checkbox" />
+                <label asp-for="Enabled" class="form-check-label">Enabled</label>
+                <div class="form-text">Disabled crawlers are skipped by the re-index background service.</div>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="ReindexIntervalMinutes" class="form-label">Re-index interval (minutes)</label>
+                <input asp-for="ReindexIntervalMinutes" class="form-control" type="number" min="1" placeholder="1440" />
+                <div class="form-text">How often the background service re-crawls this site and re-indexes changed pages.</div>
+            </div>
+
+            <div id="sitemap-strategy-settings"@(string.Equals(Model.Source, WebCrawlerConstants.Strategies.Sitemap, StringComparison.OrdinalIgnoreCase) ? null : " hidden")>
+                <hr />
+                <h5>Sitemap Settings</h5>
+                <div class="alert alert-info">
+                    Discover pages through the site's sitemap(s). Provide a base URL or an explicit sitemap URL; each page is fetched, cleaned to text, and indexed with its URL kept for citations.
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="SitemapBaseUrl" class="form-label">Base URL</label>
+                    <input asp-for="SitemapBaseUrl" class="form-control" placeholder="https://docs.example.com" />
+                    <span asp-validation-for="SitemapBaseUrl" class="text-danger"></span>
+                    <div class="form-text">Used to resolve the sitemap from robots.txt and the conventional locations when no explicit sitemap URL is given.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="SitemapUrl" class="form-label">Sitemap URL</label>
+                    <input asp-for="SitemapUrl" class="form-control" placeholder="https://docs.example.com/sitemap.xml" />
+                    <span asp-validation-for="SitemapUrl" class="text-danger"></span>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label asp-for="SitemapMaxPages" class="form-label">Max pages</label>
+                        <input asp-for="SitemapMaxPages" class="form-control" type="number" min="1" placeholder="500" />
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label asp-for="SitemapMaxConcurrentRequests" class="form-label">Max concurrent requests</label>
+                        <input asp-for="SitemapMaxConcurrentRequests" class="form-control" type="number" min="1" placeholder="4" />
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label asp-for="SitemapRequestTimeoutSeconds" class="form-label">Request timeout (seconds)</label>
+                        <input asp-for="SitemapRequestTimeoutSeconds" class="form-control" type="number" min="1" placeholder="30" />
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="SitemapUserAgent" class="form-label">User agent</label>
+                    <input asp-for="SitemapUserAgent" class="form-control" placeholder="CrestApps-WebCrawler/1.0 (+https://crestapps.com)" />
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="SitemapIncludeUrlPatterns" class="form-label">Include URL patterns</label>
+                    <textarea asp-for="SitemapIncludeUrlPatterns" class="form-control" rows="3" placeholder="One regular expression per line"></textarea>
+                    <div class="form-text">Optional. A page URL must match at least one pattern to be scraped. Leave empty to include every discovered page.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="SitemapExcludeUrlPatterns" class="form-label">Exclude URL patterns</label>
+                    <textarea asp-for="SitemapExcludeUrlPatterns" class="form-control" rows="3" placeholder="One regular expression per line"></textarea>
+                    <div class="form-text">Optional. A page URL matching any pattern is skipped.</div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Create
+                </button>
+                <a asp-action="Index" class="btn btn-secondary ms-2">Cancel</a>
+            </div>
+        </div>
+    </div>
+</form>
+
+@await Html.PartialAsync("_StrategySettingsScript")

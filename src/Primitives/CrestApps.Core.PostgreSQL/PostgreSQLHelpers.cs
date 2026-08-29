@@ -74,7 +74,12 @@ public static partial class PostgreSQLHelpers
             throw new InvalidOperationException($"The PostgreSQL identifier '{trimmedName}' contains unsupported characters.");
         }
 
-        return $""""{trimmedName.Replace("\"", "\"\"", StringComparison.Ordinal)}"""";
+        // Wrap the identifier in double quotes (doubling any embedded quote) so names that are not valid
+        // unquoted identifiers — e.g. a table derived from an index profile named "data-sources", whose
+        // hyphen would otherwise raise "42601: syntax error at or near '-'" — are emitted correctly.
+        var escapedName = trimmedName.Replace("\"", "\"\"", StringComparison.Ordinal);
+
+        return $"\"{escapedName}\"";
     }
 
     [GeneratedRegex("^[A-Za-z0-9_-]+$")]
