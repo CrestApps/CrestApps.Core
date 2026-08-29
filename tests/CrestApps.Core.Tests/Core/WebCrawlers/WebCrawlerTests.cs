@@ -48,6 +48,34 @@ public sealed class WebCrawlerTests
     }
 
     [Fact]
+    public void HtmlReader_RemovesUnclosedScriptAndStyleContent()
+    {
+        // A malformed/unclosed script would slip past a regex tag stripper; the parser removes it entirely.
+        var text = HtmlIngestionDocumentReader.ExtractText("<html><body><p>real content</p><script>stealCookies()<style>.x{color:red}");
+
+        Assert.Contains("real content", text);
+        Assert.DoesNotContain("stealCookies", text);
+        Assert.DoesNotContain("color:red", text);
+    }
+
+    [Fact]
+    public void HtmlReader_RemovesCommentsAndInlineHandlers()
+    {
+        var text = HtmlIngestionDocumentReader.ExtractText("<html><body><!-- hidden secret --><img src=x onerror=alert(1)><p>visible</p></body></html>");
+
+        Assert.Equal("visible", text);
+        Assert.DoesNotContain("secret", text);
+        Assert.DoesNotContain("onerror", text);
+        Assert.DoesNotContain("alert", text);
+    }
+
+    [Fact]
+    public void HtmlReader_TitleIsPlainTextWithoutNestedTags()
+    {
+        Assert.Equal("Hi there", HtmlIngestionDocumentReader.ExtractTitle("<html><head><title>Hi <b>there</b></title></head><body>x</body></html>"));
+    }
+
+    [Fact]
     public async Task Crawler_ParsesUrlsetWithLastmod()
     {
         var routes = new Dictionary<string, (byte[] Body, string ContentType)>

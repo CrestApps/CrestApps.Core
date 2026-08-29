@@ -39,9 +39,11 @@ can be added later by implementing one interface — without changing the data s
 | `Sitemap` | Discovers pages through the site's sitemap(s) — flat `urlset`, nested `sitemapindex`, gzip and plain-text sitemaps, RSS/Atom feeds, and `robots.txt` advertisements — then fetches and cleans each page. |
 
 Each page's HTML is cleaned into plain text through a reusable
-`CrestApps.Core.DataIngestion.HtmlIngestionDocumentReader` (a `Microsoft.Extensions.DataIngestion`
-reader that strips scripts, styles, and markup), and the resulting text is normalized and token-chunked by
-the shared data-source indexing pipeline.
+`CrestApps.Core.DataIngestion.HtmlIngestionDocumentReader`. Because scraped pages are untrusted, it parses
+the HTML with a standards-compliant HTML5 parser (AngleSharp) — not pattern matching — and removes
+`script`, `style`, and other non-content nodes together with their contents before reading any text. The
+parser never executes scripts, so no markup or code survives into the text that is embedded and stored.
+The resulting text is then normalized and token-chunked by the shared data-source indexing pipeline.
 
 ### Sitemap settings
 
