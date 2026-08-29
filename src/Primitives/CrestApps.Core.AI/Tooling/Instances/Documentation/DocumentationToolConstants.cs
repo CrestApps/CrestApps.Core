@@ -25,6 +25,12 @@ public static class DocumentationToolConstants
     public const string AlgoliaSourceName = "algolia-documentation";
 
     /// <summary>
+    /// The registered source name of the live website search source that queries a site's own search API
+    /// (for example the WordPress REST <c>wp-json/wp/v2/search</c> endpoint) instead of crawling it.
+    /// </summary>
+    public const string WebsiteSearchSourceName = "website-search";
+
+    /// <summary>
     /// The data-protection purpose used to protect and unprotect stored Algolia DocSearch credentials.
     /// </summary>
     public const string AlgoliaDataProtectionPurpose = "CrestApps.Core.AI.Tooling.AlgoliaDocumentation";

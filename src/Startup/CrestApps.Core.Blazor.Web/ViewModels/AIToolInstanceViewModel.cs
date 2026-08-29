@@ -203,4 +203,51 @@ public sealed class AIToolInstanceViewModel
     /// Gets or sets the maximum number of results the Algolia DocSearch source returns for a single search.
     /// </summary>
     public int? AlgoliaMaxResults { get; set; }
+
+    /// <summary>
+    /// Gets or sets the base URL of the site for the live website search source.
+    /// </summary>
+    public string WebsiteSearchBaseUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the search endpoint path for the live website search source. Defaults to the WordPress
+    /// REST search endpoint.
+    /// </summary>
+    public string WebsiteSearchPath { get; set; } = "/wp-json/wp/v2/search";
+
+    /// <summary>
+    /// Gets or sets the query-string parameter that carries the model's query for the website search source.
+    /// </summary>
+    public string WebsiteSearchQueryParameter { get; set; } = "search";
+
+    /// <summary>
+    /// Gets or sets fixed extra query-string parameters always appended by the website search source.
+    /// </summary>
+    public string WebsiteSearchExtraQuery { get; set; } = "_embed=1";
+
+    /// <summary>
+    /// Gets or sets the dotted path to the results array within the response for the website search source.
+    /// Empty means the response body is itself the array.
+    /// </summary>
+    public string WebsiteSearchResultsPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the dotted path to each result's title for the website search source.
+    /// </summary>
+    public string WebsiteSearchTitlePath { get; set; } = "title";
+
+    /// <summary>
+    /// Gets or sets the dotted path to each result's URL for the website search source.
+    /// </summary>
+    public string WebsiteSearchUrlPath { get; set; } = "url";
+
+    /// <summary>
+    /// Gets or sets the dotted path to each result's text snippet for the website search source.
+    /// </summary>
+    public string WebsiteSearchSnippetPath { get; set; } = "_embedded.self[0].excerpt.rendered";
+
+    /// <summary>
+    /// Gets or sets the maximum number of results the website search source returns for a single search.
+    /// </summary>
+    public int? WebsiteSearchMaxResults { get; set; }
 }

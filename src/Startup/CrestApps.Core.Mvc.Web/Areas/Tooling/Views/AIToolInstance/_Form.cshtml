@@ -272,6 +272,67 @@
                 </div>
             </div>
 
+            <div class="source-fields" data-source="website-search">
+                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-search"></i> Website search (live API)</h5>
+                <p class="text-muted small">Queries the site's own search API on each request — no crawling or caching. Defaults target the WordPress REST search endpoint, so a WordPress site needs only a base URL.</p>
+                <div class="mb-3">
+                    <label asp-for="WebsiteSearchBaseUrl" class="form-label">Base URL <span class="text-danger">*</span></label>
+                    <input asp-for="WebsiteSearchBaseUrl" class="form-control" placeholder="https://www.example.com" />
+                    <span asp-validation-for="WebsiteSearchBaseUrl" class="text-danger"></span>
+                    <div class="form-text">The root URL of the site to search.</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label asp-for="WebsiteSearchPath" class="form-label">Search endpoint path <span class="text-danger">*</span></label>
+                        <input asp-for="WebsiteSearchPath" class="form-control font-monospace" placeholder="/wp-json/wp/v2/search" />
+                        <span asp-validation-for="WebsiteSearchPath" class="text-danger"></span>
+                        <div class="form-text">Appended to the base URL. Default is the WordPress REST search endpoint.</div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label asp-for="WebsiteSearchQueryParameter" class="form-label">Query parameter <span class="text-danger">*</span></label>
+                        <input asp-for="WebsiteSearchQueryParameter" class="form-control font-monospace" placeholder="search" />
+                        <span asp-validation-for="WebsiteSearchQueryParameter" class="text-danger"></span>
+                        <div class="form-text">The parameter the model's query is placed in.</div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="WebsiteSearchExtraQuery" class="form-label">Extra query parameters</label>
+                    <input asp-for="WebsiteSearchExtraQuery" class="form-control font-monospace" placeholder="_embed=1" />
+                    <span asp-validation-for="WebsiteSearchExtraQuery" class="text-danger"></span>
+                    <div class="form-text">Optional. Fixed parameters always appended. WordPress <code>_embed=1</code> returns each result's excerpt for the snippet.</div>
+                </div>
+                <h6 class="mt-3">Response mapping</h6>
+                <p class="text-muted small">Dotted paths into the JSON response (support <code>[index]</code>, e.g. <code>_embedded.self[0].excerpt.rendered</code>). Defaults match WordPress.</p>
+                <div class="mb-3">
+                    <label asp-for="WebsiteSearchResultsPath" class="form-label">Results array path</label>
+                    <input asp-for="WebsiteSearchResultsPath" class="form-control font-monospace" placeholder="(leave empty when the response body is the array)" />
+                    <span asp-validation-for="WebsiteSearchResultsPath" class="text-danger"></span>
+                    <div class="form-text">Empty means the response body is itself the results array (the WordPress default).</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label asp-for="WebsiteSearchTitlePath" class="form-label">Title path <span class="text-danger">*</span></label>
+                        <input asp-for="WebsiteSearchTitlePath" class="form-control font-monospace" placeholder="title" />
+                        <span asp-validation-for="WebsiteSearchTitlePath" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label asp-for="WebsiteSearchUrlPath" class="form-label">URL path <span class="text-danger">*</span></label>
+                        <input asp-for="WebsiteSearchUrlPath" class="form-control font-monospace" placeholder="url" />
+                        <span asp-validation-for="WebsiteSearchUrlPath" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label asp-for="WebsiteSearchSnippetPath" class="form-label">Snippet path</label>
+                        <input asp-for="WebsiteSearchSnippetPath" class="form-control font-monospace" placeholder="_embedded.self[0].excerpt.rendered" />
+                        <span asp-validation-for="WebsiteSearchSnippetPath" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="WebsiteSearchMaxResults" class="form-label">Max results</label>
+                    <input asp-for="WebsiteSearchMaxResults" class="form-control" type="number" min="1" max="50" placeholder="Default" />
+                    <span asp-validation-for="WebsiteSearchMaxResults" class="text-danger"></span>
+                </div>
+            </div>
+
             <partial name="_Parameters" model="Model" />
 
             <div class="mt-4">

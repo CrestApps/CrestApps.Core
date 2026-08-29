@@ -1,3 +1,4 @@
+using System.Net;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -26,7 +27,8 @@ public static class DocumentationToolInstanceServiceCollectionExtensions
         builder
             .AddSitemapDocumentationSource()
             .AddSearchIndexDocumentationSource()
-            .AddAlgoliaDocumentationSource();
+            .AddAlgoliaDocumentationSource()
+            .AddWebsiteSearchSource();
 
         return builder;
     }
@@ -118,10 +120,56 @@ public static class DocumentationToolInstanceServiceCollectionExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Registers the live website search source on the tool instances builder so users can create
+    /// configured instances that query a site's own search API (for example the WordPress REST
+    /// <c>wp-json/wp/v2/search</c> endpoint) instead of crawling the site.
+    /// </summary>
+    /// <param name="builder">The tool instances builder.</param>
+    /// <param name="configure">An optional delegate used to override the source display metadata.</param>
+    /// <returns>The tool instances builder, for chaining.</returns>
+    public static CrestAppsAIToolInstancesBuilder AddWebsiteSearchSource(
+        this CrestAppsAIToolInstancesBuilder builder,
+        Action<AIToolInstanceSourceEntry> configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        AddSharedServices(builder);
+
+        builder.AddSource<WebsiteSearchToolSource>(DocumentationToolConstants.WebsiteSearchSourceName, entry =>
+        {
+            entry.DisplayName = new LocalizedString(DocumentationToolConstants.WebsiteSearchSourceName, "Website search (live API)");
+            entry.Description = new LocalizedString(
+                DocumentationToolConstants.WebsiteSearchSourceName,
+                "Searches a site through its own search API (defaults to the WordPress REST search endpoint) instead of crawling it.");
+            entry.Category = new LocalizedString(DocumentationToolConstants.Category, DocumentationToolConstants.Category);
+
+            configure?.Invoke(entry);
+        });
+
+        return builder;
+    }
+
     private static void AddSharedServices(CrestAppsAIToolInstancesBuilder builder)
     {
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton<IDocumentationSourceMaterializer, DefaultDocumentationSourceMaterializer>();
-        builder.Services.AddHttpClient(DocumentationToolConstants.HttpClientName);
+
+        builder.Services
+            .AddHttpClient(DocumentationToolConstants.HttpClientName, client =>
+            {
+                // Many hosts (Cloudflare and other WAFs) reject requests without a User-Agent, so the
+                // crawler always presents an identifiable one. A 30 second timeout keeps a slow or
+                // unresponsive site from stalling a search indefinitely.
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("CrestApps-DocumentationBot/1.0 (+https://crestapps.com)");
+                client.Timeout = TimeSpan.FromSeconds(30);
+            })
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                // Transparently handle gzip/deflate/brotli responses (common for sitemaps and pages) and
+                // follow the redirects that sites such as Yoast/Rank Math use for /sitemap.xml.
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
+                AllowAutoRedirect = true,
+            });
     }
 }

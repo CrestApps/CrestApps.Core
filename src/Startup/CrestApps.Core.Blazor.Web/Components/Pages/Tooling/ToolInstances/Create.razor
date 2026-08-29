@@ -293,6 +293,67 @@
             </div>
         }
 
+        @if (string.Equals(_model.Source, DocumentationToolConstants.WebsiteSearchSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-search"></i> Website search (live API)</h5>
+            <p class="text-muted small">Queries the site's own search API on each request — no crawling or caching. Defaults target the WordPress REST search endpoint, so a WordPress site needs only a base URL.</p>
+
+            <div class="mb-3">
+                <label class="form-label">Base URL <span class="text-danger">*</span></label>
+                <InputText @bind-Value="_model.WebsiteSearchBaseUrl" class="form-control" placeholder="https://www.example.com" />
+                <div class="form-text">The root URL of the site to search.</div>
+                <ValidationMessage For="() => _model.WebsiteSearchBaseUrl" />
+            </div>
+
+            <div class="row">
+                <div class="col-md-8 mb-3">
+                    <label class="form-label">Search endpoint path <span class="text-danger">*</span></label>
+                    <InputText @bind-Value="_model.WebsiteSearchPath" class="form-control font-monospace" placeholder="/wp-json/wp/v2/search" />
+                    <div class="form-text">Appended to the base URL. Default is the WordPress REST search endpoint.</div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Query parameter <span class="text-danger">*</span></label>
+                    <InputText @bind-Value="_model.WebsiteSearchQueryParameter" class="form-control font-monospace" placeholder="search" />
+                    <div class="form-text">The parameter the model's query is placed in.</div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Extra query parameters</label>
+                <InputText @bind-Value="_model.WebsiteSearchExtraQuery" class="form-control font-monospace" placeholder="_embed=1" />
+                <div class="form-text">Optional. Fixed parameters always appended. WordPress <code>_embed=1</code> returns each result's excerpt for the snippet.</div>
+            </div>
+
+            <h6 class="mt-3">Response mapping</h6>
+            <p class="text-muted small">Dotted paths into the JSON response (support <code>[index]</code>, e.g. <code>_embedded.self[0].excerpt.rendered</code>). Defaults match WordPress.</p>
+
+            <div class="mb-3">
+                <label class="form-label">Results array path</label>
+                <InputText @bind-Value="_model.WebsiteSearchResultsPath" class="form-control font-monospace" placeholder="(leave empty when the response body is the array)" />
+                <div class="form-text">Empty means the response body is itself the results array (the WordPress default).</div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Title path <span class="text-danger">*</span></label>
+                    <InputText @bind-Value="_model.WebsiteSearchTitlePath" class="form-control font-monospace" placeholder="title" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">URL path <span class="text-danger">*</span></label>
+                    <InputText @bind-Value="_model.WebsiteSearchUrlPath" class="form-control font-monospace" placeholder="url" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Snippet path</label>
+                    <InputText @bind-Value="_model.WebsiteSearchSnippetPath" class="form-control font-monospace" placeholder="_embedded.self[0].excerpt.rendered" />
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Max results</label>
+                <InputNumber @bind-Value="_model.WebsiteSearchMaxResults" class="form-control" min="1" max="50" placeholder="Default" />
+            </div>
+        }
+
         <ToolInstanceParameterEditor Source="@_model.Source"
                                      Parameters="_model.Parameters"
                                      HttpMethod="@_model.HttpMethod"
@@ -399,6 +460,33 @@
             if (string.IsNullOrWhiteSpace(model.AlgoliaIndexName))
             {
                 _errors.Add("Index name is required.");
+            }
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.WebsiteSearchSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateAbsoluteUrl(model.WebsiteSearchBaseUrl, "Base URL", required: true);
+
+            if (string.IsNullOrWhiteSpace(model.WebsiteSearchPath))
+            {
+                _errors.Add("Search endpoint path is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(model.WebsiteSearchQueryParameter))
+            {
+                _errors.Add("Query parameter name is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(model.WebsiteSearchTitlePath))
+            {
+                _errors.Add("Title field path is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(model.WebsiteSearchUrlPath))
+            {
+                _errors.Add("URL field path is required.");
             }
 
             return;
@@ -606,6 +694,24 @@
                 ApiKey = model.AlgoliaApiKey?.Trim(),
                 IndexName = model.AlgoliaIndexName?.Trim(),
                 MaxResults = model.AlgoliaMaxResults,
+            });
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.WebsiteSearchSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new WebsiteSearchToolSettings
+            {
+                BaseUrl = model.WebsiteSearchBaseUrl?.Trim(),
+                SearchPath = model.WebsiteSearchPath?.Trim(),
+                QueryParameter = model.WebsiteSearchQueryParameter?.Trim(),
+                ExtraQuery = string.IsNullOrWhiteSpace(model.WebsiteSearchExtraQuery) ? null : model.WebsiteSearchExtraQuery.Trim(),
+                ResultsPath = string.IsNullOrWhiteSpace(model.WebsiteSearchResultsPath) ? null : model.WebsiteSearchResultsPath.Trim(),
+                TitlePath = model.WebsiteSearchTitlePath?.Trim(),
+                UrlPath = model.WebsiteSearchUrlPath?.Trim(),
+                SnippetPath = string.IsNullOrWhiteSpace(model.WebsiteSearchSnippetPath) ? null : model.WebsiteSearchSnippetPath.Trim(),
+                MaxResults = model.WebsiteSearchMaxResults,
             });
 
             return;
