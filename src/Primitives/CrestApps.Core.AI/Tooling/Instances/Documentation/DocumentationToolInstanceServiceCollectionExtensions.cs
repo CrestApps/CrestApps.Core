@@ -1,3 +1,4 @@
+using System.Net;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -122,6 +123,22 @@ public static class DocumentationToolInstanceServiceCollectionExtensions
     {
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton<IDocumentationSourceMaterializer, DefaultDocumentationSourceMaterializer>();
-        builder.Services.AddHttpClient(DocumentationToolConstants.HttpClientName);
+
+        builder.Services
+            .AddHttpClient(DocumentationToolConstants.HttpClientName, client =>
+            {
+                // Many hosts (Cloudflare and other WAFs) reject requests without a User-Agent, so the
+                // crawler always presents an identifiable one. A 30 second timeout keeps a slow or
+                // unresponsive site from stalling a search indefinitely.
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("CrestApps-DocumentationBot/1.0 (+https://crestapps.com)");
+                client.Timeout = TimeSpan.FromSeconds(30);
+            })
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                // Transparently handle gzip/deflate/brotli responses (common for sitemaps and pages) and
+                // follow the redirects that sites such as Yoast/Rank Math use for /sitemap.xml.
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
+                AllowAutoRedirect = true,
+            });
     }
 }

@@ -47,11 +47,12 @@ public sealed partial class DocumentationCorpus
             return [];
         }
 
+        var phrases = ExtractPhrases(query);
         var scored = new List<DocumentationSearchResult>();
 
         foreach (var entry in _entries)
         {
-            var score = Score(entry, terms);
+            var score = Score(entry, terms, phrases);
 
             if (score <= 0)
             {
@@ -74,7 +75,7 @@ public sealed partial class DocumentationCorpus
             .ToList();
     }
 
-    private static double Score(Entry entry, string[] terms)
+    private static double Score(Entry entry, string[] terms, string[] phrases)
     {
         double score = 0;
         var matchedTerms = 0;
@@ -98,7 +99,18 @@ public sealed partial class DocumentationCorpus
             return 0;
         }
 
-        return score * matchedTerms;
+        // Precision bonus: reward pages where the query's consecutive keywords appear together as an exact
+        // phrase (for example "box office"), not merely scattered across the page. This lifts a page that
+        // actually discusses the phrase above one that happens to mention the individual words in unrelated
+        // places, without changing which pages match (a page matching a phrase always matches its terms).
+        double phraseBonus = 0;
+
+        foreach (var phrase in phrases)
+        {
+            phraseBonus += (CountOccurrences(entry.Text, phrase) * 5) + (CountOccurrences(entry.Title, phrase) * 15);
+        }
+
+        return (score + phraseBonus) * matchedTerms;
     }
 
     private static int CountOccurrences(string text, string term)
@@ -165,15 +177,62 @@ public sealed partial class DocumentationCorpus
 
     private static string[] Tokenize(string query)
     {
-        return NonWordRegex()
+        var tokens = NonWordRegex()
             .Split(query.ToLowerInvariant())
             .Where(token => token.Length >= 2)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+
+        var meaningful = tokens.Where(token => !_stopWords.Contains(token)).ToArray();
+
+        // When the model passes a full sentence, common function words ("what", "the", "is") would
+        // otherwise match nearly every page and drown out the relevant terms. Drop them, but fall back to
+        // the raw tokens when a query is nothing but stop words so the search still runs.
+        return meaningful.Length > 0 ? meaningful : tokens;
+    }
+
+    /// <summary>
+    /// Builds the set of adjacent keyword pairs (bigrams) from the query, in the order the caller supplied
+    /// them, skipping stop words. These are used to award a phrase/adjacency bonus during scoring so that a
+    /// page containing the exact phrase ranks above one that merely scatters the same keywords.
+    /// </summary>
+    private static string[] ExtractPhrases(string query)
+    {
+        var ordered = NonWordRegex()
+            .Split(query.ToLowerInvariant())
+            .Where(token => token.Length >= 2 && !_stopWords.Contains(token))
+            .ToArray();
+
+        if (ordered.Length < 2)
+        {
+            return [];
+        }
+
+        var phrases = new List<string>(ordered.Length - 1);
+
+        for (var i = 0; i < ordered.Length - 1; i++)
+        {
+            phrases.Add(ordered[i] + " " + ordered[i + 1]);
+        }
+
+        return phrases.Distinct(StringComparer.Ordinal).ToArray();
     }
 
     [GeneratedRegex(@"[^a-z0-9]+")]
     private static partial Regex NonWordRegex();
+
+    /// <summary>
+    /// A small set of English function words that carry no discriminating signal for keyword search. They
+    /// are removed from a query so a verbose, sentence-style question still ranks on its meaningful terms.
+    /// </summary>
+    private static readonly HashSet<string> _stopWords = new(StringComparer.Ordinal)
+    {
+        "the", "an", "and", "or", "but", "of", "to", "in", "on", "for", "with", "is", "are", "was", "were",
+        "be", "been", "being", "what", "which", "who", "whom", "how", "when", "where", "why", "do", "does",
+        "did", "can", "could", "would", "should", "will", "this", "that", "these", "those", "it", "its",
+        "as", "at", "by", "from", "about", "into", "over", "than", "then", "there", "here", "you", "your",
+        "we", "our", "they", "their", "my", "me", "us", "if", "so", "not", "any", "all", "please", "tell",
+    };
 
     /// <summary>
     /// Represents a single documentation entry that can be searched.

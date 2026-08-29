@@ -1,11 +1,13 @@
+using System.IO.Compression;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.AI.Tooling.Instances.Documentation;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.DataProtection.Infrastructure;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CrestApps.Core.Tests.Core.Tools;
 
@@ -160,7 +162,10 @@ public sealed class DocumentationSearchTests
 
         var result = await InvokeAsync(function, "anything");
 
-        Assert.Equal("No documentation results were found for 'anything'.", result);
+        Assert.Contains("No results were found for 'anything'.", result);
+
+        // The message must steer the model away from retrying the same fruitless search.
+        Assert.Contains("will not surface additional results", result);
     }
 
     /// <summary>
@@ -216,6 +221,277 @@ public sealed class DocumentationSearchTests
         Assert.Equal(2, buildCount);
     }
 
+    /// <summary>
+    /// Verifies that the sitemap crawler follows a sitemap index into its child sitemaps, decompresses a
+    /// gzip-compressed child sitemap, ignores non-page <c>&lt;image:loc&gt;</c> asset URLs, and indexes the
+    /// discovered pages so they become searchable.
+    /// </summary>
+    [Fact]
+    public async Task SitemapSource_Search_FollowsIndex_Decompresses_AndSkipsAssetUrls()
+    {
+        const string indexXml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+              <sitemap><loc>https://site.test/page-sitemap.xml</loc></sitemap>
+              <sitemap><loc>https://site.test/gz-sitemap.xml.gz</loc></sitemap>
+            </sitemapindex>
+            """;
+
+        const string pageSitemapXml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+              <url>
+                <loc>https://site.test/tickets</loc>
+                <image:image><image:loc>https://site.test/poster.jpg</image:loc></image:image>
+              </url>
+            </urlset>
+            """;
+
+        const string gzSitemapXml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+              <url><loc>https://site.test/location</loc></url>
+            </urlset>
+            """;
+
+        var routes = new Dictionary<string, (byte[] Body, string ContentType)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["https://site.test/sitemap_index.xml"] = (Encoding.UTF8.GetBytes(indexXml), "text/xml"),
+            ["https://site.test/page-sitemap.xml"] = (Encoding.UTF8.GetBytes(pageSitemapXml), "text/xml"),
+            ["https://site.test/gz-sitemap.xml.gz"] = (Gzip(gzSitemapXml), "application/gzip"),
+            ["https://site.test/tickets"] = (Html("Tickets", "Buy theater tickets and showtimes here."), "text/html"),
+            ["https://site.test/location"] = (Html("Location", "The theater is located downtown."), "text/html"),
+        };
+
+        var factory = new RoutingHttpClientFactory(routes);
+        var source = CreateSitemapSource(factory, sitemapUrl: "https://site.test/sitemap_index.xml");
+
+        var results = await source.SearchAsync(new DocumentationSearchRequest("theater"), TestContext.Current.CancellationToken);
+
+        var urls = results.Select(result => result.Url).ToList();
+
+        Assert.Equal(2, results.Count);
+        Assert.Contains("https://site.test/tickets", urls);
+        Assert.Contains("https://site.test/location", urls);
+
+        // The image asset URL must never be treated as a page and fetched.
+        Assert.DoesNotContain("https://site.test/poster.jpg", factory.RequestedUrls);
+    }
+
+    /// <summary>
+    /// Verifies that the crawler supports a plain-text sitemap that lists one absolute page URL per line.
+    /// </summary>
+    [Fact]
+    public async Task SitemapSource_Search_SupportsPlainTextSitemap()
+    {
+        var sitemapText = string.Join('\n', "https://site.test/a", "https://site.test/b");
+
+        var routes = new Dictionary<string, (byte[] Body, string ContentType)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["https://site.test/sitemap.txt"] = (Encoding.UTF8.GetBytes(sitemapText), "text/plain"),
+            ["https://site.test/a"] = (Html("A", "First theater page."), "text/html"),
+            ["https://site.test/b"] = (Html("B", "Second theater page."), "text/html"),
+        };
+
+        var factory = new RoutingHttpClientFactory(routes);
+        var source = CreateSitemapSource(factory, sitemapUrl: "https://site.test/sitemap.txt");
+
+        var results = await source.SearchAsync(new DocumentationSearchRequest("theater"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, results.Count);
+    }
+
+    /// <summary>
+    /// Verifies that when no explicit sitemap URL is configured the crawler discovers the sitemap from the
+    /// site's <c>robots.txt</c> <c>Sitemap:</c> directive.
+    /// </summary>
+    [Fact]
+    public async Task SitemapSource_Search_DiscoversSitemapFromRobots()
+    {
+        const string urlsetXml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+              <url><loc>https://site.test/shows</loc></url>
+            </urlset>
+            """;
+
+        var routes = new Dictionary<string, (byte[] Body, string ContentType)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["https://site.test/robots.txt"] = (Encoding.UTF8.GetBytes("User-agent: *\nSitemap: https://site.test/custom-sitemap.xml"), "text/plain"),
+            ["https://site.test/custom-sitemap.xml"] = (Encoding.UTF8.GetBytes(urlsetXml), "text/xml"),
+            ["https://site.test/shows"] = (Html("Shows", "Upcoming theater shows."), "text/html"),
+        };
+
+        var factory = new RoutingHttpClientFactory(routes);
+        var source = CreateSitemapSource(factory, baseUrl: "https://site.test");
+
+        var results = await source.SearchAsync(new DocumentationSearchRequest("theater"), TestContext.Current.CancellationToken);
+
+        Assert.Single(results);
+        Assert.Equal("https://site.test/shows", results[0].Url);
+    }
+
+    /// <summary>
+    /// Verifies that the crawler treats an RSS 2.0 feed as a sitemap, indexing each item's link while
+    /// ignoring the channel-level homepage link.
+    /// </summary>
+    [Fact]
+    public async Task SitemapSource_Search_SupportsRssFeed()
+    {
+        const string rss =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0">
+              <channel>
+                <title>Theater</title>
+                <link>https://site.test</link>
+                <item><title>One</title><link>https://site.test/one</link></item>
+                <item><title>Two</title><link>https://site.test/two</link></item>
+              </channel>
+            </rss>
+            """;
+
+        var routes = new Dictionary<string, (byte[] Body, string ContentType)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["https://site.test/feed.xml"] = (Encoding.UTF8.GetBytes(rss), "application/rss+xml"),
+            ["https://site.test/one"] = (Html("One", "First theater article."), "text/html"),
+            ["https://site.test/two"] = (Html("Two", "Second theater article."), "text/html"),
+        };
+
+        var factory = new RoutingHttpClientFactory(routes);
+        var source = CreateSitemapSource(factory, sitemapUrl: "https://site.test/feed.xml");
+
+        var results = await source.SearchAsync(new DocumentationSearchRequest("theater"), TestContext.Current.CancellationToken);
+
+        var urls = results.Select(result => result.Url).ToList();
+
+        Assert.Equal(2, results.Count);
+        Assert.Contains("https://site.test/one", urls);
+        Assert.Contains("https://site.test/two", urls);
+
+        // The channel-level homepage link must not be crawled as a page.
+        Assert.DoesNotContain("https://site.test", factory.RequestedUrls);
+    }
+
+    /// <summary>
+    /// Verifies that the crawler treats an Atom 1.0 feed as a sitemap, reading each entry's alternate link
+    /// href while ignoring the self relation.
+    /// </summary>
+    [Fact]
+    public async Task SitemapSource_Search_SupportsAtomFeed()
+    {
+        const string atom =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <feed xmlns="http://www.w3.org/2005/Atom">
+              <title>Theater</title>
+              <link rel="self" href="https://site.test/atom.xml"/>
+              <entry>
+                <title>Show</title>
+                <link rel="alternate" href="https://site.test/show"/>
+                <link rel="edit" href="https://site.test/edit/show"/>
+              </entry>
+            </feed>
+            """;
+
+        var routes = new Dictionary<string, (byte[] Body, string ContentType)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["https://site.test/atom.xml"] = (Encoding.UTF8.GetBytes(atom), "application/atom+xml"),
+            ["https://site.test/show"] = (Html("Show", "A theater show."), "text/html"),
+        };
+
+        var factory = new RoutingHttpClientFactory(routes);
+        var source = CreateSitemapSource(factory, sitemapUrl: "https://site.test/atom.xml");
+
+        var results = await source.SearchAsync(new DocumentationSearchRequest("theater"), TestContext.Current.CancellationToken);
+
+        Assert.Single(results);
+        Assert.Equal("https://site.test/show", results[0].Url);
+        Assert.DoesNotContain("https://site.test/edit/show", factory.RequestedUrls);
+    }
+
+    /// <summary>
+    /// Verifies that a sentence-style query ranks on its meaningful terms: common function words such as
+    /// "what", "is", and "the" are ignored so a page that only matches those words is not returned.
+    /// </summary>
+    [Fact]
+    public void Corpus_Search_IgnoresStopWordsInQuery()
+    {
+        var corpus = new DocumentationCorpus(
+        [
+            new DocumentationCorpus.Entry("https://site.test/tickets", "Tickets", "Buy theater tickets here."),
+            new DocumentationCorpus.Entry("https://site.test/about", "About", "This is the about page for the company."),
+        ]);
+
+        var results = corpus.Search("what is the theater", "docs", 5);
+
+        Assert.Single(results);
+        Assert.Equal("https://site.test/tickets", results[0].Url);
+    }
+
+    /// <summary>
+    /// Verifies that a page containing the query as an exact phrase outranks a page that mentions the same
+    /// keywords more often but scattered apart — even though the scattered page has the higher raw term count.
+    /// </summary>
+    [Fact]
+    public void Corpus_Search_RanksExactPhraseAboveScatteredKeywords()
+    {
+        var corpus = new DocumentationCorpus(
+        [
+            new DocumentationCorpus.Entry("https://site.test/phrase", "A", "box office"),
+            new DocumentationCorpus.Entry("https://site.test/scattered", "B", "box. office. box. office."),
+        ]);
+
+        var results = corpus.Search("box office", "docs", 5);
+
+        Assert.Equal(2, results.Count);
+
+        // Without the phrase bonus the scattered page (higher raw term count) would rank first.
+        Assert.Equal("https://site.test/phrase", results[0].Url);
+    }
+
+    private static SitemapDocumentationSource CreateSitemapSource(
+        IHttpClientFactory httpClientFactory,
+        string sitemapUrl = null,
+        string baseUrl = null)
+    {
+        var site = new DocumentationSite
+        {
+            Name = "theater",
+            BaseUrl = baseUrl,
+            SitemapUrl = sitemapUrl,
+        };
+
+        return new SitemapDocumentationSource(
+            site,
+            new DocumentationSearchOptions(),
+            httpClientFactory,
+            TimeProvider.System,
+            NullLogger<SitemapDocumentationSource>.Instance);
+    }
+
+    private static byte[] Html(string title, string body)
+    {
+        return Encoding.UTF8.GetBytes($"<html><head><title>{title}</title></head><body>{body}</body></html>");
+    }
+
+    private static byte[] Gzip(string content)
+    {
+        using var output = new MemoryStream();
+
+        using (var gzip = new GZipStream(output, CompressionMode.Compress))
+        {
+            var bytes = Encoding.UTF8.GetBytes(content);
+            gzip.Write(bytes, 0, bytes.Length);
+        }
+
+        return output.ToArray();
+    }
+
     private static DocumentationSearchToolFunction CreateFunction(IDocumentationSource source)
     {
         var instance = new AIToolInstance
@@ -266,6 +542,53 @@ public sealed class DocumentationSearchTests
         public Task<IReadOnlyList<DocumentationSearchResult>> SearchAsync(DocumentationSearchRequest request, CancellationToken cancellationToken)
         {
             return Task.FromResult<IReadOnlyList<DocumentationSearchResult>>(_results);
+        }
+    }
+
+    private sealed class RoutingHttpClientFactory : IHttpClientFactory
+    {
+        private readonly IReadOnlyDictionary<string, (byte[] Body, string ContentType)> _routes;
+
+        public RoutingHttpClientFactory(IReadOnlyDictionary<string, (byte[] Body, string ContentType)> routes)
+        {
+            _routes = routes;
+        }
+
+        public List<string> RequestedUrls { get; } = [];
+
+        public HttpClient CreateClient(string name)
+        {
+            return new HttpClient(new RoutingHandler(this), disposeHandler: true);
+        }
+
+        private sealed class RoutingHandler : HttpMessageHandler
+        {
+            private readonly RoutingHttpClientFactory _factory;
+
+            public RoutingHandler(RoutingHttpClientFactory factory)
+            {
+                _factory = factory;
+            }
+
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                var url = request.RequestUri.ToString();
+                _factory.RequestedUrls.Add(url);
+
+                if (_factory._routes.TryGetValue(url, out var route))
+                {
+                    var response = new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new ByteArrayContent(route.Body),
+                    };
+
+                    response.Content.Headers.ContentType = new MediaTypeHeaderValue(route.ContentType);
+
+                    return Task.FromResult(response);
+                }
+
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }
         }
     }
 

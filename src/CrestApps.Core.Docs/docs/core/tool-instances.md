@@ -235,6 +235,43 @@ The access and refresh tokens are protected at rest with the same `HttpApiReques
 Token and credential protection depends on a registered `IDataProtectionProvider` (ASP.NET Core apps have one by default). If no provider is resolvable, the source degrades gracefully and stores the values unprotected, so make sure data protection is configured in production.
 :::
 
+## Built-In Documentation Search Tools
+
+The framework also ships documentation search sources, so a host exposes one callable search function per documentation site it configures. Register them on the tool instances builder with `AddDocumentationSearchSources()` (or the individual `AddSitemapDocumentationSource()`, `AddSearchIndexDocumentationSource()`, and `AddAlgoliaDocumentationSource()` methods):
+
+```csharp
+.AddToolInstances(toolInstances => toolInstances
+    .AddYesSqlStores()
+    .AddDocumentationSearchSources()
+)
+```
+
+Three strategies are available, each its own source and settings model:
+
+| Source | Registration | How it searches |
+|---|---|---|
+| Sitemap | `AddSitemapDocumentationSource()` | Crawls the site through its sitemap and ranks the crawled pages locally with keyword scoring. |
+| Search index | `AddSearchIndexDocumentationSource()` | Downloads a prebuilt JSON search index (for example a MkDocs Material `search_index.json`) and ranks it locally. |
+| Algolia DocSearch | `AddAlgoliaDocumentationSource()` | Forwards the query to the hosted Algolia DocSearch API. |
+
+A singleton materializer caches the crawled corpus or downloaded index per instance and rebuilds it only when the instance changes, so a **single** search call indexes the site and every later call reuses the cached corpus. Configure a sitemap instance with either an explicit **sitemap URL** (used as-is) or a **base URL** (the crawler discovers the sitemap); per-instance limits cap the number of pages indexed and results returned.
+
+### Supported sitemap formats
+
+The sitemap source understands the sitemap formats in common use, so pointing it at a site "just works" regardless of how that sitemap was generated:
+
+- **XML `urlset`** — the standard flat sitemap.
+- **Sitemap index** (`sitemapindex`) — followed into its child sitemaps, including nested indexes (bounded by a depth and document-count cap). This covers the indexes emitted by Yoast, Rank Math, Google, and similar generators.
+- **News, image, and video sitemaps** — the page URL (`<url><loc>`) is indexed; asset locations such as `<image:loc>` and `<video:loc>` are ignored.
+- **Gzip-compressed sitemaps** (`.xml.gz`) — decompressed automatically.
+- **RSS 2.0 and Atom 1.0 feeds** — treated as sitemaps; each item/entry link is indexed.
+- **Plain-text sitemaps** — one URL per line.
+- **`robots.txt` discovery** — when an instance is configured with only a base URL, the crawler reads `Sitemap:` directives from `robots.txt` in addition to the conventional `/sitemap.xml` and `/sitemap_index.xml` locations.
+
+:::note
+Query relevance uses lightweight local keyword scoring: common English stop words are ignored and pages containing the query as an exact phrase are boosted above pages that merely scatter the same keywords. The model is guided to pass concise keywords rather than the user's full sentence.
+:::
+
 ## Creating Instances in the Sample Hosts
 
 In the sample hosts, open **AI Tool Instances**, then:

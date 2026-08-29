@@ -26,7 +26,7 @@ public sealed class DocumentationSearchToolFunction : AIFunction
       "properties": {
         "query": {
           "type": "string",
-          "description": "The search query used to find relevant documentation."
+          "description": "A short set of keywords describing what to look for, extracted from the user's request. Pass the essential search terms (nouns and distinctive words), not the user's full sentence or question."
         },
         "maxResults": {
           "type": "integer",
@@ -141,7 +141,12 @@ public sealed class DocumentationSearchToolFunction : AIFunction
 
         if (results.Count == 0)
         {
-            return $"No documentation results were found for '{query}'.";
+            // The site has already been fully crawled and searched by this point, so an empty result is
+            // final. Say so explicitly: without this, models tend to "helpfully" rephrase the query and
+            // call the tool again repeatedly, exhausting the request's tool-call iteration budget.
+            return $"No results were found for '{query}'. The site has already been fully indexed and searched, "
+                + "so calling this tool again with a reworded query will not surface additional results. "
+                + "Tell the user that this topic does not appear on the site.";
         }
 
         using var builder = ZString.CreateStringBuilder();

@@ -7,6 +7,13 @@ namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
 /// </summary>
 public abstract class CachingDocumentationSource : IDocumentationSource
 {
+    /// <summary>
+    /// How long an empty corpus is cached before the source retries. An empty result usually means the
+    /// site or its sitemap was temporarily unreachable, so it is cached only briefly rather than for the
+    /// full <see cref="_cacheDuration"/> to allow a quick recovery.
+    /// </summary>
+    private static readonly TimeSpan _emptyResultCacheDuration = TimeSpan.FromMinutes(5);
+
     private readonly TimeSpan _cacheDuration;
     private readonly TimeProvider _timeProvider;
     private readonly SemaphoreSlim _loadLock = new(1, 1);
@@ -61,7 +68,7 @@ public abstract class CachingDocumentationSource : IDocumentationSource
     {
         var now = _timeProvider.GetUtcNow();
 
-        if (_corpus is not null && now - _loadedAt < _cacheDuration)
+        if (!IsExpired(now))
         {
             return _corpus;
         }
@@ -70,9 +77,7 @@ public abstract class CachingDocumentationSource : IDocumentationSource
 
         try
         {
-            now = _timeProvider.GetUtcNow();
-
-            if (_corpus is not null && now - _loadedAt < _cacheDuration)
+            if (!IsExpired(_timeProvider.GetUtcNow()))
             {
                 return _corpus;
             }
@@ -86,5 +91,20 @@ public abstract class CachingDocumentationSource : IDocumentationSource
         {
             _loadLock.Release();
         }
+    }
+
+    private bool IsExpired(DateTimeOffset now)
+    {
+        if (_corpus is null)
+        {
+            return true;
+        }
+
+        // An empty corpus is treated as a likely transient failure and refreshed sooner.
+        var duration = _corpus.Count == 0 && _emptyResultCacheDuration < _cacheDuration
+            ? _emptyResultCacheDuration
+            : _cacheDuration;
+
+        return now - _loadedAt >= duration;
     }
 }
