@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text;
-using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Crawling;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.DataIngestion;
 using CrestApps.Core.Models;
 using Microsoft.Extensions.Logging;
@@ -116,6 +116,18 @@ public sealed class SitemapWebCrawlerStrategy : IWebCrawlerStrategy
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, timeoutSource.Token);
             response.EnsureSuccessStatusCode();
 
+            if (!IsSupportedPageContent(response.Content.Headers.ContentType?.MediaType, url))
+            {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug("Skipping non-HTML web-crawler response '{Url}' with content type '{ContentType}'.",
+                        url,
+                        response.Content.Headers.ContentType?.MediaType);
+                }
+
+                return null;
+            }
+
             var html = await response.Content.ReadAsStringAsync(timeoutSource.Token);
             var title = HtmlIngestionDocumentReader.ExtractTitle(html);
             var document = HtmlIngestionDocumentReader.Read(html, url);
@@ -176,5 +188,31 @@ public sealed class SitemapWebCrawlerStrategy : IWebCrawlerStrategy
 
         return Uri.TryCreate(value.Trim(), UriKind.Absolute, out uri) &&
             (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+    }
+
+    private static bool IsSupportedPageContent(string mediaType, string url)
+    {
+        if (string.Equals(mediaType, "text/html", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(mediaType, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(mediaType))
+        {
+            return false;
+        }
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return true;
+        }
+
+        var extension = Path.GetExtension(uri.AbsolutePath);
+
+        return string.IsNullOrEmpty(extension) ||
+            string.Equals(extension, ".htm", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(extension, ".html", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(extension, ".xhtml", StringComparison.OrdinalIgnoreCase);
     }
 }

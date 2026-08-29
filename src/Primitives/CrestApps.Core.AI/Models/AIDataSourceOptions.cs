@@ -103,4 +103,16 @@ public sealed class AIDataSourceOptions
 
         return 3;
     }
+
+    /// <summary>
+    /// Gets the minimum vector-search score required for a result to pass the current strictness level.
+    /// Strictness 1 keeps the broadest recall, while 5 applies the narrowest filter.
+    /// </summary>
+    /// <param name="strictness">The configured strictness override.</param>
+    public float GetMinimumScore(int? strictness)
+    {
+        var resolvedStrictness = GetStrictness(strictness);
+
+        return Math.Max(0f, (resolvedStrictness - 1f) / MaxStrictness);
+    }
 }

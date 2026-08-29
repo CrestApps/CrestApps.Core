@@ -153,6 +153,22 @@ public sealed class WebCrawlerTests
     }
 
     [Fact]
+    public async Task Strategy_FetchAsync_SkipsNonHtmlAssets()
+    {
+        var routes = new Dictionary<string, (byte[] Body, string ContentType)>
+        {
+            ["https://docs.example.com/locations.kml"] = (Encoding.UTF8.GetBytes("<kml><Placemark /></kml>"), "application/vnd.google-earth.kml+xml"),
+        };
+
+        var strategy = CreateStrategy(routes);
+        var crawler = CreateCrawler();
+
+        var page = await strategy.FetchAsync(crawler, "https://docs.example.com/locations.kml", Ct);
+
+        Assert.Null(page);
+    }
+
+    [Fact]
     public async Task Handler_ReadAsync_AggregatesCrawlersIntoOneDataSourceAndRecordsState()
     {
         var routes = new Dictionary<string, (byte[] Body, string ContentType)>
