@@ -313,6 +313,13 @@ public sealed class AIToolInstanceController : Controller
             return;
         }
 
+        if (string.Equals(model.Source, DocumentationToolConstants.WebsiteSearchSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateWebsiteSearch(model);
+
+            return;
+        }
+
         if (!string.Equals(model.Source, HttpApiRequestToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -461,6 +468,31 @@ public sealed class AIToolInstanceController : Controller
         }
     }
 
+    private void ValidateWebsiteSearch(AIToolInstanceViewModel model)
+    {
+        ValidateAbsoluteUrl(model.WebsiteSearchBaseUrl, nameof(model.WebsiteSearchBaseUrl), "Base URL", required: true);
+
+        if (string.IsNullOrWhiteSpace(model.WebsiteSearchPath))
+        {
+            ModelState.AddModelError(nameof(model.WebsiteSearchPath), "Search endpoint path is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.WebsiteSearchQueryParameter))
+        {
+            ModelState.AddModelError(nameof(model.WebsiteSearchQueryParameter), "Query parameter name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.WebsiteSearchTitlePath))
+        {
+            ModelState.AddModelError(nameof(model.WebsiteSearchTitlePath), "Title field path is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.WebsiteSearchUrlPath))
+        {
+            ModelState.AddModelError(nameof(model.WebsiteSearchUrlPath), "URL field path is required.");
+        }
+    }
+
     private void ValidateAbsoluteUrl(string value, string key, string label, bool required)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -527,6 +559,24 @@ public sealed class AIToolInstanceController : Controller
                 ApiKey = ProtectOrReuseProtected(model.AlgoliaApiKey?.Trim(), existingAlgoliaSettings.ApiKey, algoliaProtector),
                 IndexName = model.AlgoliaIndexName?.Trim(),
                 MaxResults = model.AlgoliaMaxResults,
+            });
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.WebsiteSearchSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new WebsiteSearchToolSettings
+            {
+                BaseUrl = model.WebsiteSearchBaseUrl?.Trim(),
+                SearchPath = model.WebsiteSearchPath?.Trim(),
+                QueryParameter = model.WebsiteSearchQueryParameter?.Trim(),
+                ExtraQuery = string.IsNullOrWhiteSpace(model.WebsiteSearchExtraQuery) ? null : model.WebsiteSearchExtraQuery.Trim(),
+                ResultsPath = string.IsNullOrWhiteSpace(model.WebsiteSearchResultsPath) ? null : model.WebsiteSearchResultsPath.Trim(),
+                TitlePath = model.WebsiteSearchTitlePath?.Trim(),
+                UrlPath = model.WebsiteSearchUrlPath?.Trim(),
+                SnippetPath = string.IsNullOrWhiteSpace(model.WebsiteSearchSnippetPath) ? null : model.WebsiteSearchSnippetPath.Trim(),
+                MaxResults = model.WebsiteSearchMaxResults,
             });
 
             return;
@@ -665,6 +715,19 @@ public sealed class AIToolInstanceController : Controller
             model.HasAlgoliaApiKey = !string.IsNullOrEmpty(algoliaSettings.ApiKey);
             model.AlgoliaIndexName = algoliaSettings.IndexName;
             model.AlgoliaMaxResults = algoliaSettings.MaxResults;
+        }
+
+        if (instance.TryGet<WebsiteSearchToolSettings>(out var websiteSearchSettings))
+        {
+            model.WebsiteSearchBaseUrl = websiteSearchSettings.BaseUrl;
+            model.WebsiteSearchPath = websiteSearchSettings.SearchPath;
+            model.WebsiteSearchQueryParameter = websiteSearchSettings.QueryParameter;
+            model.WebsiteSearchExtraQuery = websiteSearchSettings.ExtraQuery;
+            model.WebsiteSearchResultsPath = websiteSearchSettings.ResultsPath;
+            model.WebsiteSearchTitlePath = websiteSearchSettings.TitlePath;
+            model.WebsiteSearchUrlPath = websiteSearchSettings.UrlPath;
+            model.WebsiteSearchSnippetPath = websiteSearchSettings.SnippetPath;
+            model.WebsiteSearchMaxResults = websiteSearchSettings.MaxResults;
         }
 
         return model;
