@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.AI.Crawling;
 using CrestApps.Core.AI.Tooling.Instances.Documentation;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.AI;
@@ -616,6 +617,7 @@ public sealed class DocumentationSearchTests
             site,
             new DocumentationSearchOptions(),
             httpClientFactory,
+            new SitemapCrawler(NullLogger<SitemapCrawler>.Instance),
             TimeProvider.System,
             NullLogger<SitemapDocumentationSource>.Instance);
     }

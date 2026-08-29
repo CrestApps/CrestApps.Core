@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.WebCrawlers.Crawling;
+namespace CrestApps.Core.AI.Crawling;
 
 /// <summary>
 /// Describes a single sitemap discovery run for the <see cref="ISitemapCrawler"/>. Either

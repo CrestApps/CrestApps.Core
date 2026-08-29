@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.WebCrawlers.Crawling;
+using CrestApps.Core.AI.Crawling;
 using CrestApps.Core.DataIngestion;
 using CrestApps.Core.Models;
 using Microsoft.Extensions.Logging;
@@ -10,9 +10,9 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.AI.WebCrawlers.Strategies.Sitemap;
 
 /// <summary>
-/// The sitemap crawl strategy. It discovers pages by walking a site's sitemap(s) and fetches each page as
-/// cleaned plain text, using the shared <see cref="ISitemapCrawler"/> and
-/// <see cref="IWebPageContentExtractor"/>.
+/// The sitemap crawl strategy. It discovers pages by walking a site's sitemap(s) with the shared
+/// <see cref="ISitemapCrawler"/> and fetches each page as cleaned plain text through the reusable
+/// <see cref="HtmlIngestionDocumentReader"/>.
 /// </summary>
 public sealed class SitemapWebCrawlerStrategy : IWebCrawlerStrategy
 {

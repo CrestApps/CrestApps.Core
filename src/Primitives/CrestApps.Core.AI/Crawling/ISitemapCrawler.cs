@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.WebCrawlers.Crawling;
+namespace CrestApps.Core.AI.Crawling;
 
 /// <summary>
 /// Discovers page URLs for a site by walking its sitemap graph. The crawler understands the full

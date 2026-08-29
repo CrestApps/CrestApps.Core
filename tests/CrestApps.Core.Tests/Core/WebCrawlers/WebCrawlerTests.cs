@@ -5,7 +5,7 @@ using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.WebCrawlers;
-using CrestApps.Core.AI.WebCrawlers.Crawling;
+using CrestApps.Core.AI.Crawling;
 using CrestApps.Core.AI.WebCrawlers.Strategies;
 using CrestApps.Core.AI.WebCrawlers.Strategies.Sitemap;
 using CrestApps.Core.DataIngestion;

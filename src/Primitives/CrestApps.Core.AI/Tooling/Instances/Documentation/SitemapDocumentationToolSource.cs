@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Crawling;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -46,10 +47,13 @@ public sealed class SitemapDocumentationToolSource : IAIToolInstanceSource
             var options = services.GetService<IOptions<DocumentationSearchOptions>>()?.Value ?? new DocumentationSearchOptions();
             var httpClientFactory = services.GetRequiredService<IHttpClientFactory>();
             var timeProvider = services.GetService<TimeProvider>() ?? TimeProvider.System;
+            var sitemapCrawler = services.GetService<ISitemapCrawler>()
+                ?? new SitemapCrawler(services.GetService<ILoggerFactory>()?.CreateLogger<SitemapCrawler>()
+                    ?? NullLogger<SitemapCrawler>.Instance);
             var logger = services.GetService<ILoggerFactory>()?.CreateLogger<SitemapDocumentationSource>()
                 ?? NullLogger<SitemapDocumentationSource>.Instance;
 
-            return new SitemapDocumentationSource(site, options, httpClientFactory, timeProvider, logger);
+            return new SitemapDocumentationSource(site, options, httpClientFactory, sitemapCrawler, timeProvider, logger);
         });
     }
 }

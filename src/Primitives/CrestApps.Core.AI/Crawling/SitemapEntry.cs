@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.WebCrawlers.Crawling;
+namespace CrestApps.Core.AI.Crawling;
 
 /// <summary>
 /// Represents a single page discovered while walking a site's sitemap graph, together with the change

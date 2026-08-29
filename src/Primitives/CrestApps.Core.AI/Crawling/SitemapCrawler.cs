@@ -4,7 +4,7 @@ using System.Text;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.AI.WebCrawlers.Crawling;
+namespace CrestApps.Core.AI.Crawling;
 
 /// <summary>
 /// The default <see cref="ISitemapCrawler"/>. It resolves the sitemap seeds for a site, walks any
