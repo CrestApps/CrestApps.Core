@@ -27,7 +27,8 @@ public static class DocumentationToolInstanceServiceCollectionExtensions
         builder
             .AddSitemapDocumentationSource()
             .AddSearchIndexDocumentationSource()
-            .AddAlgoliaDocumentationSource();
+            .AddAlgoliaDocumentationSource()
+            .AddWebsiteSearchSource();
 
         return builder;
     }
@@ -111,6 +112,36 @@ public static class DocumentationToolInstanceServiceCollectionExtensions
             entry.Description = new LocalizedString(
                 DocumentationToolConstants.AlgoliaSourceName,
                 "Searches a documentation site through the hosted Algolia DocSearch query API.");
+            entry.Category = new LocalizedString(DocumentationToolConstants.Category, DocumentationToolConstants.Category);
+
+            configure?.Invoke(entry);
+        });
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers the live website search source on the tool instances builder so users can create
+    /// configured instances that query a site's own search API (for example the WordPress REST
+    /// <c>wp-json/wp/v2/search</c> endpoint) instead of crawling the site.
+    /// </summary>
+    /// <param name="builder">The tool instances builder.</param>
+    /// <param name="configure">An optional delegate used to override the source display metadata.</param>
+    /// <returns>The tool instances builder, for chaining.</returns>
+    public static CrestAppsAIToolInstancesBuilder AddWebsiteSearchSource(
+        this CrestAppsAIToolInstancesBuilder builder,
+        Action<AIToolInstanceSourceEntry> configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        AddSharedServices(builder);
+
+        builder.AddSource<WebsiteSearchToolSource>(DocumentationToolConstants.WebsiteSearchSourceName, entry =>
+        {
+            entry.DisplayName = new LocalizedString(DocumentationToolConstants.WebsiteSearchSourceName, "Website search (live API)");
+            entry.Description = new LocalizedString(
+                DocumentationToolConstants.WebsiteSearchSourceName,
+                "Searches a site through its own search API (defaults to the WordPress REST search endpoint) instead of crawling it.");
             entry.Category = new LocalizedString(DocumentationToolConstants.Category, DocumentationToolConstants.Category);
 
             configure?.Invoke(entry);

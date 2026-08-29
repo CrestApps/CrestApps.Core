@@ -48,7 +48,7 @@ public sealed partial class SitemapDocumentationSource : CachingDocumentationSou
         IHttpClientFactory httpClientFactory,
         TimeProvider timeProvider,
         ILogger logger)
-        : base(site.Name, options.CacheDuration, timeProvider)
+        : base(site.Name, options.CacheDuration, timeProvider, options.FirstSearchWaitBudget)
     {
         _site = site;
         _options = options;

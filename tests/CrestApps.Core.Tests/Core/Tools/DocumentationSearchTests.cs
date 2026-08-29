@@ -454,6 +454,152 @@ public sealed class DocumentationSearchTests
         Assert.Equal("https://site.test/phrase", results[0].Url);
     }
 
+    /// <summary>
+    /// Verifies that a source whose corpus builds within the wait budget returns results on the very first
+    /// search.
+    /// </summary>
+    [Fact]
+    public async Task CachingSource_WhenBuildWithinBudget_ReturnsResultsOnFirstSearch()
+    {
+        var corpus = new DocumentationCorpus([new DocumentationCorpus.Entry("https://s/1", "T", "theater tickets")]);
+        var source = new SlowCorpusSource(TimeSpan.Zero, TimeSpan.FromSeconds(5), corpus);
+
+        var results = await source.SearchAsync(new DocumentationSearchRequest("theater"), TestContext.Current.CancellationToken);
+
+        Assert.Single(results);
+    }
+
+    /// <summary>
+    /// Verifies that a slow first build does not block the caller: the search reports the index as pending
+    /// while the corpus keeps building in the background, and a later search serves results from it without
+    /// rebuilding.
+    /// </summary>
+    [Fact]
+    public async Task CachingSource_WhenBuildExceedsBudget_ReportsPendingThenServesFromBackgroundBuild()
+    {
+        var corpus = new DocumentationCorpus([new DocumentationCorpus.Entry("https://s/1", "T", "theater tickets")]);
+        var source = new SlowCorpusSource(TimeSpan.FromMilliseconds(300), TimeSpan.FromMilliseconds(20), corpus);
+
+        // The first search cannot beat the 20ms budget, so it reports the index as still pending.
+        await Assert.ThrowsAsync<DocumentationIndexPendingException>(
+            () => source.SearchAsync(new DocumentationSearchRequest("theater"), TestContext.Current.CancellationToken));
+
+        // The background build keeps running; a later search returns results and never rebuilds.
+        IReadOnlyList<DocumentationSearchResult> results = [];
+
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            try
+            {
+                results = await source.SearchAsync(new DocumentationSearchRequest("theater"), TestContext.Current.CancellationToken);
+
+                break;
+            }
+            catch (DocumentationIndexPendingException)
+            {
+                await Task.Delay(20, TestContext.Current.CancellationToken);
+            }
+        }
+
+        Assert.Single(results);
+        Assert.Equal(1, source.BuildCount);
+    }
+
+    /// <summary>
+    /// Verifies that the website search source queries the WordPress REST search endpoint and maps each
+    /// hit's title, URL, and embedded excerpt (with HTML stripped) into a documentation result.
+    /// </summary>
+    [Fact]
+    public async Task WebsiteSearch_MapsWordPressResponse_WithEmbeddedExcerpt()
+    {
+        const string json =
+            """
+            [
+              {
+                "id": 1,
+                "title": "About the 20th Century Theater",
+                "url": "https://site.test/about/",
+                "type": "post",
+                "subtype": "page",
+                "_embedded": {
+                  "self": [
+                    { "excerpt": { "rendered": "<p>A historic <b>theater</b> venue.</p>" } }
+                  ]
+                }
+              }
+            ]
+            """;
+
+        var routes = new Dictionary<string, (byte[] Body, string ContentType)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["https://site.test/wp-json/wp/v2/search?search=theater&_embed=1"] = (Encoding.UTF8.GetBytes(json), "application/json"),
+        };
+
+        var source = CreateWebsiteSearchSource(new RoutingHttpClientFactory(routes), new WebsiteSearchSite
+        {
+            Name = "theater",
+            BaseUrl = "https://site.test",
+            SearchPath = "/wp-json/wp/v2/search",
+            QueryParameter = "search",
+            ExtraQuery = "_embed=1",
+            TitlePath = "title",
+            UrlPath = "url",
+            SnippetPath = "_embedded.self[0].excerpt.rendered",
+        });
+
+        var results = await source.SearchAsync(new DocumentationSearchRequest("theater"), TestContext.Current.CancellationToken);
+
+        Assert.Single(results);
+        Assert.Equal("About the 20th Century Theater", results[0].Title);
+        Assert.Equal("https://site.test/about/", results[0].Url);
+        Assert.Equal("A historic theater venue.", results[0].Snippet);
+    }
+
+    /// <summary>
+    /// Verifies that the field mappings can target a non-WordPress response whose results are nested under
+    /// a property and whose title/url fields are named differently.
+    /// </summary>
+    [Fact]
+    public async Task WebsiteSearch_MapsCustomResponseShape()
+    {
+        const string json =
+            """
+            { "results": [ { "name": "Doc A", "link": "https://site.test/a" } ] }
+            """;
+
+        var routes = new Dictionary<string, (byte[] Body, string ContentType)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["https://site.test/search?q=hello"] = (Encoding.UTF8.GetBytes(json), "application/json"),
+        };
+
+        var source = CreateWebsiteSearchSource(new RoutingHttpClientFactory(routes), new WebsiteSearchSite
+        {
+            Name = "custom",
+            BaseUrl = "https://site.test",
+            SearchPath = "/search",
+            QueryParameter = "q",
+            ResultsPath = "results",
+            TitlePath = "name",
+            UrlPath = "link",
+            SnippetPath = null,
+        });
+
+        var results = await source.SearchAsync(new DocumentationSearchRequest("hello"), TestContext.Current.CancellationToken);
+
+        Assert.Single(results);
+        Assert.Equal("Doc A", results[0].Title);
+        Assert.Equal("https://site.test/a", results[0].Url);
+    }
+
+    private static WebsiteSearchSource CreateWebsiteSearchSource(IHttpClientFactory httpClientFactory, WebsiteSearchSite site)
+    {
+        return new WebsiteSearchSource(
+            site,
+            new DocumentationSearchOptions(),
+            httpClientFactory,
+            NullLogger<WebsiteSearchSource>.Instance);
+    }
+
     private static SitemapDocumentationSource CreateSitemapSource(
         IHttpClientFactory httpClientFactory,
         string sitemapUrl = null,
@@ -542,6 +688,33 @@ public sealed class DocumentationSearchTests
         public Task<IReadOnlyList<DocumentationSearchResult>> SearchAsync(DocumentationSearchRequest request, CancellationToken cancellationToken)
         {
             return Task.FromResult<IReadOnlyList<DocumentationSearchResult>>(_results);
+        }
+    }
+
+    private sealed class SlowCorpusSource : CachingDocumentationSource
+    {
+        private readonly TimeSpan _delay;
+        private readonly DocumentationCorpus _corpus;
+        private int _buildCount;
+
+        public SlowCorpusSource(TimeSpan delay, TimeSpan budget, DocumentationCorpus corpus)
+            : base("slow", TimeSpan.FromHours(1), TimeProvider.System, budget)
+        {
+            _delay = delay;
+            _corpus = corpus;
+        }
+
+        public int BuildCount => _buildCount;
+
+        protected override int MaxResults => 5;
+
+        protected override async Task<DocumentationCorpus> BuildCorpusAsync(CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _buildCount);
+
+            await Task.Delay(_delay, cancellationToken);
+
+            return _corpus;
         }
     }
 

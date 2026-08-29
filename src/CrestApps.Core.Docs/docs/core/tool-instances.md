@@ -458,6 +458,7 @@ Three strategies are available, each its own source and settings model:
 | Sitemap | `AddSitemapDocumentationSource()` | Crawls the site through its sitemap and ranks the crawled pages locally with keyword scoring. |
 | Search index | `AddSearchIndexDocumentationSource()` | Downloads a prebuilt JSON search index (for example a MkDocs Material `search_index.json`) and ranks it locally. |
 | Algolia DocSearch | `AddAlgoliaDocumentationSource()` | Forwards the query to the hosted Algolia DocSearch API. |
+| Website search (live API) | `AddWebsiteSearchSource()` | Queries the site's own search API live per request (WordPress REST by default) — no crawling, corpus, or cold-start delay. |
 
 A singleton materializer caches the crawled corpus or downloaded index per instance and rebuilds it only when the instance changes, so a **single** search call indexes the site and every later call reuses the cached corpus. Configure a sitemap instance with either an explicit **sitemap URL** (used as-is) or a **base URL** (the crawler discovers the sitemap); per-instance limits cap the number of pages indexed and results returned.
 
@@ -476,6 +477,26 @@ The sitemap source understands the sitemap formats in common use, so pointing it
 :::note
 Query relevance uses lightweight local keyword scoring: common English stop words are ignored and pages containing the query as an exact phrase are boosted above pages that merely scatter the same keywords. The model is guided to pass concise keywords rather than the user's full sentence.
 :::
+
+:::tip
+The first search against a freshly configured sitemap or search-index instance triggers the crawl. To keep a slow first crawl from blocking, the corpus builds in the background and a search waits only `DocumentationSearchOptions.FirstSearchWaitBudget` (8 seconds by default) before replying that the site is still indexing; the next search returns results from the warmed cache. Sites that crawl quickly still answer on the first search.
+:::
+
+### Live website search (WordPress and other search APIs)
+
+The **Website search** source is different from the three above: instead of crawling or downloading an index, it calls the site's own search API on every request and maps the JSON response to results. There is no crawl, no local corpus, and no cold-start delay, and the site performs the ranking. Each result returns a **title, source URL, and a text snippet** (the page excerpt with HTML stripped), so the model has real content to answer from — not just a link.
+
+The defaults target the WordPress REST search endpoint, so a WordPress site needs only a base URL. Every field is overridable to target another site's search API:
+
+| Setting | Default (WordPress) | Purpose |
+|---|---|---|
+| `BaseUrl` | *(required)* | The site root, for example `https://www.example.com`. |
+| `SearchPath` | `/wp-json/wp/v2/search` | The search endpoint appended to the base URL. |
+| `QueryParameter` | `search` | The query-string parameter the model's free-text query is placed in. |
+| `ExtraQuery` | `_embed=1` | Fixed extra query parameters (WordPress `_embed` returns each result's excerpt/content). |
+| `ResultsPath` | *(root)* | Dotted path to the results array in the response (empty means the body is the array). |
+| `TitlePath` / `UrlPath` / `SnippetPath` | `title` / `url` / `_embedded.self[0].excerpt.rendered` | Dotted paths (supporting `[index]`) to each result's fields. Point `SnippetPath` at `_embedded.self[0].content.rendered` for the full body. |
+| `MaxResults` | global default | Caps the number of results returned. |
 
 ## Creating Instances in the Sample Hosts
 

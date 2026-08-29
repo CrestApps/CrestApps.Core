@@ -26,4 +26,13 @@ public sealed class DocumentationSearchOptions
     /// Gets or sets how long a crawled site corpus is cached before it is refreshed.
     /// </summary>
     public TimeSpan CacheDuration { get; set; } = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// Gets or sets the longest a single search waits for a not-yet-built corpus before it reports the
+    /// index as still pending. The corpus keeps building in the background, so a subsequent search returns
+    /// results from the warmed cache. This keeps a slow first crawl from blocking the caller — and, in a
+    /// tool-calling loop, from being retried until the model exhausts its iteration budget. A site whose
+    /// crawl finishes within this budget still returns results on the very first search.
+    /// </summary>
+    public TimeSpan FirstSearchWaitBudget { get; set; } = TimeSpan.FromSeconds(8);
 }

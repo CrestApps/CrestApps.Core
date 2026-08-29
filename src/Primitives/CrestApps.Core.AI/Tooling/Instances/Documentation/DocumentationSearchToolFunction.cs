@@ -132,6 +132,15 @@ public sealed class DocumentationSearchToolFunction : AIFunction
         {
             throw;
         }
+        catch (DocumentationIndexPendingException)
+        {
+            // The corpus is still being built (typically the first search after the tool was configured or
+            // changed). It keeps building in the background, so a later search will succeed. Tell the model
+            // to wait rather than retry, so a slow first crawl does not become a tool-call retry loop.
+            return "The documentation site is still being indexed — this is the first search since it was configured or changed, "
+                + "and indexing a site takes a few seconds. Do not call this tool again in this reply. Tell the user the site is "
+                + "still indexing and ask them to send their question again in a few seconds.";
+        }
         catch (Exception ex)
         {
             logger?.LogWarning(ex, "AI tool '{ToolName}' failed to search documentation.", _name);
