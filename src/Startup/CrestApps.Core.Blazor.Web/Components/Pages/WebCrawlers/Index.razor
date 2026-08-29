@@ -1,12 +1,10 @@
 @page "/webcrawlers"
 @attribute [Authorize(Policy = "Admin")]
-@using CrestApps.Core.AI.DataSources
 @using CrestApps.Core.AI.Models
-@using CrestApps.Core.AI.Services
+@using CrestApps.Core.AI.WebCrawlers
 @using CrestApps.Core.Services
 @inject ISourceCatalogManager<WebCrawler> Manager
-@inject IAIDataSourceStore DataSourceStore
-@inject IAIDataSourceIndexingQueue IndexingQueue
+@inject IWebCrawlerReindexPlanner ReindexPlanner
 @inject IStoreCommitter StoreCommitter
 @inject IJSRuntime JS
 @inject ToastNotificationService ToastNotifications
@@ -103,19 +101,10 @@ else
             return;
         }
 
-        var dataSource = string.IsNullOrWhiteSpace(crawler.AIDataSourceId)
-            ? null
-            : await DataSourceStore.FindByIdAsync(crawler.AIDataSourceId);
-
-        if (dataSource == null)
-        {
-            ToastNotifications.ShowError("The target Web data source could not be found.");
-
-            return;
-        }
-
-        await IndexingQueue.QueueSyncDataSourceAsync(dataSource);
-        ToastNotifications.ShowSuccess("Web crawler synchronization has been queued.");
+        // Re-crawl just this site: discover its pages and queue the new/changed ones for indexing into the
+        // target data source, without rebuilding the other crawlers mapped to that data source.
+        var result = await ReindexPlanner.PlanAndEnqueueAsync(crawler);
+        ToastNotifications.ShowSuccess($"Web crawler synchronization queued: {result.NewCount} new, {result.ChangedCount} changed, {result.RemovedCount} removed.");
     }
 
     private async Task DeleteAsync(string id)

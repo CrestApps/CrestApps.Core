@@ -1,6 +1,6 @@
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.Services;
+using CrestApps.Core.AI.WebCrawlers;
 using CrestApps.Core.AI.WebCrawlers.Strategies;
 using CrestApps.Core.AI.WebCrawlers.Strategies.Sitemap;
 using CrestApps.Core.Mvc.Web.Areas.WebCrawlers.ViewModels;
@@ -18,18 +18,18 @@ public sealed class WebCrawlerController : Controller
 {
     private readonly ISourceCatalogManager<WebCrawler> _manager;
     private readonly IAIDataSourceStore _dataSourceStore;
-    private readonly IAIDataSourceIndexingQueue _indexingQueue;
+    private readonly IWebCrawlerReindexPlanner _reindexPlanner;
     private readonly IReadOnlyList<WebCrawlerStrategyDescriptor> _strategies;
 
     public WebCrawlerController(
         ISourceCatalogManager<WebCrawler> manager,
         IAIDataSourceStore dataSourceStore,
-        IAIDataSourceIndexingQueue indexingQueue,
+        IWebCrawlerReindexPlanner reindexPlanner,
         IOptions<WebCrawlerStrategyOptions> strategyOptions)
     {
         _manager = manager;
         _dataSourceStore = dataSourceStore;
-        _indexingQueue = indexingQueue;
+        _reindexPlanner = reindexPlanner;
         _strategies = strategyOptions.Value.Strategies
             .OrderBy(strategy => strategy.DisplayName.Value, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -141,15 +141,10 @@ public sealed class WebCrawlerController : Controller
             return NotFound();
         }
 
-        var dataSource = string.IsNullOrWhiteSpace(crawler.AIDataSourceId)
-            ? null
-            : await _dataSourceStore.FindByIdAsync(crawler.AIDataSourceId);
-
-        if (dataSource != null)
-        {
-            await _indexingQueue.QueueSyncDataSourceAsync(dataSource, HttpContext.RequestAborted);
-            TempData["SuccessMessage"] = "Web crawler synchronization has been queued.";
-        }
+        // Re-crawl just this site: discover its pages and queue the new/changed ones for indexing into the
+        // target data source, without rebuilding the other crawlers mapped to that data source.
+        var result = await _reindexPlanner.PlanAndEnqueueAsync(crawler, HttpContext.RequestAborted);
+        TempData["SuccessMessage"] = $"Web crawler synchronization queued: {result.NewCount} new, {result.ChangedCount} changed, {result.RemovedCount} removed.";
 
         return RedirectToAction(nameof(Index));
     }

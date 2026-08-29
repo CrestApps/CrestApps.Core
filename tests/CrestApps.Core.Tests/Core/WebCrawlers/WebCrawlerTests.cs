@@ -168,7 +168,7 @@ public sealed class WebCrawlerTests
         crawlerStore.Items.Add(CreateCrawler(itemId: "c2", sitemapUrl: "https://b.example.com/sitemap.xml"));
 
         var stateStore = new InMemoryCrawlStateStore();
-        var handler = new WebAIDataSourceSourceHandler(crawlerStore, stateStore, CreateResolver(routes), TimeProvider.System);
+        var handler = new WebAIDataSourceSourceHandler(crawlerStore, stateStore, CreateResolver(routes), TimeProvider.System, NullLogger<WebAIDataSourceSourceHandler>.Instance);
 
         var documents = await CollectAsync(handler.ReadAsync(CreateWebDataSource(), Ct));
 
@@ -193,7 +193,7 @@ public sealed class WebCrawlerTests
         var stateStore = new InMemoryCrawlStateStore();
         stateStore.Items.Add(new WebCrawlState { ItemId = "s1", Source = "c1", Url = "https://a.example.com/1" });
 
-        var handler = new WebAIDataSourceSourceHandler(crawlerStore, stateStore, CreateResolver(routes), TimeProvider.System);
+        var handler = new WebAIDataSourceSourceHandler(crawlerStore, stateStore, CreateResolver(routes), TimeProvider.System, NullLogger<WebAIDataSourceSourceHandler>.Instance);
 
         var documents = await CollectAsync(handler.ReadByIdsAsync(CreateWebDataSource(), ["https://a.example.com/1"], Ct));
 

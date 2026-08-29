@@ -7,6 +7,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.WebCrawlers.Strategies;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
+using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.WebCrawlers;
 
@@ -22,6 +23,7 @@ public sealed class WebAIDataSourceSourceHandler : IAIDataSourceSourceHandler
     private readonly IWebCrawlStateStore _crawlStateStore;
     private readonly IWebCrawlerStrategyResolver _strategyResolver;
     private readonly TimeProvider _timeProvider;
+    private readonly ILogger<WebAIDataSourceSourceHandler> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WebAIDataSourceSourceHandler"/> class.
@@ -30,16 +32,19 @@ public sealed class WebAIDataSourceSourceHandler : IAIDataSourceSourceHandler
     /// <param name="crawlStateStore">The crawl-state store.</param>
     /// <param name="strategyResolver">The strategy resolver.</param>
     /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
     public WebAIDataSourceSourceHandler(
         IWebCrawlerStore crawlerStore,
         IWebCrawlStateStore crawlStateStore,
         IWebCrawlerStrategyResolver strategyResolver,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ILogger<WebAIDataSourceSourceHandler> logger)
     {
         _crawlerStore = crawlerStore;
         _crawlStateStore = crawlStateStore;
         _strategyResolver = strategyResolver;
         _timeProvider = timeProvider;
+        _logger = logger;
     }
 
     /// <inheritdoc />
@@ -66,9 +71,20 @@ public sealed class WebAIDataSourceSourceHandler : IAIDataSourceSourceHandler
     {
         ArgumentNullException.ThrowIfNull(dataSource);
 
-        var crawlers = await _crawlerStore.GetByDataSourceIdAsync(dataSource.ItemId, cancellationToken);
+        var crawlers = (await _crawlerStore.GetByDataSourceIdAsync(dataSource.ItemId, cancellationToken))
+            .Where(crawler => crawler.Enabled)
+            .ToArray();
 
-        foreach (var crawler in crawlers.Where(crawler => crawler.Enabled))
+        if (crawlers.Length == 0)
+        {
+            _logger.LogWarning(
+                "Web data source '{DataSourceId}' has no enabled web crawlers, so nothing was indexed. Add a crawler in the Web Crawlers area that targets this data source.",
+                dataSource.ItemId);
+
+            yield break;
+        }
+
+        foreach (var crawler in crawlers)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -76,6 +92,8 @@ public sealed class WebAIDataSourceSourceHandler : IAIDataSourceSourceHandler
 
             if (strategy is null)
             {
+                _logger.LogWarning("Skipping web crawler '{CrawlerId}' because its strategy '{Strategy}' is not registered.", crawler.ItemId, crawler.Source);
+
                 continue;
             }
 
@@ -83,6 +101,17 @@ public sealed class WebAIDataSourceSourceHandler : IAIDataSourceSourceHandler
             await _crawlStateStore.DeleteByCrawlerIdAsync(crawler.ItemId, cancellationToken);
 
             var refs = await strategy.DiscoverAsync(crawler, cancellationToken);
+
+            if (refs.Count == 0)
+            {
+                _logger.LogWarning(
+                    "Web crawler '{CrawlerId}' discovered no pages. Verify the base/sitemap URL is reachable and exposes a sitemap, and that the include/exclude filters are not excluding everything.",
+                    crawler.ItemId);
+
+                continue;
+            }
+
+            var produced = 0;
 
             foreach (var pageRef in refs)
             {
@@ -96,8 +125,26 @@ public sealed class WebAIDataSourceSourceHandler : IAIDataSourceSourceHandler
                 }
 
                 await _crawlStateStore.CreateAsync(BuildState(crawler.ItemId, pageRef.Url, pageRef.LastModifiedUtc?.UtcDateTime, pageRef.ChangeFrequency, page.Content), cancellationToken);
+                produced++;
 
                 yield return CreateDocument(pageRef.Url, page);
+            }
+
+            if (produced == 0)
+            {
+                _logger.LogWarning(
+                    "Web crawler '{CrawlerId}' discovered {Discovered} page(s) but none could be fetched or produced text (they may be blocking the crawler, returning errors, or have no readable content).",
+                    crawler.ItemId,
+                    refs.Count);
+            }
+            else if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation(
+                    "Web crawler '{CrawlerId}' produced {Produced} page document(s) of {Discovered} discovered for data source '{DataSourceId}'.",
+                    crawler.ItemId,
+                    produced,
+                    refs.Count,
+                    dataSource.ItemId);
             }
         }
     }
