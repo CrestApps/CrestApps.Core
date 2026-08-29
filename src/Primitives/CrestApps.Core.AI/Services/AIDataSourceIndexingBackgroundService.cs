@@ -1,3 +1,4 @@
+using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -63,6 +64,19 @@ internal sealed class AIDataSourceIndexingBackgroundService : BackgroundService
                     case AIDataSourceIndexingWorkItemType.RemoveDataSourceDocuments:
                         await indexingService.RemoveDataSourceDocumentsAsync(workItem.DataSourceId, workItem.DocumentIds, stoppingToken);
                         break;
+                }
+
+                // External index writes (Elasticsearch, pgvector, …) commit immediately, but any writes made
+                // to the transactional store during indexing — e.g. the Web data-source handler stamping
+                // crawl state with the successful-index timestamp — only flush when the session is committed.
+                // A request commits via StoreCommitterActionFilter; this background scope has no such filter,
+                // so commit explicitly here. On failure the scope is disposed without committing, rolling those
+                // writes back so the work is retried on the next pass.
+                var committer = scope.ServiceProvider.GetService<IStoreCommitter>();
+
+                if (committer is not null)
+                {
+                    await committer.CommitAsync(stoppingToken);
                 }
 
                 if (_logger.IsEnabled(LogLevel.Trace))

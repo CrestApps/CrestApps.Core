@@ -350,7 +350,14 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         var success = await context.DocumentManager.AddOrUpdateAsync(context.KnowledgeBaseProfile, documents.ToArray(), cancellationToken);
         if (!success)
         {
+            // The knowledge-base write failed. Surface it as an exception instead of swallowing it: a caller
+            // that records progress after indexing (e.g. the Web data-source handler stamping crawl state
+            // with a successful-index timestamp) must not treat a failed write as success, or the affected
+            // pages would be marked indexed and never retried even though nothing was stored.
             _logger.LogWarning("Knowledge-base indexing reported a failure for data source '{DataSourceId}' in index '{IndexName}'.", context.DataSource.ItemId, context.KnowledgeBaseProfile.IndexFullName);
+
+            throw new InvalidOperationException(
+                $"Knowledge-base indexing failed for data source '{context.DataSource.ItemId}' in index '{context.KnowledgeBaseProfile.IndexFullName}'.");
         }
 
         documents.Clear();

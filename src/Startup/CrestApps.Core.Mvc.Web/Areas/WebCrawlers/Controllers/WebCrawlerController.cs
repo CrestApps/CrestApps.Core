@@ -144,7 +144,15 @@ public sealed class WebCrawlerController : Controller
         // Re-crawl just this site: discover its pages and queue the new/changed ones for indexing into the
         // target data source, without rebuilding the other crawlers mapped to that data source.
         var result = await _reindexPlanner.PlanAndEnqueueAsync(crawler, HttpContext.RequestAborted);
-        TempData["SuccessMessage"] = $"Web crawler synchronization queued: {result.NewCount} new, {result.ChangedCount} changed, {result.RemovedCount} removed.";
+
+        if (result.Status is WebCrawlerReindexStatus.DiscoveryFailed or WebCrawlerReindexStatus.NoPagesDiscovered)
+        {
+            TempData["ErrorMessage"] = result.Message;
+        }
+        else
+        {
+            TempData["SuccessMessage"] = $"Web crawler synchronization queued: {result.NewCount} new, {result.ChangedCount} changed, {result.RemovedCount} removed.";
+        }
 
         return RedirectToAction(nameof(Index));
     }

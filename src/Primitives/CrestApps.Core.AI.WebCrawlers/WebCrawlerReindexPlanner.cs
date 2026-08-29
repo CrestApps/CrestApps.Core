@@ -62,7 +62,44 @@ public sealed class WebCrawlerReindexPlanner : IWebCrawlerReindexPlanner
             return WebCrawlerReindexResult.Empty;
         }
 
-        var discovered = (await strategy.DiscoverAsync(crawler, cancellationToken))
+        IReadOnlyList<CrawledPageRef> discoveredRefs;
+
+        try
+        {
+            discoveredRefs = await strategy.DiscoverAsync(crawler, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Web-crawler discovery failed for crawler '{CrawlerId}' → data source '{DataSourceId}'. The site could not be crawled.",
+                crawler.ItemId,
+                crawler.AIDataSourceId);
+
+            return WebCrawlerReindexResult.Failed(
+                $"The site could not be crawled: {ex.Message} Verify the site is reachable and that it is not blocking the crawler's user agent.");
+        }
+
+        if (discoveredRefs.Count == 0)
+        {
+            // Discovery came back empty. Do NOT diff against the stored state here: treating every known page
+            // as "removed" would wipe the knowledge base whenever a site transiently blocks the crawler or its
+            // sitemap is briefly unreachable. Leave the existing state untouched and report the condition so the
+            // user can check their configuration or unblock the crawler.
+            _logger.LogWarning(
+                "Web-crawler discovery for crawler '{CrawlerId}' → data source '{DataSourceId}' returned no pages; existing crawl state was left untouched.",
+                crawler.ItemId,
+                crawler.AIDataSourceId);
+
+            return WebCrawlerReindexResult.NoPagesDiscovered(
+                "No pages were discovered. The site may be blocking the crawler (ensure your server and robots.txt allow the crawler's user agent), or the configured base/sitemap URL may be wrong, unreachable, or empty.");
+        }
+
+        var discovered = discoveredRefs
             .GroupBy(pageRef => pageRef.Url, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
@@ -108,6 +145,15 @@ public sealed class WebCrawlerReindexPlanner : IWebCrawlerReindexPlanner
                 toIndex.Add(url);
                 changedCount++;
             }
+            else if (!IsIndexed(state))
+            {
+                // The page is already tracked but has never been successfully indexed — a prior attempt was
+                // queued and then failed (for example the knowledge-base provider was unavailable), so its
+                // crawl state still carries the "never indexed" marker. Re-enqueue it so it is retried; the
+                // handler stamps LastIndexedUtc once indexing actually succeeds.
+                toIndex.Add(url);
+                changedCount++;
+            }
             else
             {
                 unchanged++;
@@ -131,7 +177,10 @@ public sealed class WebCrawlerReindexPlanner : IWebCrawlerReindexPlanner
             await _crawlStateStore.DeleteByUrlsAsync(crawler.ItemId, removed, cancellationToken);
         }
 
-        var result = new WebCrawlerReindexResult(newCount, changedCount, removed.Length, unchanged);
+        var result = new WebCrawlerReindexResult(newCount, changedCount, removed.Length, unchanged)
+        {
+            DiscoveredCount = discovered.Count,
+        };
 
         if (_logger.IsEnabled(LogLevel.Information) && (result.NewCount > 0 || result.ChangedCount > 0 || result.RemovedCount > 0))
         {
@@ -146,6 +195,14 @@ public sealed class WebCrawlerReindexPlanner : IWebCrawlerReindexPlanner
         }
 
         return result;
+    }
+
+    private static bool IsIndexed(WebCrawlState state)
+    {
+        // A never-indexed placeholder carries DateTime.MinValue (year 1). Comparing on the year keeps this
+        // robust against time-zone/serialization round-tripping that can shift the stored min value by a few
+        // hours without ever reaching a real (post-year-1) indexing timestamp.
+        return state.LastIndexedUtc.Year > 1;
     }
 
     private static bool HasChanged(CrawledPageRef pageRef, WebCrawlState state)

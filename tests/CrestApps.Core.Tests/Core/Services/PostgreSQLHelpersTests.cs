@@ -53,12 +53,13 @@ public sealed class PostgreSQLHelpersTests
     }
 
     /// <summary>
-    /// Verifies identifier quoting preserves legacy case and trimming behavior.
+    /// Verifies identifier quoting trims, preserves case, and wraps the identifier in double quotes so that
+    /// names which are not valid unquoted identifiers (e.g. a hyphenated table name) are emitted correctly.
     /// </summary>
     [Theory]
-    [InlineData(" Customer_Orders ", "Customer_Orders")]
-    [InlineData("customer-orders", "customer-orders")]
-    public void QuoteIdentifier_ShouldPreserveLegacyOutput(string value, string expected)
+    [InlineData(" Customer_Orders ", "\"Customer_Orders\"")]
+    [InlineData("customer-orders", "\"customer-orders\"")]
+    public void QuoteIdentifier_ShouldWrapIdentifierInDoubleQuotes(string value, string expected)
     {
         var result = PostgreSQLHelpers.QuoteIdentifier(value);
 

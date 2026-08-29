@@ -104,7 +104,19 @@ else
         // Re-crawl just this site: discover its pages and queue the new/changed ones for indexing into the
         // target data source, without rebuilding the other crawlers mapped to that data source.
         var result = await ReindexPlanner.PlanAndEnqueueAsync(crawler);
-        ToastNotifications.ShowSuccess($"Web crawler synchronization queued: {result.NewCount} new, {result.ChangedCount} changed, {result.RemovedCount} removed.");
+
+        // The planner records crawl state through the transactional store; an interactive circuit has no
+        // request filter to flush it, so commit explicitly (the Delete handler below does the same).
+        await StoreCommitter.CommitAsync();
+
+        if (result.Status is WebCrawlerReindexStatus.DiscoveryFailed or WebCrawlerReindexStatus.NoPagesDiscovered)
+        {
+            ToastNotifications.ShowError(result.Message);
+        }
+        else
+        {
+            ToastNotifications.ShowSuccess($"Web crawler synchronization queued: {result.NewCount} new, {result.ChangedCount} changed, {result.RemovedCount} removed.");
+        }
     }
 
     private async Task DeleteAsync(string id)

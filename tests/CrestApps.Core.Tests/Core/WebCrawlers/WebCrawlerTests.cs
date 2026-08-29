@@ -210,10 +210,11 @@ public sealed class WebCrawlerTests
             new CrawledPageRef("https://x.com/same", new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)),
         ]));
 
+        var indexedUtc = new DateTime(2024, 2, 1, 0, 0, 0, DateTimeKind.Utc);
         var stateStore = new InMemoryCrawlStateStore();
-        stateStore.Items.Add(new WebCrawlState { ItemId = "1", Source = "c1", Url = "https://x.com/changed", LastModifiedUtc = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc) });
-        stateStore.Items.Add(new WebCrawlState { ItemId = "2", Source = "c1", Url = "https://x.com/same", LastModifiedUtc = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc) });
-        stateStore.Items.Add(new WebCrawlState { ItemId = "3", Source = "c1", Url = "https://x.com/removed" });
+        stateStore.Items.Add(new WebCrawlState { ItemId = "1", Source = "c1", Url = "https://x.com/changed", LastModifiedUtc = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc), LastIndexedUtc = indexedUtc });
+        stateStore.Items.Add(new WebCrawlState { ItemId = "2", Source = "c1", Url = "https://x.com/same", LastModifiedUtc = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc), LastIndexedUtc = indexedUtc });
+        stateStore.Items.Add(new WebCrawlState { ItemId = "3", Source = "c1", Url = "https://x.com/removed", LastIndexedUtc = indexedUtc });
 
         var queue = new RecordingIndexingQueue();
         var planner = new WebCrawlerReindexPlanner(resolver, stateStore, queue, TimeProvider.System, NullLogger<WebCrawlerReindexPlanner>.Instance);
@@ -228,6 +229,72 @@ public sealed class WebCrawlerTests
         Assert.Contains("https://x.com/changed", queue.Synced);
         Assert.Contains("https://x.com/removed", queue.Removed);
         Assert.DoesNotContain(stateStore.Items, s => s.Url == "https://x.com/removed");
+    }
+
+    [Fact]
+    public async Task Planner_ReenqueuesTrackedPageThatWasNeverIndexed()
+    {
+        var resolver = new StubResolver(new StubStrategy(
+        [
+            new CrawledPageRef("https://x.com/pending", new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)),
+        ]));
+
+        // The page is already tracked (a prior sync created its crawl state) but has never been successfully
+        // indexed — LastIndexedUtc is still the default. Its advertised timestamp is unchanged, so the only
+        // reason to re-index it is the missing successful-index marker.
+        var stateStore = new InMemoryCrawlStateStore();
+        stateStore.Items.Add(new WebCrawlState { ItemId = "1", Source = "c1", Url = "https://x.com/pending", LastModifiedUtc = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc) });
+
+        var queue = new RecordingIndexingQueue();
+        var planner = new WebCrawlerReindexPlanner(resolver, stateStore, queue, TimeProvider.System, NullLogger<WebCrawlerReindexPlanner>.Instance);
+
+        var result = await planner.PlanAndEnqueueAsync(CreateCrawler(itemId: "c1"), Ct);
+
+        Assert.Equal(0, result.NewCount);
+        Assert.Equal(0, result.UnchangedCount);
+        Assert.Contains("https://x.com/pending", queue.Synced);
+    }
+
+    [Fact]
+    public async Task Planner_WhenDiscoveryReturnsNoPages_LeavesStateUntouchedAndReportsWarning()
+    {
+        var resolver = new StubResolver(new StubStrategy([]));
+
+        var stateStore = new InMemoryCrawlStateStore();
+        stateStore.Items.Add(new WebCrawlState { ItemId = "1", Source = "c1", Url = "https://x.com/a", LastIndexedUtc = new DateTime(2024, 2, 1, 0, 0, 0, DateTimeKind.Utc) });
+        stateStore.Items.Add(new WebCrawlState { ItemId = "2", Source = "c1", Url = "https://x.com/b", LastIndexedUtc = new DateTime(2024, 2, 1, 0, 0, 0, DateTimeKind.Utc) });
+
+        var queue = new RecordingIndexingQueue();
+        var planner = new WebCrawlerReindexPlanner(resolver, stateStore, queue, TimeProvider.System, NullLogger<WebCrawlerReindexPlanner>.Instance);
+
+        var result = await planner.PlanAndEnqueueAsync(CreateCrawler(itemId: "c1"), Ct);
+
+        Assert.Equal(WebCrawlerReindexStatus.NoPagesDiscovered, result.Status);
+        Assert.False(string.IsNullOrWhiteSpace(result.Message));
+        // A transient block must not wipe the knowledge base: nothing is removed and the state is preserved.
+        Assert.Empty(queue.Removed);
+        Assert.Empty(queue.Synced);
+        Assert.Equal(2, stateStore.Items.Count);
+    }
+
+    [Fact]
+    public async Task Planner_WhenDiscoveryThrows_ReportsFailureAndEnqueuesNothing()
+    {
+        var resolver = new StubResolver(new StubStrategy([], new HttpRequestException("403 Forbidden")));
+
+        var stateStore = new InMemoryCrawlStateStore();
+        stateStore.Items.Add(new WebCrawlState { ItemId = "1", Source = "c1", Url = "https://x.com/a", LastIndexedUtc = new DateTime(2024, 2, 1, 0, 0, 0, DateTimeKind.Utc) });
+
+        var queue = new RecordingIndexingQueue();
+        var planner = new WebCrawlerReindexPlanner(resolver, stateStore, queue, TimeProvider.System, NullLogger<WebCrawlerReindexPlanner>.Instance);
+
+        var result = await planner.PlanAndEnqueueAsync(CreateCrawler(itemId: "c1"), Ct);
+
+        Assert.Equal(WebCrawlerReindexStatus.DiscoveryFailed, result.Status);
+        Assert.Contains("403 Forbidden", result.Message);
+        Assert.Empty(queue.Removed);
+        Assert.Empty(queue.Synced);
+        Assert.Single(stateStore.Items);
     }
 
     [Theory]
@@ -386,17 +453,20 @@ public sealed class WebCrawlerTests
     private sealed class StubStrategy : IWebCrawlerStrategy
     {
         private readonly IReadOnlyList<CrawledPageRef> _refs;
+        private readonly Exception _discoverException;
 
-        public StubStrategy(IReadOnlyList<CrawledPageRef> refs)
+        public StubStrategy(IReadOnlyList<CrawledPageRef> refs, Exception discoverException = null)
         {
             _refs = refs;
+            _discoverException = discoverException;
         }
 
         public string Name => WebCrawlerConstants.Strategies.Sitemap;
 
         public ValueTask ValidateAsync(WebCrawler crawler, ValidationResultDetails result, CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
 
-        public Task<IReadOnlyList<CrawledPageRef>> DiscoverAsync(WebCrawler crawler, CancellationToken cancellationToken = default) => Task.FromResult(_refs);
+        public Task<IReadOnlyList<CrawledPageRef>> DiscoverAsync(WebCrawler crawler, CancellationToken cancellationToken = default)
+            => _discoverException is not null ? Task.FromException<IReadOnlyList<CrawledPageRef>>(_discoverException) : Task.FromResult(_refs);
 
         public Task<CrawledPage> FetchAsync(WebCrawler crawler, string url, CancellationToken cancellationToken = default) => Task.FromResult(new CrawledPage("Title", "content"));
     }

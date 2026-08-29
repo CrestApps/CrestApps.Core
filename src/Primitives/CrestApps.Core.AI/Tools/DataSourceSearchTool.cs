@@ -141,14 +141,18 @@ public sealed class DataSourceSearchTool : AIFunction
             var aiClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
 
-            if (!masterIndexProfile.TryGet(out DataSourceIndexProfileMetadata profileMetadata))
+            // Resolve the query-embedding deployment exactly the way the indexing service does: it lives on
+            // the index profile itself (masterIndexProfile.EmbeddingDeploymentName) and is only optionally
+            // overridden by the data-source metadata. The metadata being absent must NOT fail search, or a
+            // profile that indexed fine using the top-level embedding deployment could never be queried.
+            masterIndexProfile.TryGet(out DataSourceIndexProfileMetadata profileMetadata);
+
+            var deploymentName = masterIndexProfile.EmbeddingDeploymentName;
+
+            if (profileMetadata != null && !string.IsNullOrEmpty(profileMetadata.EmbeddingDeploymentName))
             {
-                logger.LogWarning("AI Tool '{ToolName}' failed: embedding configuration is missing for the knowledge base index.", Name);
-
-                return "Embedding configuration is missing for the knowledge base index.";
+                deploymentName = profileMetadata.EmbeddingDeploymentName;
             }
-
-            var deploymentName = profileMetadata.EmbeddingDeploymentName ?? masterIndexProfile.EmbeddingDeploymentName;
 
             if (string.IsNullOrWhiteSpace(deploymentName))
             {
