@@ -4,7 +4,9 @@ using CrestApps.Core.AI;
 using CrestApps.Core.AI.Tooling.Instances.Documentation;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.AI.Tooling.Instances;
+using CrestApps.Core.AI.Tooling.Parameters;
 using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
+using CrestApps.Core.Startup.Shared.ViewModels;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -32,6 +34,7 @@ public sealed class AIToolInstanceController : Controller
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly TimeProvider _timeProvider;
     private readonly AIOptions _aiOptions;
+    private readonly IEnumerable<IAIToolParameterContextResolver> _contextResolvers;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AIToolInstanceController"/> class.
@@ -40,16 +43,19 @@ public sealed class AIToolInstanceController : Controller
     /// <param name="dataProtectionProvider">The data protection provider used to protect secrets.</param>
     /// <param name="timeProvider">The time provider used for timestamps.</param>
     /// <param name="aiOptions">The AI options used to enumerate registered tool instance sources.</param>
+    /// <param name="contextResolvers">The resolvers whose keys are offered for context-filled parameters.</param>
     public AIToolInstanceController(
         ISourceCatalog<AIToolInstance> catalog,
         IDataProtectionProvider dataProtectionProvider,
         TimeProvider timeProvider,
-        IOptions<AIOptions> aiOptions)
+        IOptions<AIOptions> aiOptions,
+        IEnumerable<IAIToolParameterContextResolver> contextResolvers)
     {
         _catalog = catalog;
         _dataProtectionProvider = dataProtectionProvider;
         _timeProvider = timeProvider;
         _aiOptions = aiOptions.Value;
+        _contextResolvers = contextResolvers;
     }
 
     /// <summary>
@@ -71,12 +77,16 @@ public sealed class AIToolInstanceController : Controller
     {
         var sources = BuildSourceList();
 
-        return View(new AIToolInstanceViewModel
+        var model = new AIToolInstanceViewModel
         {
             Source = sources.FirstOrDefault()?.Value ?? HttpApiRequestToolConstants.SourceName,
             Sources = sources,
             DefaultHeaders = "{}",
-        });
+        };
+
+        PopulateParameterMetadata(model);
+
+        return View(model);
     }
 
     /// <summary>
@@ -92,6 +102,7 @@ public sealed class AIToolInstanceController : Controller
         if (!ModelState.IsValid)
         {
             model.Sources = BuildSourceList();
+            PopulateParameterMetadata(model);
 
             return View(model);
         }
@@ -148,6 +159,7 @@ public sealed class AIToolInstanceController : Controller
         if (!ModelState.IsValid)
         {
             model.Sources = BuildSourceList();
+            PopulateParameterMetadata(model);
 
             return View(model);
         }
@@ -177,6 +189,68 @@ public sealed class AIToolInstanceController : Controller
         await _catalog.DeleteAsync(instance);
 
         return RedirectToAction(nameof(Index));
+    }
+
+    private void ValidateParameters(AIToolInstanceViewModel model, AIToolInstance existingInstance)
+    {
+        if (model.Parameters is not { Count: > 0 })
+        {
+            return;
+        }
+
+        AIToolInstanceParameterCapabilities capabilities = null;
+
+        if (!string.IsNullOrEmpty(model.Source) &&
+            _aiOptions.ToolInstanceSources.TryGetValue(model.Source, out var entry))
+        {
+            capabilities = entry.Parameters;
+        }
+
+        // The stored parameters are supplied so a secret the user left blank — meaning "keep what is
+        // stored" — is not mistaken for a missing value.
+        var parameters = AIToolInstanceParameterViewModel.ToParameters(
+            model.Parameters,
+            existingInstance is null ? null : AIToolParameterBinder.GetParameters(existingInstance));
+
+        foreach (var (index, error) in AIToolParameterValidator.Validate(parameters, capabilities))
+        {
+            // Anchoring the error to the row lets the editor render it next to the offending parameter.
+            var key = index >= 0
+                ? $"{nameof(model.Parameters)}[{index}].{nameof(AIToolInstanceParameterViewModel.Name)}"
+                : nameof(model.Parameters);
+
+            ModelState.AddModelError(key, error);
+        }
+    }
+
+    private void ApplyParameters(AIToolInstanceViewModel model, AIToolInstance instance)
+    {
+        var parameterProtector = _dataProtectionProvider.CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose);
+
+        var parameters = AIToolInstanceParameterViewModel.ToParameters(
+            model.Parameters,
+            AIToolParameterBinder.GetParameters(instance),
+            parameterProtector.Protect);
+
+        instance.Put(new AIToolInstanceParametersMetadata { Parameters = parameters });
+    }
+
+    private void PopulateParameterMetadata(AIToolInstanceViewModel model)
+    {
+        model.Parameters ??= [];
+
+        // Every capable source is sent to the view, not just the selected one: the create form lets the
+        // source be switched client-side, so the placement options for whichever source the user lands on
+        // have to already be on the page.
+        model.ParameterCapabilities = _aiOptions.ToolInstanceSources
+            .Where(source => source.Value.Parameters is { Supported: true })
+            .ToDictionary(source => source.Key, source => source.Value.Parameters, StringComparer.OrdinalIgnoreCase);
+
+        model.ParameterCapableSources = model.ParameterCapabilities.Keys.ToList();
+
+        model.ContextKeys = _contextResolvers
+            .SelectMany(resolver => resolver.SupportedKeys)
+            .ToList();
     }
 
     private List<SelectListItem> BuildSourceList()
@@ -215,6 +289,8 @@ public sealed class AIToolInstanceController : Controller
         {
             ModelState.AddModelError(nameof(model.Description), "A description is required so the AI model can tell instances apart.");
         }
+
+        ValidateParameters(model, existingInstance);
 
         if (string.Equals(model.Source, DocumentationToolConstants.SitemapSourceName, StringComparison.OrdinalIgnoreCase))
         {
@@ -413,6 +489,8 @@ public sealed class AIToolInstanceController : Controller
         instance.Description = model.Description.Trim();
         instance.ModifiedUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
+        ApplyParameters(model, instance);
+
         if (string.Equals(model.Source, DocumentationToolConstants.SitemapSourceName, StringComparison.OrdinalIgnoreCase))
         {
             instance.Put(new SitemapDocumentationToolSettings
@@ -460,6 +538,7 @@ public sealed class AIToolInstanceController : Controller
         var settings = new HttpApiRequestToolSettings
         {
             BaseUrl = model.BaseUrl?.Trim(),
+            PathTemplate = string.IsNullOrWhiteSpace(model.PathTemplate) ? null : model.PathTemplate.Trim(),
             HttpMethod = string.IsNullOrWhiteSpace(model.HttpMethod) ? "GET" : model.HttpMethod.Trim().ToUpperInvariant(),
             AuthenticationType = model.AuthenticationType,
             AllowModelProvidedPath = model.AllowModelProvidedPath,
@@ -526,7 +605,7 @@ public sealed class AIToolInstanceController : Controller
         }
     }
 
-    private static AIToolInstanceViewModel ToViewModel(AIToolInstance instance)
+    private AIToolInstanceViewModel ToViewModel(AIToolInstance instance)
     {
         var model = new AIToolInstanceViewModel
         {
@@ -540,6 +619,7 @@ public sealed class AIToolInstanceController : Controller
         if (instance.TryGet<HttpApiRequestToolSettings>(out var settings))
         {
             model.BaseUrl = settings.BaseUrl;
+            model.PathTemplate = settings.PathTemplate;
             model.HttpMethod = string.IsNullOrWhiteSpace(settings.HttpMethod) ? "GET" : settings.HttpMethod;
             model.AuthenticationType = settings.AuthenticationType;
             model.ApiKeyHeaderName = string.IsNullOrWhiteSpace(settings.ApiKeyHeaderName) ? "X-Api-Key" : settings.ApiKeyHeaderName;
@@ -559,6 +639,10 @@ public sealed class AIToolInstanceController : Controller
                 ? JsonSerializer.Serialize(settings.DefaultHeaders, _indentedJsonOptions)
                 : "{}";
         }
+
+        model.Parameters = AIToolInstanceParameterViewModel.FromParameters(AIToolParameterBinder.GetParameters(instance));
+
+        PopulateParameterMetadata(model);
 
         if (instance.TryGet<SitemapDocumentationToolSettings>(out var sitemapSettings))
         {

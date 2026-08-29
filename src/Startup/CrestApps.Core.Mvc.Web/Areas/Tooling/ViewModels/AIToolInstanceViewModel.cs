@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using CrestApps.Core.AI.Tooling.Instances;
+using CrestApps.Core.AI.Tooling.Parameters;
+using CrestApps.Core.Startup.Shared.ViewModels;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
@@ -39,9 +41,38 @@ public sealed class AIToolInstanceViewModel
     public string Description { get; set; }
 
     /// <summary>
+    /// Gets or sets the parameters declared for this instance.
+    /// </summary>
+    public List<AIToolInstanceParameterViewModel> Parameters { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the parameter capabilities of every registered source that supports parameters, keyed
+    /// by source name. The create form renders the placement options for all of them and reveals the set
+    /// belonging to the selected source, because the source can be switched without a round trip.
+    /// </summary>
+    public IReadOnlyDictionary<string, AIToolInstanceParameterCapabilities> ParameterCapabilities { get; set; }
+        = new Dictionary<string, AIToolInstanceParameterCapabilities>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gets or sets the context keys offered for context-filled parameters.
+    /// </summary>
+    public IReadOnlyList<AIToolParameterContextKey> ContextKeys { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the names of every registered source that supports parameters, used to show the
+    /// parameter editor only while such a source is selected.
+    /// </summary>
+    public IReadOnlyList<string> ParameterCapableSources { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets the base URL the request targets.
     /// </summary>
     public string BaseUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional path appended to the base URL, which may contain {parameter} tokens.
+    /// </summary>
+    public string PathTemplate { get; set; }
 
     /// <summary>
     /// Gets or sets the HTTP method to use.
