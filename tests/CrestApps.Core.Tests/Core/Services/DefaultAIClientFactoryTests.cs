@@ -77,6 +77,43 @@ public sealed class DefaultAIClientFactoryTests
         innerGenerator.Verify(generator => generator.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
+    [Fact]
+    public async Task CreateRealtimeClientAsync_ResolvesClientFromProvider()
+    {
+        var realtimeClient = new Mock<IRealtimeClient>(MockBehavior.Strict).Object;
+
+        var deployment = new AIDeployment
+        {
+            ClientName = "Test",
+            ModelName = "realtime-model",
+        };
+        var provider = new Mock<IAIClientProvider>(MockBehavior.Strict);
+        provider.Setup(p => p.CanHandle("Test")).Returns(true);
+        provider.Setup(p => p.GetRealtimeClientAsync(It.IsAny<AIProviderConnectionEntry>(), "realtime-model")).Returns(new ValueTask<IRealtimeClient>(realtimeClient));
+
+        var factory = CreateFactory(provider.Object);
+        var client = await factory.CreateRealtimeClientAsync(deployment);
+
+        Assert.Same(realtimeClient, client);
+    }
+
+    [Fact]
+    public async Task CreateRealtimeClientAsync_WhenProviderDoesNotSupport_ThrowsNotSupported()
+    {
+        var deployment = new AIDeployment
+        {
+            ClientName = "Test",
+            ModelName = "realtime-model",
+        };
+        var provider = new Mock<IAIClientProvider>(MockBehavior.Strict);
+        provider.Setup(p => p.CanHandle("Test")).Returns(true);
+        provider.Setup(p => p.GetRealtimeClientAsync(It.IsAny<AIProviderConnectionEntry>(), "realtime-model")).Throws<NotSupportedException>();
+
+        var factory = CreateFactory(provider.Object);
+
+        await Assert.ThrowsAsync<NotSupportedException>(async () => await factory.CreateRealtimeClientAsync(deployment));
+    }
+
     private static DefaultAIClientFactory CreateFactory(IAIClientProvider provider)
     {
         var services = new ServiceCollection()

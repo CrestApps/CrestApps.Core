@@ -90,6 +90,32 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     }
 
+#pragma warning disable MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
+#pragma warning disable OPENAI002 // The OpenAI Realtime API is experimental and requires explicit opt-in at each usage site.
+    /// <summary>
+    /// Gets a real-time client.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    public override ValueTask<IRealtimeClient> GetRealtimeClientAsync(AIProviderConnectionEntry connection, string deploymentName = null)
+    {
+        if (string.IsNullOrEmpty(deploymentName))
+        {
+            deploymentName = connection.GetStringValue("RealtimeDeploymentName", false);
+        }
+
+        if (string.IsNullOrEmpty(deploymentName))
+        {
+            throw new ArgumentException("A realtime deployment name must be provided, either directly or as a default in the connection settings.");
+        }
+
+        var client = GetOpenAIClient(connection);
+
+        return ValueTask.FromResult<IRealtimeClient>(new OpenAIRealtimeClient(client.GetRealtimeClient(), deploymentName));
+    }
+#pragma warning restore OPENAI002 // The OpenAI Realtime API is experimental and requires explicit opt-in at each usage site.
+#pragma warning restore MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
+
     private static OpenAIClient GetOpenAIClient(AIProviderConnectionEntry connection)
     {
         var apiKey = connection.GetApiKey();

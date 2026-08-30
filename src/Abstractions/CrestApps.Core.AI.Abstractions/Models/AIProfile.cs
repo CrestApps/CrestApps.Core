@@ -51,6 +51,13 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
     public string UtilityDeploymentName { get; set; }
 
     /// <summary>
+    /// Gets or sets the realtime deployment technical name for this profile.
+    /// Used by <see cref="AIProfileType.RealtimeChat"/> profiles to select the deployment
+    /// that backs the speech-to-speech realtime session.
+    /// </summary>
+    public string RealtimeDeploymentName { get; set; }
+
+    /// <summary>
     /// Gets or sets the legacy chat deployment identifier that maps to <see cref="ChatDeploymentName"/>.
     /// </summary>
     [JsonIgnore]
@@ -187,6 +194,7 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
 #pragma warning restore CS0618 // Type or member is obsolete
             ChatDeploymentName = ChatDeploymentName,
             UtilityDeploymentName = UtilityDeploymentName,
+            RealtimeDeploymentName = RealtimeDeploymentName,
             TitleType = TitleType,
             WelcomeMessage = WelcomeMessage,
             PromptSubject = PromptSubject,

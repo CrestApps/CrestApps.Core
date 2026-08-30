@@ -1,6 +1,9 @@
 using CrestApps.Core;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A;
+using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Deployments;
+using CrestApps.Core.Startup.Shared.Realtime;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Azure.AISearch;
 using CrestApps.Core.AI.AzureAIInference;
@@ -232,6 +235,9 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection()
     .UseStaticFiles()
+    // UseWebSockets must run before UseRouting so that HTTP/2 WebSocket handshakes (RFC 8441 extended CONNECT)
+    // are recognized before endpoint method matching, which would otherwise reject them with 405.
+    .UseWebSockets()
     .UseRouting()
     .UseSharedAIChatProtection()
     .UseAuthentication()
@@ -297,6 +303,20 @@ app.AddChatApiEndpoints()
     .AddRemoveChatSessionDocumentEndpoint();
 
 app.MapAuthEndpoints();
+
+// Realtime (speech-to-speech) test harness WebSocket bridge, shared with the MVC host via RealtimeVoiceBridge.
+// Mapped for all HTTP methods so the HTTP/2 extended-CONNECT handshake (normalized to GET by UseWebSockets) matches.
+app.Map("/Realtime/Stream", (
+        HttpContext context,
+        string deploymentName,
+        string? voice,
+        string? instructions,
+        IAIDeploymentManager deploymentManager,
+        IAIClientFactory clientFactory,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken) =>
+        RealtimeVoiceBridge.HandleAsync(context, deploymentName, voice, instructions, deploymentManager, clientFactory, loggerFactory.CreateLogger("CrestApps.Core.Realtime"), cancellationToken))
+    .RequireAuthorization();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
