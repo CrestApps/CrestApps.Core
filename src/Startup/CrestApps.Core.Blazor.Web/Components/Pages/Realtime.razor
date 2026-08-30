@@ -2,6 +2,7 @@
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Models
+@using CrestApps.Core.Startup.Shared.Realtime
 @inject IAIDeploymentManager DeploymentManager
 @inject IJSRuntime JS
 
@@ -47,14 +48,10 @@ else
                     <div class="mb-3">
                         <label class="form-label" for="rt-voice">Voice</label>
                         <select id="rt-voice" class="form-select">
-                            <option value="alloy">alloy</option>
-                            <option value="ash">ash</option>
-                            <option value="ballad">ballad</option>
-                            <option value="coral">coral</option>
-                            <option value="echo">echo</option>
-                            <option value="sage">sage</option>
-                            <option value="shimmer">shimmer</option>
-                            <option value="verse">verse</option>
+                            @foreach (var voice in RealtimeVoices.All)
+                            {
+                                <option value="@voice">@voice</option>
+                            }
                         </select>
                     </div>
                     <div class="mb-3">
