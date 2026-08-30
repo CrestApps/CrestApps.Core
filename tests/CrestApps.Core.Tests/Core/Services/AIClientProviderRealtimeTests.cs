@@ -113,4 +113,34 @@ public sealed class AIClientProviderRealtimeTests
 
         await Assert.ThrowsAsync<NotSupportedException>(async () => await provider.GetRealtimeClientAsync(Connection()));
     }
+
+    [Fact]
+    public async Task OpenAI_GetRealtimeVoicesAsync_ReturnsProviderVoiceSet()
+    {
+        var provider = new OpenAIClientProvider(EmptyServices());
+
+        var voices = await provider.GetRealtimeVoicesAsync(Connection());
+
+        Assert.Contains(voices, voice => voice.Id == "alloy");
+        Assert.Contains(voices, voice => voice.Id == "cedar");
+        Assert.Contains(voices, voice => voice.Id == "marin");
+        Assert.Contains(voices, voice => voice.Id == "coral" && voice.Gender == SpeechVoiceGender.Female);
+    }
+
+    [Fact]
+    public async Task AzureOpenAI_GetRealtimeVoicesAsync_ReturnsProviderVoiceSet()
+    {
+        var options = Mock.Of<IOptionsSnapshot<AzureClientOptions>>(snapshot => snapshot.Value == new AzureClientOptions());
+        var provider = new AzureOpenAIClientProvider(EmptyServices(), NullLoggerFactory.Instance, options);
+
+        Assert.Contains(await provider.GetRealtimeVoicesAsync(Connection()), voice => voice.Id == "alloy");
+    }
+
+    [Fact]
+    public async Task Ollama_GetRealtimeVoicesAsync_ReturnsEmpty()
+    {
+        var provider = new OllamaAIClientProvider(EmptyServices());
+
+        Assert.Empty(await provider.GetRealtimeVoicesAsync(Connection()));
+    }
 }

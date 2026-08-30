@@ -2,6 +2,7 @@
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Speech;
 using CrestApps.Core.Startup.Shared.Realtime;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,15 +17,18 @@ public sealed class RealtimeController : Controller
 {
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _clientFactory;
+    private readonly IRealtimeVoiceResolver _voiceResolver;
     private readonly ILogger<RealtimeController> _logger;
 
     public RealtimeController(
         IAIDeploymentManager deploymentManager,
         IAIClientFactory clientFactory,
+        IRealtimeVoiceResolver voiceResolver,
         ILogger<RealtimeController> logger)
     {
         _deploymentManager = deploymentManager;
         _clientFactory = clientFactory;
+        _voiceResolver = voiceResolver;
         _logger = logger;
     }
 
@@ -34,9 +38,21 @@ public sealed class RealtimeController : Controller
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
-        var deployments = await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Realtime, cancellationToken);
+        var deployments = (await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Realtime, cancellationToken))
+            .OrderBy(deployment => deployment.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-        return View(deployments.OrderBy(deployment => deployment.Name, StringComparer.OrdinalIgnoreCase).ToList());
+        // Voices are resolved from the providers. All realtime deployments in practice share the same voice set,
+        // so the distinct union across deployments is used to populate the selector.
+        var voiceSets = await Task.WhenAll(deployments.Select(deployment => _voiceResolver.GetVoicesAsync(deployment)));
+
+        ViewData["RealtimeVoices"] = voiceSets
+            .SelectMany(voices => voices)
+            .GroupBy(voice => voice.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+
+        return View(deployments);
     }
 
     /// <summary>

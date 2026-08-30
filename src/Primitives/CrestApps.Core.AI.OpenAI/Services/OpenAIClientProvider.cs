@@ -116,6 +116,16 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
 #pragma warning restore OPENAI002 // The OpenAI Realtime API is experimental and requires explicit opt-in at each usage site.
 #pragma warning restore MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
 
+    /// <summary>
+    /// Gets the supported real-time voices for the OpenAI gpt-realtime models.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    public override Task<SpeechVoice[]> GetRealtimeVoicesAsync(AIProviderConnectionEntry connection, string deploymentName = null)
+    {
+        return Task.FromResult(OpenAIRealtimeVoices.All);
+    }
+
     private static OpenAIClient GetOpenAIClient(AIProviderConnectionEntry connection)
     {
         var apiKey = connection.GetApiKey();

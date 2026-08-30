@@ -1,7 +1,7 @@
 @model IReadOnlyList<CrestApps.Core.AI.Models.AIDeployment>
-@using CrestApps.Core.Startup.Shared.Realtime
 @{
     ViewData["Title"] = "Realtime model test";
+    var voices = ViewData["RealtimeVoices"] as IReadOnlyList<CrestApps.Core.AI.Models.SpeechVoice> ?? [];
 }
 
 <div class="d-flex align-items-center mb-3">
@@ -41,9 +41,14 @@ else
                     <div class="mb-3">
                         <label class="form-label" for="rt-voice">Voice</label>
                         <select id="rt-voice" class="form-select">
-                            @foreach (var voice in RealtimeVoices.All)
+                            @foreach (var group in voices.GroupBy(voice => voice.Gender).OrderBy(group => group.Key.ToString()))
                             {
-                                <option value="@voice">@voice</option>
+                                <optgroup label="@group.Key">
+                                    @foreach (var voice in group)
+                                    {
+                                        <option value="@voice.Id">@voice.Name</option>
+                                    }
+                                </optgroup>
                             }
                         </select>
                     </div>

@@ -118,6 +118,58 @@ builder.Services.AddCoreAIConnectionSource("MyProvider", configure => { /* ... *
 | Ollama | `AddCoreAIOllama()` | `"Ollama"` | [Ollama](./ollama.md) |
 | Azure AI Inference | `AddCoreAIAzureAIInference()` | `"AzureAIInference"` | [Azure AI Inference](./azure-ai-inference.md) |
 
+## Real-time (speech-to-speech) clients
+
+A **real-time client** exchanges audio (and optionally text) with the provider over a persistent, bidirectional
+session, enabling low-latency speech-to-speech conversations without separate speech-to-text and text-to-speech
+steps. The client is the `Microsoft.Extensions.AI` `IRealtimeClient` / `IRealtimeClientSession` type, created from a
+resolved deployment:
+
+```csharp
+#pragma warning disable MEAI001 // The Microsoft.Extensions.AI realtime API is evaluation-only.
+IRealtimeClient client = await clientFactory.CreateRealtimeClientAsync(deployment);
+
+await using var session = await client.CreateSessionAsync(new RealtimeSessionOptions
+{
+    Instructions = "You are a friendly voice assistant.",
+    Voice = "alloy",
+    InputAudioFormat = new RealtimeAudioFormat("audio/pcm", 24000),
+    OutputAudioFormat = new RealtimeAudioFormat("audio/pcm", 24000),
+    OutputModalities = ["audio"],
+    VoiceActivityDetection = new VoiceActivityDetectionOptions { Enabled = true },
+});
+```
+
+- **`IAIClientFactory.CreateRealtimeClientAsync(AIDeployment)`** resolves the provider and connection, then returns
+  the realtime client. Under the hood each provider implements
+  **`IAIClientProvider.GetRealtimeClientAsync(connection, deploymentName)`**; providers without a realtime API throw
+  `NotSupportedException`.
+- **OpenAI** and **Azure OpenAI** support realtime (both use the OpenAI `gpt-realtime` models). Ollama and Azure AI
+  Inference do not.
+- Mark a deployment with **`AIDeploymentPurpose.Realtime`**, and classify an audio-only profile with the
+  **`AIProfileType.RealtimeChat`** profile type (which selects its deployment via `AIProfile.RealtimeDeploymentName`).
+
+### Realtime voices
+
+Realtime voices are a fixed, provider-defined set (the realtime API has no enumeration endpoint). Resolve them the
+same way as speech voices — through a resolver that delegates to the provider:
+
+```csharp
+SpeechVoice[] voices = await realtimeVoiceResolver.GetVoicesAsync(deployment);
+```
+
+- **`IRealtimeVoiceResolver.GetVoicesAsync(AIDeployment)`** (registered by default) mirrors `ISpeechVoiceResolver`
+  and returns `SpeechVoice[]`. It delegates to **`IAIClientProvider.GetRealtimeVoicesAsync(...)`**.
+- OpenAI and Azure OpenAI return the `gpt-realtime` voice set — `alloy`, `ash`, `ballad`, `cedar`, `coral`, `echo`,
+  `marin`, `sage`, `shimmer`, `verse` — declared in `OpenAIRealtimeVoices`. Each carries a best-effort (unofficial)
+  gender to help group a voice selector.
+
+:::note
+Real-time sessions currently apply the profile's system prompt (context window) and support tool declaration, but
+tool **invocation**, retrieval-augmented knowledge, and full AI-Profile-driven orchestration over a realtime session
+are a planned follow-up. Both sample hosts include a **Realtime model test** playground for trying it end to end.
+:::
+
 ## Provider Comparison
 
 | Capability | OpenAI | Azure OpenAI | Ollama | Azure AI Inference |
@@ -129,6 +181,7 @@ builder.Services.AddCoreAIConnectionSource("MyProvider", configure => { /* ... *
 | Image generation | ✅ (DALL·E) | ✅ (DALL·E) | ❌ | ❌ |
 | Speech-to-text | ✅ (Whisper) | ✅ (via Azure Speech) | ❌ | ❌ |
 | Text-to-speech | ✅ | ✅ (via Azure Speech) | ❌ | ❌ |
+| Realtime (speech-to-speech) | ✅ | ✅ | ❌ | ❌ |
 | Vision (image input) | ✅ | ✅ | ⚠️ Model-dependent | ⚠️ Model-dependent |
 | Managed identity | ❌ | ✅ | N/A | ✅ |
 | Data residency | ❌ | ✅ (per region) | ✅ (local) | ✅ (per region) |

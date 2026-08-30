@@ -191,4 +191,14 @@ public abstract class AIClientProviderBase : IAIClientProvider
         throw new NotSupportedException($"The provider '{GetProviderName()}' does not support real-time sessions.");
     }
 #pragma warning restore MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
+
+    /// <summary>
+    /// Gets the supported real-time voices. Providers that support realtime override this to return their voice set.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    public virtual Task<SpeechVoice[]> GetRealtimeVoicesAsync(AIProviderConnectionEntry connection, string deploymentName = null)
+    {
+        return Task.FromResult(Array.Empty<SpeechVoice>());
+    }
 }

@@ -2,8 +2,9 @@
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Models
-@using CrestApps.Core.Startup.Shared.Realtime
+@using CrestApps.Core.AI.Speech
 @inject IAIDeploymentManager DeploymentManager
+@inject IRealtimeVoiceResolver VoiceResolver
 @inject IJSRuntime JS
 
 <PageTitle>Realtime model test - Blazor AI Integration Sample</PageTitle>
@@ -48,9 +49,14 @@ else
                     <div class="mb-3">
                         <label class="form-label" for="rt-voice">Voice</label>
                         <select id="rt-voice" class="form-select">
-                            @foreach (var voice in RealtimeVoices.All)
+                            @foreach (var group in _voices.GroupBy(voice => voice.Gender).OrderBy(group => group.Key.ToString()))
                             {
-                                <option value="@voice">@voice</option>
+                                <optgroup label="@group.Key">
+                                    @foreach (var voice in group)
+                                    {
+                                        <option value="@voice.Id">@voice.Name</option>
+                                    }
+                                </optgroup>
                             }
                         </select>
                     </div>
@@ -84,6 +90,7 @@ else
 
 @code {
     private IReadOnlyList<AIDeployment> _deployments;
+    private IReadOnlyList<SpeechVoice> _voices = [];
     private bool _initialized;
 
     protected override async Task OnInitializedAsync()
@@ -92,6 +99,16 @@ else
 
         _deployments = deployments
             .OrderBy(deployment => deployment.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // Voices are resolved from the providers. All realtime deployments in practice share the same voice set,
+        // so the distinct union across deployments is used to populate the selector.
+        var voiceSets = await Task.WhenAll(_deployments.Select(deployment => VoiceResolver.GetVoicesAsync(deployment)));
+
+        _voices = voiceSets
+            .SelectMany(voices => voices)
+            .GroupBy(voice => voice.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
             .ToList();
     }
 
