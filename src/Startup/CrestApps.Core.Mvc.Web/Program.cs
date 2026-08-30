@@ -249,6 +249,9 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection()
     .UseStaticFiles()
+    // UseWebSockets must run before UseRouting so that HTTP/2 WebSocket handshakes (RFC 8441 extended CONNECT)
+    // are recognized before endpoint method matching, which would otherwise reject them with 405.
+    .UseWebSockets()
     .UseRouting()
     .UseSharedAIChatProtection()
     .UseAuthentication()

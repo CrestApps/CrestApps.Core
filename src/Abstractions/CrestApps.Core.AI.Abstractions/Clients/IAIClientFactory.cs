@@ -110,4 +110,17 @@ public interface IAIClientFactory
     /// </returns>
     ValueTask<ITextToSpeechClient> CreateTextToSpeechClientAsync(AIDeployment deployment, Action<TextToSpeechClientBuilder> configurePipeline);
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
+#pragma warning disable MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
+    /// <summary>
+    /// Asynchronously creates an <see cref="IRealtimeClient"/> from the given deployment.
+    /// A real-time client exchanges audio (and optionally text) with the provider over a duplex session,
+    /// enabling speech-to-speech interactions without separate speech-to-text and text-to-speech steps.
+    /// </summary>
+    /// <param name="deployment">The AI deployment containing client, connection, and model information.</param>
+    /// <returns>
+    /// A <see cref="ValueTask{TResult}"/> representing the asynchronous operation, with the created <see cref="IRealtimeClient"/>.
+    /// </returns>
+    ValueTask<IRealtimeClient> CreateRealtimeClientAsync(AIDeployment deployment);
+#pragma warning restore MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
 }

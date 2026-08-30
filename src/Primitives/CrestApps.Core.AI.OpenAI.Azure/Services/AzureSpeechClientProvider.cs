@@ -116,6 +116,28 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
         return await client.GetVoicesAsync();
     }
 
+#pragma warning disable MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
+    /// <summary>
+    /// Gets a real-time client.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    public ValueTask<IRealtimeClient> GetRealtimeClientAsync(AIProviderConnectionEntry connection, string deploymentName = null)
+    {
+        throw new NotSupportedException("Azure AI Speech deployments only support speech services.");
+    }
+#pragma warning restore MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
+
+    /// <summary>
+    /// Gets the supported real-time voices. Azure AI Speech has no realtime API, so this is empty.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    public Task<SpeechVoice[]> GetRealtimeVoicesAsync(AIProviderConnectionEntry connection, string deploymentName = null)
+    {
+        return Task.FromResult(Array.Empty<SpeechVoice>());
+    }
+
     private static (Uri endpoint, AzureAuthenticationType authType, string apiKey, string identityId) ExtractConnectionParams(AIProviderConnectionEntry connection)
     {
         var endpoint = connection.GetEndpoint();

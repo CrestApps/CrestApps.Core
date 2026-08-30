@@ -24,4 +24,11 @@ public enum AIProfileType
     /// A profile that acts as an AI agent capable of orchestrating tools and sub-tasks.
     /// </summary>
     Agent,
+
+    /// <summary>
+    /// A profile that drives real-time, audio-only chat sessions with a user via a provider
+    /// realtime session (speech-to-speech), rather than the speech-to-text and text-to-speech
+    /// pipeline used by <see cref="Chat"/> conversation mode.
+    /// </summary>
+    RealtimeChat,
 }

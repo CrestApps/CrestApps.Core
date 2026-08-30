@@ -68,4 +68,23 @@ public interface IAIClientProvider
     /// <param name="deploymentName">The optional deployment name to use.</param>
     /// <returns>An array of available <see cref="SpeechVoice"/> instances.</returns>
     Task<SpeechVoice[]> GetSpeechVoicesAsync(AIProviderConnectionEntry connection, string deploymentName = null);
+
+#pragma warning disable MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
+    /// <summary>
+    /// Gets a real-time client for the specified connection and deployment.
+    /// </summary>
+    /// <param name="connection">The connection entry containing provider configuration.</param>
+    /// <param name="deploymentName">The optional deployment name to use.</param>
+    /// <returns>A <see cref="ValueTask{IRealtimeClient}"/> representing the asynchronous operation.</returns>
+    ValueTask<IRealtimeClient> GetRealtimeClientAsync(AIProviderConnectionEntry connection, string deploymentName = null);
+#pragma warning restore MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
+
+    /// <summary>
+    /// Gets the available voices for real-time sessions, mirroring <see cref="GetSpeechVoicesAsync"/>. Providers
+    /// without a realtime API return an empty array.
+    /// </summary>
+    /// <param name="connection">The connection entry containing provider configuration.</param>
+    /// <param name="deploymentName">The optional deployment name to use.</param>
+    /// <returns>An array of available <see cref="SpeechVoice"/> instances, or an empty array.</returns>
+    Task<SpeechVoice[]> GetRealtimeVoicesAsync(AIProviderConnectionEntry connection, string deploymentName = null);
 }

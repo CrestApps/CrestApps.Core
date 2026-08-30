@@ -1,0 +1,66 @@
+#nullable enable
+using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Deployments;
+using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Speech;
+using CrestApps.Core.Startup.Shared.Realtime;
+using Microsoft.AspNetCore.Mvc;
+
+namespace CrestApps.Core.Mvc.Web.Controllers;
+
+/// <summary>
+/// A test harness for the realtime (speech-to-speech) client. The <see cref="Index"/> page captures microphone
+/// audio in the browser and streams it over a WebSocket to <see cref="Stream"/>, which delegates to the shared
+/// <see cref="RealtimeVoiceBridge"/> to bridge to a provider realtime session.
+/// </summary>
+public sealed class RealtimeController : Controller
+{
+    private readonly IAIDeploymentManager _deploymentManager;
+    private readonly IAIClientFactory _clientFactory;
+    private readonly IRealtimeVoiceResolver _voiceResolver;
+    private readonly ILogger<RealtimeController> _logger;
+
+    public RealtimeController(
+        IAIDeploymentManager deploymentManager,
+        IAIClientFactory clientFactory,
+        IRealtimeVoiceResolver voiceResolver,
+        ILogger<RealtimeController> logger)
+    {
+        _deploymentManager = deploymentManager;
+        _clientFactory = clientFactory;
+        _voiceResolver = voiceResolver;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Renders the test page listing the deployments that support realtime.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> Index(CancellationToken cancellationToken)
+    {
+        var deployments = (await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Realtime, cancellationToken))
+            .OrderBy(deployment => deployment.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // Voices are resolved from the providers. All realtime deployments in practice share the same voice set,
+        // so the distinct union across deployments is used to populate the selector.
+        var voiceSets = await Task.WhenAll(deployments.Select(deployment => _voiceResolver.GetVoicesAsync(deployment)));
+
+        ViewData["RealtimeVoices"] = voiceSets
+            .SelectMany(voices => voices)
+            .GroupBy(voice => voice.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+
+        return View(deployments);
+    }
+
+    /// <summary>
+    /// The WebSocket bridge endpoint. No HTTP-method attribute is applied deliberately: over HTTP/2 the WebSocket
+    /// handshake arrives as an extended <c>CONNECT</c> request (RFC 8441), not a <c>GET</c>.
+    /// </summary>
+    public Task Stream(string deploymentName, string? voice, string? instructions, CancellationToken cancellationToken)
+    {
+        return RealtimeVoiceBridge.HandleAsync(HttpContext, deploymentName, voice, instructions, _deploymentManager, _clientFactory, _logger, cancellationToken);
+    }
+}

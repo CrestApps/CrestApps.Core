@@ -90,6 +90,35 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
     }
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
+#pragma warning disable MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
+    /// <summary>
+    /// Gets a real-time client.
+    /// </summary>
+    /// <remarks>
+    /// This uses a temporary WebSocket transport (<c>CrestApps.Core.AI.OpenAI.Azure.Realtime</c>) rather than
+    /// <c>AzureOpenAIClient.GetRealtimeClient()</c>, because the pinned <c>Azure.AI.OpenAI</c> targets an older
+    /// <c>OpenAI</c> SDK than <c>Microsoft.Extensions.AI.OpenAI</c> requires and the SDK path throws
+    /// <see cref="MissingMethodException"/> at runtime. Replace this with the SDK path once a compatible
+    /// <c>Azure.AI.OpenAI</c> ships.
+    /// </remarks>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    public override ValueTask<IRealtimeClient> GetRealtimeClientAsync(AIProviderConnectionEntry connection, string deploymentName = null)
+    {
+        return ValueTask.FromResult(Realtime.AzureRealtimeClientFactory.Create(connection, deploymentName));
+    }
+#pragma warning restore MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
+
+    /// <summary>
+    /// Gets the supported real-time voices for the Azure OpenAI gpt-realtime models.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    public override Task<SpeechVoice[]> GetRealtimeVoicesAsync(AIProviderConnectionEntry connection, string deploymentName = null)
+    {
+        return Task.FromResult(OpenAIRealtimeVoices.All);
+    }
+
     private AzureOpenAIClient GetClient(AIProviderConnectionEntry connection)
     {
         return AzureOpenAIClientFactory.Create(connection, _loggerFactory, _azureClientSettings);

@@ -479,13 +479,18 @@ public sealed class DocumentationSearchTests
     public async Task CachingSource_WhenBuildExceedsBudget_ReportsPendingThenServesFromBackgroundBuild()
     {
         var corpus = new DocumentationCorpus([new DocumentationCorpus.Entry("https://s/1", "T", "theater tickets")]);
-        var source = new SlowCorpusSource(TimeSpan.FromMilliseconds(300), TimeSpan.FromMilliseconds(20), corpus);
 
-        // The first search cannot beat the 20ms budget, so it reports the index as still pending.
+        // The build blocks on this gate, so it cannot finish within the wait budget no matter how the CI runner is
+        // scheduled — the first search is guaranteed to see the index as still pending.
+        var gate = new TaskCompletionSource();
+        var source = new SlowCorpusSource(TimeSpan.Zero, TimeSpan.FromMilliseconds(20), corpus, gate.Task);
+
+        // The first search cannot beat the wait budget while the build is gated, so it reports the index as pending.
         await Assert.ThrowsAsync<DocumentationIndexPendingException>(
             () => source.SearchAsync(new DocumentationSearchRequest("theater"), TestContext.Current.CancellationToken));
 
-        // The background build keeps running; a later search returns results and never rebuilds.
+        // Release the gate so the background build completes; a later search returns results and never rebuilds.
+        gate.SetResult();
         IReadOnlyList<DocumentationSearchResult> results = [];
 
         for (var attempt = 0; attempt < 100; attempt++)
@@ -711,13 +716,15 @@ public sealed class DocumentationSearchTests
     private sealed class SlowCorpusSource : CachingDocumentationSource
     {
         private readonly TimeSpan _delay;
+        private readonly Task _gate;
         private readonly DocumentationCorpus _corpus;
         private int _buildCount;
 
-        public SlowCorpusSource(TimeSpan delay, TimeSpan budget, DocumentationCorpus corpus)
+        public SlowCorpusSource(TimeSpan delay, TimeSpan budget, DocumentationCorpus corpus, Task gate = null)
             : base("slow", TimeSpan.FromHours(1), TimeProvider.System, budget)
         {
             _delay = delay;
+            _gate = gate;
             _corpus = corpus;
         }
 
@@ -729,7 +736,16 @@ public sealed class DocumentationSearchTests
         {
             Interlocked.Increment(ref _buildCount);
 
-            await Task.Delay(_delay, cancellationToken);
+            // When a gate is supplied the build blocks until the test releases it, which makes "build exceeds the
+            // wait budget" deterministic instead of racing a wall-clock delay against the budget on a busy CI runner.
+            if (_gate is not null)
+            {
+                await _gate.WaitAsync(cancellationToken);
+            }
+            else
+            {
+                await Task.Delay(_delay, cancellationToken);
+            }
 
             return _corpus;
         }
