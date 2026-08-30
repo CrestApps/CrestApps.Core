@@ -87,14 +87,17 @@ internal sealed class AIDataSourceCatalogHandler : CatalogEntryHandlerBase<AIDat
             context.Result.Fail(new ValidationResult("AI knowledge base index profile is required.", [nameof(AIDataSource.AIKnowledgeBaseIndexProfileName)]));
         }
 
-        if (string.IsNullOrWhiteSpace(context.Model.ContentFieldName))
-        {
-            context.Result.Fail(new ValidationResult("Content field name is required.", [nameof(AIDataSource.ContentFieldName)]));
-        }
-
         context.Model.Source = string.IsNullOrWhiteSpace(context.Model.Source)
             ? AIDataSourceSourceTypes.SearchIndexProfile
             : context.Model.Source.Trim();
+
+        // The Web source derives each page's key, title, and content from the crawled page, so it does not
+        // require the field mapping that external index sources need.
+        if (!string.Equals(context.Model.Source, AIDataSourceSourceTypes.Web, StringComparison.OrdinalIgnoreCase) &&
+            string.IsNullOrWhiteSpace(context.Model.ContentFieldName))
+        {
+            context.Result.Fail(new ValidationResult("Content field name is required.", [nameof(AIDataSource.ContentFieldName)]));
+        }
     }
 
     /// <summary>

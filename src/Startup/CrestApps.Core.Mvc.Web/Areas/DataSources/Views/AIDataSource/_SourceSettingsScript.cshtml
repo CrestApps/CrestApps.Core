@@ -32,6 +32,18 @@
             toggle('elasticsearch-key-id-settings', sourceType === 'Elasticsearch' && elasticAuthType === 'KeyIdAndKey');
             toggle('azure-ai-search-api-key-settings', sourceType === 'AzureAISearch' && azureAuthType === 'ApiKey');
             toggle('azure-ai-search-identity-settings', sourceType === 'AzureAISearch' && azureAuthType !== 'ApiKey');
+
+            // The Web source derives its key, title, and content from each crawled page, so the manual
+            // field mapping is hidden and its inputs are exempted from validation.
+            const usesFieldMapping = sourceType !== 'Web';
+            toggle('field-mapping-settings', usesFieldMapping);
+
+            ['KeyFieldName', 'TitleFieldName', 'ContentFieldName'].forEach((id) => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.required = usesFieldMapping;
+                }
+            });
         };
 
         sourceTypeField?.addEventListener('change', updateVisibility);

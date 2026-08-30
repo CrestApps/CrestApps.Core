@@ -141,14 +141,18 @@ public sealed class DataSourceSearchTool : AIFunction
             var aiClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
 
-            if (!masterIndexProfile.TryGet(out DataSourceIndexProfileMetadata profileMetadata))
+            // Resolve the query-embedding deployment exactly the way the indexing service does: it lives on
+            // the index profile itself (masterIndexProfile.EmbeddingDeploymentName) and is only optionally
+            // overridden by the data-source metadata. The metadata being absent must NOT fail search, or a
+            // profile that indexed fine using the top-level embedding deployment could never be queried.
+            masterIndexProfile.TryGet(out DataSourceIndexProfileMetadata profileMetadata);
+
+            var deploymentName = masterIndexProfile.EmbeddingDeploymentName;
+
+            if (profileMetadata != null && !string.IsNullOrEmpty(profileMetadata.EmbeddingDeploymentName))
             {
-                logger.LogWarning("AI Tool '{ToolName}' failed: embedding configuration is missing for the knowledge base index.", Name);
-
-                return "Embedding configuration is missing for the knowledge base index.";
+                deploymentName = profileMetadata.EmbeddingDeploymentName;
             }
-
-            var deploymentName = profileMetadata.EmbeddingDeploymentName ?? masterIndexProfile.EmbeddingDeploymentName;
 
             if (string.IsNullOrWhiteSpace(deploymentName))
             {
@@ -181,6 +185,7 @@ public sealed class DataSourceSearchTool : AIFunction
 
             var ragMetadata = GetRagMetadata(executionContext);
             var siteSettings = arguments.Services.GetRequiredService<IOptionsMonitor<AIDataSourceOptions>>().CurrentValue;
+            var topN = siteSettings.GetTopNDocuments(ragMetadata?.TopNDocuments);
 
             string providerFilter = null;
 
@@ -201,10 +206,10 @@ public sealed class DataSourceSearchTool : AIFunction
             var results = await contentManager.SearchAsync(
                 masterIndexProfile,
                 embeddings[0].Vector.ToArray(),
-            dataSourceId,
-            siteSettings.GetTopNDocuments(ragMetadata?.TopNDocuments),
-            providerFilter,
-            cancellationToken);
+                dataSourceId,
+                DataSourceSearchResultSelector.GetCandidateCount(topN),
+                providerFilter,
+                cancellationToken);
 
             if (results == null || !results.Any())
             {
@@ -213,19 +218,14 @@ public sealed class DataSourceSearchTool : AIFunction
                     : "No relevant content was found in the data source for this query. Answer using your general knowledge instead.";
             }
 
-            var strictness = siteSettings.GetStrictness(ragMetadata?.Strictness);
+            var minimumScore = siteSettings.GetMinimumScore(ragMetadata?.Strictness);
+            results = DataSourceSearchResultSelector.SelectTopResults(results, topN, minimumScore);
 
-            if (strictness > 0)
+            if (!results.Any())
             {
-                var threshold = strictness / (float)AIDataSourceOptions.MaxStrictness;
-                results = results.Where(result => result.Score >= threshold);
-
-                if (!results.Any())
-                {
-                    return ragMetadata?.IsInScope == true
-                        ? "No results met the strictness threshold. The answer is not available in the configured data source."
-                        : "No results met the strictness threshold. Answer using your general knowledge instead.";
-                }
+                return ragMetadata?.IsInScope == true
+                    ? "No results met the strictness and quality thresholds. The answer is not available in the configured data source."
+                    : "No results met the strictness and quality thresholds. Answer using your general knowledge instead.";
             }
 
             using var builder = ZString.CreateStringBuilder();

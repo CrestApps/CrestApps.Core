@@ -1,5 +1,6 @@
 using CrestApps.Core;
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.WebCrawlers;
 using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
@@ -184,6 +185,11 @@ builder.Services
         )
      )
  );
+
+// Opt into the strategy-based web crawlers feature and its EntityCore stores. Web crawlers scrape sites
+// (starting with sitemap discovery) into any "Web" AI data source.
+builder.Services.AddCoreWebCrawlers();
+builder.Services.AddCoreWebCrawlerStoresEntityCore();
 
 builder.Services.Configure<A2AHostOptions>(
      builder.Configuration.GetSection(nameof(A2AHostOptions)));

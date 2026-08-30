@@ -1,0 +1,23 @@
+<script>
+    (() => {
+        const strategyField = document.getElementById('Source');
+
+        const toggle = (id, visible) => {
+            const element = document.getElementById(id);
+            if (!element) {
+                return;
+            }
+
+            element.hidden = !visible;
+        };
+
+        const updateVisibility = () => {
+            const strategy = strategyField?.value ?? '';
+
+            toggle('sitemap-strategy-settings', strategy === 'Sitemap');
+        };
+
+        strategyField?.addEventListener('change', updateVisibility);
+        updateVisibility();
+    })();
+</script>

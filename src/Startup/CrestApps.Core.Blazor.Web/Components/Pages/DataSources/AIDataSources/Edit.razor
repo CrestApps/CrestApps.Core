@@ -253,26 +253,29 @@ else
                     <div class="form-text">The index where chunked and embedded documents are stored for AI retrieval.</div>
                 </div>
 
-                <hr />
-                <h5>Field Mapping</h5>
+                @if (!IsWebSource())
+                {
+                    <hr />
+                    <h5>Field Mapping</h5>
 
-                <div class="mb-3">
-                    <label class="form-label">Key field name <span class="text-danger">*</span></label>
-                    <InputText @bind-Value="_model.KeyFieldName" class="form-control" placeholder="e.g., id" />
-                    <div class="form-text">The source index field that maps to the document key.</div>
-                </div>
+                    <div class="mb-3">
+                        <label class="form-label">Key field name <span class="text-danger">*</span></label>
+                        <InputText @bind-Value="_model.KeyFieldName" class="form-control" placeholder="e.g., id" />
+                        <div class="form-text">The source index field that maps to the document key.</div>
+                    </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Title field name <span class="text-danger">*</span></label>
-                    <InputText @bind-Value="_model.TitleFieldName" class="form-control" placeholder="e.g., title" />
-                    <div class="form-text">The source index field that maps to the document title. Without it, citations fall back to the document ID.</div>
-                </div>
+                    <div class="mb-3">
+                        <label class="form-label">Title field name <span class="text-danger">*</span></label>
+                        <InputText @bind-Value="_model.TitleFieldName" class="form-control" placeholder="e.g., title" />
+                        <div class="form-text">The source index field that maps to the document title. Without it, citations fall back to the document ID.</div>
+                    </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Content field name <span class="text-danger">*</span></label>
-                    <InputText @bind-Value="_model.ContentFieldName" class="form-control" placeholder="e.g., content" />
-                    <div class="form-text">The source field that maps to the document content (text body). Field mapping is still required for external sources so the knowledge-base pipeline knows which fields hold the key, title, and content.</div>
-                </div>
+                    <div class="mb-3">
+                        <label class="form-label">Content field name <span class="text-danger">*</span></label>
+                        <InputText @bind-Value="_model.ContentFieldName" class="form-control" placeholder="e.g., content" />
+                        <div class="form-text">The source field that maps to the document content (text body). Field mapping is still required for external sources so the knowledge-base pipeline knows which fields hold the key, title, and content.</div>
+                    </div>
+                }
 
                 <div class="mt-4">
                     <button type="submit" class="btn btn-primary">
@@ -348,19 +351,22 @@ else
             _errors.Add("Source type is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(model.KeyFieldName))
+        if (!IsWebSource())
         {
-            _errors.Add("Key field name is required.");
-        }
+            if (string.IsNullOrWhiteSpace(model.KeyFieldName))
+            {
+                _errors.Add("Key field name is required.");
+            }
 
-        if (string.IsNullOrWhiteSpace(model.TitleFieldName))
-        {
-            _errors.Add("Title field name is required.");
-        }
+            if (string.IsNullOrWhiteSpace(model.TitleFieldName))
+            {
+                _errors.Add("Title field name is required.");
+            }
 
-        if (string.IsNullOrWhiteSpace(model.ContentFieldName))
-        {
-            _errors.Add("Content field name is required.");
+            if (string.IsNullOrWhiteSpace(model.ContentFieldName))
+            {
+                _errors.Add("Content field name is required.");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(model.AIKnowledgeBaseIndexProfileName))
@@ -453,4 +459,7 @@ else
 
     private bool IsPostgreSQLSource()
         => string.Equals(_model?.Source, AIDataSourceSourceTypes.PostgreSQL, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsWebSource()
+        => string.Equals(_model?.Source, AIDataSourceSourceTypes.Web, StringComparison.OrdinalIgnoreCase);
 }

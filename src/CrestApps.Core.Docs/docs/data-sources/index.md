@@ -40,8 +40,11 @@ The built-in source types are:
 | `Elasticsearch` | An external Elasticsearch index using per-data-source connection settings | explicit notifications through `IAIDataSourceChangeNotifier` |
 | `AzureAISearch` | An external Azure AI Search index using per-data-source connection settings | explicit notifications through `IAIDataSourceChangeNotifier` |
 | `PostgreSQL` | An external PostgreSQL table using per-data-source connection settings | explicit notifications through `IAIDataSourceChangeNotifier` |
+| `Web` | A target bucket populated by [web crawlers](./web-crawlers.md) that scrape public websites | scheduled re-crawl that re-indexes only the pages that changed |
 
 `SearchIndexProfile` remains the default source type and the simplest option when your content is already indexed through CrestApps.Core.
+
+A `Web` data source holds no site configuration itself. Instead, one or more **web crawlers** — each choosing a scraping strategy (today, sitemap discovery) — point at it, so many sites can populate a single knowledge base. See [Web Crawlers](./web-crawlers.md).
 
 ## Field Mapping
 

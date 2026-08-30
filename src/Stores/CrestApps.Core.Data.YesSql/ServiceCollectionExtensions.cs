@@ -22,6 +22,7 @@ using CrestApps.Core.Data.YesSql.Indexes.DataSources;
 using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Data.YesSql.Indexes.Mcp;
 using CrestApps.Core.Data.YesSql.Indexes.Tooling;
+using CrestApps.Core.Data.YesSql.Indexes.WebCrawlers;
 using CrestApps.Core.Data.YesSql.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Models;
@@ -498,6 +499,29 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISourceCatalog<AIDataSource>>(sp => sp.GetRequiredService<IAIDataSourceStore>());
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIDataSourceIndexProvider>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers YesSql-backed stores for the web-crawlers feature.
+    /// This includes <see cref="IWebCrawlerStore"/> and <see cref="IWebCrawlStateStore"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreWebCrawlerStoresYesSql(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddScoped<IWebCrawlerStore, YesSqlWebCrawlerStore>();
+        services.AddScoped<ICatalog<WebCrawler>>(sp => sp.GetRequiredService<IWebCrawlerStore>());
+        services.AddScoped<ISourceCatalog<WebCrawler>>(sp => sp.GetRequiredService<IWebCrawlerStore>());
+
+        services.TryAddScoped<IWebCrawlStateStore, YesSqlWebCrawlStateStore>();
+        services.AddScoped<ICatalog<WebCrawlState>>(sp => sp.GetRequiredService<IWebCrawlStateStore>());
+        services.AddScoped<ISourceCatalog<WebCrawlState>>(sp => sp.GetRequiredService<IWebCrawlStateStore>());
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, WebCrawlerIndexProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, WebCrawlStateIndexProvider>());
 
         return services;
     }

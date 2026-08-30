@@ -24,4 +24,10 @@ public static class AIDataSourceSourceTypes
     /// Source documents are read from a PostgreSQL table using explicit connection settings.
     /// </summary>
     public const string PostgreSQL = "PostgreSQL";
+
+    /// <summary>
+    /// Source documents are produced by web crawlers that scrape public websites. The data source is a
+    /// target bucket; the sites to scrape are managed as separate web-crawler records that point at it.
+    /// </summary>
+    public const string Web = "Web";
 }

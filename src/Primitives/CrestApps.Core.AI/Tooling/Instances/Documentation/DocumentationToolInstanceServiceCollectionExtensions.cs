@@ -1,4 +1,5 @@
 using System.Net;
+using CrestApps.Core.AI.Crawling;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -154,6 +155,7 @@ public static class DocumentationToolInstanceServiceCollectionExtensions
     {
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton<IDocumentationSourceMaterializer, DefaultDocumentationSourceMaterializer>();
+        builder.Services.TryAddSingleton<ISitemapCrawler, SitemapCrawler>();
 
         builder.Services
             .AddHttpClient(DocumentationToolConstants.HttpClientName, client =>
