@@ -17,7 +17,7 @@ public sealed class CapabilityEnforcingChatClientTests
     {
         // Arrange
         var inner = new CapturingChatClient();
-        var deployment = CreateDeployment(AIModelFeatureNames.StructuredOutputs);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.StructuredOutputs);
         var client = CreateClient(inner, deployment);
         var options = new ChatOptions
         {
@@ -38,7 +38,7 @@ public sealed class CapabilityEnforcingChatClientTests
     {
         // Arrange
         var inner = new CapturingChatClient();
-        var deployment = CreateDeployment(AIModelFeatureNames.StructuredOutputs);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.StructuredOutputs);
         var client = CreateClient(inner, deployment);
         var options = new ChatOptions
         {
@@ -59,7 +59,7 @@ public sealed class CapabilityEnforcingChatClientTests
     {
         // Arrange
         var inner = new CapturingChatClient();
-        var deployment = CreateDeployment(AIModelFeatureNames.ToolCalling);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.ToolCalling);
         var client = CreateClient(inner, deployment);
         var options = new ChatOptions
         {
@@ -103,7 +103,7 @@ public sealed class CapabilityEnforcingChatClientTests
     {
         // Arrange
         var inner = new CapturingChatClient();
-        var deployment = CreateDeployment(AIModelFeatureNames.ToolCalling);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.ToolCalling);
         var client = CreateClient(inner, deployment);
         var options = new ChatOptions
         {
@@ -124,7 +124,7 @@ public sealed class CapabilityEnforcingChatClientTests
     {
         // Arrange
         var inner = new CapturingChatClient();
-        var deployment = CreateDeployment(AIModelFeatureNames.ToolCalling);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.ToolCalling);
         var client = CreateClient(inner, deployment);
         var options = new ChatOptions
         {
@@ -184,7 +184,7 @@ public sealed class CapabilityEnforcingChatClientTests
     {
         // Arrange
         var inner = new CapturingChatClient();
-        var deployment = CreateDeployment(AIModelFeatureNames.Reasoning);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.Reasoning);
         var client = CreateClient(inner, deployment);
         var options = new ChatOptions
         {
@@ -205,7 +205,7 @@ public sealed class CapabilityEnforcingChatClientTests
     {
         // Arrange
         var inner = new CapturingChatClient();
-        var deployment = CreateDeployment(AIModelFeatureNames.ToolCalling);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.ToolCalling);
         var client = CreateClient(inner, deployment);
         var updates = new List<ChatResponseUpdate>();
 
@@ -226,7 +226,7 @@ public sealed class CapabilityEnforcingChatClientTests
     {
         // Arrange
         var inner = new CapturingChatClient();
-        var deployment = CreateDeployment(AIModelFeatureNames.Streaming);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.Streaming);
         var client = CreateClient(inner, deployment);
 
         // Act
@@ -263,20 +263,20 @@ public sealed class CapabilityEnforcingChatClientTests
     private static CapabilityEnforcingChatClient CreateClient(IChatClient inner, AIDeployment deployment)
     {
         var options = new AIDeploymentCapabilityOptions();
-        options.AddFeature(AIModelFeatureNames.ToolCalling, new LocalizedString("Tool calling", "Tool calling"));
-        options.AddFeature(AIModelFeatureNames.StructuredOutputs, new LocalizedString("Structured outputs", "Structured outputs"));
-        options.AddFeature(AIModelFeatureNames.Reasoning, new LocalizedString("Reasoning", "Reasoning"));
-        options.AddFeature(AIModelFeatureNames.Streaming, new LocalizedString("Streaming", "Streaming"));
-        options.AddParameter(AIModelParameterNames.ReasoningEffort, new LocalizedString("Reasoning effort", "Reasoning effort"), parameter =>
+        options.AddFeature(AIDeploymentFeatureNames.ToolCalling, new LocalizedString("Tool calling", "Tool calling"));
+        options.AddFeature(AIDeploymentFeatureNames.StructuredOutputs, new LocalizedString("Structured outputs", "Structured outputs"));
+        options.AddFeature(AIDeploymentFeatureNames.Reasoning, new LocalizedString("Reasoning", "Reasoning"));
+        options.AddFeature(AIDeploymentFeatureNames.Streaming, new LocalizedString("Streaming", "Streaming"));
+        options.AddParameter(AIDeploymentParameterNames.ReasoningEffort, new LocalizedString("Reasoning effort", "Reasoning effort"), parameter =>
         {
-            parameter.Kind = AIModelParameterKind.Choice;
-            parameter.RequiredFeature = AIModelFeatureNames.Reasoning;
+            parameter.Kind = AIDeploymentParameterKind.Choice;
+            parameter.RequiredFeature = AIDeploymentFeatureNames.Reasoning;
             parameter.DefaultValue = nameof(ReasoningEffort.Medium);
             parameter.AllowedValues =
             [
-                new AIModelParameterOption { Value = nameof(ReasoningEffort.Low), DisplayName = new LocalizedString("Low", "Low") },
-                new AIModelParameterOption { Value = nameof(ReasoningEffort.Medium), DisplayName = new LocalizedString("Medium", "Medium") },
-                new AIModelParameterOption { Value = nameof(ReasoningEffort.High), DisplayName = new LocalizedString("High", "High") },
+                new AIDeploymentParameterOption { Value = nameof(ReasoningEffort.Low), DisplayName = new LocalizedString("Low", "Low") },
+                new AIDeploymentParameterOption { Value = nameof(ReasoningEffort.Medium), DisplayName = new LocalizedString("Medium", "Medium") },
+                new AIDeploymentParameterOption { Value = nameof(ReasoningEffort.High), DisplayName = new LocalizedString("High", "High") },
             ];
         });
 
@@ -309,10 +309,10 @@ public sealed class CapabilityEnforcingChatClientTests
 
         deployment.Put(new AIDeploymentModelMetadata
         {
-            Features = [AIModelFeatureNames.Reasoning],
+            Features = [AIDeploymentFeatureNames.Reasoning],
             Parameters = new(StringComparer.OrdinalIgnoreCase)
             {
-                [AIModelParameterNames.ReasoningEffort] = new AIDeploymentModelParameter(),
+                [AIDeploymentParameterNames.ReasoningEffort] = new AIDeploymentModelParameter(),
             },
         });
 

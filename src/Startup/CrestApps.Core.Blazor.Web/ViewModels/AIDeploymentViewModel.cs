@@ -52,7 +52,7 @@ public sealed class AIDeploymentViewModel
     /// <summary>
     /// Gets or sets every registered model feature.
     /// </summary>
-    public List<AIModelFeatureDescriptor> AvailableFeatures { get; set; } = [];
+    public List<AIDeploymentFeatureDescriptor> AvailableFeatures { get; set; } = [];
 
     public static AIDeploymentViewModel FromDeployment(AIDeployment deployment)
     {
@@ -141,8 +141,8 @@ public sealed class AIDeploymentViewModel
     /// <param name="features">The registered model features.</param>
     /// <param name="parameters">The registered model parameters.</param>
     public void MergeRegisteredCapabilities(
-        IEnumerable<AIModelFeatureDescriptor> features,
-        IEnumerable<AIModelParameterDescriptor> parameters)
+        IEnumerable<AIDeploymentFeatureDescriptor> features,
+        IEnumerable<AIDeploymentParameterDescriptor> parameters)
     {
         ArgumentNullException.ThrowIfNull(features);
         ArgumentNullException.ThrowIfNull(parameters);
@@ -372,7 +372,7 @@ public sealed class AIDeploymentModelParameterViewModel
     /// <summary>
     /// Gets or sets the registered descriptor backing this row.
     /// </summary>
-    public AIModelParameterDescriptor Descriptor { get; set; }
+    public AIDeploymentParameterDescriptor Descriptor { get; set; }
 
     /// <summary>
     /// Gets the display text of the registered parameter.
@@ -389,8 +389,8 @@ public sealed class AIDeploymentModelParameterViewModel
     /// <summary>
     /// Gets the editor semantics of the registered parameter.
     /// </summary>
-    public AIModelParameterKind Kind
-        => Descriptor?.Kind ?? AIModelParameterKind.Text;
+    public AIDeploymentParameterKind Kind
+        => Descriptor?.Kind ?? AIDeploymentParameterKind.Text;
 
     /// <summary>
     /// Gets the optional trained feature this parameter depends on. When set, the editor only shows the
@@ -402,7 +402,7 @@ public sealed class AIDeploymentModelParameterViewModel
     /// <summary>
     /// Gets every value registered for a choice parameter.
     /// </summary>
-    public IList<AIModelParameterOption> AvailableValues
+    public IList<AIDeploymentParameterOption> AvailableValues
         => Descriptor?.AllowedValues ?? [];
 
     /// <summary>

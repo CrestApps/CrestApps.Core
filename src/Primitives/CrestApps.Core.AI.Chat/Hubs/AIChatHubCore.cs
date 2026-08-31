@@ -997,7 +997,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 var realtimeDeploymentName = string.IsNullOrWhiteSpace(profile.RealtimeDeploymentName)
                     ? (await GetDeploymentSettingsAsync(services)).DefaultRealtimeDeploymentName
                     : profile.RealtimeDeploymentName;
-                if (await capabilityService.ResolveDeploymentWithFeatureAsync(AIModelFeatureNames.Realtime, realtimeDeploymentName, cancellationToken) is null)
+                if (await capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName, cancellationToken) is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoRealtimeDeploymentMessage());
 

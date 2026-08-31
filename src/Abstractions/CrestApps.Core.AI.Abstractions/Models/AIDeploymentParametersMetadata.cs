@@ -5,7 +5,7 @@ namespace CrestApps.Core.AI.Models;
 /// parameter values selected by an operator. Values are keyed by the registered parameter technical
 /// name so new parameters do not require model or storage changes.
 /// </summary>
-public sealed class AIModelParametersMetadata
+public sealed class AIDeploymentParametersMetadata
 {
     /// <summary>
     /// Gets or sets the selected parameter values keyed by their registered technical name.

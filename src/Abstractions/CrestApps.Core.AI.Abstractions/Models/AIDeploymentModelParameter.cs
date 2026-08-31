@@ -2,7 +2,7 @@ namespace CrestApps.Core.AI.Models;
 
 /// <summary>
 /// Describes the per-deployment metadata of a supported model parameter. Every member is optional and,
-/// when supplied, narrows the globally registered <see cref="AIModelParameterDescriptor"/> so a deployment
+/// when supplied, narrows the globally registered <see cref="AIDeploymentParameterDescriptor"/> so a deployment
 /// can describe the exact behavior of its underlying model.
 /// </summary>
 public sealed class AIDeploymentModelParameter

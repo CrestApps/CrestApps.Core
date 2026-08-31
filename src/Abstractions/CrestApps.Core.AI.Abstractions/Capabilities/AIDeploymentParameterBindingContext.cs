@@ -4,20 +4,20 @@ using Microsoft.Extensions.AI;
 namespace CrestApps.Core.AI.Capabilities;
 
 /// <summary>
-/// Carries the information required by an <see cref="IAIModelParameterBinder"/> to apply a selected
+/// Carries the information required by an <see cref="IAIDeploymentParameterBinder"/> to apply a selected
 /// model parameter value to the outgoing request.
 /// </summary>
-public sealed class AIModelParameterBindingContext
+public sealed class AIDeploymentParameterBindingContext
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="AIModelParameterBindingContext"/> class.
+    /// Initializes a new instance of the <see cref="AIDeploymentParameterBindingContext"/> class.
     /// </summary>
     /// <param name="descriptor">The effective descriptor of the parameter being applied.</param>
     /// <param name="value">The value selected by the operator.</param>
     /// <param name="chatOptions">The chat options to mutate.</param>
     /// <param name="completionContext">The completion context of the current request.</param>
-    public AIModelParameterBindingContext(
-        AIModelParameterDescriptor descriptor,
+    public AIDeploymentParameterBindingContext(
+        AIDeploymentParameterDescriptor descriptor,
         string value,
         ChatOptions chatOptions,
         AICompletionContext completionContext)
@@ -35,7 +35,7 @@ public sealed class AIModelParameterBindingContext
     /// <summary>
     /// Gets the effective descriptor of the parameter being applied.
     /// </summary>
-    public AIModelParameterDescriptor Descriptor { get; }
+    public AIDeploymentParameterDescriptor Descriptor { get; }
 
     /// <summary>
     /// Gets the value selected by the operator.

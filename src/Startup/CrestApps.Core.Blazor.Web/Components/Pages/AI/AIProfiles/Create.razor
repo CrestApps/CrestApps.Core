@@ -1729,9 +1729,9 @@
 
     private static void ApplyTemplateToProfile(AIProfile profile, AIProfileTemplate template)
     {
-        if (template.TryGet<AIModelParametersMetadata>(out var templateModelParameters) && templateModelParameters.Values is { Count: > 0 })
+        if (template.TryGet<AIDeploymentParametersMetadata>(out var templateModelParameters) && templateModelParameters.Values is { Count: > 0 })
         {
-            profile.Alter<AIModelParametersMetadata>(m =>
+            profile.Alter<AIDeploymentParametersMetadata>(m =>
             {
                 foreach (var entry in templateModelParameters.Values)
                 {

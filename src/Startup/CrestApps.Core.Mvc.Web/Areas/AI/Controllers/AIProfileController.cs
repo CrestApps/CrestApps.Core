@@ -56,7 +56,7 @@ public sealed class AIProfileController : Controller
     private readonly AIToolDefinitionOptions _toolOptions;
     private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
     private readonly IAIDataSourceStore _dataSourceStore;
-    private readonly AIModelParameterViewService _modelParameterViewService;
+    private readonly AIDeploymentParameterViewService _modelParameterViewService;
     private readonly IAIDeploymentCapabilityService _capabilityService;
 
     public AIProfileController(
@@ -80,7 +80,7 @@ public sealed class AIProfileController : Controller
         IOptions<AIToolDefinitionOptions> toolOptions,
         IAIToolAccessEvaluator toolAccessEvaluator,
         IAIDataSourceStore dataSourceStore,
-        AIModelParameterViewService modelParameterViewService,
+        AIDeploymentParameterViewService modelParameterViewService,
         IAIDeploymentCapabilityService capabilityService)
     {
         _profileManager = profileManager;
@@ -272,7 +272,7 @@ public sealed class AIProfileController : Controller
         var allDeployments = await _deploymentCatalog.GetAllAsync();
         model.ChatDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.UtilityDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
-        model.RealtimeDeployments = (await _capabilityService.GetDeploymentsWithFeatureAsync(AIModelFeatureNames.Realtime)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        model.RealtimeDeployments = (await _capabilityService.GetDeploymentsWithFeatureAsync(AIDeploymentFeatureNames.Realtime)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
         var hasAnthropicOptions = _anthropicOptions.TryGetValidValue(out var anthropicOptions);
         model.Orchestrators = orchestrators.Select(o => new SelectListItem(o.Value.Title ?? o.Key, o.Key)).ToList();
@@ -437,9 +437,9 @@ public sealed class AIProfileController : Controller
 
     private static void ApplyTemplateToProfile(AIProfile profile, AIProfileTemplate template)
     {
-        if (template.TryGet<AIModelParametersMetadata>(out var templateModelParameters) && templateModelParameters.Values is { Count: > 0 })
+        if (template.TryGet<AIDeploymentParametersMetadata>(out var templateModelParameters) && templateModelParameters.Values is { Count: > 0 })
         {
-            profile.Alter<AIModelParametersMetadata>(m =>
+            profile.Alter<AIDeploymentParametersMetadata>(m =>
             {
                 foreach (var entry in templateModelParameters.Values)
                 {

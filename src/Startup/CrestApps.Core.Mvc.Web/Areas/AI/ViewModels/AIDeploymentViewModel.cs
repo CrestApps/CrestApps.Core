@@ -85,7 +85,7 @@ public sealed class AIDeploymentModelParameterViewModel
     /// Gets or sets the editor semantics of the registered parameter.
     /// </summary>
     [BindNever]
-    public AIModelParameterKind Kind { get; set; }
+    public AIDeploymentParameterKind Kind { get; set; }
 
     /// <summary>
     /// Gets or sets the optional trained feature this parameter depends on. When set, the editor only
@@ -250,8 +250,8 @@ public sealed class AIDeploymentViewModel
     /// <param name="features">The registered model features.</param>
     /// <param name="parameters">The registered model parameters.</param>
     public void MergeRegisteredCapabilities(
-        IEnumerable<AIModelFeatureDescriptor> features,
-        IEnumerable<AIModelParameterDescriptor> parameters)
+        IEnumerable<AIDeploymentFeatureDescriptor> features,
+        IEnumerable<AIDeploymentParameterDescriptor> parameters)
     {
         ArgumentNullException.ThrowIfNull(features);
         ArgumentNullException.ThrowIfNull(parameters);
@@ -310,7 +310,7 @@ public sealed class AIDeploymentViewModel
     /// <param name="registeredParameters">The registered model parameter definitions.</param>
     /// <param name="modelState">The model state that receives the validation errors.</param>
     public void ValidateModelParameters(
-        IEnumerable<AIModelParameterDescriptor> registeredParameters,
+        IEnumerable<AIDeploymentParameterDescriptor> registeredParameters,
         ModelStateDictionary modelState)
     {
         ArgumentNullException.ThrowIfNull(registeredParameters);

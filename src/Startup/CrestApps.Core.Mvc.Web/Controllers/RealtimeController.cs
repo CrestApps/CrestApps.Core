@@ -48,7 +48,7 @@ public sealed class RealtimeController : Controller
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
-        var deployments = (await _capabilityService.GetDeploymentsWithFeatureAsync(AIModelFeatureNames.Realtime, cancellationToken))
+        var deployments = (await _capabilityService.GetDeploymentsWithFeatureAsync(AIDeploymentFeatureNames.Realtime, cancellationToken))
             .OrderBy(deployment => deployment.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 

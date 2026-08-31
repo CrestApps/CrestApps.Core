@@ -211,7 +211,7 @@ public sealed class AITemplateViewModel
         }
         else if (template.Source == AITemplateSources.Profile)
         {
-            if (template.TryGet<AIModelParametersMetadata>(out var modelParameters) && modelParameters.Values is { Count: > 0 })
+            if (template.TryGet<AIDeploymentParametersMetadata>(out var modelParameters) && modelParameters.Values is { Count: > 0 })
             {
                 model.ModelParameters = new Dictionary<string, string>(modelParameters.Values, StringComparer.OrdinalIgnoreCase);
             }
@@ -424,7 +424,7 @@ public sealed class AITemplateViewModel
                 ? []
                 : ModelParameters.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value));
 
-            template.Put(new AIModelParametersMetadata
+            template.Put(new AIDeploymentParametersMetadata
             {
                 Values = new Dictionary<string, string>(selectedModelParameters, StringComparer.OrdinalIgnoreCase),
             });

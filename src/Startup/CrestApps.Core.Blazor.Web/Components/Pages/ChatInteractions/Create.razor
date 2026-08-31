@@ -693,7 +693,7 @@
                 .ToArray();
         });
 
-        interaction.Alter<AIModelParametersMetadata>(metadata =>
+        interaction.Alter<AIDeploymentParametersMetadata>(metadata =>
         {
             metadata.Values = _model.ModelParameters is null
                 ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

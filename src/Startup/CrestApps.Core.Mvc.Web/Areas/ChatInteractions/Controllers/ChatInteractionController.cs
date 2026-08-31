@@ -65,7 +65,7 @@ public sealed class ChatInteractionController : Controller
     private readonly AIToolDefinitionOptions _toolOptions;
     private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
     private readonly ISourceCatalog<AIToolInstance> _toolInstanceCatalog;
-    private readonly AIModelParameterViewService _modelParameterViewService;
+    private readonly AIDeploymentParameterViewService _modelParameterViewService;
 
     public ChatInteractionController(
         ICatalogManager<ChatInteraction> interactionManager,
@@ -93,7 +93,7 @@ public sealed class ChatInteractionController : Controller
         IOptions<AIToolDefinitionOptions> toolOptions,
         IAIToolAccessEvaluator toolAccessEvaluator,
         ISourceCatalog<AIToolInstance> toolInstanceCatalog,
-        AIModelParameterViewService modelParameterViewService)
+        AIDeploymentParameterViewService modelParameterViewService)
     {
         _interactionManager = interactionManager;
         _promptStore = promptStore;
@@ -648,7 +648,7 @@ public sealed class ChatInteractionController : Controller
             metadata.ToolInstanceNames = toolInstanceNames.ToArray();
         });
 
-        interaction.Alter<AIModelParametersMetadata>(metadata =>
+        interaction.Alter<AIDeploymentParametersMetadata>(metadata =>
         {
             metadata.Values = model.ModelParameters is null
                 ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

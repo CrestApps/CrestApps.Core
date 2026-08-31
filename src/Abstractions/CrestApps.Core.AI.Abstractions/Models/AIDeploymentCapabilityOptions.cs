@@ -11,12 +11,12 @@ public sealed class AIDeploymentCapabilityOptions
     /// <summary>
     /// Gets the registered model features keyed by their technical name.
     /// </summary>
-    public IDictionary<string, AIModelFeatureDescriptor> Features { get; } = new Dictionary<string, AIModelFeatureDescriptor>(StringComparer.OrdinalIgnoreCase);
+    public IDictionary<string, AIDeploymentFeatureDescriptor> Features { get; } = new Dictionary<string, AIDeploymentFeatureDescriptor>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Gets the registered model parameters keyed by their technical name.
     /// </summary>
-    public IDictionary<string, AIModelParameterDescriptor> Parameters { get; } = new Dictionary<string, AIModelParameterDescriptor>(StringComparer.OrdinalIgnoreCase);
+    public IDictionary<string, AIDeploymentParameterDescriptor> Parameters { get; } = new Dictionary<string, AIDeploymentParameterDescriptor>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Adds a model feature, or updates the definition when the feature is already registered.
@@ -24,13 +24,13 @@ public sealed class AIDeploymentCapabilityOptions
     /// <param name="name">The technical name of the feature.</param>
     /// <param name="displayName">The display text shown to operators.</param>
     /// <param name="configure">An optional delegate used to further configure the descriptor.</param>
-    public AIDeploymentCapabilityOptions AddFeature(string name, LocalizedString displayName, Action<AIModelFeatureDescriptor> configure = null)
+    public AIDeploymentCapabilityOptions AddFeature(string name, LocalizedString displayName, Action<AIDeploymentFeatureDescriptor> configure = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
         if (!Features.TryGetValue(name, out var descriptor))
         {
-            descriptor = new AIModelFeatureDescriptor();
+            descriptor = new AIDeploymentFeatureDescriptor();
             Features[name] = descriptor;
         }
 
@@ -53,13 +53,13 @@ public sealed class AIDeploymentCapabilityOptions
     /// <param name="name">The technical name of the parameter.</param>
     /// <param name="displayName">The display text shown to operators.</param>
     /// <param name="configure">An optional delegate used to further configure the descriptor.</param>
-    public AIDeploymentCapabilityOptions AddParameter(string name, LocalizedString displayName, Action<AIModelParameterDescriptor> configure = null)
+    public AIDeploymentCapabilityOptions AddParameter(string name, LocalizedString displayName, Action<AIDeploymentParameterDescriptor> configure = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
         if (!Parameters.TryGetValue(name, out var descriptor))
         {
-            descriptor = new AIModelParameterDescriptor();
+            descriptor = new AIDeploymentParameterDescriptor();
             Parameters[name] = descriptor;
         }
 

@@ -49,7 +49,7 @@ public sealed class AITemplateController : Controller
     private readonly IOptionsSnapshot<CopilotOptions> _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
-    private readonly AIModelParameterViewService _modelParameterViewService;
+    private readonly AIDeploymentParameterViewService _modelParameterViewService;
     private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
 
     public AITemplateController(
@@ -69,7 +69,7 @@ public sealed class AITemplateController : Controller
         IOptionsSnapshot<CopilotOptions> copilotOptions,
         GitHubOAuthService oauthService,
         IOptions<AIToolDefinitionOptions> toolOptions,
-        AIModelParameterViewService modelParameterViewService,
+        AIDeploymentParameterViewService modelParameterViewService,
         IAIToolAccessEvaluator toolAccessEvaluator)
     {
         _catalog = catalog;

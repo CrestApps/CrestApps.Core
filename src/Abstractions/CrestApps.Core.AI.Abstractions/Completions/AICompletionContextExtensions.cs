@@ -13,7 +13,7 @@ public static class AICompletionContextExtensions
     /// </summary>
     /// <param name="context">The completion context to populate.</param>
     /// <param name="metadata">The metadata holding the selected model parameter values.</param>
-    public static void ApplyModelParameters(this AICompletionContext context, AIModelParametersMetadata metadata)
+    public static void ApplyModelParameters(this AICompletionContext context, AIDeploymentParametersMetadata metadata)
     {
         ArgumentNullException.ThrowIfNull(context);
 

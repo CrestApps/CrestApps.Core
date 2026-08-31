@@ -12,7 +12,7 @@ namespace CrestApps.Core.AI.Models;
 /// Unlike <see cref="AIDeploymentPurpose"/>, which drives deployment routing, features describe
 /// what the underlying model is able to do.
 /// </remarks>
-public sealed class AIModelFeatureDescriptor
+public sealed class AIDeploymentFeatureDescriptor
 {
     /// <summary>
     /// Gets or sets the technical name that uniquely identifies the feature.

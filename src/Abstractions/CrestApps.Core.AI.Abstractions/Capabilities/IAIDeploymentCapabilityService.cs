@@ -11,12 +11,12 @@ public interface IAIDeploymentCapabilityService
     /// <summary>
     /// Gets every model feature registered by the application.
     /// </summary>
-    IReadOnlyList<AIModelFeatureDescriptor> GetRegisteredFeatures();
+    IReadOnlyList<AIDeploymentFeatureDescriptor> GetRegisteredFeatures();
 
     /// <summary>
     /// Gets every model parameter registered by the application.
     /// </summary>
-    IReadOnlyList<AIModelParameterDescriptor> GetRegisteredParameters();
+    IReadOnlyList<AIDeploymentParameterDescriptor> GetRegisteredParameters();
 
     /// <summary>
     /// Gets the effective capabilities exposed by the given deployment.

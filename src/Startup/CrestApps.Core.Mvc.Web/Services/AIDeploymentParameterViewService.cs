@@ -10,17 +10,17 @@ namespace CrestApps.Core.Mvc.Web.Services;
 /// Builds the metadata-driven model parameter editor from the registered parameter definitions and
 /// the metadata declared by each AI deployment.
 /// </summary>
-public sealed class AIModelParameterViewService
+public sealed class AIDeploymentParameterViewService
 {
     private readonly IAIDeploymentCapabilityService _capabilityService;
     private readonly ICatalog<AIDeployment> _deploymentCatalog;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="AIModelParameterViewService"/> class.
+    /// Initializes a new instance of the <see cref="AIDeploymentParameterViewService"/> class.
     /// </summary>
     /// <param name="capabilityService">The capability service.</param>
     /// <param name="deploymentCatalog">The deployment catalog.</param>
-    public AIModelParameterViewService(
+    public AIDeploymentParameterViewService(
         IAIDeploymentCapabilityService capabilityService,
         ICatalog<AIDeployment> deploymentCatalog)
     {

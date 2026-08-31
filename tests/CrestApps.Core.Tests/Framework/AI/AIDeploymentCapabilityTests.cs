@@ -42,11 +42,11 @@ public sealed class AIDeploymentCapabilityTests
 
         // Act
         var capabilities = service.GetCapabilities(deployment);
-        var descriptor = capabilities.GetParameter(AIModelParameterNames.ReasoningEffort);
+        var descriptor = capabilities.GetParameter(AIDeploymentParameterNames.ReasoningEffort);
 
         // Assert
         Assert.NotNull(descriptor);
-        Assert.Equal(AIModelParameterKind.Choice, descriptor.Kind);
+        Assert.Equal(AIDeploymentParameterKind.Choice, descriptor.Kind);
         Assert.Equal(3, descriptor.AllowedValues.Count);
         Assert.Equal("Medium", descriptor.DefaultValue);
     }
@@ -62,7 +62,7 @@ public sealed class AIDeploymentCapabilityTests
         });
 
         // Act
-        var descriptor = service.GetCapabilities(deployment).GetParameter(AIModelParameterNames.ReasoningEffort);
+        var descriptor = service.GetCapabilities(deployment).GetParameter(AIDeploymentParameterNames.ReasoningEffort);
 
         // Assert
         Assert.NotNull(descriptor);
@@ -80,7 +80,7 @@ public sealed class AIDeploymentCapabilityTests
         });
 
         // Act
-        var descriptor = service.GetCapabilities(deployment).GetParameter(AIModelParameterNames.ReasoningEffort);
+        var descriptor = service.GetCapabilities(deployment).GetParameter(AIDeploymentParameterNames.ReasoningEffort);
 
         // Assert
         Assert.NotNull(descriptor);
@@ -102,12 +102,12 @@ public sealed class AIDeploymentCapabilityTests
             Features = [],
             Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
             {
-                [AIModelParameterNames.ReasoningEffort] = new AIDeploymentModelParameter(),
+                [AIDeploymentParameterNames.ReasoningEffort] = new AIDeploymentModelParameter(),
             },
         });
 
         // Act
-        var descriptor = service.GetCapabilities(deployment).GetParameter(AIModelParameterNames.ReasoningEffort);
+        var descriptor = service.GetCapabilities(deployment).GetParameter(AIDeploymentParameterNames.ReasoningEffort);
 
         // Assert
         Assert.Null(descriptor);
@@ -121,7 +121,7 @@ public sealed class AIDeploymentCapabilityTests
         var deployment = CreateDeployment(new AIDeploymentModelParameter());
 
         // Act
-        var descriptor = service.GetCapabilities(deployment).GetParameter(AIModelParameterNames.ReasoningEffort);
+        var descriptor = service.GetCapabilities(deployment).GetParameter(AIDeploymentParameterNames.ReasoningEffort);
 
         // Assert
         Assert.NotNull(descriptor);
@@ -138,7 +138,7 @@ public sealed class AIDeploymentCapabilityTests
         });
 
         // Act
-        var descriptor = service.GetCapabilities(deployment).GetParameter(AIModelParameterNames.ReasoningEffort);
+        var descriptor = service.GetCapabilities(deployment).GetParameter(AIDeploymentParameterNames.ReasoningEffort);
 
         // Assert
         Assert.NotNull(descriptor);
@@ -160,7 +160,7 @@ public sealed class AIDeploymentCapabilityTests
         service.GetCapabilities(deployment);
 
         // Assert
-        var registered = options.Parameters[AIModelParameterNames.ReasoningEffort];
+        var registered = options.Parameters[AIDeploymentParameterNames.ReasoningEffort];
         Assert.Equal(3, registered.AllowedValues.Count);
         Assert.Equal("Medium", registered.DefaultValue);
     }
@@ -189,10 +189,10 @@ public sealed class AIDeploymentCapabilityTests
     public void IsValidValue_ForNumberParameter_ShouldHonorRange(string value, bool expected)
     {
         // Arrange
-        var descriptor = new AIModelParameterDescriptor
+        var descriptor = new AIDeploymentParameterDescriptor
         {
             Name = "sampling",
-            Kind = AIModelParameterKind.Number,
+            Kind = AIDeploymentParameterKind.Number,
             Minimum = 0,
             Maximum = 2,
         };
@@ -208,10 +208,10 @@ public sealed class AIDeploymentCapabilityTests
     public void IsValidValue_ForIntegerParameter_ShouldRejectFractionalValues()
     {
         // Arrange
-        var descriptor = new AIModelParameterDescriptor
+        var descriptor = new AIDeploymentParameterDescriptor
         {
             Name = "seed",
-            Kind = AIModelParameterKind.Integer,
+            Kind = AIDeploymentParameterKind.Integer,
         };
 
         // Act & Assert
@@ -226,10 +226,10 @@ public sealed class AIDeploymentCapabilityTests
     public void IsValidValue_ForNumberParameter_ShouldRejectNonFiniteValues(string value)
     {
         // Arrange
-        var descriptor = new AIModelParameterDescriptor
+        var descriptor = new AIDeploymentParameterDescriptor
         {
             Name = "sampling",
-            Kind = AIModelParameterKind.Number,
+            Kind = AIDeploymentParameterKind.Number,
         };
 
         // Act & Assert
@@ -311,7 +311,7 @@ public sealed class AIDeploymentCapabilityTests
                 LogLevel.Warning,
                 It.IsAny<EventId>(),
                 It.Is<It.IsAnyType>((state, _) =>
-                    state.ToString().Contains(AIModelParameterNames.ReasoningEffort, StringComparison.Ordinal)),
+                    state.ToString().Contains(AIDeploymentParameterNames.ReasoningEffort, StringComparison.Ordinal)),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception, string>>()),
             Times.Once);
@@ -342,11 +342,11 @@ public sealed class AIDeploymentCapabilityTests
         var options = CreateOptions();
         options.AddParameter("verbosity", new LocalizedString("Verbosity", "Verbosity"), descriptor =>
         {
-            descriptor.Kind = AIModelParameterKind.Choice;
+            descriptor.Kind = AIDeploymentParameterKind.Choice;
             descriptor.AllowedValues =
             [
-                new AIModelParameterOption { Value = "low" },
-                new AIModelParameterOption { Value = "high" },
+                new AIDeploymentParameterOption { Value = "low" },
+                new AIDeploymentParameterOption { Value = "high" },
             ];
         });
 
@@ -375,11 +375,11 @@ public sealed class AIDeploymentCapabilityTests
     }
 
     [Theory]
-    [InlineData(AIModelParameterKind.Integer, "12", 12L)]
-    [InlineData(AIModelParameterKind.Number, "0.5", 0.5d)]
-    [InlineData(AIModelParameterKind.Boolean, "true", true)]
+    [InlineData(AIDeploymentParameterKind.Integer, "12", 12L)]
+    [InlineData(AIDeploymentParameterKind.Number, "0.5", 0.5d)]
+    [InlineData(AIDeploymentParameterKind.Boolean, "true", true)]
     public async Task ConfigureAsync_WhenNoBinderIsRegistered_ShouldWriteTypedPrimitiveToAdditionalProperties(
-        AIModelParameterKind kind,
+        AIDeploymentParameterKind kind,
         string storedValue,
         object expected)
     {
@@ -425,7 +425,7 @@ public sealed class AIDeploymentCapabilityTests
         var options = new AIDeploymentCapabilityOptions();
         options.AddParameter("customParameter", new LocalizedString("Custom", "Custom"), descriptor =>
         {
-            descriptor.Kind = AIModelParameterKind.Integer;
+            descriptor.Kind = AIDeploymentParameterKind.Integer;
         });
 
         var deployment = new AIDeployment
@@ -459,7 +459,7 @@ public sealed class AIDeploymentCapabilityTests
         var options = new AIDeploymentCapabilityOptions();
         options.AddParameter("customParameter", new LocalizedString("Custom", "Custom"), descriptor =>
         {
-            descriptor.Kind = AIModelParameterKind.Integer;
+            descriptor.Kind = AIDeploymentParameterKind.Integer;
         });
 
         var deployment = new AIDeployment
@@ -498,7 +498,7 @@ public sealed class AIDeploymentCapabilityTests
         var options = new AIDeploymentCapabilityOptions();
         options.AddParameter("customParameter", new LocalizedString("Custom", "Custom"), descriptor =>
         {
-            descriptor.Kind = AIModelParameterKind.Integer;
+            descriptor.Kind = AIDeploymentParameterKind.Integer;
         });
 
         var deployment = new AIDeployment
@@ -544,7 +544,7 @@ public sealed class AIDeploymentCapabilityTests
     {
         // Arrange
         var context = new AICompletionContext();
-        var metadata = new AIModelParametersMetadata
+        var metadata = new AIDeploymentParametersMetadata
         {
             Values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -570,10 +570,10 @@ public sealed class AIDeploymentCapabilityTests
 
         deployment.Put(new AIDeploymentModelMetadata
         {
-            Features = [AIModelFeatureNames.Reasoning],
+            Features = [AIDeploymentFeatureNames.Reasoning],
             Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
             {
-                [AIModelParameterNames.ReasoningEffort] = parameter,
+                [AIDeploymentParameterNames.ReasoningEffort] = parameter,
             },
         });
 
@@ -599,19 +599,19 @@ public sealed class AIDeploymentCapabilityTests
         };
     }
 
-    private static AIModelParameterDescriptor CreateReasoningEffortDescriptor()
+    private static AIDeploymentParameterDescriptor CreateReasoningEffortDescriptor()
     {
-        return new AIModelParameterDescriptor
+        return new AIDeploymentParameterDescriptor
         {
-            Name = AIModelParameterNames.ReasoningEffort,
+            Name = AIDeploymentParameterNames.ReasoningEffort,
             DisplayName = new LocalizedString("Reasoning effort", "Reasoning effort"),
-            Kind = AIModelParameterKind.Choice,
+            Kind = AIDeploymentParameterKind.Choice,
             DefaultValue = "Medium",
             AllowedValues =
             [
-                new AIModelParameterOption { Value = "Low" },
-                new AIModelParameterOption { Value = "Medium" },
-                new AIModelParameterOption { Value = "High" },
+                new AIDeploymentParameterOption { Value = "Low" },
+                new AIDeploymentParameterOption { Value = "Medium" },
+                new AIDeploymentParameterOption { Value = "High" },
             ],
         };
     }
@@ -620,7 +620,7 @@ public sealed class AIDeploymentCapabilityTests
     {
         var options = new AIDeploymentCapabilityOptions();
 
-        options.AddFeature(AIModelFeatureNames.Reasoning, new LocalizedString("Reasoning", "Reasoning"));
+        options.AddFeature(AIDeploymentFeatureNames.Reasoning, new LocalizedString("Reasoning", "Reasoning"));
 
         var reasoningEffort = CreateReasoningEffortDescriptor();
 
@@ -628,7 +628,7 @@ public sealed class AIDeploymentCapabilityTests
         {
             descriptor.Kind = reasoningEffort.Kind;
             descriptor.DefaultValue = reasoningEffort.DefaultValue;
-            descriptor.RequiredFeature = AIModelFeatureNames.Reasoning;
+            descriptor.RequiredFeature = AIDeploymentFeatureNames.Reasoning;
             descriptor.AllowedValues = reasoningEffort.AllowedValues;
         });
 

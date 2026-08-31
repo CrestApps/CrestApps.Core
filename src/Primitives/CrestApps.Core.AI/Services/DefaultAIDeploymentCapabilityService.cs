@@ -28,7 +28,7 @@ public sealed class DefaultAIDeploymentCapabilityService : IAIDeploymentCapabili
     }
 
     /// <inheritdoc/>
-    public IReadOnlyList<AIModelFeatureDescriptor> GetRegisteredFeatures()
+    public IReadOnlyList<AIDeploymentFeatureDescriptor> GetRegisteredFeatures()
     {
         return [.. _options.Features.Values
             .OrderBy(feature => feature.Order)
@@ -36,7 +36,7 @@ public sealed class DefaultAIDeploymentCapabilityService : IAIDeploymentCapabili
     }
 
     /// <inheritdoc/>
-    public IReadOnlyList<AIModelParameterDescriptor> GetRegisteredParameters()
+    public IReadOnlyList<AIDeploymentParameterDescriptor> GetRegisteredParameters()
     {
         return [.. _options.Parameters.Values
             .OrderBy(parameter => parameter.Order)
@@ -51,7 +51,7 @@ public sealed class DefaultAIDeploymentCapabilityService : IAIDeploymentCapabili
             return AIDeploymentCapabilities.Empty;
         }
 
-        var features = new List<AIModelFeatureDescriptor>();
+        var features = new List<AIDeploymentFeatureDescriptor>();
         var declaredFeatures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         if (metadata.Features is { Length: > 0 })
@@ -72,7 +72,7 @@ public sealed class DefaultAIDeploymentCapabilityService : IAIDeploymentCapabili
             }
         }
 
-        var parameters = new List<AIModelParameterDescriptor>();
+        var parameters = new List<AIDeploymentParameterDescriptor>();
 
         if (metadata.Parameters is { Count: > 0 })
         {
@@ -147,7 +147,7 @@ public sealed class DefaultAIDeploymentCapabilityService : IAIDeploymentCapabili
         return deployments.Count > 0 ? deployments[0] : null;
     }
 
-    private static AIModelParameterDescriptor Merge(AIModelParameterDescriptor descriptor, AIDeploymentModelParameter overrides)
+    private static AIDeploymentParameterDescriptor Merge(AIDeploymentParameterDescriptor descriptor, AIDeploymentModelParameter overrides)
     {
         var effective = descriptor.Clone();
 

@@ -23,7 +23,7 @@
                 <label class="form-label" for="@fieldId">@parameter.DisplayName</label>
                 @switch (parameter.Kind)
                 {
-                    case AIModelParameterKind.Choice:
+                    case AIDeploymentParameterKind.Choice:
                         <select class="form-select" id="@fieldId" name="@fieldName" disabled>
                             <option value="" data-default-option>Use deployment default</option>
                             @foreach (var option in parameter.AllowedValues)
@@ -32,18 +32,18 @@
                             }
                         </select>
                         break;
-                    case AIModelParameterKind.Boolean:
+                    case AIDeploymentParameterKind.Boolean:
                         <select class="form-select" id="@fieldId" name="@fieldName" disabled>
                             <option value="" data-default-option>Use deployment default</option>
                             <option value="true" selected="@(string.Equals(parameter.Value, "true", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Enabled</option>
                             <option value="false" selected="@(string.Equals(parameter.Value, "false", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Disabled</option>
                         </select>
                         break;
-                    case AIModelParameterKind.Number:
-                    case AIModelParameterKind.Integer:
+                    case AIDeploymentParameterKind.Number:
+                    case AIDeploymentParameterKind.Integer:
                         <input type="number" class="form-control" id="@fieldId" name="@fieldName"
                                value="@parameter.Value" placeholder="Use deployment default"
-                               step="@(parameter.Kind == AIModelParameterKind.Integer ? "1" : "any")" disabled />
+                               step="@(parameter.Kind == AIDeploymentParameterKind.Integer ? "1" : "any")" disabled />
                         break;
                     default:
                         <input type="text" class="form-control" id="@fieldId" name="@fieldName"

@@ -25,7 +25,7 @@
         var elementId = $"modelParameter_{parameterName.Replace('.', '_')}";
         <div class="mb-3">
             <label class="form-label" for="@elementId">@(parameter.DisplayName?.Value ?? parameter.Name)</label>
-            @if (parameter.Kind == AIModelParameterKind.Choice)
+            @if (parameter.Kind == AIDeploymentParameterKind.Choice)
             {
                 <select id="@elementId"
                         class="form-select"
@@ -38,7 +38,7 @@
                     }
                 </select>
             }
-            else if (parameter.Kind == AIModelParameterKind.Boolean)
+            else if (parameter.Kind == AIDeploymentParameterKind.Boolean)
             {
                 <select id="@elementId"
                         class="form-select"
@@ -49,14 +49,14 @@
                     <option value="false" selected="@string.Equals("false", GetValue(parameterName), StringComparison.OrdinalIgnoreCase)">Disabled</option>
                 </select>
             }
-            else if (parameter.Kind == AIModelParameterKind.Number || parameter.Kind == AIModelParameterKind.Integer)
+            else if (parameter.Kind == AIDeploymentParameterKind.Number || parameter.Kind == AIDeploymentParameterKind.Integer)
             {
                 <input id="@elementId"
                        type="number"
                        class="form-control"
                        min="@parameter.Minimum"
                        max="@parameter.Maximum"
-                       step="@(parameter.Step?.ToString(CultureInfo.InvariantCulture) ?? (parameter.Kind == AIModelParameterKind.Integer ? "1" : "any"))"
+                       step="@(parameter.Step?.ToString(CultureInfo.InvariantCulture) ?? (parameter.Kind == AIDeploymentParameterKind.Integer ? "1" : "any"))"
                        placeholder="@BuildDefaultLabel(parameter)"
                        value="@GetValue(parameterName)"
                        @onchange="args => SetValue(parameterName, args.Value?.ToString())" />
@@ -163,7 +163,7 @@ else if (ShowEmptyNotice)
         Values[parameterName] = value;
     }
 
-    private static string BuildDefaultLabel(AIModelParameterDescriptor parameter)
+    private static string BuildDefaultLabel(AIDeploymentParameterDescriptor parameter)
     {
         return string.IsNullOrWhiteSpace(parameter.DefaultValue)
             ? "Use deployment default"

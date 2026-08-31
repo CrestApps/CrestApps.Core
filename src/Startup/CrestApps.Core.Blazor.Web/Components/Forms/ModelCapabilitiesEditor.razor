@@ -142,7 +142,7 @@
         @if (parameter.IsSupported)
         {
             <div class="mt-3">
-                @if (parameter.Kind == AIModelParameterKind.Choice && parameter.AvailableValues.Count > 0)
+                @if (parameter.Kind == AIDeploymentParameterKind.Choice && parameter.AvailableValues.Count > 0)
                 {
                     <div class="row g-2">
                         <div class="col-md-7">
@@ -177,7 +177,7 @@
                             <label class="form-label small" for="parameter_@(parameter.ElementId)_default">Default value</label>
                             <input id="parameter_@(parameter.ElementId)_default" class="form-control" @bind="parameter.DefaultValue" />
                         </div>
-                        @if (parameter.Kind == AIModelParameterKind.Number || parameter.Kind == AIModelParameterKind.Integer)
+                        @if (parameter.Kind == AIDeploymentParameterKind.Number || parameter.Kind == AIDeploymentParameterKind.Integer)
                         {
                             <div class="col-md-3">
                                 <label class="form-label small" for="parameter_@(parameter.ElementId)_min">Minimum</label>

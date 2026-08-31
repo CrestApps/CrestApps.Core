@@ -3,10 +3,10 @@ using Microsoft.Extensions.Localization;
 namespace CrestApps.Core.AI.Models;
 
 /// <summary>
-/// Represents a single allowed value of an <see cref="AIModelParameterDescriptor"/> whose
-/// <see cref="AIModelParameterDescriptor.Kind"/> is <see cref="AIModelParameterKind.Choice"/>.
+/// Represents a single allowed value of an <see cref="AIDeploymentParameterDescriptor"/> whose
+/// <see cref="AIDeploymentParameterDescriptor.Kind"/> is <see cref="AIDeploymentParameterKind.Choice"/>.
 /// </summary>
-public sealed class AIModelParameterOption
+public sealed class AIDeploymentParameterOption
 {
     /// <summary>
     /// Gets or sets the technical value persisted on the model and sent to the provider.

@@ -51,7 +51,7 @@ public static class RealtimeVoiceBridge
 
         try
         {
-            var deployment = await capabilityService.ResolveDeploymentWithFeatureAsync(AIModelFeatureNames.Realtime, deploymentName, cancellationToken);
+            var deployment = await capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, deploymentName, cancellationToken);
 
             if (deployment is null)
             {

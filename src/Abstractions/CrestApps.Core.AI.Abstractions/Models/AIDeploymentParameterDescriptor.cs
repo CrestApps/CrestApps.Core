@@ -12,7 +12,7 @@ namespace CrestApps.Core.AI.Models;
 /// <see cref="AIDeployment"/> declares which registered parameters its underlying model exposes and
 /// may narrow the registered metadata through <see cref="AIDeploymentModelParameter"/>.
 /// </remarks>
-public sealed class AIModelParameterDescriptor
+public sealed class AIDeploymentParameterDescriptor
 {
     /// <summary>
     /// Gets or sets the technical name that uniquely identifies the parameter.
@@ -32,12 +32,12 @@ public sealed class AIModelParameterDescriptor
     /// <summary>
     /// Gets or sets the editor and validation semantics of the parameter.
     /// </summary>
-    public AIModelParameterKind Kind { get; set; }
+    public AIDeploymentParameterKind Kind { get; set; }
 
     /// <summary>
-    /// Gets or sets the allowed values when <see cref="Kind"/> is <see cref="AIModelParameterKind.Choice"/>.
+    /// Gets or sets the allowed values when <see cref="Kind"/> is <see cref="AIDeploymentParameterKind.Choice"/>.
     /// </summary>
-    public IList<AIModelParameterOption> AllowedValues { get; set; } = [];
+    public IList<AIDeploymentParameterOption> AllowedValues { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the inclusive minimum accepted value for numeric parameters.
@@ -67,7 +67,7 @@ public sealed class AIModelParameterDescriptor
     /// <summary>
     /// Gets or sets the optional name of a trained feature this parameter depends on. When set, the
     /// parameter is only meaningful for deployments that declare the matching
-    /// <see cref="AIModelFeatureDescriptor"/>, and editors should hide it unless that feature is enabled.
+    /// <see cref="AIDeploymentFeatureDescriptor"/>, and editors should hide it unless that feature is enabled.
     /// </summary>
     public string RequiredFeature { get; set; }
 
@@ -80,9 +80,9 @@ public sealed class AIModelParameterDescriptor
     /// Creates a copy of the descriptor so per-deployment metadata can be applied without
     /// mutating the globally registered definition.
     /// </summary>
-    public AIModelParameterDescriptor Clone()
+    public AIDeploymentParameterDescriptor Clone()
     {
-        return new AIModelParameterDescriptor
+        return new AIDeploymentParameterDescriptor
         {
             Name = Name,
             DisplayName = DisplayName,
@@ -114,21 +114,21 @@ public sealed class AIModelParameterDescriptor
 
         switch (Kind)
         {
-            case AIModelParameterKind.Choice:
+            case AIDeploymentParameterKind.Choice:
                 return AllowedValues is not { Count: > 0 } ||
                     AllowedValues.Any(option => string.Equals(option.Value, value, StringComparison.OrdinalIgnoreCase));
 
-            case AIModelParameterKind.Boolean:
+            case AIDeploymentParameterKind.Boolean:
                 return bool.TryParse(value, out _);
 
-            case AIModelParameterKind.Integer:
-            case AIModelParameterKind.Number:
+            case AIDeploymentParameterKind.Integer:
+            case AIDeploymentParameterKind.Number:
                 if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) || !double.IsFinite(number))
                 {
                     return false;
                 }
 
-                if (Kind == AIModelParameterKind.Integer && number != Math.Truncate(number))
+                if (Kind == AIDeploymentParameterKind.Integer && number != Math.Truncate(number))
                 {
                     return false;
                 }

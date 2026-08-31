@@ -84,7 +84,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             ? _deploymentSettings.CurrentValue.DefaultRealtimeDeploymentName
             : request.RealtimeDeploymentName;
 
-        var deployment = await _capabilityService.ResolveDeploymentWithFeatureAsync(AIModelFeatureNames.Realtime, realtimeDeploymentName, cancellationToken)
+        var deployment = await _capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName, cancellationToken)
             ?? throw new InvalidOperationException(
                 "Unable to resolve a realtime deployment. Create a chat AI deployment whose model declares the 'realtime' capability.");
 

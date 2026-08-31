@@ -62,7 +62,7 @@ internal sealed class CapabilityEnforcingChatClient : DelegatingChatClient
         {
             _logger.LogWarning(
                 "Deployment '{Deployment}' does not declare the '{Feature}' feature. The streaming request was completed as a single non-streaming response.",
-                _deployment.ModelName, AIModelFeatureNames.Streaming);
+                _deployment.ModelName, AIDeploymentFeatureNames.Streaming);
 
             return BufferAsStreamAsync(messages, enforced, cancellationToken);
         }
@@ -93,7 +93,7 @@ internal sealed class CapabilityEnforcingChatClient : DelegatingChatClient
             return false;
         }
 
-        return !_capabilityService.GetCapabilities(_deployment).SupportsFeature(AIModelFeatureNames.Streaming);
+        return !_capabilityService.GetCapabilities(_deployment).SupportsFeature(AIDeploymentFeatureNames.Streaming);
     }
 
     private ChatOptions Enforce(ChatOptions options)

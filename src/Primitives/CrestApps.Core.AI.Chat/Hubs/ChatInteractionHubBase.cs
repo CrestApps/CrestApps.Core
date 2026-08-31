@@ -763,7 +763,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
                 var capabilityService = services.GetRequiredService<IAIDeploymentCapabilityService>();
                 var defaultRealtimeDeploymentName = (await GetDeploymentSettingsAsync(services)).DefaultRealtimeDeploymentName;
-                if (await capabilityService.ResolveDeploymentWithFeatureAsync(AIModelFeatureNames.Realtime, defaultRealtimeDeploymentName, cancellationToken) is null)
+                if (await capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, defaultRealtimeDeploymentName, cancellationToken) is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoRealtimeDeploymentMessage());
 

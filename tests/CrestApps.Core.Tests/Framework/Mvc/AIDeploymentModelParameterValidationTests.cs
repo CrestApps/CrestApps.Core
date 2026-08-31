@@ -7,36 +7,36 @@ namespace CrestApps.Core.Tests.Framework.Mvc;
 
 public sealed class AIDeploymentModelParameterValidationTests
 {
-    private static AIModelParameterDescriptor ChoiceDescriptor(params string[] values)
+    private static AIDeploymentParameterDescriptor ChoiceDescriptor(params string[] values)
     {
-        return new AIModelParameterDescriptor
+        return new AIDeploymentParameterDescriptor
         {
             Name = "reasoningEffort",
             DisplayName = new LocalizedString("reasoningEffort", "Reasoning effort"),
-            Kind = AIModelParameterKind.Choice,
-            AllowedValues = [.. values.Select(value => new AIModelParameterOption { Value = value })],
+            Kind = AIDeploymentParameterKind.Choice,
+            AllowedValues = [.. values.Select(value => new AIDeploymentParameterOption { Value = value })],
         };
     }
 
-    private static AIModelParameterDescriptor NumberDescriptor(double? min = null, double? max = null)
+    private static AIDeploymentParameterDescriptor NumberDescriptor(double? min = null, double? max = null)
     {
-        return new AIModelParameterDescriptor
+        return new AIDeploymentParameterDescriptor
         {
             Name = "temperature",
             DisplayName = new LocalizedString("temperature", "Temperature"),
-            Kind = AIModelParameterKind.Number,
+            Kind = AIDeploymentParameterKind.Number,
             Minimum = min,
             Maximum = max,
         };
     }
 
-    private static AIModelParameterDescriptor IntegerDescriptor(double? min = null, double? max = null)
+    private static AIDeploymentParameterDescriptor IntegerDescriptor(double? min = null, double? max = null)
     {
-        return new AIModelParameterDescriptor
+        return new AIDeploymentParameterDescriptor
         {
             Name = "topK",
             DisplayName = new LocalizedString("topK", "Top K"),
-            Kind = AIModelParameterKind.Integer,
+            Kind = AIDeploymentParameterKind.Integer,
             Minimum = min,
             Maximum = max,
         };

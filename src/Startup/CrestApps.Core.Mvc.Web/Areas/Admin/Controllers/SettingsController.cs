@@ -502,7 +502,7 @@ public sealed class SettingsController : Controller
             await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.TextToSpeech));
 
         model.RealtimeDeployments = BuildGroupedDeploymentItems(
-            await _capabilityService.GetDeploymentsWithFeatureAsync(AIModelFeatureNames.Realtime));
+            await _capabilityService.GetDeploymentsWithFeatureAsync(AIDeploymentFeatureNames.Realtime));
 
         model.ChatInteractionModes =
         [

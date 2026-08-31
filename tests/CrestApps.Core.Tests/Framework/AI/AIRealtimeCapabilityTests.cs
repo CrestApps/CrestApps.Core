@@ -10,15 +10,15 @@ namespace CrestApps.Core.Tests.Framework.AI;
 public sealed class AIRealtimeCapabilityTests
 {
     [Fact]
-    public void AddCoreAIModelCapabilities_RegistersRealtimeFeature()
+    public void AddCoreAIDeploymentCapabilities_RegistersRealtimeFeature()
     {
         var services = new ServiceCollection();
         services.AddSingleton(Mock.Of<IAIDeploymentStore>());
-        services.AddCoreAIModelCapabilities();
+        services.AddCoreAIDeploymentCapabilities();
 
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<AIDeploymentCapabilityOptions>>().Value;
 
-        Assert.True(options.Features.ContainsKey(AIModelFeatureNames.Realtime));
+        Assert.True(options.Features.ContainsKey(AIDeploymentFeatureNames.Realtime));
     }
 }

@@ -93,7 +93,7 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
 
         var capabilityService = new Mock<IAIDeploymentCapabilityService>();
         capabilityService
-            .Setup(c => c.ResolveDeploymentWithFeatureAsync(AIModelFeatureNames.Realtime, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIDeployment { Name = "rt", ModelName = "gpt-realtime", ClientName = "test" });
 
         var deploymentSettings = new Mock<IOptionsMonitor<DefaultAIDeploymentSettings>>();

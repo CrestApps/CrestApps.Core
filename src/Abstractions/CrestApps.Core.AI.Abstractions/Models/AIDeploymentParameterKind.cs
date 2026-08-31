@@ -1,10 +1,10 @@
 namespace CrestApps.Core.AI.Models;
 
 /// <summary>
-/// Describes the editor and validation semantics of an <see cref="AIModelParameterDescriptor"/>.
+/// Describes the editor and validation semantics of an <see cref="AIDeploymentParameterDescriptor"/>.
 /// The value drives how a parameter is rendered and validated by metadata-driven editors.
 /// </summary>
-public enum AIModelParameterKind
+public enum AIDeploymentParameterKind
 {
     /// <summary>
     /// The parameter accepts one value from a closed list of allowed values and renders as a dropdown.

@@ -96,7 +96,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var deployments = await CapabilityService.GetDeploymentsWithFeatureAsync(AIModelFeatureNames.Realtime);
+        var deployments = await CapabilityService.GetDeploymentsWithFeatureAsync(AIDeploymentFeatureNames.Realtime);
 
         _deployments = deployments
             .OrderBy(deployment => deployment.Name, StringComparer.OrdinalIgnoreCase)

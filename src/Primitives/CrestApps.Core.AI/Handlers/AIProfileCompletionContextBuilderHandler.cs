@@ -49,7 +49,7 @@ internal sealed class AIProfileCompletionContextBuilderHandler : IAICompletionCo
             context.Context.UseCaching = metadata.UseCaching;
         }
 
-        if (profile.TryGet<AIModelParametersMetadata>(out var modelParameters))
+        if (profile.TryGet<AIDeploymentParametersMetadata>(out var modelParameters))
         {
             context.Context.ApplyModelParameters(modelParameters);
         }

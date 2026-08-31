@@ -278,7 +278,7 @@ public sealed class AIProfileViewModel
             EnableUserMemory = memoryMetadata.EnableUserMemory ?? false,
         };
 
-        if (profile.TryGet<AIModelParametersMetadata>(out var modelParameters) && modelParameters.Values is { Count: > 0 })
+        if (profile.TryGet<AIDeploymentParametersMetadata>(out var modelParameters) && modelParameters.Values is { Count: > 0 })
         {
             vm.ModelParameters = new Dictionary<string, string>(modelParameters.Values, StringComparer.OrdinalIgnoreCase);
         }
@@ -441,7 +441,7 @@ public sealed class AIProfileViewModel
             m.UseCaching = UseCaching;
         });
 
-        profile.Alter<AIModelParametersMetadata>(m =>
+        profile.Alter<AIDeploymentParametersMetadata>(m =>
         {
             m.Values = ModelParameters is null
                 ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
