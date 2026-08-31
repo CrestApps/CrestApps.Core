@@ -7,6 +7,13 @@ namespace CrestApps.Core.AI.Models;
 public static class AIDeploymentFeatureNames
 {
     /// <summary>
+    /// The model can hold a text conversation (standard chat completions). Enabled by default so that
+    /// existing chat deployments keep working; a speech-to-speech-only model should clear this feature so
+    /// text-based chat modes are not offered for it.
+    /// </summary>
+    public const string TextGeneration = "textGeneration";
+
+    /// <summary>
     /// The model can call tools or functions supplied with the request.
     /// </summary>
     public const string ToolCalling = "toolCalling";

@@ -6,6 +6,7 @@
 @model CrestApps.Core.AI.Models.AIProfile
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject CrestApps.Core.Startup.Shared.Services.SiteSettingsStore SiteSettings
+@inject CrestApps.Core.AI.Capabilities.IAIDeploymentCapabilityService CapabilityService
 @{
     var session = ViewData["Session"] as AIChatSession;
     var prompts = ViewData["Prompts"] as IReadOnlyList<AIChatSessionPrompt>;
@@ -44,8 +45,13 @@
     var configuredChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput;
     var speechToTextEnabled = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultSpeechToTextDeploymentName);
     var hasTtsDeployment = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultTextToSpeechDeploymentName);
-    var hasRealtimeDeployment = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultRealtimeDeploymentName)
-        || !string.IsNullOrWhiteSpace(Model.RealtimeDeploymentName);
+    var realtimeDeploymentName = !string.IsNullOrWhiteSpace(Model.RealtimeDeploymentName)
+        ? Model.RealtimeDeploymentName
+        : defaultDeploymentSettings.DefaultRealtimeDeploymentName;
+    // Realtime is available only when a realtime-capable chat deployment resolves. Checking the declared
+    // capability here (not just a configured name) keeps the client's realtime UI in sync with the hub's
+    // capability gate, so the mic button is only shown when a realtime session can actually start.
+    var hasRealtimeDeployment = await CapabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName) is not null;
     var textToSpeechEnabled = (chatModeSettings?.EnableTextToSpeechPlayback ?? false) && hasTtsDeployment;
     var chatMode = configuredChatMode switch
     {

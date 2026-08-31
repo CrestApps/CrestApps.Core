@@ -213,6 +213,12 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIDeploymentParameterBinder, ReasoningEffortModelParameterBinder>());
 
         services
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.TextGeneration, new LocalizedString(AIDeploymentFeatureNames.TextGeneration, "Text conversation"), feature =>
+            {
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.TextGeneration, "The model can hold a text conversation. Clear this only for a speech-to-speech-only model that cannot handle text.");
+                feature.Order = 5;
+                feature.EnabledByDefault = true;
+            })
             .AddAIDeploymentFeature(AIDeploymentFeatureNames.ToolCalling, new LocalizedString(AIDeploymentFeatureNames.ToolCalling, "Tool calling"), feature =>
             {
                 feature.Description = new LocalizedString(AIDeploymentFeatureNames.ToolCalling, "The model can call tools and functions supplied with the request.");

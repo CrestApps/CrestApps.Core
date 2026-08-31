@@ -9,6 +9,7 @@
 @inject IAIProfileManager ProfileManager
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject CrestApps.Core.Startup.Shared.Services.SiteSettingsStore SiteSettings
+@inject CrestApps.Core.AI.Capabilities.IAIDeploymentCapabilityService CapabilityService
 
 @{
     var adminWidgetSettings = SiteSettings.Get<AIChatAdminWidgetSettings>();
@@ -20,7 +21,6 @@
 
     var configuredChatMode = ChatMode.TextInput;
     var hasTtsDeployment = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultTextToSpeechDeploymentName);
-    var hasRealtimeDeployment = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultRealtimeDeploymentName);
     var textToSpeechEnabled = false;
     var ttsVoiceName = defaultDeploymentSettings.DefaultTextToSpeechVoiceId;
     var realtimeVoiceName = defaultDeploymentSettings.DefaultRealtimeVoiceId;
@@ -38,11 +38,12 @@
         }
     }
 
-    // A realtime profile without a resolvable realtime deployment falls back to the site's default realtime deployment.
-    if (configuredChatMode == ChatMode.Realtime && !hasRealtimeDeployment)
-    {
-        hasRealtimeDeployment = !string.IsNullOrWhiteSpace((selectedProfile?.RealtimeDeploymentName));
-    }
+    // Realtime is available only when a realtime-capable chat deployment resolves (the profile's realtime
+    // deployment, or the site default), so the widget's realtime UI stays in sync with the hub's capability gate.
+    var realtimeDeploymentName = !string.IsNullOrWhiteSpace(selectedProfile?.RealtimeDeploymentName)
+        ? selectedProfile.RealtimeDeploymentName
+        : defaultDeploymentSettings.DefaultRealtimeDeploymentName;
+    var hasRealtimeDeployment = await CapabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName) is not null;
 
     var speechToTextEnabled = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultSpeechToTextDeploymentName);
     var effectiveChatMode = configuredChatMode switch

@@ -1,5 +1,6 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Claude.Services;
@@ -66,6 +67,7 @@ public sealed class ChatInteractionController : Controller
     private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
     private readonly ISourceCatalog<AIToolInstance> _toolInstanceCatalog;
     private readonly AIDeploymentParameterViewService _modelParameterViewService;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
 
     public ChatInteractionController(
         ICatalogManager<ChatInteraction> interactionManager,
@@ -93,7 +95,8 @@ public sealed class ChatInteractionController : Controller
         IOptions<AIToolDefinitionOptions> toolOptions,
         IAIToolAccessEvaluator toolAccessEvaluator,
         ISourceCatalog<AIToolInstance> toolInstanceCatalog,
-        AIDeploymentParameterViewService modelParameterViewService)
+        AIDeploymentParameterViewService modelParameterViewService,
+        IAIDeploymentCapabilityService capabilityService)
     {
         _interactionManager = interactionManager;
         _promptStore = promptStore;
@@ -121,6 +124,7 @@ public sealed class ChatInteractionController : Controller
         _toolAccessEvaluator = toolAccessEvaluator;
         _toolInstanceCatalog = toolInstanceCatalog;
         _modelParameterViewService = modelParameterViewService;
+        _capabilityService = capabilityService;
     }
 
     public async Task<IActionResult> Index()
@@ -215,7 +219,8 @@ public sealed class ChatInteractionController : Controller
         var chatMode = chatInteractionSettings.ChatMode;
         var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
         var hasTextToSpeech = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
-        var hasRealtime = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultRealtimeDeploymentName);
+        // Realtime is available only when the default realtime deployment declares the realtime capability.
+        var hasRealtime = await _capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, deploymentDefaults.DefaultRealtimeDeploymentName) is not null;
         var effectiveChatMode = chatMode switch
         {
             ChatMode.Realtime when hasRealtime => ChatMode.Realtime,
