@@ -176,6 +176,93 @@ public sealed class AIDeploymentViewModel
         ModelParameters = merged;
     }
 
+    /// <summary>
+    /// Validates the per-deployment parameter metadata against the registered parameter definitions and
+    /// returns a message for each incoherent value so the operator is corrected at save time instead of
+    /// relying on the request-time sanitizer to silently drop the value. Mirrors the MVC deployment editor.
+    /// </summary>
+    public IReadOnlyList<string> ValidateModelParameters()
+    {
+        var errors = new List<string>();
+
+        foreach (var row in ModelParameters ?? [])
+        {
+            if (row is null || !row.IsSupported || string.IsNullOrWhiteSpace(row.Name))
+            {
+                continue;
+            }
+
+            var descriptor = row.Descriptor;
+
+            if (descriptor is null)
+            {
+                errors.Add($"'{row.Name}' is not a registered model parameter.");
+
+                continue;
+            }
+
+            var label = row.DisplayName;
+
+            // Build the effective descriptor exactly as the runtime does (registered definition narrowed
+            // by the per-deployment overrides), then reuse the descriptor's own validation so the editor
+            // and the request pipeline agree on what is valid.
+            var effective = descriptor.Clone();
+
+            if (row.SelectedAllowedValues is { Count: > 0 })
+            {
+                var registeredValues = new HashSet<string>(
+                    descriptor.AllowedValues?.Select(option => option.Value) ?? [],
+                    StringComparer.OrdinalIgnoreCase);
+
+                foreach (var selected in row.SelectedAllowedValues.Where(value => !string.IsNullOrWhiteSpace(value)))
+                {
+                    if (!registeredValues.Contains(selected))
+                    {
+                        errors.Add($"{label}: '{selected}' is not a registered value.");
+                    }
+                }
+
+                effective.AllowedValues =
+                [
+                    .. (descriptor.AllowedValues ?? [])
+                        .Where(option => row.SelectedAllowedValues.Contains(option.Value))
+                ];
+            }
+
+            if (row.Minimum.HasValue)
+            {
+                effective.Minimum = row.Minimum;
+            }
+
+            if (row.Maximum.HasValue)
+            {
+                effective.Maximum = row.Maximum;
+            }
+
+            if (row.Step.HasValue)
+            {
+                effective.Step = row.Step;
+            }
+
+            if (effective.Minimum.HasValue && effective.Maximum.HasValue && effective.Minimum > effective.Maximum)
+            {
+                errors.Add($"{label}: the minimum cannot be greater than the maximum.");
+            }
+
+            if (effective.Step is <= 0)
+            {
+                errors.Add($"{label}: the step must be greater than zero.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.DefaultValue) && !effective.IsValidValue(row.DefaultValue))
+            {
+                errors.Add($"{label}: the default value '{row.DefaultValue}' is not valid for the supported values or range.");
+            }
+        }
+
+        return errors;
+    }
+
     private void ApplyModelMetadataTo(AIDeployment deployment)
     {
         var metadata = new AIDeploymentModelMetadata

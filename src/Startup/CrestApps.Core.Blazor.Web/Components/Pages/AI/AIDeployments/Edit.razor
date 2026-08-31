@@ -305,6 +305,8 @@ else
             }
         }
 
+        _validationErrors.AddRange(_model.ValidateModelParameters());
+
         if (_validationErrors.Count > 0)
         {
             return;
