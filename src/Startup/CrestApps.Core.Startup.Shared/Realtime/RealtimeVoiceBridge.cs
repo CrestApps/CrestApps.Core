@@ -16,9 +16,9 @@ namespace CrestApps.Core.Startup.Shared.Realtime;
 
 /// <summary>
 /// Shared server-side bridge for the realtime (speech-to-speech) test harness used by both the MVC and Blazor
-/// sample hosts. It accepts a browser WebSocket, opens a provider realtime session from a
-/// <see cref="AIDeploymentPurpose.Realtime"/> deployment, and relays binary PCM16 audio in both directions while
-/// forwarding transcripts, errors, and turn events as JSON text frames.
+/// sample hosts. It accepts a browser WebSocket, opens a provider realtime session from a realtime-capable
+/// chat deployment (resolved by <see cref="IRealtimeCapabilityResolver"/>), and relays binary PCM16 audio in
+/// both directions while forwarding transcripts, errors, and turn events as JSON text frames.
 /// </summary>
 public static class RealtimeVoiceBridge
 {
@@ -33,7 +33,7 @@ public static class RealtimeVoiceBridge
         string? deploymentName,
         string? voice,
         string? instructions,
-        IAIDeploymentManager deploymentManager,
+        IRealtimeCapabilityResolver realtimeResolver,
         IAIClientFactory clientFactory,
         ILogger logger,
         CancellationToken cancellationToken)
@@ -51,11 +51,11 @@ public static class RealtimeVoiceBridge
 
         try
         {
-            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Realtime, deploymentName, cancellationToken: cancellationToken);
+            var deployment = await realtimeResolver.ResolveRealtimeDeploymentAsync(deploymentName, cancellationToken);
 
             if (deployment is null)
             {
-                await SendJsonAsync(socket, new { type = "error", message = "No realtime deployment could be resolved. Create an AI deployment whose purpose includes 'Realtime'." }, cancellationToken);
+                await SendJsonAsync(socket, new { type = "error", message = "No realtime deployment could be resolved. Create a chat AI deployment whose model declares the 'realtime' capability." }, cancellationToken);
 
                 return;
             }

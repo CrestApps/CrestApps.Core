@@ -228,7 +228,6 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
             AIDeploymentPurpose.Vision => settings.DefaultVisionDeploymentName,
             AIDeploymentPurpose.SpeechToText => settings.DefaultSpeechToTextDeploymentName,
             AIDeploymentPurpose.TextToSpeech => settings.DefaultTextToSpeechDeploymentName,
-            AIDeploymentPurpose.Realtime => settings.DefaultRealtimeDeploymentName,
             _ => null,
         };
     }

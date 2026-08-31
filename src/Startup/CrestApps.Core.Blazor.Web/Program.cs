@@ -1,5 +1,6 @@
 using CrestApps.Core;
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.Realtime;
 using CrestApps.Core.AI.WebCrawlers;
 using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.Clients;
@@ -317,11 +318,11 @@ app.Map("/Realtime/Stream", (
         string deploymentName,
         string? voice,
         string? instructions,
-        IAIDeploymentManager deploymentManager,
+        IRealtimeCapabilityResolver realtimeResolver,
         IAIClientFactory clientFactory,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken) =>
-        RealtimeVoiceBridge.HandleAsync(context, deploymentName, voice, instructions, deploymentManager, clientFactory, loggerFactory.CreateLogger("CrestApps.Core.Realtime"), cancellationToken))
+        RealtimeVoiceBridge.HandleAsync(context, deploymentName, voice, instructions, realtimeResolver, clientFactory, loggerFactory.CreateLogger("CrestApps.Core.Realtime"), cancellationToken))
     .RequireAuthorization();
 
 app.MapRazorComponents<App>()

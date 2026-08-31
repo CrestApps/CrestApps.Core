@@ -2,8 +2,9 @@
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Realtime
 @using CrestApps.Core.AI.Speech
-@inject IAIDeploymentManager DeploymentManager
+@inject IRealtimeCapabilityResolver RealtimeResolver
 @inject IRealtimeVoiceResolver VoiceResolver
 @inject IJSRuntime JS
 
@@ -95,7 +96,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var deployments = await DeploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Realtime);
+        var deployments = await RealtimeResolver.GetRealtimeDeploymentsAsync();
 
         _deployments = deployments
             .OrderBy(deployment => deployment.Name, StringComparer.OrdinalIgnoreCase)

@@ -20,7 +20,7 @@ namespace CrestApps.Core.AI.Services;
 public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
 {
     private readonly IOrchestrationContextBuilder _contextBuilder;
-    private readonly IAIDeploymentManager _deploymentManager;
+    private readonly IRealtimeCapabilityResolver _realtimeResolver;
     private readonly IAIClientFactory _clientFactory;
     private readonly IToolRegistry _toolRegistry;
     private readonly IToolMaterializer _toolMaterializer;
@@ -36,7 +36,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
     /// </summary>
     public DefaultRealtimeOrchestrator(
         IOrchestrationContextBuilder contextBuilder,
-        IAIDeploymentManager deploymentManager,
+        IRealtimeCapabilityResolver realtimeResolver,
         IAIClientFactory clientFactory,
         IToolRegistry toolRegistry,
         IToolMaterializer toolMaterializer,
@@ -46,7 +46,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         ILogger<DefaultRealtimeOrchestrator> logger)
     {
         _contextBuilder = contextBuilder;
-        _deploymentManager = deploymentManager;
+        _realtimeResolver = realtimeResolver;
         _clientFactory = clientFactory;
         _toolRegistry = toolRegistry;
         _toolMaterializer = toolMaterializer;
@@ -76,12 +76,9 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
 
         PopulateInvocationScope(context, request);
 
-        var deployment = await _deploymentManager.ResolveOrDefaultAsync(
-            AIDeploymentPurpose.Realtime,
-            request.RealtimeDeploymentName,
-            cancellationToken: cancellationToken)
+        var deployment = await _realtimeResolver.ResolveRealtimeDeploymentAsync(request.RealtimeDeploymentName, cancellationToken)
             ?? throw new InvalidOperationException(
-                "Unable to resolve a realtime deployment. Create an AI deployment whose purpose includes 'Realtime'.");
+                "Unable to resolve a realtime deployment. Create a chat AI deployment whose model declares the 'realtime' capability.");
 
         var tools = await MaterializeToolsAsync(context, cancellationToken);
 

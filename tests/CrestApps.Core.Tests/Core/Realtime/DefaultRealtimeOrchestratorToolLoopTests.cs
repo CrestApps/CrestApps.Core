@@ -89,9 +89,9 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
 
         var contextBuilder = new FakeContextBuilder(context);
 
-        var deploymentManager = new Mock<IAIDeploymentManager>();
-        deploymentManager
-            .Setup(m => m.ResolveOrDefaultAsync(AIDeploymentPurpose.Realtime, It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        var realtimeResolver = new Mock<IRealtimeCapabilityResolver>();
+        realtimeResolver
+            .Setup(r => r.ResolveRealtimeDeploymentAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIDeployment { Name = "rt", ModelName = "gpt-realtime", ClientName = "test" });
 
         var clientFactory = new Mock<IAIClientFactory>();
@@ -111,7 +111,7 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
 
         return new DefaultRealtimeOrchestrator(
             contextBuilder,
-            deploymentManager.Object,
+            realtimeResolver.Object,
             clientFactory.Object,
             toolRegistry.Object,
             materializer.Object,

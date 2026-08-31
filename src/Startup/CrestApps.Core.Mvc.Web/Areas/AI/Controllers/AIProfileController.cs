@@ -1,5 +1,6 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Copilot.Models;
@@ -56,6 +57,7 @@ public sealed class AIProfileController : Controller
     private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
     private readonly IAIDataSourceStore _dataSourceStore;
     private readonly AIModelParameterViewService _modelParameterViewService;
+    private readonly IAIModelCapabilityService _capabilityService;
 
     public AIProfileController(
         IAIProfileManager profileManager,
@@ -78,7 +80,8 @@ public sealed class AIProfileController : Controller
         IOptions<AIToolDefinitionOptions> toolOptions,
         IAIToolAccessEvaluator toolAccessEvaluator,
         IAIDataSourceStore dataSourceStore,
-        AIModelParameterViewService modelParameterViewService)
+        AIModelParameterViewService modelParameterViewService,
+        IAIModelCapabilityService capabilityService)
     {
         _profileManager = profileManager;
         _deploymentCatalog = deploymentCatalog;
@@ -101,6 +104,7 @@ public sealed class AIProfileController : Controller
         _toolAccessEvaluator = toolAccessEvaluator;
         _dataSourceStore = dataSourceStore;
         _modelParameterViewService = modelParameterViewService;
+        _capabilityService = capabilityService;
     }
 
     public async Task<IActionResult> Index()
@@ -268,7 +272,7 @@ public sealed class AIProfileController : Controller
         var allDeployments = await _deploymentCatalog.GetAllAsync();
         model.ChatDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.UtilityDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
-        model.RealtimeDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Realtime)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        model.RealtimeDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat) && _capabilityService.GetCapabilities(d).SupportsFeature(AIModelFeatureNames.Realtime)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
         var hasAnthropicOptions = _anthropicOptions.TryGetValidValue(out var anthropicOptions);
         model.Orchestrators = orchestrators.Select(o => new SelectListItem(o.Value.Title ?? o.Key, o.Key)).ToList();

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Claude.Services;
@@ -47,6 +48,7 @@ public sealed class SettingsController : Controller
     private readonly ClaudeClientService _anthropicClientService;
     private readonly AIToolDefinitionOptions _toolOptions;
     private readonly ISourceCatalog<AIToolInstance> _toolInstanceCatalog;
+    private readonly IAIModelCapabilityService _capabilityService;
 
     public SettingsController(
         SiteSettingsStore siteSettings,
@@ -58,7 +60,8 @@ public sealed class SettingsController : Controller
         IRealtimeVoiceResolver realtimeVoiceResolver,
         ClaudeClientService anthropicClientService,
         IOptions<AIToolDefinitionOptions> toolOptions,
-        ISourceCatalog<AIToolInstance> toolInstanceCatalog)
+        ISourceCatalog<AIToolInstance> toolInstanceCatalog,
+        IAIModelCapabilityService capabilityService)
     {
         _siteSettings = siteSettings;
         _deploymentManager = deploymentManager;
@@ -70,6 +73,7 @@ public sealed class SettingsController : Controller
         _anthropicClientService = anthropicClientService;
         _toolOptions = toolOptions.Value;
         _toolInstanceCatalog = toolInstanceCatalog;
+        _capabilityService = capabilityService;
     }
 
     public async Task<IActionResult> Index()
@@ -498,7 +502,8 @@ public sealed class SettingsController : Controller
             await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.TextToSpeech));
 
         model.RealtimeDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Realtime));
+            (await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Chat))
+                .Where(deployment => _capabilityService.GetCapabilities(deployment).SupportsFeature(AIModelFeatureNames.Realtime)));
 
         model.ChatInteractionModes =
         [

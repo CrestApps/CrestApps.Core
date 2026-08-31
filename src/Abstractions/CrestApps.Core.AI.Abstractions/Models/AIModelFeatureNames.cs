@@ -57,8 +57,8 @@ public static class AIModelFeatureNames
     public const string VideoOutput = "videoOutput";
 
     /// <summary>
-    /// The model supports real-time, bidirectional speech-to-speech sessions
-    /// (<see cref="AIDeploymentPurpose.Realtime"/>).
+    /// The model supports real-time, bidirectional speech-to-speech sessions. A deployment that declares
+    /// this feature on a <see cref="AIDeploymentPurpose.Chat"/> model is eligible to run realtime sessions.
     /// </summary>
     public const string Realtime = "realtime";
 }
