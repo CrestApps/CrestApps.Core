@@ -7,6 +7,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 
@@ -29,33 +30,37 @@ public sealed class AIRealtimeCapabilityTests
     }
 
     [Fact]
-    public async Task CreateRealtimeClientAsync_WhenMetadataDeclaredWithoutRealtime_Throws()
+    public async Task CreateRealtimeClientAsync_WhenMetadataDeclaredWithoutRealtime_WarnsButDoesNotBlock()
     {
-        var factory = CreateFactory(out _);
+        var factory = CreateFactory(out var logger);
 
         var deployment = CreateDeployment(AIModelFeatureNames.AudioInput);
 
-        await Assert.ThrowsAsync<NotSupportedException>(
+        // The realtime feature is not declared, so a warning is logged but the request is not blocked; it
+        // proceeds and fails later on the unresolved connection instead of throwing NotSupportedException.
+        await Assert.ThrowsAsync<ArgumentException>(
             async () => await factory.CreateRealtimeClientAsync(deployment));
+
+        VerifyWarning(logger, Times.Once());
     }
 
     [Fact]
-    public async Task CreateRealtimeClientAsync_WhenRealtimeDeclared_PassesCapabilityCheck()
+    public async Task CreateRealtimeClientAsync_WhenRealtimeDeclared_DoesNotWarn()
     {
-        var factory = CreateFactory(out _);
+        var factory = CreateFactory(out var logger);
 
         var deployment = CreateDeployment(AIModelFeatureNames.Realtime);
 
-        // The capability check passes, so failure now comes from the (unresolved) connection rather than
-        // from the realtime feature enforcement.
         await Assert.ThrowsAsync<ArgumentException>(
             async () => await factory.CreateRealtimeClientAsync(deployment));
+
+        VerifyWarning(logger, Times.Never());
     }
 
     [Fact]
-    public async Task CreateRealtimeClientAsync_WhenNoMetadata_IsUnconstrained()
+    public async Task CreateRealtimeClientAsync_WhenNoMetadata_DoesNotWarn()
     {
-        var factory = CreateFactory(out _);
+        var factory = CreateFactory(out var logger);
 
         var deployment = new AIDeployment
         {
@@ -65,10 +70,12 @@ public sealed class AIRealtimeCapabilityTests
             ConnectionName = "conn",
         };
 
-        // A deployment without capability metadata is never blocked by the realtime feature check; it
-        // proceeds and fails later on the unresolved connection instead.
+        // A deployment without capability metadata is unconstrained: it produces no warning and proceeds,
+        // failing later on the unresolved connection.
         await Assert.ThrowsAsync<ArgumentException>(
             async () => await factory.CreateRealtimeClientAsync(deployment));
+
+        VerifyWarning(logger, Times.Never());
     }
 
     private static AIDeployment CreateDeployment(params string[] features)
@@ -89,12 +96,16 @@ public sealed class AIRealtimeCapabilityTests
         return deployment;
     }
 
-    private static DefaultAIClientFactory CreateFactory(out IServiceProvider serviceProvider)
+    private static DefaultAIClientFactory CreateFactory(out Mock<ILogger<DefaultAIClientFactory>> logger)
     {
         var services = new ServiceCollection();
         services.AddSingleton(Mock.Of<IAIDeploymentStore>());
+
+        logger = new Mock<ILogger<DefaultAIClientFactory>>();
+        services.AddSingleton(logger.Object);
+
         services.AddCoreAIModelCapabilities();
-        serviceProvider = services.BuildServiceProvider();
+        var serviceProvider = services.BuildServiceProvider();
 
         return new DefaultAIClientFactory(
             clientProviders: [],
@@ -102,6 +113,18 @@ public sealed class AIRealtimeCapabilityTests
             dataProtectionProvider: Mock.Of<IDataProtectionProvider>(),
             serviceProvider: serviceProvider,
             connectionCatalog: Mock.Of<IAIProviderConnectionStore>());
+    }
+
+    private static void VerifyWarning(Mock<ILogger<DefaultAIClientFactory>> logger, Times times)
+    {
+        logger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            times);
     }
 }
 #pragma warning restore MEAI001
