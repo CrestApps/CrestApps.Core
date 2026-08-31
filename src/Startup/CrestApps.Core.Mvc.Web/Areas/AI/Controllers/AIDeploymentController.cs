@@ -103,6 +103,8 @@ public sealed class AIDeploymentController : Controller
 
         await ValidateUniqueNameAsync(model.TechnicalName);
 
+        model.ValidateModelParameters(_capabilityService.GetRegisteredParameters(), ModelState);
+
         if (!ModelState.IsValid)
         {
             await PopulateDropdownsAsync(model);
@@ -182,6 +184,8 @@ public sealed class AIDeploymentController : Controller
         }
 
         await ValidateUniqueNameAsync(model.TechnicalName, model.ItemId);
+
+        model.ValidateModelParameters(_capabilityService.GetRegisteredParameters(), ModelState);
 
         if (!ModelState.IsValid)
         {

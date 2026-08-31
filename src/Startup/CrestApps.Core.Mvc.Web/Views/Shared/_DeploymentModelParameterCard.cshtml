@@ -9,7 +9,11 @@
 <div class="border rounded p-3 mb-2 @(Model.Hidden ? "d-none" : string.Empty)"
      data-model-parameter-card
      data-required-feature="@parameter.RequiredFeature">
-    <input type="hidden" name="ModelParameters[@i].Name" value="@parameter.Name" />
+    @* Emit a non-sequential binding index so the default collection binder never truncates the list
+       when a feature-dependent row is disabled. These structural fields are marked so the feature
+       dependency script keeps them enabled even while the rest of the card is disabled. *@
+    <input type="hidden" name="ModelParameters.Index" value="@i" data-structural="true" />
+    <input type="hidden" name="ModelParameters[@i].Name" value="@parameter.Name" data-structural="true" />
     <div class="form-check">
         <input id="ModelParameters_@(parameter.ElementId)_IsSupported"
                name="ModelParameters[@i].IsSupported"
@@ -18,7 +22,7 @@
                class="form-check-input model-parameter-toggle"
                data-target="@bodyId"
                @(parameter.IsSupported ? "checked" : "") />
-        <input type="hidden" name="ModelParameters[@i].IsSupported" value="false" />
+        <input type="hidden" name="ModelParameters[@i].IsSupported" value="false" data-structural="true" />
         <label class="form-check-label" for="ModelParameters_@(parameter.ElementId)_IsSupported">
             @parameter.DisplayName
             @if (!string.IsNullOrWhiteSpace(parameter.Description))

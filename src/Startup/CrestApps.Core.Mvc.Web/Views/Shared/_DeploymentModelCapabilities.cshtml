@@ -129,6 +129,15 @@
                     card.classList.toggle('d-none', !enabled);
 
                     Array.prototype.forEach.call(card.querySelectorAll('input, select'), function (field) {
+                        if (field.getAttribute('data-structural') === 'true') {
+                            // The Name, IsSupported and binding-index fields must always post, even
+                            // while the feature is disabled, so the collection model binder never sees
+                            // a gap that would drop or misalign the remaining parameter rows.
+                            field.disabled = false;
+
+                            return;
+                        }
+
                         field.disabled = !enabled;
                     });
                 });

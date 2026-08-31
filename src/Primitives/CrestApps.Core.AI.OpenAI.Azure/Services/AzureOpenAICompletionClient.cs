@@ -572,6 +572,20 @@ omit optional fields, or split the operation into multiple smaller calls.
             await handler.ConfigureAsync(configureContext);
         }
 
+        // This client projects a fixed set of options onto the Azure SDK ChatCompletionOptions
+        // (temperature, penalties, token limits, tools, and reasoning effort). A model parameter that a
+        // binder mapped onto a strongly-typed ChatOptions member (such as reasoning effort) is honored,
+        // but a binder-less parameter that only lands in ChatOptions.AdditionalProperties has no generic
+        // passthrough on this SDK path. Surface it as a warning so it is observable rather than dropped
+        // silently. The built-in reasoningEffort parameter never reaches here because it binds through
+        // ChatOptions.Reasoning.Effort.
+        if (chatOptions.AdditionalProperties is { Count: > 0 })
+        {
+            _logger.LogWarning(
+                "Model parameter value(s) '{Parameters}' resolved for deployment '{Deployment}' are not applied by the Azure OpenAI completion client, which does not forward ChatOptions.AdditionalProperties. Register an IAIModelParameterBinder that maps the parameter onto a supported option.",
+                string.Join(", ", chatOptions.AdditionalProperties.Keys), deployment.ModelName);
+        }
+
         var functions = context.DisableTools || chatOptions.Tools is not { Count: > 0 }
             ? []
             : chatOptions.Tools.OfType<Microsoft.Extensions.AI.AIFunction>().ToList();

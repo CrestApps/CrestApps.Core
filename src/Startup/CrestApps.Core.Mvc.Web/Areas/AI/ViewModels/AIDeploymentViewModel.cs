@@ -302,6 +302,105 @@ public sealed class AIDeploymentViewModel
         ModelParameters = merged;
     }
 
+    /// <summary>
+    /// Validates the per-deployment parameter metadata against the registered parameter definitions and
+    /// records any incoherent values in <paramref name="modelState"/> so the operator is corrected at
+    /// save time instead of relying on the request-time sanitizer to silently drop the value.
+    /// </summary>
+    /// <param name="registeredParameters">The registered model parameter definitions.</param>
+    /// <param name="modelState">The model state that receives the validation errors.</param>
+    public void ValidateModelParameters(
+        IEnumerable<AIModelParameterDescriptor> registeredParameters,
+        ModelStateDictionary modelState)
+    {
+        ArgumentNullException.ThrowIfNull(registeredParameters);
+        ArgumentNullException.ThrowIfNull(modelState);
+
+        if (ModelParameters is not { Count: > 0 })
+        {
+            return;
+        }
+
+        var registered = registeredParameters
+            .Where(parameter => !string.IsNullOrWhiteSpace(parameter.Name))
+            .ToDictionary(parameter => parameter.Name, StringComparer.OrdinalIgnoreCase);
+
+        for (var i = 0; i < ModelParameters.Count; i++)
+        {
+            var row = ModelParameters[i];
+
+            if (row is null || !row.IsSupported || string.IsNullOrWhiteSpace(row.Name))
+            {
+                continue;
+            }
+
+            var prefix = $"{nameof(ModelParameters)}[{i}]";
+
+            if (!registered.TryGetValue(row.Name, out var descriptor))
+            {
+                modelState.AddModelError($"{prefix}.{nameof(row.Name)}", $"'{row.Name}' is not a registered model parameter.");
+
+                continue;
+            }
+
+            // Build the effective descriptor exactly as the runtime does (registered definition narrowed
+            // by the per-deployment overrides), then reuse the descriptor's own validation so the editor
+            // and the request pipeline agree on what is valid.
+            var effective = descriptor.Clone();
+
+            if (row.SelectedAllowedValues is { Length: > 0 })
+            {
+                var registeredValues = new HashSet<string>(
+                    descriptor.AllowedValues?.Select(option => option.Value) ?? [],
+                    StringComparer.OrdinalIgnoreCase);
+
+                foreach (var selected in row.SelectedAllowedValues.Where(value => !string.IsNullOrWhiteSpace(value)))
+                {
+                    if (!registeredValues.Contains(selected))
+                    {
+                        modelState.AddModelError($"{prefix}.{nameof(row.SelectedAllowedValues)}", $"'{selected}' is not a registered value for '{descriptor.Name}'.");
+                    }
+                }
+
+                effective.AllowedValues =
+                [
+                    .. (descriptor.AllowedValues ?? [])
+                        .Where(option => row.SelectedAllowedValues.Any(value => string.Equals(value, option.Value, StringComparison.OrdinalIgnoreCase)))
+                ];
+            }
+
+            if (row.Minimum.HasValue)
+            {
+                effective.Minimum = row.Minimum;
+            }
+
+            if (row.Maximum.HasValue)
+            {
+                effective.Maximum = row.Maximum;
+            }
+
+            if (row.Step.HasValue)
+            {
+                effective.Step = row.Step;
+            }
+
+            if (effective.Minimum.HasValue && effective.Maximum.HasValue && effective.Minimum > effective.Maximum)
+            {
+                modelState.AddModelError($"{prefix}.{nameof(row.Minimum)}", "The minimum cannot be greater than the maximum.");
+            }
+
+            if (effective.Step is <= 0)
+            {
+                modelState.AddModelError($"{prefix}.{nameof(row.Step)}", "The step must be greater than zero.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.DefaultValue) && !effective.IsValidValue(row.DefaultValue))
+            {
+                modelState.AddModelError($"{prefix}.{nameof(row.DefaultValue)}", $"The default value '{row.DefaultValue}' is not valid for the supported values or range of '{descriptor.Name}'.");
+            }
+        }
+    }
+
     public void ApplyTo(AIDeployment deployment)
     {
         deployment.Name = TechnicalName;
