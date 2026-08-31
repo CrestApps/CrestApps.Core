@@ -45,6 +45,38 @@ public static class AIProviderErrorHelper
     }
 
     /// <summary>
+    /// Determines whether the specified exception represents a provider "not found" (HTTP 404) failure.
+    /// </summary>
+    /// <param name="ex">The exception to inspect.</param>
+    /// <returns>
+    /// <see langword="true"/> when the exception chain contains an HTTP 404 response; otherwise, <see langword="false"/>.
+    /// For most providers a 404 during a completion indicates the configured model/deployment name or the
+    /// connection endpoint could not be found (for example, an Ollama model that has not been pulled).
+    /// </returns>
+    public static bool IsNotFoundException(Exception ex)
+    {
+        if (ex is null)
+        {
+            return false;
+        }
+
+        foreach (var current in EnumerateExceptions(ex))
+        {
+            if (current is HttpRequestException { StatusCode: HttpStatusCode.NotFound })
+            {
+                return true;
+            }
+
+            if (TryGetClientResultStatusCode(current) == (int)HttpStatusCode.NotFound)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Attempts to read a provider status code from a known client exception shape.
     /// </summary>
     /// <param name="ex">The exception to inspect.</param>

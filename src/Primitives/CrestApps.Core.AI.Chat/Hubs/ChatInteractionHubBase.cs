@@ -225,6 +225,11 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             return GetInvalidChatModelSettingsMessage();
         }
 
+        if (AIHubErrorMessageHelper.IsModelOrEndpointNotFoundFailure(ex))
+        {
+            return GetModelOrEndpointNotFoundMessage();
+        }
+
         return "An error occurred while processing your message.";
     }
 
@@ -234,6 +239,15 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     protected virtual string GetInvalidChatModelSettingsMessage()
     {
         return "The chat model settings are missing or invalid. Update the Chat model in this chat interaction, the linked AI Profile, or the global AI settings.";
+    }
+
+    /// <summary>
+    /// Gets the message returned when the provider responds with a 404 (Not Found), which usually
+    /// means the deployment's model name or the connection endpoint is incorrect.
+    /// </summary>
+    protected virtual string GetModelOrEndpointNotFoundMessage()
+    {
+        return "The AI provider could not find the requested model or endpoint (404). Verify that the deployment's model name exists on the provider and that the connection endpoint is correct. If you are using Ollama, make sure the model has been pulled first.";
     }
 
     /// <summary>

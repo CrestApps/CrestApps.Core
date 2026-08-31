@@ -175,6 +175,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             return GetInvalidChatModelSettingsMessage();
         }
 
+        if (AIHubErrorMessageHelper.IsModelOrEndpointNotFoundFailure(ex))
+        {
+            return GetModelOrEndpointNotFoundMessage();
+        }
+
         return "An error occurred processing your message.";
     }
 
@@ -184,6 +189,15 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     protected virtual string GetInvalidChatModelSettingsMessage()
     {
         return "The chat model settings are missing or invalid. Update the Chat model in the AI Profile or the global AI settings.";
+    }
+
+    /// <summary>
+    /// Gets the message returned when the provider responds with a 404 (Not Found), which usually
+    /// means the deployment's model name or the connection endpoint is incorrect.
+    /// </summary>
+    protected virtual string GetModelOrEndpointNotFoundMessage()
+    {
+        return "The AI provider could not find the requested model or endpoint (404). Verify that the deployment's model name exists on the provider and that the connection endpoint is correct. If you are using Ollama, make sure the model has been pulled first.";
     }
 
     /// <summary>
@@ -282,6 +296,36 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     protected virtual string GetPromptBlockedMessage()
     {
         return "Your message could not be processed. Please rephrase and try again.";
+    }
+
+    /// <summary>
+    /// Gets the message returned to users when their message is blocked because they exceeded the
+    /// message rate limit. Unlike other security blocks, this tells the caller to slow down (and how
+    /// long to wait) instead of asking them to rephrase.
+    /// </summary>
+    /// <param name="result">The prompt security result carrying the rate-limit reason.</param>
+    protected virtual string GetRateLimitedMessage(PromptSecurityResult result)
+    {
+        return !string.IsNullOrWhiteSpace(result?.Reason)
+            ? result.Reason
+            : "You're sending messages too quickly. Please slow down and try again in a moment.";
+    }
+
+    /// <summary>
+    /// Resolves the user-facing message for a blocked prompt security result. Rate-limit blocks get a
+    /// "slow down" message; every other block gets the generic <see cref="GetPromptBlockedMessage"/>
+    /// so detection details are never disclosed.
+    /// </summary>
+    /// <param name="result">The blocked prompt security result.</param>
+    protected string GetBlockedPromptMessage(PromptSecurityResult result)
+    {
+        if (result is not null &&
+            string.Equals(result.DetectionRule, PromptSecurityResult.RateLimitDetectionRule, StringComparison.Ordinal))
+        {
+            return GetRateLimitedMessage(result);
+        }
+
+        return GetPromptBlockedMessage();
     }
 
     /// <summary>
@@ -418,7 +462,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             c.FrequencyPenalty = 0;
             c.PresencePenalty = 0;
             c.TopP = 1;
-            c.Temperature = 0;
+            c.Temperature = null;
             c.MaxTokens = 64;
             c.DataSourceId = null;
             c.DisableTools = true;
@@ -593,7 +637,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
             if (sessionStartLimitResult.IsThrottled)
             {
-                await Clients.Caller.ReceiveError(GetSessionStartRateLimitMessage(sessionStartLimitResult));
+                await Clients.Caller.ReceiveSessionStartRejected(GetSessionStartRateLimitMessage(sessionStartLimitResult));
 
                 return;
             }
@@ -707,6 +751,25 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         {
             try
             {
+                // Authorize the caller against the target session's profile before dispatching.
+                // Notification action handlers mutate the session by id (e.g. end/close, reroute),
+                // so without this check any caller able to reach the hub could act on an arbitrary
+                // session id. This mirrors the per-profile authorization the other hub methods use.
+                var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
+                var profileManager = services.GetRequiredService<IAIProfileManager>();
+
+                var chatSession = await sessionManager.FindAsync(sessionId);
+                if (chatSession is null)
+                {
+                    return;
+                }
+
+                var profile = await profileManager.FindByIdAsync(chatSession.ProfileId);
+                if (profile is null || !await AuthorizeProfileAsync(services, profile))
+                {
+                    return;
+                }
+
                 var handler = services.GetKeyedService<IChatNotificationActionHandler>(actionName);
                 if (handler is null)
                 {
@@ -1099,7 +1162,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
                 if (utilitySecurityResult.IsBlocked)
                 {
-                    await Clients.Caller.ReceiveError(GetPromptBlockedMessage());
+                    await Clients.Caller.ReceiveError(GetBlockedPromptMessage(utilitySecurityResult));
 
                     return;
                 }
@@ -1116,7 +1179,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
                 if (securityResult.IsBlocked)
                 {
-                    await Clients.Caller.ReceiveError(GetPromptBlockedMessage());
+                    await Clients.Caller.ReceiveError(GetBlockedPromptMessage(securityResult));
 
                     return;
                 }
@@ -1177,6 +1240,12 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         try
         {
             (chatSession, isNew) = await GetOrCreateSessionAsync(services, sessionId, profile, prompt);
+        }
+        catch (ChatSessionStartRateLimitedException ex)
+        {
+            await Clients.Caller.ReceiveSessionStartRejected(ex.Message);
+
+            return;
         }
         catch (InvalidOperationException ex)
         {
@@ -1401,6 +1470,12 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         {
             (chatSession, _) = await GetOrCreateSessionAsync(services, sessionId, parentProfile, userPrompt: profile.Name);
         }
+        catch (ChatSessionStartRateLimitedException ex)
+        {
+            await Clients.Caller.ReceiveSessionStartRejected(ex.Message);
+
+            return;
+        }
         catch (InvalidOperationException ex)
         {
             await Clients.Caller.ReceiveError(ex.Message);
@@ -1507,7 +1582,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
         if (sessionStartLimitResult.IsThrottled)
         {
-            throw new InvalidOperationException(GetSessionStartRateLimitMessage(sessionStartLimitResult));
+            throw new ChatSessionStartRateLimitedException(GetSessionStartRateLimitMessage(sessionStartLimitResult));
         }
 
         var chatSession = await sessionManager.NewAsync(profile, new NewAIChatSessionContext());
@@ -1561,14 +1636,19 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     }
 
     /// <summary>
-    /// Builds a session-start rate-limit message.
+    /// Builds a session-start rate-limit message shown to the caller.
     /// </summary>
     /// <param name="result">The rate-limit result.</param>
+    /// <remarks>
+    /// The message is intentionally generic: it never discloses the configured limit, the current
+    /// count, or the exact retry delay, since exposing those values helps an abuser tune around the
+    /// throttle. It still tells a legitimate visitor what happened and that waiting will resolve it.
+    /// </remarks>
     protected virtual string GetSessionStartRateLimitMessage(RateLimitResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
 
-        return $"Too many new chat sessions were started from this visitor. Please wait {result.RetryAfterSeconds} second(s) and try again.";
+        return "You've reached the limit for starting new chats. Please wait a few minutes and try again.";
     }
 
     private static AIVisitorIdentity ResolveVisitorIdentity(IServiceProvider services)

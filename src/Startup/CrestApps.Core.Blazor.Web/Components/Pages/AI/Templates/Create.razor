@@ -36,6 +36,8 @@
 @inject ClaudeClientService ClaudeClientService
 @inject IOptionsMonitor<CopilotOptions> CopilotOpts
 @inject IOptions<AIToolDefinitionOptions> ToolOpts
+@inject IAIToolAccessEvaluator ToolAccessEvaluator
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IOptionsMonitor<InteractionDocumentOptions> DocOpts
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
@@ -608,7 +610,7 @@
         if (_nameError != null || _sourceError != null) return;
 
         SyncCheckboxSelections();
-        _model.SelectedToolNames = GetValidToolNames(_model.SelectedToolNames);
+        _model.SelectedToolNames = await GetValidToolNamesAsync(_model.SelectedToolNames);
         _model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(_model.SelectedA2AConnectionIds);
         _model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(_model.SelectedMcpConnectionIds);
         _model.SelectedAgentNames = await GetValidAgentNamesAsync(_model.SelectedAgentNames);
@@ -713,9 +715,12 @@
         _model.CopilotIsConfigured = hasCopilotOptions && copilotOptions.IsConfigured();
         _model.CopilotAuthenticationType = hasCopilotOptions ? copilotOptions.AuthenticationType : default;
 
-        var toolOpts = ToolOpts.Value;
         var selectedNames = new HashSet<string>(_model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
-        _model.AvailableTools = toolOpts.GetSelectableTools()
+        // Only list tools the current user is authorized to select. The default IAIToolAccessEvaluator
+        // permits everything; replace it to enforce a real per-user tool permission model.
+        var currentUser = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var authorizedTools = await SelectableToolAccessFilter.GetAuthorizedSelectableToolsAsync(ToolOpts.Value, ToolAccessEvaluator, currentUser);
+        _model.AvailableTools = authorizedTools
             .Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key) })
             .OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
 
@@ -765,9 +770,12 @@
         return (ids ?? []).Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id)).Distinct(StringComparer.Ordinal).ToArray();
     }
 
-    private string[] GetValidToolNames(IEnumerable<string> names)
+    private async Task<string[]> GetValidToolNamesAsync(IEnumerable<string> names)
     {
-        var validToolNames = ToolOpts.Value.GetSelectableTools().Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Reject any persisted tool name the current user is not authorized to select, so a tampered
+        // request cannot save a listable tool the author lacks access to.
+        var currentUser = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var validToolNames = await SelectableToolAccessFilter.GetAuthorizedSelectableToolNamesAsync(ToolOpts.Value, ToolAccessEvaluator, currentUser);
 
         return (names ?? []).Where(name => !string.IsNullOrWhiteSpace(name) && validToolNames.Contains(name)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }

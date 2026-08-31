@@ -12,13 +12,17 @@
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
 @using CrestApps.Core.AI.Security
+@using CrestApps.Core.AI.Tooling
 @using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
 @using CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Models
 @using CrestApps.Core.Blazor.Web.Models
 @using CrestApps.Core.Blazor.Web.Services
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Infrastructure.Indexing
+@using CrestApps.Core.Services
+@using CrestApps.Core.Startup.Shared.Services
 @using Microsoft.AspNetCore.DataProtection
+@using Microsoft.Extensions.Options
 
 @inject SiteSettingsStore SiteSettings
 @inject IAIDeploymentManager DeploymentManager
@@ -28,6 +32,8 @@
 @inject ClaudeClientService ClaudeClientService
 @inject SiteSettingsChangedNotifier SettingsChangedNotifier
 @inject ToastNotificationService ToastNotifications
+@inject IOptions<AIToolDefinitionOptions> ToolOptionsAccessor
+@inject ISourceCatalog<AIToolInstance> ToolInstanceCatalog
 
 <PageTitle>AI Settings - Blazor AI Integration Sample</PageTitle>
 
@@ -380,7 +386,7 @@ else
                                 {
                                     <span class="text-danger">@maxMessagesErr</span>
                                 }
-                                <div class="form-text">Anonymous and authenticated chat prompts are throttled after this many messages. Set to 0 to disable message throttling.</div>
+                                <div class="form-text">Governs <strong>authenticated</strong> callers, and anonymous callers only when no anonymous message tiers are set below. Set to 0 to disable message throttling.</div>
                             </div>
 
                             <div class="mb-3">
@@ -394,13 +400,23 @@ else
                             </div>
 
                             <div class="mb-3">
-                                <label for="securityMaxAnonymousSessionsPerWindow" class="form-label">Maximum anonymous sessions per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of new anonymous widget sessions that can be started from one visitor or IP bucket within the session window before starts are throttled. This is the site-wide default; individual AI Profiles can override it. Set to 0 to disable session-start throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                                <label for="securityAnonymousMessageRateLimitTiers" class="form-label">Anonymous message rate-limit tiers <span class="text-muted" data-bs-toggle="tooltip" title="Multi-tier sliding-window message limits applied to anonymous callers. A message is throttled when it would exceed any tier. Leave empty to fall back to the single message window above."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                                <textarea id="securityAnonymousMessageRateLimitTiers" class="form-control" rows="4" style="max-width: 400px;" placeholder="5, 00:00:30&#10;30, 00:05:00&#10;150, 01:00:00&#10;500, 1.00:00:00" @bind="_model.SecurityAnonymousMessageRateLimitTiers"></textarea>
+                                @if (_errors.TryGetValue(nameof(_model.SecurityAnonymousMessageRateLimitTiers), out var anonymousMessageTiersErr))
+                                {
+                                    <span class="text-danger">@anonymousMessageTiersErr</span>
+                                }
+                                <div class="form-text">One tier per line as <code>limit, window</code> (window as <code>hh:mm:ss</code>, e.g. <code>1.00:00:00</code> for a day). Applies to anonymous callers only; a message is throttled if it exceeds any tier. Leave empty to use the single window above.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="securityMaxAnonymousSessionsPerWindow" class="form-label">Maximum anonymous sessions per window <span class="text-muted" data-bs-toggle="tooltip" title="Fallback session-start limit used only when no anonymous session-start tiers are set below. This is the site-wide default; individual AI Profiles can override it. Set to 0 to disable session-start throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
                                 <input id="securityMaxAnonymousSessionsPerWindow" class="form-control" type="number" min="0" max="500" style="max-width: 200px;" @bind="_model.SecurityMaxAnonymousSessionsPerWindow" />
                                 @if (_errors.TryGetValue(nameof(_model.SecurityMaxAnonymousSessionsPerWindow), out var maxSessionsErr))
                                 {
                                     <span class="text-danger">@maxSessionsErr</span>
                                 }
-                                <div class="form-text">Limits how many new anonymous widget sessions can be started from the same visitor/IP bucket. Set to 0 to disable session-start throttling.</div>
+                                <div class="form-text">Fallback used only when no anonymous session-start tiers are set below. Set to 0 to disable session-start throttling.</div>
                             </div>
 
                             <div class="mb-3">
@@ -411,6 +427,16 @@ else
                                     <span class="text-danger">@anonymousWindowErr</span>
                                 }
                                 <div class="form-text">Determines how long anonymous session-start counters remain active for the ASP.NET Core and hub session throttles.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="securityAnonymousSessionStartRateLimitTiers" class="form-label">Anonymous session-start rate-limit tiers <span class="text-muted" data-bs-toggle="tooltip" title="Multi-tier sliding-window limits on new anonymous session starts. A session start is throttled when it would exceed any tier. Leave empty to fall back to the single session window above."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                                <textarea id="securityAnonymousSessionStartRateLimitTiers" class="form-control" rows="4" style="max-width: 400px;" placeholder="5, 00:00:30&#10;10, 00:05:00&#10;150, 01:00:00&#10;500, 1.00:00:00" @bind="_model.SecurityAnonymousSessionStartRateLimitTiers"></textarea>
+                                @if (_errors.TryGetValue(nameof(_model.SecurityAnonymousSessionStartRateLimitTiers), out var anonymousSessionTiersErr))
+                                {
+                                    <span class="text-danger">@anonymousSessionTiersErr</span>
+                                }
+                                <div class="form-text">One tier per line as <code>limit, window</code> (window as <code>hh:mm:ss</code>, e.g. <code>1.00:00:00</code> for a day). Applies to anonymous callers only; a session start is throttled if it exceeds any tier. Leave empty to use the single window above.</div>
                             </div>
                         }
                     </div>
@@ -724,6 +750,79 @@ else
                             <InputCheckbox id="mcpRequireAccess" @bind-Value="_model.McpServerRequireAccessPermission" class="form-check-input" />
                             <label for="mcpRequireAccess" class="form-check-label">Require administrator access for OpenId mode</label>
                         </div>
+
+                        <hr />
+                        <p class="text-muted mb-2">
+                            Choose which tools and configured tool instances are exposed to MCP clients. Nothing is
+                            exposed by default; select the tools to allow, or expose everything.
+                        </p>
+                        <div class="form-check form-switch mb-3">
+                            <InputCheckbox id="mcpExposeAll" @bind-Value="_model.McpServerExposeAllTools" class="form-check-input" />
+                            <label for="mcpExposeAll" class="form-check-label">Expose all tools and tool instances</label>
+                        </div>
+                        @if (!_model.McpServerExposeAllTools)
+                        {
+                            <div class="mb-3">
+                                <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-tools"></i> Exposed tools</h6>
+                                @if (_model.McpServerAvailableTools.Count > 0 || _model.McpServerAvailableToolInstances.Count > 0)
+                                {
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <p class="text-muted mb-0 small">Select the tools and configured tool instances MCP clients can discover and invoke.</p>
+                                        <div class="btn-group btn-group-sm ms-3">
+                                            <button type="button" class="btn btn-outline-primary" @onclick="SelectAllMcpServerTools"><i class="bi bi-check-all"></i> Select all</button>
+                                            <button type="button" class="btn btn-outline-secondary" @onclick="DeselectAllMcpServerTools"><i class="bi bi-x-lg"></i> Deselect all</button>
+                                        </div>
+                                    </div>
+                                }
+                                @if (_model.McpServerAvailableTools.Count == 0)
+                                {
+                                    <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No AI tools are registered.</div>
+                                }
+                                else
+                                {
+                                    @foreach (var group in _model.McpServerAvailableTools.GroupBy(tool => tool.Category).OrderBy(group => group.Key))
+                                    {
+                                        <h6 class="text-secondary mt-3 mb-2"><i class="bi bi-folder"></i> @group.Key</h6>
+                                        @foreach (var tool in group)
+                                        {
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" checked="@tool.IsSelected" @onchange="e => ToggleMcpServerTool(tool.Name, (bool)e.Value)" id="mcp_tool_@tool.Name" />
+                                                <label class="form-check-label" for="mcp_tool_@tool.Name">
+                                                    <strong>@tool.Title</strong>
+                                                    @if (!string.IsNullOrEmpty(tool.Description))
+                                                    {
+                                                        <br /><small class="text-muted">@tool.Description</small>
+                                                    }
+                                                </label>
+                                            </div>
+                                        }
+                                    }
+                                }
+
+                                <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> Exposed tool instances</h6>
+                                @if (_model.McpServerAvailableToolInstances.Count == 0)
+                                {
+                                    <div class="alert alert-info mb-0"><i class="bi bi-info-circle"></i> No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.</div>
+                                }
+                                else
+                                {
+                                    @foreach (var instance in _model.McpServerAvailableToolInstances)
+                                    {
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" checked="@instance.IsSelected" @onchange="e => ToggleMcpServerToolInstance(instance.ItemId, (bool)e.Value)" id="mcp_toolinstance_@instance.ItemId" />
+                                            <label class="form-check-label" for="mcp_toolinstance_@instance.ItemId">
+                                                <strong>@instance.Name</strong>
+                                                <span class="badge bg-info text-dark ms-1">@instance.Source</span>
+                                                @if (!string.IsNullOrEmpty(instance.Description))
+                                                {
+                                                    <br /><small class="text-muted">@instance.Description</small>
+                                                }
+                                            </label>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        }
                     </div>
                 </div>
 
@@ -870,6 +969,8 @@ else
             McpServerAuthenticationType = mcpServerSettings.AuthenticationType,
             McpServerApiKey = mcpServerSettings.ApiKey,
             McpServerRequireAccessPermission = mcpServerSettings.RequireAccessPermission,
+            McpServerExposeAllTools = mcpServerSettings.ExposeAllTools,
+            McpServerSelectedToolNames = mcpServerSettings.Tools?.ToArray() ?? [],
 
             CopilotAuthenticationType = copilotSettings.AuthenticationType,
             CopilotClientId = copilotSettings.ClientId,
@@ -901,8 +1002,10 @@ else
             SecurityBlockingThreshold = promptSecuritySettings.BlockingThreshold,
             SecurityMaxMessagesPerWindow = promptSecuritySettings.MaxMessagesPerWindow,
             SecurityRateLimitWindowSeconds = (int)Math.Round(promptSecuritySettings.RateLimitWindow.TotalSeconds),
+            SecurityAnonymousMessageRateLimitTiers = ChatRateLimitTierTextFormatter.Format(promptSecuritySettings.AnonymousMessageRateLimitTiers),
             SecurityMaxAnonymousSessionsPerWindow = promptSecuritySettings.MaxAnonymousSessionsPerWindow,
             SecurityAnonymousSessionRateLimitWindowSeconds = (int)Math.Round(promptSecuritySettings.AnonymousSessionRateLimitWindow.TotalSeconds),
+            SecurityAnonymousSessionStartRateLimitTiers = ChatRateLimitTierTextFormatter.Format(promptSecuritySettings.AnonymousSessionStartRateLimitTiers),
             SecurityRemoteAddressMode = visitorIdentitySettings.RemoteAddressMode,
         };
 
@@ -941,7 +1044,40 @@ else
             .Select(p => new KeyValuePair<string, string>(p.ItemId, p.DisplayText ?? p.Name))
             .ToList();
 
+        await PopulateMcpServerToolsAsync();
         await PopulateClaudeModelsAsync();
+    }
+
+    private async Task PopulateMcpServerToolsAsync()
+    {
+        var selectedNames = new HashSet<string>(_model.McpServerSelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
+
+        _model.McpServerAvailableTools = ToolOptionsAccessor.Value.Tools
+            .Where(tool => !tool.Value.Hidden)
+            .Select(tool => new McpServerToolSelectionItem
+            {
+                Name = tool.Key,
+                Title = tool.Value.Title ?? tool.Key,
+                Description = tool.Value.Description,
+                Category = tool.Value.Category ?? "Miscellaneous",
+                IsSelected = selectedNames.Contains(tool.Key) || selectedNames.Contains(tool.Value.Name),
+            })
+            .OrderBy(tool => tool.Category, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(tool => tool.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        _model.McpServerAvailableToolInstances = (await ToolInstanceCatalog.GetAllAsync())
+            .Where(instance => !string.IsNullOrWhiteSpace(instance.Name))
+            .OrderBy(instance => instance.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(instance => new McpServerToolInstanceSelectionItem
+            {
+                ItemId = instance.ItemId,
+                Name = instance.Name,
+                Description = instance.Description,
+                Source = instance.Source,
+                IsSelected = selectedNames.Contains(instance.Name),
+            })
+            .ToList();
     }
 
     private void OnCopilotAuthTypeChanged(ChangeEventArgs e)
@@ -963,6 +1099,65 @@ else
         {
             _model.McpServerAuthenticationType = value;
         }
+    }
+
+    private void ToggleMcpServerTool(string name, bool value)
+    {
+        var tool = _model.McpServerAvailableTools.FirstOrDefault(item => item.Name == name);
+
+        if (tool is not null)
+        {
+            tool.IsSelected = value;
+        }
+    }
+
+    private void ToggleMcpServerToolInstance(string itemId, bool value)
+    {
+        var instance = _model.McpServerAvailableToolInstances.FirstOrDefault(item => item.ItemId == itemId);
+
+        if (instance is not null)
+        {
+            instance.IsSelected = value;
+        }
+    }
+
+    private void SelectAllMcpServerTools()
+    {
+        foreach (var tool in _model.McpServerAvailableTools)
+        {
+            tool.IsSelected = true;
+        }
+
+        foreach (var instance in _model.McpServerAvailableToolInstances)
+        {
+            instance.IsSelected = true;
+        }
+    }
+
+    private void DeselectAllMcpServerTools()
+    {
+        foreach (var tool in _model.McpServerAvailableTools)
+        {
+            tool.IsSelected = false;
+        }
+
+        foreach (var instance in _model.McpServerAvailableToolInstances)
+        {
+            instance.IsSelected = false;
+        }
+    }
+
+    private string[] GetSelectedMcpServerToolNames()
+    {
+        return _model.McpServerAvailableTools
+            .Where(tool => tool.IsSelected)
+            .Select(tool => tool.Name)
+            .Concat(_model.McpServerAvailableToolInstances
+                .Where(instance => instance.IsSelected)
+                .Select(instance => instance.Name))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private void OnAnthropicAuthTypeChanged(ChangeEventArgs e)
@@ -1011,6 +1206,7 @@ else
     private async Task HandleSaveAsync()
     {
         _errors.Clear();
+        _model.McpServerSelectedToolNames = GetSelectedMcpServerToolNames();
 
         if (_model.MaximumIterationsPerRequest < 1)
         {
@@ -1082,6 +1278,16 @@ else
         if (_model.SecurityAnonymousSessionRateLimitWindowSeconds < 1 || _model.SecurityAnonymousSessionRateLimitWindowSeconds > 86400)
         {
             _errors[nameof(_model.SecurityAnonymousSessionRateLimitWindowSeconds)] = "Must be between 1 and 86,400 seconds.";
+        }
+
+        if (!ChatRateLimitTierTextFormatter.TryParse(_model.SecurityAnonymousMessageRateLimitTiers, out _, out var anonymousMessageTiersError))
+        {
+            _errors[nameof(_model.SecurityAnonymousMessageRateLimitTiers)] = anonymousMessageTiersError;
+        }
+
+        if (!ChatRateLimitTierTextFormatter.TryParse(_model.SecurityAnonymousSessionStartRateLimitTiers, out _, out var anonymousSessionTiersError))
+        {
+            _errors[nameof(_model.SecurityAnonymousSessionStartRateLimitTiers)] = anonymousSessionTiersError;
         }
 
         if (!string.IsNullOrWhiteSpace(_model.AdminWidgetPrimaryColor) &&
@@ -1182,6 +1388,10 @@ else
             AuthenticationType = _model.McpServerAuthenticationType,
             ApiKey = _model.McpServerApiKey?.Trim(),
             RequireAccessPermission = _model.McpServerRequireAccessPermission,
+            ExposeAllTools = _model.McpServerExposeAllTools,
+            Tools = _model.McpServerExposeAllTools
+                ? []
+                : _model.McpServerSelectedToolNames.ToList(),
         });
 
         SiteSettings.Set(new MemoryMetadata
@@ -1249,6 +1459,9 @@ else
                 : _model.AdminWidgetPrimaryColor.Trim(),
         });
 
+        ChatRateLimitTierTextFormatter.TryParse(_model.SecurityAnonymousMessageRateLimitTiers, out var anonymousMessageTiers, out _);
+        ChatRateLimitTierTextFormatter.TryParse(_model.SecurityAnonymousSessionStartRateLimitTiers, out var anonymousSessionTiers, out _);
+
         SiteSettings.Set(new PromptSecurityOptions
         {
             EnableInjectionDetection = _model.SecurityEnabled && _model.SecurityEnableInjectionDetection,
@@ -1260,8 +1473,10 @@ else
             BlockingThreshold = _model.SecurityBlockingThreshold,
             MaxMessagesPerWindow = _model.SecurityMaxMessagesPerWindow,
             RateLimitWindow = TimeSpan.FromSeconds(_model.SecurityRateLimitWindowSeconds),
+            AnonymousMessageRateLimitTiers = anonymousMessageTiers,
             MaxAnonymousSessionsPerWindow = _model.SecurityMaxAnonymousSessionsPerWindow,
             AnonymousSessionRateLimitWindow = TimeSpan.FromSeconds(_model.SecurityAnonymousSessionRateLimitWindowSeconds),
+            AnonymousSessionStartRateLimitTiers = anonymousSessionTiers,
         });
 
         var visitorIdentitySettings = SiteSettings.Get<AIVisitorIdentityOptions>();

@@ -93,6 +93,11 @@ public class SourceParityTests
         { "AIDataSources/Create", "src/Startup/CrestApps.Core.Mvc.Web/Areas/DataSources/Views/AIDataSource/Create.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/DataSources/AIDataSources/Create.razor" },
         { "AIDataSources/Edit", "src/Startup/CrestApps.Core.Mvc.Web/Areas/DataSources/Views/AIDataSource/Edit.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/DataSources/AIDataSources/Edit.razor" },
 
+        // Web Crawlers
+        { "WebCrawlers/Index", "src/Startup/CrestApps.Core.Mvc.Web/Areas/WebCrawlers/Views/WebCrawler/Index.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/WebCrawlers/Index.razor" },
+        { "WebCrawlers/Create", "src/Startup/CrestApps.Core.Mvc.Web/Areas/WebCrawlers/Views/WebCrawler/Create.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/WebCrawlers/Create.razor" },
+        { "WebCrawlers/Edit", "src/Startup/CrestApps.Core.Mvc.Web/Areas/WebCrawlers/Views/WebCrawler/Edit.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/WebCrawlers/Edit.razor" },
+
         // Indexing
         { "IndexProfiles/Index", "src/Startup/CrestApps.Core.Mvc.Web/Areas/Indexing/Views/IndexProfile/Index.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/Indexing/IndexProfiles/Index.razor" },
         { "IndexProfiles/Create", "src/Startup/CrestApps.Core.Mvc.Web/Areas/Indexing/Views/IndexProfile/Create.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/Indexing/IndexProfiles/Create.razor" },

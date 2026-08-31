@@ -6,6 +6,13 @@ namespace CrestApps.Core.AI.Security;
 public sealed class PromptSecurityResult
 {
     /// <summary>
+    /// The <see cref="DetectionRule"/> value used when a prompt is blocked because the caller
+    /// exceeded the message rate limit. Callers can check for this to surface a "slow down" message
+    /// instead of the generic blocked message.
+    /// </summary>
+    public const string RateLimitDetectionRule = "rate-limit";
+
+    /// <summary>
     /// A shared instance representing a safe result with no detected risk.
     /// </summary>
     public static readonly PromptSecurityResult Safe = new();

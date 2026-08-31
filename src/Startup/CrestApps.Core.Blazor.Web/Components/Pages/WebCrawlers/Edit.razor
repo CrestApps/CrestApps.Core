@@ -1,0 +1,219 @@
+@page "/webcrawlers/edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.DataSources
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.WebCrawlers
+@using CrestApps.Core.AI.WebCrawlers.Strategies
+@using CrestApps.Core.Blazor.Web.ViewModels
+@using CrestApps.Core.Services
+@using Microsoft.Extensions.Options
+@inject ISourceCatalogManager<WebCrawler> Manager
+@inject IAIDataSourceStore DataSourceStore
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+@inject IOptions<WebCrawlerStrategyOptions> StrategyOptions
+
+<PageTitle>Edit Web Crawler</PageTitle>
+
+<h2><i class="bi bi-pencil"></i> Edit Web Crawler</h2>
+<hr />
+
+@if (_notFound)
+{
+    <div class="alert alert-warning">The web crawler could not be found.</div>
+}
+else if (_model == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm FormName="webcrawlers-edit" Model="_model" OnValidSubmit="HandleSubmitAsync">
+        <div class="row">
+            <div class="col-md-8">
+                @if (_errors.Count > 0)
+                {
+                    <div class="alert alert-danger">
+                        @foreach (var error in _errors)
+                        {
+                            <div>@error</div>
+                        }
+                    </div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Title <span class="text-danger">*</span></label>
+                    <InputText @bind-Value="_model.DisplayText" class="form-control" placeholder="e.g., Docs site" />
+                    <div class="form-text">A human-readable name for this crawler.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Target Web data source <span class="text-danger">*</span></label>
+                    <InputSelect @bind-Value="_model.AIDataSourceId" class="form-select">
+                        <option value="">Select data source</option>
+                        @foreach (var item in _dataSources)
+                        {
+                            <option value="@item.Key">@item.Value</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">The Web data source whose knowledge base receives the scraped pages. Create one under Data Sources using the <strong>Web</strong> source type.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Strategy <span class="text-danger">*</span></label>
+                    <InputSelect @bind-Value="_model.Source" class="form-select">
+                        <option value="">Select strategy</option>
+                        @foreach (var item in _strategies)
+                        {
+                            <option value="@item.Key">@item.Value</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">How the site is discovered and fetched.</div>
+                </div>
+
+                <div class="mb-3 form-check">
+                    <InputCheckbox @bind-Value="_model.Enabled" class="form-check-input" />
+                    <label class="form-check-label">Enabled</label>
+                    <div class="form-text">Disabled crawlers are skipped by the re-index background service.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Re-index interval (minutes)</label>
+                    <InputNumber @bind-Value="_model.ReindexIntervalMinutes" class="form-control" placeholder="1440" />
+                    <div class="form-text">How often the background service re-crawls this site and re-indexes changed pages.</div>
+                </div>
+
+                @if (IsSitemapStrategy())
+                {
+                    <hr />
+                    <h5>Sitemap Settings</h5>
+                    <div class="alert alert-info">
+                        Discover pages through the site's sitemap(s). Provide a base URL or an explicit sitemap URL; each page is fetched, cleaned to text, and indexed with its URL kept for citations.
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Base URL</label>
+                        <InputText @bind-Value="_model.SitemapBaseUrl" class="form-control" placeholder="https://docs.example.com" />
+                        <div class="form-text">Used to resolve the sitemap from robots.txt and the conventional locations when no explicit sitemap URL is given.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Sitemap URL</label>
+                        <InputText @bind-Value="_model.SitemapUrl" class="form-control" placeholder="https://docs.example.com/sitemap.xml" />
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Max pages</label>
+                            <InputNumber @bind-Value="_model.SitemapMaxPages" class="form-control" placeholder="500" />
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Max concurrent requests</label>
+                            <InputNumber @bind-Value="_model.SitemapMaxConcurrentRequests" class="form-control" placeholder="4" />
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Request timeout (seconds)</label>
+                            <InputNumber @bind-Value="_model.SitemapRequestTimeoutSeconds" class="form-control" placeholder="30" />
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">User agent</label>
+                        <InputText @bind-Value="_model.SitemapUserAgent" class="form-control" placeholder="CrestApps-WebCrawler/1.0 (+https://crestapps.com)" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Include URL patterns</label>
+                        <InputTextArea @bind-Value="_model.SitemapIncludeUrlPatterns" class="form-control" rows="3" placeholder="One regular expression per line" />
+                        <div class="form-text">Optional. A page URL must match at least one pattern to be scraped. Leave empty to include every discovered page.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Exclude URL patterns</label>
+                        <InputTextArea @bind-Value="_model.SitemapExcludeUrlPatterns" class="form-control" rows="3" placeholder="One regular expression per line" />
+                        <div class="form-text">Optional. A page URL matching any pattern is skipped.</div>
+                    </div>
+                }
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                    <a href="/webcrawlers" class="btn btn-secondary ms-2">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; }
+
+    private WebCrawlerViewModel _model;
+    private bool _notFound;
+    private List<string> _errors = [];
+    private List<KeyValuePair<string, string>> _strategies = [];
+    private List<KeyValuePair<string, string>> _dataSources = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var crawler = await Manager.FindByIdAsync(Id);
+
+        if (crawler == null)
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        _model = WebCrawlerViewModel.FromCrawler(crawler);
+        await PopulateDropdownsAsync();
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _errors.Clear();
+
+        var crawler = await Manager.FindByIdAsync(_model.ItemId);
+
+        if (crawler == null)
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        _model.ApplyTo(crawler);
+
+        var validation = await Manager.ValidateAsync(crawler);
+
+        if (!validation.Succeeded)
+        {
+            _errors = validation.Errors.Select(error => error.ErrorMessage).ToList();
+
+            return;
+        }
+
+        await Manager.UpdateAsync(crawler);
+        await StoreCommitter.CommitAsync();
+        Navigation.NavigateTo("/webcrawlers");
+    }
+
+    private bool IsSitemapStrategy()
+        => string.Equals(_model?.Source, WebCrawlerConstants.Strategies.Sitemap, StringComparison.OrdinalIgnoreCase);
+
+    private async Task PopulateDropdownsAsync()
+    {
+        _strategies = StrategyOptions.Value.Strategies
+            .OrderBy(strategy => strategy.DisplayName.Value, StringComparer.OrdinalIgnoreCase)
+            .Select(strategy => new KeyValuePair<string, string>(strategy.Strategy, strategy.DisplayName.Value))
+            .ToList();
+
+        var dataSources = await DataSourceStore.GetAsync(AIDataSourceSourceTypes.Web);
+
+        _dataSources = dataSources
+            .Select(dataSource => new KeyValuePair<string, string>(dataSource.ItemId, dataSource.DisplayText))
+            .ToList();
+    }
+}

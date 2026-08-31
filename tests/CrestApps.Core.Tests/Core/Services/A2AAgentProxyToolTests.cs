@@ -36,11 +36,11 @@ public sealed class A2AAgentProxyToolTests
     [Fact]
     public void ExtractTextFromResponse_AgentMessage_ConcatenatesTextPartsExactly()
     {
-        var response = CreateMessage(
-            new TextPart { Text = "first" },
-            new TextPart { Text = null },
-            new TextPart { Text = string.Empty },
-            new TextPart { Text = "second" });
+        var response = CreateMessageResponse(
+            Part.FromText("first"),
+            new Part(),
+            Part.FromText(string.Empty),
+            Part.FromText("second"));
 
         var result = ExtractTextFromResponse(response);
 
@@ -48,16 +48,16 @@ public sealed class A2AAgentProxyToolTests
     }
 
     /// <summary>
-    /// Verifies that a message containing a null text part returns the legacy empty-string result.
+    /// Verifies that a message without text returns the null result used by the proxy fallback.
     /// </summary>
     [Fact]
-    public void ExtractTextFromResponse_AgentMessageWithNullText_ReturnsEmpty()
+    public void ExtractTextFromResponse_AgentMessageWithoutText_ReturnsNull()
     {
-        var response = CreateMessage(new TextPart { Text = null });
+        var response = CreateMessageResponse(new Part());
 
         var result = ExtractTextFromResponse(response);
 
-        Assert.Equal(string.Empty, result);
+        Assert.Null(result);
     }
 
     /// <summary>
@@ -73,17 +73,17 @@ public sealed class A2AAgentProxyToolTests
                     ArtifactId = "first",
                     Parts =
                     [
-                        new TextPart { Text = "artifact-" },
-                        new TextPart { Text = null },
+                        Part.FromText("artifact-"),
+                        new Part(),
                     ],
                 },
                 new Artifact
                 {
                     ArtifactId = "second",
-                    Parts = [new TextPart { Text = "text" }],
+                    Parts = [Part.FromText("text")],
                 },
             ],
-            CreateMessage(new TextPart { Text = "status" }));
+            CreateMessage(Part.FromText("status")));
 
         var result = ExtractTextFromResponse(response);
 
@@ -103,14 +103,14 @@ public sealed class A2AAgentProxyToolTests
                     ArtifactId = "empty",
                     Parts =
                     [
-                        new TextPart { Text = null },
-                        new TextPart { Text = string.Empty },
+                        new Part(),
+                        Part.FromText(string.Empty),
                     ],
                 },
             ],
             CreateMessage(
-                new TextPart { Text = "status-" },
-                new TextPart { Text = "text" }));
+                Part.FromText("status-"),
+                Part.FromText("text")));
 
         var result = ExtractTextFromResponse(response);
 
@@ -123,7 +123,7 @@ public sealed class A2AAgentProxyToolTests
     [Fact]
     public void ExtractTextFromResponse_ResponseWithoutText_ReturnsNull()
     {
-        var messageResult = ExtractTextFromResponse(CreateMessage());
+        var messageResult = ExtractTextFromResponse(CreateMessageResponse());
         var taskResult = ExtractTextFromResponse(CreateTask([], CreateMessage()));
 
         Assert.Null(messageResult);
@@ -145,15 +145,28 @@ public sealed class A2AAgentProxyToolTests
     }
 
     /// <summary>
+    /// Creates an A2A message response with the supplied parts.
+    /// </summary>
+    /// <param name="parts">The message parts.</param>
+    /// <returns>The A2A message response.</returns>
+    private static SendMessageResponse CreateMessageResponse(params Part[] parts)
+    {
+        return new SendMessageResponse
+        {
+            Message = CreateMessage(parts),
+        };
+    }
+
+    /// <summary>
     /// Creates an agent message with the supplied parts.
     /// </summary>
     /// <param name="parts">The message parts.</param>
     /// <returns>The agent message.</returns>
-    private static AgentMessage CreateMessage(params Part[] parts)
+    private static Message CreateMessage(params Part[] parts)
     {
-        return new AgentMessage
+        return new Message
         {
-            Role = MessageRole.Agent,
+            Role = Role.Agent,
             MessageId = "message",
             Parts = [.. parts],
         };
@@ -164,20 +177,23 @@ public sealed class A2AAgentProxyToolTests
     /// </summary>
     /// <param name="artifacts">The task artifacts.</param>
     /// <param name="statusMessage">The task status message.</param>
-    /// <returns>The agent task.</returns>
-    private static AgentTask CreateTask(
+    /// <returns>The A2A task response.</returns>
+    private static SendMessageResponse CreateTask(
         List<Artifact> artifacts,
-        AgentMessage statusMessage)
+        Message statusMessage)
     {
-        return new AgentTask
+        return new SendMessageResponse
         {
-            Id = "task",
-            ContextId = "context",
-            Artifacts = artifacts,
-            Status = new AgentTaskStatus
+            Task = new AgentTask
             {
-                State = TaskState.Completed,
-                Message = statusMessage,
+                Id = "task",
+                ContextId = "context",
+                Artifacts = artifacts,
+                Status = new A2A.TaskStatus
+                {
+                    State = TaskState.Completed,
+                    Message = statusMessage,
+                },
             },
         };
     }
@@ -187,7 +203,7 @@ public sealed class A2AAgentProxyToolTests
     /// </summary>
     /// <param name="response">The A2A response.</param>
     /// <returns>The extracted response text.</returns>
-    private static string ExtractTextFromResponse(A2AResponse response)
+    private static string ExtractTextFromResponse(SendMessageResponse response)
     {
         return A2AAgentProxyTool.ExtractTextFromResponse(response);
     }

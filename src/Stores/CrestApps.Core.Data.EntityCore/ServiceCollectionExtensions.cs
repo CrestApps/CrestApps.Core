@@ -288,6 +288,26 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers EntityCore-backed stores for the web-crawlers feature.
+    /// This includes <see cref="IWebCrawlerStore"/> and <see cref="IWebCrawlStateStore"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreWebCrawlerStoresEntityCore(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.Replace(ServiceDescriptor.Scoped<IWebCrawlerStore, EntityCoreWebCrawlerStore>());
+        services.AddScoped<ICatalog<WebCrawler>>(sp => sp.GetRequiredService<IWebCrawlerStore>());
+        services.AddScoped<ISourceCatalog<WebCrawler>>(sp => sp.GetRequiredService<IWebCrawlerStore>());
+
+        services.Replace(ServiceDescriptor.Scoped<IWebCrawlStateStore, EntityCoreWebCrawlStateStore>());
+        services.AddScoped<ICatalog<WebCrawlState>>(sp => sp.GetRequiredService<IWebCrawlStateStore>());
+        services.AddScoped<ISourceCatalog<WebCrawlState>>(sp => sp.GetRequiredService<IWebCrawlStateStore>());
+
+        return services;
+    }
+
+    /// <summary>
     /// Registers EntityCore-backed stores for the AI memory feature.
     /// This includes <see cref="IAIMemoryStore"/>.
     /// </summary>

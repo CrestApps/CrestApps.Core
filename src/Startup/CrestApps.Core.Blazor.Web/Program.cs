@@ -1,6 +1,11 @@
 using CrestApps.Core;
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.WebCrawlers;
 using CrestApps.Core.AI.A2A;
+using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Deployments;
+using CrestApps.Core.Startup.Shared.Realtime;
+using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Azure.AISearch;
 using CrestApps.Core.AI.AzureAIInference;
 using CrestApps.Core.AI.Chat;
@@ -13,6 +18,7 @@ using CrestApps.Core.AI.Documents.Pdf;
 using CrestApps.Core.AI.Elasticsearch;
 using CrestApps.Core.AI.Markdown;
 using CrestApps.Core.AI.Mcp;
+using CrestApps.Core.AI.Tooling.Instances.Documentation;
 using CrestApps.Core.AI.Mcp.Ftp;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Mcp.Sftp;
@@ -82,6 +88,32 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     {
         options.LoginPath = "/account/login";
         options.AccessDeniedPath = "/account/access-denied";
+        options.Events.OnRedirectToLogin = context =>
+        {
+            if (IsA2AProtocolRequest(context.Request))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+
+                return Task.CompletedTask;
+            }
+
+            context.Response.Redirect(context.RedirectUri);
+
+            return Task.CompletedTask;
+        };
+        options.Events.OnRedirectToAccessDenied = context =>
+        {
+            if (IsA2AProtocolRequest(context.Request))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+
+                return Task.CompletedTask;
+            }
+
+            context.Response.Redirect(context.RedirectUri);
+
+            return Task.CompletedTask;
+        };
     });
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("Admin", policy => policy.RequireRole("Administrator"));
@@ -104,6 +136,7 @@ builder.Services
          )
         .AddToolInstances(toolInstances => toolInstances
             .AddHttpApiRequestSource()
+            .AddDocumentationSearchSources()
             .AddEntityCoreStores()
         )
         .AddDocumentProcessing(documentProcessing => documentProcessing
@@ -153,6 +186,14 @@ builder.Services
      )
  );
 
+// Opt into the strategy-based web crawlers feature and its EntityCore stores. Web crawlers scrape sites
+// (starting with sitemap discovery) into any "Web" AI data source.
+builder.Services.AddCoreWebCrawlers();
+builder.Services.AddCoreWebCrawlerStoresEntityCore();
+
+builder.Services.Configure<A2AHostOptions>(
+     builder.Configuration.GetSection(nameof(A2AHostOptions)));
+
 // =============================================================================
 // 4. MCP AND CUSTOM TOOLS
 // =============================================================================
@@ -200,6 +241,9 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection()
     .UseStaticFiles()
+    // UseWebSockets must run before UseRouting so that HTTP/2 WebSocket handshakes (RFC 8441 extended CONNECT)
+    // are recognized before endpoint method matching, which would otherwise reject them with 405.
+    .UseWebSockets()
     .UseRouting()
     .UseSharedAIChatProtection()
     .UseAuthentication()
@@ -266,7 +310,26 @@ app.AddChatApiEndpoints()
 
 app.MapAuthEndpoints();
 
+// Realtime (speech-to-speech) test harness WebSocket bridge, shared with the MVC host via RealtimeVoiceBridge.
+// Mapped for all HTTP methods so the HTTP/2 extended-CONNECT handshake (normalized to GET by UseWebSockets) matches.
+app.Map("/Realtime/Stream", (
+        HttpContext context,
+        string deploymentName,
+        string? voice,
+        string? instructions,
+        IAIDeploymentManager deploymentManager,
+        IAIClientFactory clientFactory,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken) =>
+        RealtimeVoiceBridge.HandleAsync(context, deploymentName, voice, instructions, deploymentManager, clientFactory, loggerFactory.CreateLogger("CrestApps.Core.Realtime"), cancellationToken))
+    .RequireAuthorization();
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 await app.RunAsync();
+
+static bool IsA2AProtocolRequest(HttpRequest request)
+{
+    return request.Path.StartsWithSegments("/a2a");
+}

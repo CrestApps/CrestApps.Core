@@ -3,6 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA1001;CA1305;CA1848</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

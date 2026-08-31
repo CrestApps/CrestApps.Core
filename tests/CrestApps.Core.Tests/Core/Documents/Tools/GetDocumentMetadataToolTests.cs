@@ -82,6 +82,74 @@ public sealed class GetDocumentMetadataToolTests
     }
 
     [Fact]
+    public async Task InvokeAsync_TabularSummaryScope_MultiWorksheetDocument_DescribesEveryWorksheet()
+    {
+        var storedDocument = new AIDocument
+        {
+            ItemId = "uploaded-1",
+            ReferenceId = "interaction-1",
+            ReferenceType = AIReferenceTypes.Document.ChatInteraction,
+            FileName = "revenue.xlsx",
+            ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            FileSize = 128,
+        };
+
+        var documentStore = new Mock<IAIDocumentStore>();
+        documentStore
+            .Setup(store => store.GetDocumentsAsync("interaction-1", AIReferenceTypes.Document.ChatInteraction))
+            .ReturnsAsync([storedDocument]);
+
+        var artifactStore = new Mock<ITabularDocumentArtifactStore>();
+        artifactStore
+            .Setup(store => store.GetAsync("uploaded-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TabularDocumentArtifact
+            {
+                Worksheets =
+                [
+                    new TabularWorksheet
+                    {
+                        Name = "Client Breakdown",
+                        Header = ["Site", "Projected Revenue"],
+                        Rows = [["True Blue", "71822.688"], ["Milford", "20264.05"]],
+                    },
+                    new TabularWorksheet
+                    {
+                        Name = "Overall Projections",
+                        Header = ["Site Location"],
+                        Rows = [["Henderson"]],
+                    },
+                ],
+            });
+
+        var services = BuildServices(documentStore.Object, artifactStore.Object);
+
+        using var scope = AIInvocationScope.Begin();
+        scope.Context.ToolExecutionContext = new AIToolExecutionContext(new ChatInteraction
+        {
+            ItemId = "interaction-1",
+        });
+
+        var tool = new GetDocumentMetadataTool();
+        var arguments = CreateArguments(services, new Dictionary<string, object>
+        {
+            ["scope"] = "tabular_summary",
+        });
+
+        var result = await tool.InvokeAsync(arguments, TestContext.Current.CancellationToken);
+        var text = result.ToString();
+
+        var newLine = Environment.NewLine;
+        var expected = string.Concat(
+            "\"revenue.xlsx\" is a tabular document with 2 worksheet(s).", newLine, newLine,
+            "Worksheet \"Client Breakdown\" has 2 data row(s) and 2 column(s).", newLine,
+            "- inferred_column_types: text, decimal", newLine, newLine,
+            "Worksheet \"Overall Projections\" has 1 data row(s) and 1 column(s).", newLine,
+            "- inferred_column_types: text", newLine);
+
+        Assert.Equal(expected, text);
+    }
+
+    [Fact]
     public async Task InvokeAsync_BasicScope_ReturnsNonTabularMetadata()
     {
         var storedDocument = new AIDocument
@@ -298,7 +366,11 @@ public sealed class GetDocumentMetadataToolTests
     /// <returns>The inferred type name for each header column.</returns>
     private static string[] InferColumnTypes(TabularDocumentArtifact artifact)
     {
-        return (string[])_inferColumnTypes.Invoke(null, [artifact]);
+        return (string[])_inferColumnTypes.Invoke(null, [new TabularWorksheet
+        {
+            Header = artifact?.Header ?? [],
+            Rows = artifact?.Rows ?? [],
+        }]);
     }
 
     private static ServiceProvider BuildServices(

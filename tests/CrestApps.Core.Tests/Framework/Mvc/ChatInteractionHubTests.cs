@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using System.Threading.Channels;
 using CrestApps.Core.AI.Chat;
@@ -273,6 +274,24 @@ public sealed class ChatInteractionHubTests
         var message = hub.GetFriendlyErrorMessageForTest(new AIDeploymentNotFoundException("Unable to resolve a chat deployment for the profile."));
 
         Assert.Equal("The chat model settings are missing or invalid. Update the Chat model in this chat interaction, the linked AI Profile, or the global AI settings.", message);
+    }
+
+    [Fact]
+    public void GetFriendlyErrorMessage_WithProviderNotFound_ReturnsModelOrEndpointGuidance()
+    {
+        var hub = new TestChatInteractionHub(new ServiceCollection().BuildServiceProvider())
+        {
+            Clients = new Mock<IHubCallerClients<IChatInteractionHubClient>>().Object,
+        };
+
+        var notFound = new HttpRequestException(
+            "Response status code does not indicate success: 404 (Not Found).",
+            inner: null,
+            statusCode: HttpStatusCode.NotFound);
+
+        var message = hub.GetFriendlyErrorMessageForTest(notFound);
+
+        Assert.Equal("The AI provider could not find the requested model or endpoint (404). Verify that the deployment's model name exists on the provider and that the connection endpoint is correct. If you are using Ollama, make sure the model has been pulled first.", message);
     }
 
     [Fact]

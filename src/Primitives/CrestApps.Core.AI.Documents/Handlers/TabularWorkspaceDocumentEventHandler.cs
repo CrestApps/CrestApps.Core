@@ -41,8 +41,8 @@ internal sealed class TabularWorkspaceDocumentEventHandler : IAIChatDocumentEven
     }
 
     /// <summary>
-    /// Opens the workspace database for the scope, drops the table associated with the removed
-    /// document, removes the metadata row, and deletes the database file if no tables remain.
+    /// Opens the workspace database for the scope, drops every table associated with the removed
+    /// document, removes its metadata rows, and deletes the database file if no tables remain.
     /// </summary>
     private void TryDropDocumentTable(string referenceType, string referenceId, string documentId)
     {
@@ -63,8 +63,8 @@ internal sealed class TabularWorkspaceDocumentEventHandler : IAIChatDocumentEven
             using var connection = new SqliteConnection($"Data Source={databasePath}");
             connection.Open();
 
-            // Look up the table name for this document.
-            string tableName = null;
+            // A single document can produce multiple tables (one per worksheet), so drop them all.
+            var tableNames = new List<string>();
 
             using (var lookupCommand = connection.CreateCommand())
             {
@@ -72,17 +72,23 @@ internal sealed class TabularWorkspaceDocumentEventHandler : IAIChatDocumentEven
                     SELECT table_name FROM "_workspace_meta" WHERE document_id = $documentId
                     """;
                 lookupCommand.Parameters.AddWithValue("$documentId", documentId);
-                tableName = lookupCommand.ExecuteScalar() as string;
+
+                using var reader = lookupCommand.ExecuteReader();
+
+                while (reader.Read())
+                {
+                    tableNames.Add(reader.GetString(0));
+                }
             }
 
-            if (!string.IsNullOrEmpty(tableName))
+            foreach (var tableName in tableNames)
             {
                 using var dropCommand = connection.CreateCommand();
-                dropCommand.CommandText = $"DROP TABLE IF EXISTS \"{tableName}\"";
+                dropCommand.CommandText = $"DROP TABLE IF EXISTS \"{tableName.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
                 dropCommand.ExecuteNonQuery();
             }
 
-            // Remove the metadata row.
+            // Remove the metadata rows.
             using (var deleteCommand = connection.CreateCommand())
             {
                 deleteCommand.CommandText = """
@@ -111,7 +117,7 @@ internal sealed class TabularWorkspaceDocumentEventHandler : IAIChatDocumentEven
         {
             if (_logger.IsEnabled(LogLevel.Debug))
             {
-                _logger.LogDebug(ex, "Failed to drop table for document '{DocumentId}' from workspace database.", documentId);
+                _logger.LogDebug(ex, "Failed to drop tables for document '{DocumentId}' from workspace database.", documentId);
             }
         }
     }

@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.AI.Tooling.Parameters;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +33,7 @@ public static class AIToolInstanceServiceCollectionExtensions
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIToolInstance>, AIToolInstanceCatalogHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, AIToolInstanceCompletionContextBuilderHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAIToolParameterContextResolver, DefaultAIToolParameterContextResolver>());
 
         return services;
     }

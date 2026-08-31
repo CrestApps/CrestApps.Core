@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.A2A.Services;
 using CrestApps.Core.AI.Extensions;
@@ -106,7 +107,7 @@ internal sealed class FindAgentForTaskFunction : AIFunction
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to search local agent profiles.");
+            A2ALog.FailedToSearchLocalAgentProfiles(logger, ex);
         }
 
         try
@@ -143,13 +144,13 @@ internal sealed class FindAgentForTaskFunction : AIFunction
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "Failed to fetch agent card from A2A connection '{ConnectionId}'.", connection.ItemId);
+                    A2ALog.FailedToFetchAgentCardFromConnection(logger, connection.ItemId, ex);
                 }
             }
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to search remote A2A agents.");
+            A2ALog.FailedToSearchRemoteA2AAgents(logger, ex);
         }
 
         var results = scoredAgents.Where(s => s.Score > 0).OrderByDescending(s => s.Score).Take(maxResults).Select(s => s.Agent).ToList();

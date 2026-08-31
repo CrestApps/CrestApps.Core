@@ -4,11 +4,13 @@ using BenchmarkDotNet.Jobs;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Security;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Benchmarks;
 
@@ -32,7 +34,7 @@ public class FunctionInvocationToolOrderingBenchmarks
     public int EntryCount { get; set; }
 
     /// <summary>
-    /// Creates equivalent mixed-source inputs and proves exact authorization and tool ordering.
+    /// Creates equivalent mixed-source inputs and proves exact tool ordering.
     /// </summary>
     /// <returns>A task that completes after setup.</returns>
     [GlobalSetup]
@@ -41,20 +43,12 @@ public class FunctionInvocationToolOrderingBenchmarks
         var entries = CreateEntries(EntryCount);
         await VerifyEquivalenceAsync(entries);
 
-        var evaluator = new AllowAllToolAccessEvaluator();
-        var userAccessor = CreateUserAccessor();
         var serviceProvider = new EmptyServiceProvider();
 
         _legacyHandler = new LegacyFunctionInvocationHandler(
-            evaluator,
-            userAccessor,
             serviceProvider,
             NullLogger<LegacyFunctionInvocationHandler>.Instance);
-        _currentHandler = new FunctionInvocationAICompletionServiceHandler(
-            evaluator,
-            userAccessor,
-            serviceProvider,
-            NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
+        _currentHandler = CreateCurrentHandler(serviceProvider);
         _legacyContext = CreateContext(entries);
         _currentContext = CreateContext(entries);
 
@@ -115,6 +109,18 @@ public class FunctionInvocationToolOrderingBenchmarks
         return entries;
     }
 
+    private static FunctionInvocationAICompletionServiceHandler CreateCurrentHandler(IServiceProvider serviceProvider)
+    {
+        // The benchmark inputs are not Chat Interactions, so the access evaluator is never consulted;
+        // these dependencies exist only to satisfy the constructor.
+        return new FunctionInvocationAICompletionServiceHandler(
+            new AllowAllToolAccessEvaluator(),
+            new StaticUserAccessor(),
+            Options.Create(new AIToolDefinitionOptions()),
+            serviceProvider,
+            NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
+    }
+
     private static CompletionServiceConfigureContext CreateContext(IReadOnlyList<ToolRegistryEntry> entries)
     {
         var completionContext = new AICompletionContext();
@@ -123,40 +129,22 @@ public class FunctionInvocationToolOrderingBenchmarks
         return new CompletionServiceConfigureContext(new ChatOptions(), completionContext, true);
     }
 
-    private static StaticUserAccessor CreateUserAccessor()
-    {
-        return new StaticUserAccessor
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity(
-                [new Claim(ClaimTypes.Name, "benchmark")],
-                "Benchmark")),
-        };
-    }
-
     private static async Task VerifyEquivalenceAsync(IReadOnlyList<ToolRegistryEntry> entries)
     {
-        var legacyEvaluator = new RecordingToolAccessEvaluator();
-        var currentEvaluator = new RecordingToolAccessEvaluator();
-        var userAccessor = CreateUserAccessor();
         var serviceProvider = new EmptyServiceProvider();
         var legacy = new LegacyFunctionInvocationHandler(
-            legacyEvaluator,
-            userAccessor,
             serviceProvider,
             NullLogger<LegacyFunctionInvocationHandler>.Instance);
-        var current = new FunctionInvocationAICompletionServiceHandler(
-            currentEvaluator,
-            userAccessor,
-            serviceProvider,
-            NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
+        var current = CreateCurrentHandler(serviceProvider);
         var legacyContext = CreateContext(entries);
         var currentContext = CreateContext(entries);
 
         await legacy.ConfigureAsync(legacyContext);
         await current.ConfigureAsync(currentContext);
 
-        if (!legacyEvaluator.ToolNames.SequenceEqual(currentEvaluator.ToolNames) ||
-            !legacyContext.ChatOptions.Tools.SequenceEqual(currentContext.ChatOptions.Tools))
+        // Both partition non-MCP entries ahead of MCP entries while preserving the original order
+        // within each group; equivalence is verified purely on the resulting tool ordering.
+        if (!legacyContext.ChatOptions.Tools.SequenceEqual(currentContext.ChatOptions.Tools))
         {
             throw new InvalidOperationException("Function invocation ordering behavior differs.");
         }
@@ -175,20 +163,6 @@ public class FunctionInvocationToolOrderingBenchmarks
     private sealed class StaticUserAccessor : IUserAccessor
     {
         public ClaimsPrincipal User { get; set; }
-    }
-
-    private sealed class RecordingToolAccessEvaluator : IAIToolAccessEvaluator
-    {
-        private static readonly Task<bool> _allowed = Task.FromResult(true);
-
-        public List<string> ToolNames { get; } = [];
-
-        public Task<bool> IsAuthorizedAsync(ClaimsPrincipal user, string toolName)
-        {
-            ToolNames.Add(toolName);
-
-            return _allowed;
-        }
     }
 
     private sealed class EmptyServiceProvider : IServiceProvider
@@ -223,19 +197,13 @@ public class FunctionInvocationToolOrderingBenchmarks
 
     private sealed class LegacyFunctionInvocationHandler
     {
-        private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
-        private readonly IUserAccessor _userAccessor;
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<LegacyFunctionInvocationHandler> _logger;
 
         public LegacyFunctionInvocationHandler(
-            IAIToolAccessEvaluator toolAccessEvaluator,
-            IUserAccessor userAccessor,
             IServiceProvider serviceProvider,
             ILogger<LegacyFunctionInvocationHandler> logger)
         {
-            _toolAccessEvaluator = toolAccessEvaluator;
-            _userAccessor = userAccessor;
             _serviceProvider = serviceProvider;
             _logger = logger;
         }
@@ -257,27 +225,12 @@ public class FunctionInvocationToolOrderingBenchmarks
 
             context.ChatOptions.Tools ??= [];
 
-            var user = _userAccessor.User;
             var addedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var orderedEntries = scopedEntries
                 .OrderBy(entry => entry.Source == ToolRegistryEntrySource.McpServer ? 1 : 0);
 
             foreach (var entry in orderedEntries)
             {
-                if (user is not null && !await _toolAccessEvaluator.IsAuthorizedAsync(user, entry.Name))
-                {
-                    if (_logger.IsEnabled(LogLevel.Debug))
-                    {
-                        _logger.LogDebug(
-                            "Tool '{ToolName}' from {Source} ({Id}) denied by access evaluator.",
-                            entry.Name,
-                            entry.Source,
-                            entry.Id);
-                    }
-
-                    continue;
-                }
-
                 if (entry.CreateAsync is null)
                 {
                     _logger.LogWarning("Tool entry '{ToolName}' ({Id}) has no ToolFactory. Skipping.", entry.Name, entry.Id);
@@ -290,7 +243,7 @@ public class FunctionInvocationToolOrderingBenchmarks
                     if (_logger.IsEnabled(LogLevel.Debug))
                     {
                         _logger.LogDebug(
-                            "Skipping tool '{ToolName}' from {Source} ({Id}) ? name already registered.",
+                            "Skipping tool '{ToolName}' from {Source} ({Id}) - name already registered.",
                             entry.Name,
                             entry.Source,
                             entry.Id);

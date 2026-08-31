@@ -1,6 +1,8 @@
 using CrestApps.Core;
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.WebCrawlers;
 using CrestApps.Core.AI.A2A;
+using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Azure.AISearch;
 using CrestApps.Core.AI.AzureAIInference;
 using CrestApps.Core.AI.Chat;
@@ -13,6 +15,7 @@ using CrestApps.Core.AI.Documents.Pdf;
 using CrestApps.Core.AI.Elasticsearch;
 using CrestApps.Core.AI.Markdown;
 using CrestApps.Core.AI.Mcp;
+using CrestApps.Core.AI.Tooling.Instances.Documentation;
 using CrestApps.Core.AI.Mcp.Ftp;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Mcp.Sftp;
@@ -91,6 +94,32 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 {
     options.LoginPath = "/Account/Login";
     options.AccessDeniedPath = "/Account/AccessDenied";
+    options.Events.OnRedirectToLogin = context =>
+    {
+        if (IsA2AProtocolRequest(context.Request))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+
+            return Task.CompletedTask;
+        }
+
+        context.Response.Redirect(context.RedirectUri);
+
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        if (IsA2AProtocolRequest(context.Request))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+
+            return Task.CompletedTask;
+        }
+
+        context.Response.Redirect(context.RedirectUri);
+
+        return Task.CompletedTask;
+    };
 });
 
 builder.Services.AddAuthorizationBuilder()
@@ -125,6 +154,7 @@ builder.Services
         )
         .AddToolInstances(toolInstances => toolInstances
             .AddHttpApiRequestSource()
+            .AddDocumentationSearchSources()
             .AddYesSqlStores()
         )
         .AddMcpServer(mcpServer => mcpServer
@@ -158,6 +188,14 @@ builder.Services
         )
      )
  );
+
+// Opt into the strategy-based web crawlers feature and its YesSql stores. Web crawlers scrape sites
+// (starting with sitemap discovery) into any "Web" AI data source.
+builder.Services.AddCoreWebCrawlers();
+builder.Services.AddCoreWebCrawlerStoresYesSql();
+
+builder.Services.Configure<A2AHostOptions>(
+     builder.Configuration.GetSection(nameof(A2AHostOptions)));
 
 // =============================================================================
 // 4. MCP AND CUSTOM TOOLS
@@ -211,6 +249,9 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection()
     .UseStaticFiles()
+    // UseWebSockets must run before UseRouting so that HTTP/2 WebSocket handshakes (RFC 8441 extended CONNECT)
+    // are recognized before endpoint method matching, which would otherwise reject them with 405.
+    .UseWebSockets()
     .UseRouting()
     .UseSharedAIChatProtection()
     .UseAuthentication()
@@ -278,3 +319,8 @@ app.MapControllerRoute(name: "areas", pattern: "{area:exists}/{controller=Home}/
 app.MapControllerRoute(name: "default", pattern: "{controller=Home}/{action=Index}/{id?}");
 
 await app.RunAsync();
+
+static bool IsA2AProtocolRequest(HttpRequest request)
+{
+    return request.Path.StartsWithSegments("/a2a");
+}

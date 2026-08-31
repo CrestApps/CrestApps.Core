@@ -34,6 +34,8 @@
 @inject SiteSettingsStore SiteSettingsStore
 @inject IOptions<OrchestratorOptions> OrchestratorOptionsAccessor
 @inject IOptions<AIToolDefinitionOptions> ToolOptionsAccessor
+@inject IAIToolAccessEvaluator ToolAccessEvaluator
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IOptionsSnapshot<ClaudeOptions> ClaudeOptionsAccessor
 @inject ClaudeClientService ClaudeClientService
 @inject IOptionsMonitor<CopilotOptions> CopilotOptionsAccessor
@@ -533,8 +535,11 @@
             .ToList();
 
         // AI Tools
-        var toolOptions = ToolOptionsAccessor.Value;
-        _model.AvailableTools = toolOptions.GetSelectableTools()
+        // Only list tools the current user is authorized to select. The default IAIToolAccessEvaluator
+        // permits everything; replace it to enforce a real per-user tool permission model.
+        var currentUser = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var authorizedTools = await SelectableToolAccessFilter.GetAuthorizedSelectableToolsAsync(ToolOptionsAccessor.Value, ToolAccessEvaluator, currentUser);
+        _model.AvailableTools = authorizedTools
             .Select(kvp => new ToolSelectionItem
             {
                 Name = kvp.Key,

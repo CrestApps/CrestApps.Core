@@ -1,8 +1,12 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.Tooling.Instances.Documentation;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.AI.Tooling.Instances;
+using CrestApps.Core.AI.Tooling.Parameters;
 using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
+using CrestApps.Core.Startup.Shared.ViewModels;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -30,6 +34,7 @@ public sealed class AIToolInstanceController : Controller
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly TimeProvider _timeProvider;
     private readonly AIOptions _aiOptions;
+    private readonly IEnumerable<IAIToolParameterContextResolver> _contextResolvers;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AIToolInstanceController"/> class.
@@ -38,16 +43,19 @@ public sealed class AIToolInstanceController : Controller
     /// <param name="dataProtectionProvider">The data protection provider used to protect secrets.</param>
     /// <param name="timeProvider">The time provider used for timestamps.</param>
     /// <param name="aiOptions">The AI options used to enumerate registered tool instance sources.</param>
+    /// <param name="contextResolvers">The resolvers whose keys are offered for context-filled parameters.</param>
     public AIToolInstanceController(
         ISourceCatalog<AIToolInstance> catalog,
         IDataProtectionProvider dataProtectionProvider,
         TimeProvider timeProvider,
-        IOptions<AIOptions> aiOptions)
+        IOptions<AIOptions> aiOptions,
+        IEnumerable<IAIToolParameterContextResolver> contextResolvers)
     {
         _catalog = catalog;
         _dataProtectionProvider = dataProtectionProvider;
         _timeProvider = timeProvider;
         _aiOptions = aiOptions.Value;
+        _contextResolvers = contextResolvers;
     }
 
     /// <summary>
@@ -69,12 +77,16 @@ public sealed class AIToolInstanceController : Controller
     {
         var sources = BuildSourceList();
 
-        return View(new AIToolInstanceViewModel
+        var model = new AIToolInstanceViewModel
         {
             Source = sources.FirstOrDefault()?.Value ?? HttpApiRequestToolConstants.SourceName,
             Sources = sources,
             DefaultHeaders = "{}",
-        });
+        };
+
+        PopulateParameterMetadata(model);
+
+        return View(model);
     }
 
     /// <summary>
@@ -85,11 +97,12 @@ public sealed class AIToolInstanceController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(AIToolInstanceViewModel model)
     {
-        await ValidateAsync(model, false);
+        await ValidateAsync(model, false, null);
 
         if (!ModelState.IsValid)
         {
             model.Sources = BuildSourceList();
+            PopulateParameterMetadata(model);
 
             return View(model);
         }
@@ -141,11 +154,12 @@ public sealed class AIToolInstanceController : Controller
 
         model.Source = instance.Source;
 
-        await ValidateAsync(model, true);
+        await ValidateAsync(model, true, instance);
 
         if (!ModelState.IsValid)
         {
             model.Sources = BuildSourceList();
+            PopulateParameterMetadata(model);
 
             return View(model);
         }
@@ -177,6 +191,68 @@ public sealed class AIToolInstanceController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    private void ValidateParameters(AIToolInstanceViewModel model, AIToolInstance existingInstance)
+    {
+        if (model.Parameters is not { Count: > 0 })
+        {
+            return;
+        }
+
+        AIToolInstanceParameterCapabilities capabilities = null;
+
+        if (!string.IsNullOrEmpty(model.Source) &&
+            _aiOptions.ToolInstanceSources.TryGetValue(model.Source, out var entry))
+        {
+            capabilities = entry.Parameters;
+        }
+
+        // The stored parameters are supplied so a secret the user left blank — meaning "keep what is
+        // stored" — is not mistaken for a missing value.
+        var parameters = AIToolInstanceParameterViewModel.ToParameters(
+            model.Parameters,
+            existingInstance is null ? null : AIToolParameterBinder.GetParameters(existingInstance));
+
+        foreach (var (index, error) in AIToolParameterValidator.Validate(parameters, capabilities))
+        {
+            // Anchoring the error to the row lets the editor render it next to the offending parameter.
+            var key = index >= 0
+                ? $"{nameof(model.Parameters)}[{index}].{nameof(AIToolInstanceParameterViewModel.Name)}"
+                : nameof(model.Parameters);
+
+            ModelState.AddModelError(key, error);
+        }
+    }
+
+    private void ApplyParameters(AIToolInstanceViewModel model, AIToolInstance instance)
+    {
+        var parameterProtector = _dataProtectionProvider.CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose);
+
+        var parameters = AIToolInstanceParameterViewModel.ToParameters(
+            model.Parameters,
+            AIToolParameterBinder.GetParameters(instance),
+            parameterProtector.Protect);
+
+        instance.Put(new AIToolInstanceParametersMetadata { Parameters = parameters });
+    }
+
+    private void PopulateParameterMetadata(AIToolInstanceViewModel model)
+    {
+        model.Parameters ??= [];
+
+        // Every capable source is sent to the view, not just the selected one: the create form lets the
+        // source be switched client-side, so the placement options for whichever source the user lands on
+        // have to already be on the page.
+        model.ParameterCapabilities = _aiOptions.ToolInstanceSources
+            .Where(source => source.Value.Parameters is { Supported: true })
+            .ToDictionary(source => source.Key, source => source.Value.Parameters, StringComparer.OrdinalIgnoreCase);
+
+        model.ParameterCapableSources = model.ParameterCapabilities.Keys.ToList();
+
+        model.ContextKeys = _contextResolvers
+            .SelectMany(resolver => resolver.SupportedKeys)
+            .ToList();
+    }
+
     private List<SelectListItem> BuildSourceList()
     {
         return _aiOptions.ToolInstanceSources
@@ -189,7 +265,7 @@ public sealed class AIToolInstanceController : Controller
             .ToList();
     }
 
-    private async Task ValidateAsync(AIToolInstanceViewModel model, bool isEditing)
+    private async Task ValidateAsync(AIToolInstanceViewModel model, bool isEditing, AIToolInstance existingInstance)
     {
         if (string.IsNullOrWhiteSpace(model.Source))
         {
@@ -212,6 +288,36 @@ public sealed class AIToolInstanceController : Controller
         if (string.IsNullOrWhiteSpace(model.Description))
         {
             ModelState.AddModelError(nameof(model.Description), "A description is required so the AI model can tell instances apart.");
+        }
+
+        ValidateParameters(model, existingInstance);
+
+        if (string.Equals(model.Source, DocumentationToolConstants.SitemapSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateSitemap(model);
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.SearchIndexSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateSearchIndex(model);
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.AlgoliaSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateAlgolia(model, isEditing, existingInstance);
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.WebsiteSearchSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateWebsiteSearch(model);
+
+            return;
         }
 
         if (!string.Equals(model.Source, HttpApiRequestToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
@@ -328,6 +434,83 @@ public sealed class AIToolInstanceController : Controller
         }
     }
 
+    private void ValidateSitemap(AIToolInstanceViewModel model)
+    {
+        ValidateAbsoluteUrl(model.SitemapBaseUrl, nameof(model.SitemapBaseUrl), "Base URL", required: true);
+        ValidateAbsoluteUrl(model.SitemapUrl, nameof(model.SitemapUrl), "Sitemap URL", required: false);
+    }
+
+    private void ValidateSearchIndex(AIToolInstanceViewModel model)
+    {
+        ValidateAbsoluteUrl(model.SearchIndexBaseUrl, nameof(model.SearchIndexBaseUrl), "Base URL", required: true);
+        ValidateAbsoluteUrl(model.SearchIndexUrl, nameof(model.SearchIndexUrl), "Search index URL", required: false);
+    }
+
+    private void ValidateAlgolia(AIToolInstanceViewModel model, bool isEditing, AIToolInstance existingInstance)
+    {
+        model.HasAlgoliaApiKey = isEditing &&
+            existingInstance?.TryGet<AlgoliaDocumentationToolSettings>(out var settings) == true &&
+            !string.IsNullOrEmpty(settings.ApiKey);
+
+        if (string.IsNullOrWhiteSpace(model.AlgoliaApplicationId))
+        {
+            ModelState.AddModelError(nameof(model.AlgoliaApplicationId), "Application ID is required.");
+        }
+
+        if (!model.HasAlgoliaApiKey && string.IsNullOrWhiteSpace(model.AlgoliaApiKey))
+        {
+            ModelState.AddModelError(nameof(model.AlgoliaApiKey), "Search-only API key is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.AlgoliaIndexName))
+        {
+            ModelState.AddModelError(nameof(model.AlgoliaIndexName), "Index name is required.");
+        }
+    }
+
+    private void ValidateWebsiteSearch(AIToolInstanceViewModel model)
+    {
+        ValidateAbsoluteUrl(model.WebsiteSearchBaseUrl, nameof(model.WebsiteSearchBaseUrl), "Base URL", required: true);
+
+        if (string.IsNullOrWhiteSpace(model.WebsiteSearchPath))
+        {
+            ModelState.AddModelError(nameof(model.WebsiteSearchPath), "Search endpoint path is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.WebsiteSearchQueryParameter))
+        {
+            ModelState.AddModelError(nameof(model.WebsiteSearchQueryParameter), "Query parameter name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.WebsiteSearchTitlePath))
+        {
+            ModelState.AddModelError(nameof(model.WebsiteSearchTitlePath), "Title field path is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.WebsiteSearchUrlPath))
+        {
+            ModelState.AddModelError(nameof(model.WebsiteSearchUrlPath), "URL field path is required.");
+        }
+    }
+
+    private void ValidateAbsoluteUrl(string value, string key, string label, bool required)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            if (required)
+            {
+                ModelState.AddModelError(key, $"{label} is required.");
+            }
+
+            return;
+        }
+
+        if (!Uri.TryCreate(value, UriKind.Absolute, out _))
+        {
+            ModelState.AddModelError(key, $"{label} must be a valid absolute URL.");
+        }
+    }
+
     private void Apply(AIToolInstanceViewModel model, AIToolInstance instance, bool isNew)
     {
         if (isNew)
@@ -338,12 +521,74 @@ public sealed class AIToolInstanceController : Controller
         instance.Description = model.Description.Trim();
         instance.ModifiedUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
+        ApplyParameters(model, instance);
+
+        if (string.Equals(model.Source, DocumentationToolConstants.SitemapSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new SitemapDocumentationToolSettings
+            {
+                BaseUrl = model.SitemapBaseUrl?.Trim(),
+                SitemapUrl = string.IsNullOrWhiteSpace(model.SitemapUrl) ? null : model.SitemapUrl.Trim(),
+                MaxResults = model.SitemapMaxResults,
+                MaxPages = model.SitemapMaxPages,
+            });
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.SearchIndexSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new SearchIndexDocumentationToolSettings
+            {
+                BaseUrl = model.SearchIndexBaseUrl?.Trim(),
+                IndexUrl = string.IsNullOrWhiteSpace(model.SearchIndexUrl) ? null : model.SearchIndexUrl.Trim(),
+                MaxResults = model.SearchIndexMaxResults,
+            });
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.AlgoliaSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            var algoliaProtector = _dataProtectionProvider.CreateProtector(DocumentationToolConstants.AlgoliaDataProtectionPurpose);
+            var existingAlgoliaSettings = instance.GetOrCreate<AlgoliaDocumentationToolSettings>();
+
+            instance.Put(new AlgoliaDocumentationToolSettings
+            {
+                ApplicationId = model.AlgoliaApplicationId?.Trim(),
+                ApiKey = ProtectOrReuseProtected(model.AlgoliaApiKey?.Trim(), existingAlgoliaSettings.ApiKey, algoliaProtector),
+                IndexName = model.AlgoliaIndexName?.Trim(),
+                MaxResults = model.AlgoliaMaxResults,
+            });
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DocumentationToolConstants.WebsiteSearchSourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new WebsiteSearchToolSettings
+            {
+                BaseUrl = model.WebsiteSearchBaseUrl?.Trim(),
+                SearchPath = model.WebsiteSearchPath?.Trim(),
+                QueryParameter = model.WebsiteSearchQueryParameter?.Trim(),
+                ExtraQuery = string.IsNullOrWhiteSpace(model.WebsiteSearchExtraQuery) ? null : model.WebsiteSearchExtraQuery.Trim(),
+                ResultsPath = string.IsNullOrWhiteSpace(model.WebsiteSearchResultsPath) ? null : model.WebsiteSearchResultsPath.Trim(),
+                TitlePath = model.WebsiteSearchTitlePath?.Trim(),
+                UrlPath = model.WebsiteSearchUrlPath?.Trim(),
+                SnippetPath = string.IsNullOrWhiteSpace(model.WebsiteSearchSnippetPath) ? null : model.WebsiteSearchSnippetPath.Trim(),
+                MaxResults = model.WebsiteSearchMaxResults,
+            });
+
+            return;
+        }
+
         var protector = _dataProtectionProvider.CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose);
-        var existing = instance.TryGet<HttpApiRequestToolSettings>(out var stored) ? stored : new HttpApiRequestToolSettings();
+        var existing = instance.GetOrCreate<HttpApiRequestToolSettings>();
 
         var settings = new HttpApiRequestToolSettings
         {
             BaseUrl = model.BaseUrl?.Trim(),
+            PathTemplate = string.IsNullOrWhiteSpace(model.PathTemplate) ? null : model.PathTemplate.Trim(),
             HttpMethod = string.IsNullOrWhiteSpace(model.HttpMethod) ? "GET" : model.HttpMethod.Trim().ToUpperInvariant(),
             AuthenticationType = model.AuthenticationType,
             AllowModelProvidedPath = model.AllowModelProvidedPath,
@@ -386,7 +631,31 @@ public sealed class AIToolInstanceController : Controller
         return string.IsNullOrWhiteSpace(newValue) ? existingValue : protector.Protect(newValue);
     }
 
-    private static AIToolInstanceViewModel ToViewModel(AIToolInstance instance)
+    private static string ProtectOrReuseProtected(string newValue, string existingValue, IDataProtector protector)
+    {
+        if (!string.IsNullOrWhiteSpace(newValue))
+        {
+            return protector.Protect(newValue);
+        }
+
+        if (string.IsNullOrWhiteSpace(existingValue))
+        {
+            return existingValue;
+        }
+
+        try
+        {
+            protector.Unprotect(existingValue);
+
+            return existingValue;
+        }
+        catch (CryptographicException)
+        {
+            return protector.Protect(existingValue);
+        }
+    }
+
+    private AIToolInstanceViewModel ToViewModel(AIToolInstance instance)
     {
         var model = new AIToolInstanceViewModel
         {
@@ -400,6 +669,7 @@ public sealed class AIToolInstanceController : Controller
         if (instance.TryGet<HttpApiRequestToolSettings>(out var settings))
         {
             model.BaseUrl = settings.BaseUrl;
+            model.PathTemplate = settings.PathTemplate;
             model.HttpMethod = string.IsNullOrWhiteSpace(settings.HttpMethod) ? "GET" : settings.HttpMethod;
             model.AuthenticationType = settings.AuthenticationType;
             model.ApiKeyHeaderName = string.IsNullOrWhiteSpace(settings.ApiKeyHeaderName) ? "X-Api-Key" : settings.ApiKeyHeaderName;
@@ -418,6 +688,46 @@ public sealed class AIToolInstanceController : Controller
             model.DefaultHeaders = settings.DefaultHeaders is { Count: > 0 }
                 ? JsonSerializer.Serialize(settings.DefaultHeaders, _indentedJsonOptions)
                 : "{}";
+        }
+
+        model.Parameters = AIToolInstanceParameterViewModel.FromParameters(AIToolParameterBinder.GetParameters(instance));
+
+        PopulateParameterMetadata(model);
+
+        if (instance.TryGet<SitemapDocumentationToolSettings>(out var sitemapSettings))
+        {
+            model.SitemapBaseUrl = sitemapSettings.BaseUrl;
+            model.SitemapUrl = sitemapSettings.SitemapUrl;
+            model.SitemapMaxResults = sitemapSettings.MaxResults;
+            model.SitemapMaxPages = sitemapSettings.MaxPages;
+        }
+
+        if (instance.TryGet<SearchIndexDocumentationToolSettings>(out var searchIndexSettings))
+        {
+            model.SearchIndexBaseUrl = searchIndexSettings.BaseUrl;
+            model.SearchIndexUrl = searchIndexSettings.IndexUrl;
+            model.SearchIndexMaxResults = searchIndexSettings.MaxResults;
+        }
+
+        if (instance.TryGet<AlgoliaDocumentationToolSettings>(out var algoliaSettings))
+        {
+            model.AlgoliaApplicationId = algoliaSettings.ApplicationId;
+            model.HasAlgoliaApiKey = !string.IsNullOrEmpty(algoliaSettings.ApiKey);
+            model.AlgoliaIndexName = algoliaSettings.IndexName;
+            model.AlgoliaMaxResults = algoliaSettings.MaxResults;
+        }
+
+        if (instance.TryGet<WebsiteSearchToolSettings>(out var websiteSearchSettings))
+        {
+            model.WebsiteSearchBaseUrl = websiteSearchSettings.BaseUrl;
+            model.WebsiteSearchPath = websiteSearchSettings.SearchPath;
+            model.WebsiteSearchQueryParameter = websiteSearchSettings.QueryParameter;
+            model.WebsiteSearchExtraQuery = websiteSearchSettings.ExtraQuery;
+            model.WebsiteSearchResultsPath = websiteSearchSettings.ResultsPath;
+            model.WebsiteSearchTitlePath = websiteSearchSettings.TitlePath;
+            model.WebsiteSearchUrlPath = websiteSearchSettings.UrlPath;
+            model.WebsiteSearchSnippetPath = websiteSearchSettings.SnippetPath;
+            model.WebsiteSearchMaxResults = websiteSearchSettings.MaxResults;
         }
 
         return model;

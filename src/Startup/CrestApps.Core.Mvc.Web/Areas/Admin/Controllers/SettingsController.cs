@@ -12,17 +12,20 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Security;
 using CrestApps.Core.AI.Speech;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.Admin.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Models;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Models;
 using CrestApps.Core.Mvc.Web.Models;
+using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Mvc.Web.Areas.Admin.Controllers;
 
@@ -41,6 +44,8 @@ public sealed class SettingsController : Controller
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly ISpeechVoiceResolver _speechVoiceResolver;
     private readonly ClaudeClientService _anthropicClientService;
+    private readonly AIToolDefinitionOptions _toolOptions;
+    private readonly ISourceCatalog<AIToolInstance> _toolInstanceCatalog;
 
     public SettingsController(
         SiteSettingsStore siteSettings,
@@ -49,7 +54,9 @@ public sealed class SettingsController : Controller
         ISearchIndexProfileStore indexProfileStore,
         IDataProtectionProvider dataProtectionProvider,
         ISpeechVoiceResolver speechVoiceResolver,
-        ClaudeClientService anthropicClientService)
+        ClaudeClientService anthropicClientService,
+        IOptions<AIToolDefinitionOptions> toolOptions,
+        ISourceCatalog<AIToolInstance> toolInstanceCatalog)
     {
         _siteSettings = siteSettings;
         _deploymentManager = deploymentManager;
@@ -58,6 +65,8 @@ public sealed class SettingsController : Controller
         _dataProtectionProvider = dataProtectionProvider;
         _speechVoiceResolver = speechVoiceResolver;
         _anthropicClientService = anthropicClientService;
+        _toolOptions = toolOptions.Value;
+        _toolInstanceCatalog = toolInstanceCatalog;
     }
 
     public async Task<IActionResult> Index()
@@ -111,6 +120,8 @@ public sealed class SettingsController : Controller
             McpServerAuthenticationType = mcpServerSettings.AuthenticationType,
             McpServerApiKey = mcpServerSettings.ApiKey,
             McpServerRequireAccessPermission = mcpServerSettings.RequireAccessPermission,
+            McpServerExposeAllTools = mcpServerSettings.ExposeAllTools,
+            McpServerSelectedToolNames = mcpServerSettings.Tools?.ToArray() ?? [],
             CopilotAuthenticationType = copilotSettings.AuthenticationType,
             CopilotClientId = copilotSettings.ClientId,
             CopilotHasSecret = !string.IsNullOrWhiteSpace(copilotSettings.ProtectedClientSecret),
@@ -140,14 +151,17 @@ public sealed class SettingsController : Controller
             SecurityBlockingThreshold = promptSecuritySettings.BlockingThreshold,
             SecurityMaxMessagesPerWindow = promptSecuritySettings.MaxMessagesPerWindow,
             SecurityRateLimitWindowSeconds = (int)Math.Round(promptSecuritySettings.RateLimitWindow.TotalSeconds),
+            SecurityAnonymousMessageRateLimitTiers = ChatRateLimitTierTextFormatter.Format(promptSecuritySettings.AnonymousMessageRateLimitTiers),
             SecurityMaxAnonymousSessionsPerWindow = promptSecuritySettings.MaxAnonymousSessionsPerWindow,
             SecurityAnonymousSessionRateLimitWindowSeconds = (int)Math.Round(promptSecuritySettings.AnonymousSessionRateLimitWindow.TotalSeconds),
+            SecurityAnonymousSessionStartRateLimitTiers = ChatRateLimitTierTextFormatter.Format(promptSecuritySettings.AnonymousSessionStartRateLimitTiers),
             SecurityRemoteAddressMode = visitorIdentitySettings.RemoteAddressMode,
         };
 
         await NormalizeDeploymentSelectorsAsync(model);
         await PopulateDeploymentDropdownsAsync(model);
         await PopulateAdminWidgetProfilesAsync(model);
+        await PopulateMcpServerToolsAsync(model);
         await PopulateClaudeModelsAsync(model);
         PopulateBlockingThresholds(model);
 
@@ -232,6 +246,16 @@ public sealed class SettingsController : Controller
             ModelState.AddModelError(nameof(model.SecurityAnonymousSessionRateLimitWindowSeconds), "Must be between 1 and 86,400 seconds.");
         }
 
+        if (!ChatRateLimitTierTextFormatter.TryParse(model.SecurityAnonymousMessageRateLimitTiers, out var anonymousMessageTiers, out var anonymousMessageTiersError))
+        {
+            ModelState.AddModelError(nameof(model.SecurityAnonymousMessageRateLimitTiers), anonymousMessageTiersError);
+        }
+
+        if (!ChatRateLimitTierTextFormatter.TryParse(model.SecurityAnonymousSessionStartRateLimitTiers, out var anonymousSessionTiers, out var anonymousSessionTiersError))
+        {
+            ModelState.AddModelError(nameof(model.SecurityAnonymousSessionStartRateLimitTiers), anonymousSessionTiersError);
+        }
+
         if (!string.IsNullOrWhiteSpace(model.AdminWidgetPrimaryColor) &&
             !Regex.IsMatch(
                 model.AdminWidgetPrimaryColor,
@@ -266,6 +290,7 @@ public sealed class SettingsController : Controller
         {
             await PopulateDeploymentDropdownsAsync(model);
             await PopulateAdminWidgetProfilesAsync(model);
+            await PopulateMcpServerToolsAsync(model);
             await PopulateClaudeModelsAsync(model);
             PopulateBlockingThresholds(model);
 
@@ -338,6 +363,14 @@ public sealed class SettingsController : Controller
             AuthenticationType = model.McpServerAuthenticationType,
             ApiKey = model.McpServerApiKey?.Trim(),
             RequireAccessPermission = model.McpServerRequireAccessPermission,
+            ExposeAllTools = model.McpServerExposeAllTools,
+            Tools = model.McpServerExposeAllTools
+                ? []
+                : (model.McpServerSelectedToolNames ?? [])
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Select(name => name.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
         });
 
         _siteSettings.Set(new MemoryMetadata
@@ -416,8 +449,10 @@ public sealed class SettingsController : Controller
             BlockingThreshold = model.SecurityBlockingThreshold,
             MaxMessagesPerWindow = model.SecurityMaxMessagesPerWindow,
             RateLimitWindow = TimeSpan.FromSeconds(model.SecurityRateLimitWindowSeconds),
+            AnonymousMessageRateLimitTiers = anonymousMessageTiers,
             MaxAnonymousSessionsPerWindow = model.SecurityMaxAnonymousSessionsPerWindow,
             AnonymousSessionRateLimitWindow = TimeSpan.FromSeconds(model.SecurityAnonymousSessionRateLimitWindowSeconds),
+            AnonymousSessionStartRateLimitTiers = anonymousSessionTiers,
         });
 
         var visitorIdentitySettings = _siteSettings.Get<AIVisitorIdentityOptions>();
@@ -479,6 +514,38 @@ public sealed class SettingsController : Controller
                 profile.DisplayText ?? profile.Name,
                 profile.ItemId,
                 profile.ItemId == model.AdminWidgetProfileId));
+    }
+
+    private async Task PopulateMcpServerToolsAsync(SettingsViewModel model)
+    {
+        var selectedNames = new HashSet<string>(model.McpServerSelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
+
+        model.McpServerAvailableTools = _toolOptions.Tools
+            .Where(tool => !tool.Value.Hidden)
+            .Select(tool => new McpServerToolSelectionItem
+            {
+                Name = tool.Key,
+                Title = tool.Value.Title ?? tool.Key,
+                Description = tool.Value.Description,
+                Category = tool.Value.Category ?? "Miscellaneous",
+                IsSelected = selectedNames.Contains(tool.Key) || selectedNames.Contains(tool.Value.Name),
+            })
+            .OrderBy(tool => tool.Category, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(tool => tool.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        model.McpServerAvailableToolInstances = (await _toolInstanceCatalog.GetAllAsync())
+            .Where(instance => !string.IsNullOrWhiteSpace(instance.Name))
+            .OrderBy(instance => instance.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(instance => new McpServerToolInstanceSelectionItem
+            {
+                ItemId = instance.ItemId,
+                Name = instance.Name,
+                Description = instance.Description,
+                Source = instance.Source,
+                IsSelected = selectedNames.Contains(instance.Name),
+            })
+            .ToList();
     }
 
     private async Task PopulateClaudeModelsAsync(SettingsViewModel model)

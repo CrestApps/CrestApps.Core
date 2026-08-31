@@ -92,7 +92,7 @@ internal sealed class TabularDataAgentProvider : IAIProfileProvider
         profile.Put(new AIProfileMetadata
         {
             SystemMessage = systemPrompt,
-            Temperature = 0f,
+            Temperature = null,
         });
 
         return profile;

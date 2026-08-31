@@ -1,5 +1,6 @@
 using System.Text.Json;
 using A2A;
+using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.AI;
@@ -111,24 +112,24 @@ internal sealed class A2AAgentProxyTool : AIFunction
 
             var client = new A2AClient(new Uri(_endpoint), httpClient);
 
-            var agentMessage = new AgentMessage
+            var agentMessage = new Message
             {
-                Role = MessageRole.User,
+                Role = Role.User,
                 MessageId = Guid.NewGuid().ToString(),
                 ContextId = contextId ?? Guid.NewGuid().ToString(),
-                Parts = [new TextPart { Text = message }],
+                Parts = [Part.FromText(message)],
                 Metadata = new Dictionary<string, JsonElement>
                 {
                     ["agentName"] = JsonSerializer.SerializeToElement(_agentName),
                 },
             };
 
-            var sendParams = new MessageSendParams
+            var sendRequest = new SendMessageRequest
             {
                 Message = agentMessage,
             };
 
-            var response = await client.SendMessageAsync(sendParams, cancellationToken);
+            var response = await client.SendMessageAsync(sendRequest, cancellationToken);
 
             var responseText = ExtractTextFromResponse(response);
 
@@ -140,7 +141,7 @@ internal sealed class A2AAgentProxyTool : AIFunction
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to communicate with remote A2A agent '{AgentName}' at '{Endpoint}'.", _agentName, _endpoint);
+            A2ALog.FailedToCommunicateWithRemoteAgent(logger, _agentName, _endpoint, ex);
 
             return $"An error occurred while communicating with remote agent '{_agentName}'.";
         }
@@ -185,24 +186,25 @@ internal sealed class A2AAgentProxyTool : AIFunction
     /// </summary>
     /// <param name="response">The A2A response.</param>
     /// <returns>The response text, or <see langword="null"/> when no usable text exists.</returns>
-    internal static string ExtractTextFromResponse(A2AResponse response)
+    internal static string ExtractTextFromResponse(SendMessageResponse response)
     {
-        if (response is AgentMessage message)
+        if (response.Message is { } message)
         {
-            var texts = message.Parts?.OfType<TextPart>().Select(p => p.Text);
+            var texts = message.Parts.Select(p => p.Text).OfType<string>();
 
-            if (texts?.Any() == true)
+            if (texts.Any())
             {
                 return string.Join(string.Empty, texts);
             }
         }
-        else if (response is AgentTask task)
+        else if (response.Task is { } task)
         {
             if (task.Artifacts?.Count > 0)
             {
                 var artifactTexts = task.Artifacts
-                    .SelectMany(a => a.Parts?.OfType<TextPart>() ?? [])
-                    .Select(p => p.Text);
+                    .SelectMany(a => a.Parts ?? [])
+                    .Select(p => p.Text)
+                    .OfType<string>();
 
                 var combined = string.Join(string.Empty, artifactTexts);
 
@@ -214,7 +216,9 @@ internal sealed class A2AAgentProxyTool : AIFunction
 
             if (task.Status.Message?.Parts is not null)
             {
-                var statusTexts = task.Status.Message.Parts.OfType<TextPart>().Select(p => p.Text);
+                var statusTexts = task.Status.Message.Parts
+                    .Select(p => p.Text)
+                    .OfType<string>();
 
                 var combined = string.Join(string.Empty, statusTexts);
 

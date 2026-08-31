@@ -51,6 +51,14 @@ public sealed class SettingsViewModel
 
     public bool McpServerRequireAccessPermission { get; set; } = true;
 
+    public bool McpServerExposeAllTools { get; set; }
+
+    public string[] McpServerSelectedToolNames { get; set; } = [];
+
+    public List<McpServerToolSelectionItem> McpServerAvailableTools { get; set; } = [];
+
+    public List<McpServerToolInstanceSelectionItem> McpServerAvailableToolInstances { get; set; } = [];
+
     // Default deployment settings.
     public string DefaultChatDeploymentName { get; set; }
 
@@ -130,9 +138,13 @@ public sealed class SettingsViewModel
 
     public int SecurityRateLimitWindowSeconds { get; set; } = 60;
 
-    public int SecurityMaxAnonymousSessionsPerWindow { get; set; } = 5;
+    public string SecurityAnonymousMessageRateLimitTiers { get; set; }
+
+    public int SecurityMaxAnonymousSessionsPerWindow { get; set; } = 20;
 
     public int SecurityAnonymousSessionRateLimitWindowSeconds { get; set; } = 600;
+
+    public string SecurityAnonymousSessionStartRateLimitTiers { get; set; }
 
     public AIVisitorRemoteAddressMode SecurityRemoteAddressMode { get; set; } = AIVisitorRemoteAddressMode.Hashed;
 
@@ -160,4 +172,30 @@ public sealed class SettingsViewModel
     public List<KeyValuePair<string, string>> AdminWidgetProfiles { get; set; } = [];
 
     public List<KeyValuePair<string, string>> AnthropicAvailableModels { get; set; } = [];
+}
+
+public sealed class McpServerToolSelectionItem
+{
+    public string Name { get; set; }
+
+    public string Title { get; set; }
+
+    public string Description { get; set; }
+
+    public string Category { get; set; }
+
+    public bool IsSelected { get; set; }
+}
+
+public sealed class McpServerToolInstanceSelectionItem
+{
+    public string ItemId { get; set; }
+
+    public string Name { get; set; }
+
+    public string Description { get; set; }
+
+    public string Source { get; set; }
+
+    public bool IsSelected { get; set; }
 }

@@ -60,6 +60,11 @@ builder.Services.AddCoreAIConnectionSource("OpenAI", options =>
 | Image generation | ✅ |
 | Speech-to-text | ✅ |
 | Text-to-speech | ✅ |
+| Realtime (speech-to-speech) | ✅ (`gpt-realtime`) |
+
+Realtime is exposed through `IAIClientFactory.CreateRealtimeClientAsync` (see
+[Real-time clients](./index.md#real-time-speech-to-speech-clients)); the supported voices are returned by
+`IRealtimeVoiceResolver`.
 
 ## Configuration Example
 

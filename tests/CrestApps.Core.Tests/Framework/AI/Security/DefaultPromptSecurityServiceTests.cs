@@ -138,8 +138,11 @@ public sealed class DefaultPromptSecurityServiceTests
         var result = await service.ValidateInputAsync(context, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsBlocked);
-        Assert.Equal("rate-limit", result.DetectionRule);
+        Assert.Equal(PromptSecurityResult.RateLimitDetectionRule, result.DetectionRule);
+        // The reason carries the "slow down" hint (including the retry delay) that the chat hub
+        // surfaces to the caller instead of the generic blocked message.
         Assert.Contains("Rate limit exceeded", result.Reason);
+        Assert.Contains("30 second", result.Reason);
         _auditServiceMock.Verify(
             x => x.RecordInputEventAsync(context, It.IsAny<PromptSecurityResult>(), It.IsAny<CancellationToken>()),
             Times.Once);

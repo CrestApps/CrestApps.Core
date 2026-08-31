@@ -108,6 +108,13 @@ The Azure provider includes `AzurePatchOpenAIDataSourceHandler` which automatica
 | Image generation | ✅ |
 | Speech-to-text | ✅ (via Azure Speech) |
 | Text-to-speech | ✅ (via Azure Speech) |
+| Realtime (speech-to-speech) | ✅ (`gpt-realtime`) |
+
+Realtime is exposed through `IAIClientFactory.CreateRealtimeClientAsync` (see
+[Real-time clients](./index.md#real-time-speech-to-speech-clients)). Because the pinned `Azure.AI.OpenAI` is not yet
+compatible with the `OpenAI` SDK version the realtime types require, Azure OpenAI connects to the GA realtime
+WebSocket endpoint (`/openai/v1/realtime`) through a temporary built-in transport that supports both API-key and
+Microsoft Entra ID authentication.
 
 ## Azure Setup
 

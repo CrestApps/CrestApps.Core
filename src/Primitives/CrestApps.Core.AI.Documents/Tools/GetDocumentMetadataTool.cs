@@ -258,17 +258,23 @@ public sealed class GetDocumentMetadataTool : AIFunction
         }
 
         var artifact = await tabularContext.LoadArtifactAsync(tabularDocument, cancellationToken);
-
-        var inferredTypes = InferColumnTypes(artifact);
+        var worksheets = artifact?.GetWorksheets() ?? [new TabularWorksheet()];
 
         using var builder = ZString.CreateStringBuilder();
         builder.Append(FormatBasicMetadata(document));
+
+        if (worksheets.Count > 1)
+        {
+            builder.Append("- tabular_worksheets: ");
+            builder.AppendLine(string.Join(", ", worksheets.Select(worksheet => worksheet.Name)));
+        }
+
         builder.Append("- tabular_rows: ");
-        builder.AppendLine((artifact?.Rows?.Count ?? 0).ToString());
+        builder.AppendLine(worksheets.Sum(worksheet => worksheet.Rows.Count).ToString());
         builder.Append("- tabular_columns: ");
-        builder.AppendLine((artifact?.Header?.Count ?? 0).ToString());
+        builder.AppendLine(worksheets[0].Header.Count.ToString());
         builder.Append("- inferred_column_types: ");
-        builder.AppendLine(string.Join(", ", inferredTypes.Distinct(StringComparer.Ordinal)));
+        builder.AppendLine(FormatInferredColumnTypes(worksheets[0]));
         builder.AppendLine("- available_scopes: tabular_summary, headers, columns");
 
         return builder.ToString();
@@ -276,42 +282,93 @@ public sealed class GetDocumentMetadataTool : AIFunction
 
     private static string FormatTabularSummary(AIDocument document, TabularDocumentArtifact artifact)
     {
-        var inferredTypes = InferColumnTypes(artifact);
+        var worksheets = artifact?.GetWorksheets() ?? [new TabularWorksheet()];
 
         using var builder = ZString.CreateStringBuilder();
         builder.Append('"');
         builder.Append(document.FileName);
+
+        if (worksheets.Count == 1)
+        {
+            builder.Append("\" is a tabular document with ");
+            builder.Append(worksheets[0].Rows.Count);
+            builder.Append(" data row(s) and ");
+            builder.Append(worksheets[0].Header.Count);
+            builder.AppendLine(" column(s).");
+            builder.Append("- inferred_column_types: ");
+            builder.AppendLine(FormatInferredColumnTypes(worksheets[0]));
+
+            return builder.ToString();
+        }
+
         builder.Append("\" is a tabular document with ");
-        builder.Append(artifact?.Rows?.Count ?? 0);
-        builder.Append(" data row(s) and ");
-        builder.Append(artifact?.Header?.Count ?? 0);
-        builder.AppendLine(" column(s).");
-        builder.Append("- inferred_column_types: ");
-        builder.AppendLine(string.Join(", ", inferredTypes.Distinct(StringComparer.Ordinal)));
+        builder.Append(worksheets.Count);
+        builder.AppendLine(" worksheet(s).");
+
+        foreach (var worksheet in worksheets)
+        {
+            builder.AppendLine();
+            builder.Append("Worksheet \"");
+            builder.Append(worksheet.Name);
+            builder.Append("\" has ");
+            builder.Append(worksheet.Rows.Count);
+            builder.Append(" data row(s) and ");
+            builder.Append(worksheet.Header.Count);
+            builder.AppendLine(" column(s).");
+            builder.Append("- inferred_column_types: ");
+            builder.AppendLine(FormatInferredColumnTypes(worksheet));
+        }
 
         return builder.ToString();
     }
 
+    private static string FormatInferredColumnTypes(TabularWorksheet worksheet)
+    {
+        return string.Join(", ", InferColumnTypes(worksheet).Distinct(StringComparer.Ordinal));
+    }
+
     private static string FormatTabularHeaders(AIDocument document, TabularDocumentArtifact artifact)
     {
-        var headers = artifact?.Header ?? [];
-        var inferredTypes = InferColumnTypes(artifact);
+        var worksheets = artifact?.GetWorksheets() ?? [new TabularWorksheet()];
         using var builder = ZString.CreateStringBuilder();
-        builder.Append('"');
-        builder.Append(document.FileName);
-        builder.Append("\" has ");
-        builder.Append(headers.Count);
-        builder.AppendLine(headers.Count == 1 ? " header." : " headers.");
-        builder.AppendLine();
 
-        for (var i = 0; i < headers.Count; i++)
+        for (var worksheetIndex = 0; worksheetIndex < worksheets.Count; worksheetIndex++)
         {
-            var header = headers[i];
-            builder.Append("- ");
-            builder.Append(string.IsNullOrWhiteSpace(header) ? "(blank header)" : header);
-            builder.Append(" (inferred type: ");
-            builder.Append(inferredTypes[i]);
-            builder.AppendLine(")");
+            var worksheet = worksheets[worksheetIndex];
+            var headers = worksheet.Header;
+            var inferredTypes = InferColumnTypes(worksheet);
+
+            if (worksheets.Count > 1)
+            {
+                if (worksheetIndex > 0)
+                {
+                    builder.AppendLine();
+                }
+
+                builder.Append("Worksheet \"");
+                builder.Append(worksheet.Name);
+                builder.Append("\" of \"");
+            }
+            else
+            {
+                builder.Append('"');
+            }
+
+            builder.Append(document.FileName);
+            builder.Append("\" has ");
+            builder.Append(headers.Count);
+            builder.AppendLine(headers.Count == 1 ? " header." : " headers.");
+            builder.AppendLine();
+
+            for (var i = 0; i < headers.Count; i++)
+            {
+                var header = headers[i];
+                builder.Append("- ");
+                builder.Append(string.IsNullOrWhiteSpace(header) ? "(blank header)" : header);
+                builder.Append(" (inferred type: ");
+                builder.Append(inferredTypes[i]);
+                builder.AppendLine(")");
+            }
         }
 
         return builder.ToString();
@@ -319,41 +376,63 @@ public sealed class GetDocumentMetadataTool : AIFunction
 
     private static string FormatTabularColumns(AIDocument document, TabularDocumentArtifact artifact)
     {
-        var columns = TabularWorkspaceSqliteHelpers.BuildColumns(artifact?.Header ?? []);
-        var inferredTypes = InferColumnTypes(artifact);
+        var worksheets = artifact?.GetWorksheets() ?? [new TabularWorksheet()];
         using var builder = ZString.CreateStringBuilder();
-        builder.Append('"');
-        builder.Append(document.FileName);
-        builder.Append("\" exposes ");
-        builder.Append(columns.Count);
-        builder.AppendLine(columns.Count == 1 ? " SQL column." : " SQL columns.");
-        builder.AppendLine();
 
-        for (var i = 0; i < columns.Count; i++)
+        for (var worksheetIndex = 0; worksheetIndex < worksheets.Count; worksheetIndex++)
         {
-            var column = columns[i];
-            builder.Append("- ");
-            builder.Append(column.Name);
+            var worksheet = worksheets[worksheetIndex];
+            var columns = TabularWorkspaceSqliteHelpers.BuildColumns(worksheet.Header);
+            var inferredTypes = InferColumnTypes(worksheet);
 
-            if (!string.IsNullOrWhiteSpace(column.SourceName) &&
-                !string.Equals(column.Name, column.SourceName, StringComparison.OrdinalIgnoreCase))
+            if (worksheets.Count > 1)
             {
-                builder.Append(" (source header: ");
-                builder.Append(column.SourceName);
-                builder.Append(')');
+                if (worksheetIndex > 0)
+                {
+                    builder.AppendLine();
+                }
+
+                builder.Append("Worksheet \"");
+                builder.Append(worksheet.Name);
+                builder.Append("\" of \"");
+            }
+            else
+            {
+                builder.Append('"');
             }
 
-            builder.Append(" — inferred type: ");
-            builder.Append(inferredTypes[i]);
+            builder.Append(document.FileName);
+            builder.Append("\" exposes ");
+            builder.Append(columns.Count);
+            builder.AppendLine(columns.Count == 1 ? " SQL column." : " SQL columns.");
             builder.AppendLine();
+
+            for (var i = 0; i < columns.Count; i++)
+            {
+                var column = columns[i];
+                builder.Append("- ");
+                builder.Append(column.Name);
+
+                if (!string.IsNullOrWhiteSpace(column.SourceName) &&
+                    !string.Equals(column.Name, column.SourceName, StringComparison.OrdinalIgnoreCase))
+                {
+                    builder.Append(" (source header: ");
+                    builder.Append(column.SourceName);
+                    builder.Append(')');
+                }
+
+                builder.Append(" — inferred type: ");
+                builder.Append(inferredTypes[i]);
+                builder.AppendLine();
+            }
         }
 
         return builder.ToString();
     }
 
-    private static string[] InferColumnTypes(TabularDocumentArtifact artifact)
+    private static string[] InferColumnTypes(TabularWorksheet worksheet)
     {
-        var headerCount = artifact?.Header?.Count ?? 0;
+        var headerCount = worksheet.Header?.Count ?? 0;
 
         if (headerCount == 0)
         {
@@ -362,7 +441,7 @@ public sealed class GetDocumentMetadataTool : AIFunction
 
         var states = new InferredColumnType[headerCount];
         var sampleCounts = new int[headerCount];
-        var rows = artifact?.Rows ?? [];
+        var rows = worksheet.Rows ?? [];
         const int targetSamplesPerColumn = 32;
 
         for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)

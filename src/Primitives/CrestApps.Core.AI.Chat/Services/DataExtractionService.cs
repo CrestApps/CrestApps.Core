@@ -185,7 +185,7 @@ public sealed class DataExtractionService
 
             var response = await chatClient.GetResponseAsync<ExtractionResponse>(messages, new ChatOptions
             {
-                Temperature = 0f,
+                Temperature = null,
                 MaxOutputTokens = 1024,
             }.AddUsageTracking(session: session), null, cancellationToken);
 

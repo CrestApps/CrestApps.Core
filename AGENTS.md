@@ -24,11 +24,11 @@ When a change affects public behavior, configuration, setup, or project guidance
 update the relevant docs under `src\CrestApps.Core.Docs\docs` and build the docs site.
 
 - Changelog files are named after their version with no `v` prefix (for example
-  `1.0.0.md`, `1.1.0.md`).
-- The next planned release is **1.1.0**. Document all upcoming changes going forward —
+  `1.1.0.md`, `1.2.0.md`).
+- The next planned release is **2.0.0**. Document all upcoming changes going forward —
   new features, fixes, dependency upgrades, branching or workflow changes, and other
   notable repository-level updates — in
-  `src\CrestApps.Core.Docs\docs\changelog\1.1.0.md` until it ships.
+  `src\CrestApps.Core.Docs\docs\changelog\2.0.0.md` until it ships.
 - When a new development cycle starts, add a changelog file for that version (again
   with no `v` prefix), register it in `src\CrestApps.Core.Docs\sidebars.js` and
   `src\CrestApps.Core.Docs\docs\changelog\index.md`, and document ongoing work there.

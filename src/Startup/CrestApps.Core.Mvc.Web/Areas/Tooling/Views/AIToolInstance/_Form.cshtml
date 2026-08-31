@@ -61,6 +61,13 @@
             </div>
 
             <div class="mb-3">
+                <label asp-for="PathTemplate" class="form-label">Path template</label>
+                <input asp-for="PathTemplate" class="form-control font-monospace" placeholder="orders/{orderId}" />
+                <span asp-validation-for="PathTemplate" class="text-danger"></span>
+                <div class="form-text">Optional. Appended to the base URL. Use <code>{name}</code> tokens filled by parameters bound to the path.</div>
+            </div>
+
+            <div class="mb-3">
                 <label asp-for="HttpMethod" class="form-label">HTTP method</label>
                 <select asp-for="HttpMethod" class="form-select">
                     <option value="GET">GET</option>
@@ -187,6 +194,147 @@
             </div>
             </div>
 
+            <div class="source-fields" data-source="sitemap-documentation">
+                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (sitemap crawl)</h5>
+                <div class="mb-3">
+                    <label asp-for="SitemapBaseUrl" class="form-label">Base URL <span class="text-danger">*</span></label>
+                    <input asp-for="SitemapBaseUrl" class="form-control" placeholder="https://core.crestapps.com" />
+                    <span asp-validation-for="SitemapBaseUrl" class="text-danger"></span>
+                    <div class="form-text">The root URL of the documentation site to crawl.</div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="SitemapUrl" class="form-label">Sitemap URL</label>
+                    <input asp-for="SitemapUrl" class="form-control" placeholder="https://core.crestapps.com/sitemap.xml" />
+                    <span asp-validation-for="SitemapUrl" class="text-danger"></span>
+                    <div class="form-text">Optional. When empty, <code>/sitemap.xml</code> is appended to the base URL.</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="SitemapMaxResults" class="form-label">Max results</label>
+                        <input asp-for="SitemapMaxResults" class="form-control" type="number" min="1" max="50" placeholder="Default" />
+                        <span asp-validation-for="SitemapMaxResults" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="SitemapMaxPages" class="form-label">Max pages to index</label>
+                        <input asp-for="SitemapMaxPages" class="form-control" type="number" min="1" max="5000" placeholder="Default" />
+                        <span asp-validation-for="SitemapMaxPages" class="text-danger"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="source-fields" data-source="search-index-documentation">
+                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (prebuilt search index)</h5>
+                <div class="mb-3">
+                    <label asp-for="SearchIndexBaseUrl" class="form-label">Base URL <span class="text-danger">*</span></label>
+                    <input asp-for="SearchIndexBaseUrl" class="form-control" placeholder="https://www.mkdocs.org" />
+                    <span asp-validation-for="SearchIndexBaseUrl" class="text-danger"></span>
+                    <div class="form-text">The root URL of the documentation site. Used to resolve relative entry locations.</div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="SearchIndexUrl" class="form-label">Search index URL</label>
+                    <input asp-for="SearchIndexUrl" class="form-control" placeholder="https://www.mkdocs.org/search/search_index.json" />
+                    <span asp-validation-for="SearchIndexUrl" class="text-danger"></span>
+                    <div class="form-text">Optional. When empty, <code>/search/search_index.json</code> is appended to the base URL.</div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="SearchIndexMaxResults" class="form-label">Max results</label>
+                    <input asp-for="SearchIndexMaxResults" class="form-control" type="number" min="1" max="50" placeholder="Default" />
+                    <span asp-validation-for="SearchIndexMaxResults" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div class="source-fields" data-source="algolia-documentation">
+                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (Algolia DocSearch)</h5>
+                <div class="mb-3">
+                    <label asp-for="AlgoliaApplicationId" class="form-label">Application ID <span class="text-danger">*</span></label>
+                    <input asp-for="AlgoliaApplicationId" class="form-control" placeholder="BH4D9OD16A" />
+                    <span asp-validation-for="AlgoliaApplicationId" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="AlgoliaApiKey" class="form-label">Search-only API key <span class="text-danger">*</span></label>
+                    <input asp-for="AlgoliaApiKey" class="form-control" type="password" autocomplete="new-password" />
+                    @if (Model.HasAlgoliaApiKey)
+                    {
+                        <div class="form-text">Leave blank to keep the existing API key.</div>
+                    }
+                    <span asp-validation-for="AlgoliaApiKey" class="text-danger"></span>
+                    <div class="form-text">Use the search-only key. The value is protected before it is stored.</div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="AlgoliaIndexName" class="form-label">Index name <span class="text-danger">*</span></label>
+                    <input asp-for="AlgoliaIndexName" class="form-control" placeholder="docs" />
+                    <span asp-validation-for="AlgoliaIndexName" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="AlgoliaMaxResults" class="form-label">Max results</label>
+                    <input asp-for="AlgoliaMaxResults" class="form-control" type="number" min="1" max="50" placeholder="Default" />
+                    <span asp-validation-for="AlgoliaMaxResults" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div class="source-fields" data-source="website-search">
+                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-search"></i> Website search (live API)</h5>
+                <p class="text-muted small">Queries the site's own search API on each request — no crawling or caching. Defaults target the WordPress REST search endpoint, so a WordPress site needs only a base URL.</p>
+                <div class="mb-3">
+                    <label asp-for="WebsiteSearchBaseUrl" class="form-label">Base URL <span class="text-danger">*</span></label>
+                    <input asp-for="WebsiteSearchBaseUrl" class="form-control" placeholder="https://www.example.com" />
+                    <span asp-validation-for="WebsiteSearchBaseUrl" class="text-danger"></span>
+                    <div class="form-text">The root URL of the site to search.</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label asp-for="WebsiteSearchPath" class="form-label">Search endpoint path <span class="text-danger">*</span></label>
+                        <input asp-for="WebsiteSearchPath" class="form-control font-monospace" placeholder="/wp-json/wp/v2/search" />
+                        <span asp-validation-for="WebsiteSearchPath" class="text-danger"></span>
+                        <div class="form-text">Appended to the base URL. Default is the WordPress REST search endpoint.</div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label asp-for="WebsiteSearchQueryParameter" class="form-label">Query parameter <span class="text-danger">*</span></label>
+                        <input asp-for="WebsiteSearchQueryParameter" class="form-control font-monospace" placeholder="search" />
+                        <span asp-validation-for="WebsiteSearchQueryParameter" class="text-danger"></span>
+                        <div class="form-text">The parameter the model's query is placed in.</div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="WebsiteSearchExtraQuery" class="form-label">Extra query parameters</label>
+                    <input asp-for="WebsiteSearchExtraQuery" class="form-control font-monospace" placeholder="_embed=1" />
+                    <span asp-validation-for="WebsiteSearchExtraQuery" class="text-danger"></span>
+                    <div class="form-text">Optional. Fixed parameters always appended. WordPress <code>_embed=1</code> returns each result's excerpt for the snippet.</div>
+                </div>
+                <h6 class="mt-3">Response mapping</h6>
+                <p class="text-muted small">Dotted paths into the JSON response (support <code>[index]</code>, e.g. <code>_embedded.self[0].excerpt.rendered</code>). Defaults match WordPress.</p>
+                <div class="mb-3">
+                    <label asp-for="WebsiteSearchResultsPath" class="form-label">Results array path</label>
+                    <input asp-for="WebsiteSearchResultsPath" class="form-control font-monospace" placeholder="(leave empty when the response body is the array)" />
+                    <span asp-validation-for="WebsiteSearchResultsPath" class="text-danger"></span>
+                    <div class="form-text">Empty means the response body is itself the results array (the WordPress default).</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label asp-for="WebsiteSearchTitlePath" class="form-label">Title path <span class="text-danger">*</span></label>
+                        <input asp-for="WebsiteSearchTitlePath" class="form-control font-monospace" placeholder="title" />
+                        <span asp-validation-for="WebsiteSearchTitlePath" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label asp-for="WebsiteSearchUrlPath" class="form-label">URL path <span class="text-danger">*</span></label>
+                        <input asp-for="WebsiteSearchUrlPath" class="form-control font-monospace" placeholder="url" />
+                        <span asp-validation-for="WebsiteSearchUrlPath" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label asp-for="WebsiteSearchSnippetPath" class="form-label">Snippet path</label>
+                        <input asp-for="WebsiteSearchSnippetPath" class="form-control font-monospace" placeholder="_embedded.self[0].excerpt.rendered" />
+                        <span asp-validation-for="WebsiteSearchSnippetPath" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="WebsiteSearchMaxResults" class="form-label">Max results</label>
+                    <input asp-for="WebsiteSearchMaxResults" class="form-control" type="number" min="1" max="50" placeholder="Default" />
+                    <span asp-validation-for="WebsiteSearchMaxResults" class="text-danger"></span>
+                </div>
+            </div>
+
+            <partial name="_Parameters" model="Model" />
+
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> @(string.IsNullOrEmpty(Model.ItemId) ? "Create" : "Save")</button>
                 <a asp-action="Index" class="btn btn-secondary">Cancel</a>
@@ -209,7 +357,8 @@
         function updateSourceVisibility() {
             const selectedSource = sourceSelect ? sourceSelect.value : null;
             document.querySelectorAll('.source-fields').forEach(element => {
-                element.style.display = element.dataset.source === selectedSource ? '' : 'none';
+                const sources = (element.dataset.source || '').split(',');
+                element.style.display = sources.includes(selectedSource) ? '' : 'none';
             });
         }
 

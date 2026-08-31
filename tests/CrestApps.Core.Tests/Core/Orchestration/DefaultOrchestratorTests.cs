@@ -619,6 +619,13 @@ public sealed class DefaultOrchestratorTests
             return CreateTextToSpeechClientAsync(deployment);
         }
 #pragma warning restore MEAI001
+
+#pragma warning disable MEAI001
+        public ValueTask<Microsoft.Extensions.AI.IRealtimeClient> CreateRealtimeClientAsync(AIDeployment deployment)
+        {
+            return new((Microsoft.Extensions.AI.IRealtimeClient)null);
+        }
+#pragma warning restore MEAI001
     }
 
     /// </summary>

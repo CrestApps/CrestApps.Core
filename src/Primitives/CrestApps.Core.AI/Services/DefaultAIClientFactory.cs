@@ -211,6 +211,23 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         return BuildTextToSpeechClient(client, configurePipeline);
     }
 
+#pragma warning disable MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
+    /// <summary>
+    /// Creates a real-time client.
+    /// </summary>
+    /// <param name="deployment">The deployment.</param>
+    public async ValueTask<IRealtimeClient> CreateRealtimeClientAsync(AIDeployment deployment)
+    {
+        ArgumentNullException.ThrowIfNull(deployment);
+        ArgumentException.ThrowIfNullOrEmpty(deployment.ClientName);
+
+        var connection = await GetConnectionEntryAsync(deployment);
+
+        return await ResolveClientAsync(deployment, connection,
+            (provider, conn, model) => provider.GetRealtimeClientAsync(conn, model));
+    }
+#pragma warning restore MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
+
     /// <summary>
     /// Resolves a client from the first registered provider that can handle the deployment's client name.
     /// </summary>

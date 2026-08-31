@@ -11,6 +11,30 @@ namespace CrestApps.Core.Blazor.Web.Areas.AI.Services;
 
 public sealed class AIProfileTemplateDocumentService
 {
+    private static readonly Action<ILogger, string, string, Exception> _failedToProcessFile =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Warning,
+            new EventId(1001, nameof(FailedToProcessFile)),
+            "Failed to process file '{FileName}': {Error}");
+
+    private static readonly Action<ILogger, string, Exception> _errorProcessingUploadedFile =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(1002, nameof(ErrorProcessingUploadedFile)),
+            "Error processing uploaded file '{FileName}'.");
+
+    private static readonly Action<ILogger, string, Exception> _errorRemovingTemplateDocument =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(1003, nameof(ErrorRemovingTemplateDocument)),
+            "Error removing template document '{DocumentId}'.");
+
+    private static readonly Action<ILogger, string, string, Exception> _templateStoredFileNotFound =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Warning,
+            new EventId(1004, nameof(TemplateStoredFileNotFound)),
+            "Template document '{DocumentId}' referenced stored file '{StoredFilePath}', but the file was not found.");
+
     private readonly IAIDocumentStore _documentStore;
     private readonly IAIDocumentChunkStore _chunkStore;
     private readonly IDocumentFileStore _fileStore;
@@ -66,7 +90,7 @@ public sealed class AIProfileTemplateDocumentService
 
                 if (!result.Success)
                 {
-                    _logger.LogWarning("Failed to process file '{FileName}': {Error}", file.FileName, result.Error);
+                    FailedToProcessFile(_logger, file.FileName, result.Error);
                     continue;
                 }
 
@@ -99,7 +123,7 @@ public sealed class AIProfileTemplateDocumentService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing uploaded file '{FileName}'.", file.FileName);
+                ErrorProcessingUploadedFile(_logger, file.FileName, ex);
             }
         }
     }
@@ -160,7 +184,7 @@ public sealed class AIProfileTemplateDocumentService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error removing template document '{DocumentId}'.", documentId);
+                ErrorRemovingTemplateDocument(_logger, documentId, ex);
             }
         }
 
@@ -220,10 +244,7 @@ public sealed class AIProfileTemplateDocumentService
                 }
                 else
                 {
-                    _logger.LogWarning(
-                        "Template document '{DocumentId}' referenced stored file '{StoredFilePath}', but the file was not found.",
-                        templateDocument.ItemId,
-                        templateDocument.StoredFilePath);
+                    TemplateStoredFileNotFound(_logger, templateDocument.ItemId, templateDocument.StoredFilePath);
                 }
             }
 
@@ -342,5 +363,25 @@ public sealed class AIProfileTemplateDocumentService
         }
 
         return null;
+    }
+
+    private static void FailedToProcessFile(ILogger logger, string fileName, string error)
+    {
+        _failedToProcessFile(logger, fileName, error, null);
+    }
+
+    private static void ErrorProcessingUploadedFile(ILogger logger, string fileName, Exception exception)
+    {
+        _errorProcessingUploadedFile(logger, fileName, exception);
+    }
+
+    private static void ErrorRemovingTemplateDocument(ILogger logger, string documentId, Exception exception)
+    {
+        _errorRemovingTemplateDocument(logger, documentId, exception);
+    }
+
+    private static void TemplateStoredFileNotFound(ILogger logger, string documentId, string storedFilePath)
+    {
+        _templateStoredFileNotFound(logger, documentId, storedFilePath, null);
     }
 }

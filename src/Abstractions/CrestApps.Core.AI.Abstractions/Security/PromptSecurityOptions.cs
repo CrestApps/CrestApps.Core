@@ -34,6 +34,15 @@ public sealed class PromptSecurityOptions
     public bool EnableInputDelimiters { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets a value indicating whether user messages in Chat Interactions are wrapped with
+    /// boundary delimiters. Chat Interactions do not receive the security preamble or injection
+    /// blocking (the operator controls the prompt, model, and tools), but clear input boundaries still
+    /// help the model avoid confusing the user's message with system, tool, or agent content — which
+    /// matters most when many agents and tools are involved.
+    /// </summary>
+    public bool EnableChatInteractionInputDelimiters { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets a value indicating whether security audit logging is enabled.
     /// </summary>
     public bool EnableAuditLogging { get; set; } = true;
@@ -72,24 +81,58 @@ public sealed class PromptSecurityOptions
     public List<string> CustomBlockedPatterns { get; set; } = [];
 
     /// <summary>
-    /// Gets or sets the maximum number of messages per session that can be sent
-    /// within the rate limit window. Set to zero to disable rate limiting.
+    /// Gets or sets the maximum number of messages per window that an authenticated caller can send.
+    /// Set to zero to disable message rate limiting for authenticated callers. Anonymous callers are
+    /// governed by <see cref="AnonymousMessageRateLimitTiers"/> instead (falling back to this value
+    /// and <see cref="RateLimitWindow"/> only when no tiers are configured).
     /// </summary>
     public int MaxMessagesPerWindow { get; set; } = 20;
 
     /// <summary>
-    /// Gets or sets the rate limit window duration.
+    /// Gets or sets the rate limit window duration used with <see cref="MaxMessagesPerWindow"/>.
     /// </summary>
     public TimeSpan RateLimitWindow { get; set; } = TimeSpan.FromMinutes(1);
 
     /// <summary>
-    /// Gets or sets the maximum number of anonymous chat sessions that can be started
-    /// within the anonymous session rate-limit window. Set to zero to disable this limit.
+    /// Gets or sets the multi-tier sliding-window message limits applied to <em>anonymous</em>
+    /// callers. A message is throttled when it would exceed any tier. When empty, anonymous callers
+    /// fall back to the single <see cref="MaxMessagesPerWindow"/> / <see cref="RateLimitWindow"/>
+    /// window. Authenticated callers are never governed by these tiers.
     /// </summary>
-    public int MaxAnonymousSessionsPerWindow { get; set; } = 5;
+    public List<ChatRateLimitTier> AnonymousMessageRateLimitTiers { get; set; } =
+    [
+        new() { Limit = 5, Window = TimeSpan.FromSeconds(30) },
+        new() { Limit = 30, Window = TimeSpan.FromMinutes(5) },
+        new() { Limit = 150, Window = TimeSpan.FromHours(1) },
+        new() { Limit = 500, Window = TimeSpan.FromDays(1) },
+    ];
 
     /// <summary>
-    /// Gets or sets the anonymous session-start rate-limit window duration.
+    /// Gets or sets the maximum number of anonymous chat sessions that can be started within
+    /// <see cref="AnonymousSessionRateLimitWindow"/>. Used only as a fallback when
+    /// <see cref="AnonymousSessionStartRateLimitTiers"/> is empty. Set to zero to disable the
+    /// fallback limit.
+    /// </summary>
+    public int MaxAnonymousSessionsPerWindow { get; set; } = 20;
+
+    /// <summary>
+    /// Gets or sets the anonymous session-start rate-limit window duration used with
+    /// <see cref="MaxAnonymousSessionsPerWindow"/>.
     /// </summary>
     public TimeSpan AnonymousSessionRateLimitWindow { get; set; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// Gets or sets the multi-tier sliding-window limits applied to <em>anonymous</em> session
+    /// starts. A session start is throttled when it would exceed any tier. When empty, anonymous
+    /// session starts fall back to the single <see cref="MaxAnonymousSessionsPerWindow"/> /
+    /// <see cref="AnonymousSessionRateLimitWindow"/> window. Authenticated callers never start
+    /// rate-limited sessions.
+    /// </summary>
+    public List<ChatRateLimitTier> AnonymousSessionStartRateLimitTiers { get; set; } =
+    [
+        new() { Limit = 5, Window = TimeSpan.FromSeconds(30) },
+        new() { Limit = 10, Window = TimeSpan.FromMinutes(5) },
+        new() { Limit = 150, Window = TimeSpan.FromHours(1) },
+        new() { Limit = 500, Window = TimeSpan.FromDays(1) },
+    ];
 }

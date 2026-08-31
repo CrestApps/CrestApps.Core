@@ -1,3 +1,4 @@
+using System.Net;
 using System.Threading.Channels;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat;
@@ -7,6 +8,7 @@ using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.ResponseHandling;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.AI;
@@ -71,6 +73,53 @@ public sealed class AIChatHubCoreTests
         var message = hub.GetFriendlyErrorMessageForTest(new AIDeploymentNotFoundException("Unable to resolve a chat deployment for the profile."));
 
         Assert.Equal("The chat model settings are missing or invalid. Update the Chat model in the AI Profile or the global AI settings.", message);
+    }
+
+    [Fact]
+    public void GetFriendlyErrorMessage_WithProviderNotFound_ReturnsModelOrEndpointGuidance()
+    {
+        var hub = new TestAIChatHub(new ServiceCollection().BuildServiceProvider());
+
+        var notFound = new HttpRequestException(
+            "Response status code does not indicate success: 404 (Not Found).",
+            inner: null,
+            statusCode: HttpStatusCode.NotFound);
+
+        var message = hub.GetFriendlyErrorMessageForTest(notFound);
+
+        Assert.Equal("The AI provider could not find the requested model or endpoint (404). Verify that the deployment's model name exists on the provider and that the connection endpoint is correct. If you are using Ollama, make sure the model has been pulled first.", message);
+    }
+
+    [Fact]
+    public void GetFriendlyErrorMessage_WithWrappedProviderNotFound_ReturnsModelOrEndpointGuidance()
+    {
+        var hub = new TestAIChatHub(new ServiceCollection().BuildServiceProvider());
+
+        var notFound = new InvalidOperationException(
+            "Streaming failed.",
+            new HttpRequestException(
+                "Response status code does not indicate success: 404 (Not Found).",
+                inner: null,
+                statusCode: HttpStatusCode.NotFound));
+
+        var message = hub.GetFriendlyErrorMessageForTest(notFound);
+
+        Assert.Equal("The AI provider could not find the requested model or endpoint (404). Verify that the deployment's model name exists on the provider and that the connection endpoint is correct. If you are using Ollama, make sure the model has been pulled first.", message);
+    }
+
+    [Fact]
+    public void GetFriendlyErrorMessage_WithNonNotFoundHttpError_ReturnsGenericMessage()
+    {
+        var hub = new TestAIChatHub(new ServiceCollection().BuildServiceProvider());
+
+        var serverError = new HttpRequestException(
+            "Response status code does not indicate success: 500 (Internal Server Error).",
+            inner: null,
+            statusCode: HttpStatusCode.InternalServerError);
+
+        var message = hub.GetFriendlyErrorMessageForTest(serverError);
+
+        Assert.Equal("An error occurred processing your message.", message);
     }
 
     /// <summary>
@@ -168,6 +217,114 @@ public sealed class AIChatHubCoreTests
                 It.IsAny<ChatResponseHandlerContext>(),
                 cancellationToken),
             Times.Once);
+    }
+
+    /// <summary>
+    /// When an explicit new-session request is throttled, the caller receives the dedicated
+    /// session-start-rejection signal (which the client shows without triggering the widget's
+    /// clear-and-retry recovery) rather than a generic error, and no session is created.
+    /// </summary>
+    [Fact]
+    public async Task StartSession_WhenThrottled_SignalsSessionStartRejected_AndDoesNotCreateSession()
+    {
+        var profile = new AIProfile { ItemId = "profile-1", Type = AIProfileType.Chat };
+
+        var profileManagerMock = new Mock<IAIProfileManager>();
+        profileManagerMock
+            .Setup(manager => manager.FindByIdAsync(profile.ItemId, It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<AIProfile>(profile));
+
+        var sessionManagerMock = new Mock<IAIChatSessionManager>();
+
+        var rateLimiterMock = new Mock<IChatSessionStartRateLimiter>();
+        rateLimiterMock
+            .Setup(limiter => limiter.EvaluateAsync(It.IsAny<PromptSecurityContext>(), It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<RateLimitResult>(RateLimitResult.Throttled(retryAfterSeconds: 94, currentCount: 10, maxAllowed: 10)));
+
+        var services = new ServiceCollection()
+            .AddSingleton(profileManagerMock.Object)
+            .AddSingleton(sessionManagerMock.Object)
+            .AddSingleton(new Mock<IAIChatSessionPromptStore>().Object)
+            .AddSingleton(rateLimiterMock.Object)
+            .BuildServiceProvider();
+
+        var (hub, callerMock) = CreateHubWithCaller(services);
+
+        await hub.StartSession(profile.ItemId);
+
+        callerMock.Verify(
+            client => client.ReceiveSessionStartRejected(
+                "You've reached the limit for starting new chats. Please wait a few minutes and try again."),
+            Times.Once);
+        callerMock.Verify(client => client.ReceiveError(It.IsAny<string>()), Times.Never);
+        sessionManagerMock.Verify(
+            manager => manager.NewAsync(It.IsAny<AIProfile>(), It.IsAny<NewAIChatSessionContext>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    /// <summary>
+    /// When the first message of a brand-new (session-less) conversation is throttled, the same
+    /// dedicated rejection signal is sent instead of a generic error, and no session is created.
+    /// </summary>
+    [Fact]
+    public async Task ProcessChatPromptAsync_WhenSessionStartThrottled_SignalsSessionStartRejected_NotGenericError()
+    {
+        var profile = new AIProfile { ItemId = "profile-1", Type = AIProfileType.Chat };
+
+        var sessionManagerMock = new Mock<IAIChatSessionManager>();
+
+        var rateLimiterMock = new Mock<IChatSessionStartRateLimiter>();
+        rateLimiterMock
+            .Setup(limiter => limiter.EvaluateAsync(It.IsAny<PromptSecurityContext>(), It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<RateLimitResult>(RateLimitResult.Throttled(retryAfterSeconds: 94, currentCount: 10, maxAllowed: 10)));
+
+        var services = new ServiceCollection()
+            .AddSingleton(sessionManagerMock.Object)
+            .AddSingleton(new Mock<IAIChatSessionPromptStore>().Object)
+            .AddSingleton(new Mock<IChatResponseHandlerResolver>().Object)
+            .AddSingleton(rateLimiterMock.Object)
+            .BuildServiceProvider();
+
+        var (hub, callerMock) = CreateHubWithCaller(services);
+
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        // A null sessionId forces a new session, so the session-start rate limit is evaluated.
+        await hub.ProcessChatPromptForTestAsync(
+            channel.Writer,
+            services,
+            profile,
+            sessionId: null,
+            prompt: "hello",
+            cancellationToken: CancellationToken.None);
+
+        callerMock.Verify(
+            client => client.ReceiveSessionStartRejected(
+                "You've reached the limit for starting new chats. Please wait a few minutes and try again."),
+            Times.Once);
+        callerMock.Verify(client => client.ReceiveError(It.IsAny<string>()), Times.Never);
+        sessionManagerMock.Verify(
+            manager => manager.NewAsync(It.IsAny<AIProfile>(), It.IsAny<NewAIChatSessionContext>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    private static (TestAIChatHub Hub, Mock<IAIChatHubClient> Caller) CreateHubWithCaller(IServiceProvider services)
+    {
+        var callerMock = new Mock<IAIChatHubClient>();
+        var clientsMock = new Mock<IHubCallerClients<IAIChatHubClient>>();
+        clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
+
+        var contextMock = new Mock<HubCallerContext>();
+        contextMock.SetupGet(context => context.ConnectionId).Returns("connection");
+        contextMock.SetupGet(context => context.ConnectionAborted).Returns(CancellationToken.None);
+
+        var hub = new TestAIChatHub(services)
+        {
+            Clients = clientsMock.Object,
+            Context = contextMock.Object,
+        };
+
+        return (hub, callerMock);
     }
 
     [Fact]

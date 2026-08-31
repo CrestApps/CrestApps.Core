@@ -13,6 +13,14 @@ public sealed class HttpApiRequestToolSettings
     public string BaseUrl { get; set; }
 
     /// <summary>
+    /// Gets or sets an optional path appended to <see cref="BaseUrl"/>, which may contain
+    /// <c>{parameterName}</c> tokens substituted from parameters bound to the path placement. Each
+    /// substituted value is escaped as a single path segment, so a value can neither add segments nor
+    /// traverse upwards.
+    /// </summary>
+    public string PathTemplate { get; set; }
+
+    /// <summary>
     /// Gets or sets the HTTP method to use (for example, <c>GET</c>, <c>POST</c>, <c>PUT</c>,
     /// <c>PATCH</c>, or <c>DELETE</c>). Defaults to <c>GET</c>.
     /// </summary>

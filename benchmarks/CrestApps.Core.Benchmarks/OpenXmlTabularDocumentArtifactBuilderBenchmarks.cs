@@ -80,25 +80,33 @@ public class OpenXmlTabularDocumentArtifactBuilderCapacityBenchmarks
         var rows = initialRowCapacity == 0
             ? []
             : new List<List<string>>(initialRowCapacity);
+        var headerAssigned = false;
 
-        OpenXmlTabularWorksheetReader.ReadNonEmptyRows(
+        static void OnWorksheetEnd()
+        {
+        }
+
+        OpenXmlTabularWorksheetReader.ReadWorksheets(
             workbookPart,
             "benchmark.xlsx",
             NullLogger.Instance,
-            (row, firstNonEmptyRowInWorksheet) =>
+            name =>
             {
-                if (header == null)
+                headerAssigned = false;
+            },
+            row =>
+            {
+                if (!headerAssigned)
                 {
                     header = row;
+                    headerAssigned = true;
 
                     return;
                 }
 
-                if (!firstNonEmptyRowInWorksheet)
-                {
-                    rows.Add(row);
-                }
+                rows.Add(row);
             },
+            OnWorksheetEnd,
             CancellationToken.None);
 
         return header == null

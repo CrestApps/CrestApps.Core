@@ -117,7 +117,7 @@ public sealed class PostSessionProcessingService
 
         var response = await chatClient.GetResponseAsync<ResolutionAnalysisResponse>(messages, new ChatOptions
         {
-            Temperature = 0f,
+            Temperature = null,
         }.AddUsageTracking(session: AIInvocationScope.Current?.ChatSession), null, cancellationToken);
 
         return response.Result?.Resolved ?? false;
@@ -179,7 +179,7 @@ public sealed class PostSessionProcessingService
 
         var response = await chatClient.GetResponseAsync<ConversionGoalEvaluationResponse>(messages, new ChatOptions
         {
-            Temperature = 0f,
+            Temperature = null,
         }.AddUsageTracking(session: AIInvocationScope.Current?.ChatSession), null, cancellationToken);
 
         if (response.Result?.Goals is null || response.Result.Goals.Count == 0)
@@ -444,7 +444,7 @@ public sealed class PostSessionProcessingService
 
         var response = await client.GetResponseAsync(messages, new ChatOptions
         {
-            Temperature = 0f,
+            Temperature = null,
             Tools = tools,
         }.AddUsageTracking(session: session), cancellationToken);
 
@@ -601,7 +601,7 @@ public sealed class PostSessionProcessingService
     {
         var response = await chatClient.GetResponseAsync<PostSessionProcessingResponse>(messages, new ChatOptions
         {
-            Temperature = 0f,
+            Temperature = null,
         }.AddUsageTracking(session: session), null, cancellationToken);
 
         var responseText = GetLastAssistantMessageText(response.Messages);
@@ -861,7 +861,7 @@ public sealed class PostSessionProcessingService
 
         var response = await chatClient.GetResponseAsync<PostSessionProcessingResponse>(followUpMessages, new ChatOptions
         {
-            Temperature = 0f,
+            Temperature = null,
         }, null, cancellationToken);
 
         var recoveryResponseText = GetLastAssistantMessageText(response.Messages);

@@ -37,6 +37,10 @@ public static class HttpApiRequestToolServiceCollectionExtensions
                 "Calls an external HTTP API using preconfigured settings (endpoint, authentication, headers).");
             entry.Category = new LocalizedString("Integrations", "Integrations");
 
+            // Advertise the placements this source knows how to honor, which is what enables the
+            // parameter editor for instances built from it.
+            entry.Parameters = HttpApiRequestParameterBindings.CreateCapabilities();
+
             configure?.Invoke(entry);
         });
 

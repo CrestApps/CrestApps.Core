@@ -60,6 +60,7 @@ const sidebars = {
                         'data-sources/azure-ai',
                         'data-sources/elasticsearch',
                         'data-sources/postgresql',
+                        'data-sources/web-crawlers',
                     ],
                 },
                 'core/data-storage',
@@ -97,6 +98,9 @@ const sidebars = {
             label: 'Changelog',
             items: [
                 'changelog/index',
+                'changelog/2.0.0',
+                'changelog/1.3.0',
+                'changelog/1.2.0',
                 'changelog/1.1.0',
                 'changelog/1.0.0',
             ],

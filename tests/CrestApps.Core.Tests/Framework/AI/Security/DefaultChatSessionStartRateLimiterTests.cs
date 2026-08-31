@@ -132,19 +132,95 @@ public sealed class DefaultChatSessionStartRateLimiterTests
         Assert.True(result.IsThrottled);
     }
 
+    [Fact]
+    public async Task EvaluateAsync_AnonymousBurstTier_ThrottlesWithinShortWindow()
+    {
+        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var limiter = CreateLimiter(
+            maxSessions: 1000,
+            timeProvider: fakeTime,
+            anonymousSessionTiers:
+            [
+                new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromSeconds(30) },
+                new ChatRateLimitTier { Limit = 5, Window = TimeSpan.FromMinutes(5) },
+            ]);
+        var context = CreateContext();
+
+        await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+        await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+
+        var result = await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsThrottled);
+        Assert.Equal(2, result.CurrentCount);
+        Assert.Equal(2, result.MaxAllowed);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_AnonymousMultiTier_ThrottledByLongerTierAfterBurstWindowPasses()
+    {
+        var fakeTime = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var limiter = CreateLimiter(
+            maxSessions: 1000,
+            timeProvider: fakeTime,
+            anonymousSessionTiers:
+            [
+                new ChatRateLimitTier { Limit = 2, Window = TimeSpan.FromSeconds(30) },
+                new ChatRateLimitTier { Limit = 3, Window = TimeSpan.FromMinutes(5) },
+            ]);
+        var context = CreateContext();
+
+        await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+        await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+
+        // Past the 30-second burst window a third start is allowed again.
+        fakeTime.Advance(TimeSpan.FromSeconds(31));
+        var allowed = await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+        Assert.False(allowed.IsThrottled);
+
+        // The 5-minute tier now holds 3, throttling the next start.
+        var result = await limiter.EvaluateAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsThrottled);
+        Assert.Equal(3, result.CurrentCount);
+        Assert.Equal(3, result.MaxAllowed);
+    }
+
     private static DefaultChatSessionStartRateLimiter CreateLimiter(
         int maxSessions,
-        AIChatRateLimitingOptions rateLimitingOptions = null)
+        AIChatRateLimitingOptions rateLimitingOptions = null,
+        TimeProvider timeProvider = null,
+        List<ChatRateLimitTier> anonymousSessionTiers = null)
     {
         return new DefaultChatSessionStartRateLimiter(
-            TimeProvider.System,
+            timeProvider ?? TimeProvider.System,
             Options.Create(rateLimitingOptions ?? new AIChatRateLimitingOptions()),
             Options.Create(new PromptSecurityOptions
             {
+                // Default to no tiers so these cases exercise the single-window fallback governed by
+                // MaxAnonymousSessionsPerWindow; tier-specific tests pass an explicit list.
+                AnonymousSessionStartRateLimitTiers = anonymousSessionTiers ?? [],
                 MaxAnonymousSessionsPerWindow = maxSessions,
                 AnonymousSessionRateLimitWindow = TimeSpan.FromMinutes(10),
             }),
             NullLogger<DefaultChatSessionStartRateLimiter>.Instance);
+    }
+
+    private sealed class FakeTimeProvider : TimeProvider
+    {
+        private DateTimeOffset _utcNow;
+
+        public FakeTimeProvider(DateTimeOffset startTime)
+        {
+            _utcNow = startTime;
+        }
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+
+        public void Advance(TimeSpan duration)
+        {
+            _utcNow += duration;
+        }
     }
 
     private static PromptSecurityContext CreateContext(

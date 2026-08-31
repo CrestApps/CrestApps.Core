@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.A2A.Services;
 using CrestApps.Core.AI.Models;
@@ -66,7 +67,7 @@ internal sealed class ListAvailableAgentsFunction : AIFunction
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to list local agent profiles.");
+            A2ALog.FailedToListLocalAgentProfiles(logger, ex);
         }
 
         try
@@ -96,13 +97,13 @@ internal sealed class ListAvailableAgentsFunction : AIFunction
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "Failed to fetch agent card from A2A connection '{ConnectionId}'.", connection.ItemId);
+                    A2ALog.FailedToFetchAgentCardFromConnection(logger, connection.ItemId, ex);
                 }
             }
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to list remote A2A agents.");
+            A2ALog.FailedToListRemoteA2AAgents(logger, ex);
         }
 
         return agents.Count > 0 ? JsonSerializer.Serialize(agents) : "No agents are currently available.";

@@ -38,6 +38,8 @@
 @inject ClaudeClientService ClaudeClientService
 @inject IOptionsMonitor<CopilotOptions> CopilotOpts
 @inject IOptions<AIToolDefinitionOptions> ToolOpts
+@inject IAIToolAccessEvaluator ToolAccessEvaluator
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IOptionsMonitor<InteractionDocumentOptions> DocOpts
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject ISpeechVoiceResolver SpeechVoiceResolver
@@ -1306,7 +1308,7 @@
         }
 
         SyncCheckboxSelections();
-        _model.SelectedToolNames = GetValidToolNames(_model.SelectedToolNames);
+        _model.SelectedToolNames = await GetValidToolNamesAsync(_model.SelectedToolNames);
         _model.SelectedAgentNames = await GetValidAgentNamesAsync(_model.SelectedAgentNames);
         _model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(_model.SelectedA2AConnectionIds);
         _model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(_model.SelectedMcpConnectionIds);
@@ -1327,7 +1329,7 @@
 
         if (_pendingFiles.Count > 0)
         {
-            using var formFiles = await BrowserFileFormFileCollection.CreateAsync(_pendingFiles);
+            using var formFiles = await BrowserFileFormFiles.CreateAsync(_pendingFiles);
 
             if (formFiles.Files.Count > 0)
             {
@@ -1528,9 +1530,12 @@
             .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var toolOptions = ToolOpts.Value;
         var selectedNames = new HashSet<string>(_model.SelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
-        _model.AvailableTools = toolOptions.GetSelectableTools()
+        // Only list tools the current user is authorized to select. The default IAIToolAccessEvaluator
+        // permits everything; replace it to enforce a real per-user tool permission model.
+        var currentUser = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var authorizedTools = await SelectableToolAccessFilter.GetAuthorizedSelectableToolsAsync(ToolOpts.Value, ToolAccessEvaluator, currentUser);
+        _model.AvailableTools = authorizedTools
             .Select(kvp => new ToolSelectionItem
             {
                 Name = kvp.Key,
@@ -1633,9 +1638,12 @@
             }).ToList();
     }
 
-    private string[] GetValidToolNames(IEnumerable<string> selectedNames)
+    private async Task<string[]> GetValidToolNamesAsync(IEnumerable<string> selectedNames)
     {
-        var validToolNames = ToolOpts.Value.GetSelectableTools().Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Reject any persisted tool name the current user is not authorized to select, so a tampered
+        // request cannot save a listable tool the author lacks access to.
+        var currentUser = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var validToolNames = await SelectableToolAccessFilter.GetAuthorizedSelectableToolNamesAsync(ToolOpts.Value, ToolAccessEvaluator, currentUser);
 
         return (selectedNames ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name) && validToolNames.Contains(name))
