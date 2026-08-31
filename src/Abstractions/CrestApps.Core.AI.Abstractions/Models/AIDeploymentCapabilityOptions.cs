@@ -6,7 +6,7 @@ namespace CrestApps.Core.AI.Models;
 /// Holds the model features and model parameters that modules contribute to the framework.
 /// Deployments reference these registered definitions through <see cref="AIDeploymentModelMetadata"/>.
 /// </summary>
-public sealed class AIModelCapabilityOptions
+public sealed class AIDeploymentCapabilityOptions
 {
     /// <summary>
     /// Gets the registered model features keyed by their technical name.
@@ -24,7 +24,7 @@ public sealed class AIModelCapabilityOptions
     /// <param name="name">The technical name of the feature.</param>
     /// <param name="displayName">The display text shown to operators.</param>
     /// <param name="configure">An optional delegate used to further configure the descriptor.</param>
-    public AIModelCapabilityOptions AddFeature(string name, LocalizedString displayName, Action<AIModelFeatureDescriptor> configure = null)
+    public AIDeploymentCapabilityOptions AddFeature(string name, LocalizedString displayName, Action<AIModelFeatureDescriptor> configure = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
@@ -53,7 +53,7 @@ public sealed class AIModelCapabilityOptions
     /// <param name="name">The technical name of the parameter.</param>
     /// <param name="displayName">The display text shown to operators.</param>
     /// <param name="configure">An optional delegate used to further configure the descriptor.</param>
-    public AIModelCapabilityOptions AddParameter(string name, LocalizedString displayName, Action<AIModelParameterDescriptor> configure = null)
+    public AIDeploymentCapabilityOptions AddParameter(string name, LocalizedString displayName, Action<AIModelParameterDescriptor> configure = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 

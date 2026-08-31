@@ -48,7 +48,7 @@ public sealed class SettingsController : Controller
     private readonly ClaudeClientService _anthropicClientService;
     private readonly AIToolDefinitionOptions _toolOptions;
     private readonly ISourceCatalog<AIToolInstance> _toolInstanceCatalog;
-    private readonly IAIModelCapabilityService _capabilityService;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
 
     public SettingsController(
         SiteSettingsStore siteSettings,
@@ -61,7 +61,7 @@ public sealed class SettingsController : Controller
         ClaudeClientService anthropicClientService,
         IOptions<AIToolDefinitionOptions> toolOptions,
         ISourceCatalog<AIToolInstance> toolInstanceCatalog,
-        IAIModelCapabilityService capabilityService)
+        IAIDeploymentCapabilityService capabilityService)
     {
         _siteSettings = siteSettings;
         _deploymentManager = deploymentManager;
@@ -502,8 +502,7 @@ public sealed class SettingsController : Controller
             await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.TextToSpeech));
 
         model.RealtimeDeployments = BuildGroupedDeploymentItems(
-            (await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Chat))
-                .Where(deployment => _capabilityService.GetCapabilities(deployment).SupportsFeature(AIModelFeatureNames.Realtime)));
+            await _capabilityService.GetDeploymentsWithFeatureAsync(AIModelFeatureNames.Realtime));
 
         model.ChatInteractionModes =
         [

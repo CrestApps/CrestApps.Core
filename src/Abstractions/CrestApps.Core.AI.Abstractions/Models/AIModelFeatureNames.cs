@@ -2,7 +2,7 @@ namespace CrestApps.Core.AI.Models;
 
 /// <summary>
 /// Well-known technical names of the model features registered by the framework.
-/// Modules can register additional features using <see cref="AIModelCapabilityOptions.AddFeature"/>.
+/// Modules can register additional features using <see cref="AIDeploymentCapabilityOptions.AddFeature"/>.
 /// </summary>
 public static class AIModelFeatureNames
 {

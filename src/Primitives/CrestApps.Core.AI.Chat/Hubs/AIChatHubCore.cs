@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
@@ -991,9 +992,12 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     return;
                 }
 
-                // Capability gate: a realtime deployment must be resolvable for the profile.
-                var capabilityResolver = services.GetRequiredService<IRealtimeCapabilityResolver>();
-                if (!await capabilityResolver.IsRealtimeAvailableAsync(profile, cancellationToken))
+                // Capability gate: a realtime-capable chat deployment must be resolvable for the profile.
+                var capabilityService = services.GetRequiredService<IAIDeploymentCapabilityService>();
+                var realtimeDeploymentName = string.IsNullOrWhiteSpace(profile.RealtimeDeploymentName)
+                    ? (await GetDeploymentSettingsAsync(services)).DefaultRealtimeDeploymentName
+                    : profile.RealtimeDeploymentName;
+                if (await capabilityService.ResolveDeploymentWithFeatureAsync(AIModelFeatureNames.Realtime, realtimeDeploymentName, cancellationToken) is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoRealtimeDeploymentMessage());
 

@@ -1,12 +1,13 @@
 #pragma warning disable MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only.
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
-using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Realtime;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
@@ -20,7 +21,8 @@ namespace CrestApps.Core.AI.Services;
 public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
 {
     private readonly IOrchestrationContextBuilder _contextBuilder;
-    private readonly IRealtimeCapabilityResolver _realtimeResolver;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
+    private readonly IOptionsMonitor<DefaultAIDeploymentSettings> _deploymentSettings;
     private readonly IAIClientFactory _clientFactory;
     private readonly IToolRegistry _toolRegistry;
     private readonly IToolMaterializer _toolMaterializer;
@@ -36,7 +38,8 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
     /// </summary>
     public DefaultRealtimeOrchestrator(
         IOrchestrationContextBuilder contextBuilder,
-        IRealtimeCapabilityResolver realtimeResolver,
+        IAIDeploymentCapabilityService capabilityService,
+        IOptionsMonitor<DefaultAIDeploymentSettings> deploymentSettings,
         IAIClientFactory clientFactory,
         IToolRegistry toolRegistry,
         IToolMaterializer toolMaterializer,
@@ -46,7 +49,8 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         ILogger<DefaultRealtimeOrchestrator> logger)
     {
         _contextBuilder = contextBuilder;
-        _realtimeResolver = realtimeResolver;
+        _capabilityService = capabilityService;
+        _deploymentSettings = deploymentSettings;
         _clientFactory = clientFactory;
         _toolRegistry = toolRegistry;
         _toolMaterializer = toolMaterializer;
@@ -76,7 +80,11 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
 
         PopulateInvocationScope(context, request);
 
-        var deployment = await _realtimeResolver.ResolveRealtimeDeploymentAsync(request.RealtimeDeploymentName, cancellationToken)
+        var realtimeDeploymentName = string.IsNullOrWhiteSpace(request.RealtimeDeploymentName)
+            ? _deploymentSettings.CurrentValue.DefaultRealtimeDeploymentName
+            : request.RealtimeDeploymentName;
+
+        var deployment = await _capabilityService.ResolveDeploymentWithFeatureAsync(AIModelFeatureNames.Realtime, realtimeDeploymentName, cancellationToken)
             ?? throw new InvalidOperationException(
                 "Unable to resolve a realtime deployment. Create a chat AI deployment whose model declares the 'realtime' capability.");
 

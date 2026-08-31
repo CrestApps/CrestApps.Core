@@ -6,21 +6,21 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.AI.Services;
 
 /// <summary>
-/// Default implementation of <see cref="IAIModelCapabilityService"/> that merges the registered
+/// Default implementation of <see cref="IAIDeploymentCapabilityService"/> that merges the registered
 /// model feature and parameter definitions with the metadata stored on a deployment.
 /// </summary>
-public sealed class DefaultAIModelCapabilityService : IAIModelCapabilityService
+public sealed class DefaultAIDeploymentCapabilityService : IAIDeploymentCapabilityService
 {
-    private readonly AIModelCapabilityOptions _options;
+    private readonly AIDeploymentCapabilityOptions _options;
     private readonly IAIDeploymentStore _deploymentStore;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DefaultAIModelCapabilityService"/> class.
+    /// Initializes a new instance of the <see cref="DefaultAIDeploymentCapabilityService"/> class.
     /// </summary>
     /// <param name="options">The registered model capability definitions.</param>
     /// <param name="deploymentStore">The deployment store used to resolve deployments by name.</param>
-    public DefaultAIModelCapabilityService(
-        IOptions<AIModelCapabilityOptions> options,
+    public DefaultAIDeploymentCapabilityService(
+        IOptions<AIDeploymentCapabilityOptions> options,
         IAIDeploymentStore deploymentStore)
     {
         _options = options.Value;
@@ -110,6 +110,41 @@ public sealed class DefaultAIModelCapabilityService : IAIModelCapabilityService
         var deployment = await _deploymentStore.FindByNameAsync(deploymentName, cancellationToken);
 
         return GetCapabilities(deployment);
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask<IReadOnlyList<AIDeployment>> GetDeploymentsWithFeatureAsync(string featureName, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(featureName))
+        {
+            return [];
+        }
+
+        var deployments = await _deploymentStore.GetAllAsync(cancellationToken);
+
+        return [.. deployments.Where(deployment => GetCapabilities(deployment).SupportsFeature(featureName))];
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask<AIDeployment> ResolveDeploymentWithFeatureAsync(string featureName, string deploymentName = null, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(featureName))
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(deploymentName))
+        {
+            var named = await _deploymentStore.FindByNameAsync(deploymentName, cancellationToken);
+
+            return named is not null && GetCapabilities(named).SupportsFeature(featureName)
+                ? named
+                : null;
+        }
+
+        var deployments = await GetDeploymentsWithFeatureAsync(featureName, cancellationToken);
+
+        return deployments.Count > 0 ? deployments[0] : null;
     }
 
     private static AIModelParameterDescriptor Merge(AIModelParameterDescriptor descriptor, AIDeploymentModelParameter overrides)

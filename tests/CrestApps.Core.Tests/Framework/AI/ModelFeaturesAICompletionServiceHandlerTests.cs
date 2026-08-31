@@ -157,7 +157,7 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
         services.AddCoreAIModelCapabilities();
 
         var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IOptions<AIModelCapabilityOptions>>().Value;
+        var options = provider.GetRequiredService<IOptions<AIDeploymentCapabilityOptions>>().Value;
 
         // Assert
         Assert.Contains(AIModelFeatureNames.ToolCalling, options.Features.Keys);
@@ -228,11 +228,11 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
 
     private static ModelFeaturesAICompletionServiceHandler CreateHandler(Mock<ILogger<ModelFeaturesAICompletionServiceHandler>> logger = null)
     {
-        var options = new AIModelCapabilityOptions();
+        var options = new AIDeploymentCapabilityOptions();
         options.AddFeature(AIModelFeatureNames.ToolCalling, new LocalizedString("Tool calling", "Tool calling"));
         options.AddFeature(AIModelFeatureNames.StructuredOutputs, new LocalizedString("Structured outputs", "Structured outputs"));
 
-        var service = new DefaultAIModelCapabilityService(Options.Create(options), Mock.Of<IAIDeploymentStore>());
+        var service = new DefaultAIDeploymentCapabilityService(Options.Create(options), Mock.Of<IAIDeploymentStore>());
 
         return new ModelFeaturesAICompletionServiceHandler(service, logger?.Object ?? NullLogger<ModelFeaturesAICompletionServiceHandler>.Instance);
     }

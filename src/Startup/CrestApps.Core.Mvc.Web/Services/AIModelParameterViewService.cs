@@ -12,7 +12,7 @@ namespace CrestApps.Core.Mvc.Web.Services;
 /// </summary>
 public sealed class AIModelParameterViewService
 {
-    private readonly IAIModelCapabilityService _capabilityService;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
     private readonly ICatalog<AIDeployment> _deploymentCatalog;
 
     /// <summary>
@@ -21,7 +21,7 @@ public sealed class AIModelParameterViewService
     /// <param name="capabilityService">The capability service.</param>
     /// <param name="deploymentCatalog">The deployment catalog.</param>
     public AIModelParameterViewService(
-        IAIModelCapabilityService capabilityService,
+        IAIDeploymentCapabilityService capabilityService,
         ICatalog<AIDeployment> deploymentCatalog)
     {
         _capabilityService = capabilityService;

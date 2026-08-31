@@ -2,7 +2,7 @@ namespace CrestApps.Core.AI.Models;
 
 /// <summary>
 /// Well-known technical names of the model parameters registered by the framework.
-/// Modules can register additional parameters using <see cref="AIModelCapabilityOptions.AddParameter"/>.
+/// Modules can register additional parameters using <see cref="AIDeploymentCapabilityOptions.AddParameter"/>.
 /// </summary>
 public static class AIModelParameterNames
 {

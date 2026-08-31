@@ -2,6 +2,7 @@ using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Chat.Realtime;
 using CrestApps.Core.AI.Clients;
@@ -760,8 +761,9 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                     return;
                 }
 
-                var capabilityResolver = services.GetRequiredService<IRealtimeCapabilityResolver>();
-                if (!await capabilityResolver.IsRealtimeDeploymentAvailableAsync(cancellationToken: cancellationToken))
+                var capabilityService = services.GetRequiredService<IAIDeploymentCapabilityService>();
+                var defaultRealtimeDeploymentName = (await GetDeploymentSettingsAsync(services)).DefaultRealtimeDeploymentName;
+                if (await capabilityService.ResolveDeploymentWithFeatureAsync(AIModelFeatureNames.Realtime, defaultRealtimeDeploymentName, cancellationToken) is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoRealtimeDeploymentMessage());
 

@@ -11,10 +11,14 @@ namespace CrestApps.Core.AI.Chat.Realtime;
 /// </summary>
 public interface IRealtimeTurnStore
 {
-    /// <summary>Persists a completed user utterance for the session.</summary>
+    /// <summary>
+    /// Persists a completed user utterance for the session.
+    /// </summary>
     ValueTask CreateUserTurnAsync(string sessionId, string text, DateTime createdUtc, CancellationToken cancellationToken);
 
-    /// <summary>Persists a completed assistant turn (with its citations) for the session.</summary>
+    /// <summary>
+    /// Persists a completed assistant turn (with its citations) for the session.
+    /// </summary>
     ValueTask CreateAssistantTurnAsync(
         string sessionId,
         string messageId,

@@ -13,7 +13,7 @@ namespace CrestApps.Core.AI.Handlers;
 /// </summary>
 public sealed class ModelFeaturesAICompletionServiceHandler : IAICompletionServiceHandler
 {
-    private readonly IAIModelCapabilityService _capabilityService;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
     private readonly ILogger _logger;
 
     /// <summary>
@@ -22,7 +22,7 @@ public sealed class ModelFeaturesAICompletionServiceHandler : IAICompletionServi
     /// <param name="capabilityService">The capability service used to resolve deployment metadata.</param>
     /// <param name="logger">The logger.</param>
     public ModelFeaturesAICompletionServiceHandler(
-        IAIModelCapabilityService capabilityService,
+        IAIDeploymentCapabilityService capabilityService,
         ILogger<ModelFeaturesAICompletionServiceHandler> logger)
     {
         _capabilityService = capabilityService;

@@ -13,7 +13,7 @@ using Moq;
 
 namespace CrestApps.Core.Tests.Framework.AI;
 
-public sealed class AIModelCapabilityTests
+public sealed class AIDeploymentCapabilityTests
 {
     [Fact]
     public void GetCapabilities_WhenDeploymentDeclaresNoMetadata_ShouldReturnEmpty()
@@ -384,7 +384,7 @@ public sealed class AIModelCapabilityTests
         object expected)
     {
         // Arrange
-        var options = new AIModelCapabilityOptions();
+        var options = new AIDeploymentCapabilityOptions();
         options.AddParameter("customParameter", new LocalizedString("Custom", "Custom"), descriptor =>
         {
             descriptor.Kind = kind;
@@ -422,7 +422,7 @@ public sealed class AIModelCapabilityTests
     public async Task ConfigureAsync_WhenNoBinderIsRegistered_ShouldConvertExponentIntegerToLong()
     {
         // Arrange
-        var options = new AIModelCapabilityOptions();
+        var options = new AIDeploymentCapabilityOptions();
         options.AddParameter("customParameter", new LocalizedString("Custom", "Custom"), descriptor =>
         {
             descriptor.Kind = AIModelParameterKind.Integer;
@@ -456,7 +456,7 @@ public sealed class AIModelCapabilityTests
     public async Task ConfigureAsync_WhenNoBinderIsRegistered_ShouldConvertMaxInt64WithoutOverflow()
     {
         // Arrange
-        var options = new AIModelCapabilityOptions();
+        var options = new AIDeploymentCapabilityOptions();
         options.AddParameter("customParameter", new LocalizedString("Custom", "Custom"), descriptor =>
         {
             descriptor.Kind = AIModelParameterKind.Integer;
@@ -495,7 +495,7 @@ public sealed class AIModelCapabilityTests
     public async Task ConfigureAsync_WhenNoBinderIsRegisteredAndValueCannotConvert_ShouldSkipAndLogWarning()
     {
         // Arrange
-        var options = new AIModelCapabilityOptions();
+        var options = new AIDeploymentCapabilityOptions();
         options.AddParameter("customParameter", new LocalizedString("Custom", "Custom"), descriptor =>
         {
             descriptor.Kind = AIModelParameterKind.Integer;
@@ -616,9 +616,9 @@ public sealed class AIModelCapabilityTests
         };
     }
 
-    private static AIModelCapabilityOptions CreateOptions()
+    private static AIDeploymentCapabilityOptions CreateOptions()
     {
-        var options = new AIModelCapabilityOptions();
+        var options = new AIDeploymentCapabilityOptions();
 
         options.AddFeature(AIModelFeatureNames.Reasoning, new LocalizedString("Reasoning", "Reasoning"));
 
@@ -635,18 +635,18 @@ public sealed class AIModelCapabilityTests
         return options;
     }
 
-    private static DefaultAIModelCapabilityService CreateService(out AIModelCapabilityOptions options)
+    private static DefaultAIDeploymentCapabilityService CreateService(out AIDeploymentCapabilityOptions options)
     {
         options = CreateOptions();
 
-        return new DefaultAIModelCapabilityService(Options.Create(options), Mock.Of<IAIDeploymentStore>());
+        return new DefaultAIDeploymentCapabilityService(Options.Create(options), Mock.Of<IAIDeploymentStore>());
     }
 
     private static ModelParametersAICompletionServiceHandler CreateHandler(
-        AIModelCapabilityOptions options = null,
+        AIDeploymentCapabilityOptions options = null,
         Mock<ILogger<ModelParametersAICompletionServiceHandler>> logger = null)
     {
-        var service = new DefaultAIModelCapabilityService(Options.Create(options ?? CreateOptions()), Mock.Of<IAIDeploymentStore>());
+        var service = new DefaultAIDeploymentCapabilityService(Options.Create(options ?? CreateOptions()), Mock.Of<IAIDeploymentStore>());
 
         return new ModelParametersAICompletionServiceHandler(
             service,

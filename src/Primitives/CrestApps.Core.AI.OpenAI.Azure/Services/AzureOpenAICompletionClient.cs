@@ -420,7 +420,7 @@ omit optional fields, or split the operation into multiple smaller calls.
             return false;
         }
 
-        var capabilityService = _serviceProvider.GetService<IAIModelCapabilityService>();
+        var capabilityService = _serviceProvider.GetService<IAIDeploymentCapabilityService>();
 
         if (capabilityService is null)
         {

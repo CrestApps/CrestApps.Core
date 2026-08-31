@@ -262,7 +262,7 @@ public sealed class CapabilityEnforcingChatClientTests
 
     private static CapabilityEnforcingChatClient CreateClient(IChatClient inner, AIDeployment deployment)
     {
-        var options = new AIModelCapabilityOptions();
+        var options = new AIDeploymentCapabilityOptions();
         options.AddFeature(AIModelFeatureNames.ToolCalling, new LocalizedString("Tool calling", "Tool calling"));
         options.AddFeature(AIModelFeatureNames.StructuredOutputs, new LocalizedString("Structured outputs", "Structured outputs"));
         options.AddFeature(AIModelFeatureNames.Reasoning, new LocalizedString("Reasoning", "Reasoning"));
@@ -280,7 +280,7 @@ public sealed class CapabilityEnforcingChatClientTests
             ];
         });
 
-        var service = new DefaultAIModelCapabilityService(Options.Create(options), Mock.Of<IAIDeploymentStore>());
+        var service = new DefaultAIDeploymentCapabilityService(Options.Create(options), Mock.Of<IAIDeploymentStore>());
 
         return new CapabilityEnforcingChatClient(inner, deployment, service, NullLogger<CapabilityEnforcingChatClient>.Instance);
     }

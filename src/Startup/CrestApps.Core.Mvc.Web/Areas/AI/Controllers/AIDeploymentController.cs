@@ -17,7 +17,7 @@ public sealed class AIDeploymentController : Controller
     private readonly IAIDeploymentStore _deploymentStore;
     private readonly INamedSourceCatalog<AIDeployment> _deploymentCatalog;
     private readonly IAIProviderConnectionStore _connectionCatalog;
-    private readonly IAIModelCapabilityService _capabilityService;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
 
     private static readonly List<SelectListItem> _providers =
     [
@@ -39,7 +39,7 @@ public sealed class AIDeploymentController : Controller
         IAIDeploymentStore deploymentStore,
         INamedSourceCatalog<AIDeployment> deploymentCatalog,
         IAIProviderConnectionStore connectionCatalog,
-        IAIModelCapabilityService capabilityService)
+        IAIDeploymentCapabilityService capabilityService)
     {
         _deploymentStore = deploymentStore;
         _deploymentCatalog = deploymentCatalog;

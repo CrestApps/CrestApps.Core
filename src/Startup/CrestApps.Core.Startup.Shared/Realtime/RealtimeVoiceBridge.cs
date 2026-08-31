@@ -3,8 +3,8 @@
 using System.Buffers;
 using System.Net.WebSockets;
 using System.Text.Json;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
-using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Realtime;
@@ -17,7 +17,7 @@ namespace CrestApps.Core.Startup.Shared.Realtime;
 /// <summary>
 /// Shared server-side bridge for the realtime (speech-to-speech) test harness used by both the MVC and Blazor
 /// sample hosts. It accepts a browser WebSocket, opens a provider realtime session from a realtime-capable
-/// chat deployment (resolved by <see cref="IRealtimeCapabilityResolver"/>), and relays binary PCM16 audio in
+/// chat deployment (resolved by <see cref="IAIDeploymentCapabilityService"/>), and relays binary PCM16 audio in
 /// both directions while forwarding transcripts, errors, and turn events as JSON text frames.
 /// </summary>
 public static class RealtimeVoiceBridge
@@ -33,7 +33,7 @@ public static class RealtimeVoiceBridge
         string? deploymentName,
         string? voice,
         string? instructions,
-        IRealtimeCapabilityResolver realtimeResolver,
+        IAIDeploymentCapabilityService capabilityService,
         IAIClientFactory clientFactory,
         ILogger logger,
         CancellationToken cancellationToken)
@@ -51,7 +51,7 @@ public static class RealtimeVoiceBridge
 
         try
         {
-            var deployment = await realtimeResolver.ResolveRealtimeDeploymentAsync(deploymentName, cancellationToken);
+            var deployment = await capabilityService.ResolveDeploymentWithFeatureAsync(AIModelFeatureNames.Realtime, deploymentName, cancellationToken);
 
             if (deployment is null)
             {

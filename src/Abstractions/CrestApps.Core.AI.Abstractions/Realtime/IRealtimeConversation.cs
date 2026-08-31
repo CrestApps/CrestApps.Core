@@ -29,24 +29,38 @@ public interface IRealtimeConversation : IAsyncDisposable
 /// </summary>
 public enum RealtimeConversationEventType
 {
-    /// <summary>A chunk of the assistant's synthesized output audio (PCM16) to play back.</summary>
+    /// <summary>
+    /// A chunk of the assistant's synthesized output audio (PCM16) to play back.
+    /// </summary>
     AssistantAudioDelta,
 
-    /// <summary>A completed transcript of a user utterance (from input-audio transcription).</summary>
+    /// <summary>
+    /// A completed transcript of a user utterance (from input-audio transcription).
+    /// </summary>
     UserTranscript,
 
-    /// <summary>An incremental piece of the assistant's spoken-response transcript.</summary>
+    /// <summary>
+    /// An incremental piece of the assistant's spoken-response transcript.
+    /// </summary>
     AssistantTranscriptDelta,
 
-    /// <summary>The completed transcript of the assistant's spoken response for a turn.</summary>
+    /// <summary>
+    /// The completed transcript of the assistant's spoken response for a turn.
+    /// </summary>
     AssistantTranscriptDone,
 
-    /// <summary>The user began speaking (voice-activity detection), which may interrupt the assistant.</summary>
+    /// <summary>
+    /// The user began speaking (voice-activity detection), which may interrupt the assistant.
+    /// </summary>
     UserSpeechStarted,
 
-    /// <summary>The model finished generating a response for a turn. <see cref="RealtimeConversationEvent.ResponseStatus"/> carries the outcome.</summary>
+    /// <summary>
+    /// The model finished generating a response for a turn. <see cref="RealtimeConversationEvent.ResponseStatus"/> carries the outcome.
+    /// </summary>
     ResponseCompleted,
 
-    /// <summary>An error was reported by the session.</summary>
+    /// <summary>
+    /// An error was reported by the session.
+    /// </summary>
     Error,
 }

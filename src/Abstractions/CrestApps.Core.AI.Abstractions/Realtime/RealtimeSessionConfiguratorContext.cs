@@ -8,7 +8,9 @@ namespace CrestApps.Core.AI.Realtime;
 /// </summary>
 public sealed class RealtimeSessionConfiguratorContext
 {
-    /// <summary>Gets the provider model / deployment name for the realtime session.</summary>
+    /// <summary>
+    /// Gets the provider model / deployment name for the realtime session.
+    /// </summary>
     public string Model { get; init; }
 
     /// <summary>
@@ -17,22 +19,34 @@ public sealed class RealtimeSessionConfiguratorContext
     /// </summary>
     public string Instructions { get; init; }
 
-    /// <summary>Gets the resolved voice id for the session output audio.</summary>
+    /// <summary>
+    /// Gets the resolved voice id for the session output audio.
+    /// </summary>
     public string Voice { get; init; }
 
-    /// <summary>Gets the tools advertised to (and invoked by) the session.</summary>
+    /// <summary>
+    /// Gets the tools advertised to (and invoked by) the session.
+    /// </summary>
     public IReadOnlyList<AITool> Tools { get; init; } = [];
 
-    /// <summary>Gets an optional cap on output tokens per response.</summary>
+    /// <summary>
+    /// Gets an optional cap on output tokens per response.
+    /// </summary>
     public int? MaxOutputTokens { get; init; }
 
-    /// <summary>Gets a value indicating whether user barge-in interrupts the model's audio. Defaults to <see langword="true"/>.</summary>
+    /// <summary>
+    /// Gets a value indicating whether user barge-in interrupts the model's audio. Defaults to <see langword="true"/>.
+    /// </summary>
     public bool AllowInterruption { get; init; } = true;
 
-    /// <summary>Gets the PCM sample rate (Hz) of the audio the client sends. Defaults to 24000.</summary>
+    /// <summary>
+    /// Gets the PCM sample rate (Hz) of the audio the client sends. Defaults to 24000.
+    /// </summary>
     public int InputSampleRate { get; init; } = 24000;
 
-    /// <summary>Gets the PCM sample rate (Hz) of the audio the model returns. Defaults to 24000.</summary>
+    /// <summary>
+    /// Gets the PCM sample rate (Hz) of the audio the model returns. Defaults to 24000.
+    /// </summary>
     public int OutputSampleRate { get; init; } = 24000;
 
     /// <summary>
@@ -41,6 +55,8 @@ public sealed class RealtimeSessionConfiguratorContext
     /// </summary>
     public string InputTranscriptionModel { get; init; } = "whisper-1";
 
-    /// <summary>Gets an optional BCP-47 language hint for input transcription (e.g. "en").</summary>
+    /// <summary>
+    /// Gets an optional BCP-47 language hint for input transcription (e.g. "en").
+    /// </summary>
     public string SpeechLanguage { get; init; }
 }

@@ -19,7 +19,7 @@ namespace CrestApps.Core.AI.Services;
 internal sealed class CapabilityEnforcingChatClient : DelegatingChatClient
 {
     private readonly AIDeployment _deployment;
-    private readonly IAIModelCapabilityService _capabilityService;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
     private readonly ILogger _logger;
 
     /// <summary>
@@ -32,7 +32,7 @@ internal sealed class CapabilityEnforcingChatClient : DelegatingChatClient
     public CapabilityEnforcingChatClient(
         IChatClient innerClient,
         AIDeployment deployment,
-        IAIModelCapabilityService capabilityService,
+        IAIDeploymentCapabilityService capabilityService,
         ILogger logger)
         : base(innerClient)
     {

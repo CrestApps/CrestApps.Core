@@ -14,7 +14,7 @@ namespace CrestApps.Core.AI.Handlers;
 /// </summary>
 public sealed class ModelParametersAICompletionServiceHandler : IAICompletionServiceHandler
 {
-    private readonly IAIModelCapabilityService _capabilityService;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
     private readonly IEnumerable<IAIModelParameterBinder> _binders;
     private readonly ILogger _logger;
 
@@ -25,7 +25,7 @@ public sealed class ModelParametersAICompletionServiceHandler : IAICompletionSer
     /// <param name="binders">The registered parameter binders.</param>
     /// <param name="logger">The logger.</param>
     public ModelParametersAICompletionServiceHandler(
-        IAIModelCapabilityService capabilityService,
+        IAIDeploymentCapabilityService capabilityService,
         IEnumerable<IAIModelParameterBinder> binders,
         ILogger<ModelParametersAICompletionServiceHandler> logger)
     {

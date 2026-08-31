@@ -207,8 +207,8 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddOptions<AIModelCapabilityOptions>();
-        services.TryAddScoped<IAIModelCapabilityService, DefaultAIModelCapabilityService>();
+        services.AddOptions<AIDeploymentCapabilityOptions>();
+        services.TryAddScoped<IAIDeploymentCapabilityService, DefaultAIDeploymentCapabilityService>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionServiceHandler, ModelParametersAICompletionServiceHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIModelParameterBinder, ReasoningEffortModelParameterBinder>());
 
@@ -327,7 +327,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        return services.Configure<AIModelCapabilityOptions>(options => options.AddFeature(name, displayName, configure));
+        return services.Configure<AIDeploymentCapabilityOptions>(options => options.AddFeature(name, displayName, configure));
     }
 
     /// <summary>
@@ -346,7 +346,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        return services.Configure<AIModelCapabilityOptions>(options => options.AddParameter(name, displayName, configure));
+        return services.Configure<AIDeploymentCapabilityOptions>(options => options.AddParameter(name, displayName, configure));
     }
 
     /// <summary>
@@ -666,7 +666,6 @@ public static class ServiceCollectionExtensions
 
         services.TryAddScoped<CrestApps.Core.AI.Realtime.IRealtimeSessionConfigurator, DefaultRealtimeSessionConfigurator>();
         services.TryAddScoped<CrestApps.Core.AI.Realtime.IRealtimeOrchestrator, DefaultRealtimeOrchestrator>();
-        services.TryAddScoped<CrestApps.Core.AI.Realtime.IRealtimeCapabilityResolver, DefaultRealtimeCapabilityResolver>();
 
         services.TryAddScoped<IOrchestrationContextBuilder, DefaultOrchestrationContextBuilder>();
 

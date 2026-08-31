@@ -7,7 +7,7 @@ namespace CrestApps.Core.AI.Models;
 /// such as tool calling, structured outputs, or audio input.
 /// </summary>
 /// <remarks>
-/// Features are registered by modules through <see cref="AIModelCapabilityOptions"/> so that
+/// Features are registered by modules through <see cref="AIDeploymentCapabilityOptions"/> so that
 /// providers can contribute new capabilities without changing the core framework.
 /// Unlike <see cref="AIDeploymentPurpose"/>, which drives deployment routing, features describe
 /// what the underlying model is able to do.

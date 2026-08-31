@@ -2,6 +2,7 @@
 #nullable enable
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
@@ -12,6 +13,7 @@ using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace CrestApps.Core.Tests.Core.Realtime;
@@ -89,10 +91,13 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
 
         var contextBuilder = new FakeContextBuilder(context);
 
-        var realtimeResolver = new Mock<IRealtimeCapabilityResolver>();
-        realtimeResolver
-            .Setup(r => r.ResolveRealtimeDeploymentAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+        var capabilityService = new Mock<IAIDeploymentCapabilityService>();
+        capabilityService
+            .Setup(c => c.ResolveDeploymentWithFeatureAsync(AIModelFeatureNames.Realtime, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIDeployment { Name = "rt", ModelName = "gpt-realtime", ClientName = "test" });
+
+        var deploymentSettings = new Mock<IOptionsMonitor<DefaultAIDeploymentSettings>>();
+        deploymentSettings.Setup(s => s.CurrentValue).Returns(new DefaultAIDeploymentSettings());
 
         var clientFactory = new Mock<IAIClientFactory>();
         clientFactory
@@ -111,7 +116,8 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
 
         return new DefaultRealtimeOrchestrator(
             contextBuilder,
-            realtimeResolver.Object,
+            capabilityService.Object,
+            deploymentSettings.Object,
             clientFactory.Object,
             toolRegistry.Object,
             materializer.Object,

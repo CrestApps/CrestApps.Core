@@ -1,4 +1,5 @@
 #nullable enable
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
@@ -18,7 +19,7 @@ namespace CrestApps.Core.Mvc.Web.Controllers;
 /// </summary>
 public sealed class RealtimeController : Controller
 {
-    private readonly IRealtimeCapabilityResolver _realtimeResolver;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
     private readonly IAIClientFactory _clientFactory;
     private readonly IRealtimeVoiceResolver _voiceResolver;
     private readonly IAIProfileManager _profileManager;
@@ -26,14 +27,14 @@ public sealed class RealtimeController : Controller
     private readonly ILogger<RealtimeController> _logger;
 
     public RealtimeController(
-        IRealtimeCapabilityResolver realtimeResolver,
+        IAIDeploymentCapabilityService capabilityService,
         IAIClientFactory clientFactory,
         IRealtimeVoiceResolver voiceResolver,
         IAIProfileManager profileManager,
         IRealtimeOrchestrator orchestrator,
         ILogger<RealtimeController> logger)
     {
-        _realtimeResolver = realtimeResolver;
+        _capabilityService = capabilityService;
         _clientFactory = clientFactory;
         _voiceResolver = voiceResolver;
         _profileManager = profileManager;
@@ -47,7 +48,7 @@ public sealed class RealtimeController : Controller
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
-        var deployments = (await _realtimeResolver.GetRealtimeDeploymentsAsync(cancellationToken))
+        var deployments = (await _capabilityService.GetDeploymentsWithFeatureAsync(AIModelFeatureNames.Realtime, cancellationToken))
             .OrderBy(deployment => deployment.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -86,6 +87,6 @@ public sealed class RealtimeController : Controller
             return;
         }
 
-        await RealtimeVoiceBridge.HandleAsync(HttpContext, deploymentName, voice, instructions, _realtimeResolver, _clientFactory, _logger, cancellationToken);
+        await RealtimeVoiceBridge.HandleAsync(HttpContext, deploymentName, voice, instructions, _capabilityService, _clientFactory, _logger, cancellationToken);
     }
 }

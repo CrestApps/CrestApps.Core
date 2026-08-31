@@ -17,7 +17,7 @@ public sealed class AIRealtimeCapabilityTests
         services.AddCoreAIModelCapabilities();
 
         using var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IOptions<AIModelCapabilityOptions>>().Value;
+        var options = provider.GetRequiredService<IOptions<AIDeploymentCapabilityOptions>>().Value;
 
         Assert.True(options.Features.ContainsKey(AIModelFeatureNames.Realtime));
     }
