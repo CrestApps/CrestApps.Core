@@ -43,6 +43,7 @@ public sealed class SettingsController : Controller
     private readonly ISearchIndexProfileStore _indexProfileStore;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly ISpeechVoiceResolver _speechVoiceResolver;
+    private readonly IRealtimeVoiceResolver _realtimeVoiceResolver;
     private readonly ClaudeClientService _anthropicClientService;
     private readonly AIToolDefinitionOptions _toolOptions;
     private readonly ISourceCatalog<AIToolInstance> _toolInstanceCatalog;
@@ -54,6 +55,7 @@ public sealed class SettingsController : Controller
         ISearchIndexProfileStore indexProfileStore,
         IDataProtectionProvider dataProtectionProvider,
         ISpeechVoiceResolver speechVoiceResolver,
+        IRealtimeVoiceResolver realtimeVoiceResolver,
         ClaudeClientService anthropicClientService,
         IOptions<AIToolDefinitionOptions> toolOptions,
         ISourceCatalog<AIToolInstance> toolInstanceCatalog)
@@ -64,6 +66,7 @@ public sealed class SettingsController : Controller
         _indexProfileStore = indexProfileStore;
         _dataProtectionProvider = dataProtectionProvider;
         _speechVoiceResolver = speechVoiceResolver;
+        _realtimeVoiceResolver = realtimeVoiceResolver;
         _anthropicClientService = anthropicClientService;
         _toolOptions = toolOptions.Value;
         _toolInstanceCatalog = toolInstanceCatalog;
@@ -110,6 +113,8 @@ public sealed class SettingsController : Controller
             DefaultSpeechToTextDeploymentName = deploymentDefaults.DefaultSpeechToTextDeploymentName,
             DefaultTextToSpeechDeploymentName = deploymentDefaults.DefaultTextToSpeechDeploymentName,
             DefaultTextToSpeechVoiceId = deploymentDefaults.DefaultTextToSpeechVoiceId,
+            DefaultRealtimeDeploymentName = deploymentDefaults.DefaultRealtimeDeploymentName,
+            DefaultRealtimeVoiceId = deploymentDefaults.DefaultRealtimeVoiceId,
             DocumentIndexProfileName = documentSettings.IndexProfileName,
             DocumentTopN = documentSettings.TopN,
             DocumentRetrievalMode = documentSettings.RetrievalMode,
@@ -333,6 +338,8 @@ public sealed class SettingsController : Controller
             DefaultSpeechToTextDeploymentName = model.DefaultSpeechToTextDeploymentName,
             DefaultTextToSpeechDeploymentName = model.DefaultTextToSpeechDeploymentName,
             DefaultTextToSpeechVoiceId = model.DefaultTextToSpeechVoiceId?.Trim(),
+            DefaultRealtimeDeploymentName = model.DefaultRealtimeDeploymentName,
+            DefaultRealtimeVoiceId = model.DefaultRealtimeVoiceId?.Trim(),
         });
 
         _siteSettings.Set(new AIMemoryOptions
@@ -490,11 +497,15 @@ public sealed class SettingsController : Controller
         model.TextToSpeechDeployments = BuildGroupedDeploymentItems(
             await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.TextToSpeech));
 
+        model.RealtimeDeployments = BuildGroupedDeploymentItems(
+            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Realtime));
+
         model.ChatInteractionModes =
         [
             new SelectListItem("Text input", nameof(ChatMode.TextInput)),
             new SelectListItem("Audio input", nameof(ChatMode.AudioInput)),
             new SelectListItem("Conversation", nameof(ChatMode.Conversation)),
+            new SelectListItem("Realtime (speech-to-speech)", nameof(ChatMode.Realtime)),
         ];
 
         model.DocumentIndexProfiles = (await _indexProfileStore.GetByTypeAsync(IndexProfileTypes.AIDocuments))
@@ -601,6 +612,7 @@ public sealed class SettingsController : Controller
         model.DefaultVisionDeploymentName = await NormalizeDeploymentSelectorAsync(model.DefaultVisionDeploymentName);
         model.DefaultSpeechToTextDeploymentName = await NormalizeDeploymentSelectorAsync(model.DefaultSpeechToTextDeploymentName);
         model.DefaultTextToSpeechDeploymentName = await NormalizeDeploymentSelectorAsync(model.DefaultTextToSpeechDeploymentName);
+        model.DefaultRealtimeDeploymentName = await NormalizeDeploymentSelectorAsync(model.DefaultRealtimeDeploymentName);
     }
 
     private async Task<string> NormalizeDeploymentSelectorAsync(string selector)
@@ -639,6 +651,33 @@ public sealed class SettingsController : Controller
                 voice.Name,
                 voice.Language,
                 LanguageDisplayName = GetCultureDisplayName(voice.Language),
+                Gender = voice.Gender.ToString(),
+            });
+
+        return Json(new { voices });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetRealtimeVoices(string deploymentName)
+    {
+        if (string.IsNullOrWhiteSpace(deploymentName))
+        {
+            return Json(new { voices = Array.Empty<object>() });
+        }
+
+        var deployment = await _deploymentManager.FindByNameAsync(deploymentName);
+
+        if (deployment is null)
+        {
+            return Json(new { voices = Array.Empty<object>() });
+        }
+
+        var voices = (await _realtimeVoiceResolver.GetVoicesAsync(deployment))
+            .OrderBy(voice => voice.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(voice => new
+            {
+                voice.Id,
+                voice.Name,
                 Gender = voice.Gender.ToString(),
             });
 

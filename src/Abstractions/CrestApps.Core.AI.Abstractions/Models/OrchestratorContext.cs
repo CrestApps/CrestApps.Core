@@ -61,6 +61,14 @@ public sealed class OrchestrationContext
     public bool DisableTools { get; set; }
 
     /// <summary>
+    /// Gets or sets how this context will be executed once prepared. Defaults to
+    /// <see cref="OrchestrationExecutionMode.Chat"/>. Set to <see cref="OrchestrationExecutionMode.Realtime"/>
+    /// by the realtime orchestrator so shared handlers skip preemptive RAG and surface knowledge
+    /// retrieval as a callable search tool instead.
+    /// </summary>
+    public OrchestrationExecutionMode ExecutionMode { get; set; } = OrchestrationExecutionMode.Chat;
+
+    /// <summary>
     /// Gets the tool names that must be included for the current orchestration request
     /// even when relevance scoping is applied.
     /// </summary>

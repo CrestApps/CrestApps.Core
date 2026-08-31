@@ -503,10 +503,16 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, ProfileToolRegistryProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, AgentToolRegistryProvider>());
         services.TryAddScoped<IToolRegistry, DefaultToolRegistry>();
+        services.TryAddScoped<IToolMaterializer, DefaultToolMaterializer>();
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, CompletionContextOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, PreemptiveRagOrchestrationHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, RealtimeRagGuidanceHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, AIToolExecutionContextOrchestrationHandler>());
+
+        services.TryAddScoped<CrestApps.Core.AI.Realtime.IRealtimeSessionConfigurator, DefaultRealtimeSessionConfigurator>();
+        services.TryAddScoped<CrestApps.Core.AI.Realtime.IRealtimeOrchestrator, DefaultRealtimeOrchestrator>();
+        services.TryAddScoped<CrestApps.Core.AI.Realtime.IRealtimeCapabilityResolver, DefaultRealtimeCapabilityResolver>();
 
         services.TryAddScoped<IOrchestrationContextBuilder, DefaultOrchestrationContextBuilder>();
 

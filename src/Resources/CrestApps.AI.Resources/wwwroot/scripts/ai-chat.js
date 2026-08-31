@@ -668,6 +668,8 @@ window.coreAIChatManager = function () {
           ttsInstanceId: 'ai-chat-' + Math.random().toString(36).slice(2),
           singleResponseMode: !!config.singleResponseMode,
           conversationModeEnabled: config.chatMode === 'Conversation',
+          realtimeEnabled: config.chatMode === 'Realtime' || !!config.realtimeEnabled,
+          realtimeVoiceName: config.realtimeVoiceName || null,
           conversationButton: null,
           isConversationMode: false,
           notificationDismissTimers: {},
@@ -1350,12 +1352,20 @@ window.coreAIChatManager = function () {
                     }
                   });
                   _this3.connection.on("ReceiveAudioChunk", function (sessionId, base64Audio, contentType) {
-                    if (base64Audio) {
-                      var binaryString = atob(base64Audio);
-                      var bytes = new Uint8Array(binaryString.length);
-                      for (var i = 0; i < binaryString.length; i++) {
-                        bytes[i] = binaryString.charCodeAt(i);
-                      }
+                    if (!base64Audio) {
+                      return;
+                    }
+                    var binaryString = atob(base64Audio);
+                    var bytes = new Uint8Array(binaryString.length);
+                    for (var i = 0; i < binaryString.length; i++) {
+                      bytes[i] = binaryString.charCodeAt(i);
+                    }
+
+                    // Realtime audio arrives as raw PCM16 and is scheduled for immediate playback via
+                    // the Web Audio API; conversation/TTS audio (mp3/wav) is collected and played on complete.
+                    if (contentType === 'audio/pcm') {
+                      _this3.playRealtimePcm(bytes);
+                    } else {
                       _this3.audioChunks.push(bytes);
                     }
                   });
@@ -2000,14 +2010,199 @@ window.coreAIChatManager = function () {
           });
         },
         toggleConversationMode: function toggleConversationMode() {
+          if (this.realtimeEnabled) {
+            if (this.isConversationMode) {
+              this.stopRealtimeConversation();
+            } else {
+              this.startRealtimeConversation();
+            }
+            return;
+          }
           if (this.isConversationMode) {
             this.stopConversationMode();
           } else {
             this.startConversationMode();
           }
         },
-        startConversationMode: function startConversationMode() {
+        startRealtimeConversation: function startRealtimeConversation() {
           var _this16 = this;
+          if (!this.realtimeEnabled || this.isConversationMode || !this.connection) {
+            return;
+          }
+          this.isConversationMode = true;
+          this.updateConversationButton();
+          this._conversationAssistantMessage = null;
+          this.removeNotification('conversation-ended');
+          var REALTIME_SAMPLE_RATE = 24000;
+          navigator.mediaDevices.getUserMedia({
+            audio: {
+              channelCount: 1,
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            }
+          }).then(function (stream) {
+            _this16._realtimeStream = stream;
+            var AudioCtx = window.AudioContext || window.webkitAudioContext;
+            _this16._realtimeAudioCtx = new AudioCtx({
+              sampleRate: REALTIME_SAMPLE_RATE
+            });
+            _this16._realtimePlayHead = _this16._realtimeAudioCtx.currentTime;
+            _this16._realtimeSources = [];
+            _this16._realtimeSubject = new signalR.Subject();
+            var source = _this16._realtimeAudioCtx.createMediaStreamSource(stream);
+            var processor = _this16._realtimeAudioCtx.createScriptProcessor(4096, 1, 1);
+            _this16._realtimeProcessor = processor;
+            _this16._realtimeMicSource = source;
+            processor.onaudioprocess = function (event) {
+              var input = event.inputBuffer.getChannelData(0);
+              var pcm = new Int16Array(input.length);
+              for (var i = 0; i < input.length; i++) {
+                var s = Math.max(-1, Math.min(1, input[i]));
+                pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+              }
+              var bytes = new Uint8Array(pcm.buffer);
+              var binary = '';
+              for (var b = 0; b < bytes.length; b++) {
+                binary += String.fromCharCode(bytes[b]);
+              }
+              try {
+                _this16._realtimeSubject.next(btoa(binary));
+              } catch (err) {
+                // Subject may have been completed already.
+              }
+            };
+
+            // A zero-gain node keeps the processor alive without echoing the mic to the speakers.
+            var zeroGain = _this16._realtimeAudioCtx.createGain();
+            zeroGain.gain.value = 0;
+            _this16._realtimeZeroGain = zeroGain;
+            source.connect(processor);
+            processor.connect(zeroGain);
+            zeroGain.connect(_this16._realtimeAudioCtx.destination);
+            var profileId = _this16.getProfileId();
+            var sessionId = _this16.getSessionId() || '';
+            var language = navigator.language || document.documentElement.lang || 'en-US';
+            var voice = _this16.realtimeVoiceName || '';
+            _this16.connection.send("StartRealtimeConversation", profileId, sessionId, _this16._realtimeSubject, voice, language);
+            _this16.isRecording = true;
+          })["catch"](function (err) {
+            console.error('Microphone access denied:', err);
+            _this16.isConversationMode = false;
+            _this16.updateConversationButton();
+          });
+        },
+        stopRealtimeConversation: function stopRealtimeConversation() {
+          if (!this.isConversationMode) {
+            return;
+          }
+          this.isConversationMode = false;
+          this.isRecording = false;
+          this.updateConversationButton();
+          try {
+            if (this._realtimeSubject) {
+              this._realtimeSubject.complete();
+            }
+          } catch (err) {/* already completed */}
+          this._realtimeSubject = null;
+          try {
+            if (this._realtimeProcessor) {
+              this._realtimeProcessor.disconnect();
+              this._realtimeProcessor.onaudioprocess = null;
+            }
+          } catch (err) {}
+          try {
+            if (this._realtimeMicSource) {
+              this._realtimeMicSource.disconnect();
+            }
+          } catch (err) {}
+          try {
+            if (this._realtimeZeroGain) {
+              this._realtimeZeroGain.disconnect();
+            }
+          } catch (err) {}
+          try {
+            if (this._realtimeStream) {
+              this._realtimeStream.getTracks().forEach(function (t) {
+                return t.stop();
+              });
+            }
+          } catch (err) {}
+          this._realtimeProcessor = null;
+          this._realtimeMicSource = null;
+          this._realtimeZeroGain = null;
+          this._realtimeStream = null;
+          this.flushRealtimePlayback();
+          try {
+            if (this._realtimeAudioCtx) {
+              this._realtimeAudioCtx.close();
+            }
+          } catch (err) {}
+          this._realtimeAudioCtx = null;
+          if (this._conversationAssistantMessage) {
+            var m = this.messages[this._conversationAssistantMessage.index];
+            if (m) {
+              m.isStreaming = false;
+            }
+            this._conversationAssistantMessage = null;
+          }
+          for (var i = 0; i < this.messages.length; i++) {
+            if (this.messages[i].isStreaming) {
+              this.messages[i].isStreaming = false;
+            }
+          }
+          this.receiveNotification({
+            type: 'conversation-ended',
+            content: 'Conversation ended.',
+            icon: 'fa-solid fa-circle-check',
+            dismissible: true,
+            autoDismissMs: 5000
+          });
+        },
+        playRealtimePcm: function playRealtimePcm(bytes) {
+          var _this17 = this;
+          if (!this._realtimeAudioCtx || !bytes || bytes.length < 2) {
+            return;
+          }
+          var ctx = this._realtimeAudioCtx;
+          var sampleCount = Math.floor(bytes.length / 2);
+          var pcm = new Int16Array(bytes.buffer, bytes.byteOffset, sampleCount);
+          var f32 = new Float32Array(sampleCount);
+          for (var i = 0; i < sampleCount; i++) {
+            f32[i] = pcm[i] / 0x8000;
+          }
+          var buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
+          buffer.copyToChannel(f32, 0);
+          var src = ctx.createBufferSource();
+          src.buffer = buffer;
+          src.connect(ctx.destination);
+          var now = ctx.currentTime;
+          if (this._realtimePlayHead < now) {
+            this._realtimePlayHead = now;
+          }
+          src.start(this._realtimePlayHead);
+          this._realtimePlayHead += buffer.duration;
+          this._realtimeSources = this._realtimeSources || [];
+          this._realtimeSources.push(src);
+          src.onended = function () {
+            _this17._realtimeSources = (_this17._realtimeSources || []).filter(function (s) {
+              return s !== src;
+            });
+          };
+        },
+        flushRealtimePlayback: function flushRealtimePlayback() {
+          (this._realtimeSources || []).forEach(function (s) {
+            try {
+              s.stop();
+            } catch (err) {}
+          });
+          this._realtimeSources = [];
+          if (this._realtimeAudioCtx) {
+            this._realtimePlayHead = this._realtimeAudioCtx.currentTime;
+          }
+        },
+        startConversationMode: function startConversationMode() {
+          var _this18 = this;
           if (!this.conversationModeEnabled || this.isConversationMode || !this.connection) {
             return;
           }
@@ -2027,12 +2222,12 @@ window.coreAIChatManager = function () {
             }
           }).then(function (stream) {
             var mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-            _this16.mediaRecorder = new MediaRecorder(stream, {
+            _this18.mediaRecorder = new MediaRecorder(stream, {
               mimeType: mimeType,
               audioBitsPerSecond: 128000
             });
-            _this16._conversationSubject = new signalR.Subject();
-            _this16._conversationStream = stream;
+            _this18._conversationSubject = new signalR.Subject();
+            _this18._conversationStream = stream;
 
             // Create an AnalyserNode for volume-based interrupt detection.
             // During TTS playback, detect when the user speaks above
@@ -2041,20 +2236,20 @@ window.coreAIChatManager = function () {
             // speaker echo so the STT stream has no gaps.
             var AudioCtx = window.AudioContext || window.webkitAudioContext;
             if (AudioCtx) {
-              _this16._conversationAudioCtx = new AudioCtx();
-              _this16._conversationAnalyser = _this16._conversationAudioCtx.createAnalyser();
-              _this16._conversationAnalyser.fftSize = 256;
-              var micSource = _this16._conversationAudioCtx.createMediaStreamSource(stream);
-              micSource.connect(_this16._conversationAnalyser);
+              _this18._conversationAudioCtx = new AudioCtx();
+              _this18._conversationAnalyser = _this18._conversationAudioCtx.createAnalyser();
+              _this18._conversationAnalyser.fftSize = 256;
+              var micSource = _this18._conversationAudioCtx.createMediaStreamSource(stream);
+              micSource.connect(_this18._conversationAnalyser);
             }
             var pendingChunk = Promise.resolve();
-            var analyser = _this16._conversationAnalyser;
+            var analyser = _this18._conversationAnalyser;
             var interruptVolumeThreshold = 30;
-            _this16.mediaRecorder.addEventListener('dataavailable', function (e) {
+            _this18.mediaRecorder.addEventListener('dataavailable', function (e) {
               if (e.data && e.data.size > 0) {
                 // During TTS playback, check mic volume to detect
                 // user interruption (speaking above threshold).
-                if (_this16.isPlayingAudio && analyser) {
+                if (_this18.isPlayingAudio && analyser) {
                   var freqData = new Uint8Array(analyser.frequencyBinCount);
                   analyser.getByteFrequencyData(freqData);
                   var sum = 0;
@@ -2064,7 +2259,7 @@ window.coreAIChatManager = function () {
                   var avg = sum / freqData.length;
                   if (avg >= interruptVolumeThreshold) {
                     // User is speaking — interrupt TTS playback.
-                    _this16.stopAudio();
+                    _this18.stopAudio();
                   }
                 }
 
@@ -2086,7 +2281,7 @@ window.coreAIChatManager = function () {
                         }, '');
                         base64 = btoa(binaryString);
                         try {
-                          _this16._conversationSubject.next(base64);
+                          _this18._conversationSubject.next(base64);
                         } catch (err) {
                           // Subject may have been completed already.
                         }
@@ -2097,28 +2292,28 @@ window.coreAIChatManager = function () {
                 })));
               }
             });
-            _this16.mediaRecorder.addEventListener('stop', function () {
+            _this18.mediaRecorder.addEventListener('stop', function () {
               stream.getTracks().forEach(function (track) {
                 return track.stop();
               });
               pendingChunk.then(function () {
                 try {
-                  _this16._conversationSubject.complete();
+                  _this18._conversationSubject.complete();
                 } catch (err) {
                   // Already completed.
                 }
               });
             });
-            var profileId = _this16.getProfileId();
-            var sessionId = _this16.getSessionId() || '';
+            var profileId = _this18.getProfileId();
+            var sessionId = _this18.getSessionId() || '';
             var language = navigator.language || document.documentElement.lang || 'en-US';
-            _this16.connection.send("StartConversation", profileId, sessionId, _this16._conversationSubject, mimeType, language);
-            _this16.mediaRecorder.start(250);
-            _this16.isRecording = true;
+            _this18.connection.send("StartConversation", profileId, sessionId, _this18._conversationSubject, mimeType, language);
+            _this18.mediaRecorder.start(250);
+            _this18.isRecording = true;
           })["catch"](function (err) {
             console.error('Microphone access denied:', err);
-            _this16.isConversationMode = false;
-            _this16.updateConversationButton();
+            _this18.isConversationMode = false;
+            _this18.updateConversationButton();
           });
         },
         stopConversationMode: function stopConversationMode() {
@@ -2245,7 +2440,7 @@ window.coreAIChatManager = function () {
           return removedCount;
         },
         receiveNotification: function receiveNotification(notification) {
-          var _this17 = this;
+          var _this19 = this;
           if (!notification || !notification.type) {
             return;
           }
@@ -2260,7 +2455,7 @@ window.coreAIChatManager = function () {
           }
           this.scheduleNotificationDismiss(notification);
           this.$nextTick(function () {
-            _this17.scrollToBottom();
+            _this19.scrollToBottom();
           });
         },
         updateNotification: function updateNotification(notification) {
@@ -2277,12 +2472,12 @@ window.coreAIChatManager = function () {
           }
         },
         scheduleNotificationDismiss: function scheduleNotificationDismiss(notification) {
-          var _this18 = this;
+          var _this20 = this;
           if (!notification || !notification.type || !notification.autoDismissMs || notification.autoDismissMs <= 0) {
             return;
           }
           this.notificationDismissTimers[notification.type] = setTimeout(function () {
-            _this18.removeNotification(notification.type);
+            _this20.removeNotification(notification.type);
           }, notification.autoDismissMs);
         },
         clearNotificationDismiss: function clearNotificationDismiss(notificationType) {
@@ -2312,12 +2507,12 @@ window.coreAIChatManager = function () {
           });
         },
         scrollToBottom: function scrollToBottom() {
-          var _this19 = this;
+          var _this21 = this;
           if (!this.autoScroll) {
             return;
           }
           setTimeout(function () {
-            _this19.chatContainer.scrollTop = _this19.chatContainer.scrollHeight - _this19.chatContainer.clientHeight;
+            _this21.chatContainer.scrollTop = _this21.chatContainer.scrollHeight - _this21.chatContainer.clientHeight;
           }, 50);
         },
         handleUserInput: function handleUserInput(event) {
@@ -2368,27 +2563,27 @@ window.coreAIChatManager = function () {
           });
         },
         ensureSessionForDocuments: function ensureSessionForDocuments(profileId) {
-          var _this20 = this;
+          var _this22 = this;
           return _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee9() {
             var sessionId;
             return _regenerator().w(function (_context9) {
               while (1) switch (_context9.n) {
                 case 0:
-                  sessionId = _this20.getSessionId();
+                  sessionId = _this22.getSessionId();
                   if (!sessionId) {
                     _context9.n = 1;
                     break;
                   }
                   return _context9.a(2, sessionId);
                 case 1:
-                  if (!(!profileId || !_this20.connection)) {
+                  if (!(!profileId || !_this22.connection)) {
                     _context9.n = 2;
                     break;
                   }
                   return _context9.a(2, null);
                 case 2:
                   _context9.n = 3;
-                  return _this20.requestNewSession(profileId);
+                  return _this22.requestNewSession(profileId);
                 case 3:
                   return _context9.a(2, _context9.v);
               }
@@ -2396,7 +2591,7 @@ window.coreAIChatManager = function () {
           }))();
         },
         requestNewSession: function requestNewSession(profileId) {
-          var _this21 = this;
+          var _this23 = this;
           if (this.pendingSessionPromise) {
             return this.pendingSessionPromise;
           }
@@ -2404,14 +2599,14 @@ window.coreAIChatManager = function () {
             return Promise.resolve(null);
           }
           this.pendingSessionPromise = new Promise(function (resolve, reject) {
-            _this21.pendingSessionResolver = resolve;
-            _this21.pendingSessionRejector = reject;
-            _this21.pendingSessionTimeoutId = window.setTimeout(function () {
-              _this21.rejectPendingSessionRequest('Timed out while creating a chat session.');
+            _this23.pendingSessionResolver = resolve;
+            _this23.pendingSessionRejector = reject;
+            _this23.pendingSessionTimeoutId = window.setTimeout(function () {
+              _this23.rejectPendingSessionRequest('Timed out while creating a chat session.');
             }, 15000);
           });
           this.connection.invoke("StartSession", profileId, null)["catch"](function (err) {
-            _this21.rejectPendingSessionRequest(err);
+            _this23.rejectPendingSessionRequest(err);
           });
           return this.pendingSessionPromise;
         },
@@ -2437,7 +2632,7 @@ window.coreAIChatManager = function () {
           this.pendingSessionTimeoutId = null;
         },
         initializeApp: function initializeApp() {
-          var _this22 = this;
+          var _this24 = this;
           this.inputElement = document.querySelector(config.inputElementSelector);
           this.buttonElement = document.querySelector(config.sendButtonElementSelector);
           this.chatContainer = document.querySelector(config.chatContainerElementSelector);
@@ -2473,7 +2668,7 @@ window.coreAIChatManager = function () {
                 fileInput.accept = config.allowedExtensions;
               }
               fileInput.addEventListener('change', function (e) {
-                return _this22.handleFileInputChange(e);
+                return _this24.handleFileInputChange(e);
               });
               this.documentBar.parentElement.appendChild(fileInput);
 
@@ -2481,13 +2676,13 @@ window.coreAIChatManager = function () {
               var inputArea = this.inputElement ? this.inputElement.closest('.ai-admin-widget-input, .text-bg-light') : null;
               if (inputArea) {
                 inputArea.addEventListener('dragover', function (e) {
-                  return _this22.handleDragOver(e);
+                  return _this24.handleDragOver(e);
                 });
                 inputArea.addEventListener('dragleave', function (e) {
-                  return _this22.handleDragLeave(e);
+                  return _this24.handleDragLeave(e);
                 });
                 inputArea.addEventListener('drop', function (e) {
-                  return _this22.handleDrop(e);
+                  return _this24.handleDrop(e);
                 });
               }
             }
@@ -2495,55 +2690,55 @@ window.coreAIChatManager = function () {
 
           // Pause auto-scroll when the user manually scrolls up during streaming.
           this.chatContainer.addEventListener('scroll', function () {
-            if (!_this22.stream) {
+            if (!_this24.stream) {
               return;
             }
             var threshold = 30;
-            var atBottom = _this22.chatContainer.scrollHeight - _this22.chatContainer.clientHeight - _this22.chatContainer.scrollTop <= threshold;
-            _this22.autoScroll = atBottom;
+            var atBottom = _this24.chatContainer.scrollHeight - _this24.chatContainer.clientHeight - _this24.chatContainer.scrollTop <= threshold;
+            _this24.autoScroll = atBottom;
           });
           this.inputElement.addEventListener('keydown', function (event) {
-            if (_this22.stream != null) {
+            if (_this24.stream != null) {
               return;
             }
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
-              _this22.buttonElement.click();
+              _this24.buttonElement.click();
             }
           });
           this.inputElement.addEventListener('input', function (e) {
-            _this22.handleUserInput(e);
+            _this24.handleUserInput(e);
             if (e.target.value.trim()) {
-              _this22.buttonElement.removeAttribute('disabled');
+              _this24.buttonElement.removeAttribute('disabled');
             } else {
-              _this22.buttonElement.setAttribute('disabled', true);
+              _this24.buttonElement.setAttribute('disabled', true);
             }
           });
           this.buttonElement.addEventListener('click', function () {
-            if (_this22.stream != null) {
-              _this22.stream.dispose();
-              _this22.stream = null;
-              _this22.streamingFinished();
-              _this22.hideTypingIndicator();
+            if (_this24.stream != null) {
+              _this24.stream.dispose();
+              _this24.stream = null;
+              _this24.streamingFinished();
+              _this24.hideTypingIndicator();
 
               // Clean up: remove empty assistant message or stop streaming animation.
-              if (_this22.messages.length > 0) {
-                var lastMsg = _this22.messages[_this22.messages.length - 1];
+              if (_this24.messages.length > 0) {
+                var lastMsg = _this24.messages[_this24.messages.length - 1];
                 if (lastMsg.role === 'assistant' && !lastMsg.content) {
-                  _this22.messages.pop();
+                  _this24.messages.pop();
                 } else if (lastMsg.isStreaming) {
                   lastMsg.isStreaming = false;
                 }
               }
               return;
             }
-            _this22.sendMessage();
+            _this24.sendMessage();
           });
           var promptGenerators = document.getElementsByClassName('profile-generated-prompt');
           for (var i = 0; i < promptGenerators.length; i++) {
             promptGenerators[i].addEventListener('click', function (e) {
               e.preventDefault();
-              _this22.generatePrompt(e.target);
+              _this24.generatePrompt(e.target);
             });
           }
           var chatSessions = document.getElementsByClassName('chat-session-history-item');
@@ -2555,8 +2750,8 @@ window.coreAIChatManager = function () {
                 console.error('an element with the class chat-session-history-item with no data-session-id set.');
                 return;
               }
-              _this22.loadSession(sessionId);
-              _this22.showChatScreen();
+              _this24.loadSession(sessionId);
+              _this24.showChatScreen();
             });
           }
           var initialMessages = Array.isArray(config.messages) ? config.messages : [];
@@ -2575,7 +2770,7 @@ window.coreAIChatManager = function () {
 
           // Update feedback icons in the DOM after initial messages have rendered.
           this.$nextTick(function () {
-            _this22.refreshAllFeedbackIcons();
+            _this24.refreshAllFeedbackIcons();
           });
 
           // Delegate click for code block copy buttons.
@@ -2607,17 +2802,17 @@ window.coreAIChatManager = function () {
             if (this.micButton) {
               this.micButton.style.display = '';
               this.micButton.addEventListener('click', function () {
-                _this22.toggleRecording();
+                _this24.toggleRecording();
               });
             }
           }
 
-          // Initialize conversation mode button.
-          if (this.conversationModeEnabled && config.conversationButtonElementSelector) {
+          // Initialize conversation mode button (used for both STT/TTS conversation and realtime).
+          if ((this.conversationModeEnabled || this.realtimeEnabled) && config.conversationButtonElementSelector) {
             this.conversationButton = document.querySelector(config.conversationButtonElementSelector);
             if (this.conversationButton) {
               this.conversationButton.addEventListener('click', function () {
-                _this22.toggleConversationMode();
+                _this24.toggleConversationMode();
               });
             }
           }
@@ -2683,24 +2878,24 @@ window.coreAIChatManager = function () {
             _message$copyContent,
             _event$target,
             _event$target$closest,
-            _this23 = this;
+            _this25 = this;
           var text = message && _typeof(message) === 'object' ? (_ref25 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref25 !== void 0 ? _ref25 : '' : message !== null && message !== void 0 ? message : '';
           var button = (event === null || event === void 0 ? void 0 : event.currentTarget) || (event === null || event === void 0 || (_event$target = event.target) === null || _event$target === void 0 || (_event$target$closest = _event$target.closest) === null || _event$target$closest === void 0 ? void 0 : _event$target$closest.call(_event$target, '[data-copy-message-index]')) || null;
           navigator.clipboard.writeText(text).then(function () {
-            _this23.clearCopiedMessageState();
-            _this23.copiedMessageIndex = typeof index === 'number' ? index : -1;
-            _this23.activeCopyButton = button;
+            _this25.clearCopiedMessageState();
+            _this25.copiedMessageIndex = typeof index === 'number' ? index : -1;
+            _this25.activeCopyButton = button;
             if (button) {
-              _this23.setCopyButtonState(button, true);
+              _this25.setCopyButtonState(button, true);
             } else {
-              _this23.$nextTick(function () {
-                return _this23.updateCopyButtons();
+              _this25.$nextTick(function () {
+                return _this25.updateCopyButtons();
               });
             }
-            _this23.copyResetTimeoutId = window.setTimeout(function () {
-              _this23.clearCopiedMessageState();
-              _this23.$nextTick(function () {
-                return _this23.updateCopyButtons();
+            _this25.copyResetTimeoutId = window.setTimeout(function () {
+              _this25.clearCopiedMessageState();
+              _this25.$nextTick(function () {
+                return _this25.updateCopyButtons();
               });
             }, Number(config.copyResetDelayMs) || 2000);
           })["catch"](function (err) {
@@ -2801,9 +2996,9 @@ window.coreAIChatManager = function () {
           // no longer mutes tracks; browser echo cancellation handles echo.
         },
         copiedMessageIndex: function copiedMessageIndex() {
-          var _this24 = this;
+          var _this26 = this;
           this.$nextTick(function () {
-            return _this24.updateCopyButtons();
+            return _this26.updateCopyButtons();
           });
         },
         isConversationMode: function isConversationMode(active) {
@@ -2827,23 +3022,23 @@ window.coreAIChatManager = function () {
         }
       },
       mounted: function mounted() {
-        var _this25 = this;
+        var _this27 = this;
         _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee0() {
           var isInitialized;
           return _regenerator().w(function (_context0) {
             while (1) switch (_context0.n) {
               case 0:
                 _context0.n = 1;
-                return _this25.startConnection();
+                return _this27.startConnection();
               case 1:
-                isInitialized = _this25.initializeApp();
+                isInitialized = _this27.initializeApp();
                 if (isInitialized && hasWidgetConfig && widgetBehavior && typeof widgetBehavior.onMounted === 'function') {
-                  widgetBehavior.onMounted(_this25, config);
+                  widgetBehavior.onMounted(_this27, config);
                 }
-                _this25.$nextTick(function () {
-                  _this25.updateCopyButtons();
-                  refreshFontAwesomeIcons(_this25.$el);
-                  _this25.fontAwesomeObserver = observeFontAwesomeIcons(_this25.$el);
+                _this27.$nextTick(function () {
+                  _this27.updateCopyButtons();
+                  refreshFontAwesomeIcons(_this27.$el);
+                  _this27.fontAwesomeObserver = observeFontAwesomeIcons(_this27.$el);
                 });
               case 2:
                 return _context0.a(2);
@@ -2936,6 +3131,7 @@ window.coreAIChatManager = function () {
       micButtonElementSelector: getAttributeValue(element, 'data-coreai-chat-mic-button-element-selector'),
       conversationButtonElementSelector: getAttributeValue(element, 'data-coreai-chat-conversation-button-element-selector'),
       ttsVoiceName: getAttributeValue(element, 'data-coreai-chat-tts-voice-name'),
+      realtimeVoiceName: getAttributeValue(element, 'data-coreai-chat-realtime-voice-name'),
       documentBarSelector: getAttributeValue(element, 'data-coreai-chat-document-bar-selector'),
       uploadDocumentUrl: getAttributeValue(element, 'data-coreai-chat-upload-document-url'),
       removeDocumentUrl: getAttributeValue(element, 'data-coreai-chat-remove-document-url'),
@@ -2953,7 +3149,8 @@ window.coreAIChatManager = function () {
       metricsEnabled: 'data-coreai-chat-metrics-enabled',
       textToSpeechEnabled: 'data-coreai-chat-text-to-speech-enabled',
       sessionDocumentsEnabled: 'data-coreai-chat-session-documents-enabled',
-      singleResponseMode: 'data-coreai-chat-single-response-mode'
+      singleResponseMode: 'data-coreai-chat-single-response-mode',
+      realtimeEnabled: 'data-coreai-chat-realtime-enabled'
     };
     Object.keys(booleanAttributes).forEach(function (key) {
       var parsed = parseBooleanAttributeValue(getAttributeValue(element, booleanAttributes[key]));

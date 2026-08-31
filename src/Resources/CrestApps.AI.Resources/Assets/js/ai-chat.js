@@ -708,6 +708,8 @@ window.coreAIChatManager = function () {
                     ttsInstanceId: 'ai-chat-' + Math.random().toString(36).slice(2),
                     singleResponseMode: !!config.singleResponseMode,
                     conversationModeEnabled: config.chatMode === 'Conversation',
+                    realtimeEnabled: config.chatMode === 'Realtime' || !!config.realtimeEnabled,
+                    realtimeVoiceName: config.realtimeVoiceName || null,
                     conversationButton: null,
                     isConversationMode: false,
                     notificationDismissTimers: {},
@@ -1311,12 +1313,21 @@ window.coreAIChatManager = function () {
                     });
 
                     this.connection.on("ReceiveAudioChunk", (sessionId, base64Audio, contentType) => {
-                        if (base64Audio) {
-                            const binaryString = atob(base64Audio);
-                            const bytes = new Uint8Array(binaryString.length);
-                            for (let i = 0; i < binaryString.length; i++) {
-                                bytes[i] = binaryString.charCodeAt(i);
-                            }
+                        if (!base64Audio) {
+                            return;
+                        }
+
+                        const binaryString = atob(base64Audio);
+                        const bytes = new Uint8Array(binaryString.length);
+                        for (let i = 0; i < binaryString.length; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
+                        }
+
+                        // Realtime audio arrives as raw PCM16 and is scheduled for immediate playback via
+                        // the Web Audio API; conversation/TTS audio (mp3/wav) is collected and played on complete.
+                        if (contentType === 'audio/pcm') {
+                            this.playRealtimePcm(bytes);
+                        } else {
                             this.audioChunks.push(bytes);
                         }
                     });
@@ -1971,11 +1982,163 @@ window.coreAIChatManager = function () {
                     this.$nextTick(() => this.updateTtsPlaybackButtons());
                 },
                 toggleConversationMode() {
+                    if (this.realtimeEnabled) {
+                        if (this.isConversationMode) {
+                            this.stopRealtimeConversation();
+                        } else {
+                            this.startRealtimeConversation();
+                        }
+
+                        return;
+                    }
+
                     if (this.isConversationMode) {
                         this.stopConversationMode();
                     } else {
                         this.startConversationMode();
                     }
+                },
+                startRealtimeConversation() {
+                    if (!this.realtimeEnabled || this.isConversationMode || !this.connection) {
+                        return;
+                    }
+
+                    this.isConversationMode = true;
+                    this.updateConversationButton();
+                    this._conversationAssistantMessage = null;
+                    this.removeNotification('conversation-ended');
+
+                    var REALTIME_SAMPLE_RATE = 24000;
+
+                    navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+                        .then(stream => {
+                            this._realtimeStream = stream;
+                            var AudioCtx = window.AudioContext || window.webkitAudioContext;
+                            this._realtimeAudioCtx = new AudioCtx({ sampleRate: REALTIME_SAMPLE_RATE });
+                            this._realtimePlayHead = this._realtimeAudioCtx.currentTime;
+                            this._realtimeSources = [];
+
+                            this._realtimeSubject = new signalR.Subject();
+
+                            var source = this._realtimeAudioCtx.createMediaStreamSource(stream);
+                            var processor = this._realtimeAudioCtx.createScriptProcessor(4096, 1, 1);
+                            this._realtimeProcessor = processor;
+                            this._realtimeMicSource = source;
+
+                            processor.onaudioprocess = (event) => {
+                                var input = event.inputBuffer.getChannelData(0);
+                                var pcm = new Int16Array(input.length);
+                                for (var i = 0; i < input.length; i++) {
+                                    var s = Math.max(-1, Math.min(1, input[i]));
+                                    pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                                }
+                                var bytes = new Uint8Array(pcm.buffer);
+                                var binary = '';
+                                for (var b = 0; b < bytes.length; b++) { binary += String.fromCharCode(bytes[b]); }
+                                try {
+                                    this._realtimeSubject.next(btoa(binary));
+                                } catch (err) {
+                                    // Subject may have been completed already.
+                                }
+                            };
+
+                            // A zero-gain node keeps the processor alive without echoing the mic to the speakers.
+                            var zeroGain = this._realtimeAudioCtx.createGain();
+                            zeroGain.gain.value = 0;
+                            this._realtimeZeroGain = zeroGain;
+                            source.connect(processor);
+                            processor.connect(zeroGain);
+                            zeroGain.connect(this._realtimeAudioCtx.destination);
+
+                            var profileId = this.getProfileId();
+                            var sessionId = this.getSessionId() || '';
+                            var language = navigator.language || document.documentElement.lang || 'en-US';
+                            var voice = this.realtimeVoiceName || '';
+
+                            this.connection.send("StartRealtimeConversation", profileId, sessionId, this._realtimeSubject, voice, language);
+                            this.isRecording = true;
+                        })
+                        .catch(err => {
+                            console.error('Microphone access denied:', err);
+                            this.isConversationMode = false;
+                            this.updateConversationButton();
+                        });
+                },
+                stopRealtimeConversation() {
+                    if (!this.isConversationMode) {
+                        return;
+                    }
+
+                    this.isConversationMode = false;
+                    this.isRecording = false;
+                    this.updateConversationButton();
+
+                    try {
+                        if (this._realtimeSubject) { this._realtimeSubject.complete(); }
+                    } catch (err) { /* already completed */ }
+                    this._realtimeSubject = null;
+
+                    try { if (this._realtimeProcessor) { this._realtimeProcessor.disconnect(); this._realtimeProcessor.onaudioprocess = null; } } catch (err) { }
+                    try { if (this._realtimeMicSource) { this._realtimeMicSource.disconnect(); } } catch (err) { }
+                    try { if (this._realtimeZeroGain) { this._realtimeZeroGain.disconnect(); } } catch (err) { }
+                    try { if (this._realtimeStream) { this._realtimeStream.getTracks().forEach(t => t.stop()); } } catch (err) { }
+                    this._realtimeProcessor = null;
+                    this._realtimeMicSource = null;
+                    this._realtimeZeroGain = null;
+                    this._realtimeStream = null;
+
+                    this.flushRealtimePlayback();
+                    try { if (this._realtimeAudioCtx) { this._realtimeAudioCtx.close(); } } catch (err) { }
+                    this._realtimeAudioCtx = null;
+
+                    if (this._conversationAssistantMessage) {
+                        var m = this.messages[this._conversationAssistantMessage.index];
+                        if (m) { m.isStreaming = false; }
+                        this._conversationAssistantMessage = null;
+                    }
+                    for (var i = 0; i < this.messages.length; i++) {
+                        if (this.messages[i].isStreaming) { this.messages[i].isStreaming = false; }
+                    }
+
+                    this.receiveNotification({
+                        type: 'conversation-ended',
+                        content: 'Conversation ended.',
+                        icon: 'fa-solid fa-circle-check',
+                        dismissible: true,
+                        autoDismissMs: 5000
+                    });
+                },
+                playRealtimePcm(bytes) {
+                    if (!this._realtimeAudioCtx || !bytes || bytes.length < 2) {
+                        return;
+                    }
+
+                    var ctx = this._realtimeAudioCtx;
+                    var sampleCount = Math.floor(bytes.length / 2);
+                    var pcm = new Int16Array(bytes.buffer, bytes.byteOffset, sampleCount);
+                    var f32 = new Float32Array(sampleCount);
+                    for (var i = 0; i < sampleCount; i++) { f32[i] = pcm[i] / 0x8000; }
+
+                    var buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
+                    buffer.copyToChannel(f32, 0);
+                    var src = ctx.createBufferSource();
+                    src.buffer = buffer;
+                    src.connect(ctx.destination);
+
+                    var now = ctx.currentTime;
+                    if (this._realtimePlayHead < now) { this._realtimePlayHead = now; }
+                    src.start(this._realtimePlayHead);
+                    this._realtimePlayHead += buffer.duration;
+                    this._realtimeSources = this._realtimeSources || [];
+                    this._realtimeSources.push(src);
+                    src.onended = () => {
+                        this._realtimeSources = (this._realtimeSources || []).filter(s => s !== src);
+                    };
+                },
+                flushRealtimePlayback() {
+                    (this._realtimeSources || []).forEach(s => { try { s.stop(); } catch (err) { } });
+                    this._realtimeSources = [];
+                    if (this._realtimeAudioCtx) { this._realtimePlayHead = this._realtimeAudioCtx.currentTime; }
                 },
                 startConversationMode() {
                     if (!this.conversationModeEnabled || this.isConversationMode || !this.connection) {
@@ -2581,8 +2744,8 @@ window.coreAIChatManager = function () {
                         }
                     }
 
-                    // Initialize conversation mode button.
-                    if (this.conversationModeEnabled && config.conversationButtonElementSelector) {
+                    // Initialize conversation mode button (used for both STT/TTS conversation and realtime).
+                    if ((this.conversationModeEnabled || this.realtimeEnabled) && config.conversationButtonElementSelector) {
                         this.conversationButton = document.querySelector(config.conversationButtonElementSelector);
                         if (this.conversationButton) {
                             this.conversationButton.addEventListener('click', () => {
@@ -2916,6 +3079,7 @@ window.coreAIChatManager = function () {
             micButtonElementSelector: getAttributeValue(element, 'data-coreai-chat-mic-button-element-selector'),
             conversationButtonElementSelector: getAttributeValue(element, 'data-coreai-chat-conversation-button-element-selector'),
             ttsVoiceName: getAttributeValue(element, 'data-coreai-chat-tts-voice-name'),
+            realtimeVoiceName: getAttributeValue(element, 'data-coreai-chat-realtime-voice-name'),
             documentBarSelector: getAttributeValue(element, 'data-coreai-chat-document-bar-selector'),
             uploadDocumentUrl: getAttributeValue(element, 'data-coreai-chat-upload-document-url'),
             removeDocumentUrl: getAttributeValue(element, 'data-coreai-chat-remove-document-url'),
@@ -2935,6 +3099,7 @@ window.coreAIChatManager = function () {
             textToSpeechEnabled: 'data-coreai-chat-text-to-speech-enabled',
             sessionDocumentsEnabled: 'data-coreai-chat-session-documents-enabled',
             singleResponseMode: 'data-coreai-chat-single-response-mode',
+            realtimeEnabled: 'data-coreai-chat-realtime-enabled',
         };
 
         Object.keys(booleanAttributes).forEach(key => {

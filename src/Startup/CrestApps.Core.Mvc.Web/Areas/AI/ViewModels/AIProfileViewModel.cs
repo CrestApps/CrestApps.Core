@@ -59,6 +59,9 @@ public sealed class AIProfileViewModel
 
     public bool EnableTextToSpeechPlayback { get; set; }
 
+    // Realtime (speech-to-speech) fields — used when ChatMode is Realtime.
+    public string RealtimeDeploymentName { get; set; }
+
     // AI Parameters (from AIProfileMetadata)
     public string SystemMessage { get; set; }
 
@@ -189,6 +192,9 @@ public sealed class AIProfileViewModel
     public IEnumerable<SelectListItem> ChatDeployments { get; set; } = [];
 
     [BindNever]
+    public IEnumerable<SelectListItem> RealtimeDeployments { get; set; } = [];
+
+    [BindNever]
     public IEnumerable<SelectListItem> UtilityDeployments { get; set; } = [];
 
     [BindNever]
@@ -228,6 +234,7 @@ public sealed class AIProfileViewModel
             TitleType = profile.TitleType,
             ChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput,
             VoiceName = chatModeSettings?.VoiceName,
+            RealtimeDeploymentName = profile.RealtimeDeploymentName,
             EnableTextToSpeechPlayback = chatModeSettings?.EnableTextToSpeechPlayback ?? false,
             LockSystemMessage = settings.LockSystemMessage,
             IsListable = settings.IsListable,
@@ -397,6 +404,7 @@ public sealed class AIProfileViewModel
         profile.ChatDeploymentName = ChatDeploymentName;
         profile.UtilityDeploymentName = UtilityDeploymentName;
         profile.OrchestratorName = OrchestratorName;
+        profile.RealtimeDeploymentName = ChatMode == ChatMode.Realtime ? RealtimeDeploymentName : profile.RealtimeDeploymentName;
         profile.PromptTemplate = PromptTemplate;
         profile.PromptSubject = PromptSubject;
         profile.Description = Description;
@@ -428,7 +436,7 @@ public sealed class AIProfileViewModel
         profile.AlterSettings<ChatModeProfileSettings>(settings =>
         {
             settings.ChatMode = ChatMode;
-            settings.VoiceName = ChatMode == ChatMode.Conversation
+            settings.VoiceName = ChatMode is ChatMode.Conversation or ChatMode.Realtime
                 ? VoiceName?.Trim()
                 : null;
             settings.EnableTextToSpeechPlayback = EnableTextToSpeechPlayback;

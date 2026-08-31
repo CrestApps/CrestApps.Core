@@ -20,8 +20,10 @@
 
     var configuredChatMode = ChatMode.TextInput;
     var hasTtsDeployment = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultTextToSpeechDeploymentName);
+    var hasRealtimeDeployment = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultRealtimeDeploymentName);
     var textToSpeechEnabled = false;
     var ttsVoiceName = defaultDeploymentSettings.DefaultTextToSpeechVoiceId;
+    var realtimeVoiceName = defaultDeploymentSettings.DefaultRealtimeVoiceId;
 
     if (selectedProfile?.TryGetSettings<ChatModeProfileSettings>(out var profileChatModeSettings) == true)
     {
@@ -30,13 +32,24 @@
 
         if (!string.IsNullOrEmpty(profileChatModeSettings?.VoiceName))
         {
+            // The profile voice applies to whichever voice mode is active (conversation or realtime).
             ttsVoiceName = profileChatModeSettings.VoiceName;
+            realtimeVoiceName = profileChatModeSettings.VoiceName;
         }
+    }
+
+    // A realtime profile without a resolvable realtime deployment falls back to the site's default realtime deployment.
+    if (configuredChatMode == ChatMode.Realtime && !hasRealtimeDeployment)
+    {
+        hasRealtimeDeployment = !string.IsNullOrWhiteSpace((selectedProfile?.RealtimeDeploymentName));
     }
 
     var speechToTextEnabled = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultSpeechToTextDeploymentName);
     var effectiveChatMode = configuredChatMode switch
     {
+        ChatMode.Realtime when hasRealtimeDeployment => ChatMode.Realtime,
+        // Realtime configured but no realtime deployment: fall back to STT/TTS conversation when possible.
+        ChatMode.Realtime when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
         ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
         ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
         ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
@@ -60,6 +73,7 @@
         {
             chatMode = effectiveChatMode.ToString(),
             ttsVoiceName = ttsVoiceName,
+            realtimeVoiceName = realtimeVoiceName,
             id = selectedProfile.ItemId,
             name = selectedProfile.Name,
             displayText = selectedProfile.DisplayText ?? selectedProfile.Name,

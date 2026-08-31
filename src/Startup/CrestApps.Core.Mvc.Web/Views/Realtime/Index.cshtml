@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "Realtime model test";
     var voices = ViewData["RealtimeVoices"] as IReadOnlyList<CrestApps.Core.AI.Models.SpeechVoice> ?? [];
+    var profiles = ViewData["RealtimeProfiles"] as IReadOnlyList<CrestApps.Core.AI.Models.AIProfile> ?? [];
 }
 
 <div class="d-flex align-items-center mb-3">
@@ -30,6 +31,20 @@ else
                 <div class="card-header"><i class="bi bi-sliders"></i> Session</div>
                 <div class="card-body">
                     <div class="mb-3">
+                        <label class="form-label" for="rt-profile">Realtime chat profile</label>
+                        <select id="rt-profile" class="form-select">
+                            <option value="">— Raw deployment (no tools / RAG) —</option>
+                            @foreach (var profile in profiles)
+                            {
+                                <option value="@profile.ItemId">@profile.Name</option>
+                            }
+                        </select>
+                        <div class="form-text">
+                            Select a profile to run through the orchestrator: its system message, tools, and knowledge
+                            base (RAG via search tool) are honored. Leave on “Raw deployment” to test bare instructions.
+                        </div>
+                    </div>
+                    <div class="mb-3" data-rt-deployment-row>
                         <label class="form-label" for="rt-deployment">Realtime deployment</label>
                         <select id="rt-deployment" class="form-select">
                             @foreach (var deployment in Model)
@@ -52,7 +67,7 @@ else
                             }
                         </select>
                     </div>
-                    <div class="mb-3">
+                    <div class="mb-3" data-rt-instructions-row>
                         <label class="form-label" for="rt-instructions">Instructions (system prompt)</label>
                         <textarea id="rt-instructions" class="form-control" rows="3">You are a friendly voice assistant. Keep your spoken answers short and conversational.</textarea>
                     </div>

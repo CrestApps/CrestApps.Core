@@ -211,8 +211,12 @@ public sealed class ChatInteractionController : Controller
         var chatMode = chatInteractionSettings.ChatMode;
         var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
         var hasTextToSpeech = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
+        var hasRealtime = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultRealtimeDeploymentName);
         var effectiveChatMode = chatMode switch
         {
+            ChatMode.Realtime when hasRealtime => ChatMode.Realtime,
+            // Realtime configured but no realtime deployment: fall back to STT/TTS conversation when possible.
+            ChatMode.Realtime when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
             ChatMode.Conversation when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
             ChatMode.Conversation when hasSpeechToText => ChatMode.AudioInput,
             ChatMode.AudioInput when hasSpeechToText => ChatMode.AudioInput,
@@ -263,8 +267,10 @@ public sealed class ChatInteractionController : Controller
             ChatMode = effectiveChatMode,
             SpeechToTextEnabled = effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation,
             ConversationModeEnabled = effectiveChatMode == ChatMode.Conversation,
+            RealtimeEnabled = effectiveChatMode == ChatMode.Realtime,
             TextToSpeechEnabled = chatInteractionSettings.EnableTextToSpeechPlayback && hasTextToSpeech,
             TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
+            RealtimeVoiceName = deploymentDefaults.DefaultRealtimeVoiceId,
         };
 
         await PopulateChatDropdownsAsync(model);

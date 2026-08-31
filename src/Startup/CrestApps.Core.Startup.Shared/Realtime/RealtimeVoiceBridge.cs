@@ -6,6 +6,8 @@ using System.Text.Json;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Realtime;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -72,6 +74,158 @@ public static class RealtimeVoiceBridge
         finally
         {
             await TryCloseAsync(socket);
+        }
+    }
+
+    /// <summary>
+    /// Accepts the incoming WebSocket and runs the realtime bridge through the AI orchestrator for a chat
+    /// profile whose chat mode is <see cref="ChatMode.Realtime"/>, so the session honors the profile's
+    /// system message, tools, and knowledge base (RAG via the search tool) — not just a raw instruction string.
+    /// </summary>
+    public static async Task HandleProfileAsync(
+        HttpContext httpContext,
+        AIProfile? profile,
+        string? voice,
+        string? language,
+        IRealtimeOrchestrator orchestrator,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(httpContext);
+
+        if (!httpContext.WebSockets.IsWebSocketRequest)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+
+            return;
+        }
+
+        using var socket = await httpContext.WebSockets.AcceptWebSocketAsync();
+
+        try
+        {
+            if (profile is null)
+            {
+                await SendJsonAsync(socket, new { type = "error", message = "The selected profile was not found." }, cancellationToken);
+
+                return;
+            }
+
+            if (!profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings) || chatModeSettings.ChatMode != ChatMode.Realtime)
+            {
+                await SendJsonAsync(socket, new { type = "error", message = "The selected profile does not have realtime chat mode enabled." }, cancellationToken);
+
+                return;
+            }
+
+            // Keep the invocation scope open for the whole conversation so tools invoked mid-session
+            // observe the correct ambient context. The orchestrator populates it during StartAsync.
+            using var scope = AIInvocationScope.Begin();
+
+            await using var conversation = await orchestrator.StartAsync(
+                new RealtimeOrchestrationRequest
+                {
+                    Resource = profile,
+                    RealtimeDeploymentName = profile.RealtimeDeploymentName,
+                    Voice = voice,
+                    SpeechLanguage = language,
+                },
+                cancellationToken);
+
+            await SendJsonAsync(socket, new { type = "ready", deployment = profile.Name }, cancellationToken);
+
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+            var fromModel = PumpConversationToBrowserAsync(socket, conversation, linkedCts.Token);
+            var fromBrowser = PumpBrowserToConversationAsync(socket, conversation, linkedCts.Token);
+
+            await Task.WhenAny(fromModel, fromBrowser);
+            await linkedCts.CancelAsync();
+
+            try
+            {
+                await Task.WhenAll(fromModel, fromBrowser);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Realtime profile bridge failed for profile '{ProfileName}'.", profile?.Name);
+            await TrySendJsonAsync(socket, new { type = "error", message = $"{exception.GetType().Name}: {exception.Message}" }, CancellationToken.None);
+        }
+        finally
+        {
+            await TryCloseAsync(socket);
+        }
+    }
+
+    private static async Task PumpConversationToBrowserAsync(WebSocket socket, IRealtimeConversation conversation, CancellationToken cancellationToken)
+    {
+        await foreach (var evt in conversation.GetEventsAsync(cancellationToken))
+        {
+            switch (evt.Type)
+            {
+                case RealtimeConversationEventType.AssistantAudioDelta when !evt.Audio.IsEmpty:
+                    await socket.SendAsync(evt.Audio, WebSocketMessageType.Binary, endOfMessage: true, cancellationToken);
+                    break;
+
+                case RealtimeConversationEventType.AssistantTranscriptDelta when !string.IsNullOrEmpty(evt.Text):
+                    await SendJsonAsync(socket, new { type = "transcript", role = "assistant", text = evt.Text }, cancellationToken);
+                    break;
+
+                case RealtimeConversationEventType.UserTranscript when !string.IsNullOrEmpty(evt.Text):
+                    await SendJsonAsync(socket, new { type = "transcript", role = "user", text = evt.Text }, cancellationToken);
+                    break;
+
+                case RealtimeConversationEventType.UserSpeechStarted:
+                    await SendJsonAsync(socket, new { type = "event", name = "speech_started" }, cancellationToken);
+                    break;
+
+                case RealtimeConversationEventType.Error:
+                    await SendJsonAsync(socket, new { type = "error", message = evt.ErrorMessage ?? "Unknown realtime error." }, cancellationToken);
+                    break;
+            }
+        }
+    }
+
+    private static async Task PumpBrowserToConversationAsync(WebSocket socket, IRealtimeConversation conversation, CancellationToken cancellationToken)
+    {
+        var rented = ArrayPool<byte>.Shared.Rent(ReceiveBufferSize);
+        try
+        {
+            while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
+            {
+                using var accumulator = new MemoryStream();
+                ValueWebSocketReceiveResult result;
+                do
+                {
+                    result = await socket.ReceiveAsync(rented.AsMemory(), cancellationToken);
+
+                    if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        return;
+                    }
+
+                    accumulator.Write(rented, 0, result.Count);
+                }
+                while (!result.EndOfMessage);
+
+                if (accumulator.Length == 0 || result.MessageType != WebSocketMessageType.Binary)
+                {
+                    continue;
+                }
+
+                await conversation.SendAudioAsync(accumulator.ToArray(), cancellationToken);
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
         }
     }
 

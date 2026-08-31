@@ -44,16 +44,23 @@
     var configuredChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput;
     var speechToTextEnabled = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultSpeechToTextDeploymentName);
     var hasTtsDeployment = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultTextToSpeechDeploymentName);
+    var hasRealtimeDeployment = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultRealtimeDeploymentName)
+        || !string.IsNullOrWhiteSpace(Model.RealtimeDeploymentName);
     var textToSpeechEnabled = (chatModeSettings?.EnableTextToSpeechPlayback ?? false) && hasTtsDeployment;
     var chatMode = configuredChatMode switch
     {
+        ChatMode.Realtime when hasRealtimeDeployment => ChatMode.Realtime,
+        // Realtime configured but no realtime deployment: fall back to STT/TTS conversation when possible.
+        ChatMode.Realtime when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
         ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
         ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
         ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
         _ => ChatMode.TextInput,
     };
     var conversationModeEnabled = chatMode == ChatMode.Conversation;
+    var realtimeEnabled = chatMode == ChatMode.Realtime;
     var ttsVoiceName = chatModeSettings?.VoiceName ?? defaultDeploymentSettings.DefaultTextToSpeechVoiceId;
+    var realtimeVoiceName = chatModeSettings?.VoiceName ?? defaultDeploymentSettings.DefaultRealtimeVoiceId;
 }
 
 <link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/ai-chat.css" />
@@ -201,6 +208,8 @@
      data-coreai-chat-mic-button-element-selector="#chat-mic-btn"
      data-coreai-chat-conversation-button-element-selector="#chat-conversation-btn"
      data-coreai-chat-tts-voice-name="@ttsVoiceName"
+     data-coreai-chat-realtime-voice-name="@realtimeVoiceName"
+     data-coreai-chat-realtime-enabled="@realtimeEnabled.ToString().ToLowerInvariant()"
      data-coreai-chat-text-to-speech-enabled="@textToSpeechEnabled.ToString().ToLowerInvariant()"
      data-coreai-chat-session-documents-enabled="@((allowSessionDocuments || allowImageUploads).ToString().ToLowerInvariant())"
      data-coreai-chat-existing-documents="@JsonSerializer.Serialize(existingDocuments)"
@@ -232,32 +241,54 @@
             <div id="chat-document-bar" class="border-top bg-light flex-shrink-0 @(allowSessionDocuments || allowImageUploads ? string.Empty : "d-none")"></div>
             <div class="border-top p-3 flex-shrink-0">
                 <div class="d-flex gap-2">
+                    @* The input stays in the DOM even for realtime (voice-only) because the client reads the *@
+                    @* profile id and session id from it; it is only hidden visually. *@
                     <textarea id="chat-input"
-                              class="form-control"
+                              class="form-control@(realtimeEnabled ? " d-none" : "")"
                               rows="1"
                               placeholder="Type a message..."
                               data-session-id="@sessionId"
                               data-profile-id="@Model.ItemId"></textarea>
-                    <button type="button" id="chat-mic-btn" class="btn btn-outline-secondary" title="Voice input" style="display: none;">
-                        <i class="bi bi-mic-fill"></i>
-                    </button>
-                    @if (conversationModeEnabled)
+                    @if (!realtimeEnabled)
+                    {
+                        <button type="button" id="chat-mic-btn" class="btn btn-outline-secondary" title="Voice input" style="display: none;">
+                            <i class="bi bi-mic-fill"></i>
+                        </button>
+                    }
+                    @if (conversationModeEnabled || realtimeEnabled)
                     {
                         <button type="button"
                                 id="chat-conversation-btn"
-                                class="btn btn-outline-dark"
-                                title="Start Conversation"
-                                data-start-title="Start Conversation"
+                                class="btn btn-outline-dark@(realtimeEnabled ? " flex-grow-1" : "")"
+                                title="@(realtimeEnabled ? "Start speaking" : "Start Conversation")"
+                                data-start-title="@(realtimeEnabled ? "Start speaking" : "Start Conversation")"
                                 data-end-title="End Conversation"
-                                data-start-html="<i class='bi bi-soundwave'></i>"
+                                data-start-html="@(realtimeEnabled ? "<i class='bi bi-soundwave me-1'></i> Start speaking" : "<i class='bi bi-soundwave'></i>")"
                                 data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation">
-                            <i class="bi bi-soundwave"></i>
+                            @if (realtimeEnabled)
+                            {
+                                <i class="bi bi-soundwave me-1"></i>
+                                <span>Start speaking</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-soundwave"></i>
+                            }
                         </button>
                     }
-                    <button type="button" id="send-btn" class="btn btn-primary" data-start-icon="<i class='bi bi-send'></i>" data-stop-icon="<i class='bi bi-stop-fill'></i>">
-                        <i class="bi bi-send"></i>
-                    </button>
+                    @if (!realtimeEnabled)
+                    {
+                        <button type="button" id="send-btn" class="btn btn-primary" data-start-icon="<i class='bi bi-send'></i>" data-stop-icon="<i class='bi bi-stop-fill'></i>">
+                            <i class="bi bi-send"></i>
+                        </button>
+                    }
                 </div>
+                @if (realtimeEnabled)
+                {
+                    <div class="form-text mt-2 text-center">
+                        <i class="bi bi-info-circle"></i> This is a realtime voice profile. Click <strong>Start speaking</strong>, allow microphone access, and talk. Use headphones to avoid echo.
+                    </div>
+                }
             </div>
         </div>
     </div>

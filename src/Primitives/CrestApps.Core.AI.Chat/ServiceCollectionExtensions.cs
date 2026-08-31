@@ -80,6 +80,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<DataExtractionService>();
         services.TryAddScoped<PostSessionProcessingService>();
         services.TryAddScoped<AIChatSessionPostCloseProcessor>();
+        services.TryAddScoped<CrestApps.Core.AI.Chat.Realtime.RealtimeChatSessionRunner>();
         services.TryAddSingleton<AIChatSessionCloseCycleService>();
         services.TryAddSingleton<AIChatSessionCloseRunner>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIChatSessionCloseBackgroundService>());

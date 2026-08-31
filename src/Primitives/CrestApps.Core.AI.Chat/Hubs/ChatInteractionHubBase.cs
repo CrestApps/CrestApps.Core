@@ -1,12 +1,15 @@
 using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
 using CrestApps.Core.AI.Chat.Models;
+using CrestApps.Core.AI.Chat.Realtime;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.AI.Realtime;
 using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.AI.Security;
 using CrestApps.Core.Security;
@@ -704,6 +707,157 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 }
             }
         });
+    }
+
+    /// <summary>
+    /// Starts a speech-to-speech realtime conversation for a chat interaction, using the site-configured
+    /// realtime deployment. The caller streams PCM16 microphone audio (Base64) and receives assistant audio
+    /// plus a both-ends transcript through the existing conversation client methods; each completed turn is
+    /// persisted to the interaction's history.
+    /// </summary>
+    /// <param name="itemId">The interaction item id.</param>
+    /// <param name="audioChunks">The stream of Base64-encoded PCM16 microphone audio chunks.</param>
+    /// <param name="voice">An optional voice id override.</param>
+    /// <param name="language">An optional BCP-47 language hint for input-audio transcription.</param>
+    public virtual async Task StartRealtimeConversation(string itemId, IAsyncEnumerable<string> audioChunks, string voice = null, string language = null)
+    {
+        if (string.IsNullOrWhiteSpace(itemId))
+        {
+            await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(itemId)));
+
+            return;
+        }
+
+        var cancellationToken = Context.ConnectionAborted;
+        try
+        {
+            await RunInScopeAsync(async services =>
+            {
+                using var invocationScope = AIInvocationScope.Begin();
+
+                var interactionManager = services.GetRequiredService<ICatalogManager<ChatInteraction>>();
+                var interaction = await interactionManager.FindByIdAsync(itemId);
+                if (interaction is null)
+                {
+                    await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
+                    return;
+                }
+
+                if (!await AuthorizeAsync(services, interaction))
+                {
+                    await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
+                    return;
+                }
+
+                // Realtime voice must be enabled for the interaction, and a realtime deployment available.
+                var chatMode = await GetChatModeAsync(services);
+                if (chatMode != ChatMode.Realtime)
+                {
+                    await Clients.Caller.ReceiveError(GetConversationNotEnabledMessage());
+
+                    return;
+                }
+
+                var capabilityResolver = services.GetRequiredService<IRealtimeCapabilityResolver>();
+                if (!await capabilityResolver.IsRealtimeDeploymentAvailableAsync(cancellationToken: cancellationToken))
+                {
+                    await Clients.Caller.ReceiveError(GetNoRealtimeDeploymentMessage());
+
+                    return;
+                }
+
+                await Groups.AddToGroupAsync(Context.ConnectionId, GetInteractionGroupName(interaction.ItemId), cancellationToken);
+
+                var deploymentSettings = await GetDeploymentSettingsAsync(services);
+                var effectiveVoice = !string.IsNullOrWhiteSpace(voice) ? voice : deploymentSettings.DefaultRealtimeVoiceId;
+
+                var promptStore = services.GetRequiredService<IChatInteractionPromptStore>();
+                var runner = services.GetRequiredService<RealtimeChatSessionRunner>();
+                var sink = new SignalRRealtimeConversationSink(Clients.Caller);
+                var turnStore = new ChatInteractionRealtimeTurnStore(promptStore);
+
+                var titleUpdated = false;
+                var runContext = new RealtimeChatRunContext
+                {
+                    Resource = interaction,
+                    SessionId = interaction.ItemId,
+                    Interaction = interaction,
+                    Voice = effectiveVoice,
+                    SpeechLanguage = language,
+                    OnUserUtteranceAsync = async (text, turnCancellationToken) =>
+                    {
+                        if (!titleUpdated && string.IsNullOrEmpty(interaction.Title))
+                        {
+                            titleUpdated = true;
+                            interaction.Title = text.Length > 255 ? text[..255] : text;
+                            await interactionManager.UpdateAsync(interaction, cancellationToken: turnCancellationToken);
+                        }
+                    },
+                    OnAssistantCompletedAsync = async _ =>
+                    {
+                        // Commit at each turn boundary so a dropped connection still records history.
+                        await CommitChangesAsync(services);
+                    },
+                };
+
+                await runner.RunAsync(runContext, turnStore, DecodeBase64AudioAsync(audioChunks, cancellationToken), sink, cancellationToken);
+
+                await CommitChangesAsync(services);
+            });
+        }
+        catch (Exception ex)
+        {
+            if (ex is OperationCanceledException)
+            {
+                Logger.LogDebug("Realtime conversation was cancelled.");
+
+                return;
+            }
+
+            Logger.LogError(ex, "An error occurred during realtime conversation mode.");
+            try
+            {
+                await Clients.Caller.ReceiveError(GetConversationErrorMessage());
+            }
+            catch (Exception writeEx)
+            {
+                Logger.LogWarning(writeEx, "Failed to write realtime conversation error message.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the message returned when no realtime deployment can be resolved.
+    /// </summary>
+    protected virtual string GetNoRealtimeDeploymentMessage()
+    {
+        return "No realtime deployment is configured. Set a default realtime deployment under Settings, or create an AI deployment whose purpose includes 'Realtime'.";
+    }
+
+    /// <summary>
+    /// Decodes a stream of Base64 text frames into raw PCM16 audio chunks, skipping any malformed frame.
+    /// </summary>
+    private static async IAsyncEnumerable<ReadOnlyMemory<byte>> DecodeBase64AudioAsync(
+        IAsyncEnumerable<string> chunks,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await foreach (var chunk in chunks.WithCancellation(cancellationToken))
+        {
+            byte[] bytes;
+
+            try
+            {
+                bytes = Convert.FromBase64String(chunk);
+            }
+            catch (FormatException)
+            {
+                continue;
+            }
+
+            yield return bytes;
+        }
     }
 
     /// <summary>
@@ -1719,6 +1873,62 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         return message.Contains("AuthenticationFailure", StringComparison.OrdinalIgnoreCase)
             || message.Contains("Authentication error (401)", StringComparison.OrdinalIgnoreCase)
             || message.Contains("check subscription information and region name", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Bridges the transport-agnostic <see cref="IRealtimeConversationSink"/> onto the connected chat
+    /// interaction client, reusing the existing conversation client methods so realtime renders in the same
+    /// interaction UI.
+    /// </summary>
+    private sealed class SignalRRealtimeConversationSink : IRealtimeConversationSink
+    {
+        private readonly IChatInteractionHubClient _client;
+
+        public SignalRRealtimeConversationSink(IChatInteractionHubClient client)
+        {
+            _client = client;
+        }
+
+        public Task AssistantAudioAsync(string identifier, ReadOnlyMemory<byte> audio, CancellationToken cancellationToken)
+        {
+            return _client.ReceiveAudioChunk(identifier, Convert.ToBase64String(audio.Span), "audio/pcm");
+        }
+
+        public Task UserTranscriptAsync(string identifier, string text, CancellationToken cancellationToken)
+        {
+            return _client.ReceiveConversationUserMessage(identifier, text);
+        }
+
+        public Task AssistantTranscriptDeltaAsync(
+            string identifier,
+            string messageId,
+            string text,
+            string responseId,
+            Dictionary<string, AICompletionReference> references,
+            CancellationToken cancellationToken)
+        {
+            return _client.ReceiveConversationAssistantToken(identifier, messageId, text, responseId, references, null);
+        }
+
+        public Task AssistantCompletedAsync(
+            string identifier,
+            string messageId,
+            Dictionary<string, AICompletionReference> references,
+            CancellationToken cancellationToken)
+        {
+            return _client.ReceiveConversationAssistantComplete(identifier, messageId, references);
+        }
+
+        public Task SpeechStartedAsync(string identifier, CancellationToken cancellationToken)
+        {
+            // The client detects its own microphone activity; no dedicated server signal is required today.
+            return Task.CompletedTask;
+        }
+
+        public Task ErrorAsync(string message, CancellationToken cancellationToken)
+        {
+            return _client.ReceiveError(message);
+        }
     }
 
     protected static class JsonHelper

@@ -115,9 +115,13 @@ internal sealed class ChatInteractionChatViewModel
 
     public bool ConversationModeEnabled { get; set; }
 
+    public bool RealtimeEnabled { get; set; }
+
     public bool TextToSpeechEnabled { get; set; }
 
     public string TextToSpeechVoiceName { get; set; }
+
+    public string RealtimeVoiceName { get; set; }
 
     [BindNever]
     public IEnumerable<SelectListItem> DataSources { get; set; } = [];

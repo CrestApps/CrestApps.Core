@@ -361,7 +361,10 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
 
         if (!_aiOptions.Deployments.ContainsKey(entry.ClientName))
         {
-            _logger.LogWarning("Unknown deployment provider '{ProviderName}' in AI deployment configuration. Skipping.", entry.ClientName);
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation("Unknown deployment provider '{ProviderName}' in AI deployment configuration. Skipping.", entry.ClientName);
+            }
 
             return null;
         }

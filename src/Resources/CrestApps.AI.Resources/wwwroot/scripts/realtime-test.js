@@ -15,6 +15,22 @@
         var deploymentEl = document.getElementById('rt-deployment');
         var voiceEl = document.getElementById('rt-voice');
         var instructionsEl = document.getElementById('rt-instructions');
+        var profileEl = document.getElementById('rt-profile');
+        var deploymentRow = document.querySelector('[data-rt-deployment-row]');
+        var instructionsRow = document.querySelector('[data-rt-instructions-row]');
+
+        function syncMode() {
+            // When a profile is selected the orchestrator provides the deployment, instructions, and tools,
+            // so the raw deployment/instructions inputs are not used.
+            var usingProfile = profileEl && profileEl.value;
+            if (deploymentRow) { deploymentRow.style.display = usingProfile ? 'none' : ''; }
+            if (instructionsRow) { instructionsRow.style.display = usingProfile ? 'none' : ''; }
+        }
+
+        if (profileEl) {
+            profileEl.addEventListener('change', syncMode);
+            syncMode();
+        }
 
         var SAMPLE_RATE = 24000;
 
@@ -125,11 +141,13 @@
                     audioContext = new Ctx({ sampleRate: SAMPLE_RATE });
                     playHead = audioContext.currentTime;
 
-                    var params = new URLSearchParams({
-                        deploymentName: deploymentEl.value,
-                        voice: voiceEl.value,
-                        instructions: instructionsEl.value
-                    });
+                    var params = new URLSearchParams({ voice: voiceEl.value });
+                    if (profileEl && profileEl.value) {
+                        params.set('profileId', profileEl.value);
+                    } else {
+                        params.set('deploymentName', deploymentEl.value);
+                        params.set('instructions', instructionsEl.value);
+                    }
                     var proto = location.protocol === 'https:' ? 'wss' : 'ws';
                     setStatus('Connecting…', 'bg-warning');
                     ws = new WebSocket(proto + '://' + location.host + '/Realtime/Stream?' + params.toString());
