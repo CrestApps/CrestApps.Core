@@ -55,4 +55,10 @@ public static class AIModelFeatureNames
     /// The model can generate video.
     /// </summary>
     public const string VideoOutput = "videoOutput";
+
+    /// <summary>
+    /// The model supports real-time, bidirectional speech-to-speech sessions
+    /// (<see cref="AIDeploymentPurpose.Realtime"/>).
+    /// </summary>
+    public const string Realtime = "realtime";
 }

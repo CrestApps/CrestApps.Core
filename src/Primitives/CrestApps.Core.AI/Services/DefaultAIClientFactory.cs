@@ -221,10 +221,39 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         ArgumentNullException.ThrowIfNull(deployment);
         ArgumentException.ThrowIfNullOrEmpty(deployment.ClientName);
 
+        EnsureRealtimeSupported(deployment);
+
         var connection = await GetConnectionEntryAsync(deployment);
 
         return await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetRealtimeClientAsync(conn, model));
+    }
+
+    /// <summary>
+    /// Enforces the declared <see cref="AIModelFeatureNames.Realtime"/> feature before a realtime session
+    /// is created. Enforcement is opt-in: a deployment that does not declare capability metadata is left
+    /// unconstrained so existing realtime configurations keep working. When metadata is declared, the
+    /// deployment must declare the realtime feature to be used for a speech-to-speech session.
+    /// </summary>
+    private void EnsureRealtimeSupported(AIDeployment deployment)
+    {
+        if (!deployment.TryGet<AIDeploymentModelMetadata>(out _))
+        {
+            return;
+        }
+
+        var capabilityService = _serviceProvider.GetService<IAIModelCapabilityService>();
+
+        if (capabilityService is null)
+        {
+            return;
+        }
+
+        if (!capabilityService.GetCapabilities(deployment).SupportsFeature(AIModelFeatureNames.Realtime))
+        {
+            throw new NotSupportedException(
+                $"The deployment '{deployment.ModelName}' does not declare the '{AIModelFeatureNames.Realtime}' feature and cannot be used for a realtime (speech-to-speech) session.");
+        }
     }
 #pragma warning restore MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
 

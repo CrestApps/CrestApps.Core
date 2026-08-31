@@ -264,6 +264,11 @@ public static class ServiceCollectionExtensions
             {
                 feature.Description = new LocalizedString(AIModelFeatureNames.VideoOutput, "The model can generate video.");
                 feature.Order = 100;
+            })
+            .AddAIModelFeature(AIModelFeatureNames.Realtime, new LocalizedString(AIModelFeatureNames.Realtime, "Realtime (speech-to-speech)"), feature =>
+            {
+                feature.Description = new LocalizedString(AIModelFeatureNames.Realtime, "The model supports real-time, bidirectional speech-to-speech sessions.");
+                feature.Order = 110;
             });
 
         services.AddAIModelParameter(AIModelParameterNames.ReasoningEffort, new LocalizedString(AIModelParameterNames.ReasoningEffort, "Reasoning effort"), parameter =>
