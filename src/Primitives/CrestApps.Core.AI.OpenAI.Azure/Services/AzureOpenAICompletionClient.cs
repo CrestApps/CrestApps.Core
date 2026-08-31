@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Azure.AI.OpenAI;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Connections;
@@ -113,8 +114,9 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         var connectionName = deployment.ConnectionName;
         var azureClient = GetChatClient(connectionProperties);
         var chatClient = azureClient.GetChatClient(deployment.ModelName);
-        var functions = await ResolveToolsAsync(context, deployment.ModelName);
-        var chatOptions = GetOptions(context, functions);
+        var requestOptions = await ResolveRequestOptionsAsync(context, deployment, isStreaming: false);
+        var functions = requestOptions.Functions;
+        var chatOptions = GetOptions(context, functions, requestOptions.ResolvedOptions);
         var systemFunctions = await ConfigureOptionsAsync(chatOptions, context, prompts);
         var allFunctions = systemFunctions.Count > 0 ? functions.Concat(systemFunctions) : functions;
         try
@@ -131,7 +133,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
             {
                 await ProcessToolCallsAsync(prompts, data.Value.ToolCalls, allFunctions);
                 // Create a new chat option that excludes references to data sources to address the limitations in Azure OpenAI.
-                data = await chatClient.CompleteChatAsync(prompts, GetOptions(context, allFunctions), cancellationToken);
+                data = await chatClient.CompleteChatAsync(prompts, GetOptions(context, allFunctions, requestOptions.ResolvedOptions), cancellationToken);
                 iterations++;
             }
 
@@ -166,6 +168,13 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
 
             return result;
         }
+        catch (OperationCanceledException)
+        {
+            // Never swallow cancellation. Returning null here would make a cancelled request look like
+            // an empty completion, and it would also end a suppressed streaming fallback silently
+            // instead of propagating the cancellation like a normal streaming request.
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unable to get chat completion result from Azure OpenAI.");
@@ -197,14 +206,37 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
             yield break;
         }
 
+        if (ShouldSuppressStreaming(deployment))
+        {
+            // The deployment is not trained to stream, so complete the request without streaming and
+            // replay the single response as streaming updates. This mirrors the enforcement performed
+            // by CapabilityEnforcingChatClient on the client-factory path.
+            _logger.LogWarning(
+                "Deployment '{Deployment}' does not declare the '{Feature}' feature. The streaming request was completed as a single non-streaming response.",
+                deployment.ModelName, AIModelFeatureNames.Streaming);
+
+            var bufferedResponse = await CompleteAsync(messages, context, cancellationToken);
+
+            if (bufferedResponse is not null)
+            {
+                foreach (var update in bufferedResponse.ToChatResponseUpdates())
+                {
+                    yield return update;
+                }
+            }
+
+            yield break;
+        }
+
         var azureMessages = AzureOpenAIChatMessageConverter.Convert(
             messages,
             context.PastMessagesCount);
         var connectionName = deployment.ConnectionName;
         var azureClient = GetChatClient(connection);
         var chatClient = azureClient.GetChatClient(deployment.ModelName);
-        var functions = await ResolveToolsAsync(context, deployment.ModelName);
-        var chatOptions = GetOptions(context, functions);
+        var requestOptions = await ResolveRequestOptionsAsync(context, deployment, isStreaming: true);
+        var functions = requestOptions.Functions;
+        var chatOptions = GetOptions(context, functions, requestOptions.ResolvedOptions);
         ChatCompletionOptions subSequenceContext = null;
         var prompts = GetPrompts(context, azureMessages);
         var systemFunctions = await ConfigureOptionsAsync(chatOptions, context, prompts);
@@ -235,7 +267,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
                     // Clear accumulated tool calls for the next iteration.
                     accumulatedToolCalls.Clear();
                     // Create a new chat option that excludes references to data sources to address the limitations in Azure OpenAI.
-                    chatOptions = subSequenceContext ??= GetOptions(context, allFunctions);
+                    chatOptions = subSequenceContext ??= GetOptions(context, allFunctions, requestOptions.ResolvedOptions);
                     hasToolCalls = true;
                     iterations++;
                     break;
@@ -379,6 +411,25 @@ omit optional fields, or split the operation into multiple smaller calls.
         }
     }
 
+    private bool ShouldSuppressStreaming(AIDeployment deployment)
+    {
+        // Only deployments that declare capability metadata are constrained, so existing
+        // configurations keep streaming exactly as before.
+        if (!deployment.TryGet<AIDeploymentModelMetadata>(out _))
+        {
+            return false;
+        }
+
+        var capabilityService = _serviceProvider.GetService<IAIModelCapabilityService>();
+
+        if (capabilityService is null)
+        {
+            return false;
+        }
+
+        return !capabilityService.GetCapabilities(deployment).SupportsFeature(AIModelFeatureNames.Streaming);
+    }
+
     private async ValueTask<(AIDeployment deployment, AIProviderConnectionEntry connection)> ResolveChatConfigurationAsync(string deploymentName)
     {
         var deployment = await ResolveDeploymentAsync(AIDeploymentPurpose.Chat, AzureOpenAIConstants.ClientName, deploymentName: deploymentName);
@@ -443,7 +494,7 @@ omit optional fields, or split the operation into multiple smaller calls.
         return optionsContext.SystemFunctions;
     }
 
-    private static ChatCompletionOptions GetOptions(AICompletionContext context, IEnumerable<Microsoft.Extensions.AI.AIFunction> functions)
+    private ChatCompletionOptions GetOptions(AICompletionContext context, IEnumerable<Microsoft.Extensions.AI.AIFunction> functions, Microsoft.Extensions.AI.ChatOptions resolvedOptions = null)
     {
         var chatOptions = new ChatCompletionOptions()
         {
@@ -453,6 +504,8 @@ omit optional fields, or split the operation into multiple smaller calls.
             PresencePenalty = context.PresencePenalty,
             MaxOutputTokenCount = context.MaxTokens,
         };
+
+        ApplyReasoningEffort(chatOptions, resolvedOptions);
 
         if (!context.DisableTools)
         {
@@ -470,21 +523,48 @@ omit optional fields, or split the operation into multiple smaller calls.
         return chatOptions;
     }
 
-    private async Task<IEnumerable<Microsoft.Extensions.AI.AIFunction>> ResolveToolsAsync(AICompletionContext context, string deploymentName)
+#pragma warning disable OPENAI001 // ChatCompletionOptions.ReasoningEffortLevel is an evaluation-only API in the OpenAI SDK.
+    private void ApplyReasoningEffort(ChatCompletionOptions chatOptions, Microsoft.Extensions.AI.ChatOptions resolvedOptions)
     {
-        if (context.DisableTools)
+        var effort = resolvedOptions?.Reasoning?.Effort;
+
+        if (!effort.HasValue)
         {
-            return [];
+            return;
         }
 
-        // Use the same handler pipeline as NamedAICompletionClient to resolve tools.
-        // This ensures authorization checks and consistent tool resolution across all clients.
-        var chatOptions = new Microsoft.Extensions.AI.ChatOptions();
-        var configureContext = new CompletionServiceConfigureContext(chatOptions, context, isFunctionInvocationSupported: true)
+        chatOptions.ReasoningEffortLevel = effort.Value switch
         {
-            DeploymentName = deploymentName,
+            Microsoft.Extensions.AI.ReasoningEffort.None => ChatReasoningEffortLevel.Minimal,
+            Microsoft.Extensions.AI.ReasoningEffort.Low => ChatReasoningEffortLevel.Low,
+            Microsoft.Extensions.AI.ReasoningEffort.Medium => ChatReasoningEffortLevel.Medium,
+            Microsoft.Extensions.AI.ReasoningEffort.High => ChatReasoningEffortLevel.High,
+            // The Azure/OpenAI SDK does not expose a level above High, so ExtraHigh (and any future
+            // value) is clamped to the highest level the SDK supports. This is logged so the downgrade
+            // is observable rather than silent.
+            _ => ChatReasoningEffortLevel.High,
+        };
+
+        if (effort.Value is Microsoft.Extensions.AI.ReasoningEffort.ExtraHigh)
+        {
+            _logger.LogWarning(
+                "The reasoning effort '{Effort}' is not supported by the Azure OpenAI SDK and was clamped to '{Applied}'.",
+                effort.Value, ChatReasoningEffortLevel.High);
+        }
+    }
+#pragma warning restore OPENAI001
+
+    private async Task<AzureRequestOptions> ResolveRequestOptionsAsync(AICompletionContext context, AIDeployment deployment, bool isStreaming)
+    {
+        // Use the same handler pipeline as NamedAICompletionClient to resolve tools and model
+        // parameters. This ensures authorization checks and consistent behavior across all clients.
+        var chatOptions = new Microsoft.Extensions.AI.ChatOptions();
+        var configureContext = new CompletionServiceConfigureContext(chatOptions, context, isFunctionInvocationSupported: !context.DisableTools)
+        {
+            DeploymentName = deployment.ModelName,
+            Deployment = deployment,
             ClientName = ClientName,
-            IsStreaming = false,
+            IsStreaming = isStreaming,
         };
 
         foreach (var handler in _completionServiceHandlers)
@@ -492,13 +572,30 @@ omit optional fields, or split the operation into multiple smaller calls.
             await handler.ConfigureAsync(configureContext);
         }
 
-        if (chatOptions.Tools is null || chatOptions.Tools.Count == 0)
+        // This client projects a fixed set of options onto the Azure SDK ChatCompletionOptions
+        // (temperature, penalties, token limits, tools, and reasoning effort). A model parameter that a
+        // binder mapped onto a strongly-typed ChatOptions member (such as reasoning effort) is honored,
+        // but a binder-less parameter that only lands in ChatOptions.AdditionalProperties has no generic
+        // passthrough on this SDK path. Surface it as a warning so it is observable rather than dropped
+        // silently. The built-in reasoningEffort parameter never reaches here because it binds through
+        // ChatOptions.Reasoning.Effort.
+        if (chatOptions.AdditionalProperties is { Count: > 0 })
         {
-            return [];
+            _logger.LogWarning(
+                "Model parameter value(s) '{Parameters}' resolved for deployment '{Deployment}' are not applied by the Azure OpenAI completion client, which does not forward ChatOptions.AdditionalProperties. Register an IAIModelParameterBinder that maps the parameter onto a supported option.",
+                string.Join(", ", chatOptions.AdditionalProperties.Keys), deployment.ModelName);
         }
 
-        return chatOptions.Tools.OfType<Microsoft.Extensions.AI.AIFunction>().ToList();
+        var functions = context.DisableTools || chatOptions.Tools is not { Count: > 0 }
+            ? []
+            : chatOptions.Tools.OfType<Microsoft.Extensions.AI.AIFunction>().ToList();
+
+        return new AzureRequestOptions(functions, chatOptions);
     }
+
+    private sealed record AzureRequestOptions(
+        IReadOnlyList<Microsoft.Extensions.AI.AIFunction> Functions,
+        Microsoft.Extensions.AI.ChatOptions ResolvedOptions);
 
     private static List<ChatMessage> GetPrompts(AICompletionContext context, List<ChatMessage> azureMessages)
     {

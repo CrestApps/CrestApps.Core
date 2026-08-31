@@ -400,6 +400,10 @@
                             <div class="col-md-6"><div class="mb-3"><label class="form-label">Past messages count</label><InputNumber class="form-control" @bind-Value="_model.PastMessagesCount" /><div class="form-text">Number of previous messages to include in context.</div></div></div>
                         </div>
                         <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.UseCaching" /><label class="form-check-label">Enable response caching</label></div><div class="form-text">Cache responses to improve performance for repeated queries.</div></div>
+
+                    <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-sliders"></i> Model parameters</h6>
+                    <p class="text-muted small">Only the parameters declared by the selected chat deployment are shown.</p>
+                    <ModelParametersEditor DeploymentName="_model.ChatDeploymentName" Values="_model.ModelParameters" />
                     </div>
 
                     <!-- Capabilities -->

@@ -212,6 +212,12 @@ public sealed class AIProfileViewModel
 
     public List<KeyValuePair<string, string>> AnthropicAvailableModels { get; set; } = [];
 
+    /// <summary>
+    /// Gets or sets the model parameter values selected for this profile, keyed by the registered
+    /// parameter technical name.
+    /// </summary>
+    public Dictionary<string, string> ModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     public static AIProfileViewModel FromProfile(AIProfile profile)
     {
         var settings = profile.GetOrCreateSettings<AIProfileSettings>();
@@ -271,6 +277,11 @@ public sealed class AIProfileViewModel
 
             EnableUserMemory = memoryMetadata.EnableUserMemory ?? false,
         };
+
+        if (profile.TryGet<AIModelParametersMetadata>(out var modelParameters) && modelParameters.Values is { Count: > 0 })
+        {
+            vm.ModelParameters = new Dictionary<string, string>(modelParameters.Values, StringComparer.OrdinalIgnoreCase);
+        }
 
         if (profile.TryGet<AIProfileMetadata>(out var metadata))
         {
@@ -428,6 +439,15 @@ public sealed class AIProfileViewModel
             m.MaxTokens = MaxTokens;
             m.PastMessagesCount = PastMessagesCount;
             m.UseCaching = UseCaching;
+        });
+
+        profile.Alter<AIModelParametersMetadata>(m =>
+        {
+            m.Values = ModelParameters is null
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(
+                    ModelParameters.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value)),
+                    StringComparer.OrdinalIgnoreCase);
         });
 
         profile.AlterSettings<AIProfileSettings>(s =>

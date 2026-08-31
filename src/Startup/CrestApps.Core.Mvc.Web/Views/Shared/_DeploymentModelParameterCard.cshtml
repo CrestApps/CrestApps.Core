@@ -1,0 +1,111 @@
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
+@model AIDeploymentModelParameterCardViewModel
+@{
+    var parameter = Model.Parameter;
+    var i = Model.Index;
+    var bodyId = $"modelParameterBody_{parameter.ElementId}";
+}
+<div class="border rounded p-3 mb-2 @(Model.Hidden ? "d-none" : string.Empty)"
+     data-model-parameter-card
+     data-required-feature="@parameter.RequiredFeature">
+    @* Emit a non-sequential binding index so the default collection binder never truncates the list
+       when a feature-dependent row is disabled. These structural fields are marked so the feature
+       dependency script keeps them enabled even while the rest of the card is disabled. *@
+    <input type="hidden" name="ModelParameters.Index" value="@i" data-structural="true" />
+    <input type="hidden" name="ModelParameters[@i].Name" value="@parameter.Name" data-structural="true" />
+    <div class="form-check">
+        <input id="ModelParameters_@(parameter.ElementId)_IsSupported"
+               name="ModelParameters[@i].IsSupported"
+               type="checkbox"
+               value="true"
+               class="form-check-input model-parameter-toggle"
+               data-target="@bodyId"
+               @(parameter.IsSupported ? "checked" : "") />
+        <input type="hidden" name="ModelParameters[@i].IsSupported" value="false" data-structural="true" />
+        <label class="form-check-label" for="ModelParameters_@(parameter.ElementId)_IsSupported">
+            @parameter.DisplayName
+            @if (!string.IsNullOrWhiteSpace(parameter.Description))
+            {
+                <span class="text-muted small d-block">@parameter.Description</span>
+            }
+        </label>
+    </div>
+    <div class="mt-3 @(parameter.IsSupported ? string.Empty : "d-none")" id="@bodyId">
+        @if (parameter.Kind == AIModelParameterKind.Choice && parameter.AvailableValues.Any())
+        {
+            <div class="row g-2">
+                <div class="col-md-7">
+                    <label class="form-label small" for="ModelParameters_@(parameter.ElementId)_SelectedAllowedValues">Supported values</label>
+                    <select id="ModelParameters_@(parameter.ElementId)_SelectedAllowedValues"
+                            name="ModelParameters[@i].SelectedAllowedValues"
+                            class="selectpicker"
+                            data-model-allowed-values
+                            multiple
+                            title="All registered values"
+                            data-live-search="true"
+                            size="@Math.Min(parameter.AvailableValues.Count(), 6)">
+                        @foreach (var option in parameter.AvailableValues)
+                        {
+                            var isSelected = parameter.SelectedAllowedValues?.Contains(option.Value, StringComparer.OrdinalIgnoreCase) ?? false;
+                            <option value="@option.Value" selected="@(isSelected ? "selected" : null)">@option.Text</option>
+                        }
+                    </select>
+                    <div class="form-text">Leave nothing selected to support every registered value.</div>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label small" for="ModelParameters_@(parameter.ElementId)_DefaultValue">Default value</label>
+                    <select id="ModelParameters_@(parameter.ElementId)_DefaultValue"
+                            name="ModelParameters[@i].DefaultValue"
+                            class="form-select">
+                        <option value="">No default</option>
+                        @foreach (var option in parameter.AvailableValues)
+                        {
+                            <option value="@option.Value" selected="@(string.Equals(option.Value, parameter.DefaultValue, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@option.Text</option>
+                        }
+                    </select>
+                    <div class="form-text">Applied when an operator does not select a value.</div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <label class="form-label small" for="ModelParameters_@(parameter.ElementId)_DefaultValue">Default value</label>
+                    <input id="ModelParameters_@(parameter.ElementId)_DefaultValue"
+                           name="ModelParameters[@i].DefaultValue"
+                           class="form-control"
+                           value="@parameter.DefaultValue" />
+                </div>
+                @if (parameter.Kind == AIModelParameterKind.Number || parameter.Kind == AIModelParameterKind.Integer)
+                {
+                    <div class="col-md-3">
+                        <label class="form-label small" for="ModelParameters_@(parameter.ElementId)_Minimum">Minimum</label>
+                        <input id="ModelParameters_@(parameter.ElementId)_Minimum"
+                               name="ModelParameters[@i].Minimum"
+                               type="number" step="any"
+                               class="form-control"
+                               value="@parameter.Minimum" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small" for="ModelParameters_@(parameter.ElementId)_Maximum">Maximum</label>
+                        <input id="ModelParameters_@(parameter.ElementId)_Maximum"
+                               name="ModelParameters[@i].Maximum"
+                               type="number" step="any"
+                               class="form-control"
+                               value="@parameter.Maximum" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small" for="ModelParameters_@(parameter.ElementId)_Step">Step</label>
+                        <input id="ModelParameters_@(parameter.ElementId)_Step"
+                               name="ModelParameters[@i].Step"
+                               type="number" step="any"
+                               class="form-control"
+                               value="@parameter.Step" />
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>

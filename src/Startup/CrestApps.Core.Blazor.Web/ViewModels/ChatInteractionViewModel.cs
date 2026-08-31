@@ -93,6 +93,12 @@ public sealed class ChatInteractionViewModel
     public List<SelectOption> AnthropicAvailableModels { get; set; } = [];
     public bool AllowImageUploads { get; set; }
     public bool AllowDocumentUploads { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the model parameter values selected for this interaction, keyed by the registered
+    /// parameter technical name.
+    /// </summary>
+    public Dictionary<string, string> ModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class SelectOption

@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
@@ -192,7 +193,155 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIDeployment>, AIDeploymentCatalogHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProviderConnection>, AIProviderConnectionCatalogHandler>());
 
+        services.AddCoreAIModelCapabilities();
+
         return services;
+    }
+
+    /// <summary>
+    /// Adds the metadata-driven model capability services along with the model features and
+    /// model parameters that ship with the framework.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIModelCapabilities(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddOptions<AIModelCapabilityOptions>();
+        services.TryAddScoped<IAIModelCapabilityService, DefaultAIModelCapabilityService>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionServiceHandler, ModelParametersAICompletionServiceHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIModelParameterBinder, ReasoningEffortModelParameterBinder>());
+
+        services
+            .AddAIModelFeature(AIModelFeatureNames.ToolCalling, new LocalizedString(AIModelFeatureNames.ToolCalling, "Tool calling"), feature =>
+            {
+                feature.Description = new LocalizedString(AIModelFeatureNames.ToolCalling, "The model can call tools and functions supplied with the request.");
+                feature.Order = 10;
+                feature.EnabledByDefault = true;
+            })
+            .AddAIModelFeature(AIModelFeatureNames.StructuredOutputs, new LocalizedString(AIModelFeatureNames.StructuredOutputs, "Structured outputs"), feature =>
+            {
+                feature.Description = new LocalizedString(AIModelFeatureNames.StructuredOutputs, "The model can return responses that follow a supplied JSON schema.");
+                feature.Order = 20;
+            })
+            .AddAIModelFeature(AIModelFeatureNames.Streaming, new LocalizedString(AIModelFeatureNames.Streaming, "Streaming"), feature =>
+            {
+                feature.Description = new LocalizedString(AIModelFeatureNames.Streaming, "The model can stream response updates as they are produced.");
+                feature.Order = 30;
+                feature.EnabledByDefault = true;
+            })
+            .AddAIModelFeature(AIModelFeatureNames.Reasoning, new LocalizedString(AIModelFeatureNames.Reasoning, "Reasoning"), feature =>
+            {
+                feature.Description = new LocalizedString(AIModelFeatureNames.Reasoning, "The model performs internal reasoning before producing an answer.");
+                feature.Order = 40;
+            })
+            .AddAIModelFeature(AIModelFeatureNames.ImageInput, new LocalizedString(AIModelFeatureNames.ImageInput, "Image input (vision)"), feature =>
+            {
+                feature.Description = new LocalizedString(AIModelFeatureNames.ImageInput, "The model can understand image inputs.");
+                feature.Order = 50;
+            })
+            .AddAIModelFeature(AIModelFeatureNames.ImageOutput, new LocalizedString(AIModelFeatureNames.ImageOutput, "Image output"), feature =>
+            {
+                feature.Description = new LocalizedString(AIModelFeatureNames.ImageOutput, "The model can generate images.");
+                feature.Order = 60;
+            })
+            .AddAIModelFeature(AIModelFeatureNames.AudioInput, new LocalizedString(AIModelFeatureNames.AudioInput, "Audio input"), feature =>
+            {
+                feature.Description = new LocalizedString(AIModelFeatureNames.AudioInput, "The model accepts audio input.");
+                feature.Order = 70;
+            })
+            .AddAIModelFeature(AIModelFeatureNames.AudioOutput, new LocalizedString(AIModelFeatureNames.AudioOutput, "Audio output"), feature =>
+            {
+                feature.Description = new LocalizedString(AIModelFeatureNames.AudioOutput, "The model produces audio output.");
+                feature.Order = 80;
+            })
+            .AddAIModelFeature(AIModelFeatureNames.VideoInput, new LocalizedString(AIModelFeatureNames.VideoInput, "Video input"), feature =>
+            {
+                feature.Description = new LocalizedString(AIModelFeatureNames.VideoInput, "The model can understand video inputs.");
+                feature.Order = 90;
+            })
+            .AddAIModelFeature(AIModelFeatureNames.VideoOutput, new LocalizedString(AIModelFeatureNames.VideoOutput, "Video output"), feature =>
+            {
+                feature.Description = new LocalizedString(AIModelFeatureNames.VideoOutput, "The model can generate video.");
+                feature.Order = 100;
+            });
+
+        services.AddAIModelParameter(AIModelParameterNames.ReasoningEffort, new LocalizedString(AIModelParameterNames.ReasoningEffort, "Reasoning effort"), parameter =>
+        {
+            parameter.Description = new LocalizedString(AIModelParameterNames.ReasoningEffort, "Controls how much internal reasoning the model applies before answering. Higher values produce more thoughtful answers with increased latency and cost.");
+            parameter.Kind = AIModelParameterKind.Choice;
+            parameter.DefaultValue = nameof(ReasoningEffort.Medium);
+            parameter.RequiredFeature = AIModelFeatureNames.Reasoning;
+            parameter.Order = 10;
+            parameter.AllowedValues =
+            [
+                new AIModelParameterOption
+                {
+                    Value = nameof(ReasoningEffort.None),
+                    DisplayName = new LocalizedString(nameof(ReasoningEffort.None), "Minimal"),
+                },
+                new AIModelParameterOption
+                {
+                    Value = nameof(ReasoningEffort.Low),
+                    DisplayName = new LocalizedString(nameof(ReasoningEffort.Low), "Low"),
+                },
+                new AIModelParameterOption
+                {
+                    Value = nameof(ReasoningEffort.Medium),
+                    DisplayName = new LocalizedString(nameof(ReasoningEffort.Medium), "Medium"),
+                },
+                new AIModelParameterOption
+                {
+                    Value = nameof(ReasoningEffort.High),
+                    DisplayName = new LocalizedString(nameof(ReasoningEffort.High), "High"),
+                },
+                new AIModelParameterOption
+                {
+                    Value = nameof(ReasoningEffort.ExtraHigh),
+                    DisplayName = new LocalizedString(nameof(ReasoningEffort.ExtraHigh), "Extra high"),
+                },
+            ];
+        });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers a model feature that deployments can declare support for.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="name">The technical name of the feature.</param>
+    /// <param name="displayName">The display text shown to operators.</param>
+    /// <param name="configure">An optional delegate used to further configure the descriptor.</param>
+    public static IServiceCollection AddAIModelFeature(
+        this IServiceCollection services,
+        string name,
+        LocalizedString displayName,
+        Action<AIModelFeatureDescriptor> configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        return services.Configure<AIModelCapabilityOptions>(options => options.AddFeature(name, displayName, configure));
+    }
+
+    /// <summary>
+    /// Registers a model parameter that deployments can declare support for.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="name">The technical name of the parameter.</param>
+    /// <param name="displayName">The display text shown to operators.</param>
+    /// <param name="configure">An optional delegate used to further configure the descriptor.</param>
+    public static IServiceCollection AddAIModelParameter(
+        this IServiceCollection services,
+        string name,
+        LocalizedString displayName,
+        Action<AIModelParameterDescriptor> configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        return services.Configure<AIModelCapabilityOptions>(options => options.AddParameter(name, displayName, configure));
     }
 
     /// <summary>
@@ -517,6 +666,10 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IOrchestrationContextBuilder, DefaultOrchestrationContextBuilder>();
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionServiceHandler, FunctionInvocationAICompletionServiceHandler>());
+
+        // Registered after the tool-adding handler so it can strip tools and other options that the
+        // resolved deployment does not declare support for.
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionServiceHandler, ModelFeaturesAICompletionServiceHandler>());
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, DataSourceAICompletionContextBuilderHandler>());
 

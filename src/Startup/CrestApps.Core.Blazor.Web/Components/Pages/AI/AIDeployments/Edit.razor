@@ -130,6 +130,8 @@ else
                     }
                 }
 
+                <ModelCapabilitiesEditor Model="_model" />
+
                 <div class="mt-4">
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-check-lg"></i> Save
@@ -302,6 +304,8 @@ else
                 _validationErrors.Add("Technical name must be unique across appsettings and UI deployments.");
             }
         }
+
+        _validationErrors.AddRange(_model.ValidateModelParameters());
 
         if (_validationErrors.Count > 0)
         {

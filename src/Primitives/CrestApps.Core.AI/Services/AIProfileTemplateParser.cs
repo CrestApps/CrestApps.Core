@@ -165,9 +165,48 @@ public static class AIProfileTemplateParser
             profileMetadata.AllowToolInvocation = allowToolInvocation;
         }
 
+        var modelParameters = ParseModelParameters(props);
+
+        if (modelParameters.Values.Count > 0)
+        {
+            template.Put(modelParameters);
+        }
+
         template.Put(profileMetadata);
 
         return template;
+    }
+
+    private static AIModelParametersMetadata ParseModelParameters(Dictionary<string, string> props)
+    {
+        var metadata = new AIModelParametersMetadata();
+
+        if (props is null || !props.TryGetValue("ModelParameters", out var raw) || string.IsNullOrWhiteSpace(raw))
+        {
+            return metadata;
+        }
+
+        foreach (var pair in raw.Split([';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var separatorIndex = pair.IndexOf('=');
+
+            if (separatorIndex <= 0 || separatorIndex == pair.Length - 1)
+            {
+                continue;
+            }
+
+            var name = pair[..separatorIndex].Trim();
+            var value = pair[(separatorIndex + 1)..].Trim();
+
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            metadata.Values[name] = value;
+        }
+
+        return metadata;
     }
 
     /// <summary>

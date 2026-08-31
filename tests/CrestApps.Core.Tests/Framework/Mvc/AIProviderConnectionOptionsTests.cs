@@ -1,5 +1,6 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.AzureAIInference;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
@@ -331,7 +332,8 @@ public sealed class AIProviderConnectionConfigurationTests
         var controller = new AIDeploymentController(
             deploymentStore.Object,
             deploymentCatalog.Object,
-            connectionCatalog.Object);
+            connectionCatalog.Object,
+            CreateCapabilityService());
 
         var result = await controller.Create();
 
@@ -353,7 +355,8 @@ public sealed class AIProviderConnectionConfigurationTests
         var controller = new AIDeploymentController(
             deploymentStore.Object,
             deploymentCatalog.Object,
-            connectionCatalog.Object);
+            connectionCatalog.Object,
+            CreateCapabilityService());
 
         var result = await controller.Create(new AIDeploymentViewModel
         {
@@ -493,7 +496,8 @@ public sealed class AIProviderConnectionConfigurationTests
         var controller = new AIDeploymentController(
             deploymentStore.Object,
             deploymentCatalog.Object,
-            connectionCatalog.Object);
+            connectionCatalog.Object,
+            CreateCapabilityService());
 
         var result = await controller.Index();
 
@@ -604,6 +608,11 @@ public sealed class AIProviderConnectionConfigurationTests
 
         Assert.Single(connections);
         Assert.Equal("ui-connection", connections.Single().ItemId);
+    }
+
+    private static DefaultAIModelCapabilityService CreateCapabilityService()
+    {
+        return new DefaultAIModelCapabilityService(Options.Create(new AIModelCapabilityOptions()), Mock.Of<IAIDeploymentStore>());
     }
 
     private static DefaultAIProviderConnectionStore CreateConnectionStore(

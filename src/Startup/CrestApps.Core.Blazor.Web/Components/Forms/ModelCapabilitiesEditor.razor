@@ -1,0 +1,210 @@
+@using CrestApps.Core.AI.Capabilities
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Blazor.Web.ViewModels
+@inject IAIModelCapabilityService CapabilityService
+
+<div class="card mb-3">
+    <div class="card-header">
+        <h6 class="card-title mb-0"><i class="bi bi-sliders"></i> Model capabilities</h6>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small">
+            Declare what the underlying model supports. Features are capabilities the model either has or does not have.
+            Parameters are options an operator can configure on an AI profile, profile template, or chat interaction.
+            Anything not declared here is never rendered in those editors and is never sent to the provider.
+        </p>
+
+        @if (Model.AvailableFeatures.Count > 0)
+        {
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Trained features</label>
+                <p class="text-muted small mb-2">Capabilities the underlying model was trained with. Only declared features are sent to the provider.</p>
+                @foreach (var group in Model.AvailableFeatures.GroupBy(feature => feature.Category ?? "Trained Features").OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    <div class="mb-2">
+                        <div class="text-uppercase text-muted small">@group.Key</div>
+                        @foreach (var feature in group.OrderBy(feature => feature.DisplayName?.Value ?? feature.Name, StringComparer.OrdinalIgnoreCase))
+                        {
+                            var featureName = feature.Name;
+                            var dependentParameters = Model.ModelParameters
+                                .Where(parameter => string.Equals(parameter.RequiredFeature, featureName, StringComparison.OrdinalIgnoreCase))
+                                .ToList();
+                            <div class="form-check">
+                                <input id="feature_@feature.Name.Replace('.', '_')"
+                                       type="checkbox"
+                                       class="form-check-input"
+                                       checked="@Model.SelectedFeatures.Contains(featureName)"
+                                       @onchange="args => ToggleFeature(featureName, args)" />
+                                <label class="form-check-label" for="feature_@feature.Name.Replace('.', '_')">
+                                    @(feature.DisplayName?.Value ?? feature.Name)
+                                    @if (feature.Description is not null && !string.IsNullOrWhiteSpace(feature.Description.Value))
+                                    {
+                                        <span class="text-muted small d-block">@feature.Description.Value</span>
+                                    }
+                                </label>
+                            </div>
+                            @if (dependentParameters.Count > 0 && Model.SelectedFeatures.Contains(featureName))
+                            {
+                                <div class="ms-4 mt-2">
+                                    @foreach (var parameter in dependentParameters)
+                                    {
+                                        @ParameterCard(parameter)
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @{
+            var standaloneParameters = Model.ModelParameters
+                .Where(parameter => string.IsNullOrWhiteSpace(parameter.RequiredFeature))
+                .ToList();
+        }
+
+        @if (standaloneParameters.Count > 0)
+        {
+            <label class="form-label fw-semibold">Model parameters</label>
+            @foreach (var parameter in standaloneParameters)
+            {
+                @ParameterCard(parameter)
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private AIDeploymentViewModel _mergedModel;
+
+    /// <summary>
+    /// Gets or sets the deployment currently being edited.
+    /// </summary>
+    [Parameter]
+    public AIDeploymentViewModel Model { get; set; }
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        if (Model is null || ReferenceEquals(_mergedModel, Model))
+        {
+            return;
+        }
+
+        _mergedModel = Model;
+        Model.MergeRegisteredCapabilities(CapabilityService.GetRegisteredFeatures(), CapabilityService.GetRegisteredParameters());
+
+        // Apply the default trained features once when a brand-new deployment is being created.
+        // Existing deployments (identified by an item id) keep their saved selection untouched.
+        if (string.IsNullOrEmpty(Model.ItemId) && Model.SelectedFeatures.Count == 0)
+        {
+            foreach (var feature in Model.AvailableFeatures.Where(static feature => feature.EnabledByDefault))
+            {
+                Model.SelectedFeatures.Add(feature.Name);
+            }
+        }
+    }
+
+    private void ToggleFeature(string featureName, ChangeEventArgs args)
+    {
+        if (args.Value is true)
+        {
+            Model.SelectedFeatures.Add(featureName);
+        }
+        else
+        {
+            Model.SelectedFeatures.Remove(featureName);
+
+            foreach (var parameter in Model.ModelParameters.Where(parameter => string.Equals(parameter.RequiredFeature, featureName, StringComparison.OrdinalIgnoreCase)))
+            {
+                parameter.IsSupported = false;
+            }
+        }
+    }
+
+    private RenderFragment<AIDeploymentModelParameterViewModel> ParameterCard => parameter =>
+    @<div class="border rounded p-3 mb-2">
+        <div class="form-check">
+            <input id="parameter_@parameter.ElementId"
+                   type="checkbox"
+                   class="form-check-input"
+                   checked="@parameter.IsSupported"
+                   @onchange="args => ToggleParameter(parameter, args)" />
+            <label class="form-check-label" for="parameter_@parameter.ElementId">
+                @parameter.DisplayName
+                @if (!string.IsNullOrWhiteSpace(parameter.Description))
+                {
+                    <span class="text-muted small d-block">@parameter.Description</span>
+                }
+            </label>
+        </div>
+        @if (parameter.IsSupported)
+        {
+            <div class="mt-3">
+                @if (parameter.Kind == AIModelParameterKind.Choice && parameter.AvailableValues.Count > 0)
+                {
+                    <div class="row g-2">
+                        <div class="col-md-7">
+                            <label class="form-label small">Supported values</label>
+                            <BootstrapMultiSelect ElementId="@($"parameter_{parameter.ElementId}_values")"
+                                                  Title="All registered values"
+                                                  Options="@parameter.AvailableValues.Select(option => new BootstrapMultiSelect.BootstrapMultiSelectOption(option.Value, option.DisplayName?.Value ?? option.Value)).ToList()"
+                                                  SelectedValues="@parameter.SelectedAllowedValues"
+                                                  SelectedValuesChanged="values => SetAllowedValues(parameter, values)" />
+                            <div class="form-text">Leave nothing selected to support every registered value.</div>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small" for="parameter_@(parameter.ElementId)_default">Default value</label>
+                            <select id="parameter_@(parameter.ElementId)_default"
+                                    class="form-select"
+                                    value="@parameter.DefaultValue"
+                                    @onchange="args => parameter.DefaultValue = args.Value?.ToString()">
+                                <option value="">No default</option>
+                                @foreach (var option in parameter.AvailableValues)
+                                {
+                                    <option value="@option.Value" selected="@string.Equals(option.Value, parameter.DefaultValue, StringComparison.OrdinalIgnoreCase)">@(option.DisplayName?.Value ?? option.Value)</option>
+                                }
+                            </select>
+                            <div class="form-text">Applied when an operator does not select a value.</div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <label class="form-label small" for="parameter_@(parameter.ElementId)_default">Default value</label>
+                            <input id="parameter_@(parameter.ElementId)_default" class="form-control" @bind="parameter.DefaultValue" />
+                        </div>
+                        @if (parameter.Kind == AIModelParameterKind.Number || parameter.Kind == AIModelParameterKind.Integer)
+                        {
+                            <div class="col-md-3">
+                                <label class="form-label small" for="parameter_@(parameter.ElementId)_min">Minimum</label>
+                                <input id="parameter_@(parameter.ElementId)_min" type="number" step="any" class="form-control" @bind="parameter.Minimum" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small" for="parameter_@(parameter.ElementId)_max">Maximum</label>
+                                <input id="parameter_@(parameter.ElementId)_max" type="number" step="any" class="form-control" @bind="parameter.Maximum" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small" for="parameter_@(parameter.ElementId)_step">Step</label>
+                                <input id="parameter_@(parameter.ElementId)_step" type="number" step="any" class="form-control" @bind="parameter.Step" />
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>;
+
+    private static void ToggleParameter(AIDeploymentModelParameterViewModel parameter, ChangeEventArgs args)
+    {
+        parameter.IsSupported = args.Value is true;
+    }
+
+    private static void SetAllowedValues(AIDeploymentModelParameterViewModel parameter, IReadOnlyList<string> values)
+    {
+        parameter.SelectedAllowedValues = new HashSet<string>(values, StringComparer.OrdinalIgnoreCase);
+    }
+}
