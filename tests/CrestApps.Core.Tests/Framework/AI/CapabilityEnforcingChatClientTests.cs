@@ -292,7 +292,7 @@ public sealed class CapabilityEnforcingChatClientTests
             Name = "gpt-5",
         };
 
-        deployment.Put(new AIDeploymentModelMetadata
+        deployment.Put(new AIDeploymentMetadata
         {
             Features = features,
         });
@@ -307,12 +307,12 @@ public sealed class CapabilityEnforcingChatClientTests
             Name = "gpt-5",
         };
 
-        deployment.Put(new AIDeploymentModelMetadata
+        deployment.Put(new AIDeploymentMetadata
         {
             Features = [AIDeploymentFeatureNames.Reasoning],
             Parameters = new(StringComparer.OrdinalIgnoreCase)
             {
-                [AIDeploymentParameterNames.ReasoningEffort] = new AIDeploymentModelParameter(),
+                [AIDeploymentParameterNames.ReasoningEffort] = new AIDeploymentParameter(),
             },
         });
 

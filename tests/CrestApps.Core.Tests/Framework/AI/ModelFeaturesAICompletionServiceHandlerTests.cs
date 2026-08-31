@@ -197,7 +197,7 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
             Name = "gpt-5",
         };
 
-        deployment.Put(new AIDeploymentModelMetadata
+        deployment.Put(new AIDeploymentMetadata
         {
             Features = features,
         });

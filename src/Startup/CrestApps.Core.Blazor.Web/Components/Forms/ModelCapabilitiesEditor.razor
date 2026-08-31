@@ -123,7 +123,7 @@
         }
     }
 
-    private RenderFragment<AIDeploymentModelParameterViewModel> ParameterCard => parameter =>
+    private RenderFragment<AIDeploymentParameterViewModel> ParameterCard => parameter =>
     @<div class="border rounded p-3 mb-2">
         <div class="form-check">
             <input id="parameter_@parameter.ElementId"
@@ -198,12 +198,12 @@
         }
     </div>;
 
-    private static void ToggleParameter(AIDeploymentModelParameterViewModel parameter, ChangeEventArgs args)
+    private static void ToggleParameter(AIDeploymentParameterViewModel parameter, ChangeEventArgs args)
     {
         parameter.IsSupported = args.Value is true;
     }
 
-    private static void SetAllowedValues(AIDeploymentModelParameterViewModel parameter, IReadOnlyList<string> values)
+    private static void SetAllowedValues(AIDeploymentParameterViewModel parameter, IReadOnlyList<string> values)
     {
         parameter.SelectedAllowedValues = new HashSet<string>(values, StringComparer.OrdinalIgnoreCase);
     }

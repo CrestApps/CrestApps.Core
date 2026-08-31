@@ -415,7 +415,7 @@ omit optional fields, or split the operation into multiple smaller calls.
     {
         // Only deployments that declare capability metadata are constrained, so existing
         // configurations keep streaming exactly as before.
-        if (!deployment.TryGet<AIDeploymentModelMetadata>(out _))
+        if (!deployment.TryGet<AIDeploymentMetadata>(out _))
         {
             return false;
         }

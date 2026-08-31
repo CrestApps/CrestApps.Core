@@ -5,7 +5,7 @@ namespace CrestApps.Core.AI.Models;
 /// when supplied, narrows the globally registered <see cref="AIDeploymentParameterDescriptor"/> so a deployment
 /// can describe the exact behavior of its underlying model.
 /// </summary>
-public sealed class AIDeploymentModelParameter
+public sealed class AIDeploymentParameter
 {
     /// <summary>
     /// Gets or sets the subset of allowed values supported by this deployment.
@@ -36,9 +36,9 @@ public sealed class AIDeploymentModelParameter
     /// <summary>
     /// Creates a copy of this instance.
     /// </summary>
-    public AIDeploymentModelParameter Clone()
+    public AIDeploymentParameter Clone()
     {
-        return new AIDeploymentModelParameter
+        return new AIDeploymentParameter
         {
             AllowedValues = AllowedValues is null
                 ? null

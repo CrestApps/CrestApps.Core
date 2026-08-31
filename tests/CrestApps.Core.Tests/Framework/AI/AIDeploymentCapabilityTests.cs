@@ -38,7 +38,7 @@ public sealed class AIDeploymentCapabilityTests
     {
         // Arrange
         var service = CreateService(out _);
-        var deployment = CreateDeployment(new AIDeploymentModelParameter());
+        var deployment = CreateDeployment(new AIDeploymentParameter());
 
         // Act
         var capabilities = service.GetCapabilities(deployment);
@@ -56,7 +56,7 @@ public sealed class AIDeploymentCapabilityTests
     {
         // Arrange
         var service = CreateService(out _);
-        var deployment = CreateDeployment(new AIDeploymentModelParameter
+        var deployment = CreateDeployment(new AIDeploymentParameter
         {
             AllowedValues = ["Low", "High"],
         });
@@ -74,7 +74,7 @@ public sealed class AIDeploymentCapabilityTests
     {
         // Arrange
         var service = CreateService(out _);
-        var deployment = CreateDeployment(new AIDeploymentModelParameter
+        var deployment = CreateDeployment(new AIDeploymentParameter
         {
             AllowedValues = ["Low"],
         });
@@ -97,12 +97,12 @@ public sealed class AIDeploymentCapabilityTests
             Name = "gpt-5",
         };
 
-        deployment.Put(new AIDeploymentModelMetadata
+        deployment.Put(new AIDeploymentMetadata
         {
             Features = [],
-            Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
+            Parameters = new Dictionary<string, AIDeploymentParameter>(StringComparer.OrdinalIgnoreCase)
             {
-                [AIDeploymentParameterNames.ReasoningEffort] = new AIDeploymentModelParameter(),
+                [AIDeploymentParameterNames.ReasoningEffort] = new AIDeploymentParameter(),
             },
         });
 
@@ -118,7 +118,7 @@ public sealed class AIDeploymentCapabilityTests
     {
         // Arrange
         var service = CreateService(out _);
-        var deployment = CreateDeployment(new AIDeploymentModelParameter());
+        var deployment = CreateDeployment(new AIDeploymentParameter());
 
         // Act
         var descriptor = service.GetCapabilities(deployment).GetParameter(AIDeploymentParameterNames.ReasoningEffort);
@@ -132,7 +132,7 @@ public sealed class AIDeploymentCapabilityTests
     {
         // Arrange
         var service = CreateService(out _);
-        var deployment = CreateDeployment(new AIDeploymentModelParameter
+        var deployment = CreateDeployment(new AIDeploymentParameter
         {
             DefaultValue = "High",
         });
@@ -150,7 +150,7 @@ public sealed class AIDeploymentCapabilityTests
     {
         // Arrange
         var service = CreateService(out var options);
-        var deployment = CreateDeployment(new AIDeploymentModelParameter
+        var deployment = CreateDeployment(new AIDeploymentParameter
         {
             AllowedValues = ["Low"],
             DefaultValue = "Low",
@@ -241,7 +241,7 @@ public sealed class AIDeploymentCapabilityTests
     {
         // Arrange
         var handler = CreateHandler();
-        var context = CreateConfigureContext(CreateDeployment(new AIDeploymentModelParameter()), ("reasoningEffort", "High"));
+        var context = CreateConfigureContext(CreateDeployment(new AIDeploymentParameter()), ("reasoningEffort", "High"));
 
         // Act
         await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
@@ -274,7 +274,7 @@ public sealed class AIDeploymentCapabilityTests
     {
         // Arrange
         var handler = CreateHandler();
-        var deployment = CreateDeployment(new AIDeploymentModelParameter
+        var deployment = CreateDeployment(new AIDeploymentParameter
         {
             AllowedValues = ["Low", "Medium"],
             DefaultValue = "Low",
@@ -294,7 +294,7 @@ public sealed class AIDeploymentCapabilityTests
         // Arrange
         var logger = new Mock<ILogger<ModelParametersAICompletionServiceHandler>>();
         var handler = CreateHandler(logger: logger);
-        var deployment = CreateDeployment(new AIDeploymentModelParameter
+        var deployment = CreateDeployment(new AIDeploymentParameter
         {
             AllowedValues = ["Low", "Medium"],
             DefaultValue = "Low",
@@ -323,7 +323,7 @@ public sealed class AIDeploymentCapabilityTests
     {
         // Arrange
         var handler = CreateHandler();
-        var context = CreateConfigureContext(CreateDeployment(new AIDeploymentModelParameter
+        var context = CreateConfigureContext(CreateDeployment(new AIDeploymentParameter
         {
             DefaultValue = "Low",
         }));
@@ -355,11 +355,11 @@ public sealed class AIDeploymentCapabilityTests
             Name = "gpt-5",
         };
 
-        deployment.Put(new AIDeploymentModelMetadata
+        deployment.Put(new AIDeploymentMetadata
         {
-            Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
+            Parameters = new Dictionary<string, AIDeploymentParameter>(StringComparer.OrdinalIgnoreCase)
             {
-                ["verbosity"] = new AIDeploymentModelParameter(),
+                ["verbosity"] = new AIDeploymentParameter(),
             },
         });
 
@@ -397,11 +397,11 @@ public sealed class AIDeploymentCapabilityTests
             Name = "gpt-5",
         };
 
-        deployment.Put(new AIDeploymentModelMetadata
+        deployment.Put(new AIDeploymentMetadata
         {
-            Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
+            Parameters = new Dictionary<string, AIDeploymentParameter>(StringComparer.OrdinalIgnoreCase)
             {
-                ["customParameter"] = new AIDeploymentModelParameter(),
+                ["customParameter"] = new AIDeploymentParameter(),
             },
         });
 
@@ -433,11 +433,11 @@ public sealed class AIDeploymentCapabilityTests
             Name = "gpt-5",
         };
 
-        deployment.Put(new AIDeploymentModelMetadata
+        deployment.Put(new AIDeploymentMetadata
         {
-            Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
+            Parameters = new Dictionary<string, AIDeploymentParameter>(StringComparer.OrdinalIgnoreCase)
             {
-                ["customParameter"] = new AIDeploymentModelParameter(),
+                ["customParameter"] = new AIDeploymentParameter(),
             },
         });
 
@@ -467,11 +467,11 @@ public sealed class AIDeploymentCapabilityTests
             Name = "gpt-5",
         };
 
-        deployment.Put(new AIDeploymentModelMetadata
+        deployment.Put(new AIDeploymentMetadata
         {
-            Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
+            Parameters = new Dictionary<string, AIDeploymentParameter>(StringComparer.OrdinalIgnoreCase)
             {
-                ["customParameter"] = new AIDeploymentModelParameter(),
+                ["customParameter"] = new AIDeploymentParameter(),
             },
         });
 
@@ -506,11 +506,11 @@ public sealed class AIDeploymentCapabilityTests
             Name = "gpt-5",
         };
 
-        deployment.Put(new AIDeploymentModelMetadata
+        deployment.Put(new AIDeploymentMetadata
         {
-            Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
+            Parameters = new Dictionary<string, AIDeploymentParameter>(StringComparer.OrdinalIgnoreCase)
             {
-                ["customParameter"] = new AIDeploymentModelParameter(),
+                ["customParameter"] = new AIDeploymentParameter(),
             },
         });
 
@@ -561,17 +561,17 @@ public sealed class AIDeploymentCapabilityTests
         Assert.False(context.ModelParameters.ContainsKey("ignored"));
     }
 
-    private static AIDeployment CreateDeployment(AIDeploymentModelParameter parameter)
+    private static AIDeployment CreateDeployment(AIDeploymentParameter parameter)
     {
         var deployment = new AIDeployment
         {
             Name = "gpt-5",
         };
 
-        deployment.Put(new AIDeploymentModelMetadata
+        deployment.Put(new AIDeploymentMetadata
         {
             Features = [AIDeploymentFeatureNames.Reasoning],
-            Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
+            Parameters = new Dictionary<string, AIDeploymentParameter>(StringComparer.OrdinalIgnoreCase)
             {
                 [AIDeploymentParameterNames.ReasoningEffort] = parameter,
             },

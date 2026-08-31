@@ -10,7 +10,7 @@ namespace CrestApps.Core.AI.Models;
 /// <remarks>
 /// Parameters are registered by modules through <see cref="AIDeploymentCapabilityOptions"/>. An
 /// <see cref="AIDeployment"/> declares which registered parameters its underlying model exposes and
-/// may narrow the registered metadata through <see cref="AIDeploymentModelParameter"/>.
+/// may narrow the registered metadata through <see cref="AIDeploymentParameter"/>.
 /// </remarks>
 public sealed class AIDeploymentParameterDescriptor
 {

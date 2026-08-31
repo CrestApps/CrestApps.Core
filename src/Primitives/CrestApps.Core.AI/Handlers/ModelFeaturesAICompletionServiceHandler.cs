@@ -37,7 +37,7 @@ public sealed class ModelFeaturesAICompletionServiceHandler : IAICompletionServi
         // Feature enforcement is opt-in: only deployments that declare their capability metadata
         // constrain the request. Deployments without metadata are treated as unconstrained so that
         // existing configurations keep working exactly as before.
-        if (context.Deployment is null || !context.Deployment.TryGet<AIDeploymentModelMetadata>(out _))
+        if (context.Deployment is null || !context.Deployment.TryGet<AIDeploymentMetadata>(out _))
         {
             return Task.CompletedTask;
         }

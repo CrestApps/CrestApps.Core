@@ -4,7 +4,7 @@ namespace CrestApps.Core.AI.Models;
 
 /// <summary>
 /// Holds the model features and model parameters that modules contribute to the framework.
-/// Deployments reference these registered definitions through <see cref="AIDeploymentModelMetadata"/>.
+/// Deployments reference these registered definitions through <see cref="AIDeploymentMetadata"/>.
 /// </summary>
 public sealed class AIDeploymentCapabilityOptions
 {

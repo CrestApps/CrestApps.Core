@@ -5,7 +5,7 @@ namespace CrestApps.Core.AI.Models;
 /// exposed by the underlying model. Editors, validation, and runtime request generation are driven from
 /// this metadata instead of provider or model name detection.
 /// </summary>
-public sealed class AIDeploymentModelMetadata
+public sealed class AIDeploymentMetadata
 {
     /// <summary>
     /// Gets or sets the technical names of the registered model features supported by this deployment.
@@ -17,7 +17,7 @@ public sealed class AIDeploymentModelMetadata
     /// A parameter that is not present in this dictionary is not supported by the deployment and is
     /// never rendered by editors or sent to the provider.
     /// </summary>
-    public Dictionary<string, AIDeploymentModelParameter> Parameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, AIDeploymentParameter> Parameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Determines whether the deployment supports the given registered feature.

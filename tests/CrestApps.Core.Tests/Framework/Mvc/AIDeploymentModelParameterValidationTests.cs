@@ -5,7 +5,7 @@ using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.Tests.Framework.Mvc;
 
-public sealed class AIDeploymentModelParameterValidationTests
+public sealed class AIDeploymentParameterValidationTests
 {
     private static AIDeploymentParameterDescriptor ChoiceDescriptor(params string[] values)
     {
@@ -49,7 +49,7 @@ public sealed class AIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel { Name = "reasoningEffort", IsSupported = true, DefaultValue = "Medium" },
+                new AIDeploymentParameterViewModel { Name = "reasoningEffort", IsSupported = true, DefaultValue = "Medium" },
             ],
         };
 
@@ -67,7 +67,7 @@ public sealed class AIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel { Name = "reasoningEffort", IsSupported = true, DefaultValue = "Ultra" },
+                new AIDeploymentParameterViewModel { Name = "reasoningEffort", IsSupported = true, DefaultValue = "Ultra" },
             ],
         };
 
@@ -87,7 +87,7 @@ public sealed class AIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel
+                new AIDeploymentParameterViewModel
                 {
                     Name = "reasoningEffort",
                     IsSupported = true,
@@ -112,7 +112,7 @@ public sealed class AIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel
+                new AIDeploymentParameterViewModel
                 {
                     Name = "reasoningEffort",
                     IsSupported = true,
@@ -136,7 +136,7 @@ public sealed class AIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel { Name = "temperature", IsSupported = true, Minimum = 2, Maximum = 1 },
+                new AIDeploymentParameterViewModel { Name = "temperature", IsSupported = true, Minimum = 2, Maximum = 1 },
             ],
         };
 
@@ -155,7 +155,7 @@ public sealed class AIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel { Name = "temperature", IsSupported = true, DefaultValue = "5" },
+                new AIDeploymentParameterViewModel { Name = "temperature", IsSupported = true, DefaultValue = "5" },
             ],
         };
 
@@ -174,7 +174,7 @@ public sealed class AIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel { Name = "topK", IsSupported = true, DefaultValue = "3.5" },
+                new AIDeploymentParameterViewModel { Name = "topK", IsSupported = true, DefaultValue = "3.5" },
             ],
         };
 
@@ -193,7 +193,7 @@ public sealed class AIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel { Name = "unknownParameter", IsSupported = true },
+                new AIDeploymentParameterViewModel { Name = "unknownParameter", IsSupported = true },
             ],
         };
 
@@ -214,7 +214,7 @@ public sealed class AIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel { Name = "reasoningEffort", IsSupported = false, DefaultValue = "Ultra" },
+                new AIDeploymentParameterViewModel { Name = "reasoningEffort", IsSupported = false, DefaultValue = "Ultra" },
             ],
         };
 

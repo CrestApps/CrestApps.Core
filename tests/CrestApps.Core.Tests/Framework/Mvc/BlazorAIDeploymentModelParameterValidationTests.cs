@@ -4,7 +4,7 @@ using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.Tests.Framework.Mvc;
 
-public sealed class BlazorAIDeploymentModelParameterValidationTests
+public sealed class BlazorAIDeploymentParameterValidationTests
 {
     private static AIDeploymentParameterDescriptor ChoiceDescriptor(params string[] values)
     {
@@ -36,7 +36,7 @@ public sealed class BlazorAIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel
+                new AIDeploymentParameterViewModel
                 {
                     Name = "reasoningEffort",
                     IsSupported = true,
@@ -56,7 +56,7 @@ public sealed class BlazorAIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel
+                new AIDeploymentParameterViewModel
                 {
                     Name = "reasoningEffort",
                     IsSupported = true,
@@ -76,7 +76,7 @@ public sealed class BlazorAIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel
+                new AIDeploymentParameterViewModel
                 {
                     Name = "reasoningEffort",
                     IsSupported = true,
@@ -97,7 +97,7 @@ public sealed class BlazorAIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel
+                new AIDeploymentParameterViewModel
                 {
                     Name = "temperature",
                     IsSupported = true,
@@ -118,7 +118,7 @@ public sealed class BlazorAIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel
+                new AIDeploymentParameterViewModel
                 {
                     Name = "temperature",
                     IsSupported = true,
@@ -138,7 +138,7 @@ public sealed class BlazorAIDeploymentModelParameterValidationTests
         {
             ModelParameters =
             [
-                new AIDeploymentModelParameterViewModel
+                new AIDeploymentParameterViewModel
                 {
                     Name = "reasoningEffort",
                     IsSupported = false,

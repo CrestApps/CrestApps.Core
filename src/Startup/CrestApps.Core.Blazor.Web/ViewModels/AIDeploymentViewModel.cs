@@ -47,7 +47,7 @@ public sealed class AIDeploymentViewModel
     /// <summary>
     /// Gets or sets the per-deployment settings of every registered model parameter.
     /// </summary>
-    public List<AIDeploymentModelParameterViewModel> ModelParameters { get; set; } = [];
+    public List<AIDeploymentParameterViewModel> ModelParameters { get; set; } = [];
 
     /// <summary>
     /// Gets or sets every registered model feature.
@@ -74,14 +74,14 @@ public sealed class AIDeploymentViewModel
             model.Endpoint = deployment.Properties.TryGetValue("Endpoint", out var ep) ? ep?.ToString() : null;
             model.AuthenticationType = deployment.Properties.TryGetValue("AuthenticationType", out var auth) ? auth?.ToString() : null;
 
-            var metadata = deployment.GetOrCreate<AIDeploymentModelMetadata>();
+            var metadata = deployment.GetOrCreate<AIDeploymentMetadata>();
             model.SelectedFeatures = new HashSet<string>(metadata.Features ?? [], StringComparer.OrdinalIgnoreCase);
 
             if (metadata.Parameters is { Count: > 0 })
             {
                 model.ModelParameters =
                 [
-                    .. metadata.Parameters.Select(entry => new AIDeploymentModelParameterViewModel
+                    .. metadata.Parameters.Select(entry => new AIDeploymentParameterViewModel
                     {
                         Name = entry.Key,
                         IsSupported = true,
@@ -154,13 +154,13 @@ public sealed class AIDeploymentViewModel
             .GroupBy(parameter => parameter.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
-        var merged = new List<AIDeploymentModelParameterViewModel>();
+        var merged = new List<AIDeploymentParameterViewModel>();
 
         foreach (var descriptor in parameters)
         {
             if (!existing.TryGetValue(descriptor.Name, out var row))
             {
-                row = new AIDeploymentModelParameterViewModel
+                row = new AIDeploymentParameterViewModel
                 {
                     Name = descriptor.Name,
                 };
@@ -265,7 +265,7 @@ public sealed class AIDeploymentViewModel
 
     private void ApplyModelMetadataTo(AIDeployment deployment)
     {
-        var metadata = new AIDeploymentModelMetadata
+        var metadata = new AIDeploymentMetadata
         {
             Features = SelectedFeatures is null
                 ? []
@@ -279,7 +279,7 @@ public sealed class AIDeploymentViewModel
                 continue;
             }
 
-            metadata.Parameters[parameter.Name] = new AIDeploymentModelParameter
+            metadata.Parameters[parameter.Name] = new AIDeploymentParameter
             {
                 AllowedValues = parameter.SelectedAllowedValues is { Count: > 0 }
                     ? [.. parameter.SelectedAllowedValues]
@@ -293,7 +293,7 @@ public sealed class AIDeploymentViewModel
 
         if (metadata.Features.Length == 0 && metadata.Parameters.Count == 0)
         {
-            deployment.Remove<AIDeploymentModelMetadata>();
+            deployment.Remove<AIDeploymentMetadata>();
 
             return;
         }
@@ -331,7 +331,7 @@ public sealed class AIDeploymentViewModel
 /// <summary>
 /// Represents the per-deployment settings of a single registered model parameter.
 /// </summary>
-public sealed class AIDeploymentModelParameterViewModel
+public sealed class AIDeploymentParameterViewModel
 {
     /// <summary>
     /// Gets or sets the registered technical name of the parameter.

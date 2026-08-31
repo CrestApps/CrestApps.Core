@@ -46,7 +46,7 @@ public sealed class DefaultAIDeploymentCapabilityService : IAIDeploymentCapabili
     /// <inheritdoc/>
     public AIDeploymentCapabilities GetCapabilities(AIDeployment deployment)
     {
-        if (deployment is null || !deployment.TryGet<AIDeploymentModelMetadata>(out var metadata))
+        if (deployment is null || !deployment.TryGet<AIDeploymentMetadata>(out var metadata))
         {
             return AIDeploymentCapabilities.Empty;
         }
@@ -147,7 +147,7 @@ public sealed class DefaultAIDeploymentCapabilityService : IAIDeploymentCapabili
         return deployments.Count > 0 ? deployments[0] : null;
     }
 
-    private static AIDeploymentParameterDescriptor Merge(AIDeploymentParameterDescriptor descriptor, AIDeploymentModelParameter overrides)
+    private static AIDeploymentParameterDescriptor Merge(AIDeploymentParameterDescriptor descriptor, AIDeploymentParameter overrides)
     {
         var effective = descriptor.Clone();
 
