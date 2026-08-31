@@ -245,6 +245,10 @@
                             <InputNumber id="pastMessages" class="form-control" @bind-Value="_model.PastMessagesCount" min="0" placeholder="10" />
                         </div>
                     </div>
+
+                    <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-sliders"></i> Model parameters</h6>
+                    <p class="text-muted small">Only the parameters declared by the selected deployment are shown.</p>
+                    <ModelParametersEditor DeploymentName="_model.ChatDeploymentName" Values="_model.ModelParameters" />
                 }
                 else if (_activeTab == "capabilities")
                 {
@@ -687,6 +691,15 @@
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
+        });
+
+        interaction.Alter<AIModelParametersMetadata>(metadata =>
+        {
+            metadata.Values = _model.ModelParameters is null
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(
+                    _model.ModelParameters.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value)),
+                    StringComparer.OrdinalIgnoreCase);
         });
 
         if (!string.IsNullOrWhiteSpace(_model.DataSourceId))

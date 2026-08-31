@@ -1,0 +1,167 @@
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
+@model AIDeploymentViewModel
+
+<div class="card mb-3">
+    <div class="card-header">
+        <h6 class="card-title mb-0"><i class="bi bi-sliders"></i> Model capabilities</h6>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small">
+            Declare what the underlying model supports. Features are capabilities the model either has or does not have.
+            Parameters are options an operator can configure on an AI profile, profile template, or chat interaction.
+            Anything not declared here is never rendered in those editors and is never sent to the provider.
+        </p>
+
+        @{
+            var indexedParameters = Model.ModelParameters
+                .Select((parameter, index) => new AIDeploymentModelParameterCardViewModel { Parameter = parameter, Index = index })
+                .ToList();
+
+            bool FeatureEnabled(string featureName)
+                => Model.SelectedFeatures?.Contains(featureName, StringComparer.OrdinalIgnoreCase) ?? false;
+        }
+
+        @if (Model.AvailableFeatures.Any())
+        {
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Trained features</label>
+                <p class="text-muted small mb-2">Capabilities the underlying model was trained with. Only declared features are sent to the provider.</p>
+                @foreach (var group in Model.AvailableFeatures.GroupBy(feature => feature.Category ?? "Trained Features").OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    <div class="mb-2">
+                        <div class="text-uppercase text-muted small">@group.Key</div>
+                        @foreach (var feature in group.OrderBy(feature => feature.DisplayName, StringComparer.OrdinalIgnoreCase))
+                        {
+                            var isChecked = FeatureEnabled(feature.Name);
+                            var dependentCards = indexedParameters
+                                .Where(card => string.Equals(card.Parameter.RequiredFeature, feature.Name, StringComparison.OrdinalIgnoreCase))
+                                .ToList();
+                            <div class="form-check">
+                                <input id="SelectedFeatures_@feature.ElementId"
+                                       name="SelectedFeatures"
+                                       type="checkbox"
+                                       value="@feature.Name"
+                                       class="form-check-input model-feature-toggle"
+                                       data-feature-name="@feature.Name"
+                                       @(isChecked ? "checked" : "") />
+                                <label class="form-check-label" for="SelectedFeatures_@feature.ElementId">
+                                    @feature.DisplayName
+                                    @if (!string.IsNullOrWhiteSpace(feature.Description))
+                                    {
+                                        <span class="text-muted small d-block">@feature.Description</span>
+                                    }
+                                </label>
+                            </div>
+                            @if (dependentCards.Count > 0)
+                            {
+                                <div class="ms-4 mt-2">
+                                    @foreach (var card in dependentCards)
+                                    {
+                                        card.Hidden = !isChecked;
+                                        <partial name="_DeploymentModelParameterCard" model="card" />
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @{
+            var standaloneCards = indexedParameters
+                .Where(card => string.IsNullOrWhiteSpace(card.Parameter.RequiredFeature))
+                .ToList();
+        }
+
+        @if (standaloneCards.Count > 0)
+        {
+            <label class="form-label fw-semibold">Model parameters</label>
+            @foreach (var card in standaloneCards)
+            {
+                <partial name="_DeploymentModelParameterCard" model="card" />
+            }
+        }
+    </div>
+</div>
+
+<script>
+    (function () {
+        function init() {
+            Array.prototype.forEach.call(document.querySelectorAll('.model-parameter-toggle'), function (toggle) {
+                if (toggle.dataset.initialized === 'true') {
+                    return;
+                }
+
+                toggle.dataset.initialized = 'true';
+
+                toggle.addEventListener('change', function () {
+                    var body = document.getElementById(toggle.getAttribute('data-target'));
+
+                    if (body) {
+                        body.classList.toggle('d-none', !toggle.checked);
+                    }
+                });
+            });
+
+            if (typeof window.Selectpicker === 'function') {
+                Array.prototype.forEach.call(document.querySelectorAll('select[data-model-allowed-values]'), function (select) {
+                    if (select.dataset.selectpicker === 'true') {
+                        return;
+                    }
+
+                    select.dataset.selectpicker = 'true';
+                    new window.Selectpicker(select, { liveSearch: true });
+                });
+            }
+
+            function applyFeatureDependencies(featureName) {
+                Array.prototype.forEach.call(document.querySelectorAll('[data-model-parameter-card]'), function (card) {
+                    var required = card.getAttribute('data-required-feature');
+
+                    if (!required || (featureName && required.toLowerCase() !== featureName.toLowerCase())) {
+                        return;
+                    }
+
+                    var toggle = document.querySelector('.model-feature-toggle[data-feature-name="' + required + '"]');
+                    var enabled = !!(toggle && toggle.checked);
+                    card.classList.toggle('d-none', !enabled);
+
+                    Array.prototype.forEach.call(card.querySelectorAll('input, select'), function (field) {
+                        if (field.getAttribute('data-structural') === 'true') {
+                            // The Name, IsSupported and binding-index fields must always post, even
+                            // while the feature is disabled, so the collection model binder never sees
+                            // a gap that would drop or misalign the remaining parameter rows.
+                            field.disabled = false;
+
+                            return;
+                        }
+
+                        field.disabled = !enabled;
+                    });
+                });
+            }
+
+            Array.prototype.forEach.call(document.querySelectorAll('.model-feature-toggle'), function (toggle) {
+                if (toggle.dataset.featureInitialized === 'true') {
+                    return;
+                }
+
+                toggle.dataset.featureInitialized = 'true';
+
+                toggle.addEventListener('change', function () {
+                    applyFeatureDependencies(toggle.getAttribute('data-feature-name'));
+                });
+            });
+
+            applyFeatureDependencies(null);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+</script>

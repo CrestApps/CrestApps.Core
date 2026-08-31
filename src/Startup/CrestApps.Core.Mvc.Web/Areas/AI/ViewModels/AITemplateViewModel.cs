@@ -11,6 +11,7 @@ using CrestApps.Core.AI.Security;
 using CrestApps.Core.Mvc.Web.Areas.A2A.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
+using CrestApps.Core.Mvc.Web.Models;
 using CrestApps.Core.Templates.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -176,6 +177,18 @@ public sealed class AITemplateViewModel
     [BindNever]
     public IEnumerable<SelectListItem> DataSources { get; set; } = [];
 
+    /// <summary>
+    /// Gets or sets the model parameter values selected for this template, keyed by the registered
+    /// parameter technical name.
+    /// </summary>
+    public Dictionary<string, string> ModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gets or sets the metadata-driven model parameter editor.
+    /// </summary>
+    [BindNever]
+    public ModelParameterEditorViewModel ModelParameterEditor { get; set; }
+
     public static AITemplateViewModel FromTemplate(AIProfileTemplate template)
     {
         var model = new AITemplateViewModel
@@ -198,6 +211,11 @@ public sealed class AITemplateViewModel
         }
         else if (template.Source == AITemplateSources.Profile)
         {
+            if (template.TryGet<AIModelParametersMetadata>(out var modelParameters) && modelParameters.Values is { Count: > 0 })
+            {
+                model.ModelParameters = new Dictionary<string, string>(modelParameters.Values, StringComparer.OrdinalIgnoreCase);
+            }
+
             if (template.TryGet<ProfileTemplateMetadata>(out var metadata))
             {
                 model.ProfileType = metadata.ProfileType;
@@ -400,6 +418,15 @@ public sealed class AITemplateViewModel
                     .Where(id => !string.IsNullOrWhiteSpace(id))
                     .Distinct(StringComparer.Ordinal)
                     .ToArray() ?? [],
+            });
+
+            var selectedModelParameters = ModelParameters is null
+                ? []
+                : ModelParameters.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value));
+
+            template.Put(new AIModelParametersMetadata
+            {
+                Values = new Dictionary<string, string>(selectedModelParameters, StringComparer.OrdinalIgnoreCase),
             });
 
             template.Put(new AIProfileMcpMetadata

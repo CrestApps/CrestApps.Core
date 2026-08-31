@@ -42,6 +42,12 @@ internal sealed class ChatInteractionCompletionContextBuilderHandler : IAIComple
         context.Context.A2AConnectionIds = interaction.A2AConnectionIds?.ToArray();
         context.Context.AdditionalProperties[AICompletionContextKeys.Interaction] = interaction;
         context.Context.AdditionalProperties[AICompletionContextKeys.InteractionId] = interaction.ItemId;
+
+        if (interaction.TryGet<AIModelParametersMetadata>(out var modelParameters))
+        {
+            context.Context.ApplyModelParameters(modelParameters);
+        }
+
         if (interaction.TryGet<DataSourceMetadata>(out var dataSourceMetadata) && !string.IsNullOrEmpty(dataSourceMetadata.DataSourceId))
         {
             context.Context.DataSourceId = dataSourceMetadata.DataSourceId;

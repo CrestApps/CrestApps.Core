@@ -20,6 +20,7 @@ using CrestApps.Core.Mvc.Web.Areas.AIChat.Services;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
+using CrestApps.Core.Mvc.Web.Services;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Services;
 using CrestApps.Core.Templates.Services;
@@ -54,6 +55,8 @@ public sealed class AIProfileController : Controller
     private readonly AIToolDefinitionOptions _toolOptions;
     private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
     private readonly IAIDataSourceStore _dataSourceStore;
+    private readonly AIModelParameterViewService _modelParameterViewService;
+
     public AIProfileController(
         IAIProfileManager profileManager,
         ICatalog<AIDeployment> deploymentCatalog,
@@ -74,7 +77,8 @@ public sealed class AIProfileController : Controller
         GitHubOAuthService oauthService,
         IOptions<AIToolDefinitionOptions> toolOptions,
         IAIToolAccessEvaluator toolAccessEvaluator,
-        IAIDataSourceStore dataSourceStore)
+        IAIDataSourceStore dataSourceStore,
+        AIModelParameterViewService modelParameterViewService)
     {
         _profileManager = profileManager;
         _deploymentCatalog = deploymentCatalog;
@@ -96,6 +100,7 @@ public sealed class AIProfileController : Controller
         _toolOptions = toolOptions.Value;
         _toolAccessEvaluator = toolAccessEvaluator;
         _dataSourceStore = dataSourceStore;
+        _modelParameterViewService = modelParameterViewService;
     }
 
     public async Task<IActionResult> Index()
@@ -258,6 +263,8 @@ public sealed class AIProfileController : Controller
 
     private async Task PopulateDropdownsAsync(AIProfileViewModel model)
     {
+        model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(model.ModelParameters);
+
         var allDeployments = await _deploymentCatalog.GetAllAsync();
         model.ChatDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.UtilityDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
@@ -425,6 +432,17 @@ public sealed class AIProfileController : Controller
 
     private static void ApplyTemplateToProfile(AIProfile profile, AIProfileTemplate template)
     {
+        if (template.TryGet<AIModelParametersMetadata>(out var templateModelParameters) && templateModelParameters.Values is { Count: > 0 })
+        {
+            profile.Alter<AIModelParametersMetadata>(m =>
+            {
+                foreach (var entry in templateModelParameters.Values)
+                {
+                    m.Values[entry.Key] = entry.Value;
+                }
+            });
+        }
+
         if (!template.TryGet<ProfileTemplateMetadata>(out var metadata))
         {
             return;

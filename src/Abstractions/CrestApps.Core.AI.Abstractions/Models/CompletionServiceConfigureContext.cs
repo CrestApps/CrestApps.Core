@@ -20,6 +20,11 @@ public sealed class CompletionServiceConfigureContext
     public string DeploymentName { get; set; }
 
     /// <summary>
+    /// Gets or sets the deployment resolved for this request.
+    /// </summary>
+    public AIDeployment Deployment { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether the completion will be streamed.
     /// </summary>
     public bool IsStreaming { get; set; }

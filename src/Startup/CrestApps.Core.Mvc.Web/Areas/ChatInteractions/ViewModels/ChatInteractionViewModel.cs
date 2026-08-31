@@ -3,6 +3,7 @@ using CrestApps.Core.Mvc.Web.Areas.A2A.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
+using CrestApps.Core.Mvc.Web.Models;
 using CrestApps.Core.Templates.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -120,6 +121,18 @@ public sealed class ChatInteractionViewModel
 
     [BindNever]
     public bool AllowDocumentUploads { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the model parameter values selected for this interaction, keyed by the registered
+    /// parameter technical name.
+    /// </summary>
+    public Dictionary<string, string> ModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gets or sets the metadata-driven model parameter editor.
+    /// </summary>
+    [BindNever]
+    public ModelParameterEditorViewModel ModelParameterEditor { get; set; }
 }
 
 public sealed class AgentSelectionItem

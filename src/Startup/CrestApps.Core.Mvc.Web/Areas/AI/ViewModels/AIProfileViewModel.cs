@@ -13,6 +13,7 @@ using CrestApps.Core.Mvc.Web.Areas.A2A.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
+using CrestApps.Core.Mvc.Web.Models;
 using CrestApps.Core.Templates.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -203,6 +204,18 @@ public sealed class AIProfileViewModel
     [BindNever]
     public IEnumerable<SelectListItem> AnthropicAvailableModels { get; set; } = [];
 
+    /// <summary>
+    /// Gets or sets the model parameter values selected for this profile, keyed by the registered
+    /// parameter technical name.
+    /// </summary>
+    public Dictionary<string, string> ModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gets or sets the metadata-driven model parameter editor.
+    /// </summary>
+    [BindNever]
+    public ModelParameterEditorViewModel ModelParameterEditor { get; set; }
+
     public static AIProfileViewModel FromProfile(AIProfile profile)
     {
         var settings = profile.GetOrCreateSettings<AIProfileSettings>();
@@ -257,6 +270,11 @@ public sealed class AIProfileViewModel
             }).ToList(),
             EnableUserMemory = memoryMetadata.EnableUserMemory ?? false,
         };
+
+        if (profile.TryGet<AIModelParametersMetadata>(out var modelParameters) && modelParameters.Values is { Count: > 0 })
+        {
+            vm.ModelParameters = new Dictionary<string, string>(modelParameters.Values, StringComparer.OrdinalIgnoreCase);
+        }
 
         if (profile.TryGet<AIProfileMetadata>(out var metadata))
         {
@@ -416,6 +434,15 @@ public sealed class AIProfileViewModel
             m.MaxTokens = MaxTokens;
             m.PastMessagesCount = PastMessagesCount;
             m.UseCaching = UseCaching;
+        });
+
+        profile.Alter<AIModelParametersMetadata>(m =>
+        {
+            m.Values = ModelParameters is null
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(
+                    ModelParameters.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value)),
+                    StringComparer.OrdinalIgnoreCase);
         });
 
         profile.AlterSettings<AIProfileSettings>(s =>
