@@ -26,6 +26,8 @@
 @inject IAIProfileManager ProfileManager
 @inject ICatalog<AIDeployment> DeploymentCatalog
 @inject CrestApps.Core.AI.Capabilities.IAIDeploymentCapabilityService CapabilityService
+@inject CrestApps.Core.AI.Speech.IRealtimeVoiceResolver RealtimeVoiceResolver
+@inject SiteSettingsStore SiteSettingsStore
 @inject ICatalog<A2AConnection> A2ACatalog
 @inject ICatalog<McpConnection> McpCatalog
 @inject IAIDataSourceStore DataSourceStore
@@ -55,7 +57,7 @@
 
 <EditForm FormName="ai-aitemplates-edit" Model="_model" OnValidSubmit="HandleSubmitAsync">
     <div class="row">
-        <div class="col-md-8">
+        <div class="col-12">
             <div class="mb-3">
                 <label class="form-label">Title <span class="text-danger">*</span></label>
                 <InputText class="form-control" @bind-Value="_model.DisplayText" placeholder="e.g., Customer Support Template" />
@@ -210,7 +212,7 @@
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">Chat mode</label>
-                                    <InputSelect class="form-select" @bind-Value="_model.ChatMode">
+                                    <InputSelect class="form-select" @bind-Value="_model.ChatMode" @bind-Value:after="OnChatModeChangedAsync">
                                         <option value="">Use default chat mode</option>
                                         @foreach (var mode in Enum.GetValues<ChatMode>())
                                         {
@@ -223,7 +225,7 @@
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">Realtime deployment</label>
-                                    <InputSelect class="form-select" @bind-Value="_model.RealtimeDeploymentName">
+                                    <InputSelect class="form-select" @bind-Value="_model.RealtimeDeploymentName" @bind-Value:after="LoadRealtimeVoicesAsync">
                                         <option value="">Use default realtime deployment</option>
                                         @foreach (var d in _model.RealtimeDeployments)
                                         {
@@ -233,6 +235,27 @@
                                     <div class="form-text">The speech-to-speech deployment for the Realtime chat mode.</div>
                                 </div>
                             </div>
+                            @if (_model.ChatMode == ChatMode.Realtime)
+                            {
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Voice</label>
+                                        <InputSelect class="form-select" @bind-Value="_model.VoiceName">
+                                            <option value="">Default voice</option>
+                                            @foreach (var group in _realtimeVoices.GroupBy(v => v.Gender.ToString()).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+                                            {
+                                                <optgroup label="@group.Key">
+                                                    @foreach (var voice in group.OrderBy(v => v.Name, StringComparer.OrdinalIgnoreCase))
+                                                    {
+                                                        <option value="@voice.Id">@voice.Name</option>
+                                                    }
+                                                </optgroup>
+                                            }
+                                        </InputSelect>
+                                        <div class="form-text">Voice for the Realtime chat mode, from the selected realtime deployment. Leave empty to use the site's default voice.</div>
+                                    </div>
+                                </div>
+                            }
                         </div>
 
                         <!-- Copilot Config -->
@@ -644,6 +667,7 @@
     private string _activeTab = "basic";
     private string _sourceError;
     private string _promptTemplateSearchTerm;
+    private IReadOnlyList<CrestApps.Core.AI.Models.SpeechVoice> _realtimeVoices = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -656,6 +680,48 @@
 
         _model = AITemplateViewModel.FromTemplate(_existing);
         await PopulateDropdownsAsync();
+
+        if (_model.ChatMode == ChatMode.Realtime)
+        {
+            await LoadRealtimeVoicesAsync();
+        }
+    }
+
+    // Resolves the realtime voices for the selected realtime deployment (or the site default) via
+    // IRealtimeVoiceResolver, so the template's voice list reflects the chosen model.
+    private async Task LoadRealtimeVoicesAsync()
+    {
+        _realtimeVoices = [];
+
+        var deploymentDefaults = SiteSettingsStore.Get<DefaultAIDeploymentSettings>();
+        var deploymentName = !string.IsNullOrWhiteSpace(_model.RealtimeDeploymentName)
+            ? _model.RealtimeDeploymentName
+            : deploymentDefaults.DefaultRealtimeDeploymentName;
+
+        if (string.IsNullOrWhiteSpace(deploymentName))
+        {
+            return;
+        }
+
+        var deployments = await DeploymentCatalog.GetAllAsync();
+        var deployment = deployments.FirstOrDefault(d => string.Equals(d.Name, deploymentName, StringComparison.OrdinalIgnoreCase));
+        if (deployment == null)
+        {
+            return;
+        }
+
+        _realtimeVoices = (await RealtimeVoiceResolver.GetVoicesAsync(deployment))
+            .Where(voice => !string.IsNullOrWhiteSpace(voice.Id))
+            .OrderBy(voice => voice.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task OnChatModeChangedAsync()
+    {
+        if (_model.ChatMode == ChatMode.Realtime)
+        {
+            await LoadRealtimeVoicesAsync();
+        }
     }
 
     private async Task HandleSubmitAsync()

@@ -41,6 +41,8 @@ public sealed class AITemplateViewModel
 
     public ChatMode? ChatMode { get; set; }
 
+    public string VoiceName { get; set; }
+
     public string OrchestratorName { get; set; }
 
     public AISessionTitleType? TitleType { get; set; }
@@ -239,6 +241,7 @@ public sealed class AITemplateViewModel
                 model.UtilityDeploymentName = metadata.UtilityDeploymentName;
                 model.RealtimeDeploymentName = metadata.RealtimeDeploymentName;
                 model.ChatMode = metadata.ChatMode;
+                model.VoiceName = metadata.VoiceName;
                 model.OrchestratorName = metadata.OrchestratorName;
                 model.TitleType = metadata.TitleType;
                 model.Temperature = metadata.Temperature;
@@ -428,6 +431,7 @@ public sealed class AITemplateViewModel
                 UtilityDeploymentName = UtilityDeploymentName,
                 RealtimeDeploymentName = RealtimeDeploymentName,
                 ChatMode = ChatMode,
+                VoiceName = VoiceName,
                 OrchestratorName = OrchestratorName,
                 TitleType = TitleType,
                 Temperature = Temperature,
