@@ -27,29 +27,10 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
             Threshold = context.VadThreshold,
         };
 
-        // Pin the response language so the model does not drift to another language — for example when a
-        // noisy room feeds it background speech in a different language. The client always sends the listener's
-        // language (their explicit choice, or the browser default). The directive is unconditional and leads the
-        // instructions so it takes precedence over what the audio sounds like.
-        var instructions = context.Instructions;
-        if (!string.IsNullOrWhiteSpace(context.SpeechLanguage))
-        {
-            var primaryLanguage = context.SpeechLanguage.Split('-', '_')[0];
-            if (!string.IsNullOrWhiteSpace(primaryLanguage))
-            {
-                var languageName = LanguageDisplayName(primaryLanguage);
-                var directive =
-                    $"CRITICAL: You must always speak and respond only in {languageName} (language code '{primaryLanguage}'), " +
-                    "no matter what language the audio you receive sounds like. Never switch to another language. " +
-                    "Ignore any background speech that is in a different language and do not respond to it.";
-                instructions = string.IsNullOrWhiteSpace(instructions) ? directive : directive + "\n\n" + instructions;
-            }
-        }
-
         return new RealtimeSessionOptions
         {
             Model = context.Model,
-            Instructions = instructions,
+            Instructions = context.Instructions,
             Voice = context.Voice,
             MaxOutputTokens = context.MaxOutputTokens,
             InputAudioFormat = new RealtimeAudioFormat("audio/pcm", context.InputSampleRate),
@@ -77,27 +58,6 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
 
             Tools = hasTools ? [.. tools] : null,
             ToolMode = hasTools ? ChatToolMode.Auto : null,
-        };
-    }
-
-    private static string LanguageDisplayName(string primaryLanguage)
-    {
-        return primaryLanguage.ToLowerInvariant() switch
-        {
-            "en" => "English",
-            "es" => "Spanish",
-            "fr" => "French",
-            "de" => "German",
-            "it" => "Italian",
-            "pt" => "Portuguese",
-            "nl" => "Dutch",
-            "zh" => "Chinese",
-            "ja" => "Japanese",
-            "ko" => "Korean",
-            "ar" => "Arabic",
-            "hi" => "Hindi",
-            "ru" => "Russian",
-            _ => primaryLanguage,
         };
     }
 }
