@@ -2638,8 +2638,12 @@ window.coreAIChatManager = function () {
         },
         // The popover markup, shared by ai-chat.js so the same panel renders wherever realtime runs.
         realtimeAudioSettingsMarkup: function realtimeAudioSettingsMarkup(prefs) {
-          var langs = [['', 'Auto (from browser)'], ['en', 'English'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'], ['pt', 'Portuguese'], ['nl', 'Dutch'], ['zh', 'Chinese'], ['ja', 'Japanese'], ['ko', 'Korean'], ['ar', 'Arabic'], ['hi', 'Hindi'], ['ru', 'Russian']];
-          var langOptions = langs.map(function (l) {
+          var langs = [['en', 'English'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'], ['pt', 'Portuguese'], ['nl', 'Dutch'], ['zh', 'Chinese'], ['ja', 'Japanese'], ['ko', 'Korean'], ['ar', 'Arabic'], ['hi', 'Hindi'], ['ru', 'Russian']];
+          var browserPrimary = (navigator.language || 'en').split('-')[0].toLowerCase();
+          var browserName = (langs.filter(function (l) {
+            return l[0] === browserPrimary;
+          })[0] || [browserPrimary, browserPrimary.toUpperCase()])[1];
+          var langOptions = '<option value=""' + (prefs.language === '' ? ' selected' : '') + '>Auto (' + browserName + ')</option>' + langs.map(function (l) {
             return '<option value="' + l[0] + '"' + (prefs.language === l[0] ? ' selected' : '') + '>' + l[1] + '</option>';
           }).join('');
           return '<div class="card-body p-3">' + '<div class="fw-semibold mb-2" style="font-size:0.85rem;">Realtime audio</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-barge" type="checkbox"' + (prefs.bargeIn ? ' checked' : '') + '>' + '<label class="form-check-label">Allow interruptions (barge-in)</label>' + '</div>' + '<div class="form-text mb-2">On (default) lets you talk over the assistant. Turn <strong>off</strong> for open speakers so it never hears itself.</div>' + '<div class="js-hangover-wrap mb-2">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Echo guard delay: <strong class="js-hangover-val">' + prefs.hangoverMs + '</strong> ms</label>' + '<input type="range" class="form-range js-hangover" min="0" max="1000" step="50" value="' + prefs.hangoverMs + '">' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-ptt" type="checkbox"' + (prefs.pushToTalk ? ' checked' : '') + '>' + '<label class="form-check-label">Push-to-talk</label>' + '</div>' + '<div class="form-text mb-2">Hold <kbd>Space</kbd> to talk (desktop). Best for very noisy rooms.</div>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Assistant volume: <strong class="js-vol-val">' + Math.round(prefs.volume * 100) + '</strong>%</label>' + '<input type="range" class="form-range js-vol mb-2" min="0" max="100" step="5" value="' + Math.round(prefs.volume * 100) + '">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Microphone</label>' + '<select class="form-select form-select-sm js-mic mb-2"><option value="">Default microphone</option></select>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Language</label>' + '<select class="form-select form-select-sm js-lang mb-2">' + langOptions + '</select>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-tune" type="checkbox"' + (prefs.tuneTurnDetection ? ' checked' : '') + '>' + '<label class="form-check-label">Fine-tune turn detection</label>' + '</div>' + '<div class="js-tune-wrap mb-2"' + (prefs.tuneTurnDetection ? '' : ' style="display:none;"') + '>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Reply after silence: <strong class="js-silence-val">' + prefs.silenceMs + '</strong> ms</label>' + '<input type="range" class="form-range js-silence" min="100" max="2000" step="100" value="' + prefs.silenceMs + '">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Speech detection threshold: <strong class="js-thr-val">' + prefs.vadThreshold.toFixed(2) + '</strong></label>' + '<input type="range" class="form-range js-thr" min="0" max="1" step="0.05" value="' + prefs.vadThreshold + '">' + '<div class="form-text">Longer silence lets you pause without being cut off. Higher threshold needs louder speech, rejecting noise and echo. Applies to your next session.</div>' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-ns" type="checkbox"' + (prefs.noiseSuppression ? ' checked' : '') + '>' + '<label class="form-check-label">Noise suppression</label>' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-agc" type="checkbox"' + (prefs.autoGain ? ' checked' : '') + '>' + '<label class="form-check-label">Automatic gain</label>' + '</div>' + '<div class="form-text">Microphone, noise, gain and language changes apply to your next voice session.</div>' + '</div>';
@@ -2705,13 +2709,31 @@ window.coreAIChatManager = function () {
             })["catch"](function () {});
           };
           populateMics();
+          var constrainPanelHeight = function constrainPanelHeight() {
+            // Keep the popover inside its container (widget panel or chat area): cap its height to the
+            // space above the button up to the nearest scroll/fixed ancestor, so it scrolls instead of
+            // spilling out the top.
+            var rect = gear.getBoundingClientRect();
+            var boundaryTop = 8;
+            var el = panel.parentElement ? panel.parentElement.parentElement : null;
+            while (el && el !== document.body && el !== document.documentElement) {
+              var s = window.getComputedStyle(el);
+              if (s.overflowY === 'auto' || s.overflowY === 'scroll' || s.overflowY === 'hidden' || s.position === 'fixed') {
+                boundaryTop = Math.max(boundaryTop, el.getBoundingClientRect().top);
+                break;
+              }
+              el = el.parentElement;
+            }
+            panel.style.maxHeight = Math.max(160, rect.top - boundaryTop - 10) + 'px';
+          };
           gear.addEventListener('click', function (e) {
             e.stopPropagation();
             var showing = panel.style.display === 'none';
-            panel.style.display = showing ? 'block' : 'none';
             if (showing) {
+              constrainPanelHeight();
               populateMics();
             }
+            panel.style.display = showing ? 'block' : 'none';
           });
           panel.addEventListener('click', function (e) {
             return e.stopPropagation();

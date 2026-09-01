@@ -2463,8 +2463,11 @@ window.coreAIChatManager = function () {
                 },
                 // The popover markup, shared by ai-chat.js so the same panel renders wherever realtime runs.
                 realtimeAudioSettingsMarkup(prefs) {
-                    var langs = [['', 'Auto (from browser)'], ['en', 'English'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'], ['pt', 'Portuguese'], ['nl', 'Dutch'], ['zh', 'Chinese'], ['ja', 'Japanese'], ['ko', 'Korean'], ['ar', 'Arabic'], ['hi', 'Hindi'], ['ru', 'Russian']];
-                    var langOptions = langs.map(function (l) { return '<option value="' + l[0] + '"' + (prefs.language === l[0] ? ' selected' : '') + '>' + l[1] + '</option>'; }).join('');
+                    var langs = [['en', 'English'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'], ['pt', 'Portuguese'], ['nl', 'Dutch'], ['zh', 'Chinese'], ['ja', 'Japanese'], ['ko', 'Korean'], ['ar', 'Arabic'], ['hi', 'Hindi'], ['ru', 'Russian']];
+                    var browserPrimary = (navigator.language || 'en').split('-')[0].toLowerCase();
+                    var browserName = (langs.filter(function (l) { return l[0] === browserPrimary; })[0] || [browserPrimary, browserPrimary.toUpperCase()])[1];
+                    var langOptions = '<option value=""' + (prefs.language === '' ? ' selected' : '') + '>Auto (' + browserName + ')</option>' +
+                        langs.map(function (l) { return '<option value="' + l[0] + '"' + (prefs.language === l[0] ? ' selected' : '') + '>' + l[1] + '</option>'; }).join('');
                     return '<div class="card-body p-3">' +
                         '<div class="fw-semibold mb-2" style="font-size:0.85rem;">Realtime audio</div>' +
                         '<div class="form-check form-switch mb-1">' +
@@ -2569,11 +2572,28 @@ window.coreAIChatManager = function () {
                     };
                     populateMics();
 
+                    var constrainPanelHeight = () => {
+                        // Keep the popover inside its container (widget panel or chat area): cap its height to the
+                        // space above the button up to the nearest scroll/fixed ancestor, so it scrolls instead of
+                        // spilling out the top.
+                        var rect = gear.getBoundingClientRect();
+                        var boundaryTop = 8;
+                        var el = panel.parentElement ? panel.parentElement.parentElement : null;
+                        while (el && el !== document.body && el !== document.documentElement) {
+                            var s = window.getComputedStyle(el);
+                            if (s.overflowY === 'auto' || s.overflowY === 'scroll' || s.overflowY === 'hidden' || s.position === 'fixed') {
+                                boundaryTop = Math.max(boundaryTop, el.getBoundingClientRect().top);
+                                break;
+                            }
+                            el = el.parentElement;
+                        }
+                        panel.style.maxHeight = Math.max(160, rect.top - boundaryTop - 10) + 'px';
+                    };
                     gear.addEventListener('click', (e) => {
                         e.stopPropagation();
                         var showing = panel.style.display === 'none';
+                        if (showing) { constrainPanelHeight(); populateMics(); }
                         panel.style.display = showing ? 'block' : 'none';
-                        if (showing) { populateMics(); }
                     });
                     panel.addEventListener('click', (e) => e.stopPropagation());
                     document.addEventListener('click', () => { panel.style.display = 'none'; });

@@ -27,10 +27,23 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
             Threshold = context.VadThreshold,
         };
 
+        // Pin the response language so the model does not drift to an unrelated language on the first turn.
+        // The client always sends the listener's language (their explicit choice, or the browser default).
+        var instructions = context.Instructions;
+        if (!string.IsNullOrWhiteSpace(context.SpeechLanguage))
+        {
+            var primaryLanguage = context.SpeechLanguage.Split('-', '_')[0];
+            if (!string.IsNullOrWhiteSpace(primaryLanguage))
+            {
+                var directive = $"Always speak and respond in the user's language ('{primaryLanguage}'). Do not switch to another language unless the user clearly does.";
+                instructions = string.IsNullOrWhiteSpace(instructions) ? directive : instructions + "\n\n" + directive;
+            }
+        }
+
         return new RealtimeSessionOptions
         {
             Model = context.Model,
-            Instructions = context.Instructions,
+            Instructions = instructions,
             Voice = context.Voice,
             MaxOutputTokens = context.MaxOutputTokens,
             InputAudioFormat = new RealtimeAudioFormat("audio/pcm", context.InputSampleRate),
