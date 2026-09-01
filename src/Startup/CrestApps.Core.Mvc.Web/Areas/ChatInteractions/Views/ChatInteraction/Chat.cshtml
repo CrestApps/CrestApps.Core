@@ -2418,39 +2418,30 @@
                 if (realtimePttBound) { return; }
                 realtimePttBound = true;
                 realtimePttActive = false;
+                // Capture phase + preventDefault so Space never scrolls the page or activates a focused button
+                // (Space-up on a focused button fires a click, which would toggle the session off).
                 realtimePttKeyDown = function (e) {
-                    if (realtimePushToTalk && (e.code === 'Space' || e.key === ' ') && !e.repeat) {
+                    if (realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
                         e.preventDefault();
-                        realtimePttActive = true;
+                        if (!e.repeat) { realtimePttActive = true; }
                     }
                 };
                 realtimePttKeyUp = function (e) {
-                    if (e.code === 'Space' || e.key === ' ') { realtimePttActive = false; }
+                    if (realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
+                        e.preventDefault();
+                        realtimePttActive = false;
+                    }
                 };
-                document.addEventListener('keydown', realtimePttKeyDown);
-                document.addEventListener('keyup', realtimePttKeyUp);
-                var realtimeBtn = document.getElementById('realtime-btn');
-                if (realtimeBtn) {
-                    realtimeBtn._pttDown = function () { if (realtimePushToTalk) { realtimePttActive = true; } };
-                    realtimeBtn._pttUp = function () { realtimePttActive = false; };
-                    realtimeBtn.addEventListener('pointerdown', realtimeBtn._pttDown);
-                    realtimeBtn.addEventListener('pointerup', realtimeBtn._pttUp);
-                    realtimeBtn.addEventListener('pointerleave', realtimeBtn._pttUp);
-                }
+                document.addEventListener('keydown', realtimePttKeyDown, true);
+                document.addEventListener('keyup', realtimePttKeyUp, true);
             }
 
             function detachRealtimePushToTalk() {
                 if (!realtimePttBound) { return; }
                 realtimePttBound = false;
                 realtimePttActive = false;
-                try { document.removeEventListener('keydown', realtimePttKeyDown); } catch (err) { }
-                try { document.removeEventListener('keyup', realtimePttKeyUp); } catch (err) { }
-                var realtimeBtn = document.getElementById('realtime-btn');
-                if (realtimeBtn) {
-                    try { realtimeBtn.removeEventListener('pointerdown', realtimeBtn._pttDown); } catch (err) { }
-                    try { realtimeBtn.removeEventListener('pointerup', realtimeBtn._pttUp); } catch (err) { }
-                    try { realtimeBtn.removeEventListener('pointerleave', realtimeBtn._pttUp); } catch (err) { }
-                }
+                try { document.removeEventListener('keydown', realtimePttKeyDown, true); } catch (err) { }
+                try { document.removeEventListener('keyup', realtimePttKeyUp, true); } catch (err) { }
             }
 
             // Builds a gear-triggered popover next to the realtime button with the per-device audio settings.
@@ -2497,7 +2488,7 @@
                     '<input class="form-check-input js-ptt" type="checkbox"' + (prefs.pushToTalk ? ' checked' : '') + '>' +
                     '<label class="form-check-label">Push-to-talk</label>' +
                     '</div>' +
-                    '<div class="form-text mb-2">Hold <kbd>Space</kbd> (or press &amp; hold the mic button) to talk. Best for very noisy rooms.</div>' +
+                    '<div class="form-text mb-2">Hold <kbd>Space</kbd> to talk (desktop). Best for very noisy rooms.</div>' +
                     '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Assistant volume: <strong class="js-vol-val">' + Math.round(prefs.volume * 100) + '</strong>%</label>' +
                     '<input type="range" class="form-range js-vol mb-2" min="0" max="100" step="5" value="' + Math.round(prefs.volume * 100) + '">' +
                     '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Microphone</label>' +
@@ -2682,6 +2673,8 @@
                 // Apply the listener's saved audio preferences (barge-in, echo guard, device, etc.).
                 applyRealtimeAudioPrefs(loadRealtimeAudioPrefs());
                 attachRealtimePushToTalk();
+                // Drop focus from the just-clicked button so Space acts as push-to-talk, not a re-click.
+                try { document.getElementById('realtime-btn').blur(); } catch (err) { }
 
                 var audioConstraints = {
                     channelCount: 1,

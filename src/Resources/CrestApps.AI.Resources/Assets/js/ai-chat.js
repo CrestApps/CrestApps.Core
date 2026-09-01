@@ -2109,6 +2109,8 @@ window.coreAIChatManager = function () {
                     // Apply the listener's saved audio preferences (barge-in, echo-guard, device, etc.).
                     this.applyRealtimeAudioPrefs(this.loadRealtimeAudioPrefs());
                     this.attachRealtimePushToTalk();
+                    // Drop focus from the just-clicked button so Space acts as push-to-talk, not a re-click.
+                    if (this.conversationButton) { try { this.conversationButton.blur(); } catch (err) { } }
 
                     var REALTIME_SAMPLE_RATE = 24000;
                     // While the assistant is playing back, plus this hangover for the room echo tail, the
@@ -2349,36 +2351,29 @@ window.coreAIChatManager = function () {
                     if (this._realtimePttBound) { return; }
                     this._realtimePttBound = true;
                     this._realtimePttActive = false;
+                    // Capture phase + preventDefault so Space never scrolls the page or activates a focused
+                    // button (Space-up on a focused button fires a click, which would toggle the session).
                     this._realtimePttKeyDown = (e) => {
-                        if (this._realtimePushToTalk && (e.code === 'Space' || e.key === ' ') && !e.repeat) {
+                        if (this._realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
                             e.preventDefault();
-                            this._realtimePttActive = true;
+                            if (!e.repeat) { this._realtimePttActive = true; }
                         }
                     };
                     this._realtimePttKeyUp = (e) => {
-                        if (e.code === 'Space' || e.key === ' ') { this._realtimePttActive = false; }
+                        if (this._realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
+                            e.preventDefault();
+                            this._realtimePttActive = false;
+                        }
                     };
-                    document.addEventListener('keydown', this._realtimePttKeyDown);
-                    document.addEventListener('keyup', this._realtimePttKeyUp);
-                    if (this.conversationButton) {
-                        this._realtimePttDown = () => { if (this._realtimePushToTalk) { this._realtimePttActive = true; } };
-                        this._realtimePttUp = () => { this._realtimePttActive = false; };
-                        this.conversationButton.addEventListener('pointerdown', this._realtimePttDown);
-                        this.conversationButton.addEventListener('pointerup', this._realtimePttUp);
-                        this.conversationButton.addEventListener('pointerleave', this._realtimePttUp);
-                    }
+                    document.addEventListener('keydown', this._realtimePttKeyDown, true);
+                    document.addEventListener('keyup', this._realtimePttKeyUp, true);
                 },
                 detachRealtimePushToTalk() {
                     if (!this._realtimePttBound) { return; }
                     this._realtimePttBound = false;
                     this._realtimePttActive = false;
-                    try { document.removeEventListener('keydown', this._realtimePttKeyDown); } catch (err) { }
-                    try { document.removeEventListener('keyup', this._realtimePttKeyUp); } catch (err) { }
-                    if (this.conversationButton) {
-                        try { this.conversationButton.removeEventListener('pointerdown', this._realtimePttDown); } catch (err) { }
-                        try { this.conversationButton.removeEventListener('pointerup', this._realtimePttUp); } catch (err) { }
-                        try { this.conversationButton.removeEventListener('pointerleave', this._realtimePttUp); } catch (err) { }
-                    }
+                    try { document.removeEventListener('keydown', this._realtimePttKeyDown, true); } catch (err) { }
+                    try { document.removeEventListener('keyup', this._realtimePttKeyUp, true); } catch (err) { }
                 },
                 // Builds a gear-triggered popover next to the realtime button so the listener can tune barge-in,
                 // the echo-guard delay, push-to-talk, volume, microphone, noise handling, and language for their
@@ -2431,7 +2426,7 @@ window.coreAIChatManager = function () {
                         '<input class="form-check-input js-ptt" type="checkbox"' + (prefs.pushToTalk ? ' checked' : '') + '>' +
                         '<label class="form-check-label">Push-to-talk</label>' +
                         '</div>' +
-                        '<div class="form-text mb-2">Hold <kbd>Space</kbd> (or press &amp; hold the mic button) to talk. Best for very noisy rooms.</div>' +
+                        '<div class="form-text mb-2">Hold <kbd>Space</kbd> to talk (desktop). Best for very noisy rooms.</div>' +
                         '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Assistant volume: <strong class="js-vol-val">' + Math.round(prefs.volume * 100) + '</strong>%</label>' +
                         '<input type="range" class="form-range js-vol mb-2" min="0" max="100" step="5" value="' + Math.round(prefs.volume * 100) + '">' +
                         '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Microphone</label>' +

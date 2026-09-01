@@ -2179,6 +2179,12 @@ window.coreAIChatManager = function () {
           // Apply the listener's saved audio preferences (barge-in, echo-guard, device, etc.).
           this.applyRealtimeAudioPrefs(this.loadRealtimeAudioPrefs());
           this.attachRealtimePushToTalk();
+          // Drop focus from the just-clicked button so Space acts as push-to-talk, not a re-click.
+          if (this.conversationButton) {
+            try {
+              this.conversationButton.blur();
+            } catch (err) {}
+          }
           var REALTIME_SAMPLE_RATE = 24000;
           // While the assistant is playing back, plus this hangover for the room echo tail, the
           // microphone uplink is muted so the model never hears (and answers) its own voice through
@@ -2503,32 +2509,24 @@ window.coreAIChatManager = function () {
           }
           this._realtimePttBound = true;
           this._realtimePttActive = false;
+          // Capture phase + preventDefault so Space never scrolls the page or activates a focused
+          // button (Space-up on a focused button fires a click, which would toggle the session).
           this._realtimePttKeyDown = function (e) {
-            if (_this19._realtimePushToTalk && (e.code === 'Space' || e.key === ' ') && !e.repeat) {
+            if (_this19._realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
               e.preventDefault();
-              _this19._realtimePttActive = true;
+              if (!e.repeat) {
+                _this19._realtimePttActive = true;
+              }
             }
           };
           this._realtimePttKeyUp = function (e) {
-            if (e.code === 'Space' || e.key === ' ') {
+            if (_this19._realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
+              e.preventDefault();
               _this19._realtimePttActive = false;
             }
           };
-          document.addEventListener('keydown', this._realtimePttKeyDown);
-          document.addEventListener('keyup', this._realtimePttKeyUp);
-          if (this.conversationButton) {
-            this._realtimePttDown = function () {
-              if (_this19._realtimePushToTalk) {
-                _this19._realtimePttActive = true;
-              }
-            };
-            this._realtimePttUp = function () {
-              _this19._realtimePttActive = false;
-            };
-            this.conversationButton.addEventListener('pointerdown', this._realtimePttDown);
-            this.conversationButton.addEventListener('pointerup', this._realtimePttUp);
-            this.conversationButton.addEventListener('pointerleave', this._realtimePttUp);
-          }
+          document.addEventListener('keydown', this._realtimePttKeyDown, true);
+          document.addEventListener('keyup', this._realtimePttKeyUp, true);
         },
         detachRealtimePushToTalk: function detachRealtimePushToTalk() {
           if (!this._realtimePttBound) {
@@ -2537,22 +2535,11 @@ window.coreAIChatManager = function () {
           this._realtimePttBound = false;
           this._realtimePttActive = false;
           try {
-            document.removeEventListener('keydown', this._realtimePttKeyDown);
+            document.removeEventListener('keydown', this._realtimePttKeyDown, true);
           } catch (err) {}
           try {
-            document.removeEventListener('keyup', this._realtimePttKeyUp);
+            document.removeEventListener('keyup', this._realtimePttKeyUp, true);
           } catch (err) {}
-          if (this.conversationButton) {
-            try {
-              this.conversationButton.removeEventListener('pointerdown', this._realtimePttDown);
-            } catch (err) {}
-            try {
-              this.conversationButton.removeEventListener('pointerup', this._realtimePttUp);
-            } catch (err) {}
-            try {
-              this.conversationButton.removeEventListener('pointerleave', this._realtimePttUp);
-            } catch (err) {}
-          }
         },
         // Builds a gear-triggered popover next to the realtime button so the listener can tune barge-in,
         // the echo-guard delay, push-to-talk, volume, microphone, noise handling, and language for their
@@ -2587,7 +2574,7 @@ window.coreAIChatManager = function () {
           var langOptions = langs.map(function (l) {
             return '<option value="' + l[0] + '"' + (prefs.language === l[0] ? ' selected' : '') + '>' + l[1] + '</option>';
           }).join('');
-          return '<div class="card-body p-3">' + '<div class="fw-semibold mb-2" style="font-size:0.85rem;">Realtime audio</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-barge" type="checkbox"' + (prefs.bargeIn ? ' checked' : '') + '>' + '<label class="form-check-label">Allow interruptions (barge-in)</label>' + '</div>' + '<div class="form-text mb-2">On (default) lets you talk over the assistant. Turn <strong>off</strong> for open speakers so it never hears itself.</div>' + '<div class="js-hangover-wrap mb-2">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Echo guard delay: <strong class="js-hangover-val">' + prefs.hangoverMs + '</strong> ms</label>' + '<input type="range" class="form-range js-hangover" min="0" max="1000" step="50" value="' + prefs.hangoverMs + '">' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-ptt" type="checkbox"' + (prefs.pushToTalk ? ' checked' : '') + '>' + '<label class="form-check-label">Push-to-talk</label>' + '</div>' + '<div class="form-text mb-2">Hold <kbd>Space</kbd> (or press &amp; hold the mic button) to talk. Best for very noisy rooms.</div>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Assistant volume: <strong class="js-vol-val">' + Math.round(prefs.volume * 100) + '</strong>%</label>' + '<input type="range" class="form-range js-vol mb-2" min="0" max="100" step="5" value="' + Math.round(prefs.volume * 100) + '">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Microphone</label>' + '<select class="form-select form-select-sm js-mic mb-2"><option value="">Default microphone</option></select>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Language</label>' + '<select class="form-select form-select-sm js-lang mb-2">' + langOptions + '</select>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-tune" type="checkbox"' + (prefs.tuneTurnDetection ? ' checked' : '') + '>' + '<label class="form-check-label">Fine-tune turn detection</label>' + '</div>' + '<div class="js-tune-wrap mb-2"' + (prefs.tuneTurnDetection ? '' : ' style="display:none;"') + '>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Reply after silence: <strong class="js-silence-val">' + prefs.silenceMs + '</strong> ms</label>' + '<input type="range" class="form-range js-silence" min="100" max="2000" step="100" value="' + prefs.silenceMs + '">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Speech detection threshold: <strong class="js-thr-val">' + prefs.vadThreshold.toFixed(2) + '</strong></label>' + '<input type="range" class="form-range js-thr" min="0" max="1" step="0.05" value="' + prefs.vadThreshold + '">' + '<div class="form-text">Longer silence lets you pause without being cut off. Higher threshold needs louder speech, rejecting noise and echo. Applies to your next session.</div>' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-ns" type="checkbox"' + (prefs.noiseSuppression ? ' checked' : '') + '>' + '<label class="form-check-label">Noise suppression</label>' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-agc" type="checkbox"' + (prefs.autoGain ? ' checked' : '') + '>' + '<label class="form-check-label">Automatic gain</label>' + '</div>' + '<div class="form-text">Microphone, noise, gain and language changes apply to your next voice session.</div>' + '</div>';
+          return '<div class="card-body p-3">' + '<div class="fw-semibold mb-2" style="font-size:0.85rem;">Realtime audio</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-barge" type="checkbox"' + (prefs.bargeIn ? ' checked' : '') + '>' + '<label class="form-check-label">Allow interruptions (barge-in)</label>' + '</div>' + '<div class="form-text mb-2">On (default) lets you talk over the assistant. Turn <strong>off</strong> for open speakers so it never hears itself.</div>' + '<div class="js-hangover-wrap mb-2">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Echo guard delay: <strong class="js-hangover-val">' + prefs.hangoverMs + '</strong> ms</label>' + '<input type="range" class="form-range js-hangover" min="0" max="1000" step="50" value="' + prefs.hangoverMs + '">' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-ptt" type="checkbox"' + (prefs.pushToTalk ? ' checked' : '') + '>' + '<label class="form-check-label">Push-to-talk</label>' + '</div>' + '<div class="form-text mb-2">Hold <kbd>Space</kbd> to talk (desktop). Best for very noisy rooms.</div>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Assistant volume: <strong class="js-vol-val">' + Math.round(prefs.volume * 100) + '</strong>%</label>' + '<input type="range" class="form-range js-vol mb-2" min="0" max="100" step="5" value="' + Math.round(prefs.volume * 100) + '">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Microphone</label>' + '<select class="form-select form-select-sm js-mic mb-2"><option value="">Default microphone</option></select>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Language</label>' + '<select class="form-select form-select-sm js-lang mb-2">' + langOptions + '</select>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-tune" type="checkbox"' + (prefs.tuneTurnDetection ? ' checked' : '') + '>' + '<label class="form-check-label">Fine-tune turn detection</label>' + '</div>' + '<div class="js-tune-wrap mb-2"' + (prefs.tuneTurnDetection ? '' : ' style="display:none;"') + '>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Reply after silence: <strong class="js-silence-val">' + prefs.silenceMs + '</strong> ms</label>' + '<input type="range" class="form-range js-silence" min="100" max="2000" step="100" value="' + prefs.silenceMs + '">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Speech detection threshold: <strong class="js-thr-val">' + prefs.vadThreshold.toFixed(2) + '</strong></label>' + '<input type="range" class="form-range js-thr" min="0" max="1" step="0.05" value="' + prefs.vadThreshold + '">' + '<div class="form-text">Longer silence lets you pause without being cut off. Higher threshold needs louder speech, rejecting noise and echo. Applies to your next session.</div>' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-ns" type="checkbox"' + (prefs.noiseSuppression ? ' checked' : '') + '>' + '<label class="form-check-label">Noise suppression</label>' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-agc" type="checkbox"' + (prefs.autoGain ? ' checked' : '') + '>' + '<label class="form-check-label">Automatic gain</label>' + '</div>' + '<div class="form-text">Microphone, noise, gain and language changes apply to your next voice session.</div>' + '</div>';
         },
         wireRealtimeAudioSettings: function wireRealtimeAudioSettings(panel, gear) {
           var _this20 = this;
