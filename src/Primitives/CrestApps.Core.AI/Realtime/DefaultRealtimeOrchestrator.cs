@@ -1,6 +1,7 @@
 #pragma warning disable MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only.
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Realtime;
@@ -74,6 +75,15 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             {
                 ctx.ExecutionMode = OrchestrationExecutionMode.Realtime;
                 ctx.ConversationHistory = [];
+
+                // Expose the chat session so document-aware handlers (RAG search, tabular) discover the
+                // session-attached documents during PREPARE, exactly as the text path does in
+                // AIChatResponseHandler. Chat interactions carry their documents on the resource itself.
+                if (request.ChatSession is not null && ctx.CompletionContext is not null)
+                {
+                    ctx.CompletionContext.AdditionalProperties[AICompletionContextKeys.Session] = request.ChatSession;
+                }
+
                 request.ConfigureContext?.Invoke(ctx);
             },
             cancellationToken);

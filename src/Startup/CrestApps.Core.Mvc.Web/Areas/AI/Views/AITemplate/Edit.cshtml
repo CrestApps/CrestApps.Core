@@ -144,6 +144,26 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label asp-for="ChatMode" class="form-label">Chat mode</label>
+                                    <select asp-for="ChatMode" class="form-select" asp-items="Html.GetEnumSelectList<ChatMode>()">
+                                        <option value="">Use default chat mode</option>
+                                    </select>
+                                    <div class="form-text">Select <strong>Realtime</strong> to seed a speech-to-speech voice profile.</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label asp-for="RealtimeDeploymentName" class="form-label">Realtime deployment</label>
+                                    <select asp-for="RealtimeDeploymentName" class="form-select" asp-items="Model.RealtimeDeployments">
+                                        <option value="">Use default realtime deployment</option>
+                                    </select>
+                                    <div class="form-text">The speech-to-speech deployment for the Realtime chat mode.</div>
+                                </div>
+                            </div>
+                        </div>
                         @await Html.PartialAsync("_CopilotConfig", null, new ViewDataDictionary(ViewData)
                         {
                             { "CopilotPrefix", "at" },

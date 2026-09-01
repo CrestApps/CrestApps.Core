@@ -25,6 +25,7 @@
 @inject IAIProfileTemplateManager TemplateManager
 @inject IAIProfileManager ProfileManager
 @inject ICatalog<AIDeployment> DeploymentCatalog
+@inject CrestApps.Core.AI.Capabilities.IAIDeploymentCapabilityService CapabilityService
 @inject ICatalog<A2AConnection> A2ACatalog
 @inject ICatalog<McpConnection> McpCatalog
 @inject IAIDataSourceStore DataSourceStore
@@ -201,6 +202,35 @@
                                         }
                                     </select>
                                     <div class="form-text">The orchestrator that manages AI interactions.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Chat mode</label>
+                                    <InputSelect class="form-select" @bind-Value="_model.ChatMode">
+                                        <option value="">Use default chat mode</option>
+                                        @foreach (var mode in Enum.GetValues<ChatMode>())
+                                        {
+                                            <option value="@mode">@mode</option>
+                                        }
+                                    </InputSelect>
+                                    <div class="form-text">Select <strong>Realtime</strong> to seed a speech-to-speech voice profile.</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Realtime deployment</label>
+                                    <InputSelect class="form-select" @bind-Value="_model.RealtimeDeploymentName">
+                                        <option value="">Use default realtime deployment</option>
+                                        @foreach (var d in _model.RealtimeDeployments)
+                                        {
+                                            <option value="@d.Value">@d.Key</option>
+                                        }
+                                    </InputSelect>
+                                    <div class="form-text">The speech-to-speech deployment for the Realtime chat mode.</div>
                                 </div>
                             </div>
                         </div>
@@ -693,6 +723,7 @@
         var allDeployments = await DeploymentCatalog.GetAllAsync();
         _model.ChatDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
         _model.UtilityDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
+        _model.RealtimeDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat) && CapabilityService.GetCapabilities(d).SupportsFeature(AIDeploymentFeatureNames.Realtime)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
         _model.Orchestrators = OrchestratorOpts.Value.GetOrchestratorDescriptors().Select(o => new KeyValuePair<string, string>(o.Value.Title ?? o.Key, o.Key)).ToList();
 
         var hasAnthropicOptions = ClaudeOpts.TryGetValidValue(out ClaudeOptions anthropicOptions);

@@ -42,6 +42,10 @@ public sealed class AITemplateViewModel
 
     public string UtilityDeploymentName { get; set; }
 
+    public string RealtimeDeploymentName { get; set; }
+
+    public ChatMode? ChatMode { get; set; }
+
     public string OrchestratorName { get; set; }
 
     public AISessionTitleType? TitleType { get; set; }
@@ -166,6 +170,9 @@ public sealed class AITemplateViewModel
     public IEnumerable<SelectListItem> UtilityDeployments { get; set; } = [];
 
     [BindNever]
+    public IEnumerable<SelectListItem> RealtimeDeployments { get; set; } = [];
+
+    [BindNever]
     public IEnumerable<SelectListItem> Orchestrators { get; set; } = [];
 
     [BindNever]
@@ -222,6 +229,8 @@ public sealed class AITemplateViewModel
                 model.SystemMessage = metadata.SystemMessage;
                 model.ChatDeploymentName = metadata.ChatDeploymentName;
                 model.UtilityDeploymentName = metadata.UtilityDeploymentName;
+                model.RealtimeDeploymentName = metadata.RealtimeDeploymentName;
+                model.ChatMode = metadata.ChatMode;
                 model.OrchestratorName = metadata.OrchestratorName;
                 model.TitleType = metadata.TitleType;
                 model.Temperature = metadata.Temperature;
@@ -401,6 +410,8 @@ public sealed class AITemplateViewModel
                 SystemMessage = SystemMessage,
                 ChatDeploymentName = ChatDeploymentName,
                 UtilityDeploymentName = UtilityDeploymentName,
+                RealtimeDeploymentName = RealtimeDeploymentName,
+                ChatMode = ChatMode,
                 OrchestratorName = OrchestratorName,
                 TitleType = TitleType,
                 Temperature = Temperature,

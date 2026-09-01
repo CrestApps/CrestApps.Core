@@ -223,6 +223,17 @@ public sealed class AITemplateController : Controller
         {
             ModelState.AddModelError(nameof(model.ChatDeploymentName), "The selected chat deployment is a speech-to-speech-only model and cannot hold a text conversation. Choose a text-capable chat deployment.");
         }
+
+        // A realtime deployment, when set, must declare the realtime capability (matches the AI Profile editor).
+        if (!string.IsNullOrWhiteSpace(model.RealtimeDeploymentName))
+        {
+            var realtimeDeployment = deployments.FirstOrDefault(deployment => string.Equals(deployment.Name, model.RealtimeDeploymentName, StringComparison.OrdinalIgnoreCase));
+
+            if (realtimeDeployment is not null && !_capabilityService.GetCapabilities(realtimeDeployment).SupportsFeature(AIDeploymentFeatureNames.Realtime))
+            {
+                ModelState.AddModelError(nameof(model.RealtimeDeploymentName), "The selected realtime deployment does not declare the 'Realtime' capability. Enable it on the deployment's capabilities, or choose a realtime-capable deployment.");
+            }
+        }
     }
 
     private async Task PopulateDropdownsAsync(AITemplateViewModel model)
@@ -232,6 +243,11 @@ public sealed class AITemplateController : Controller
         var allDeployments = await _deploymentCatalog.GetAllAsync();
         model.ChatDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.UtilityDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        // Only realtime-capable chat deployments are eligible for the realtime slot.
+        model.RealtimeDeployments = allDeployments
+            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat) && _capabilityService.GetCapabilities(d).SupportsFeature(AIDeploymentFeatureNames.Realtime))
+            .Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name))
+            .ToList();
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
         var hasAnthropicOptions = _anthropicOptions.TryGetValidValue(out ClaudeOptions anthropicOptions);
         model.Orchestrators = orchestrators.Select(o => new SelectListItem(o.Value.Title ?? o.Key, o.Key)).ToList();

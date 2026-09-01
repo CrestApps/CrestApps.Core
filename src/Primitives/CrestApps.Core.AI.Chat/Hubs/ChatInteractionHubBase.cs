@@ -752,18 +752,30 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                     return;
                 }
 
-                // Realtime voice must be enabled for the interaction, and a realtime deployment available.
-                var chatMode = await GetChatModeAsync(services);
-                if (chatMode != ChatMode.Realtime)
-                {
-                    await Clients.Caller.ReceiveError(GetConversationNotEnabledMessage());
+                var capabilityService = services.GetRequiredService<IAIDeploymentCapabilityService>();
 
-                    return;
+                // The interaction's own selected deployment takes precedence: when it is a realtime
+                // (speech-to-speech) model, it is used as the realtime deployment regardless of the site chat mode.
+                var selectedIsRealtime = !string.IsNullOrWhiteSpace(interaction.ChatDeploymentName)
+                    && await capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, interaction.ChatDeploymentName, cancellationToken) is not null;
+
+                // Otherwise realtime voice must be enabled for the interaction via the site chat mode.
+                if (!selectedIsRealtime)
+                {
+                    var chatMode = await GetChatModeAsync(services);
+                    if (chatMode != ChatMode.Realtime)
+                    {
+                        await Clients.Caller.ReceiveError(GetConversationNotEnabledMessage());
+
+                        return;
+                    }
                 }
 
-                var capabilityService = services.GetRequiredService<IAIDeploymentCapabilityService>();
                 var defaultRealtimeDeploymentName = (await GetDeploymentSettingsAsync(services)).DefaultRealtimeDeploymentName;
-                if (await capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, defaultRealtimeDeploymentName, cancellationToken) is null)
+
+                // Prefer the interaction's own realtime deployment; fall back to the site default realtime deployment.
+                var realtimeDeploymentName = selectedIsRealtime ? interaction.ChatDeploymentName : defaultRealtimeDeploymentName;
+                if (await capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName, cancellationToken) is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoRealtimeDeploymentMessage());
 
@@ -786,6 +798,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                     Resource = interaction,
                     SessionId = interaction.ItemId,
                     Interaction = interaction,
+                    RealtimeDeploymentName = realtimeDeploymentName,
                     Voice = effectiveVoice,
                     SpeechLanguage = language,
                     OnUserUtteranceAsync = async (text, turnCancellationToken) =>

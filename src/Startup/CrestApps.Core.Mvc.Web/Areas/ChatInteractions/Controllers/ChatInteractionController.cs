@@ -219,18 +219,35 @@ public sealed class ChatInteractionController : Controller
         var chatMode = chatInteractionSettings.ChatMode;
         var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
         var hasTextToSpeech = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
-        // Realtime is available only when the default realtime deployment declares the realtime capability.
-        var hasRealtime = await _capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, deploymentDefaults.DefaultRealtimeDeploymentName) is not null;
-        var effectiveChatMode = chatMode switch
-        {
-            ChatMode.Realtime when hasRealtime => ChatMode.Realtime,
-            // Realtime configured but no realtime deployment: fall back to STT/TTS conversation when possible.
-            ChatMode.Realtime when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
-            ChatMode.Conversation when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
-            ChatMode.Conversation when hasSpeechToText => ChatMode.AudioInput,
-            ChatMode.AudioInput when hasSpeechToText => ChatMode.AudioInput,
-            _ => ChatMode.TextInput,
-        };
+
+        // Every deployment whose model declares the realtime (speech-to-speech) capability. The chat client uses
+        // this to switch the input to audio-only when the user selects a realtime deployment.
+        var realtimeDeployments = await _capabilityService.GetDeploymentsWithFeatureAsync(AIDeploymentFeatureNames.Realtime);
+        var realtimeDeploymentNames = realtimeDeployments
+            .Select(deployment => deployment.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToArray();
+
+        // The interaction's own selected deployment takes precedence: when it is a realtime (speech-to-speech)
+        // model the conversation must run in realtime mode, because such a model cannot handle a text turn.
+        var selectedDeploymentIsRealtime = !string.IsNullOrWhiteSpace(interaction.ChatDeploymentName)
+            && realtimeDeploymentNames.Contains(interaction.ChatDeploymentName, StringComparer.OrdinalIgnoreCase);
+
+        // Realtime is otherwise available only when the default realtime deployment declares the realtime capability.
+        var hasRealtime = selectedDeploymentIsRealtime
+            || await _capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, deploymentDefaults.DefaultRealtimeDeploymentName) is not null;
+        var effectiveChatMode = selectedDeploymentIsRealtime
+            ? ChatMode.Realtime
+            : chatMode switch
+            {
+                ChatMode.Realtime when hasRealtime => ChatMode.Realtime,
+                // Realtime configured but no realtime deployment: fall back to STT/TTS conversation when possible.
+                ChatMode.Realtime when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
+                ChatMode.Conversation when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
+                ChatMode.Conversation when hasSpeechToText => ChatMode.AudioInput,
+                ChatMode.AudioInput when hasSpeechToText => ChatMode.AudioInput,
+                _ => ChatMode.TextInput,
+            };
 
         var model = new ChatInteractionChatViewModel
         {
@@ -280,6 +297,7 @@ public sealed class ChatInteractionController : Controller
             TextToSpeechEnabled = chatInteractionSettings.EnableTextToSpeechPlayback && hasTextToSpeech,
             TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
             RealtimeVoiceName = deploymentDefaults.DefaultRealtimeVoiceId,
+            RealtimeCapableDeploymentNames = realtimeDeploymentNames,
         };
 
         await PopulateChatDropdownsAsync(model);

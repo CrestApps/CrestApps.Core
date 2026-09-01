@@ -251,8 +251,14 @@
 
         <div id="widget-chat-document-bar" class="border-top bg-light d-none"></div>
 
+        @{
+            var widgetIsRealtime = profile.chatMode == nameof(ChatMode.Realtime);
+        }
         <div class="ai-chat-widget-input">
+            @* The input and send button stay in the DOM even for realtime (voice-only) because the client
+               reads the profile/session ids from the input; they are only hidden visually. *@
             <textarea id="widget-chat-input"
+                      class="@(widgetIsRealtime ? "d-none" : null)"
                       placeholder="Type a message..."
                       rows="1"
                       data-session-id=""
@@ -260,20 +266,28 @@
             <button type="button" id="widget-mic-btn" class="btn btn-outline-secondary btn-sm" title="Voice input" style="display: none;">
                 <i class="bi bi-mic-fill"></i>
             </button>
-            @if (profile.chatMode == nameof(ChatMode.Conversation))
+            @if (profile.chatMode == nameof(ChatMode.Conversation) || widgetIsRealtime)
             {
                 <button type="button"
                         id="widget-conversation-btn"
-                        class="btn btn-outline-dark btn-sm"
-                        title="Start Conversation"
-                        data-start-title="Start Conversation"
+                        class="btn btn-outline-dark btn-sm@(widgetIsRealtime ? " flex-grow-1" : "")"
+                        title="@(widgetIsRealtime ? "Start speaking" : "Start Conversation")"
+                        data-start-title="@(widgetIsRealtime ? "Start speaking" : "Start Conversation")"
                         data-end-title="End Conversation"
-                        data-start-html="<i class='bi bi-soundwave'></i>"
+                        data-start-html="@(widgetIsRealtime ? "<i class='bi bi-soundwave me-1'></i> Start speaking" : "<i class='bi bi-soundwave'></i>")"
                         data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation">
-                    <i class="bi bi-soundwave"></i>
+                    @if (widgetIsRealtime)
+                    {
+                        <i class="bi bi-soundwave me-1"></i>
+                        <span>Start speaking</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-soundwave"></i>
+                    }
                 </button>
             }
-            <button type="button" id="widget-send-btn">
+            <button type="button" id="widget-send-btn" class="@(widgetIsRealtime ? "d-none" : null)">
                 <i class="bi bi-send"></i>
             </button>
         </div>

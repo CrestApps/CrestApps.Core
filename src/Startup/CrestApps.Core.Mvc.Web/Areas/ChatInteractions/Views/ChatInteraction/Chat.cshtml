@@ -155,6 +155,11 @@
         border-color: var(--bs-primary);
         color: #fff;
     }
+    #realtime-btn:not(.active) {
+        background-color: transparent !important;
+        border-color: var(--bs-dark, #212529) !important;
+        color: var(--bs-dark, #212529) !important;
+    }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -658,6 +663,21 @@
                 <button type="button" id="send-btn" class="btn btn-primary">
                     <i class="bi bi-send"></i> Send
                 </button>
+                @* Realtime (speech-to-speech) toggle. Rendered hidden and shown by the client when the selected
+                   deployment is a realtime model, in which case the text input above is hidden (audio-only).
+                   Styled to match the AI Chat session's realtime button. *@
+                <button type="button"
+                        id="realtime-btn"
+                        class="btn btn-outline-dark flex-grow-1"
+                        title="Start speaking"
+                        data-start-title="Start speaking"
+                        data-end-title="End Conversation"
+                        data-start-html="<i class='bi bi-soundwave me-1'></i> Start speaking"
+                        data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation"
+                        hidden>
+                    <i class="bi bi-soundwave me-1"></i>
+                    <span>Start speaking</span>
+                </button>
             </div>
         </div>
     </div>
@@ -691,6 +711,11 @@
             var conversationModeEnabled = @Model.ConversationModeEnabled.ToString().ToLowerInvariant();
             var textToSpeechEnabled = @Model.TextToSpeechEnabled.ToString().ToLowerInvariant();
             var ttsVoiceName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.TextToSpeechVoiceName));
+            var realtimeEnabled = @Model.RealtimeEnabled.ToString().ToLowerInvariant();
+            var realtimeVoiceName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RealtimeVoiceName));
+            // Technical names of deployments whose model declares the realtime capability (lower-cased for lookup).
+            var realtimeCapableDeployments = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RealtimeCapableDeploymentNames))
+                .map(function (name) { return (name || '').toLowerCase(); });
             var deploymentSelect = document.getElementById('setting-deployment');
 
             // --- Markdown rendering ---
@@ -1738,6 +1763,18 @@
             var currentAudioElement = null;
             var ttsAudioCache = {};
             var ttsCacheIndex = -1;
+            // Realtime (speech-to-speech) state. isRealtimeActive tracks a live realtime session; isRealtimeMode
+            // tracks whether the currently selected deployment is a realtime model (audio-only input).
+            var isRealtimeMode = realtimeEnabled;
+            var isRealtimeActive = false;
+            var realtimeStream = null;
+            var realtimeAudioCtx = null;
+            var realtimeSubject = null;
+            var realtimeProcessor = null;
+            var realtimeMicSource = null;
+            var realtimeZeroGain = null;
+            var realtimePlayHead = 0;
+            var realtimeSources = [];
 
             function toggleDataSourceDependentFields() {
                 var hasDataSource = !!(dataSourceSelect && dataSourceSelect.value && dataSourceSelect.value.trim() !== '');
@@ -1992,7 +2029,7 @@
                 vm.$nextTick(function () { renderPendingCharts(); });
             });
 
-            connection.on('ReceiveAudioChunk', function (identifier, base64Audio) {
+            connection.on('ReceiveAudioChunk', function (identifier, base64Audio, contentType) {
                 if (identifier !== itemId || !base64Audio) {
                     return;
                 }
@@ -2002,6 +2039,13 @@
 
                 for (var i = 0; i < binary.length; i++) {
                     buffer[i] = binary.charCodeAt(i);
+                }
+
+                // Realtime audio arrives as raw PCM16 and is scheduled for immediate playback via the Web Audio
+                // API; conversation/TTS audio (mp3/wav) is collected and played on complete.
+                if (contentType === 'audio/pcm') {
+                    playRealtimePcm(buffer);
+                    return;
                 }
 
                 audioChunks.push(buffer);
@@ -2293,6 +2337,218 @@
                 startConversationMode();
             }
 
+            // --- Realtime (speech-to-speech) mode ---
+            var REALTIME_SAMPLE_RATE = 24000;
+
+            function updateRealtimeButton() {
+                var realtimeBtn = document.getElementById('realtime-btn');
+                if (!realtimeBtn) {
+                    return;
+                }
+
+                // Mirror the AI Chat session's realtime button: an active (danger-free) primary state while
+                // speaking, and a dark outline while idle.
+                if (isRealtimeActive) {
+                    realtimeBtn.classList.add('active', 'btn-primary');
+                    realtimeBtn.classList.remove('btn-dark', 'btn-outline-dark', 'btn-outline-secondary');
+                    realtimeBtn.title = realtimeBtn.getAttribute('data-end-title') || 'End Conversation';
+                    var endHtml = realtimeBtn.getAttribute('data-end-html');
+                    if (endHtml) {
+                        realtimeBtn.replaceChildren(DOMPurify.sanitize(endHtml, { RETURN_DOM_FRAGMENT: true }));
+                    }
+                } else {
+                    realtimeBtn.classList.remove('active', 'btn-primary', 'btn-dark', 'btn-outline-secondary');
+                    realtimeBtn.classList.add('btn-outline-dark');
+                    realtimeBtn.blur();
+                    realtimeBtn.title = realtimeBtn.getAttribute('data-start-title') || 'Start speaking';
+                    var startHtml = realtimeBtn.getAttribute('data-start-html');
+                    if (startHtml) {
+                        realtimeBtn.replaceChildren(DOMPurify.sanitize(startHtml, { RETURN_DOM_FRAGMENT: true }));
+                    }
+                }
+            }
+
+            // Switches the input between text and audio-only (realtime). Called at load and whenever the
+            // selected deployment changes to/from a realtime model.
+            function applyRealtimeMode(enable) {
+                isRealtimeMode = enable;
+
+                var realtimeBtn = document.getElementById('realtime-btn');
+                var micBtn = document.getElementById('mic-btn');
+                var conversationBtn = document.getElementById('conversation-btn');
+
+                if (enable) {
+                    if (isRecording) {
+                        stopRecording();
+                    }
+                    if (isConversationMode) {
+                        stopConversationMode();
+                    }
+                    inputEl.hidden = true;
+                    if (sendBtn) { sendBtn.hidden = true; }
+                    if (micBtn) { micBtn.hidden = true; }
+                    if (conversationBtn) { conversationBtn.hidden = true; }
+                    if (realtimeBtn) { realtimeBtn.hidden = false; }
+                } else {
+                    if (isRealtimeActive) {
+                        stopRealtimeConversation();
+                    }
+                    if (realtimeBtn) { realtimeBtn.hidden = true; }
+                    inputEl.hidden = false;
+                    if (sendBtn) { sendBtn.hidden = false; }
+                    if (micBtn) { micBtn.hidden = false; }
+                    if (conversationBtn) { conversationBtn.hidden = false; }
+                }
+
+                updateRealtimeButton();
+            }
+
+            function startRealtimeConversation() {
+                if (!isRealtimeMode || isRealtimeActive || !connection) {
+                    return;
+                }
+
+                navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+                    .then(function (stream) {
+                        ensureConnectionStarted()
+                            .then(function () {
+                                realtimeStream = stream;
+                                isRealtimeActive = true;
+                                // Reuse the conversation display pipeline for realtime transcripts/tokens.
+                                isConversationMode = true;
+                                conversationPartialMessage = null;
+                                conversationAssistantMessage = null;
+                                updateRealtimeButton();
+
+                                var AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+                                realtimeAudioCtx = new AudioContextCtor({ sampleRate: REALTIME_SAMPLE_RATE });
+                                realtimePlayHead = realtimeAudioCtx.currentTime;
+                                realtimeSources = [];
+                                realtimeSubject = new signalR.Subject();
+
+                                var source = realtimeAudioCtx.createMediaStreamSource(stream);
+                                var processor = realtimeAudioCtx.createScriptProcessor(4096, 1, 1);
+                                realtimeProcessor = processor;
+                                realtimeMicSource = source;
+
+                                processor.onaudioprocess = function (event) {
+                                    var input = event.inputBuffer.getChannelData(0);
+                                    var pcm = new Int16Array(input.length);
+                                    for (var i = 0; i < input.length; i++) {
+                                        var s = Math.max(-1, Math.min(1, input[i]));
+                                        pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                                    }
+                                    var bytes = new Uint8Array(pcm.buffer);
+                                    var binary = '';
+                                    for (var b = 0; b < bytes.length; b++) { binary += String.fromCharCode(bytes[b]); }
+                                    try {
+                                        realtimeSubject.next(btoa(binary));
+                                    } catch (err) {
+                                        // Subject may have been completed already.
+                                    }
+                                };
+
+                                // A zero-gain node keeps the processor alive without echoing the mic to the speakers.
+                                var zeroGain = realtimeAudioCtx.createGain();
+                                zeroGain.gain.value = 0;
+                                realtimeZeroGain = zeroGain;
+                                source.connect(processor);
+                                processor.connect(zeroGain);
+                                zeroGain.connect(realtimeAudioCtx.destination);
+
+                                var language = navigator.language || document.documentElement.lang || 'en-US';
+                                var voice = realtimeVoiceName || '';
+                                connection.send('StartRealtimeConversation', itemId, realtimeSubject, voice, language);
+                            })
+                            .catch(function (err) {
+                                stream.getTracks().forEach(function (track) { track.stop(); });
+                                isRealtimeActive = false;
+                                isConversationMode = false;
+                                updateRealtimeButton();
+                                console.error('The realtime conversation could not start because the chat connection is not available.', err);
+                            });
+                    })
+                    .catch(function (err) {
+                        console.error('Microphone access denied:', err);
+                        isRealtimeActive = false;
+                        isConversationMode = false;
+                        updateRealtimeButton();
+                    });
+            }
+
+            function stopRealtimeConversation() {
+                if (!isRealtimeActive) {
+                    return;
+                }
+
+                isRealtimeActive = false;
+                isConversationMode = false;
+                updateRealtimeButton();
+
+                try { if (realtimeSubject) { realtimeSubject.complete(); } } catch (err) { /* already completed */ }
+                realtimeSubject = null;
+
+                try { if (realtimeProcessor) { realtimeProcessor.disconnect(); realtimeProcessor.onaudioprocess = null; } } catch (err) { }
+                try { if (realtimeMicSource) { realtimeMicSource.disconnect(); } } catch (err) { }
+                try { if (realtimeZeroGain) { realtimeZeroGain.disconnect(); } } catch (err) { }
+                try { if (realtimeStream) { realtimeStream.getTracks().forEach(function (t) { t.stop(); }); } } catch (err) { }
+                realtimeProcessor = null;
+                realtimeMicSource = null;
+                realtimeZeroGain = null;
+                realtimeStream = null;
+
+                flushRealtimePlayback();
+                try { if (realtimeAudioCtx) { realtimeAudioCtx.close(); } } catch (err) { }
+                realtimeAudioCtx = null;
+
+                if (conversationAssistantMessage) {
+                    conversationAssistantMessage.isStreaming = false;
+                    conversationAssistantMessage = null;
+                }
+            }
+
+            function toggleRealtime() {
+                if (isRealtimeActive) {
+                    stopRealtimeConversation();
+                    return;
+                }
+
+                startRealtimeConversation();
+            }
+
+            function playRealtimePcm(bytes) {
+                if (!realtimeAudioCtx || !bytes || bytes.length < 2) {
+                    return;
+                }
+
+                var ctx = realtimeAudioCtx;
+                var sampleCount = Math.floor(bytes.length / 2);
+                var pcm = new Int16Array(bytes.buffer, bytes.byteOffset, sampleCount);
+                var f32 = new Float32Array(sampleCount);
+                for (var i = 0; i < sampleCount; i++) { f32[i] = pcm[i] / 0x8000; }
+
+                var buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
+                buffer.copyToChannel(f32, 0);
+                var src = ctx.createBufferSource();
+                src.buffer = buffer;
+                src.connect(ctx.destination);
+
+                var now = ctx.currentTime;
+                if (realtimePlayHead < now) { realtimePlayHead = now; }
+                src.start(realtimePlayHead);
+                realtimePlayHead += buffer.duration;
+                realtimeSources.push(src);
+                src.onended = function () {
+                    realtimeSources = realtimeSources.filter(function (s) { return s !== src; });
+                };
+            }
+
+            function flushRealtimePlayback() {
+                realtimeSources.forEach(function (s) { try { s.stop(); } catch (err) { } });
+                realtimeSources = [];
+                if (realtimeAudioCtx) { realtimePlayHead = realtimeAudioCtx.currentTime; }
+            }
+
             sendBtn.addEventListener('click', sendMessage);
             var micBtn = document.getElementById('mic-btn');
             if (micBtn) {
@@ -2306,6 +2562,30 @@
                 updateConversationButton();
             }
             updateConversationInputButtons();
+
+            var realtimeBtn = document.getElementById('realtime-btn');
+            if (realtimeBtn) {
+                realtimeBtn.addEventListener('click', toggleRealtime);
+            }
+
+            // Returns true when the given deployment name is a realtime (speech-to-speech) model.
+            function isRealtimeDeployment(deploymentName) {
+                if (!deploymentName) {
+                    return false;
+                }
+
+                return realtimeCapableDeployments.indexOf(deploymentName.toLowerCase()) !== -1;
+            }
+
+            // Switch the input to audio-only when the user selects a realtime deployment, and back otherwise.
+            if (deploymentSelect) {
+                deploymentSelect.addEventListener('change', function () {
+                    applyRealtimeMode(isRealtimeDeployment(deploymentSelect.value));
+                });
+            }
+
+            // Apply the initial input mode: audio-only when the interaction already uses a realtime deployment.
+            applyRealtimeMode(isRealtimeMode || (deploymentSelect && isRealtimeDeployment(deploymentSelect.value)));
             if (documentUploadInput) {
                 documentUploadInput.addEventListener('change', function () {
                     uploadDocuments(documentUploadInput.files).finally(function () {

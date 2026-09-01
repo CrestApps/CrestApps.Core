@@ -514,6 +514,33 @@ public sealed class AIProfileController : Controller
             profile.UtilityDeploymentName = metadata.UtilityDeploymentName;
         }
 
+        if (!string.IsNullOrWhiteSpace(metadata.RealtimeDeploymentName))
+        {
+            profile.RealtimeDeploymentName = metadata.RealtimeDeploymentName;
+        }
+
+        // Carry the chat mode (and its voice/TTS options) so a template can seed a realtime voice profile.
+        if (metadata.ChatMode.HasValue || !string.IsNullOrWhiteSpace(metadata.VoiceName) || metadata.EnableTextToSpeechPlayback.HasValue)
+        {
+            profile.AlterSettings<ChatModeProfileSettings>(chatModeSettings =>
+            {
+                if (metadata.ChatMode.HasValue)
+                {
+                    chatModeSettings.ChatMode = metadata.ChatMode.Value;
+                }
+
+                if (!string.IsNullOrWhiteSpace(metadata.VoiceName))
+                {
+                    chatModeSettings.VoiceName = metadata.VoiceName;
+                }
+
+                if (metadata.EnableTextToSpeechPlayback.HasValue)
+                {
+                    chatModeSettings.EnableTextToSpeechPlayback = metadata.EnableTextToSpeechPlayback.Value;
+                }
+            });
+        }
+
         if (!string.IsNullOrWhiteSpace(metadata.OrchestratorName))
         {
             profile.OrchestratorName = metadata.OrchestratorName;

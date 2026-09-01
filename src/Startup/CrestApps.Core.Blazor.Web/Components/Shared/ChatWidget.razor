@@ -1,4 +1,5 @@
 @using CrestApps.Core.AI
+@using CrestApps.Core.AI.Capabilities
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
@@ -11,6 +12,7 @@
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject SiteSettingsStore SiteSettings
 @inject NavigationManager NavigationManager
+@inject IAIDeploymentCapabilityService CapabilityService
 @inject SiteSettingsChangedNotifier SettingsChangedNotifier
 
 @if (_profile != null)
@@ -168,7 +170,10 @@
             <div id="widget-chat-document-bar" class="border-top bg-light d-none"></div>
 
             <div class="ai-chat-widget-input">
+                @* The input and send button stay in the DOM even for realtime (voice-only) because the client
+                   reads the profile/session ids from the input; they are only hidden visually. *@
                 <textarea id="widget-chat-input"
+                          class="@(_chatMode == ChatMode.Realtime ? "d-none" : null)"
                           placeholder="Type a message..."
                           rows="1"
                           data-session-id=""
@@ -176,20 +181,28 @@
                 <button type="button" id="widget-mic-btn" class="btn btn-outline-secondary btn-sm" title="Voice input" style="display: none;">
                     <i class="bi bi-mic-fill"></i>
                 </button>
-                @if (_chatMode == ChatMode.Conversation)
+                @if (_chatMode == ChatMode.Conversation || _chatMode == ChatMode.Realtime)
                 {
                     <button type="button"
                             id="widget-conversation-btn"
-                            class="btn btn-outline-dark btn-sm"
-                            title="Start Conversation"
-                            data-start-title="Start Conversation"
+                            class="btn btn-outline-dark btn-sm@(_chatMode == ChatMode.Realtime ? " flex-grow-1" : "")"
+                            title="@(_chatMode == ChatMode.Realtime ? "Start speaking" : "Start Conversation")"
+                            data-start-title="@(_chatMode == ChatMode.Realtime ? "Start speaking" : "Start Conversation")"
                             data-end-title="End Conversation"
-                            data-start-html="<i class='bi bi-soundwave'></i>"
+                            data-start-html="@(_chatMode == ChatMode.Realtime ? "<i class='bi bi-soundwave me-1'></i> Start speaking" : "<i class='bi bi-soundwave'></i>")"
                             data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation">
-                        <i class="bi bi-soundwave"></i>
+                        @if (_chatMode == ChatMode.Realtime)
+                        {
+                            <i class="bi bi-soundwave me-1"></i>
+                            <span>Start speaking</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-soundwave"></i>
+                        }
                     </button>
                 }
-                <button type="button" id="widget-send-btn">
+                <button type="button" id="widget-send-btn" class="@(_chatMode == ChatMode.Realtime ? "d-none" : null)">
                     <i class="bi bi-send"></i>
                 </button>
             </div>
@@ -282,8 +295,19 @@
         }
 
         var configuredChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput;
+
+        // Realtime is available only when a realtime-capable chat deployment resolves (the profile's realtime
+        // deployment, or the site default), so the widget's realtime UI stays in sync with the hub's capability gate.
+        var realtimeDeploymentName = !string.IsNullOrWhiteSpace(selectedProfile.RealtimeDeploymentName)
+            ? selectedProfile.RealtimeDeploymentName
+            : deploymentDefaults.DefaultRealtimeDeploymentName;
+        var hasRealtimeDeployment = await CapabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName) is not null;
+
         _chatMode = configuredChatMode switch
         {
+            ChatMode.Realtime when hasRealtimeDeployment => ChatMode.Realtime,
+            // Realtime configured but no realtime deployment: fall back to STT/TTS conversation when possible.
+            ChatMode.Realtime when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
             ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
             ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
             ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,

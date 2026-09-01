@@ -123,6 +123,14 @@ internal sealed class ChatInteractionChatViewModel
 
     public string RealtimeVoiceName { get; set; }
 
+    /// <summary>
+    /// Gets or sets the technical names of the deployments whose model declares the realtime (speech-to-speech)
+    /// capability. The chat client uses this to switch the input to audio-only when the user selects a realtime
+    /// deployment.
+    /// </summary>
+    [BindNever]
+    public string[] RealtimeCapableDeploymentNames { get; set; } = [];
+
     [BindNever]
     public IEnumerable<SelectListItem> DataSources { get; set; } = [];
 

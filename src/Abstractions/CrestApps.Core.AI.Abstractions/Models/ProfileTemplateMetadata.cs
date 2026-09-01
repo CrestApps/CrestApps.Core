@@ -33,6 +33,29 @@ public sealed class ProfileTemplateMetadata
     public string UtilityDeploymentName { get; set; }
 
     /// <summary>
+    /// Gets or sets the realtime (speech-to-speech) deployment identifier to pre-fill. Used by chat
+    /// templates whose chat mode is <see cref="CrestApps.Core.AI.Models.ChatMode.Realtime"/> to select the
+    /// deployment whose model declares the realtime capability.
+    /// </summary>
+    public string RealtimeDeploymentName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the chat mode to pre-fill on chat profiles created from this template. A
+    /// <see langword="null"/> value leaves the profile's default chat mode unchanged.
+    /// </summary>
+    public ChatMode? ChatMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets the voice name to pre-fill for voice/realtime chat modes.
+    /// </summary>
+    public string VoiceName { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether text-to-speech playback is pre-enabled on chat profiles created from this template.
+    /// </summary>
+    public bool? EnableTextToSpeechPlayback { get; set; }
+
+    /// <summary>
     /// Gets or sets the legacy chat deployment identifier that maps to <see cref="ChatDeploymentName"/>.
     /// </summary>
     [JsonIgnore]
