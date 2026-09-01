@@ -182,7 +182,13 @@ internal static class AzureRealtimeProtocol
             writer.WriteString("model", transcription.ModelId);
             if (transcription.SpeechLanguage is not null)
             {
-                writer.WriteString("language", transcription.SpeechLanguage);
+                // The realtime transcription API expects an ISO-639-1 language code (for example "en"),
+                // not a full culture name ("en-US"), so use the primary subtag.
+                var language = transcription.SpeechLanguage.Split('-', '_')[0];
+                if (!string.IsNullOrWhiteSpace(language))
+                {
+                    writer.WriteString("language", language);
+                }
             }
 
             writer.WriteEndObject();

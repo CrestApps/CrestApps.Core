@@ -282,12 +282,11 @@
                             }
                         </button>
                     }
-                    @if (!realtimeEnabled)
-                    {
-                        <button type="button" id="send-btn" class="btn btn-primary" data-start-icon="<i class='bi bi-send'></i>" data-stop-icon="<i class='bi bi-stop-fill'></i>">
-                            <i class="bi bi-send"></i>
-                        </button>
-                    }
+                    @* The send button stays in the DOM even for realtime (voice-only) because the client *@
+                    @* requires it to initialize; it is only hidden visually. *@
+                    <button type="button" id="send-btn" class="btn btn-primary@(realtimeEnabled ? " d-none" : "")" data-start-icon="<i class='bi bi-send'></i>" data-stop-icon="<i class='bi bi-stop-fill'></i>">
+                        <i class="bi bi-send"></i>
+                    </button>
                 </div>
                 @if (realtimeEnabled)
                 {
