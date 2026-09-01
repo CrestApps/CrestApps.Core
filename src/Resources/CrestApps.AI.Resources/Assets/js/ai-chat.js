@@ -2106,6 +2106,9 @@ window.coreAIChatManager = function () {
                     this._conversationAssistantMessage = null;
                     this.removeNotification('conversation-ended');
 
+                    // Apply the listener's saved audio preferences (barge-in / echo-guard delay).
+                    this.applyRealtimeAudioPrefs(this.loadRealtimeAudioPrefs());
+
                     var REALTIME_SAMPLE_RATE = 24000;
                     // While the assistant is playing back, plus this hangover for the room echo tail, the
                     // microphone uplink is muted so the model never hears (and answers) its own voice through
@@ -2143,8 +2146,10 @@ window.coreAIChatManager = function () {
                                 // Half-duplex echo guard: while the assistant is still playing back (its
                                 // scheduled audio extends past now), plus a short hangover for the room echo
                                 // tail, drop the microphone frame instead of streaming it. This stops the model
-                                // from hearing and replying to its own voice on open-speaker setups.
-                                if (this._realtimeAudioCtx && this._realtimeAudioCtx.currentTime < this._realtimePlayHead + REALTIME_ECHO_HANGOVER_SEC) {
+                                // from hearing and replying to its own voice on open-speaker setups. Skipped when
+                                // the listener has enabled barge-in (e.g., on a headset).
+                                var hangover = (this._realtimeHangoverSec != null) ? this._realtimeHangoverSec : REALTIME_ECHO_HANGOVER_SEC;
+                                if (!this._realtimeBargeIn && this._realtimeAudioCtx && this._realtimeAudioCtx.currentTime < this._realtimePlayHead + hangover) {
                                     return;
                                 }
                                 var input = event.inputBuffer.getChannelData(0);
@@ -2260,6 +2265,101 @@ window.coreAIChatManager = function () {
                     (this._realtimeSources || []).forEach(s => { try { s.stop(); } catch (err) { } });
                     this._realtimeSources = [];
                     if (this._realtimeAudioCtx) { this._realtimePlayHead = this._realtimeAudioCtx.currentTime; }
+                },
+                // --- Realtime audio preferences (per-browser, device-specific) ---
+                // These live in localStorage because they depend on the listener's hardware (a headset can
+                // allow barge-in; open speakers need the echo guard), which differs per device, not per profile.
+                loadRealtimeAudioPrefs() {
+                    var prefs = { bargeIn: true, hangoverMs: 250 };
+                    try {
+                        var raw = window.localStorage.getItem('coreai.realtime.audioPrefs');
+                        if (raw) {
+                            var parsed = JSON.parse(raw);
+                            if (typeof parsed.bargeIn === 'boolean') { prefs.bargeIn = parsed.bargeIn; }
+                            if (typeof parsed.hangoverMs === 'number' && isFinite(parsed.hangoverMs)) {
+                                prefs.hangoverMs = Math.min(2000, Math.max(0, parsed.hangoverMs));
+                            }
+                        }
+                    } catch (err) { /* storage unavailable or blocked */ }
+                    return prefs;
+                },
+                saveRealtimeAudioPrefs(prefs) {
+                    try { window.localStorage.setItem('coreai.realtime.audioPrefs', JSON.stringify(prefs)); } catch (err) { }
+                },
+                applyRealtimeAudioPrefs(prefs) {
+                    this._realtimeBargeIn = !!prefs.bargeIn;
+                    this._realtimeHangoverSec = (typeof prefs.hangoverMs === 'number' ? prefs.hangoverMs : 250) / 1000;
+                },
+                // Builds a small gear-triggered popover next to the realtime button so the listener can toggle
+                // barge-in and tune the echo-guard delay for their own microphone/speaker setup.
+                setupRealtimeAudioSettings() {
+                    if (!this.conversationButton || this._realtimeAudioSettingsBuilt) {
+                        return;
+                    }
+                    this._realtimeAudioSettingsBuilt = true;
+
+                    var prefs = this.loadRealtimeAudioPrefs();
+                    this.applyRealtimeAudioPrefs(prefs);
+
+                    var wrap = document.createElement('span');
+                    wrap.style.position = 'relative';
+                    wrap.style.display = 'inline-flex';
+
+                    var gear = document.createElement('button');
+                    gear.type = 'button';
+                    gear.className = 'btn btn-outline-secondary';
+                    gear.title = 'Realtime audio settings';
+                    gear.innerHTML = '<i class="bi bi-gear"></i>';
+
+                    var panel = document.createElement('div');
+                    panel.className = 'card shadow-sm';
+                    panel.style.cssText = 'position:absolute;bottom:calc(100% + 6px);right:0;z-index:1080;width:280px;display:none;';
+
+                    var hangoverLabel = 'Echo guard delay: <strong class="js-hangover-val">' + prefs.hangoverMs + '</strong> ms';
+                    panel.innerHTML =
+                        '<div class="card-body p-3">' +
+                        '<div class="form-check form-switch mb-1">' +
+                        '<input class="form-check-input js-barge" type="checkbox"' + (prefs.bargeIn ? ' checked' : '') + '>' +
+                        '<label class="form-check-label">Allow interruptions (barge-in)</label>' +
+                        '</div>' +
+                        '<div class="form-text mb-2">On (default) lets you talk over the assistant to interrupt it. Turn <strong>off</strong> if you use open speakers and the assistant starts responding to its own voice.</div>' +
+                        '<div class="js-hangover-wrap">' +
+                        '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">' + hangoverLabel + '</label>' +
+                        '<input type="range" class="form-range js-hangover" min="0" max="1000" step="50" value="' + prefs.hangoverMs + '">' +
+                        '<div class="form-text">How long to keep muting after the assistant stops, to cover the room echo tail.</div>' +
+                        '</div>' +
+                        '</div>';
+
+                    wrap.appendChild(gear);
+                    wrap.appendChild(panel);
+                    this.conversationButton.insertAdjacentElement('afterend', wrap);
+
+                    var bargeInput = panel.querySelector('.js-barge');
+                    var hangoverInput = panel.querySelector('.js-hangover');
+                    var hangoverVal = panel.querySelector('.js-hangover-val');
+                    var hangoverWrap = panel.querySelector('.js-hangover-wrap');
+
+                    var reflectBargeState = () => {
+                        // The echo-guard delay only applies when the mic is being muted (barge-in off).
+                        hangoverWrap.style.opacity = bargeInput.checked ? '0.5' : '1';
+                        hangoverInput.disabled = bargeInput.checked;
+                    };
+                    reflectBargeState();
+
+                    var persist = () => {
+                        var next = { bargeIn: bargeInput.checked, hangoverMs: parseInt(hangoverInput.value, 10) || 0 };
+                        this.applyRealtimeAudioPrefs(next);
+                        this.saveRealtimeAudioPrefs(next);
+                    };
+
+                    gear.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                    });
+                    panel.addEventListener('click', (e) => e.stopPropagation());
+                    document.addEventListener('click', () => { panel.style.display = 'none'; });
+                    bargeInput.addEventListener('change', () => { reflectBargeState(); persist(); });
+                    hangoverInput.addEventListener('input', () => { hangoverVal.textContent = hangoverInput.value; persist(); });
                 },
                 startConversationMode() {
                     if (!this.conversationModeEnabled || this.isConversationMode || !this.connection) {
@@ -2813,6 +2913,11 @@ window.coreAIChatManager = function () {
                             this.conversationButton.addEventListener('click', () => {
                                 this.toggleConversationMode();
                             });
+
+                            // Realtime (speech-to-speech) exposes per-device audio settings next to the button.
+                            if (this.realtimeEnabled) {
+                                this.setupRealtimeAudioSettings();
+                            }
                         }
                     }
 

@@ -2175,6 +2175,9 @@ window.coreAIChatManager = function () {
           this.updateConversationButton();
           this._conversationAssistantMessage = null;
           this.removeNotification('conversation-ended');
+
+          // Apply the listener's saved audio preferences (barge-in / echo-guard delay).
+          this.applyRealtimeAudioPrefs(this.loadRealtimeAudioPrefs());
           var REALTIME_SAMPLE_RATE = 24000;
           // While the assistant is playing back, plus this hangover for the room echo tail, the
           // microphone uplink is muted so the model never hears (and answers) its own voice through
@@ -2225,8 +2228,10 @@ window.coreAIChatManager = function () {
                       // Half-duplex echo guard: while the assistant is still playing back (its
                       // scheduled audio extends past now), plus a short hangover for the room echo
                       // tail, drop the microphone frame instead of streaming it. This stops the model
-                      // from hearing and replying to its own voice on open-speaker setups.
-                      if (_this17._realtimeAudioCtx && _this17._realtimeAudioCtx.currentTime < _this17._realtimePlayHead + REALTIME_ECHO_HANGOVER_SEC) {
+                      // from hearing and replying to its own voice on open-speaker setups. Skipped when
+                      // the listener has enabled barge-in (e.g., on a headset).
+                      var hangover = _this17._realtimeHangoverSec != null ? _this17._realtimeHangoverSec : REALTIME_ECHO_HANGOVER_SEC;
+                      if (!_this17._realtimeBargeIn && _this17._realtimeAudioCtx && _this17._realtimeAudioCtx.currentTime < _this17._realtimePlayHead + hangover) {
                         return;
                       }
                       var input = event.inputBuffer.getChannelData(0);
@@ -2383,8 +2388,102 @@ window.coreAIChatManager = function () {
             this._realtimePlayHead = this._realtimeAudioCtx.currentTime;
           }
         },
-        startConversationMode: function startConversationMode() {
+        // --- Realtime audio preferences (per-browser, device-specific) ---
+        // These live in localStorage because they depend on the listener's hardware (a headset can
+        // allow barge-in; open speakers need the echo guard), which differs per device, not per profile.
+        loadRealtimeAudioPrefs: function loadRealtimeAudioPrefs() {
+          var prefs = {
+            bargeIn: true,
+            hangoverMs: 250
+          };
+          try {
+            var raw = window.localStorage.getItem('coreai.realtime.audioPrefs');
+            if (raw) {
+              var parsed = JSON.parse(raw);
+              if (typeof parsed.bargeIn === 'boolean') {
+                prefs.bargeIn = parsed.bargeIn;
+              }
+              if (typeof parsed.hangoverMs === 'number' && isFinite(parsed.hangoverMs)) {
+                prefs.hangoverMs = Math.min(2000, Math.max(0, parsed.hangoverMs));
+              }
+            }
+          } catch (err) {/* storage unavailable or blocked */}
+          return prefs;
+        },
+        saveRealtimeAudioPrefs: function saveRealtimeAudioPrefs(prefs) {
+          try {
+            window.localStorage.setItem('coreai.realtime.audioPrefs', JSON.stringify(prefs));
+          } catch (err) {}
+        },
+        applyRealtimeAudioPrefs: function applyRealtimeAudioPrefs(prefs) {
+          this._realtimeBargeIn = !!prefs.bargeIn;
+          this._realtimeHangoverSec = (typeof prefs.hangoverMs === 'number' ? prefs.hangoverMs : 250) / 1000;
+        },
+        // Builds a small gear-triggered popover next to the realtime button so the listener can toggle
+        // barge-in and tune the echo-guard delay for their own microphone/speaker setup.
+        setupRealtimeAudioSettings: function setupRealtimeAudioSettings() {
           var _this19 = this;
+          if (!this.conversationButton || this._realtimeAudioSettingsBuilt) {
+            return;
+          }
+          this._realtimeAudioSettingsBuilt = true;
+          var prefs = this.loadRealtimeAudioPrefs();
+          this.applyRealtimeAudioPrefs(prefs);
+          var wrap = document.createElement('span');
+          wrap.style.position = 'relative';
+          wrap.style.display = 'inline-flex';
+          var gear = document.createElement('button');
+          gear.type = 'button';
+          gear.className = 'btn btn-outline-secondary';
+          gear.title = 'Realtime audio settings';
+          gear.innerHTML = '<i class="bi bi-gear"></i>';
+          var panel = document.createElement('div');
+          panel.className = 'card shadow-sm';
+          panel.style.cssText = 'position:absolute;bottom:calc(100% + 6px);right:0;z-index:1080;width:280px;display:none;';
+          var hangoverLabel = 'Echo guard delay: <strong class="js-hangover-val">' + prefs.hangoverMs + '</strong> ms';
+          panel.innerHTML = '<div class="card-body p-3">' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-barge" type="checkbox"' + (prefs.bargeIn ? ' checked' : '') + '>' + '<label class="form-check-label">Allow interruptions (barge-in)</label>' + '</div>' + '<div class="form-text mb-2">On (default) lets you talk over the assistant to interrupt it. Turn <strong>off</strong> if you use open speakers and the assistant starts responding to its own voice.</div>' + '<div class="js-hangover-wrap">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">' + hangoverLabel + '</label>' + '<input type="range" class="form-range js-hangover" min="0" max="1000" step="50" value="' + prefs.hangoverMs + '">' + '<div class="form-text">How long to keep muting after the assistant stops, to cover the room echo tail.</div>' + '</div>' + '</div>';
+          wrap.appendChild(gear);
+          wrap.appendChild(panel);
+          this.conversationButton.insertAdjacentElement('afterend', wrap);
+          var bargeInput = panel.querySelector('.js-barge');
+          var hangoverInput = panel.querySelector('.js-hangover');
+          var hangoverVal = panel.querySelector('.js-hangover-val');
+          var hangoverWrap = panel.querySelector('.js-hangover-wrap');
+          var reflectBargeState = function reflectBargeState() {
+            // The echo-guard delay only applies when the mic is being muted (barge-in off).
+            hangoverWrap.style.opacity = bargeInput.checked ? '0.5' : '1';
+            hangoverInput.disabled = bargeInput.checked;
+          };
+          reflectBargeState();
+          var persist = function persist() {
+            var next = {
+              bargeIn: bargeInput.checked,
+              hangoverMs: parseInt(hangoverInput.value, 10) || 0
+            };
+            _this19.applyRealtimeAudioPrefs(next);
+            _this19.saveRealtimeAudioPrefs(next);
+          };
+          gear.addEventListener('click', function (e) {
+            e.stopPropagation();
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+          });
+          panel.addEventListener('click', function (e) {
+            return e.stopPropagation();
+          });
+          document.addEventListener('click', function () {
+            panel.style.display = 'none';
+          });
+          bargeInput.addEventListener('change', function () {
+            reflectBargeState();
+            persist();
+          });
+          hangoverInput.addEventListener('input', function () {
+            hangoverVal.textContent = hangoverInput.value;
+            persist();
+          });
+        },
+        startConversationMode: function startConversationMode() {
+          var _this20 = this;
           if (!this.conversationModeEnabled || this.isConversationMode || !this.connection) {
             return;
           }
@@ -2403,8 +2502,8 @@ window.coreAIChatManager = function () {
               autoGainControl: true
             }
           }).then(function (stream) {
-            _this19._conversationSubject = new signalR.Subject();
-            _this19._conversationStream = stream;
+            _this20._conversationSubject = new signalR.Subject();
+            _this20._conversationStream = stream;
 
             // RMS (0..1) above which speech during TTS playback counts as an interrupt.
             var interruptRmsThreshold = 0.12;
@@ -2412,27 +2511,27 @@ window.coreAIChatManager = function () {
             // Capture raw 16 kHz PCM (16-bit mono) via Web Audio instead of MediaRecorder — see
             // startRecording for why WebM/Opus is avoided. The per-block RMS drives interrupt
             // detection during TTS playback, replacing the previous AnalyserNode.
-            _this19._conversationCapture = _this19._createPcmCapture(stream, function (base64, rms) {
-              if (_this19.isPlayingAudio && rms >= interruptRmsThreshold) {
+            _this20._conversationCapture = _this20._createPcmCapture(stream, function (base64, rms) {
+              if (_this20.isPlayingAudio && rms >= interruptRmsThreshold) {
                 // User is speaking over TTS — interrupt playback.
-                _this19.stopAudio();
+                _this20.stopAudio();
               }
               try {
-                _this19._conversationSubject.next(base64);
+                _this20._conversationSubject.next(base64);
               } catch (err) {
                 // Subject may have been completed already.
               }
             });
-            var profileId = _this19.getProfileId();
-            var sessionId = _this19.getSessionId() || '';
+            var profileId = _this20.getProfileId();
+            var sessionId = _this20.getSessionId() || '';
             var language = navigator.language || document.documentElement.lang || 'en-US';
-            var rate = _this19._conversationCapture && _this19._conversationCapture.sampleRate || 16000;
-            _this19.connection.send("StartConversation", profileId, sessionId, _this19._conversationSubject, "audio/pcm;rate=" + rate, language);
-            _this19.isRecording = true;
+            var rate = _this20._conversationCapture && _this20._conversationCapture.sampleRate || 16000;
+            _this20.connection.send("StartConversation", profileId, sessionId, _this20._conversationSubject, "audio/pcm;rate=" + rate, language);
+            _this20.isRecording = true;
           })["catch"](function (err) {
             console.error('Microphone access denied:', err);
-            _this19.isConversationMode = false;
-            _this19.updateConversationButton();
+            _this20.isConversationMode = false;
+            _this20.updateConversationButton();
           });
         },
         stopConversationMode: function stopConversationMode() {
@@ -2558,7 +2657,7 @@ window.coreAIChatManager = function () {
           return removedCount;
         },
         receiveNotification: function receiveNotification(notification) {
-          var _this20 = this;
+          var _this21 = this;
           if (!notification || !notification.type) {
             return;
           }
@@ -2573,7 +2672,7 @@ window.coreAIChatManager = function () {
           }
           this.scheduleNotificationDismiss(notification);
           this.$nextTick(function () {
-            _this20.scrollToBottom();
+            _this21.scrollToBottom();
           });
         },
         updateNotification: function updateNotification(notification) {
@@ -2590,12 +2689,12 @@ window.coreAIChatManager = function () {
           }
         },
         scheduleNotificationDismiss: function scheduleNotificationDismiss(notification) {
-          var _this21 = this;
+          var _this22 = this;
           if (!notification || !notification.type || !notification.autoDismissMs || notification.autoDismissMs <= 0) {
             return;
           }
           this.notificationDismissTimers[notification.type] = setTimeout(function () {
-            _this21.removeNotification(notification.type);
+            _this22.removeNotification(notification.type);
           }, notification.autoDismissMs);
         },
         clearNotificationDismiss: function clearNotificationDismiss(notificationType) {
@@ -2625,12 +2724,12 @@ window.coreAIChatManager = function () {
           });
         },
         scrollToBottom: function scrollToBottom() {
-          var _this22 = this;
+          var _this23 = this;
           if (!this.autoScroll) {
             return;
           }
           setTimeout(function () {
-            _this22.chatContainer.scrollTop = _this22.chatContainer.scrollHeight - _this22.chatContainer.clientHeight;
+            _this23.chatContainer.scrollTop = _this23.chatContainer.scrollHeight - _this23.chatContainer.clientHeight;
           }, 50);
         },
         handleUserInput: function handleUserInput(event) {
@@ -2681,27 +2780,27 @@ window.coreAIChatManager = function () {
           });
         },
         ensureSessionForDocuments: function ensureSessionForDocuments(profileId) {
-          var _this23 = this;
+          var _this24 = this;
           return _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee9() {
             var sessionId;
             return _regenerator().w(function (_context9) {
               while (1) switch (_context9.n) {
                 case 0:
-                  sessionId = _this23.getSessionId();
+                  sessionId = _this24.getSessionId();
                   if (!sessionId) {
                     _context9.n = 1;
                     break;
                   }
                   return _context9.a(2, sessionId);
                 case 1:
-                  if (!(!profileId || !_this23.connection)) {
+                  if (!(!profileId || !_this24.connection)) {
                     _context9.n = 2;
                     break;
                   }
                   return _context9.a(2, null);
                 case 2:
                   _context9.n = 3;
-                  return _this23.requestNewSession(profileId);
+                  return _this24.requestNewSession(profileId);
                 case 3:
                   return _context9.a(2, _context9.v);
               }
@@ -2709,7 +2808,7 @@ window.coreAIChatManager = function () {
           }))();
         },
         requestNewSession: function requestNewSession(profileId) {
-          var _this24 = this;
+          var _this25 = this;
           if (this.pendingSessionPromise) {
             return this.pendingSessionPromise;
           }
@@ -2717,14 +2816,14 @@ window.coreAIChatManager = function () {
             return Promise.resolve(null);
           }
           this.pendingSessionPromise = new Promise(function (resolve, reject) {
-            _this24.pendingSessionResolver = resolve;
-            _this24.pendingSessionRejector = reject;
-            _this24.pendingSessionTimeoutId = window.setTimeout(function () {
-              _this24.rejectPendingSessionRequest('Timed out while creating a chat session.');
+            _this25.pendingSessionResolver = resolve;
+            _this25.pendingSessionRejector = reject;
+            _this25.pendingSessionTimeoutId = window.setTimeout(function () {
+              _this25.rejectPendingSessionRequest('Timed out while creating a chat session.');
             }, 15000);
           });
           this.connection.invoke("StartSession", profileId, null)["catch"](function (err) {
-            _this24.rejectPendingSessionRequest(err);
+            _this25.rejectPendingSessionRequest(err);
           });
           return this.pendingSessionPromise;
         },
@@ -2750,7 +2849,7 @@ window.coreAIChatManager = function () {
           this.pendingSessionTimeoutId = null;
         },
         initializeApp: function initializeApp() {
-          var _this25 = this;
+          var _this26 = this;
           this.inputElement = document.querySelector(config.inputElementSelector);
           this.buttonElement = document.querySelector(config.sendButtonElementSelector);
           this.chatContainer = document.querySelector(config.chatContainerElementSelector);
@@ -2786,7 +2885,7 @@ window.coreAIChatManager = function () {
                 fileInput.accept = config.allowedExtensions;
               }
               fileInput.addEventListener('change', function (e) {
-                return _this25.handleFileInputChange(e);
+                return _this26.handleFileInputChange(e);
               });
               this.documentBar.parentElement.appendChild(fileInput);
 
@@ -2794,13 +2893,13 @@ window.coreAIChatManager = function () {
               var inputArea = this.inputElement ? this.inputElement.closest('.ai-admin-widget-input, .text-bg-light') : null;
               if (inputArea) {
                 inputArea.addEventListener('dragover', function (e) {
-                  return _this25.handleDragOver(e);
+                  return _this26.handleDragOver(e);
                 });
                 inputArea.addEventListener('dragleave', function (e) {
-                  return _this25.handleDragLeave(e);
+                  return _this26.handleDragLeave(e);
                 });
                 inputArea.addEventListener('drop', function (e) {
-                  return _this25.handleDrop(e);
+                  return _this26.handleDrop(e);
                 });
               }
             }
@@ -2808,55 +2907,55 @@ window.coreAIChatManager = function () {
 
           // Pause auto-scroll when the user manually scrolls up during streaming.
           this.chatContainer.addEventListener('scroll', function () {
-            if (!_this25.stream) {
+            if (!_this26.stream) {
               return;
             }
             var threshold = 30;
-            var atBottom = _this25.chatContainer.scrollHeight - _this25.chatContainer.clientHeight - _this25.chatContainer.scrollTop <= threshold;
-            _this25.autoScroll = atBottom;
+            var atBottom = _this26.chatContainer.scrollHeight - _this26.chatContainer.clientHeight - _this26.chatContainer.scrollTop <= threshold;
+            _this26.autoScroll = atBottom;
           });
           this.inputElement.addEventListener('keydown', function (event) {
-            if (_this25.stream != null) {
+            if (_this26.stream != null) {
               return;
             }
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
-              _this25.buttonElement.click();
+              _this26.buttonElement.click();
             }
           });
           this.inputElement.addEventListener('input', function (e) {
-            _this25.handleUserInput(e);
+            _this26.handleUserInput(e);
             if (e.target.value.trim()) {
-              _this25.buttonElement.removeAttribute('disabled');
+              _this26.buttonElement.removeAttribute('disabled');
             } else {
-              _this25.buttonElement.setAttribute('disabled', true);
+              _this26.buttonElement.setAttribute('disabled', true);
             }
           });
           this.buttonElement.addEventListener('click', function () {
-            if (_this25.stream != null) {
-              _this25.stream.dispose();
-              _this25.stream = null;
-              _this25.streamingFinished();
-              _this25.hideTypingIndicator();
+            if (_this26.stream != null) {
+              _this26.stream.dispose();
+              _this26.stream = null;
+              _this26.streamingFinished();
+              _this26.hideTypingIndicator();
 
               // Clean up: remove empty assistant message or stop streaming animation.
-              if (_this25.messages.length > 0) {
-                var lastMsg = _this25.messages[_this25.messages.length - 1];
+              if (_this26.messages.length > 0) {
+                var lastMsg = _this26.messages[_this26.messages.length - 1];
                 if (lastMsg.role === 'assistant' && !lastMsg.content) {
-                  _this25.messages.pop();
+                  _this26.messages.pop();
                 } else if (lastMsg.isStreaming) {
                   lastMsg.isStreaming = false;
                 }
               }
               return;
             }
-            _this25.sendMessage();
+            _this26.sendMessage();
           });
           var promptGenerators = document.getElementsByClassName('profile-generated-prompt');
           for (var i = 0; i < promptGenerators.length; i++) {
             promptGenerators[i].addEventListener('click', function (e) {
               e.preventDefault();
-              _this25.generatePrompt(e.target);
+              _this26.generatePrompt(e.target);
             });
           }
           var chatSessions = document.getElementsByClassName('chat-session-history-item');
@@ -2868,8 +2967,8 @@ window.coreAIChatManager = function () {
                 console.error('an element with the class chat-session-history-item with no data-session-id set.');
                 return;
               }
-              _this25.loadSession(sessionId);
-              _this25.showChatScreen();
+              _this26.loadSession(sessionId);
+              _this26.showChatScreen();
             });
           }
           var initialMessages = Array.isArray(config.messages) ? config.messages : [];
@@ -2888,7 +2987,7 @@ window.coreAIChatManager = function () {
 
           // Update feedback icons in the DOM after initial messages have rendered.
           this.$nextTick(function () {
-            _this25.refreshAllFeedbackIcons();
+            _this26.refreshAllFeedbackIcons();
           });
 
           // Delegate click for code block copy buttons.
@@ -2920,7 +3019,7 @@ window.coreAIChatManager = function () {
             if (this.micButton) {
               this.micButton.style.display = '';
               this.micButton.addEventListener('click', function () {
-                _this25.toggleRecording();
+                _this26.toggleRecording();
               });
             }
           }
@@ -2930,8 +3029,13 @@ window.coreAIChatManager = function () {
             this.conversationButton = document.querySelector(config.conversationButtonElementSelector);
             if (this.conversationButton) {
               this.conversationButton.addEventListener('click', function () {
-                _this25.toggleConversationMode();
+                _this26.toggleConversationMode();
               });
+
+              // Realtime (speech-to-speech) exposes per-device audio settings next to the button.
+              if (this.realtimeEnabled) {
+                this.setupRealtimeAudioSettings();
+              }
             }
           }
           return true;
@@ -2996,24 +3100,24 @@ window.coreAIChatManager = function () {
             _message$copyContent,
             _event$target,
             _event$target$closest,
-            _this26 = this;
+            _this27 = this;
           var text = message && _typeof(message) === 'object' ? (_ref24 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref24 !== void 0 ? _ref24 : '' : message !== null && message !== void 0 ? message : '';
           var button = (event === null || event === void 0 ? void 0 : event.currentTarget) || (event === null || event === void 0 || (_event$target = event.target) === null || _event$target === void 0 || (_event$target$closest = _event$target.closest) === null || _event$target$closest === void 0 ? void 0 : _event$target$closest.call(_event$target, '[data-copy-message-index]')) || null;
           navigator.clipboard.writeText(text).then(function () {
-            _this26.clearCopiedMessageState();
-            _this26.copiedMessageIndex = typeof index === 'number' ? index : -1;
-            _this26.activeCopyButton = button;
+            _this27.clearCopiedMessageState();
+            _this27.copiedMessageIndex = typeof index === 'number' ? index : -1;
+            _this27.activeCopyButton = button;
             if (button) {
-              _this26.setCopyButtonState(button, true);
+              _this27.setCopyButtonState(button, true);
             } else {
-              _this26.$nextTick(function () {
-                return _this26.updateCopyButtons();
+              _this27.$nextTick(function () {
+                return _this27.updateCopyButtons();
               });
             }
-            _this26.copyResetTimeoutId = window.setTimeout(function () {
-              _this26.clearCopiedMessageState();
-              _this26.$nextTick(function () {
-                return _this26.updateCopyButtons();
+            _this27.copyResetTimeoutId = window.setTimeout(function () {
+              _this27.clearCopiedMessageState();
+              _this27.$nextTick(function () {
+                return _this27.updateCopyButtons();
               });
             }, Number(config.copyResetDelayMs) || 2000);
           })["catch"](function (err) {
@@ -3114,9 +3218,9 @@ window.coreAIChatManager = function () {
           // no longer mutes tracks; browser echo cancellation handles echo.
         },
         copiedMessageIndex: function copiedMessageIndex() {
-          var _this27 = this;
+          var _this28 = this;
           this.$nextTick(function () {
-            return _this27.updateCopyButtons();
+            return _this28.updateCopyButtons();
           });
         },
         isConversationMode: function isConversationMode(active) {
@@ -3140,23 +3244,23 @@ window.coreAIChatManager = function () {
         }
       },
       mounted: function mounted() {
-        var _this28 = this;
+        var _this29 = this;
         _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee0() {
           var isInitialized;
           return _regenerator().w(function (_context0) {
             while (1) switch (_context0.n) {
               case 0:
                 _context0.n = 1;
-                return _this28.startConnection();
+                return _this29.startConnection();
               case 1:
-                isInitialized = _this28.initializeApp();
+                isInitialized = _this29.initializeApp();
                 if (isInitialized && hasWidgetConfig && widgetBehavior && typeof widgetBehavior.onMounted === 'function') {
-                  widgetBehavior.onMounted(_this28, config);
+                  widgetBehavior.onMounted(_this29, config);
                 }
-                _this28.$nextTick(function () {
-                  _this28.updateCopyButtons();
-                  refreshFontAwesomeIcons(_this28.$el);
-                  _this28.fontAwesomeObserver = observeFontAwesomeIcons(_this28.$el);
+                _this29.$nextTick(function () {
+                  _this29.updateCopyButtons();
+                  refreshFontAwesomeIcons(_this29.$el);
+                  _this29.fontAwesomeObserver = observeFontAwesomeIcons(_this29.$el);
                 });
               case 2:
                 return _context0.a(2);
