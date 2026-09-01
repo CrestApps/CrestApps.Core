@@ -25,6 +25,16 @@ public interface IAIDeploymentCapabilityService
     AIDeploymentCapabilities GetCapabilities(AIDeployment deployment);
 
     /// <summary>
+    /// Determines whether the deployment supports the given feature, treating a deployment that declares
+    /// no capability metadata as supporting it (unconstrained). Use for opt-out features such as
+    /// <see cref="AIDeploymentFeatureNames.TextGeneration"/>, where a deployment is assumed capable unless
+    /// it explicitly declares metadata that omits the feature.
+    /// </summary>
+    /// <param name="deployment">The deployment to inspect.</param>
+    /// <param name="featureName">The technical name of the feature.</param>
+    bool SupportsFeatureOrUnconstrained(AIDeployment deployment, string featureName);
+
+    /// <summary>
     /// Gets the effective capabilities exposed by the deployment with the given technical name.
     /// </summary>
     /// <param name="deploymentName">The technical name of the deployment.</param>

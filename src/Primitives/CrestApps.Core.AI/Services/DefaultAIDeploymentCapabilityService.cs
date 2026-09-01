@@ -100,6 +100,24 @@ public sealed class DefaultAIDeploymentCapabilityService : IAIDeploymentCapabili
     }
 
     /// <inheritdoc/>
+    public bool SupportsFeatureOrUnconstrained(AIDeployment deployment, string featureName)
+    {
+        if (deployment is null || string.IsNullOrWhiteSpace(featureName))
+        {
+            return true;
+        }
+
+        // A deployment that declares no capability metadata is unconstrained, so it is assumed to support
+        // the feature (backward compatible). Once metadata is declared, the feature must be listed.
+        if (!deployment.TryGet<AIDeploymentMetadata>(out _))
+        {
+            return true;
+        }
+
+        return GetCapabilities(deployment).SupportsFeature(featureName);
+    }
+
+    /// <inheritdoc/>
     public async ValueTask<AIDeploymentCapabilities> GetCapabilitiesAsync(string deploymentName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(deploymentName))

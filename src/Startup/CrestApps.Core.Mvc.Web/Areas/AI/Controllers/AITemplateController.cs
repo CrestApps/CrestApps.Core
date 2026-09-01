@@ -1,6 +1,7 @@
 using System.Globalization;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Copilot.Models;
@@ -51,6 +52,7 @@ public sealed class AITemplateController : Controller
     private readonly AIToolDefinitionOptions _toolOptions;
     private readonly AIDeploymentParameterViewService _modelParameterViewService;
     private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
 
     public AITemplateController(
         ICatalog<AIProfileTemplate> catalog,
@@ -70,7 +72,8 @@ public sealed class AITemplateController : Controller
         GitHubOAuthService oauthService,
         IOptions<AIToolDefinitionOptions> toolOptions,
         AIDeploymentParameterViewService modelParameterViewService,
-        IAIToolAccessEvaluator toolAccessEvaluator)
+        IAIToolAccessEvaluator toolAccessEvaluator,
+        IAIDeploymentCapabilityService capabilityService)
     {
         _catalog = catalog;
         _deploymentCatalog = deploymentCatalog;
@@ -90,6 +93,7 @@ public sealed class AITemplateController : Controller
         _toolOptions = toolOptions.Value;
         _modelParameterViewService = modelParameterViewService;
         _toolAccessEvaluator = toolAccessEvaluator;
+        _capabilityService = capabilityService;
     }
 
     public async Task<IActionResult> Index()
@@ -118,6 +122,8 @@ public sealed class AITemplateController : Controller
         {
             ModelState.AddModelError(nameof(model.Source), "Source is required.");
         }
+
+        await ValidateDeploymentCapabilitiesAsync(model);
 
         if (!ModelState.IsValid)
         {
@@ -162,6 +168,8 @@ public sealed class AITemplateController : Controller
             ModelState.AddModelError(nameof(model.Name), "Technical name is required.");
         }
 
+        await ValidateDeploymentCapabilitiesAsync(model);
+
         if (!ModelState.IsValid)
         {
             await PopulateDropdownsAsync(model);
@@ -195,6 +203,26 @@ public sealed class AITemplateController : Controller
 
         await _catalog.DeleteAsync(template);
         return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Validates that the template's chat deployment can hold a text conversation, so a template does not
+    /// assign a speech-to-speech-only model to chat where it would fail silently at request time.
+    /// </summary>
+    private async Task ValidateDeploymentCapabilitiesAsync(AITemplateViewModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.ChatDeploymentName))
+        {
+            return;
+        }
+
+        var deployments = await _deploymentCatalog.GetAllAsync();
+        var chatDeployment = deployments.FirstOrDefault(deployment => string.Equals(deployment.Name, model.ChatDeploymentName, StringComparison.OrdinalIgnoreCase));
+
+        if (chatDeployment is not null && !_capabilityService.SupportsFeatureOrUnconstrained(chatDeployment, AIDeploymentFeatureNames.TextGeneration))
+        {
+            ModelState.AddModelError(nameof(model.ChatDeploymentName), "The selected chat deployment is a speech-to-speech-only model and cannot hold a text conversation. Choose a text-capable chat deployment.");
+        }
     }
 
     private async Task PopulateDropdownsAsync(AITemplateViewModel model)

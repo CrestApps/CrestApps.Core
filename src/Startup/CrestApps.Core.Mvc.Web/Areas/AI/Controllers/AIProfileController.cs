@@ -152,6 +152,8 @@ public sealed class AIProfileController : Controller
             ModelState.AddModelError(nameof(model.Name), "Name is required.");
         }
 
+        await ValidateDeploymentCapabilitiesAsync(model);
+
         if (!ModelState.IsValid)
         {
             if (!string.IsNullOrWhiteSpace(model.SelectedTemplateId))
@@ -217,6 +219,8 @@ public sealed class AIProfileController : Controller
             ModelState.AddModelError(nameof(model.Name), "Name is required.");
         }
 
+        await ValidateDeploymentCapabilitiesAsync(model);
+
         if (!ModelState.IsValid)
         {
             await PopulateAttachedDocumentsAsync(model, model.ItemId, AIReferenceTypes.Document.Profile);
@@ -263,6 +267,48 @@ public sealed class AIProfileController : Controller
         await _profileDocumentService.RemoveAllDocumentsAsync(profile);
         await _profileManager.DeleteAsync(profile);
         return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Validates that the selected deployments can perform the roles the profile assigns them: the chat
+    /// deployment (used for text turns) must be able to hold a text conversation, and a realtime profile's
+    /// realtime deployment must declare the realtime capability. This prevents a speech-to-speech-only model
+    /// from being used for text, which would otherwise fail silently at request time.
+    /// </summary>
+    private async Task ValidateDeploymentCapabilitiesAsync(AIProfileViewModel model)
+    {
+        // The chat deployment drives text turns in every non-realtime mode (realtime is voice-only), so it
+        // must be able to hold a text conversation. A realtime profile's realtime deployment must declare
+        // the realtime capability.
+        var validateChatText = model.ChatMode != ChatMode.Realtime && !string.IsNullOrWhiteSpace(model.ChatDeploymentName);
+        var validateRealtime = model.ChatMode == ChatMode.Realtime && !string.IsNullOrWhiteSpace(model.RealtimeDeploymentName);
+
+        if (!validateChatText && !validateRealtime)
+        {
+            return;
+        }
+
+        var deployments = await _deploymentCatalog.GetAllAsync();
+
+        if (validateChatText)
+        {
+            var chatDeployment = deployments.FirstOrDefault(deployment => string.Equals(deployment.Name, model.ChatDeploymentName, StringComparison.OrdinalIgnoreCase));
+
+            if (chatDeployment is not null && !_capabilityService.SupportsFeatureOrUnconstrained(chatDeployment, AIDeploymentFeatureNames.TextGeneration))
+            {
+                ModelState.AddModelError(nameof(model.ChatDeploymentName), "The selected chat deployment is a speech-to-speech-only model and cannot hold a text conversation. Choose a text-capable chat deployment; set the realtime model in the Realtime deployment field instead.");
+            }
+        }
+
+        if (validateRealtime)
+        {
+            var realtimeDeployment = deployments.FirstOrDefault(deployment => string.Equals(deployment.Name, model.RealtimeDeploymentName, StringComparison.OrdinalIgnoreCase));
+
+            if (realtimeDeployment is not null && !_capabilityService.GetCapabilities(realtimeDeployment).SupportsFeature(AIDeploymentFeatureNames.Realtime))
+            {
+                ModelState.AddModelError(nameof(model.RealtimeDeploymentName), "The selected realtime deployment does not declare the 'Realtime' capability. Enable it on the deployment's capabilities, or choose a realtime-capable deployment.");
+            }
+        }
     }
 
     private async Task PopulateDropdownsAsync(AIProfileViewModel model)
