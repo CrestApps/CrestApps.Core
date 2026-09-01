@@ -19,6 +19,14 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
         var tools = context.Tools ?? [];
         var hasTools = tools.Count > 0;
 
+        // The Microsoft.Extensions.AI VAD options cannot express silence duration / detection threshold, so
+        // carry them through RawRepresentationFactory for a provider that supports them (see AzureRealtimeProtocol).
+        var turnDetectionOverrides = new RealtimeTurnDetectionOverrides
+        {
+            SilenceDurationMs = context.SilenceDurationMs,
+            Threshold = context.VadThreshold,
+        };
+
         return new RealtimeSessionOptions
         {
             Model = context.Model,
@@ -27,6 +35,7 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
             MaxOutputTokens = context.MaxOutputTokens,
             InputAudioFormat = new RealtimeAudioFormat("audio/pcm", context.InputSampleRate),
             OutputAudioFormat = new RealtimeAudioFormat("audio/pcm", context.OutputSampleRate),
+            RawRepresentationFactory = turnDetectionOverrides.HasValues ? (() => turnDetectionOverrides) : null,
 
             // The realtime API accepts a single output modality; audio output still emits a text
             // transcript (response.output_audio_transcript.*) which drives the UI.

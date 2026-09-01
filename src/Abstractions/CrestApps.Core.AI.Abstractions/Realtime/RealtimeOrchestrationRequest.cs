@@ -38,6 +38,16 @@ public sealed class RealtimeOrchestrationRequest
     public string SpeechLanguage { get; init; }
 
     /// <summary>
+    /// Gets an optional server voice-activity silence duration (milliseconds) before the model ends a turn.
+    /// </summary>
+    public int? SilenceDurationMs { get; init; }
+
+    /// <summary>
+    /// Gets an optional server voice-activity detection threshold (0.0–1.0).
+    /// </summary>
+    public float? VadThreshold { get; init; }
+
+    /// <summary>
     /// Gets an optional delegate to further configure the prepared orchestration context.
     /// </summary>
     public Action<OrchestrationContext> ConfigureContext { get; init; }

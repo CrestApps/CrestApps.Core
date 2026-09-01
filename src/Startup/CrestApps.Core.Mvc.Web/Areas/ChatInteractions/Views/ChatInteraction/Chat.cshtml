@@ -1789,6 +1789,9 @@
             var realtimeNoiseSuppression = true;
             var realtimeAutoGain = true;
             var realtimeLanguage = '';
+            var realtimeTuneTurnDetection = false;
+            var realtimeSilenceMs = 500;
+            var realtimeVadThreshold = 0.5;
             var realtimeAudioSettingsBuilt = false;
 
             function toggleDataSourceDependentFields() {
@@ -2361,7 +2364,7 @@
             // Per-device audio preferences (barge-in / echo-guard delay) live in localStorage because they
             // depend on the listener's hardware (headset vs open speakers), not on the interaction.
             function loadRealtimeAudioPrefs() {
-                var prefs = { bargeIn: true, hangoverMs: 250, pushToTalk: false, volume: 1, micDeviceId: '', noiseSuppression: true, autoGain: true, language: '' };
+                var prefs = { bargeIn: true, hangoverMs: 250, pushToTalk: false, volume: 1, micDeviceId: '', noiseSuppression: true, autoGain: true, language: '', tuneTurnDetection: false, silenceMs: 500, vadThreshold: 0.5 };
                 try {
                     var raw = window.localStorage.getItem('coreai.realtime.audioPrefs');
                     if (raw) {
@@ -2370,8 +2373,15 @@
                         if (typeof parsed.pushToTalk === 'boolean') { prefs.pushToTalk = parsed.pushToTalk; }
                         if (typeof parsed.noiseSuppression === 'boolean') { prefs.noiseSuppression = parsed.noiseSuppression; }
                         if (typeof parsed.autoGain === 'boolean') { prefs.autoGain = parsed.autoGain; }
+                        if (typeof parsed.tuneTurnDetection === 'boolean') { prefs.tuneTurnDetection = parsed.tuneTurnDetection; }
                         if (typeof parsed.hangoverMs === 'number' && isFinite(parsed.hangoverMs)) {
                             prefs.hangoverMs = Math.min(2000, Math.max(0, parsed.hangoverMs));
+                        }
+                        if (typeof parsed.silenceMs === 'number' && isFinite(parsed.silenceMs)) {
+                            prefs.silenceMs = Math.min(2000, Math.max(100, parsed.silenceMs));
+                        }
+                        if (typeof parsed.vadThreshold === 'number' && isFinite(parsed.vadThreshold)) {
+                            prefs.vadThreshold = Math.min(1, Math.max(0, parsed.vadThreshold));
                         }
                         if (typeof parsed.volume === 'number' && isFinite(parsed.volume)) {
                             prefs.volume = Math.min(1, Math.max(0, parsed.volume));
@@ -2396,6 +2406,9 @@
                 realtimeNoiseSuppression = prefs.noiseSuppression !== false;
                 realtimeAutoGain = prefs.autoGain !== false;
                 realtimeLanguage = prefs.language || '';
+                realtimeTuneTurnDetection = !!prefs.tuneTurnDetection;
+                realtimeSilenceMs = (typeof prefs.silenceMs === 'number') ? prefs.silenceMs : 500;
+                realtimeVadThreshold = (typeof prefs.vadThreshold === 'number') ? prefs.vadThreshold : 0.5;
                 if (realtimeGain) { realtimeGain.gain.value = realtimeVolume; }
             }
 
@@ -2492,6 +2505,17 @@
                     '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Language</label>' +
                     '<select class="form-select form-select-sm js-lang mb-2">' + langOptions + '</select>' +
                     '<div class="form-check form-switch mb-1">' +
+                    '<input class="form-check-input js-tune" type="checkbox"' + (prefs.tuneTurnDetection ? ' checked' : '') + '>' +
+                    '<label class="form-check-label">Fine-tune turn detection</label>' +
+                    '</div>' +
+                    '<div class="js-tune-wrap mb-2"' + (prefs.tuneTurnDetection ? '' : ' style="display:none;"') + '>' +
+                    '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Reply after silence: <strong class="js-silence-val">' + prefs.silenceMs + '</strong> ms</label>' +
+                    '<input type="range" class="form-range js-silence" min="100" max="2000" step="100" value="' + prefs.silenceMs + '">' +
+                    '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Speech detection threshold: <strong class="js-thr-val">' + prefs.vadThreshold.toFixed(2) + '</strong></label>' +
+                    '<input type="range" class="form-range js-thr" min="0" max="1" step="0.05" value="' + prefs.vadThreshold + '">' +
+                    '<div class="form-text">Longer silence lets you pause without being cut off. Higher threshold needs louder speech, rejecting noise and echo. Applies to your next session.</div>' +
+                    '</div>' +
+                    '<div class="form-check form-switch mb-1">' +
                     '<input class="form-check-input js-ns" type="checkbox"' + (prefs.noiseSuppression ? ' checked' : '') + '>' +
                     '<label class="form-check-label">Noise suppression</label>' +
                     '</div>' +
@@ -2517,11 +2541,18 @@
                 var langSelect = panel.querySelector('.js-lang');
                 var nsInput = panel.querySelector('.js-ns');
                 var agcInput = panel.querySelector('.js-agc');
+                var tuneInput = panel.querySelector('.js-tune');
+                var tuneWrap = panel.querySelector('.js-tune-wrap');
+                var silenceInput = panel.querySelector('.js-silence');
+                var silenceVal = panel.querySelector('.js-silence-val');
+                var thrInput = panel.querySelector('.js-thr');
+                var thrVal = panel.querySelector('.js-thr-val');
 
                 function reflect() {
                     var guardActive = !bargeInput.checked && !pttInput.checked;
                     hangoverWrap.style.opacity = guardActive ? '1' : '0.5';
                     hangoverInput.disabled = !guardActive;
+                    tuneWrap.style.display = tuneInput.checked ? '' : 'none';
                 }
                 reflect();
 
@@ -2534,7 +2565,10 @@
                         micDeviceId: micSelect.value || '',
                         noiseSuppression: nsInput.checked,
                         autoGain: agcInput.checked,
-                        language: langSelect.value || ''
+                        language: langSelect.value || '',
+                        tuneTurnDetection: tuneInput.checked,
+                        silenceMs: parseInt(silenceInput.value, 10) || 500,
+                        vadThreshold: parseFloat(thrInput.value)
                     };
                     applyRealtimeAudioPrefs(next);
                     saveRealtimeAudioPrefs(next);
@@ -2569,6 +2603,9 @@
                 langSelect.addEventListener('change', persist);
                 nsInput.addEventListener('change', persist);
                 agcInput.addEventListener('change', persist);
+                tuneInput.addEventListener('change', function () { reflect(); persist(); });
+                silenceInput.addEventListener('input', function () { silenceVal.textContent = silenceInput.value; persist(); });
+                thrInput.addEventListener('input', function () { thrVal.textContent = parseFloat(thrInput.value).toFixed(2); persist(); });
             }
 
             function updateRealtimeButton() {
@@ -2723,8 +2760,10 @@
                                 zeroGain.connect(realtimeAudioCtx.destination);
 
                                 var language = realtimeLanguage || navigator.language || document.documentElement.lang || 'en-US';
+                                var silenceMs = realtimeTuneTurnDetection ? realtimeSilenceMs : null;
+                                var vadThreshold = realtimeTuneTurnDetection ? realtimeVadThreshold : null;
                                 var voice = realtimeVoiceName || '';
-                                connection.send('StartRealtimeConversation', itemId, realtimeSubject, voice, language);
+                                connection.send('StartRealtimeConversation', itemId, realtimeSubject, voice, language, silenceMs, vadThreshold);
                             })
                             .catch(function (err) {
                                 stream.getTracks().forEach(function (track) { track.stop(); });

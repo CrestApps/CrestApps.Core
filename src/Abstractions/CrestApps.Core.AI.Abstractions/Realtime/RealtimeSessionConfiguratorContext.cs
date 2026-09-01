@@ -59,4 +59,16 @@ public sealed class RealtimeSessionConfiguratorContext
     /// Gets an optional BCP-47 language hint for input transcription (e.g. "en").
     /// </summary>
     public string SpeechLanguage { get; init; }
+
+    /// <summary>
+    /// Gets an optional server voice-activity silence duration (milliseconds) — how long a pause the model
+    /// waits after speech stops before treating the turn as complete. <see langword="null"/> uses the provider default.
+    /// </summary>
+    public int? SilenceDurationMs { get; init; }
+
+    /// <summary>
+    /// Gets an optional server voice-activity detection threshold (0.0–1.0). Higher values require louder speech
+    /// to register, rejecting background noise and residual echo. <see langword="null"/> uses the provider default.
+    /// </summary>
+    public float? VadThreshold { get; init; }
 }

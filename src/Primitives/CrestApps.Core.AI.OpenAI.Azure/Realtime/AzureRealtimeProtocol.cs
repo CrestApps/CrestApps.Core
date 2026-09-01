@@ -2,6 +2,7 @@
 #nullable enable
 using System.Text;
 using System.Text.Json;
+using CrestApps.Core.AI.Realtime;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Realtime;
@@ -202,6 +203,22 @@ internal static class AzureRealtimeProtocol
                 writer.WriteString("type", "server_vad");
                 writer.WriteBoolean("create_response", true);
                 writer.WriteBoolean("interrupt_response", vad.AllowInterruption);
+
+                // Silence duration / detection threshold are not expressible via the MEAI VAD options, so they
+                // ride RawRepresentationFactory (see DefaultRealtimeSessionConfigurator / RealtimeTurnDetectionOverrides).
+                if (options.RawRepresentationFactory?.Invoke() is RealtimeTurnDetectionOverrides overrides)
+                {
+                    if (overrides.SilenceDurationMs is { } silenceMs)
+                    {
+                        writer.WriteNumber("silence_duration_ms", silenceMs);
+                    }
+
+                    if (overrides.Threshold is { } threshold)
+                    {
+                        writer.WriteNumber("threshold", threshold);
+                    }
+                }
+
                 writer.WriteEndObject();
             }
             else

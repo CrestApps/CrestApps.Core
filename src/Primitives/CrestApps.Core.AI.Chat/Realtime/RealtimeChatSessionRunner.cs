@@ -73,6 +73,8 @@ public sealed class RealtimeChatSessionRunner
                 Interaction = context.Interaction,
                 Voice = context.Voice,
                 SpeechLanguage = context.SpeechLanguage,
+                SilenceDurationMs = context.SilenceDurationMs,
+                VadThreshold = context.VadThreshold,
             },
             cancellationToken);
 

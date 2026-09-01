@@ -51,6 +51,16 @@ public sealed class RealtimeChatRunContext
     public string? SpeechLanguage { get; init; }
 
     /// <summary>
+    /// Gets an optional server voice-activity silence duration (milliseconds) before the model ends a turn.
+    /// </summary>
+    public int? SilenceDurationMs { get; init; }
+
+    /// <summary>
+    /// Gets an optional server voice-activity detection threshold (0.0–1.0).
+    /// </summary>
+    public float? VadThreshold { get; init; }
+
+    /// <summary>
     /// Gets an optional hook invoked after each completed user utterance is persisted (e.g. title generation).
     /// </summary>
     public Func<string, CancellationToken, Task>? OnUserUtteranceAsync { get; init; }

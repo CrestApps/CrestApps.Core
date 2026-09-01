@@ -720,7 +720,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// <param name="audioChunks">The stream of Base64-encoded PCM16 microphone audio chunks.</param>
     /// <param name="voice">An optional voice id override.</param>
     /// <param name="language">An optional BCP-47 language hint for input-audio transcription.</param>
-    public virtual async Task StartRealtimeConversation(string itemId, IAsyncEnumerable<string> audioChunks, string voice = null, string language = null)
+    public virtual async Task StartRealtimeConversation(string itemId, IAsyncEnumerable<string> audioChunks, string voice = null, string language = null, int? silenceDurationMs = null, float? vadThreshold = null)
     {
         if (string.IsNullOrWhiteSpace(itemId))
         {
@@ -799,6 +799,8 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                     SessionId = interaction.ItemId,
                     Interaction = interaction,
                     RealtimeDeploymentName = realtimeDeploymentName,
+                    SilenceDurationMs = silenceDurationMs,
+                    VadThreshold = vadThreshold,
                     Voice = effectiveVoice,
                     SpeechLanguage = language,
                     OnUserUtteranceAsync = async (text, turnCancellationToken) =>

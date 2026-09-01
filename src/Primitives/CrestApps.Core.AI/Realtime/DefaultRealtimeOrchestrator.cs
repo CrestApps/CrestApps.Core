@@ -108,6 +108,8 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             Tools = tools,
             MaxOutputTokens = context.CompletionContext?.MaxTokens,
             SpeechLanguage = request.SpeechLanguage,
+            SilenceDurationMs = request.SilenceDurationMs,
+            VadThreshold = request.VadThreshold,
         });
 
         var rawClient = await _clientFactory.CreateRealtimeClientAsync(deployment);
