@@ -2992,6 +2992,8 @@
             // --- Clear History ---
             document.getElementById('clear-history-btn').addEventListener('click', function () {
                 if (!confirm('Clear all messages?')) return;
+                // Force-stop a live realtime session before clearing so it doesn't keep running.
+                if (isRealtimeActive) { stopRealtimeConversation(); }
                 connection.invoke('ClearHistory', itemId).catch(function (err) {
                     console.error('Failed to clear history:', err);
                 });

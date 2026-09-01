@@ -1171,6 +1171,8 @@ window.coreAIChatManager = function () {
                   _this3.connection.keepAliveIntervalInMilliseconds = 15000;
                   _this3.connection.on("LoadSession", function (data) {
                     var _data$messages;
+                    // Switching to another session must not leave a prior realtime/voice session running.
+                    _this3.forceStopActiveVoice();
                     _this3.initializeSession(data.sessionId, true);
                     _this3.messages = [];
                     _this3.documents = data.documents || [];
@@ -2171,6 +2173,18 @@ window.coreAIChatManager = function () {
             this.startConversationMode();
           }
         },
+        // Force-stop any in-progress voice/realtime session (mic, playback, and the streamed audio),
+        // e.g. before starting a new chat or switching sessions, so it never keeps running in the background.
+        forceStopActiveVoice: function forceStopActiveVoice() {
+          if (!this.isConversationMode) {
+            return;
+          }
+          if (this.realtimeEnabled) {
+            this.stopRealtimeConversation();
+          } else {
+            this.stopConversationMode();
+          }
+        },
         startRealtimeConversation: function startRealtimeConversation() {
           var _this17 = this;
           if (!this.realtimeEnabled || this.isConversationMode || !this.connection) {
@@ -3037,6 +3051,8 @@ window.coreAIChatManager = function () {
           this.inputElement.setAttribute('data-session-id', sessionId || '');
         },
         resetSession: function resetSession() {
+          // Force-stop an in-progress voice/realtime conversation so it doesn't keep running under the new session.
+          this.forceStopActiveVoice();
           this.stopRecording();
           this.rejectPendingSessionRequest('Session was reset.');
           this.setSessionId('');
@@ -3067,6 +3083,9 @@ window.coreAIChatManager = function () {
           if (!profileId || !this.connection) {
             return;
           }
+
+          // Force-stop any live voice/realtime session before starting a new chat.
+          this.forceStopActiveVoice();
           this.requestNewSession(profileId)["catch"](function (err) {
             return console.error(err);
           });
