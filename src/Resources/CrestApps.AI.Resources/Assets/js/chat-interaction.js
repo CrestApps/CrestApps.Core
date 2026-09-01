@@ -605,6 +605,8 @@ window.chatInteractionManager = function () {
                     conversationModeEnabled: config.chatMode === 'Conversation',
                     conversationButton: null,
                     isConversationMode: false,
+                    // Realtime (speech-to-speech) controller from the shared CoreAIRealtime module.
+                    realtimeController: null,
                     notifications: [],
                     notificationDismissTimers: {},
                     copyTitle: config.copyTitle,
@@ -808,7 +810,12 @@ window.chatInteractionManager = function () {
                             for (let i = 0; i < binaryString.length; i++) {
                                 bytes[i] = binaryString.charCodeAt(i);
                             }
-                            this.audioChunks.push(bytes);
+                            // Realtime PCM streams straight to the low-latency player; other formats (TTS) are buffered.
+                            if (contentType === 'audio/pcm' && this.realtimeController) {
+                                this.realtimeController.receivePcm(bytes);
+                            } else {
+                                this.audioChunks.push(bytes);
+                            }
                         }
                     });
 
@@ -2044,6 +2051,47 @@ window.chatInteractionManager = function () {
                             });
                         }
                     }
+
+                    // Initialize realtime (speech-to-speech) mode via the shared CoreAIRealtime module. The
+                    // module owns the mic capture, playback, echo guard, push-to-talk and audio settings; the
+                    // callbacks below plug it into this app's connection and conversation-transcript display.
+                    if (window.CoreAIRealtime && config.realtimeButtonElementSelector) {
+                        this.realtimeController = window.CoreAIRealtime.attach({
+                            connection: this.connection,
+                            ensureConnected: () => Promise.resolve(this.connection),
+                            sendStart: (subject, voice, language, silenceMs, vadThreshold) => {
+                                this.connection.send('StartRealtimeConversation', this.getItemId(), subject, voice, language, silenceMs, vadThreshold);
+                            },
+                            voiceName: config.realtimeVoiceName || '',
+                            capableDeployments: config.realtimeCapableDeployments || [],
+                            realtimeEnabled: config.realtimeEnabled === true,
+                            selectors: {
+                                realtimeButton: config.realtimeButtonElementSelector,
+                                input: config.inputElementSelector,
+                                sendButton: config.sendButtonElementSelector,
+                                micButton: config.micButtonElementSelector,
+                                conversationButton: config.conversationButtonElementSelector,
+                                deploymentSelect: config.deploymentSelectElementSelector
+                            },
+                            onActivate: () => {
+                                this.isConversationMode = true;
+                                this._conversationPartialMessage = null;
+                                this._conversationAssistantMessage = null;
+                            },
+                            onDeactivate: () => {
+                                this.isConversationMode = false;
+                                if (this._conversationAssistantMessage) {
+                                    var m = this.messages[this._conversationAssistantMessage.index];
+                                    if (m) { m.isStreaming = false; }
+                                    this._conversationAssistantMessage = null;
+                                }
+                            },
+                            onEnterRealtimeMode: () => {
+                                if (this.isRecording) { this.stopRecording(); }
+                                if (this.isConversationMode && (!this.realtimeController || !this.realtimeController.isActive())) { this.stopConversationMode(); }
+                            }
+                        });
+                    }
                 },
                 loadInteraction(itemId) {
                     this.connection.invoke("LoadInteraction", itemId).catch(err => console.error(err));
@@ -2057,6 +2105,11 @@ window.chatInteractionManager = function () {
                 clearHistory(itemId) {
                     const self = this;
                     const clearHistoryConfirmed = () => {
+                        // Force-stop any live realtime voice session before clearing history.
+                        if (self.realtimeController && self.realtimeController.isActive()) {
+                            self.realtimeController.stop();
+                        }
+
                         // Cancel any active stream before clearing history.
                         if (self.stream) {
                             self.stream.dispose();
