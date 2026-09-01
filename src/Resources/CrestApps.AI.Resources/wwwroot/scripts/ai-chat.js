@@ -2290,6 +2290,10 @@ window.coreAIChatManager = function () {
                     vadThreshold = _this17._realtimeTuneTurnDetection ? _this17._realtimeVadThreshold : null;
                     _this17.connection.send("StartRealtimeConversation", profileId, sessionId, _this17._realtimeSubject, voice, language, silenceMs, vadThreshold);
                     _this17.isRecording = true;
+                    // In push-to-talk mode, show the hold-to-talk control + hint so the user knows how to speak.
+                    if (_this17._realtimePushToTalk) {
+                      _this17.buildRealtimePttUi();
+                    }
                   case 3:
                     return _context8.a(2);
                 }
@@ -2312,6 +2316,7 @@ window.coreAIChatManager = function () {
           this.isRecording = false;
           this.updateConversationButton();
           this.detachRealtimePushToTalk();
+          this.removeRealtimePttUi();
           try {
             if (this._realtimeSubject) {
               this._realtimeSubject.complete();
@@ -2515,18 +2520,77 @@ window.coreAIChatManager = function () {
             if (_this19._realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
               e.preventDefault();
               if (!e.repeat) {
-                _this19._realtimePttActive = true;
+                _this19.setRealtimePttActive(true);
               }
             }
           };
           this._realtimePttKeyUp = function (e) {
             if (_this19._realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
               e.preventDefault();
-              _this19._realtimePttActive = false;
+              _this19.setRealtimePttActive(false);
             }
           };
           document.addEventListener('keydown', this._realtimePttKeyDown, true);
           document.addEventListener('keyup', this._realtimePttKeyUp, true);
+        },
+        setRealtimePttActive: function setRealtimePttActive(active) {
+          this._realtimePttActive = active;
+          var btn = this._realtimePttButton;
+          if (btn) {
+            btn.classList.toggle('btn-danger', active);
+            btn.classList.toggle('btn-outline-primary', !active);
+            btn.innerHTML = active ? '<i class="bi bi-mic-fill me-1"></i> Listening…' : '<i class="bi bi-mic me-1"></i> Hold to talk';
+          }
+        },
+        // Shows a "hold to talk" control + hint while a push-to-talk realtime session is active, so the
+        // listener knows how to speak. The button works by press-and-hold on both touch and mouse; Space
+        // is the desktop shortcut.
+        buildRealtimePttUi: function buildRealtimePttUi() {
+          var _this20 = this;
+          if (!this.conversationButton || this._realtimePttUiEl) {
+            return;
+          }
+          var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+          var bar = document.createElement('div');
+          bar.className = 'text-center mt-2';
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn btn-outline-primary btn-sm';
+          btn.innerHTML = '<i class="bi bi-mic me-1"></i> Hold to talk';
+          var hint = document.createElement('div');
+          hint.className = 'form-text mt-1 mb-0';
+          hint.innerHTML = coarse ? 'Push-to-talk is on — press and hold the button to speak.' : 'Push-to-talk is on — hold <kbd>Space</kbd> or this button to speak.';
+          bar.appendChild(btn);
+          bar.appendChild(hint);
+          var row = this.conversationButton.parentElement;
+          if (row && row.parentElement) {
+            row.parentElement.appendChild(bar);
+          } else {
+            this.conversationButton.insertAdjacentElement('afterend', bar);
+          }
+          this._realtimePttButton = btn;
+          this._realtimePttUiEl = bar;
+          var down = function down(e) {
+            e.preventDefault();
+            _this20.setRealtimePttActive(true);
+          };
+          var up = function up() {
+            _this20.setRealtimePttActive(false);
+          };
+          btn.addEventListener('pointerdown', down);
+          btn.addEventListener('pointerup', up);
+          btn.addEventListener('pointerleave', up);
+          btn.addEventListener('pointercancel', up);
+          this.setRealtimePttActive(false);
+        },
+        removeRealtimePttUi: function removeRealtimePttUi() {
+          this._realtimePttButton = null;
+          if (this._realtimePttUiEl) {
+            try {
+              this._realtimePttUiEl.remove();
+            } catch (err) {}
+            this._realtimePttUiEl = null;
+          }
         },
         detachRealtimePushToTalk: function detachRealtimePushToTalk() {
           if (!this._realtimePttBound) {
@@ -2577,7 +2641,7 @@ window.coreAIChatManager = function () {
           return '<div class="card-body p-3">' + '<div class="fw-semibold mb-2" style="font-size:0.85rem;">Realtime audio</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-barge" type="checkbox"' + (prefs.bargeIn ? ' checked' : '') + '>' + '<label class="form-check-label">Allow interruptions (barge-in)</label>' + '</div>' + '<div class="form-text mb-2">On (default) lets you talk over the assistant. Turn <strong>off</strong> for open speakers so it never hears itself.</div>' + '<div class="js-hangover-wrap mb-2">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Echo guard delay: <strong class="js-hangover-val">' + prefs.hangoverMs + '</strong> ms</label>' + '<input type="range" class="form-range js-hangover" min="0" max="1000" step="50" value="' + prefs.hangoverMs + '">' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-ptt" type="checkbox"' + (prefs.pushToTalk ? ' checked' : '') + '>' + '<label class="form-check-label">Push-to-talk</label>' + '</div>' + '<div class="form-text mb-2">Hold <kbd>Space</kbd> to talk (desktop). Best for very noisy rooms.</div>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Assistant volume: <strong class="js-vol-val">' + Math.round(prefs.volume * 100) + '</strong>%</label>' + '<input type="range" class="form-range js-vol mb-2" min="0" max="100" step="5" value="' + Math.round(prefs.volume * 100) + '">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Microphone</label>' + '<select class="form-select form-select-sm js-mic mb-2"><option value="">Default microphone</option></select>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Language</label>' + '<select class="form-select form-select-sm js-lang mb-2">' + langOptions + '</select>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-tune" type="checkbox"' + (prefs.tuneTurnDetection ? ' checked' : '') + '>' + '<label class="form-check-label">Fine-tune turn detection</label>' + '</div>' + '<div class="js-tune-wrap mb-2"' + (prefs.tuneTurnDetection ? '' : ' style="display:none;"') + '>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Reply after silence: <strong class="js-silence-val">' + prefs.silenceMs + '</strong> ms</label>' + '<input type="range" class="form-range js-silence" min="100" max="2000" step="100" value="' + prefs.silenceMs + '">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Speech detection threshold: <strong class="js-thr-val">' + prefs.vadThreshold.toFixed(2) + '</strong></label>' + '<input type="range" class="form-range js-thr" min="0" max="1" step="0.05" value="' + prefs.vadThreshold + '">' + '<div class="form-text">Longer silence lets you pause without being cut off. Higher threshold needs louder speech, rejecting noise and echo. Applies to your next session.</div>' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-ns" type="checkbox"' + (prefs.noiseSuppression ? ' checked' : '') + '>' + '<label class="form-check-label">Noise suppression</label>' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-agc" type="checkbox"' + (prefs.autoGain ? ' checked' : '') + '>' + '<label class="form-check-label">Automatic gain</label>' + '</div>' + '<div class="form-text">Microphone, noise, gain and language changes apply to your next voice session.</div>' + '</div>';
         },
         wireRealtimeAudioSettings: function wireRealtimeAudioSettings(panel, gear) {
-          var _this20 = this;
+          var _this21 = this;
           var bargeInput = panel.querySelector('.js-barge');
           var hangoverInput = panel.querySelector('.js-hangover');
           var hangoverVal = panel.querySelector('.js-hangover-val');
@@ -2617,15 +2681,15 @@ window.coreAIChatManager = function () {
               silenceMs: parseInt(silenceInput.value, 10) || 500,
               vadThreshold: parseFloat(thrInput.value)
             };
-            _this20.applyRealtimeAudioPrefs(next);
-            _this20.saveRealtimeAudioPrefs(next);
+            _this21.applyRealtimeAudioPrefs(next);
+            _this21.saveRealtimeAudioPrefs(next);
           };
           var populateMics = function populateMics() {
             if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
               return;
             }
             navigator.mediaDevices.enumerateDevices().then(function (devices) {
-              var current = _this20._realtimeMicDeviceId || '';
+              var current = _this21._realtimeMicDeviceId || '';
               var opts = ['<option value="">Default microphone</option>'];
               devices.filter(function (d) {
                 return d.kind === 'audioinput';
@@ -2685,7 +2749,7 @@ window.coreAIChatManager = function () {
           });
         },
         startConversationMode: function startConversationMode() {
-          var _this21 = this;
+          var _this22 = this;
           if (!this.conversationModeEnabled || this.isConversationMode || !this.connection) {
             return;
           }
@@ -2704,8 +2768,8 @@ window.coreAIChatManager = function () {
               autoGainControl: true
             }
           }).then(function (stream) {
-            _this21._conversationSubject = new signalR.Subject();
-            _this21._conversationStream = stream;
+            _this22._conversationSubject = new signalR.Subject();
+            _this22._conversationStream = stream;
 
             // RMS (0..1) above which speech during TTS playback counts as an interrupt.
             var interruptRmsThreshold = 0.12;
@@ -2713,27 +2777,27 @@ window.coreAIChatManager = function () {
             // Capture raw 16 kHz PCM (16-bit mono) via Web Audio instead of MediaRecorder — see
             // startRecording for why WebM/Opus is avoided. The per-block RMS drives interrupt
             // detection during TTS playback, replacing the previous AnalyserNode.
-            _this21._conversationCapture = _this21._createPcmCapture(stream, function (base64, rms) {
-              if (_this21.isPlayingAudio && rms >= interruptRmsThreshold) {
+            _this22._conversationCapture = _this22._createPcmCapture(stream, function (base64, rms) {
+              if (_this22.isPlayingAudio && rms >= interruptRmsThreshold) {
                 // User is speaking over TTS — interrupt playback.
-                _this21.stopAudio();
+                _this22.stopAudio();
               }
               try {
-                _this21._conversationSubject.next(base64);
+                _this22._conversationSubject.next(base64);
               } catch (err) {
                 // Subject may have been completed already.
               }
             });
-            var profileId = _this21.getProfileId();
-            var sessionId = _this21.getSessionId() || '';
+            var profileId = _this22.getProfileId();
+            var sessionId = _this22.getSessionId() || '';
             var language = navigator.language || document.documentElement.lang || 'en-US';
-            var rate = _this21._conversationCapture && _this21._conversationCapture.sampleRate || 16000;
-            _this21.connection.send("StartConversation", profileId, sessionId, _this21._conversationSubject, "audio/pcm;rate=" + rate, language);
-            _this21.isRecording = true;
+            var rate = _this22._conversationCapture && _this22._conversationCapture.sampleRate || 16000;
+            _this22.connection.send("StartConversation", profileId, sessionId, _this22._conversationSubject, "audio/pcm;rate=" + rate, language);
+            _this22.isRecording = true;
           })["catch"](function (err) {
             console.error('Microphone access denied:', err);
-            _this21.isConversationMode = false;
-            _this21.updateConversationButton();
+            _this22.isConversationMode = false;
+            _this22.updateConversationButton();
           });
         },
         stopConversationMode: function stopConversationMode() {
@@ -2859,7 +2923,7 @@ window.coreAIChatManager = function () {
           return removedCount;
         },
         receiveNotification: function receiveNotification(notification) {
-          var _this22 = this;
+          var _this23 = this;
           if (!notification || !notification.type) {
             return;
           }
@@ -2874,7 +2938,7 @@ window.coreAIChatManager = function () {
           }
           this.scheduleNotificationDismiss(notification);
           this.$nextTick(function () {
-            _this22.scrollToBottom();
+            _this23.scrollToBottom();
           });
         },
         updateNotification: function updateNotification(notification) {
@@ -2891,12 +2955,12 @@ window.coreAIChatManager = function () {
           }
         },
         scheduleNotificationDismiss: function scheduleNotificationDismiss(notification) {
-          var _this23 = this;
+          var _this24 = this;
           if (!notification || !notification.type || !notification.autoDismissMs || notification.autoDismissMs <= 0) {
             return;
           }
           this.notificationDismissTimers[notification.type] = setTimeout(function () {
-            _this23.removeNotification(notification.type);
+            _this24.removeNotification(notification.type);
           }, notification.autoDismissMs);
         },
         clearNotificationDismiss: function clearNotificationDismiss(notificationType) {
@@ -2926,12 +2990,12 @@ window.coreAIChatManager = function () {
           });
         },
         scrollToBottom: function scrollToBottom() {
-          var _this24 = this;
+          var _this25 = this;
           if (!this.autoScroll) {
             return;
           }
           setTimeout(function () {
-            _this24.chatContainer.scrollTop = _this24.chatContainer.scrollHeight - _this24.chatContainer.clientHeight;
+            _this25.chatContainer.scrollTop = _this25.chatContainer.scrollHeight - _this25.chatContainer.clientHeight;
           }, 50);
         },
         handleUserInput: function handleUserInput(event) {
@@ -2982,27 +3046,27 @@ window.coreAIChatManager = function () {
           });
         },
         ensureSessionForDocuments: function ensureSessionForDocuments(profileId) {
-          var _this25 = this;
+          var _this26 = this;
           return _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee9() {
             var sessionId;
             return _regenerator().w(function (_context9) {
               while (1) switch (_context9.n) {
                 case 0:
-                  sessionId = _this25.getSessionId();
+                  sessionId = _this26.getSessionId();
                   if (!sessionId) {
                     _context9.n = 1;
                     break;
                   }
                   return _context9.a(2, sessionId);
                 case 1:
-                  if (!(!profileId || !_this25.connection)) {
+                  if (!(!profileId || !_this26.connection)) {
                     _context9.n = 2;
                     break;
                   }
                   return _context9.a(2, null);
                 case 2:
                   _context9.n = 3;
-                  return _this25.requestNewSession(profileId);
+                  return _this26.requestNewSession(profileId);
                 case 3:
                   return _context9.a(2, _context9.v);
               }
@@ -3010,7 +3074,7 @@ window.coreAIChatManager = function () {
           }))();
         },
         requestNewSession: function requestNewSession(profileId) {
-          var _this26 = this;
+          var _this27 = this;
           if (this.pendingSessionPromise) {
             return this.pendingSessionPromise;
           }
@@ -3018,14 +3082,14 @@ window.coreAIChatManager = function () {
             return Promise.resolve(null);
           }
           this.pendingSessionPromise = new Promise(function (resolve, reject) {
-            _this26.pendingSessionResolver = resolve;
-            _this26.pendingSessionRejector = reject;
-            _this26.pendingSessionTimeoutId = window.setTimeout(function () {
-              _this26.rejectPendingSessionRequest('Timed out while creating a chat session.');
+            _this27.pendingSessionResolver = resolve;
+            _this27.pendingSessionRejector = reject;
+            _this27.pendingSessionTimeoutId = window.setTimeout(function () {
+              _this27.rejectPendingSessionRequest('Timed out while creating a chat session.');
             }, 15000);
           });
           this.connection.invoke("StartSession", profileId, null)["catch"](function (err) {
-            _this26.rejectPendingSessionRequest(err);
+            _this27.rejectPendingSessionRequest(err);
           });
           return this.pendingSessionPromise;
         },
@@ -3051,7 +3115,7 @@ window.coreAIChatManager = function () {
           this.pendingSessionTimeoutId = null;
         },
         initializeApp: function initializeApp() {
-          var _this27 = this;
+          var _this28 = this;
           this.inputElement = document.querySelector(config.inputElementSelector);
           this.buttonElement = document.querySelector(config.sendButtonElementSelector);
           this.chatContainer = document.querySelector(config.chatContainerElementSelector);
@@ -3087,7 +3151,7 @@ window.coreAIChatManager = function () {
                 fileInput.accept = config.allowedExtensions;
               }
               fileInput.addEventListener('change', function (e) {
-                return _this27.handleFileInputChange(e);
+                return _this28.handleFileInputChange(e);
               });
               this.documentBar.parentElement.appendChild(fileInput);
 
@@ -3095,13 +3159,13 @@ window.coreAIChatManager = function () {
               var inputArea = this.inputElement ? this.inputElement.closest('.ai-admin-widget-input, .text-bg-light') : null;
               if (inputArea) {
                 inputArea.addEventListener('dragover', function (e) {
-                  return _this27.handleDragOver(e);
+                  return _this28.handleDragOver(e);
                 });
                 inputArea.addEventListener('dragleave', function (e) {
-                  return _this27.handleDragLeave(e);
+                  return _this28.handleDragLeave(e);
                 });
                 inputArea.addEventListener('drop', function (e) {
-                  return _this27.handleDrop(e);
+                  return _this28.handleDrop(e);
                 });
               }
             }
@@ -3109,55 +3173,55 @@ window.coreAIChatManager = function () {
 
           // Pause auto-scroll when the user manually scrolls up during streaming.
           this.chatContainer.addEventListener('scroll', function () {
-            if (!_this27.stream) {
+            if (!_this28.stream) {
               return;
             }
             var threshold = 30;
-            var atBottom = _this27.chatContainer.scrollHeight - _this27.chatContainer.clientHeight - _this27.chatContainer.scrollTop <= threshold;
-            _this27.autoScroll = atBottom;
+            var atBottom = _this28.chatContainer.scrollHeight - _this28.chatContainer.clientHeight - _this28.chatContainer.scrollTop <= threshold;
+            _this28.autoScroll = atBottom;
           });
           this.inputElement.addEventListener('keydown', function (event) {
-            if (_this27.stream != null) {
+            if (_this28.stream != null) {
               return;
             }
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
-              _this27.buttonElement.click();
+              _this28.buttonElement.click();
             }
           });
           this.inputElement.addEventListener('input', function (e) {
-            _this27.handleUserInput(e);
+            _this28.handleUserInput(e);
             if (e.target.value.trim()) {
-              _this27.buttonElement.removeAttribute('disabled');
+              _this28.buttonElement.removeAttribute('disabled');
             } else {
-              _this27.buttonElement.setAttribute('disabled', true);
+              _this28.buttonElement.setAttribute('disabled', true);
             }
           });
           this.buttonElement.addEventListener('click', function () {
-            if (_this27.stream != null) {
-              _this27.stream.dispose();
-              _this27.stream = null;
-              _this27.streamingFinished();
-              _this27.hideTypingIndicator();
+            if (_this28.stream != null) {
+              _this28.stream.dispose();
+              _this28.stream = null;
+              _this28.streamingFinished();
+              _this28.hideTypingIndicator();
 
               // Clean up: remove empty assistant message or stop streaming animation.
-              if (_this27.messages.length > 0) {
-                var lastMsg = _this27.messages[_this27.messages.length - 1];
+              if (_this28.messages.length > 0) {
+                var lastMsg = _this28.messages[_this28.messages.length - 1];
                 if (lastMsg.role === 'assistant' && !lastMsg.content) {
-                  _this27.messages.pop();
+                  _this28.messages.pop();
                 } else if (lastMsg.isStreaming) {
                   lastMsg.isStreaming = false;
                 }
               }
               return;
             }
-            _this27.sendMessage();
+            _this28.sendMessage();
           });
           var promptGenerators = document.getElementsByClassName('profile-generated-prompt');
           for (var i = 0; i < promptGenerators.length; i++) {
             promptGenerators[i].addEventListener('click', function (e) {
               e.preventDefault();
-              _this27.generatePrompt(e.target);
+              _this28.generatePrompt(e.target);
             });
           }
           var chatSessions = document.getElementsByClassName('chat-session-history-item');
@@ -3169,8 +3233,8 @@ window.coreAIChatManager = function () {
                 console.error('an element with the class chat-session-history-item with no data-session-id set.');
                 return;
               }
-              _this27.loadSession(sessionId);
-              _this27.showChatScreen();
+              _this28.loadSession(sessionId);
+              _this28.showChatScreen();
             });
           }
           var initialMessages = Array.isArray(config.messages) ? config.messages : [];
@@ -3189,7 +3253,7 @@ window.coreAIChatManager = function () {
 
           // Update feedback icons in the DOM after initial messages have rendered.
           this.$nextTick(function () {
-            _this27.refreshAllFeedbackIcons();
+            _this28.refreshAllFeedbackIcons();
           });
 
           // Delegate click for code block copy buttons.
@@ -3221,7 +3285,7 @@ window.coreAIChatManager = function () {
             if (this.micButton) {
               this.micButton.style.display = '';
               this.micButton.addEventListener('click', function () {
-                _this27.toggleRecording();
+                _this28.toggleRecording();
               });
             }
           }
@@ -3231,7 +3295,7 @@ window.coreAIChatManager = function () {
             this.conversationButton = document.querySelector(config.conversationButtonElementSelector);
             if (this.conversationButton) {
               this.conversationButton.addEventListener('click', function () {
-                _this27.toggleConversationMode();
+                _this28.toggleConversationMode();
               });
 
               // Realtime (speech-to-speech) exposes per-device audio settings next to the button.
@@ -3302,24 +3366,24 @@ window.coreAIChatManager = function () {
             _message$copyContent,
             _event$target,
             _event$target$closest,
-            _this28 = this;
+            _this29 = this;
           var text = message && _typeof(message) === 'object' ? (_ref24 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref24 !== void 0 ? _ref24 : '' : message !== null && message !== void 0 ? message : '';
           var button = (event === null || event === void 0 ? void 0 : event.currentTarget) || (event === null || event === void 0 || (_event$target = event.target) === null || _event$target === void 0 || (_event$target$closest = _event$target.closest) === null || _event$target$closest === void 0 ? void 0 : _event$target$closest.call(_event$target, '[data-copy-message-index]')) || null;
           navigator.clipboard.writeText(text).then(function () {
-            _this28.clearCopiedMessageState();
-            _this28.copiedMessageIndex = typeof index === 'number' ? index : -1;
-            _this28.activeCopyButton = button;
+            _this29.clearCopiedMessageState();
+            _this29.copiedMessageIndex = typeof index === 'number' ? index : -1;
+            _this29.activeCopyButton = button;
             if (button) {
-              _this28.setCopyButtonState(button, true);
+              _this29.setCopyButtonState(button, true);
             } else {
-              _this28.$nextTick(function () {
-                return _this28.updateCopyButtons();
+              _this29.$nextTick(function () {
+                return _this29.updateCopyButtons();
               });
             }
-            _this28.copyResetTimeoutId = window.setTimeout(function () {
-              _this28.clearCopiedMessageState();
-              _this28.$nextTick(function () {
-                return _this28.updateCopyButtons();
+            _this29.copyResetTimeoutId = window.setTimeout(function () {
+              _this29.clearCopiedMessageState();
+              _this29.$nextTick(function () {
+                return _this29.updateCopyButtons();
               });
             }, Number(config.copyResetDelayMs) || 2000);
           })["catch"](function (err) {
@@ -3420,9 +3484,9 @@ window.coreAIChatManager = function () {
           // no longer mutes tracks; browser echo cancellation handles echo.
         },
         copiedMessageIndex: function copiedMessageIndex() {
-          var _this29 = this;
+          var _this30 = this;
           this.$nextTick(function () {
-            return _this29.updateCopyButtons();
+            return _this30.updateCopyButtons();
           });
         },
         isConversationMode: function isConversationMode(active) {
@@ -3446,23 +3510,23 @@ window.coreAIChatManager = function () {
         }
       },
       mounted: function mounted() {
-        var _this30 = this;
+        var _this31 = this;
         _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee0() {
           var isInitialized;
           return _regenerator().w(function (_context0) {
             while (1) switch (_context0.n) {
               case 0:
                 _context0.n = 1;
-                return _this30.startConnection();
+                return _this31.startConnection();
               case 1:
-                isInitialized = _this30.initializeApp();
+                isInitialized = _this31.initializeApp();
                 if (isInitialized && hasWidgetConfig && widgetBehavior && typeof widgetBehavior.onMounted === 'function') {
-                  widgetBehavior.onMounted(_this30, config);
+                  widgetBehavior.onMounted(_this31, config);
                 }
-                _this30.$nextTick(function () {
-                  _this30.updateCopyButtons();
-                  refreshFontAwesomeIcons(_this30.$el);
-                  _this30.fontAwesomeObserver = observeFontAwesomeIcons(_this30.$el);
+                _this31.$nextTick(function () {
+                  _this31.updateCopyButtons();
+                  refreshFontAwesomeIcons(_this31.$el);
+                  _this31.fontAwesomeObserver = observeFontAwesomeIcons(_this31.$el);
                 });
               case 2:
                 return _context0.a(2);

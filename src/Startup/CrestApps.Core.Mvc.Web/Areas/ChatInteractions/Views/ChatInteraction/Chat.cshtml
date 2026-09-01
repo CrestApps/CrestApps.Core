@@ -1784,6 +1784,8 @@
             var realtimePttBound = false;
             var realtimePttKeyDown = null;
             var realtimePttKeyUp = null;
+            var realtimePttButton = null;
+            var realtimePttUiEl = null;
             var realtimeVolume = 1;
             var realtimeMicDeviceId = '';
             var realtimeNoiseSuppression = true;
@@ -2423,17 +2425,63 @@
                 realtimePttKeyDown = function (e) {
                     if (realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
                         e.preventDefault();
-                        if (!e.repeat) { realtimePttActive = true; }
+                        if (!e.repeat) { setRealtimePttActive(true); }
                     }
                 };
                 realtimePttKeyUp = function (e) {
                     if (realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
                         e.preventDefault();
-                        realtimePttActive = false;
+                        setRealtimePttActive(false);
                     }
                 };
                 document.addEventListener('keydown', realtimePttKeyDown, true);
                 document.addEventListener('keyup', realtimePttKeyUp, true);
+            }
+
+            function setRealtimePttActive(active) {
+                realtimePttActive = active;
+                if (realtimePttButton) {
+                    realtimePttButton.classList.toggle('btn-danger', active);
+                    realtimePttButton.classList.toggle('btn-outline-primary', !active);
+                    realtimePttButton.innerHTML = active
+                        ? '<i class="bi bi-mic-fill me-1"></i> Listening…'
+                        : '<i class="bi bi-mic me-1"></i> Hold to talk';
+                }
+            }
+
+            // Shows a "hold to talk" control + hint while a push-to-talk realtime session is active.
+            function buildRealtimePttUi() {
+                var realtimeBtn = document.getElementById('realtime-btn');
+                if (!realtimeBtn || realtimePttUiEl) { return; }
+                var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+                var bar = document.createElement('div');
+                bar.className = 'text-center mt-2';
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-outline-primary btn-sm';
+                btn.innerHTML = '<i class="bi bi-mic me-1"></i> Hold to talk';
+                var hint = document.createElement('div');
+                hint.className = 'form-text mt-1 mb-0';
+                hint.innerHTML = coarse
+                    ? 'Push-to-talk is on — press and hold the button to speak.'
+                    : 'Push-to-talk is on — hold <kbd>Space</kbd> or this button to speak.';
+                bar.appendChild(btn);
+                bar.appendChild(hint);
+                var row = realtimeBtn.parentElement;
+                if (row && row.parentElement) { row.parentElement.appendChild(bar); }
+                else { realtimeBtn.insertAdjacentElement('afterend', bar); }
+                realtimePttButton = btn;
+                realtimePttUiEl = bar;
+                btn.addEventListener('pointerdown', function (e) { e.preventDefault(); setRealtimePttActive(true); });
+                btn.addEventListener('pointerup', function () { setRealtimePttActive(false); });
+                btn.addEventListener('pointerleave', function () { setRealtimePttActive(false); });
+                btn.addEventListener('pointercancel', function () { setRealtimePttActive(false); });
+                setRealtimePttActive(false);
+            }
+
+            function removeRealtimePttUi() {
+                realtimePttButton = null;
+                if (realtimePttUiEl) { try { realtimePttUiEl.remove(); } catch (err) { } realtimePttUiEl = null; }
             }
 
             function detachRealtimePushToTalk() {
@@ -2757,6 +2805,8 @@
                                 var vadThreshold = realtimeTuneTurnDetection ? realtimeVadThreshold : null;
                                 var voice = realtimeVoiceName || '';
                                 connection.send('StartRealtimeConversation', itemId, realtimeSubject, voice, language, silenceMs, vadThreshold);
+                                // In push-to-talk mode, show the hold-to-talk control + hint so the user knows how to speak.
+                                if (realtimePushToTalk) { buildRealtimePttUi(); }
                             })
                             .catch(function (err) {
                                 stream.getTracks().forEach(function (track) { track.stop(); });
@@ -2783,6 +2833,7 @@
                 isConversationMode = false;
                 updateRealtimeButton();
                 detachRealtimePushToTalk();
+                removeRealtimePttUi();
 
                 try { if (realtimeSubject) { realtimeSubject.complete(); } } catch (err) { /* already completed */ }
                 realtimeSubject = null;

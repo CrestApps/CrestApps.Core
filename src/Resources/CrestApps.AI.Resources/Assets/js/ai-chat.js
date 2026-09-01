@@ -2209,6 +2209,8 @@ window.coreAIChatManager = function () {
 
                             this.connection.send("StartRealtimeConversation", profileId, sessionId, this._realtimeSubject, voice, language, silenceMs, vadThreshold);
                             this.isRecording = true;
+                            // In push-to-talk mode, show the hold-to-talk control + hint so the user knows how to speak.
+                            if (this._realtimePushToTalk) { this.buildRealtimePttUi(); }
                         })
                         .catch(err => {
                             console.error('Microphone access denied:', err);
@@ -2225,6 +2227,7 @@ window.coreAIChatManager = function () {
                     this.isRecording = false;
                     this.updateConversationButton();
                     this.detachRealtimePushToTalk();
+                    this.removeRealtimePttUi();
 
                     try {
                         if (this._realtimeSubject) { this._realtimeSubject.complete(); }
@@ -2356,17 +2359,64 @@ window.coreAIChatManager = function () {
                     this._realtimePttKeyDown = (e) => {
                         if (this._realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
                             e.preventDefault();
-                            if (!e.repeat) { this._realtimePttActive = true; }
+                            if (!e.repeat) { this.setRealtimePttActive(true); }
                         }
                     };
                     this._realtimePttKeyUp = (e) => {
                         if (this._realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
                             e.preventDefault();
-                            this._realtimePttActive = false;
+                            this.setRealtimePttActive(false);
                         }
                     };
                     document.addEventListener('keydown', this._realtimePttKeyDown, true);
                     document.addEventListener('keyup', this._realtimePttKeyUp, true);
+                },
+                setRealtimePttActive(active) {
+                    this._realtimePttActive = active;
+                    var btn = this._realtimePttButton;
+                    if (btn) {
+                        btn.classList.toggle('btn-danger', active);
+                        btn.classList.toggle('btn-outline-primary', !active);
+                        btn.innerHTML = active
+                            ? '<i class="bi bi-mic-fill me-1"></i> Listening…'
+                            : '<i class="bi bi-mic me-1"></i> Hold to talk';
+                    }
+                },
+                // Shows a "hold to talk" control + hint while a push-to-talk realtime session is active, so the
+                // listener knows how to speak. The button works by press-and-hold on both touch and mouse; Space
+                // is the desktop shortcut.
+                buildRealtimePttUi() {
+                    if (!this.conversationButton || this._realtimePttUiEl) { return; }
+                    var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+                    var bar = document.createElement('div');
+                    bar.className = 'text-center mt-2';
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'btn btn-outline-primary btn-sm';
+                    btn.innerHTML = '<i class="bi bi-mic me-1"></i> Hold to talk';
+                    var hint = document.createElement('div');
+                    hint.className = 'form-text mt-1 mb-0';
+                    hint.innerHTML = coarse
+                        ? 'Push-to-talk is on — press and hold the button to speak.'
+                        : 'Push-to-talk is on — hold <kbd>Space</kbd> or this button to speak.';
+                    bar.appendChild(btn);
+                    bar.appendChild(hint);
+                    var row = this.conversationButton.parentElement;
+                    if (row && row.parentElement) { row.parentElement.appendChild(bar); }
+                    else { this.conversationButton.insertAdjacentElement('afterend', bar); }
+                    this._realtimePttButton = btn;
+                    this._realtimePttUiEl = bar;
+                    var down = (e) => { e.preventDefault(); this.setRealtimePttActive(true); };
+                    var up = () => { this.setRealtimePttActive(false); };
+                    btn.addEventListener('pointerdown', down);
+                    btn.addEventListener('pointerup', up);
+                    btn.addEventListener('pointerleave', up);
+                    btn.addEventListener('pointercancel', up);
+                    this.setRealtimePttActive(false);
+                },
+                removeRealtimePttUi() {
+                    this._realtimePttButton = null;
+                    if (this._realtimePttUiEl) { try { this._realtimePttUiEl.remove(); } catch (err) { } this._realtimePttUiEl = null; }
                 },
                 detachRealtimePushToTalk() {
                     if (!this._realtimePttBound) { return; }
