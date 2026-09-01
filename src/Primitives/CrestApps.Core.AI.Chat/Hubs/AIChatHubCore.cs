@@ -341,6 +341,15 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     }
 
     /// <summary>
+    /// Gets the message shown when a completion returns no content, which usually means the resolved
+    /// deployment could not handle the request (for example a speech-to-speech-only model used for text).
+    /// </summary>
+    protected virtual string GetEmptyResponseMessage()
+    {
+        return "The model returned no response. The selected chat deployment may not support text conversation. Check the deployment's capabilities or choose a different chat deployment for this profile.";
+    }
+
+    /// <summary>
     /// Validates the user prompt against the security service.
     /// </summary>
     /// <param name="services">The service provider.</param>
@@ -1632,6 +1641,22 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     assistantMessage.ItemId,
                     chatSession.SessionId);
             }
+        }
+        else
+        {
+            // The completion produced no content. This commonly happens when the resolved deployment cannot
+            // handle the request (for example a speech-to-speech-only model used for a text turn), where the
+            // provider client logs the failure and returns an empty result. Surface a message so the user is
+            // not left with a silent, empty reply.
+            Logger.LogWarning("The chat completion for session {SessionId} produced no content.", chatSession.SessionId);
+
+            var emptyMessage = new CompletionPartialMessage
+            {
+                SessionId = chatSession.SessionId,
+                MessageId = assistantMessage.ItemId,
+                Content = GetEmptyResponseMessage(),
+            };
+            await writer.WriteAsync(emptyMessage, cancellationToken);
         }
 
         var prompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
