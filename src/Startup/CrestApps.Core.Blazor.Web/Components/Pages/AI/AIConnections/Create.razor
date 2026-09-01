@@ -18,7 +18,7 @@
 
 <EditForm FormName="ai-aiconnections-create" Model="_model" OnValidSubmit="HandleSubmitAsync">
     <div class="row">
-        <div class="col-md-8">
+        <div class="col-12">
             <div class="mb-3">
                 <label for="connectionTitle" class="form-label">Title</label>
                 <input id="connectionTitle" class="form-control" value="@_model.DisplayText" @oninput="e => _model.DisplayText = e.Value?.ToString()" placeholder="e.g., My OpenAI Connection" />
