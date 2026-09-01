@@ -2763,24 +2763,23 @@
                                 realtimeMicSource = source;
 
                                 processor.onaudioprocess = function (event) {
-                                    if (realtimePushToTalk) {
-                                        // Push-to-talk: only stream while the listener is holding the talk key.
-                                        if (!realtimePttActive) {
-                                            return;
-                                        }
-                                    } else {
-                                        // Half-duplex echo guard: drop the mic frame while the assistant is still
-                                        // playing back (plus a hangover for the room echo tail) so the model does
-                                        // not hear and reply to its own voice. Skipped when barge-in is on.
-                                        if (!realtimeBargeIn && realtimeAudioCtx && realtimeAudioCtx.currentTime < realtimePlayHead + realtimeHangoverSec) {
-                                            return;
-                                        }
-                                    }
                                     var input = event.inputBuffer.getChannelData(0);
+                                    // Always send a frame (silence when muted) so the server keeps a continuous
+                                    // audio stream and its voice-activity detector promptly notices the pause and
+                                    // responds. Muted cases: push-to-talk not held, or the half-duplex echo guard
+                                    // while the assistant is still playing back (skipped when barge-in is on).
+                                    var muted;
+                                    if (realtimePushToTalk) {
+                                        muted = !realtimePttActive;
+                                    } else {
+                                        muted = !realtimeBargeIn && realtimeAudioCtx && realtimeAudioCtx.currentTime < realtimePlayHead + realtimeHangoverSec;
+                                    }
                                     var pcm = new Int16Array(input.length);
-                                    for (var i = 0; i < input.length; i++) {
-                                        var s = Math.max(-1, Math.min(1, input[i]));
-                                        pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                                    if (!muted) {
+                                        for (var i = 0; i < input.length; i++) {
+                                            var s = Math.max(-1, Math.min(1, input[i]));
+                                            pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                                        }
                                     }
                                     var bytes = new Uint8Array(pcm.buffer);
                                     var binary = '';

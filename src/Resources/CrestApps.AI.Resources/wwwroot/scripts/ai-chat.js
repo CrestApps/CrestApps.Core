@@ -1268,6 +1268,11 @@ window.coreAIChatManager = function () {
                     }
                   });
                   _this3.connection.on("ReceiveConversationUserMessage", function (sessionId, text) {
+                    // Realtime creates the chat session server-side; adopt its id (and update the page URL)
+                    // on the first turn so a refresh reloads the conversation instead of starting fresh.
+                    if (sessionId && _this3.getSessionId() !== sessionId) {
+                      _this3.initializeSession(sessionId);
+                    }
                     if (text) {
                       _this3.stopAudio();
 
@@ -2242,26 +2247,25 @@ window.coreAIChatManager = function () {
                     _this17._realtimeProcessor = processor;
                     _this17._realtimeMicSource = source;
                     processor.onaudioprocess = function (event) {
-                      if (_this17._realtimePushToTalk) {
-                        // Push-to-talk: only stream while the listener is holding the talk key.
-                        if (!_this17._realtimePttActive) {
-                          return;
-                        }
-                      } else {
-                        // Half-duplex echo guard: while the assistant is still playing back (its
-                        // scheduled audio extends past now), plus a short hangover for the room echo
-                        // tail, drop the microphone frame. This stops the model from hearing and
-                        // replying to its own voice on open-speaker setups. Skipped when barge-in is on.
-                        var hangover = _this17._realtimeHangoverSec != null ? _this17._realtimeHangoverSec : REALTIME_ECHO_HANGOVER_SEC;
-                        if (!_this17._realtimeBargeIn && _this17._realtimeAudioCtx && _this17._realtimeAudioCtx.currentTime < _this17._realtimePlayHead + hangover) {
-                          return;
-                        }
-                      }
                       var input = event.inputBuffer.getChannelData(0);
+                      // Decide whether to transmit the live mic or silence. We ALWAYS send a frame
+                      // (silence when muted) so the server keeps receiving a continuous audio stream and
+                      // its voice-activity detector promptly notices the pause and responds on its own.
+                      // Muted cases: push-to-talk not held, or the half-duplex echo guard while the
+                      // assistant is still playing back (skipped when barge-in is on).
+                      var muted;
+                      if (_this17._realtimePushToTalk) {
+                        muted = !_this17._realtimePttActive;
+                      } else {
+                        var hangover = _this17._realtimeHangoverSec != null ? _this17._realtimeHangoverSec : REALTIME_ECHO_HANGOVER_SEC;
+                        muted = !_this17._realtimeBargeIn && _this17._realtimeAudioCtx && _this17._realtimeAudioCtx.currentTime < _this17._realtimePlayHead + hangover;
+                      }
                       var pcm = new Int16Array(input.length);
-                      for (var i = 0; i < input.length; i++) {
-                        var s = Math.max(-1, Math.min(1, input[i]));
-                        pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                      if (!muted) {
+                        for (var i = 0; i < input.length; i++) {
+                          var s = Math.max(-1, Math.min(1, input[i]));
+                          pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                        }
                       }
                       var bytes = new Uint8Array(pcm.buffer);
                       var binary = '';

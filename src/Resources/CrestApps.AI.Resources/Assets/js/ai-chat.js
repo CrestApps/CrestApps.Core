@@ -1227,6 +1227,11 @@ window.coreAIChatManager = function () {
                     });
 
                     this.connection.on("ReceiveConversationUserMessage", (sessionId, text) => {
+                        // Realtime creates the chat session server-side; adopt its id (and update the page URL)
+                        // on the first turn so a refresh reloads the conversation instead of starting fresh.
+                        if (sessionId && this.getSessionId() !== sessionId) {
+                            this.initializeSession(sessionId);
+                        }
                         if (text) {
                             this.stopAudio();
 
@@ -2160,26 +2165,25 @@ window.coreAIChatManager = function () {
                             this._realtimeMicSource = source;
 
                             processor.onaudioprocess = (event) => {
-                                if (this._realtimePushToTalk) {
-                                    // Push-to-talk: only stream while the listener is holding the talk key.
-                                    if (!this._realtimePttActive) {
-                                        return;
-                                    }
-                                } else {
-                                    // Half-duplex echo guard: while the assistant is still playing back (its
-                                    // scheduled audio extends past now), plus a short hangover for the room echo
-                                    // tail, drop the microphone frame. This stops the model from hearing and
-                                    // replying to its own voice on open-speaker setups. Skipped when barge-in is on.
-                                    var hangover = (this._realtimeHangoverSec != null) ? this._realtimeHangoverSec : REALTIME_ECHO_HANGOVER_SEC;
-                                    if (!this._realtimeBargeIn && this._realtimeAudioCtx && this._realtimeAudioCtx.currentTime < this._realtimePlayHead + hangover) {
-                                        return;
-                                    }
-                                }
                                 var input = event.inputBuffer.getChannelData(0);
+                                // Decide whether to transmit the live mic or silence. We ALWAYS send a frame
+                                // (silence when muted) so the server keeps receiving a continuous audio stream and
+                                // its voice-activity detector promptly notices the pause and responds on its own.
+                                // Muted cases: push-to-talk not held, or the half-duplex echo guard while the
+                                // assistant is still playing back (skipped when barge-in is on).
+                                var muted;
+                                if (this._realtimePushToTalk) {
+                                    muted = !this._realtimePttActive;
+                                } else {
+                                    var hangover = (this._realtimeHangoverSec != null) ? this._realtimeHangoverSec : REALTIME_ECHO_HANGOVER_SEC;
+                                    muted = !this._realtimeBargeIn && this._realtimeAudioCtx && this._realtimeAudioCtx.currentTime < this._realtimePlayHead + hangover;
+                                }
                                 var pcm = new Int16Array(input.length);
-                                for (var i = 0; i < input.length; i++) {
-                                    var s = Math.max(-1, Math.min(1, input[i]));
-                                    pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                                if (!muted) {
+                                    for (var i = 0; i < input.length; i++) {
+                                        var s = Math.max(-1, Math.min(1, input[i]));
+                                        pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                                    }
                                 }
                                 var bytes = new Uint8Array(pcm.buffer);
                                 var binary = '';
