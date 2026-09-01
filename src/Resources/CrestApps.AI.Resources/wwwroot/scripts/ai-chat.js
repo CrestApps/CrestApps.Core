@@ -1611,52 +1611,25 @@ window.coreAIChatManager = function () {
               autoGainControl: true
             }
           }).then(function (stream) {
-            var mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-            _this8.mediaRecorder = new MediaRecorder(stream, {
-              mimeType: mimeType,
-              audioBitsPerSecond: 128000
-            });
             _this8.preRecordingPrompt = _this8.prompt;
             _this8._audioInputSent = false;
             var subject = new signalR.Subject();
             var profileId = _this8.getProfileId();
             var sessionId = _this8.getSessionId() || '';
-            var pendingChunk = Promise.resolve();
-            _this8.mediaRecorder.addEventListener('dataavailable', function (e) {
-              if (e.data && e.data.size > 0) {
-                pendingChunk = pendingChunk.then(/*#__PURE__*/_asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee8() {
-                  var data, uint8Array, binaryString, base64;
-                  return _regenerator().w(function (_context8) {
-                    while (1) switch (_context8.n) {
-                      case 0:
-                        _context8.n = 1;
-                        return e.data.arrayBuffer();
-                      case 1:
-                        data = _context8.v;
-                        uint8Array = new Uint8Array(data);
-                        binaryString = uint8Array.reduce(function (str, _byte) {
-                          return str + String.fromCharCode(_byte);
-                        }, '');
-                        base64 = btoa(binaryString);
-                        subject.next(base64);
-                      case 2:
-                        return _context8.a(2);
-                    }
-                  }, _callee8);
-                })));
-              }
+
+            // Capture raw 16 kHz PCM (16-bit mono) via Web Audio instead of MediaRecorder.
+            // Browsers only agree on WebM/Opus for MediaRecorder, and Azure's speech SDK cannot
+            // demux that container from a streaming push (it fails inside GStreamer). Raw PCM is
+            // decoded natively with no GStreamer and is produced identically by every browser.
+            _this8._sttCapture = _this8._createPcmCapture(stream, function (base64) {
+              try {
+                subject.next(base64);
+              } catch (err) {/* completed */}
             });
-            _this8.mediaRecorder.addEventListener('stop', function () {
-              stream.getTracks().forEach(function (track) {
-                return track.stop();
-              });
-              pendingChunk.then(function () {
-                return subject.complete();
-              });
-            });
+            _this8._sttSubject = subject;
+            var rate = _this8._sttCapture && _this8._sttCapture.sampleRate || 16000;
             var language = navigator.language || document.documentElement.lang || 'en-US';
-            _this8.connection.send("SendAudioStream", profileId, sessionId, subject, mimeType, language);
-            _this8.mediaRecorder.start(250);
+            _this8.connection.send("SendAudioStream", profileId, sessionId, subject, "audio/pcm;rate=" + rate, language);
             _this8.isRecording = true;
             _this8.updateMicButton();
           })["catch"](function (err) {
@@ -1664,12 +1637,120 @@ window.coreAIChatManager = function () {
           });
         },
         stopRecording: function stopRecording() {
-          if (!this.isRecording || !this.mediaRecorder) {
+          if (!this.isRecording) {
             return;
           }
-          this.mediaRecorder.stop();
+          this._stopPcmCapture(this._sttCapture);
+          this._sttCapture = null;
+          if (this._sttSubject) {
+            try {
+              this._sttSubject.complete();
+            } catch (err) {/* already completed */}
+            this._sttSubject = null;
+          }
           this.isRecording = false;
           this.updateMicButton();
+        },
+        // Captures microphone audio as raw 16 kHz, 16-bit mono PCM using Web Audio and invokes
+        // onChunk(base64Pcm, rms) for each block. Returns a handle for _stopPcmCapture. This replaces
+        // MediaRecorder so every browser streams a format Azure decodes without GStreamer.
+        _createPcmCapture: function _createPcmCapture(stream, onChunk) {
+          var AudioCtx = window.AudioContext || window.webkitAudioContext;
+          // Ask the browser to resample the mic to 16 kHz; fall back to manual resampling if it will not.
+          var audioContext;
+          try {
+            audioContext = new AudioCtx({
+              sampleRate: 16000
+            });
+          } catch (e) {
+            audioContext = new AudioCtx();
+          }
+          var srcRate = audioContext.sampleRate;
+          var source = audioContext.createMediaStreamSource(stream);
+          var processor = audioContext.createScriptProcessor(4096, 1, 1);
+          var self = this;
+          processor.onaudioprocess = function (e) {
+            var input = e.inputBuffer.getChannelData(0);
+            var pcm16 = self._downsampleToInt16(input, srcRate, 16000);
+            if (!pcm16 || pcm16.length === 0) {
+              return;
+            }
+            var sum = 0;
+            for (var i = 0; i < pcm16.length; i++) {
+              var v = pcm16[i] / 32768;
+              sum += v * v;
+            }
+            var rms = Math.sqrt(sum / pcm16.length);
+            var bytes = new Uint8Array(pcm16.buffer);
+            var binary = '';
+            for (var j = 0; j < bytes.length; j++) {
+              binary += String.fromCharCode(bytes[j]);
+            }
+            onChunk(btoa(binary), rms);
+          };
+          source.connect(processor);
+          // Some browsers only fire onaudioprocess while the node is connected to a destination.
+          processor.connect(audioContext.destination);
+          return {
+            audioContext: audioContext,
+            source: source,
+            processor: processor,
+            stream: stream,
+            sampleRate: 16000
+          };
+        },
+        _stopPcmCapture: function _stopPcmCapture(capture) {
+          if (!capture) {
+            return;
+          }
+          try {
+            if (capture.processor) {
+              capture.processor.onaudioprocess = null;
+              capture.processor.disconnect();
+            }
+          } catch (e) {}
+          try {
+            if (capture.source) {
+              capture.source.disconnect();
+            }
+          } catch (e) {}
+          try {
+            if (capture.stream) {
+              capture.stream.getTracks().forEach(function (t) {
+                t.stop();
+              });
+            }
+          } catch (e) {}
+          try {
+            if (capture.audioContext) {
+              capture.audioContext.close();
+            }
+          } catch (e) {}
+        },
+        // Converts a Float32 sample block to 16-bit PCM, resampling from srcRate to dstRate when needed.
+        _downsampleToInt16: function _downsampleToInt16(input, srcRate, dstRate) {
+          var s, i;
+          if (!(dstRate < srcRate)) {
+            var same = new Int16Array(input.length);
+            for (i = 0; i < input.length; i++) {
+              s = Math.max(-1, Math.min(1, input[i]));
+              same[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            return same;
+          }
+          var ratio = srcRate / dstRate;
+          var newLen = Math.floor(input.length / ratio);
+          var out = new Int16Array(newLen);
+          for (var j = 0; j < newLen; j++) {
+            var idx = j * ratio;
+            var i0 = Math.floor(idx);
+            var i1 = i0 + 1 < input.length ? i0 + 1 : input.length - 1;
+            var frac = idx - i0;
+            s = input[i0] * (1 - frac) + input[i1] * frac;
+            s = Math.max(-1, Math.min(1, s));
+            out[j] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          }
+          return out;
         },
         toggleRecording: function toggleRecording() {
           if (this.isRecording) {
@@ -1819,9 +1900,9 @@ window.coreAIChatManager = function () {
           var _this0 = this;
           references = normalizeReferences(references);
           if (Object.keys(references).length) {
-            var _ref23, _message$rawContent2;
+            var _ref22, _message$rawContent2;
             var message = this.messages[messageIndex];
-            message.rawContent = (_ref23 = (_message$rawContent2 = message.rawContent) !== null && _message$rawContent2 !== void 0 ? _message$rawContent2 : message.content) !== null && _ref23 !== void 0 ? _ref23 : '';
+            message.rawContent = (_ref22 = (_message$rawContent2 = message.rawContent) !== null && _message$rawContent2 !== void 0 ? _message$rawContent2 : message.content) !== null && _ref22 !== void 0 ? _ref22 : '';
             updateMessagePresentation(message, references);
             this.messages[messageIndex] = message;
             this.$nextTick(function () {
@@ -2095,6 +2176,10 @@ window.coreAIChatManager = function () {
           this._conversationAssistantMessage = null;
           this.removeNotification('conversation-ended');
           var REALTIME_SAMPLE_RATE = 24000;
+          // While the assistant is playing back, plus this hangover for the room echo tail, the
+          // microphone uplink is muted so the model never hears (and answers) its own voice through
+          // open speakers. Browser AEC alone cannot cancel loud external speakers.
+          var REALTIME_ECHO_HANGOVER_SEC = 0.25;
           navigator.mediaDevices.getUserMedia({
             audio: {
               channelCount: 1,
@@ -2103,16 +2188,16 @@ window.coreAIChatManager = function () {
               autoGainControl: true
             }
           }).then(/*#__PURE__*/function () {
-            var _ref24 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee9(stream) {
+            var _ref23 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee8(stream) {
               var AudioCtx, source, processor, zeroGain, profileId, sessionId, language, voice;
-              return _regenerator().w(function (_context9) {
-                while (1) switch (_context9.n) {
+              return _regenerator().w(function (_context8) {
+                while (1) switch (_context8.n) {
                   case 0:
-                    _context9.n = 1;
+                    _context8.n = 1;
                     return _this17.ensureConnectionStarted();
                   case 1:
-                    if (_context9.v) {
-                      _context9.n = 2;
+                    if (_context8.v) {
+                      _context8.n = 2;
                       break;
                     }
                     stream.getTracks().forEach(function (track) {
@@ -2121,14 +2206,15 @@ window.coreAIChatManager = function () {
                     _this17.isConversationMode = false;
                     _this17.updateConversationButton();
                     console.error('The realtime conversation could not start because the chat connection is not available.');
-                    return _context9.a(2);
+                    return _context8.a(2);
                   case 2:
                     _this17._realtimeStream = stream;
                     AudioCtx = window.AudioContext || window.webkitAudioContext;
                     _this17._realtimeAudioCtx = new AudioCtx({
                       sampleRate: REALTIME_SAMPLE_RATE
                     });
-                    _this17._realtimePlayHead = _this17._realtimeAudioCtx.currentTime;
+                    // Scheduled end of assistant playback; 0 means "not speaking" so the uplink starts open.
+                    _this17._realtimePlayHead = 0;
                     _this17._realtimeSources = [];
                     _this17._realtimeSubject = new signalR.Subject();
                     source = _this17._realtimeAudioCtx.createMediaStreamSource(stream);
@@ -2136,6 +2222,13 @@ window.coreAIChatManager = function () {
                     _this17._realtimeProcessor = processor;
                     _this17._realtimeMicSource = source;
                     processor.onaudioprocess = function (event) {
+                      // Half-duplex echo guard: while the assistant is still playing back (its
+                      // scheduled audio extends past now), plus a short hangover for the room echo
+                      // tail, drop the microphone frame instead of streaming it. This stops the model
+                      // from hearing and replying to its own voice on open-speaker setups.
+                      if (_this17._realtimeAudioCtx && _this17._realtimeAudioCtx.currentTime < _this17._realtimePlayHead + REALTIME_ECHO_HANGOVER_SEC) {
+                        return;
+                      }
                       var input = event.inputBuffer.getChannelData(0);
                       var pcm = new Int16Array(input.length);
                       for (var i = 0; i < input.length; i++) {
@@ -2168,12 +2261,12 @@ window.coreAIChatManager = function () {
                     _this17.connection.send("StartRealtimeConversation", profileId, sessionId, _this17._realtimeSubject, voice, language);
                     _this17.isRecording = true;
                   case 3:
-                    return _context9.a(2);
+                    return _context8.a(2);
                 }
-              }, _callee9);
+              }, _callee8);
             }));
             return function (_x) {
-              return _ref24.apply(this, arguments);
+              return _ref23.apply(this, arguments);
             };
           }())["catch"](function (err) {
             console.error('Microphone access denied:', err);
@@ -2310,94 +2403,31 @@ window.coreAIChatManager = function () {
               autoGainControl: true
             }
           }).then(function (stream) {
-            var mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-            _this19.mediaRecorder = new MediaRecorder(stream, {
-              mimeType: mimeType,
-              audioBitsPerSecond: 128000
-            });
             _this19._conversationSubject = new signalR.Subject();
             _this19._conversationStream = stream;
 
-            // Create an AnalyserNode for volume-based interrupt detection.
-            // During TTS playback, detect when the user speaks above
-            // the threshold to stop TTS (interrupt). Audio chunks are
-            // always forwarded — browser echo cancellation handles
-            // speaker echo so the STT stream has no gaps.
-            var AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (AudioCtx) {
-              _this19._conversationAudioCtx = new AudioCtx();
-              _this19._conversationAnalyser = _this19._conversationAudioCtx.createAnalyser();
-              _this19._conversationAnalyser.fftSize = 256;
-              var micSource = _this19._conversationAudioCtx.createMediaStreamSource(stream);
-              micSource.connect(_this19._conversationAnalyser);
-            }
-            var pendingChunk = Promise.resolve();
-            var analyser = _this19._conversationAnalyser;
-            var interruptVolumeThreshold = 30;
-            _this19.mediaRecorder.addEventListener('dataavailable', function (e) {
-              if (e.data && e.data.size > 0) {
-                // During TTS playback, check mic volume to detect
-                // user interruption (speaking above threshold).
-                if (_this19.isPlayingAudio && analyser) {
-                  var freqData = new Uint8Array(analyser.frequencyBinCount);
-                  analyser.getByteFrequencyData(freqData);
-                  var sum = 0;
-                  for (var k = 0; k < freqData.length; k++) {
-                    sum += freqData[k];
-                  }
-                  var avg = sum / freqData.length;
-                  if (avg >= interruptVolumeThreshold) {
-                    // User is speaking — interrupt TTS playback.
-                    _this19.stopAudio();
-                  }
-                }
+            // RMS (0..1) above which speech during TTS playback counts as an interrupt.
+            var interruptRmsThreshold = 0.12;
 
-                // Always send audio to STT — browser echo cancellation
-                // handles speaker echo; continuous audio avoids gaps
-                // that increase recognition latency.
-                pendingChunk = pendingChunk.then(/*#__PURE__*/_asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee0() {
-                  var data, uint8Array, binaryString, base64;
-                  return _regenerator().w(function (_context0) {
-                    while (1) switch (_context0.n) {
-                      case 0:
-                        _context0.n = 1;
-                        return e.data.arrayBuffer();
-                      case 1:
-                        data = _context0.v;
-                        uint8Array = new Uint8Array(data);
-                        binaryString = uint8Array.reduce(function (str, _byte2) {
-                          return str + String.fromCharCode(_byte2);
-                        }, '');
-                        base64 = btoa(binaryString);
-                        try {
-                          _this19._conversationSubject.next(base64);
-                        } catch (err) {
-                          // Subject may have been completed already.
-                        }
-                      case 2:
-                        return _context0.a(2);
-                    }
-                  }, _callee0);
-                })));
+            // Capture raw 16 kHz PCM (16-bit mono) via Web Audio instead of MediaRecorder — see
+            // startRecording for why WebM/Opus is avoided. The per-block RMS drives interrupt
+            // detection during TTS playback, replacing the previous AnalyserNode.
+            _this19._conversationCapture = _this19._createPcmCapture(stream, function (base64, rms) {
+              if (_this19.isPlayingAudio && rms >= interruptRmsThreshold) {
+                // User is speaking over TTS — interrupt playback.
+                _this19.stopAudio();
               }
-            });
-            _this19.mediaRecorder.addEventListener('stop', function () {
-              stream.getTracks().forEach(function (track) {
-                return track.stop();
-              });
-              pendingChunk.then(function () {
-                try {
-                  _this19._conversationSubject.complete();
-                } catch (err) {
-                  // Already completed.
-                }
-              });
+              try {
+                _this19._conversationSubject.next(base64);
+              } catch (err) {
+                // Subject may have been completed already.
+              }
             });
             var profileId = _this19.getProfileId();
             var sessionId = _this19.getSessionId() || '';
             var language = navigator.language || document.documentElement.lang || 'en-US';
-            _this19.connection.send("StartConversation", profileId, sessionId, _this19._conversationSubject, mimeType, language);
-            _this19.mediaRecorder.start(250);
+            var rate = _this19._conversationCapture && _this19._conversationCapture.sampleRate || 16000;
+            _this19.connection.send("StartConversation", profileId, sessionId, _this19._conversationSubject, "audio/pcm;rate=" + rate, language);
             _this19.isRecording = true;
           })["catch"](function (err) {
             console.error('Microphone access denied:', err);
@@ -2416,20 +2446,19 @@ window.coreAIChatManager = function () {
           if (this.connection) {
             this.connection.invoke("StopConversation")["catch"](function () {});
           }
-          if (this.isRecording && this.mediaRecorder) {
-            this.mediaRecorder.stop();
+          if (this.isRecording) {
+            this._stopPcmCapture(this._conversationCapture);
+            this._conversationCapture = null;
+            if (this._conversationSubject) {
+              try {
+                this._conversationSubject.complete();
+              } catch (err) {/* already completed */}
+            }
             this.isRecording = false;
           }
           this.stopAudio();
           this._conversationPartialTranscript = '';
           this._conversationPartialMessage = null;
-
-          // Clean up the AudioContext used for volume monitoring.
-          if (this._conversationAudioCtx) {
-            this._conversationAudioCtx.close()["catch"](function () {});
-            this._conversationAudioCtx = null;
-            this._conversationAnalyser = null;
-          }
 
           // Mark any in-flight assistant message as done to stop the spinner.
           if (this._conversationAssistantMessage) {
@@ -2653,30 +2682,30 @@ window.coreAIChatManager = function () {
         },
         ensureSessionForDocuments: function ensureSessionForDocuments(profileId) {
           var _this23 = this;
-          return _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee1() {
+          return _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee9() {
             var sessionId;
-            return _regenerator().w(function (_context1) {
-              while (1) switch (_context1.n) {
+            return _regenerator().w(function (_context9) {
+              while (1) switch (_context9.n) {
                 case 0:
                   sessionId = _this23.getSessionId();
                   if (!sessionId) {
-                    _context1.n = 1;
+                    _context9.n = 1;
                     break;
                   }
-                  return _context1.a(2, sessionId);
+                  return _context9.a(2, sessionId);
                 case 1:
                   if (!(!profileId || !_this23.connection)) {
-                    _context1.n = 2;
+                    _context9.n = 2;
                     break;
                   }
-                  return _context1.a(2, null);
+                  return _context9.a(2, null);
                 case 2:
-                  _context1.n = 3;
+                  _context9.n = 3;
                   return _this23.requestNewSession(profileId);
                 case 3:
-                  return _context1.a(2, _context1.v);
+                  return _context9.a(2, _context9.v);
               }
-            }, _callee1);
+            }, _callee9);
           }))();
         },
         requestNewSession: function requestNewSession(profileId) {
@@ -2963,12 +2992,12 @@ window.coreAIChatManager = function () {
           this.copiedMessageIndex = -1;
         },
         copyResponse: function copyResponse(message, index, event) {
-          var _ref26,
+          var _ref24,
             _message$copyContent,
             _event$target,
             _event$target$closest,
             _this26 = this;
-          var text = message && _typeof(message) === 'object' ? (_ref26 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref26 !== void 0 ? _ref26 : '' : message !== null && message !== void 0 ? message : '';
+          var text = message && _typeof(message) === 'object' ? (_ref24 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref24 !== void 0 ? _ref24 : '' : message !== null && message !== void 0 ? message : '';
           var button = (event === null || event === void 0 ? void 0 : event.currentTarget) || (event === null || event === void 0 || (_event$target = event.target) === null || _event$target === void 0 || (_event$target$closest = _event$target.closest) === null || _event$target$closest === void 0 ? void 0 : _event$target$closest.call(_event$target, '[data-copy-message-index]')) || null;
           navigator.clipboard.writeText(text).then(function () {
             _this26.clearCopiedMessageState();
@@ -3112,12 +3141,12 @@ window.coreAIChatManager = function () {
       },
       mounted: function mounted() {
         var _this28 = this;
-        _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee10() {
+        _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee0() {
           var isInitialized;
-          return _regenerator().w(function (_context10) {
-            while (1) switch (_context10.n) {
+          return _regenerator().w(function (_context0) {
+            while (1) switch (_context0.n) {
               case 0:
-                _context10.n = 1;
+                _context0.n = 1;
                 return _this28.startConnection();
               case 1:
                 isInitialized = _this28.initializeApp();
@@ -3130,9 +3159,9 @@ window.coreAIChatManager = function () {
                   _this28.fontAwesomeObserver = observeFontAwesomeIcons(_this28.$el);
                 });
               case 2:
-                return _context10.a(2);
+                return _context0.a(2);
             }
-          }, _callee10);
+          }, _callee0);
         }))();
         window.addEventListener('beforeunload', this.handleBeforeUnload);
         window.addEventListener('crestapps-ai-chat-stop-tts', this.handleExternalTtsStop);
