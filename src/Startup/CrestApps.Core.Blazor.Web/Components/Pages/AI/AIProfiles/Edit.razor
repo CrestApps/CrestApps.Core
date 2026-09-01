@@ -1,6 +1,7 @@
 @page "/ai/profiles/edit/{Id}"
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI
+@using CrestApps.Core.AI.Capabilities
 @using CrestApps.Core.AI.A2A.Models
 @using CrestApps.Core.AI.Claude.Models
 @using CrestApps.Core.AI.Claude.Services
@@ -45,6 +46,7 @@
 @inject IOptionsMonitor<InteractionDocumentOptions> DocOpts
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject ISpeechVoiceResolver SpeechVoiceResolver
+@inject IAIDeploymentCapabilityService CapabilityService
 @inject AIProfileDocumentService ProfileDocumentService
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
@@ -145,8 +147,9 @@ else if (_model != null)
                                             <option value="@ChatMode.TextInput">Text input</option>
                                         <option value="@ChatMode.AudioInput">Audio input</option>
                                         <option value="@ChatMode.Conversation">Conversation</option>
+                                        <option value="@ChatMode.Realtime">Realtime (speech-to-speech)</option>
                                     </InputSelect>
-                                    <div class="form-text">Controls whether this profile uses text input only, microphone dictation, or full two-way conversation mode.</div>
+                                    <div class="form-text">Controls whether this profile uses text input only, microphone dictation, two-way conversation (speech-to-text + text-to-speech), or a realtime speech-to-speech voice session. Realtime is voice-only and uses a realtime deployment.</div>
                                 </div>
                             </div>
                         }
@@ -162,7 +165,22 @@ else if (_model != null)
                                 <div class="form-text">When enabled, assistant messages show a play button that reads the response aloud using the configured text-to-speech deployment.</div>
                             </div>
 
-                            @if (_model.ChatMode == ChatMode.Conversation)
+                            @if (_model.ChatMode == ChatMode.Realtime)
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label">Realtime deployment</label>
+                                    <InputSelect class="form-select" @bind-Value="_model.RealtimeDeploymentName">
+                                        <option value="">Use default realtime deployment</option>
+                                        @foreach (var d in _model.RealtimeDeployments)
+                                        {
+                                            <option value="@d.Value">@d.Key</option>
+                                        }
+                                    </InputSelect>
+                                    <div class="form-text">The realtime (speech-to-speech) deployment that backs the voice session. Leave empty to use the site's default realtime deployment. Voice uses this deployment, independent of the text orchestrator.</div>
+                                </div>
+                            }
+
+                            @if (_model.ChatMode == ChatMode.Conversation || _model.ChatMode == ChatMode.Realtime)
                             {
                                 <div class="mb-3">
                                     <label class="form-label">Voice</label>
@@ -178,7 +196,7 @@ else if (_model != null)
                                     </optgroup>
                                 }
                             </InputSelect>
-                            <div class="form-text">Select a voice for conversation mode. Leave this empty to use the site's default voice.</div>
+                            <div class="form-text">Select a voice for conversation or realtime mode. Leave this empty to use the site's default voice.</div>
                         </div>
                     }
                 }
@@ -1373,6 +1391,8 @@ else if (_model != null)
         await PopulateVoiceOptionsAsync(allDeployments);
         _model.ChatDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new KeyValuePair<string, string>(BuildDeploymentLabel(d), d.Name)).ToList();
         _model.UtilityDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new KeyValuePair<string, string>(BuildDeploymentLabel(d), d.Name)).ToList();
+        var realtimeDeployments = await CapabilityService.GetDeploymentsWithFeatureAsync(AIDeploymentFeatureNames.Realtime);
+        _model.RealtimeDeployments = realtimeDeployments.Select(d => new KeyValuePair<string, string>(BuildDeploymentLabel(d), d.Name)).ToList();
 
         var orchestrators = OrchestratorOpts.Value.GetOrchestratorDescriptors();
         _model.Orchestrators = orchestrators.Select(o => new KeyValuePair<string, string>(o.Value.Title ?? o.Key, o.Key)).ToList();
