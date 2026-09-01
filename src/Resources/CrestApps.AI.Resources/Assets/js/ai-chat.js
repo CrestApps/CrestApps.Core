@@ -3134,7 +3134,12 @@ window.coreAIChatManager = function () {
                     if ((this.conversationModeEnabled || this.realtimeEnabled) && config.conversationButtonElementSelector) {
                         this.conversationButton = document.querySelector(config.conversationButtonElementSelector);
                         if (this.conversationButton) {
-                            this.conversationButton.addEventListener('click', () => {
+                            this.conversationButton.addEventListener('click', (e) => {
+                                // Ignore keyboard-synthesized clicks (Space/Enter) during an active realtime
+                                // session, so a push-to-talk Space press can never toggle the session off.
+                                if (e && e.detail === 0 && this.isConversationMode && this.realtimeEnabled) {
+                                    return;
+                                }
                                 this.toggleConversationMode();
                             });
 

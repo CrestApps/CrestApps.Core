@@ -2917,7 +2917,14 @@
 
             var realtimeBtn = document.getElementById('realtime-btn');
             if (realtimeBtn) {
-                realtimeBtn.addEventListener('click', toggleRealtime);
+                realtimeBtn.addEventListener('click', function (e) {
+                    // Ignore keyboard-synthesized clicks (Space/Enter) during an active realtime session, so a
+                    // push-to-talk Space press can never toggle the session off.
+                    if (e && e.detail === 0 && isRealtimeActive) {
+                        return;
+                    }
+                    toggleRealtime();
+                });
                 setupRealtimeAudioSettings();
             }
 
