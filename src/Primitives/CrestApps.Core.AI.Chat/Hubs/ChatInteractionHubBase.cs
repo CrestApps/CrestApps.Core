@@ -835,7 +835,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// </summary>
     protected virtual string GetNoRealtimeDeploymentMessage()
     {
-        return "No realtime deployment is configured. Set a default realtime deployment under Settings, or create an AI deployment whose purpose includes 'Realtime'.";
+        return "No realtime deployment is available. Set a default realtime deployment under Settings, or configure a chat AI deployment whose model declares the 'realtime' capability.";
     }
 
     /// <summary>

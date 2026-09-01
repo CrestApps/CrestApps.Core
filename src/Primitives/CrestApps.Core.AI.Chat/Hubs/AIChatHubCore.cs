@@ -1122,7 +1122,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// </summary>
     protected virtual string GetNoRealtimeDeploymentMessage()
     {
-        return "No realtime deployment is configured. Create an AI deployment whose purpose includes 'Realtime' and assign it to the profile.";
+        return "No realtime deployment is available. Configure a chat AI deployment whose model declares the 'realtime' capability and assign it to the profile.";
     }
 
     /// <summary>

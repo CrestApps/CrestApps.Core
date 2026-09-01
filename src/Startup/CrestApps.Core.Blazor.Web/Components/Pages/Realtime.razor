@@ -26,8 +26,8 @@ else if (_deployments.Count == 0)
 {
     <div class="alert alert-warning">
         <i class="bi bi-exclamation-triangle"></i>
-        No <strong>Realtime</strong> deployments found. Create an
-        <a href="/ai/deployments">AI deployment</a> whose purpose includes <strong>Realtime</strong>, pointing at a
+        No realtime-capable deployments found. Configure a chat
+        <a href="/ai/deployments">AI deployment</a> whose model declares the <strong>Realtime</strong> capability, pointing at a
         realtime model (for example an Azure OpenAI <code>gpt-realtime</code> deployment), then reload this page.
     </div>
 }

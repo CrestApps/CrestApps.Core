@@ -1376,6 +1376,45 @@ window.coreAIChatManager = function () {
                         console.error("SignalR Connection Error: ", err);
                     }
                 },
+                async ensureConnectionStarted() {
+                    if (!this.connection) {
+                        return false;
+                    }
+
+                    var states = signalR.HubConnectionState;
+                    if (this.connection.state === states.Connected) {
+                        return true;
+                    }
+
+                    // If the initial start failed or has not begun, start it now.
+                    if (this.connection.state === states.Disconnected) {
+                        try {
+                            await this.connection.start();
+                        } catch (err) {
+                            console.error("SignalR Connection Error: ", err);
+                        }
+
+                        return this.connection.state === states.Connected;
+                    }
+
+                    // The connection is still Connecting or Reconnecting: wait for it to settle so callers
+                    // (e.g. starting a realtime session) do not send before the socket is ready.
+                    return await new Promise((resolve) => {
+                        var settle = (value) => {
+                            clearTimeout(timeoutId);
+                            clearInterval(intervalId);
+                            resolve(value);
+                        };
+                        var timeoutId = setTimeout(() => settle(this.connection.state === states.Connected), 10000);
+                        var intervalId = setInterval(() => {
+                            if (this.connection.state === states.Connected) {
+                                settle(true);
+                            } else if (this.connection.state === states.Disconnected) {
+                                settle(false);
+                            }
+                        }, 100);
+                    });
+                },
                 addMessageInternal(message) {
                     if (message.role === 'assistant') {
                         message.appearance = this.normalizeAssistantAppearance(message.appearance);
@@ -2011,7 +2050,18 @@ window.coreAIChatManager = function () {
                     var REALTIME_SAMPLE_RATE = 24000;
 
                     navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
-                        .then(stream => {
+                        .then(async (stream) => {
+                            // Wait for the SignalR connection to be ready before streaming audio, so a
+                            // realtime session started right after page load is not lost to a connect race.
+                            if (!(await this.ensureConnectionStarted())) {
+                                stream.getTracks().forEach(track => track.stop());
+                                this.isConversationMode = false;
+                                this.updateConversationButton();
+                                console.error('The realtime conversation could not start because the chat connection is not available.');
+
+                                return;
+                            }
+
                             this._realtimeStream = stream;
                             var AudioCtx = window.AudioContext || window.webkitAudioContext;
                             this._realtimeAudioCtx = new AudioCtx({ sampleRate: REALTIME_SAMPLE_RATE });

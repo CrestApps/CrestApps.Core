@@ -17,9 +17,9 @@
 {
     <div class="alert alert-warning">
         <i class="bi bi-exclamation-triangle"></i>
-        No <strong>Realtime</strong> deployments found. Create an
-        <a asp-area="AI" asp-controller="AIDeployment" asp-action="Index">AI deployment</a> whose purpose includes
-        <strong>Realtime</strong>, pointing at a realtime model (for example an Azure OpenAI
+        No realtime-capable deployments found. Configure a chat
+        <a asp-area="AI" asp-controller="AIDeployment" asp-action="Index">AI deployment</a> whose model declares the
+        <strong>Realtime</strong> capability, pointing at a realtime model (for example an Azure OpenAI
         <code>gpt-realtime</code> deployment), then reload this page.
     </div>
 }
