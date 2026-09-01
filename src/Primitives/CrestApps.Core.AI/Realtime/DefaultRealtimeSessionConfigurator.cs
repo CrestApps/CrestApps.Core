@@ -30,7 +30,7 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
         return new RealtimeSessionOptions
         {
             Model = context.Model,
-            Instructions = context.Instructions,
+            Instructions = BuildInstructions(context),
             Voice = context.Voice,
             MaxOutputTokens = context.MaxOutputTokens,
             InputAudioFormat = new RealtimeAudioFormat("audio/pcm", context.InputSampleRate),
@@ -59,5 +59,47 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
             Tools = hasTools ? [.. tools] : null,
             ToolMode = hasTools ? ChatToolMode.Auto : null,
         };
+    }
+
+    // Realtime models drift into other languages on their own, and the transcription SpeechLanguage hint alone
+    // does not pin the spoken reply language. Prepend a directive that locks the language while still letting the
+    // user switch it explicitly, so an unprompted switch never happens but "answer me in Spanish" still works.
+    private static string BuildInstructions(RealtimeSessionConfiguratorContext context)
+    {
+        var language = LanguageDisplayName(context.SpeechLanguage);
+
+        if (string.IsNullOrWhiteSpace(language))
+        {
+            return context.Instructions;
+        }
+
+        var directive = $"Always speak and respond in {language}. Do not switch to another language on your own — " +
+            "only use a different language if the user explicitly asks you to speak that language.";
+
+        return string.IsNullOrWhiteSpace(context.Instructions)
+            ? directive
+            : $"{directive}\n\n{context.Instructions}";
+    }
+
+    // Maps a BCP-47 language tag (e.g. "en" or "en-US") to its English display name (e.g. "English") for the
+    // instruction directive. Falls back to the raw tag when the culture cannot be resolved.
+    private static string LanguageDisplayName(string language)
+    {
+        if (string.IsNullOrWhiteSpace(language))
+        {
+            return null;
+        }
+
+        try
+        {
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language);
+            var neutral = culture.IsNeutralCulture ? culture : culture.Parent;
+
+            return string.IsNullOrWhiteSpace(neutral?.EnglishName) ? culture.EnglishName : neutral.EnglishName;
+        }
+        catch (System.Globalization.CultureNotFoundException)
+        {
+            return language;
+        }
     }
 }
