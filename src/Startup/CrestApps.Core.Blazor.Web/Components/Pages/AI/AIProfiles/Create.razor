@@ -44,6 +44,7 @@
 @inject IOptionsMonitor<InteractionDocumentOptions> DocOpts
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject ISpeechVoiceResolver SpeechVoiceResolver
+@inject IRealtimeVoiceResolver RealtimeVoiceResolver
 @inject IAIDeploymentCapabilityService CapabilityService
 @inject AIProfileDocumentService ProfileDocumentService
 @inject IStoreCommitter StoreCommitter
@@ -158,7 +159,7 @@
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">Chat mode</label>
-                                    <InputSelect class="form-select" @bind-Value="_model.ChatMode">
+                                    <InputSelect class="form-select" @bind-Value="_model.ChatMode" @bind-Value:after="OnChatModeChangedAsync">
                                         <option value="@ChatMode.TextInput">Text input</option>
                                         <option value="@ChatMode.AudioInput">Audio input</option>
                                         <option value="@ChatMode.Conversation">Conversation</option>
@@ -184,7 +185,7 @@
                         {
                             <div class="mb-3">
                                 <label class="form-label">Realtime deployment</label>
-                                <InputSelect class="form-select" @bind-Value="_model.RealtimeDeploymentName">
+                                <InputSelect class="form-select" @bind-Value="_model.RealtimeDeploymentName" @bind-Value:after="LoadRealtimeVoicesAsync">
                                     <option value="">Use default realtime deployment</option>
                                     @foreach (var d in _model.RealtimeDeployments)
                                     {
@@ -197,11 +198,12 @@
 
                         @if (_model.ChatMode == ChatMode.Conversation || _model.ChatMode == ChatMode.Realtime)
                         {
+                            var voiceList = _model.ChatMode == ChatMode.Realtime ? _realtimeVoices : _availableVoices;
                             <div class="mb-3">
                                 <label class="form-label">Voice</label>
                                 <InputSelect class="form-select" @bind-Value="_model.VoiceName">
                                     <option value="">Default voice</option>
-                                    @foreach (var group in _availableVoices.GroupBy(GetVoiceGroupLabel).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+                                    @foreach (var group in voiceList.GroupBy(v => GetVoiceGroupLabel(v, _model.ChatMode)).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
                                     {
                                         <optgroup label="@group.Key">
                                             @foreach (var voice in group.OrderBy(v => v.Name, StringComparer.OrdinalIgnoreCase))
@@ -1270,6 +1272,7 @@
     private string _selectedApplyTemplateId;
     private string _promptTemplateSearchTerm;
     private IReadOnlyList<SpeechVoice> _availableVoices = [];
+    private IReadOnlyList<SpeechVoice> _realtimeVoices = [];
     private List<Microsoft.AspNetCore.Components.Forms.IBrowserFile> _pendingFiles = [];
     private string _supportedExtensionsAccept;
     private string _supportedExtensionsDisplay;
@@ -1515,6 +1518,11 @@
             .Select(d => new KeyValuePair<string, string>(BuildDeploymentLabel(d), d.Name))
             .ToList();
 
+        if (_model.ChatMode == ChatMode.Realtime)
+        {
+            await LoadRealtimeVoicesAsync();
+        }
+
         var orchestrators = OrchestratorOpts.Value.GetOrchestratorDescriptors();
         _model.Orchestrators = orchestrators.Select(o => new KeyValuePair<string, string>(o.Value.Title ?? o.Key, o.Key)).ToList();
 
@@ -1731,13 +1739,57 @@
 
         _availableVoices = (await SpeechVoiceResolver.GetSpeechVoicesAsync(deployment))
             .Where(voice => !string.IsNullOrWhiteSpace(voice.Id))
-            .OrderBy(voice => GetVoiceGroupLabel(voice), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(voice => GetVoiceGroupLabel(voice, ChatMode.Conversation), StringComparer.OrdinalIgnoreCase)
             .ThenBy(voice => voice.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
-    private static string GetVoiceGroupLabel(SpeechVoice voice)
+    // Resolves the realtime (speech-to-speech) voices for the selected realtime deployment (or the site default),
+    // using IRealtimeVoiceResolver. Called when the chat mode becomes Realtime and when the deployment changes.
+    private async Task LoadRealtimeVoicesAsync()
     {
+        _realtimeVoices = [];
+
+        var deploymentDefaults = SiteSettingsStore.Get<DefaultAIDeploymentSettings>();
+        var deploymentName = !string.IsNullOrWhiteSpace(_model.RealtimeDeploymentName)
+            ? _model.RealtimeDeploymentName
+            : deploymentDefaults.DefaultRealtimeDeploymentName;
+
+        if (string.IsNullOrWhiteSpace(deploymentName))
+        {
+            return;
+        }
+
+        var deployments = await DeploymentCatalog.GetAllAsync();
+        var deployment = deployments.FirstOrDefault(d => string.Equals(d.Name, deploymentName, StringComparison.OrdinalIgnoreCase));
+        if (deployment == null)
+        {
+            return;
+        }
+
+        _realtimeVoices = (await RealtimeVoiceResolver.GetVoicesAsync(deployment))
+            .Where(voice => !string.IsNullOrWhiteSpace(voice.Id))
+            .OrderBy(voice => voice.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task OnChatModeChangedAsync()
+    {
+        if (_model.ChatMode == ChatMode.Realtime)
+        {
+            await LoadRealtimeVoicesAsync();
+        }
+    }
+
+    private static string GetVoiceGroupLabel(SpeechVoice voice, ChatMode mode)
+    {
+        // Realtime voices are a provider-fixed set with no language; group them by (approximate) gender like
+        // the MVC editor does. Text-to-speech voices are grouped by their language.
+        if (mode == ChatMode.Realtime)
+        {
+            return voice.Gender.ToString();
+        }
+
         var displayName = SpeechVoiceLocalizationHelper.GetCultureDisplayName(voice.Language);
 
         return string.IsNullOrWhiteSpace(displayName) ? "Other" : displayName;
