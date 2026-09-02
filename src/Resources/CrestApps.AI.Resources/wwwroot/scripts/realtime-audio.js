@@ -194,6 +194,11 @@
       if (realtimeGain) {
         realtimeGain.gain.value = realtimeVolume;
       }
+      // On WebRTC the assistant plays through the hidden <audio> element, so the volume slider must drive its
+      // volume directly. Lowering it also cuts the acoustic echo into the mic, which helps AEC with barge-in on.
+      if (realtimeRemoteAudioEl) {
+        realtimeRemoteAudioEl.volume = Math.max(0, Math.min(1, realtimeVolume));
+      }
     }
 
     // Push-to-talk: hold Space to open the mic. Bound only while a realtime session is active so it never
@@ -735,6 +740,7 @@
           var audioEl = document.createElement('audio');
           audioEl.autoplay = true;
           audioEl.style.display = 'none';
+          audioEl.volume = Math.max(0, Math.min(1, realtimeVolume != null ? realtimeVolume : 1));
           document.body.appendChild(audioEl);
           realtimeRemoteAudioEl = audioEl;
           pc.ontrack = function (e) {
