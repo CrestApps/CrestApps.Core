@@ -17,6 +17,9 @@ public static class WebRtcRealtimeServiceCollectionExtensions
     {
         services.TryAddSingleton<IWebRtcRealtimePeerFactory, SipSorceryWebRtcRealtimePeerFactory>();
 
+        // Bind the ICE (STUN/TURN) server configuration used when the server offers WebRTC to the browser.
+        services.AddOptions<RealtimeTransportOptions>().BindConfiguration("CrestApps:AI:RealtimeTransport");
+
         return services;
     }
 }

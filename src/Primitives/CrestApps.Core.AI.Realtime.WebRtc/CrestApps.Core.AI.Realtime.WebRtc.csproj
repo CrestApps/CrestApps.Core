@@ -15,6 +15,7 @@
   <ItemGroup>
     <PackageReference Include="SIPSorcery" />
     <PackageReference Include="Concentus" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
 
   <ItemGroup>
