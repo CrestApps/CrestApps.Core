@@ -2059,8 +2059,8 @@ window.chatInteractionManager = function () {
                         this.realtimeController = window.CoreAIRealtime.attach({
                             connection: this.connection,
                             ensureConnected: () => Promise.resolve(this.connection),
-                            sendStart: (subject, voice, language, silenceMs, vadThreshold) => {
-                                this.connection.send('StartRealtimeConversation', this.getItemId(), subject, voice, language, silenceMs, vadThreshold);
+                            sendStart: (subject, voice, language, silenceMs, vadThreshold, allowInterruption) => {
+                                this.connection.send('StartRealtimeConversation', this.getItemId(), subject, voice, language, silenceMs, vadThreshold, allowInterruption);
                             },
                             voiceName: config.realtimeVoiceName || '',
                             getVoiceName: () => {

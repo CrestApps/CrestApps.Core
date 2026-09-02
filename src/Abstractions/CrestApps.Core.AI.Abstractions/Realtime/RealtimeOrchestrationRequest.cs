@@ -48,6 +48,12 @@ public sealed class RealtimeOrchestrationRequest
     public float? VadThreshold { get; init; }
 
     /// <summary>
+    /// Gets whether the user may interrupt (barge in on) the assistant while it is speaking. When false, the
+    /// server voice-activity detector will not interrupt an in-progress response. Defaults to true.
+    /// </summary>
+    public bool AllowInterruption { get; init; } = true;
+
+    /// <summary>
     /// Gets an optional delegate to further configure the prepared orchestration context.
     /// </summary>
     public Action<OrchestrationContext> ConfigureContext { get; init; }

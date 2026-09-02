@@ -110,6 +110,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             SpeechLanguage = request.SpeechLanguage,
             SilenceDurationMs = request.SilenceDurationMs,
             VadThreshold = request.VadThreshold,
+            AllowInterruption = request.AllowInterruption,
         });
 
         var rawClient = await _clientFactory.CreateRealtimeClientAsync(deployment);

@@ -64,7 +64,7 @@
         // Per-device audio preferences live in localStorage because they depend on the listener's hardware
         // (headset vs open speakers), not on the interaction.
         function loadRealtimeAudioPrefs() {
-            var prefs = { bargeIn: true, hangoverMs: 250, pushToTalk: false, volume: 1, micDeviceId: '', noiseSuppression: true, autoGain: true, language: '', tuneTurnDetection: false, silenceMs: 500, vadThreshold: 0.5 };
+            var prefs = { bargeIn: true, hangoverMs: 500, pushToTalk: false, volume: 1, micDeviceId: '', noiseSuppression: true, autoGain: true, language: '', tuneTurnDetection: false, silenceMs: 500, vadThreshold: 0.5 };
             try {
                 var raw = window.localStorage.getItem('coreai.realtime.audioPrefs');
                 if (raw) {
@@ -91,7 +91,7 @@
 
         function applyRealtimeAudioPrefs(prefs) {
             realtimeBargeIn = !!prefs.bargeIn;
-            realtimeHangoverSec = (typeof prefs.hangoverMs === 'number' ? prefs.hangoverMs : 250) / 1000;
+            realtimeHangoverSec = (typeof prefs.hangoverMs === 'number' ? prefs.hangoverMs : 500) / 1000;
             realtimePushToTalk = !!prefs.pushToTalk;
             realtimeVolume = (typeof prefs.volume === 'number') ? prefs.volume : 1;
             realtimeMicDeviceId = prefs.micDeviceId || '';
@@ -487,7 +487,7 @@
                             var silenceMs = realtimeTuneTurnDetection ? realtimeSilenceMs : null;
                             var vadThreshold = realtimeTuneTurnDetection ? realtimeVadThreshold : null;
                             var voice = (getVoiceName && getVoiceName()) || realtimeVoiceName || '';
-                            sendStart(realtimeSubject, voice, language, silenceMs, vadThreshold);
+                            sendStart(realtimeSubject, voice, language, silenceMs, vadThreshold, realtimeBargeIn);
                             if (realtimePushToTalk) { buildRealtimePttUi(); }
                         })
                         .catch(function (err) {

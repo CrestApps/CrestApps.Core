@@ -959,7 +959,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// <param name="audioChunks">The stream of Base64-encoded PCM16 microphone audio chunks.</param>
     /// <param name="voice">An optional voice id override.</param>
     /// <param name="language">An optional BCP-47 language hint for input-audio transcription.</param>
-    public virtual async Task StartRealtimeConversation(string profileId, string sessionId, IAsyncEnumerable<string> audioChunks, string voice = null, string language = null, int? silenceDurationMs = null, float? vadThreshold = null)
+    public virtual async Task StartRealtimeConversation(string profileId, string sessionId, IAsyncEnumerable<string> audioChunks, string voice = null, string language = null, int? silenceDurationMs = null, float? vadThreshold = null, bool allowInterruption = true)
     {
         if (string.IsNullOrWhiteSpace(profileId))
         {
@@ -1048,6 +1048,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     RealtimeDeploymentName = profile.RealtimeDeploymentName,
                     SilenceDurationMs = silenceDurationMs,
                     VadThreshold = vadThreshold,
+                    AllowInterruption = allowInterruption,
                     PromptTitle = profile.PromptSubject,
                     ChatSession = chatSession,
                     Voice = effectiveVoice,

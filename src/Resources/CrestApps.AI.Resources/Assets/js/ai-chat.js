@@ -2230,7 +2230,7 @@ window.coreAIChatManager = function () {
                             var silenceMs = this._realtimeTuneTurnDetection ? this._realtimeSilenceMs : null;
                             var vadThreshold = this._realtimeTuneTurnDetection ? this._realtimeVadThreshold : null;
 
-                            this.connection.send("StartRealtimeConversation", profileId, sessionId, this._realtimeSubject, voice, language, silenceMs, vadThreshold);
+                            this.connection.send("StartRealtimeConversation", profileId, sessionId, this._realtimeSubject, voice, language, silenceMs, vadThreshold, this._realtimeBargeIn);
                             this.isRecording = true;
                             // In push-to-talk mode, show the hold-to-talk control + hint so the user knows how to speak.
                             if (this._realtimePushToTalk) { this.buildRealtimePttUi(); }
@@ -2325,7 +2325,7 @@ window.coreAIChatManager = function () {
                 // These live in localStorage because they depend on the listener's hardware (a headset can
                 // allow barge-in; open speakers need the echo guard), which differs per device, not per profile.
                 loadRealtimeAudioPrefs() {
-                    var prefs = { bargeIn: true, hangoverMs: 250, pushToTalk: false, volume: 1, micDeviceId: '', noiseSuppression: true, autoGain: true, language: '', tuneTurnDetection: false, silenceMs: 500, vadThreshold: 0.5 };
+                    var prefs = { bargeIn: true, hangoverMs: 500, pushToTalk: false, volume: 1, micDeviceId: '', noiseSuppression: true, autoGain: true, language: '', tuneTurnDetection: false, silenceMs: 500, vadThreshold: 0.5 };
                     try {
                         var raw = window.localStorage.getItem('coreai.realtime.audioPrefs');
                         if (raw) {
@@ -2358,7 +2358,7 @@ window.coreAIChatManager = function () {
                 },
                 applyRealtimeAudioPrefs(prefs) {
                     this._realtimeBargeIn = !!prefs.bargeIn;
-                    this._realtimeHangoverSec = (typeof prefs.hangoverMs === 'number' ? prefs.hangoverMs : 250) / 1000;
+                    this._realtimeHangoverSec = (typeof prefs.hangoverMs === 'number' ? prefs.hangoverMs : 500) / 1000;
                     this._realtimePushToTalk = !!prefs.pushToTalk;
                     this._realtimeVolume = (typeof prefs.volume === 'number') ? prefs.volume : 1;
                     this._realtimeMicDeviceId = prefs.micDeviceId || '';

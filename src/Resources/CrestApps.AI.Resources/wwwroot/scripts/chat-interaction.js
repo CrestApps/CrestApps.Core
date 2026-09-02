@@ -1999,8 +1999,8 @@ window.chatInteractionManager = function () {
               ensureConnected: function ensureConnected() {
                 return Promise.resolve(_this18.connection);
               },
-              sendStart: function sendStart(subject, voice, language, silenceMs, vadThreshold) {
-                _this18.connection.send('StartRealtimeConversation', _this18.getItemId(), subject, voice, language, silenceMs, vadThreshold);
+              sendStart: function sendStart(subject, voice, language, silenceMs, vadThreshold, allowInterruption) {
+                _this18.connection.send('StartRealtimeConversation', _this18.getItemId(), subject, voice, language, silenceMs, vadThreshold, allowInterruption);
               },
               voiceName: config.realtimeVoiceName || '',
               getVoiceName: function getVoiceName() {

@@ -2317,7 +2317,7 @@ window.coreAIChatManager = function () {
                     voice = _this17.realtimeVoiceName || ''; // Server VAD tuning is only sent when the listener opts in; otherwise the provider default applies.
                     silenceMs = _this17._realtimeTuneTurnDetection ? _this17._realtimeSilenceMs : null;
                     vadThreshold = _this17._realtimeTuneTurnDetection ? _this17._realtimeVadThreshold : null;
-                    _this17.connection.send("StartRealtimeConversation", profileId, sessionId, _this17._realtimeSubject, voice, language, silenceMs, vadThreshold);
+                    _this17.connection.send("StartRealtimeConversation", profileId, sessionId, _this17._realtimeSubject, voice, language, silenceMs, vadThreshold, _this17._realtimeBargeIn);
                     _this17.isRecording = true;
                     // In push-to-talk mode, show the hold-to-talk control + hint so the user knows how to speak.
                     if (_this17._realtimePushToTalk) {
@@ -2460,7 +2460,7 @@ window.coreAIChatManager = function () {
         loadRealtimeAudioPrefs: function loadRealtimeAudioPrefs() {
           var prefs = {
             bargeIn: true,
-            hangoverMs: 250,
+            hangoverMs: 500,
             pushToTalk: false,
             volume: 1,
             micDeviceId: '',
@@ -2519,7 +2519,7 @@ window.coreAIChatManager = function () {
         },
         applyRealtimeAudioPrefs: function applyRealtimeAudioPrefs(prefs) {
           this._realtimeBargeIn = !!prefs.bargeIn;
-          this._realtimeHangoverSec = (typeof prefs.hangoverMs === 'number' ? prefs.hangoverMs : 250) / 1000;
+          this._realtimeHangoverSec = (typeof prefs.hangoverMs === 'number' ? prefs.hangoverMs : 500) / 1000;
           this._realtimePushToTalk = !!prefs.pushToTalk;
           this._realtimeVolume = typeof prefs.volume === 'number' ? prefs.volume : 1;
           this._realtimeMicDeviceId = prefs.micDeviceId || '';

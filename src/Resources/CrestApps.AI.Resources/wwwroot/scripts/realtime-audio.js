@@ -96,7 +96,7 @@
     function loadRealtimeAudioPrefs() {
       var prefs = {
         bargeIn: true,
-        hangoverMs: 250,
+        hangoverMs: 500,
         pushToTalk: false,
         volume: 1,
         micDeviceId: '',
@@ -155,7 +155,7 @@
     }
     function applyRealtimeAudioPrefs(prefs) {
       realtimeBargeIn = !!prefs.bargeIn;
-      realtimeHangoverSec = (typeof prefs.hangoverMs === 'number' ? prefs.hangoverMs : 250) / 1000;
+      realtimeHangoverSec = (typeof prefs.hangoverMs === 'number' ? prefs.hangoverMs : 500) / 1000;
       realtimePushToTalk = !!prefs.pushToTalk;
       realtimeVolume = typeof prefs.volume === 'number' ? prefs.volume : 1;
       realtimeMicDeviceId = prefs.micDeviceId || '';
@@ -604,7 +604,7 @@
           var silenceMs = realtimeTuneTurnDetection ? realtimeSilenceMs : null;
           var vadThreshold = realtimeTuneTurnDetection ? realtimeVadThreshold : null;
           var voice = getVoiceName && getVoiceName() || realtimeVoiceName || '';
-          sendStart(realtimeSubject, voice, language, silenceMs, vadThreshold);
+          sendStart(realtimeSubject, voice, language, silenceMs, vadThreshold, realtimeBargeIn);
           if (realtimePushToTalk) {
             buildRealtimePttUi();
           }

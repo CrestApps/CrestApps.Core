@@ -61,6 +61,12 @@ public sealed class RealtimeChatRunContext
     public float? VadThreshold { get; init; }
 
     /// <summary>
+    /// Gets whether the user may interrupt (barge in on) the assistant while it is speaking. When false, the
+    /// server voice-activity detector will not interrupt an in-progress response. Defaults to true.
+    /// </summary>
+    public bool AllowInterruption { get; init; } = true;
+
+    /// <summary>
     /// Gets an optional hook invoked after each completed user utterance is persisted (e.g. title generation).
     /// </summary>
     public Func<string, CancellationToken, Task>? OnUserUtteranceAsync { get; init; }

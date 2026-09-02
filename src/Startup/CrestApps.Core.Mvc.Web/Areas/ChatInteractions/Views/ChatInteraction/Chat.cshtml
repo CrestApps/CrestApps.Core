@@ -2418,8 +2418,8 @@
                 realtimeController = window.CoreAIRealtime.attach({
                     connection: connection,
                     ensureConnected: ensureConnectionStarted,
-                    sendStart: function (subject, voice, language, silenceMs, vadThreshold) {
-                        connection.send('StartRealtimeConversation', itemId, subject, voice, language, silenceMs, vadThreshold);
+                    sendStart: function (subject, voice, language, silenceMs, vadThreshold, allowInterruption) {
+                        connection.send('StartRealtimeConversation', itemId, subject, voice, language, silenceMs, vadThreshold, allowInterruption);
                     },
                     voiceName: realtimeVoiceName,
                     getVoiceName: function () {
