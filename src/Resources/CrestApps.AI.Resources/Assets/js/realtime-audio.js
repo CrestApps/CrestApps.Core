@@ -68,6 +68,10 @@
         var realtimeWebRtcConnected = false, realtimeWebRtcConnectTimer = null, realtimeFellBack = false;
         // How long to wait for the WebRTC peer to connect before dropping to the WebSocket transport.
         var REALTIME_WEBRTC_CONNECT_TIMEOUT_MS = 8000;
+        // WebRTC half-duplex echo guard: watches the assistant's remote audio level and mutes the outbound mic
+        // track while it speaks (when barge-in is off), so the model cannot hear itself even if AEC underperforms
+        // against loud open-room speakers. Also enforces push-to-talk on the WebRTC mic track.
+        var realtimeWebRtcMicTrack = null, realtimeWebRtcMonitorCtx = null, realtimeWebRtcMonitorRaf = 0;
 
         // Per-device audio preferences (barge-in, echo guard, push-to-talk, volume, mic, etc.).
         var realtimeBargeIn = true, realtimeHangoverSec = 0.25, realtimePushToTalk = false, realtimePttActive = false,
@@ -291,14 +295,13 @@
             var thrInput = panel.querySelector('.js-thr');
             var thrVal = panel.querySelector('.js-thr-val');
 
-            // On the WebRTC transport the half-duplex echo guard is inert: WebRTC's own acoustic echo canceller
-            // keeps the mic open and removes the assistant's voice, so there is nothing to mute or delay. Hide the
-            // echo-guard delay slider and simplify the barge-in help text accordingly.
+            // On WebRTC, acoustic echo cancellation runs continuously and the mic stays open with barge-in on
+            // (full duplex). Barge-in off still mutes the mic while the assistant speaks (half duplex) as a hard
+            // guarantee for loud open rooms where AEC alone is not enough, so the echo-guard delay stays relevant.
             if (webRtcEnabled) {
-                if (hangoverWrap) { hangoverWrap.style.display = 'none'; }
                 var bargeHelp = panel.querySelector('.js-barge-help');
                 if (bargeHelp) {
-                    bargeHelp.innerHTML = 'Acoustic echo cancellation keeps the mic open while the assistant speaks, so you can talk over it. Turn <strong>off</strong> to let the assistant finish before it listens again.';
+                    bargeHelp.innerHTML = 'Echo cancellation always runs. On (default) keeps the mic open so you can talk over the assistant. Turn <strong>off</strong> to also mute the mic while the assistant speaks — best for loud open speakers where echo cancellation alone is not enough.';
                 }
             }
 
@@ -579,16 +582,30 @@
                             var pc = new RTCPeerConnection({ iceServers: webRtcIceServers });
                             realtimePc = pc;
 
+                            realtimeWebRtcMicTrack = stream.getAudioTracks()[0] || null;
                             stream.getAudioTracks().forEach(function (track) { pc.addTrack(track, stream); });
 
+                            // Push-to-talk and the barge-in/echo guard both gate the outbound mic track. Wire the
+                            // same push-to-talk controls the WebSocket path uses so they work on WebRTC too.
+                            attachRealtimePushToTalk();
+                            var focusedBtn = q('realtimeButton');
+                            if (focusedBtn) { try { focusedBtn.blur(); } catch (err) { } }
+                            if (realtimePushToTalk) { buildRealtimePttUi(); }
+
                             // Play the assistant's remote track through a hidden <audio> element. This gives the
-                            // browser's echo canceller a reference to remove the assistant's voice from the mic.
+                            // browser's echo canceller a reference to remove the assistant's voice from the mic, and
+                            // is what the echo-guard monitor listens to for half-duplex mic muting.
                             var audioEl = document.createElement('audio');
                             audioEl.autoplay = true;
                             audioEl.style.display = 'none';
                             document.body.appendChild(audioEl);
                             realtimeRemoteAudioEl = audioEl;
-                            pc.ontrack = function (e) { if (e.streams && e.streams[0]) { audioEl.srcObject = e.streams[0]; } };
+                            pc.ontrack = function (e) {
+                                if (e.streams && e.streams[0]) {
+                                    audioEl.srcObject = e.streams[0];
+                                    startWebRtcEchoGuard(e.streams[0]);
+                                }
+                            };
 
                             pc.onicecandidate = function (e) {
                                 if (e.candidate) {
@@ -689,6 +706,8 @@
         }
 
         function stopRealtimeWebRtc() {
+            stopWebRtcEchoGuard();
+            realtimeWebRtcMicTrack = null;
             if (realtimePc) {
                 try { realtimePc.close(); } catch (err) { }
                 realtimePc = null;
@@ -704,6 +723,73 @@
             if (realtimeWebRtcConnected) { return; }
             realtimeWebRtcConnected = true;
             if (realtimeWebRtcConnectTimer) { clearTimeout(realtimeWebRtcConnectTimer); realtimeWebRtcConnectTimer = null; }
+        }
+
+        // Gates the outbound WebRTC mic track every animation frame based on the assistant's remote audio level:
+        //  - push-to-talk: mic open only while the key is held;
+        //  - barge-in on: mic always open — rely on WebRTC AEC (full duplex);
+        //  - barge-in off: mic muted while the assistant is audibly speaking, plus a hangover tail (half duplex),
+        //    which guarantees the model cannot hear itself even when AEC cannot fully cancel loud open-room echo.
+        function startWebRtcEchoGuard(remoteStream) {
+            stopWebRtcEchoGuard();
+            var AudioCtor = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtor || !remoteStream) { return; }
+            var ctx = null;
+            try {
+                ctx = new AudioCtor();
+                var srcNode = ctx.createMediaStreamSource(remoteStream);
+                var analyser = ctx.createAnalyser();
+                analyser.fftSize = 512;
+                srcNode.connect(analyser);
+                var data = new Uint8Array(analyser.fftSize);
+                realtimeWebRtcMonitorCtx = ctx;
+                var speakingUntilMs = 0;
+                var loop = function () {
+                    realtimeWebRtcMonitorRaf = window.requestAnimationFrame(loop);
+                    var track = realtimeWebRtcMicTrack;
+                    if (!track) { return; }
+                    analyser.getByteTimeDomainData(data);
+                    var peak = 0;
+                    for (var i = 0; i < data.length; i++) {
+                        var v = data[i] - 128;
+                        if (v < 0) { v = -v; }
+                        if (v > peak) { peak = v; }
+                    }
+                    // ~4/128 (about 3% of full scale): the assistant is producing audible output.
+                    var assistantAudible = peak > 4;
+                    var nowMs = (window.performance && performance.now) ? performance.now() : Date.now();
+                    if (assistantAudible) { speakingUntilMs = nowMs + (realtimeHangoverSec * 1000); }
+
+                    var wantEnabled;
+                    if (realtimePushToTalk) {
+                        wantEnabled = !!realtimePttActive;
+                    } else if (realtimeBargeIn) {
+                        wantEnabled = true;
+                    } else {
+                        wantEnabled = nowMs >= speakingUntilMs;
+                    }
+                    if (track.enabled !== wantEnabled) { track.enabled = wantEnabled; }
+                };
+                loop();
+            } catch (err) {
+                if (ctx) { try { ctx.close(); } catch (e) { } }
+                realtimeWebRtcMonitorCtx = null;
+                // Monitoring unavailable; WebRTC AEC still runs on its own.
+            }
+        }
+
+        function stopWebRtcEchoGuard() {
+            if (realtimeWebRtcMonitorRaf) {
+                try { window.cancelAnimationFrame(realtimeWebRtcMonitorRaf); } catch (e) { }
+                realtimeWebRtcMonitorRaf = 0;
+            }
+            if (realtimeWebRtcMonitorCtx) {
+                try { realtimeWebRtcMonitorCtx.close(); } catch (e) { }
+                realtimeWebRtcMonitorCtx = null;
+            }
+            if (realtimeWebRtcMicTrack) {
+                try { realtimeWebRtcMicTrack.enabled = true; } catch (e) { }
+            }
         }
 
         // Connect-time only: tear down the failed WebRTC attempt and restart on the known-good WebSocket path.
