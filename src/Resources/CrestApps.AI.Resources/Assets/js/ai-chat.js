@@ -2139,9 +2139,14 @@ window.coreAIChatManager = function () {
 
                     var audioConstraints = {
                         channelCount: 1,
-                        echoCancellation: true,
+                        echoCancellation: { ideal: true },
                         noiseSuppression: this._realtimeNoiseSuppression !== false,
-                        autoGainControl: this._realtimeAutoGain !== false
+                        autoGainControl: this._realtimeAutoGain !== false,
+                        // Request the strongest available acoustic echo cancellation so the model can ignore its
+                        // own voice in an open room. Chromium hints requested as "ideal" — ignored where
+                        // unsupported. 'system' prefers the OS/hardware AEC over the browser's software AEC.
+                        echoCancellationType: { ideal: 'system' },
+                        voiceIsolation: { ideal: true }
                     };
                     if (this._realtimeMicDeviceId) {
                         audioConstraints.deviceId = { exact: this._realtimeMicDeviceId };
@@ -2488,7 +2493,7 @@ window.coreAIChatManager = function () {
                         '<input class="form-check-input js-barge" type="checkbox"' + (prefs.bargeIn ? ' checked' : '') + '>' +
                         '<label class="form-check-label">Allow interruptions (barge-in)</label>' +
                         '</div>' +
-                        '<div class="form-text mb-2">On (default) lets you talk over the assistant. Turn <strong>off</strong> for open speakers so it never hears itself.</div>' +
+                        '<div class="form-text mb-2">Echo cancellation always runs, including with barge-in on. On (default) keeps the mic open so you can talk over the assistant. Turn <strong>off</strong> to also mute the mic while it speaks (below) — best for loud open speakers.</div>' +
                         '<div class="js-hangover-wrap mb-2">' +
                         '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Echo guard delay: <strong class="js-hangover-val">' + prefs.hangoverMs + '</strong> ms</label>' +
                         '<input type="range" class="form-range js-hangover" min="0" max="1000" step="50" value="' + prefs.hangoverMs + '">' +
