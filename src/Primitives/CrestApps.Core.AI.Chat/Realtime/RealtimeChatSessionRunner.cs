@@ -90,10 +90,20 @@ public sealed class RealtimeChatSessionRunner
         {
             await Task.WhenAll(inbound, outbound);
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (IsExpectedShutdownException(ex))
         {
+            // Both pumps are being cancelled as the session tears down. A cancelled or aborted transport read/
+            // write here is expected — a user-requested stop must not surface as an error.
         }
     }
+
+    // Transport aborts that are expected while a realtime session is shutting down (for example when the user
+    // stops the conversation): cancellation, or the underlying socket being aborted mid read/write.
+    private static bool IsExpectedShutdownException(Exception ex)
+        => ex is OperationCanceledException
+            or System.IO.IOException
+            or System.Net.Sockets.SocketException
+            or System.Net.WebSockets.WebSocketException;
 
     private static async Task PumpInputAsync(
         IRealtimeConversation conversation,

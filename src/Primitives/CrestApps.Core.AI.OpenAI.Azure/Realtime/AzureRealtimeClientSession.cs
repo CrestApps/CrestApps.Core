@@ -1,6 +1,7 @@
 #pragma warning disable MEAI001 // The realtime types from Microsoft.Extensions.AI are for evaluation purposes only.
 #nullable enable
 using System.Buffers;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.AI;
@@ -69,7 +70,24 @@ internal sealed class AzureRealtimeClientSession : IRealtimeClientSession
                 ValueWebSocketReceiveResult result;
                 do
                 {
-                    result = await _socket.ReceiveAsync(rented.AsMemory(), cancellationToken);
+                    var aborted = false;
+                    try
+                    {
+                        result = await _socket.ReceiveAsync(rented.AsMemory(), cancellationToken);
+                    }
+                    catch (Exception ex) when (ex is OperationCanceledException or WebSocketException or IOException or SocketException)
+                    {
+                        // The session is being torn down (typically because the user stopped the conversation)
+                        // or the underlying socket was aborted. End the stream gracefully instead of surfacing a
+                        // transport exception — a user-requested stop is not an error.
+                        aborted = true;
+                        result = default;
+                    }
+
+                    if (aborted)
+                    {
+                        yield break;
+                    }
 
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
