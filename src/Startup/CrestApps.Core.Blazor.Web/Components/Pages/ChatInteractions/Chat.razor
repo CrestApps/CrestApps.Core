@@ -14,6 +14,7 @@
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Orchestration
 @using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.AI.Realtime
 @using CrestApps.Core.AI.Tooling
 @using CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Models
 @using CrestApps.Core.Infrastructure.Indexing
@@ -42,6 +43,7 @@
 @inject IAIDocumentStore DocumentStore
 @inject IAIDeploymentManager DeploymentManager
 @inject IAIDeploymentCapabilityService CapabilityService
+@inject IServiceProvider ServiceProvider
 
 <PageTitle>Chat Interaction</PageTitle>
 
@@ -676,6 +678,7 @@ else
             SpeechToTextEnabled = effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation,
             ConversationModeEnabled = effectiveChatMode == ChatMode.Conversation,
             RealtimeEnabled = effectiveChatMode == ChatMode.Realtime,
+            RealtimeWebRtcEnabled = ServiceProvider.GetService(typeof(IWebRtcRealtimePeerFactory)) is not null,
             TextToSpeechEnabled = settings.EnableTextToSpeechPlayback && hasTextToSpeech,
             TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
             RealtimeVoiceName = interaction.RealtimeVoiceName,
@@ -746,6 +749,7 @@ else
             ttsVoiceName = _model.TextToSpeechVoiceName,
             textToSpeechEnabled = _model.TextToSpeechEnabled,
             realtimeEnabled = _model.RealtimeEnabled,
+            realtimeWebRtcEnabled = _model.RealtimeWebRtcEnabled,
             realtimeVoiceName = _model.RealtimeVoiceName,
             realtimeButtonElementSelector = "#realtime-btn",
             deploymentSelectElementSelector = "#chat-setting-deployment",

@@ -2062,6 +2062,13 @@ window.chatInteractionManager = function () {
                             sendStart: (subject, voice, language, silenceMs, vadThreshold, allowInterruption) => {
                                 this.connection.send('StartRealtimeConversation', this.getItemId(), subject, voice, language, silenceMs, vadThreshold, allowInterruption);
                             },
+                            // Prefer WebRTC (server-relay) when the server advertises it; the shared module falls back
+                            // to the WebSocket sendStart above if the peer cannot connect.
+                            webRtcEnabled: config.realtimeWebRtcEnabled === true,
+                            sendStartWebRtc: (offerSdp, voice, language, silenceMs, vadThreshold, allowInterruption) => {
+                                this.connection.send('StartRealtimeWebRtc', this.getItemId(), offerSdp, voice, language, silenceMs, vadThreshold, allowInterruption);
+                            },
+                            webRtcIceServers: Array.isArray(config.realtimeWebRtcIceServers) ? config.realtimeWebRtcIceServers : undefined,
                             voiceName: config.realtimeVoiceName || '',
                             getVoiceName: () => {
                                 var el = config.realtimeVoiceSelectElementSelector ? document.querySelector(config.realtimeVoiceSelectElementSelector) : null;
