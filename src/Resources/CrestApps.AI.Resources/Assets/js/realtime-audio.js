@@ -621,7 +621,7 @@
                         var pending = realtimePendingIce;
                         realtimePendingIce = [];
                         pending.forEach(function (init) {
-                            try { realtimePc.addIceCandidate(init); } catch (err) { }
+                            try { realtimePc.addIceCandidate(init).catch(function () { }); } catch (err) { }
                         });
                     })
                     .catch(function (err) { console.error('Failed to apply the WebRTC answer.', err); });
@@ -631,7 +631,7 @@
                 var init = { candidate: candidate, sdpMid: sdpMid, sdpMLineIndex: sdpMLineIndex };
                 // A candidate can only be added after the remote description (answer) is set; buffer until then.
                 if (realtimeRemoteDescriptionSet) {
-                    try { realtimePc.addIceCandidate(init); } catch (err) { }
+                    try { realtimePc.addIceCandidate(init).catch(function () { }); } catch (err) { }
                 } else {
                     realtimePendingIce.push(init);
                 }

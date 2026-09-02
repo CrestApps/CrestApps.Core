@@ -42,6 +42,9 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     private readonly List<short> _encodePending = new(FrameSamples * 8);
 
     private bool _closedRaised;
+    private bool _connectedRaised;
+    private long _rtpReceived;
+    private long _framesSent;
 
     public string AnswerSdp { get; private set; }
 
@@ -73,6 +76,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 
         _pc.onicecandidate += OnLocalIceCandidate;
         _pc.onconnectionstatechange += OnConnectionStateChanged;
+        _pc.oniceconnectionstatechange += OnIceConnectionStateChanged;
         _pc.OnRtpPacketReceived += OnRtpPacketReceived;
     }
 
@@ -141,6 +145,11 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             if (encoded > 0)
             {
                 _pc.SendAudio(RtpUnitsPerFrame, _encodeOut.AsSpan(0, encoded).ToArray());
+
+                if (Interlocked.Increment(ref _framesSent) == 1)
+                {
+                    _logger.LogInformation("WebRTC realtime: first assistant audio frame sent to the browser.");
+                }
             }
         }
     }
@@ -166,6 +175,11 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         if (samples <= 0)
         {
             return;
+        }
+
+        if (Interlocked.Increment(ref _rtpReceived) == 1 && _logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation("WebRTC realtime: first inbound audio packet decoded ({Samples} samples @ 24 kHz).", samples);
         }
 
         var bytes = new byte[samples * 2];
@@ -196,18 +210,53 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 
     private void OnConnectionStateChanged(RTCPeerConnectionState state)
     {
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation("WebRTC realtime: connection state {State}.", state);
+        }
+
         switch (state)
         {
             case RTCPeerConnectionState.connected:
-                Connected?.Invoke();
+                RaiseConnectedOnce();
                 break;
 
             case RTCPeerConnectionState.failed:
-            case RTCPeerConnectionState.disconnected:
             case RTCPeerConnectionState.closed:
                 RaiseClosedOnce();
                 break;
         }
+    }
+
+    private void OnIceConnectionStateChanged(RTCIceConnectionState state)
+    {
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation("WebRTC realtime: ICE connection state {State}.", state);
+        }
+
+        // Some flows surface a usable connection via the ICE state before the aggregate connection state; treat
+        // ICE connected as connected so the realtime session starts promptly.
+        if (state is RTCIceConnectionState.connected)
+        {
+            RaiseConnectedOnce();
+        }
+        else if (state is RTCIceConnectionState.failed or RTCIceConnectionState.closed)
+        {
+            RaiseClosedOnce();
+        }
+    }
+
+    private void RaiseConnectedOnce()
+    {
+        if (_connectedRaised)
+        {
+            return;
+        }
+
+        _connectedRaised = true;
+        _logger.LogInformation("WebRTC realtime: peer connected.");
+        Connected?.Invoke();
     }
 
     private void RaiseClosedOnce()
