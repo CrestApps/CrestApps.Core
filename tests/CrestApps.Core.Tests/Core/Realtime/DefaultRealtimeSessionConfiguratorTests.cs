@@ -21,7 +21,13 @@ public sealed class DefaultRealtimeSessionConfiguratorTests
         });
 
         Assert.Equal("gpt-realtime", options.Model);
-        Assert.Equal("You are a helpful assistant with knowledge base access.", options.Instructions);
+        // When a speech language is set, the configurator prepends a directive that locks the reply language
+        // (realtime models otherwise drift), followed by the profile instructions.
+        Assert.Equal(
+            "Always speak and respond in English. Do not switch to another language on your own — " +
+            "only use a different language if the user explicitly asks you to speak that language.\n\n" +
+            "You are a helpful assistant with knowledge base access.",
+            options.Instructions);
         Assert.Equal("cedar", options.Voice);
         Assert.Equal(512, options.MaxOutputTokens);
         Assert.Equal(["audio"], options.OutputModalities);

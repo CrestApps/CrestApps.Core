@@ -479,9 +479,9 @@ public sealed class PostSessionProcessingServiceTests
     }
 
     [Fact]
-    public async Task ProcessAsync_WhenChatClientCannotBeCreated_ShouldThrow()
+    public async Task ProcessAsync_WhenChatClientCannotBeCreated_SkipsAndReturnsEmpty()
     {
-        // Arrange: profile references a provider that is not configured.
+        // Arrange: profile references a provider that is not configured, so no text-capable deployment resolves.
         var profile = CreateProfile();
         profile.AlterSettings<AIProfilePostSessionSettings>(s =>
         {
@@ -497,8 +497,12 @@ public sealed class PostSessionProcessingServiceTests
         var prompts = CreatePrompts();
         var service = CreateService();
 
-        // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken));
+        // Act: a text-incapable (e.g. realtime-only) deployment cannot run text completions, so processing is
+        // skipped gracefully with an empty result rather than throwing.
+        var result = await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(result);
     }
 
     [Fact]

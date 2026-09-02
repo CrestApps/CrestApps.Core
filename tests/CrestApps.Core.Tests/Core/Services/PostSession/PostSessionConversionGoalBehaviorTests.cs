@@ -661,23 +661,22 @@ public sealed class PostSessionConversionGoalBehaviorTests
     }
 
     /// <summary>
-    /// Verifies the existing missing-client exception.
+    /// When no text-capable deployment can produce a chat client (e.g. a realtime-only deployment, which cannot
+    /// run text analytics), conversion goal evaluation is skipped gracefully with an empty result rather than
+    /// throwing.
     /// </summary>
     [Fact]
-    public async Task EvaluateConversionGoalsAsync_WhenChatClientCannotBeCreated_ThrowsInvalidOperationException()
+    public async Task EvaluateConversionGoalsAsync_WhenChatClientCannotBeCreated_SkipsAndReturnsEmpty()
     {
         var harness = CreateHarness(configureChatClient: false);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            harness.Service.EvaluateConversionGoalsAsync(
-                CreateProfile(),
-                CreatePrompts(),
-                CreateGoals("goal"),
-                TestContext.Current.CancellationToken));
+        var results = await harness.Service.EvaluateConversionGoalsAsync(
+            CreateProfile(),
+            CreatePrompts(),
+            CreateGoals("goal"),
+            TestContext.Current.CancellationToken);
 
-        Assert.Equal(
-            "Unable to create a chat client for conversion goal evaluation on profile 'test-profile-id'.",
-            exception.Message);
+        Assert.Empty(results);
         Assert.Empty(harness.TemplateCalls);
     }
 
