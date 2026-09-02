@@ -1098,6 +1098,242 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     }
 
     /// <summary>
+    /// Starts a realtime (speech-to-speech) conversation over the server-relay WebRTC transport. Mirrors
+    /// <see cref="StartRealtimeConversation"/> exactly — same profile resolution, authorization, capability gate,
+    /// session, voice, run context and persistence — swapping only the two audio boundaries: the browser's Opus
+    /// audio arrives through the <see cref="IWebRtcRealtimePeer"/> instead of Base64 SignalR frames, and assistant
+    /// audio is returned over the peer by the <see cref="WebRtcRealtimeConversationSink"/>. The orchestrator, tool
+    /// loop and runner are untouched.
+    /// </summary>
+    public virtual async Task StartRealtimeWebRtc(string profileId, string sessionId, string offerSdp, string voice = null, string language = null, int? silenceDurationMs = null, float? vadThreshold = null, bool allowInterruption = true)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(profileId)));
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(offerSdp))
+        {
+            await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(offerSdp)));
+
+            return;
+        }
+
+        var connectionId = Context.ConnectionId;
+        var cancellationToken = Context.ConnectionAborted;
+        try
+        {
+            await RunInScopeAsync(async services =>
+            {
+                using var invocationScope = AIInvocationScope.Begin();
+
+                var peerFactory = services.GetService<IWebRtcRealtimePeerFactory>();
+                if (peerFactory is null)
+                {
+                    await Clients.Caller.ReceiveError(GetWebRtcNotAvailableMessage());
+
+                    return;
+                }
+
+                var profileManager = services.GetRequiredService<IAIProfileManager>();
+                var profile = await profileManager.FindByIdAsync(profileId);
+                if (profile is null)
+                {
+                    await Clients.Caller.ReceiveError(GetProfileNotFoundMessage());
+
+                    return;
+                }
+
+                if (!await AuthorizeProfileAsync(services, profile))
+                {
+                    await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
+                    return;
+                }
+
+                if (!profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings) || chatModeSettings.ChatMode != ChatMode.Realtime)
+                {
+                    await Clients.Caller.ReceiveError(GetRealtimeNotEnabledMessage());
+
+                    return;
+                }
+
+                var capabilityService = services.GetRequiredService<IAIDeploymentCapabilityService>();
+                var realtimeDeploymentName = string.IsNullOrWhiteSpace(profile.RealtimeDeploymentName)
+                    ? (await GetDeploymentSettingsAsync(services)).DefaultRealtimeDeploymentName
+                    : profile.RealtimeDeploymentName;
+                if (await capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName, cancellationToken) is null)
+                {
+                    await Clients.Caller.ReceiveError(GetNoRealtimeDeploymentMessage());
+
+                    return;
+                }
+
+                AIChatSession chatSession;
+                try
+                {
+                    (chatSession, _) = await GetOrCreateSessionAsync(services, sessionId, profile, userPrompt: null);
+                }
+                catch (ChatSessionStartRateLimitedException ex)
+                {
+                    await Clients.Caller.ReceiveSessionStartRejected(ex.Message);
+
+                    return;
+                }
+
+                await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
+
+                var deploymentSettings = await GetDeploymentSettingsAsync(services);
+                var effectiveVoice = !string.IsNullOrWhiteSpace(voice)
+                    ? voice
+                    : !string.IsNullOrWhiteSpace(chatModeSettings.VoiceName)
+                        ? chatModeSettings.VoiceName
+                        : deploymentSettings.DefaultRealtimeVoiceId;
+
+                var registry = services.GetRequiredService<WebRtcRealtimePeerRegistry>();
+                var caller = Clients.Caller;
+
+                await using var peer = await peerFactory.CreateAsync(offerSdp, RealtimeWebRtcIceServers.Resolve(services), cancellationToken);
+                registry.Add(connectionId, peer);
+
+                var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                peer.IceCandidateGenerated += candidate =>
+                {
+                    _ = caller.ReceiveRealtimeIceCandidate(candidate.Candidate, candidate.SdpMid, candidate.SdpMLineIndex);
+                };
+                peer.Connected += () => connected.TrySetResult();
+                peer.Closed += () => connected.TrySetException(new OperationCanceledException("The WebRTC peer closed before connecting."));
+
+                try
+                {
+                    await caller.ReceiveRealtimeAnswer(peer.AnswerSdp);
+
+                    // Wait for ICE to connect before starting the session.
+                    await connected.Task.WaitAsync(TimeSpan.FromSeconds(20), cancellationToken);
+
+                    var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
+                    var promptStore = services.GetRequiredService<IAIChatSessionPromptStore>();
+                    var runner = services.GetRequiredService<RealtimeChatSessionRunner>();
+                    var innerSink = new SignalRRealtimeConversationSink(caller);
+                    var sink = new WebRtcRealtimeConversationSink(innerSink, peer);
+                    var turnStore = new ChatSessionRealtimeTurnStore(promptStore);
+
+                    var titleGenerated = false;
+                    var runContext = new RealtimeChatRunContext
+                    {
+                        Resource = profile,
+                        SessionId = chatSession.SessionId,
+                        RealtimeDeploymentName = profile.RealtimeDeploymentName,
+                        SilenceDurationMs = silenceDurationMs,
+                        VadThreshold = vadThreshold,
+                        AllowInterruption = allowInterruption,
+                        PromptTitle = profile.PromptSubject,
+                        ChatSession = chatSession,
+                        Voice = effectiveVoice,
+                        SpeechLanguage = language,
+                        OnUserUtteranceAsync = async (text, _) =>
+                        {
+                            if (!titleGenerated && (string.IsNullOrWhiteSpace(chatSession.Title) || chatSession.Title == DefaultBlankSessionTitle))
+                            {
+                                titleGenerated = true;
+                                chatSession.Title = await GenerateSessionTitleAsync(services, profile, text);
+                            }
+                        },
+                        OnAssistantCompletedAsync = async _ =>
+                        {
+                            chatSession.LastActivityUtc = GetUtcNow();
+                            await SaveChatSessionAsync(services, sessionManager, chatSession);
+                        },
+                    };
+
+                    var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+                    // Cancel the session if the peer drops. The peer can raise Closed during its own disposal
+                    // (after this scope disposed the source), so guard against a disposed source on teardown.
+                    void CancelSession()
+                    {
+                        try
+                        {
+                            sessionCts.Cancel();
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                        }
+                    }
+
+                    peer.Closed += CancelSession;
+
+                    try
+                    {
+                        await runner.RunAsync(runContext, turnStore, peer.ReadAudioAsync(sessionCts.Token), sink, sessionCts.Token);
+
+                        chatSession.LastActivityUtc = GetUtcNow();
+                        await SaveChatSessionAsync(services, sessionManager, chatSession);
+                    }
+                    finally
+                    {
+                        peer.Closed -= CancelSession;
+                        sessionCts.Dispose();
+                    }
+                }
+                finally
+                {
+                    registry.Remove(connectionId);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            if (ex is OperationCanceledException or TimeoutException)
+            {
+                Logger.LogDebug("Realtime WebRTC conversation ended or timed out before connecting.");
+
+                return;
+            }
+
+            Logger.LogError(ex, "An error occurred during realtime WebRTC conversation mode.");
+            try
+            {
+                await Clients.Caller.ReceiveError(GetConversationErrorMessage());
+            }
+            catch (Exception writeEx)
+            {
+                Logger.LogWarning(writeEx, "Failed to write realtime WebRTC conversation error message.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adds a trickled ICE candidate from the browser to the active server-relay WebRTC peer for this connection.
+    /// </summary>
+    public virtual Task AddRealtimeIceCandidate(string candidate, string sdpMid, int sdpMLineIndex)
+    {
+        var connectionId = Context.ConnectionId;
+
+        return RunInScopeAsync(services =>
+        {
+            var registry = services.GetRequiredService<WebRtcRealtimePeerRegistry>();
+            registry.Get(connectionId)?.AddIceCandidate(new WebRtcIceCandidate
+            {
+                Candidate = candidate,
+                SdpMid = sdpMid,
+                SdpMLineIndex = sdpMLineIndex,
+            });
+
+            return Task.CompletedTask;
+        });
+    }
+
+    /// <summary>
+    /// Gets the message shown when the WebRTC transport is not available on the server (the peer factory is not
+    /// registered), so the client can fall back to the WebSocket transport.
+    /// </summary>
+    protected virtual string GetWebRtcNotAvailableMessage()
+        => "The realtime WebRTC transport is not available.";
+
+    /// <summary>
     /// Decodes a stream of Base64 text frames into raw PCM16 audio chunks, skipping any malformed frame.
     /// </summary>
     private static async IAsyncEnumerable<ReadOnlyMemory<byte>> DecodeBase64AudioAsync(

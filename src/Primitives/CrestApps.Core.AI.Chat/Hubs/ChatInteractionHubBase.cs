@@ -1045,12 +1045,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// public STUN server for local/same-network use; TURN for production behind NAT is configured later.
     /// </summary>
     private static IReadOnlyList<WebRtcIceServer> GetIceServers(IServiceProvider services)
-    {
-        return
-        [
-            new WebRtcIceServer { Urls = ["stun:stun.l.google.com:19302"] },
-        ];
-    }
+        => RealtimeWebRtcIceServers.Resolve(services);
 
     /// <summary>
     /// Gets the message returned when the WebRTC transport is not available on the server.

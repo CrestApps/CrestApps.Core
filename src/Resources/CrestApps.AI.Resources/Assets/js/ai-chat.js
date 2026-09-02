@@ -709,6 +709,12 @@ window.coreAIChatManager = function () {
                     singleResponseMode: !!config.singleResponseMode,
                     conversationModeEnabled: config.chatMode === 'Conversation',
                     realtimeEnabled: config.chatMode === 'Realtime' || !!config.realtimeEnabled,
+                    // Server-relay WebRTC transport: primary when advertised and supported; the client falls back
+                    // to the WebSocket path below if the peer cannot connect.
+                    realtimeWebRtcEnabled: config.realtimeWebRtcEnabled === true && typeof window.RTCPeerConnection === 'function',
+                    realtimeWebRtcIceServers: (Array.isArray(config.realtimeWebRtcIceServers) && config.realtimeWebRtcIceServers.length)
+                        ? config.realtimeWebRtcIceServers
+                        : [{ urls: 'stun:stun.l.google.com:19302' }],
                     realtimeVoiceName: config.realtimeVoiceName || null,
                     conversationButton: null,
                     isConversationMode: false,
@@ -2130,7 +2136,20 @@ window.coreAIChatManager = function () {
                     this.attachRealtimePushToTalk();
                     // Drop focus from the just-clicked button so Space acts as push-to-talk, not a re-click.
                     if (this.conversationButton) { try { this.conversationButton.blur(); } catch (err) { } }
+                    this._realtimeFellBack = false;
 
+                    // Prefer the WebRTC transport when advertised; the browser's echo canceller references the
+                    // assistant's media track so the model can ignore its own voice with the mic open. If the peer
+                    // cannot connect (blocked UDP, no TURN, unsupported), fall back to WebSocket at connect time.
+                    if (this.realtimeWebRtcEnabled) {
+                        this.startRealtimeWebRtcConversation();
+
+                        return;
+                    }
+
+                    this.startRealtimeWebSocketConversation();
+                },
+                startRealtimeWebSocketConversation() {
                     var REALTIME_SAMPLE_RATE = 24000;
                     // While the assistant is playing back, plus this hangover for the room echo tail, the
                     // microphone uplink is muted so the model never hears (and answers) its own voice through
@@ -2251,6 +2270,17 @@ window.coreAIChatManager = function () {
                     this.updateConversationButton();
                     this.detachRealtimePushToTalk();
                     this.removeRealtimePttUi();
+                    if (this._realtimeWebRtcConnectTimer) { clearTimeout(this._realtimeWebRtcConnectTimer); this._realtimeWebRtcConnectTimer = null; }
+
+                    if (this._realtimeIsWebRtc) {
+                        this.stopRealtimeWebRtcTransport();
+                        try { if (this._realtimeStream) { this._realtimeStream.getTracks().forEach(t => t.stop()); } } catch (err) { }
+                        this._realtimeStream = null;
+                        this._realtimeIsWebRtc = false;
+                        this.finishRealtimeConversationCleanup();
+
+                        return;
+                    }
 
                     try {
                         if (this._realtimeSubject) { this._realtimeSubject.complete(); }
@@ -2272,6 +2302,11 @@ window.coreAIChatManager = function () {
                     try { if (this._realtimeAudioCtx) { this._realtimeAudioCtx.close(); } } catch (err) { }
                     this._realtimeAudioCtx = null;
 
+                    this.finishRealtimeConversationCleanup();
+                },
+                // Shared teardown tail run by both transports: clears any in-flight streaming state and shows the
+                // conversation-ended notification.
+                finishRealtimeConversationCleanup() {
                     if (this._conversationAssistantMessage) {
                         var m = this.messages[this._conversationAssistantMessage.index];
                         if (m) { m.isStreaming = false; }
@@ -2288,6 +2323,238 @@ window.coreAIChatManager = function () {
                         dismissible: true,
                         autoDismissMs: 5000
                     });
+                },
+                // --- WebRTC (server-relay) transport ---
+                startRealtimeWebRtcConversation() {
+                    // Minimal capture constraints: WebRTC's own AEC (AEC3) references the assistant track we render
+                    // into the hidden <audio> element. The stronger hints the WebSocket path requests
+                    // (echoCancellationType:'system' + voiceIsolation) gate the mic to near-silence when layered on
+                    // the peer-connection AEC loop, so the model never detects speech.
+                    var micConstraints = {
+                        echoCancellation: { ideal: true },
+                        noiseSuppression: this._realtimeNoiseSuppression !== false,
+                        autoGainControl: this._realtimeAutoGain !== false
+                    };
+                    if (this._realtimeMicDeviceId) { micConstraints.deviceId = { exact: this._realtimeMicDeviceId }; }
+
+                    navigator.mediaDevices.getUserMedia({ audio: micConstraints })
+                        .then(async (stream) => {
+                            if (!(await this.ensureConnectionStarted())) {
+                                stream.getTracks().forEach(track => track.stop());
+                                this.isConversationMode = false;
+                                this.updateConversationButton();
+                                console.error('The realtime WebRTC conversation could not start because the chat connection is not available.');
+
+                                return;
+                            }
+
+                            this._realtimeStream = stream;
+                            this._realtimeIsWebRtc = true;
+                            this._realtimeWebRtcConnected = false;
+                            this._realtimeWebRtcRemoteDescriptionSet = false;
+                            this._realtimeWebRtcPendingIce = [];
+                            this._realtimeWebRtcMicTrack = stream.getAudioTracks()[0] || null;
+
+                            var pc = new RTCPeerConnection({ iceServers: this.realtimeWebRtcIceServers });
+                            this._realtimePc = pc;
+                            stream.getAudioTracks().forEach(track => pc.addTrack(track, stream));
+
+                            if (this._realtimePushToTalk) { this.buildRealtimePttUi(); }
+
+                            // Render the assistant's remote track into a hidden <audio> element (the AEC reference,
+                            // and what the echo-guard monitor listens to for half-duplex mic muting).
+                            var audioEl = document.createElement('audio');
+                            audioEl.autoplay = true;
+                            audioEl.style.display = 'none';
+                            audioEl.volume = Math.max(0, Math.min(1, (this._realtimeVolume != null) ? this._realtimeVolume : 1));
+                            document.body.appendChild(audioEl);
+                            this._realtimeRemoteAudioEl = audioEl;
+                            pc.ontrack = (e) => {
+                                if (e.streams && e.streams[0]) {
+                                    audioEl.srcObject = e.streams[0];
+                                    this.startRealtimeWebRtcEchoGuard(e.streams[0]);
+                                }
+                            };
+
+                            pc.onicecandidate = (e) => {
+                                if (e.candidate) {
+                                    try { this.connection.send('AddRealtimeIceCandidate', e.candidate.candidate, e.candidate.sdpMid || '', e.candidate.sdpMLineIndex || 0); } catch (err) { }
+                                }
+                            };
+                            pc.onconnectionstatechange = () => {
+                                if (pc.connectionState === 'connected') {
+                                    this.markRealtimeWebRtcConnected();
+                                } else if (pc.connectionState === 'failed') {
+                                    if (!this._realtimeWebRtcConnected) { this.fallbackRealtimeToWebSocket('connection failed'); }
+                                    else if (this.isConversationMode) { this.stopRealtimeConversation(); }
+                                } else if (pc.connectionState === 'closed' && this.isConversationMode && this._realtimeWebRtcConnected) {
+                                    this.stopRealtimeConversation();
+                                }
+                            };
+                            pc.oniceconnectionstatechange = () => {
+                                var s = pc.iceConnectionState;
+                                if (s === 'connected' || s === 'completed') {
+                                    this.markRealtimeWebRtcConnected();
+                                } else if (s === 'failed' && !this._realtimeWebRtcConnected) {
+                                    this.fallbackRealtimeToWebSocket('ICE failed');
+                                }
+                            };
+
+                            this.bindRealtimeWebRtcSignaling();
+
+                            // Fall back to WebSocket if the peer does not connect in time (blocked UDP, no TURN, etc.).
+                            this._realtimeWebRtcConnectTimer = setTimeout(() => {
+                                if (!this._realtimeWebRtcConnected && this.isConversationMode) {
+                                    this.fallbackRealtimeToWebSocket('connection timed out');
+                                }
+                            }, 8000);
+
+                            var profileId = this.getProfileId();
+                            var sessionId = this.getSessionId() || '';
+                            var language = this._realtimeLanguage || navigator.language || document.documentElement.lang || 'en-US';
+                            var voice = this.realtimeVoiceName || '';
+                            var silenceMs = this._realtimeTuneTurnDetection ? this._realtimeSilenceMs : null;
+                            var vadThreshold = this._realtimeTuneTurnDetection ? this._realtimeVadThreshold : null;
+
+                            pc.createOffer()
+                                .then(offer => pc.setLocalDescription(offer).then(() => offer))
+                                .then(offer => {
+                                    this.connection.send('StartRealtimeWebRtc', profileId, sessionId, offer.sdp, voice, language, silenceMs, vadThreshold, this._realtimeBargeIn);
+                                    this.isRecording = true;
+                                })
+                                .catch(err => {
+                                    console.error('Failed to create the WebRTC offer; falling back to WebSocket.', err);
+                                    this.fallbackRealtimeToWebSocket('offer failed');
+                                });
+                        })
+                        .catch(err => {
+                            console.error('Microphone access denied:', err);
+                            this.isConversationMode = false;
+                            this._realtimeIsWebRtc = false;
+                            this.updateConversationButton();
+                        });
+                },
+                bindRealtimeWebRtcSignaling() {
+                    if (this._realtimeWebRtcSignalingBound) { return; }
+                    this._realtimeWebRtcSignalingBound = true;
+
+                    this.connection.on('ReceiveRealtimeAnswer', (sdp) => {
+                        if (!this._realtimePc) { return; }
+                        this._realtimePc.setRemoteDescription({ type: 'answer', sdp: sdp })
+                            .then(() => {
+                                this._realtimeWebRtcRemoteDescriptionSet = true;
+                                var pending = this._realtimeWebRtcPendingIce || [];
+                                this._realtimeWebRtcPendingIce = [];
+                                pending.forEach((init) => {
+                                    try { this._realtimePc.addIceCandidate(init).catch(() => { }); } catch (err) { }
+                                });
+                            })
+                            .catch(err => console.error('Failed to apply the WebRTC answer.', err));
+                    });
+                    this.connection.on('ReceiveRealtimeIceCandidate', (candidate, sdpMid, sdpMLineIndex) => {
+                        if (!this._realtimePc || !candidate) { return; }
+                        var init = { candidate: candidate, sdpMid: sdpMid, sdpMLineIndex: sdpMLineIndex };
+                        if (this._realtimeWebRtcRemoteDescriptionSet) {
+                            try { this._realtimePc.addIceCandidate(init).catch(() => { }); } catch (err) { }
+                        } else {
+                            (this._realtimeWebRtcPendingIce = this._realtimeWebRtcPendingIce || []).push(init);
+                        }
+                    });
+                },
+                markRealtimeWebRtcConnected() {
+                    if (this._realtimeWebRtcConnected) { return; }
+                    this._realtimeWebRtcConnected = true;
+                    if (this._realtimeWebRtcConnectTimer) { clearTimeout(this._realtimeWebRtcConnectTimer); this._realtimeWebRtcConnectTimer = null; }
+                },
+                // Half-duplex echo guard for open rooms: watches the assistant's remote audio and gates the outbound
+                // mic track each frame (push-to-talk / barge-in on full duplex / barge-in off mutes while speaking).
+                startRealtimeWebRtcEchoGuard(remoteStream) {
+                    this.stopRealtimeWebRtcEchoGuard();
+                    var AudioCtor = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioCtor || !remoteStream) { return; }
+                    var ctx = null;
+                    try {
+                        ctx = new AudioCtor();
+                        var srcNode = ctx.createMediaStreamSource(remoteStream);
+                        var analyser = ctx.createAnalyser();
+                        analyser.fftSize = 512;
+                        srcNode.connect(analyser);
+                        var data = new Uint8Array(analyser.fftSize);
+                        this._realtimeWebRtcMonitorCtx = ctx;
+                        var speakingUntilMs = 0;
+                        var loop = () => {
+                            this._realtimeWebRtcMonitorRaf = window.requestAnimationFrame(loop);
+                            var track = this._realtimeWebRtcMicTrack;
+                            if (!track) { return; }
+                            analyser.getByteTimeDomainData(data);
+                            var peak = 0;
+                            for (var i = 0; i < data.length; i++) {
+                                var v = data[i] - 128;
+                                if (v < 0) { v = -v; }
+                                if (v > peak) { peak = v; }
+                            }
+                            var assistantAudible = peak > 4;
+                            var nowMs = (window.performance && performance.now) ? performance.now() : Date.now();
+                            var hangoverSec = (this._realtimeHangoverSec != null) ? this._realtimeHangoverSec : 0.25;
+                            if (assistantAudible) { speakingUntilMs = nowMs + (hangoverSec * 1000); }
+
+                            var wantEnabled;
+                            if (this._realtimePushToTalk) {
+                                wantEnabled = !!this._realtimePttActive;
+                            } else if (this._realtimeBargeIn) {
+                                wantEnabled = true;
+                            } else {
+                                wantEnabled = nowMs >= speakingUntilMs;
+                            }
+                            if (track.enabled !== wantEnabled) { track.enabled = wantEnabled; }
+                        };
+                        loop();
+                    } catch (err) {
+                        if (ctx) { try { ctx.close(); } catch (e) { } }
+                        this._realtimeWebRtcMonitorCtx = null;
+                    }
+                },
+                stopRealtimeWebRtcEchoGuard() {
+                    if (this._realtimeWebRtcMonitorRaf) {
+                        try { window.cancelAnimationFrame(this._realtimeWebRtcMonitorRaf); } catch (e) { }
+                        this._realtimeWebRtcMonitorRaf = 0;
+                    }
+                    if (this._realtimeWebRtcMonitorCtx) {
+                        try { this._realtimeWebRtcMonitorCtx.close(); } catch (e) { }
+                        this._realtimeWebRtcMonitorCtx = null;
+                    }
+                    if (this._realtimeWebRtcMicTrack) {
+                        try { this._realtimeWebRtcMicTrack.enabled = true; } catch (e) { }
+                    }
+                },
+                stopRealtimeWebRtcTransport() {
+                    this.stopRealtimeWebRtcEchoGuard();
+                    this._realtimeWebRtcMicTrack = null;
+                    if (this._realtimePc) {
+                        try { this._realtimePc.close(); } catch (err) { }
+                        this._realtimePc = null;
+                    }
+                    if (this._realtimeRemoteAudioEl) {
+                        try { this._realtimeRemoteAudioEl.srcObject = null; this._realtimeRemoteAudioEl.remove(); } catch (err) { }
+                        this._realtimeRemoteAudioEl = null;
+                    }
+                },
+                // Connect-time only: tear down the failed WebRTC attempt and restart on the WebSocket transport.
+                // Never called once a session is established, so audio is never migrated mid-conversation.
+                fallbackRealtimeToWebSocket(reason) {
+                    if (this._realtimeFellBack) { return; }
+                    this._realtimeFellBack = true;
+                    if (this._realtimeWebRtcConnectTimer) { clearTimeout(this._realtimeWebRtcConnectTimer); this._realtimeWebRtcConnectTimer = null; }
+                    if (window.console && console.warn) {
+                        console.warn('Realtime WebRTC transport unavailable (' + reason + '); falling back to the WebSocket transport.');
+                    }
+
+                    try { if (this._realtimeStream) { this._realtimeStream.getTracks().forEach(t => t.stop()); } } catch (err) { }
+                    this._realtimeStream = null;
+                    this.stopRealtimeWebRtcTransport();
+                    this._realtimeIsWebRtc = false;
+
+                    this.startRealtimeWebSocketConversation();
                 },
                 playRealtimePcm(bytes) {
                     if (!this._realtimeAudioCtx || !bytes || bytes.length < 2) {
@@ -2370,6 +2637,9 @@ window.coreAIChatManager = function () {
                     this._realtimeVadThreshold = (typeof prefs.vadThreshold === 'number') ? prefs.vadThreshold : 0.5;
                     // Apply live to an active session where possible.
                     if (this._realtimeGain) { this._realtimeGain.gain.value = this._realtimeVolume; }
+                    // On WebRTC the assistant plays through the hidden <audio> element; drive its volume from the
+                    // slider so lowering it actually quiets the speakers (and cuts the echo AEC must cancel).
+                    if (this._realtimeRemoteAudioEl) { this._realtimeRemoteAudioEl.volume = Math.max(0, Math.min(1, this._realtimeVolume)); }
                 },
                 // Push-to-talk: hold Space (or the realtime button via pointer) to open the mic. Bound only
                 // while a realtime session is active, so it never interferes with normal typing.
@@ -3543,6 +3813,7 @@ window.coreAIChatManager = function () {
             sessionDocumentsEnabled: 'data-coreai-chat-session-documents-enabled',
             singleResponseMode: 'data-coreai-chat-single-response-mode',
             realtimeEnabled: 'data-coreai-chat-realtime-enabled',
+            realtimeWebRtcEnabled: 'data-coreai-chat-realtime-webrtc-enabled',
         };
 
         Object.keys(booleanAttributes).forEach(key => {

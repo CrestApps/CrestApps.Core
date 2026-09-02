@@ -669,6 +669,12 @@ window.coreAIChatManager = function () {
           singleResponseMode: !!config.singleResponseMode,
           conversationModeEnabled: config.chatMode === 'Conversation',
           realtimeEnabled: config.chatMode === 'Realtime' || !!config.realtimeEnabled,
+          // Server-relay WebRTC transport: primary when advertised and supported; the client falls back
+          // to the WebSocket path below if the peer cannot connect.
+          realtimeWebRtcEnabled: config.realtimeWebRtcEnabled === true && typeof window.RTCPeerConnection === 'function',
+          realtimeWebRtcIceServers: Array.isArray(config.realtimeWebRtcIceServers) && config.realtimeWebRtcIceServers.length ? config.realtimeWebRtcIceServers : [{
+            urls: 'stun:stun.l.google.com:19302'
+          }],
           realtimeVoiceName: config.realtimeVoiceName || null,
           conversationButton: null,
           isConversationMode: false,
@@ -2186,7 +2192,6 @@ window.coreAIChatManager = function () {
           }
         },
         startRealtimeConversation: function startRealtimeConversation() {
-          var _this17 = this;
           if (!this.realtimeEnabled || this.isConversationMode || !this.connection) {
             return;
           }
@@ -2204,6 +2209,19 @@ window.coreAIChatManager = function () {
               this.conversationButton.blur();
             } catch (err) {}
           }
+          this._realtimeFellBack = false;
+
+          // Prefer the WebRTC transport when advertised; the browser's echo canceller references the
+          // assistant's media track so the model can ignore its own voice with the mic open. If the peer
+          // cannot connect (blocked UDP, no TURN, unsupported), fall back to WebSocket at connect time.
+          if (this.realtimeWebRtcEnabled) {
+            this.startRealtimeWebRtcConversation();
+            return;
+          }
+          this.startRealtimeWebSocketConversation();
+        },
+        startRealtimeWebSocketConversation: function startRealtimeWebSocketConversation() {
+          var _this17 = this;
           var REALTIME_SAMPLE_RATE = 24000;
           // While the assistant is playing back, plus this hangover for the room echo tail, the
           // microphone uplink is muted so the model never hears (and answers) its own voice through
@@ -2346,6 +2364,24 @@ window.coreAIChatManager = function () {
           this.updateConversationButton();
           this.detachRealtimePushToTalk();
           this.removeRealtimePttUi();
+          if (this._realtimeWebRtcConnectTimer) {
+            clearTimeout(this._realtimeWebRtcConnectTimer);
+            this._realtimeWebRtcConnectTimer = null;
+          }
+          if (this._realtimeIsWebRtc) {
+            this.stopRealtimeWebRtcTransport();
+            try {
+              if (this._realtimeStream) {
+                this._realtimeStream.getTracks().forEach(function (t) {
+                  return t.stop();
+                });
+              }
+            } catch (err) {}
+            this._realtimeStream = null;
+            this._realtimeIsWebRtc = false;
+            this.finishRealtimeConversationCleanup();
+            return;
+          }
           try {
             if (this._realtimeSubject) {
               this._realtimeSubject.complete();
@@ -2392,6 +2428,11 @@ window.coreAIChatManager = function () {
             }
           } catch (err) {}
           this._realtimeAudioCtx = null;
+          this.finishRealtimeConversationCleanup();
+        },
+        // Shared teardown tail run by both transports: clears any in-flight streaming state and shows the
+        // conversation-ended notification.
+        finishRealtimeConversationCleanup: function finishRealtimeConversationCleanup() {
           if (this._conversationAssistantMessage) {
             var m = this.messages[this._conversationAssistantMessage.index];
             if (m) {
@@ -2412,8 +2453,329 @@ window.coreAIChatManager = function () {
             autoDismissMs: 5000
           });
         },
-        playRealtimePcm: function playRealtimePcm(bytes) {
+        // --- WebRTC (server-relay) transport ---
+        startRealtimeWebRtcConversation: function startRealtimeWebRtcConversation() {
           var _this18 = this;
+          // Minimal capture constraints: WebRTC's own AEC (AEC3) references the assistant track we render
+          // into the hidden <audio> element. The stronger hints the WebSocket path requests
+          // (echoCancellationType:'system' + voiceIsolation) gate the mic to near-silence when layered on
+          // the peer-connection AEC loop, so the model never detects speech.
+          var micConstraints = {
+            echoCancellation: {
+              ideal: true
+            },
+            noiseSuppression: this._realtimeNoiseSuppression !== false,
+            autoGainControl: this._realtimeAutoGain !== false
+          };
+          if (this._realtimeMicDeviceId) {
+            micConstraints.deviceId = {
+              exact: this._realtimeMicDeviceId
+            };
+          }
+          navigator.mediaDevices.getUserMedia({
+            audio: micConstraints
+          }).then(/*#__PURE__*/function () {
+            var _ref24 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee9(stream) {
+              var pc, audioEl, profileId, sessionId, language, voice, silenceMs, vadThreshold;
+              return _regenerator().w(function (_context9) {
+                while (1) switch (_context9.n) {
+                  case 0:
+                    _context9.n = 1;
+                    return _this18.ensureConnectionStarted();
+                  case 1:
+                    if (_context9.v) {
+                      _context9.n = 2;
+                      break;
+                    }
+                    stream.getTracks().forEach(function (track) {
+                      return track.stop();
+                    });
+                    _this18.isConversationMode = false;
+                    _this18.updateConversationButton();
+                    console.error('The realtime WebRTC conversation could not start because the chat connection is not available.');
+                    return _context9.a(2);
+                  case 2:
+                    _this18._realtimeStream = stream;
+                    _this18._realtimeIsWebRtc = true;
+                    _this18._realtimeWebRtcConnected = false;
+                    _this18._realtimeWebRtcRemoteDescriptionSet = false;
+                    _this18._realtimeWebRtcPendingIce = [];
+                    _this18._realtimeWebRtcMicTrack = stream.getAudioTracks()[0] || null;
+                    pc = new RTCPeerConnection({
+                      iceServers: _this18.realtimeWebRtcIceServers
+                    });
+                    _this18._realtimePc = pc;
+                    stream.getAudioTracks().forEach(function (track) {
+                      return pc.addTrack(track, stream);
+                    });
+                    if (_this18._realtimePushToTalk) {
+                      _this18.buildRealtimePttUi();
+                    }
+
+                    // Render the assistant's remote track into a hidden <audio> element (the AEC reference,
+                    // and what the echo-guard monitor listens to for half-duplex mic muting).
+                    audioEl = document.createElement('audio');
+                    audioEl.autoplay = true;
+                    audioEl.style.display = 'none';
+                    audioEl.volume = Math.max(0, Math.min(1, _this18._realtimeVolume != null ? _this18._realtimeVolume : 1));
+                    document.body.appendChild(audioEl);
+                    _this18._realtimeRemoteAudioEl = audioEl;
+                    pc.ontrack = function (e) {
+                      if (e.streams && e.streams[0]) {
+                        audioEl.srcObject = e.streams[0];
+                        _this18.startRealtimeWebRtcEchoGuard(e.streams[0]);
+                      }
+                    };
+                    pc.onicecandidate = function (e) {
+                      if (e.candidate) {
+                        try {
+                          _this18.connection.send('AddRealtimeIceCandidate', e.candidate.candidate, e.candidate.sdpMid || '', e.candidate.sdpMLineIndex || 0);
+                        } catch (err) {}
+                      }
+                    };
+                    pc.onconnectionstatechange = function () {
+                      if (pc.connectionState === 'connected') {
+                        _this18.markRealtimeWebRtcConnected();
+                      } else if (pc.connectionState === 'failed') {
+                        if (!_this18._realtimeWebRtcConnected) {
+                          _this18.fallbackRealtimeToWebSocket('connection failed');
+                        } else if (_this18.isConversationMode) {
+                          _this18.stopRealtimeConversation();
+                        }
+                      } else if (pc.connectionState === 'closed' && _this18.isConversationMode && _this18._realtimeWebRtcConnected) {
+                        _this18.stopRealtimeConversation();
+                      }
+                    };
+                    pc.oniceconnectionstatechange = function () {
+                      var s = pc.iceConnectionState;
+                      if (s === 'connected' || s === 'completed') {
+                        _this18.markRealtimeWebRtcConnected();
+                      } else if (s === 'failed' && !_this18._realtimeWebRtcConnected) {
+                        _this18.fallbackRealtimeToWebSocket('ICE failed');
+                      }
+                    };
+                    _this18.bindRealtimeWebRtcSignaling();
+
+                    // Fall back to WebSocket if the peer does not connect in time (blocked UDP, no TURN, etc.).
+                    _this18._realtimeWebRtcConnectTimer = setTimeout(function () {
+                      if (!_this18._realtimeWebRtcConnected && _this18.isConversationMode) {
+                        _this18.fallbackRealtimeToWebSocket('connection timed out');
+                      }
+                    }, 8000);
+                    profileId = _this18.getProfileId();
+                    sessionId = _this18.getSessionId() || '';
+                    language = _this18._realtimeLanguage || navigator.language || document.documentElement.lang || 'en-US';
+                    voice = _this18.realtimeVoiceName || '';
+                    silenceMs = _this18._realtimeTuneTurnDetection ? _this18._realtimeSilenceMs : null;
+                    vadThreshold = _this18._realtimeTuneTurnDetection ? _this18._realtimeVadThreshold : null;
+                    pc.createOffer().then(function (offer) {
+                      return pc.setLocalDescription(offer).then(function () {
+                        return offer;
+                      });
+                    }).then(function (offer) {
+                      _this18.connection.send('StartRealtimeWebRtc', profileId, sessionId, offer.sdp, voice, language, silenceMs, vadThreshold, _this18._realtimeBargeIn);
+                      _this18.isRecording = true;
+                    })["catch"](function (err) {
+                      console.error('Failed to create the WebRTC offer; falling back to WebSocket.', err);
+                      _this18.fallbackRealtimeToWebSocket('offer failed');
+                    });
+                  case 3:
+                    return _context9.a(2);
+                }
+              }, _callee9);
+            }));
+            return function (_x2) {
+              return _ref24.apply(this, arguments);
+            };
+          }())["catch"](function (err) {
+            console.error('Microphone access denied:', err);
+            _this18.isConversationMode = false;
+            _this18._realtimeIsWebRtc = false;
+            _this18.updateConversationButton();
+          });
+        },
+        bindRealtimeWebRtcSignaling: function bindRealtimeWebRtcSignaling() {
+          var _this19 = this;
+          if (this._realtimeWebRtcSignalingBound) {
+            return;
+          }
+          this._realtimeWebRtcSignalingBound = true;
+          this.connection.on('ReceiveRealtimeAnswer', function (sdp) {
+            if (!_this19._realtimePc) {
+              return;
+            }
+            _this19._realtimePc.setRemoteDescription({
+              type: 'answer',
+              sdp: sdp
+            }).then(function () {
+              _this19._realtimeWebRtcRemoteDescriptionSet = true;
+              var pending = _this19._realtimeWebRtcPendingIce || [];
+              _this19._realtimeWebRtcPendingIce = [];
+              pending.forEach(function (init) {
+                try {
+                  _this19._realtimePc.addIceCandidate(init)["catch"](function () {});
+                } catch (err) {}
+              });
+            })["catch"](function (err) {
+              return console.error('Failed to apply the WebRTC answer.', err);
+            });
+          });
+          this.connection.on('ReceiveRealtimeIceCandidate', function (candidate, sdpMid, sdpMLineIndex) {
+            if (!_this19._realtimePc || !candidate) {
+              return;
+            }
+            var init = {
+              candidate: candidate,
+              sdpMid: sdpMid,
+              sdpMLineIndex: sdpMLineIndex
+            };
+            if (_this19._realtimeWebRtcRemoteDescriptionSet) {
+              try {
+                _this19._realtimePc.addIceCandidate(init)["catch"](function () {});
+              } catch (err) {}
+            } else {
+              (_this19._realtimeWebRtcPendingIce = _this19._realtimeWebRtcPendingIce || []).push(init);
+            }
+          });
+        },
+        markRealtimeWebRtcConnected: function markRealtimeWebRtcConnected() {
+          if (this._realtimeWebRtcConnected) {
+            return;
+          }
+          this._realtimeWebRtcConnected = true;
+          if (this._realtimeWebRtcConnectTimer) {
+            clearTimeout(this._realtimeWebRtcConnectTimer);
+            this._realtimeWebRtcConnectTimer = null;
+          }
+        },
+        // Half-duplex echo guard for open rooms: watches the assistant's remote audio and gates the outbound
+        // mic track each frame (push-to-talk / barge-in on full duplex / barge-in off mutes while speaking).
+        startRealtimeWebRtcEchoGuard: function startRealtimeWebRtcEchoGuard(remoteStream) {
+          var _this20 = this;
+          this.stopRealtimeWebRtcEchoGuard();
+          var AudioCtor = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtor || !remoteStream) {
+            return;
+          }
+          var ctx = null;
+          try {
+            ctx = new AudioCtor();
+            var srcNode = ctx.createMediaStreamSource(remoteStream);
+            var analyser = ctx.createAnalyser();
+            analyser.fftSize = 512;
+            srcNode.connect(analyser);
+            var data = new Uint8Array(analyser.fftSize);
+            this._realtimeWebRtcMonitorCtx = ctx;
+            var speakingUntilMs = 0;
+            var _loop = function loop() {
+              _this20._realtimeWebRtcMonitorRaf = window.requestAnimationFrame(_loop);
+              var track = _this20._realtimeWebRtcMicTrack;
+              if (!track) {
+                return;
+              }
+              analyser.getByteTimeDomainData(data);
+              var peak = 0;
+              for (var i = 0; i < data.length; i++) {
+                var v = data[i] - 128;
+                if (v < 0) {
+                  v = -v;
+                }
+                if (v > peak) {
+                  peak = v;
+                }
+              }
+              var assistantAudible = peak > 4;
+              var nowMs = window.performance && performance.now ? performance.now() : Date.now();
+              var hangoverSec = _this20._realtimeHangoverSec != null ? _this20._realtimeHangoverSec : 0.25;
+              if (assistantAudible) {
+                speakingUntilMs = nowMs + hangoverSec * 1000;
+              }
+              var wantEnabled;
+              if (_this20._realtimePushToTalk) {
+                wantEnabled = !!_this20._realtimePttActive;
+              } else if (_this20._realtimeBargeIn) {
+                wantEnabled = true;
+              } else {
+                wantEnabled = nowMs >= speakingUntilMs;
+              }
+              if (track.enabled !== wantEnabled) {
+                track.enabled = wantEnabled;
+              }
+            };
+            _loop();
+          } catch (err) {
+            if (ctx) {
+              try {
+                ctx.close();
+              } catch (e) {}
+            }
+            this._realtimeWebRtcMonitorCtx = null;
+          }
+        },
+        stopRealtimeWebRtcEchoGuard: function stopRealtimeWebRtcEchoGuard() {
+          if (this._realtimeWebRtcMonitorRaf) {
+            try {
+              window.cancelAnimationFrame(this._realtimeWebRtcMonitorRaf);
+            } catch (e) {}
+            this._realtimeWebRtcMonitorRaf = 0;
+          }
+          if (this._realtimeWebRtcMonitorCtx) {
+            try {
+              this._realtimeWebRtcMonitorCtx.close();
+            } catch (e) {}
+            this._realtimeWebRtcMonitorCtx = null;
+          }
+          if (this._realtimeWebRtcMicTrack) {
+            try {
+              this._realtimeWebRtcMicTrack.enabled = true;
+            } catch (e) {}
+          }
+        },
+        stopRealtimeWebRtcTransport: function stopRealtimeWebRtcTransport() {
+          this.stopRealtimeWebRtcEchoGuard();
+          this._realtimeWebRtcMicTrack = null;
+          if (this._realtimePc) {
+            try {
+              this._realtimePc.close();
+            } catch (err) {}
+            this._realtimePc = null;
+          }
+          if (this._realtimeRemoteAudioEl) {
+            try {
+              this._realtimeRemoteAudioEl.srcObject = null;
+              this._realtimeRemoteAudioEl.remove();
+            } catch (err) {}
+            this._realtimeRemoteAudioEl = null;
+          }
+        },
+        // Connect-time only: tear down the failed WebRTC attempt and restart on the WebSocket transport.
+        // Never called once a session is established, so audio is never migrated mid-conversation.
+        fallbackRealtimeToWebSocket: function fallbackRealtimeToWebSocket(reason) {
+          if (this._realtimeFellBack) {
+            return;
+          }
+          this._realtimeFellBack = true;
+          if (this._realtimeWebRtcConnectTimer) {
+            clearTimeout(this._realtimeWebRtcConnectTimer);
+            this._realtimeWebRtcConnectTimer = null;
+          }
+          if (window.console && console.warn) {
+            console.warn('Realtime WebRTC transport unavailable (' + reason + '); falling back to the WebSocket transport.');
+          }
+          try {
+            if (this._realtimeStream) {
+              this._realtimeStream.getTracks().forEach(function (t) {
+                return t.stop();
+              });
+            }
+          } catch (err) {}
+          this._realtimeStream = null;
+          this.stopRealtimeWebRtcTransport();
+          this._realtimeIsWebRtc = false;
+          this.startRealtimeWebSocketConversation();
+        },
+        playRealtimePcm: function playRealtimePcm(bytes) {
+          var _this21 = this;
           if (!this._realtimeAudioCtx || !bytes || bytes.length < 2) {
             return;
           }
@@ -2438,7 +2800,7 @@ window.coreAIChatManager = function () {
           this._realtimeSources = this._realtimeSources || [];
           this._realtimeSources.push(src);
           src.onended = function () {
-            _this18._realtimeSources = (_this18._realtimeSources || []).filter(function (s) {
+            _this21._realtimeSources = (_this21._realtimeSources || []).filter(function (s) {
               return s !== src;
             });
           };
@@ -2533,11 +2895,16 @@ window.coreAIChatManager = function () {
           if (this._realtimeGain) {
             this._realtimeGain.gain.value = this._realtimeVolume;
           }
+          // On WebRTC the assistant plays through the hidden <audio> element; drive its volume from the
+          // slider so lowering it actually quiets the speakers (and cuts the echo AEC must cancel).
+          if (this._realtimeRemoteAudioEl) {
+            this._realtimeRemoteAudioEl.volume = Math.max(0, Math.min(1, this._realtimeVolume));
+          }
         },
         // Push-to-talk: hold Space (or the realtime button via pointer) to open the mic. Bound only
         // while a realtime session is active, so it never interferes with normal typing.
         attachRealtimePushToTalk: function attachRealtimePushToTalk() {
-          var _this19 = this;
+          var _this22 = this;
           if (this._realtimePttBound) {
             return;
           }
@@ -2546,17 +2913,17 @@ window.coreAIChatManager = function () {
           // Capture phase + preventDefault so Space never scrolls the page or activates a focused
           // button (Space-up on a focused button fires a click, which would toggle the session).
           this._realtimePttKeyDown = function (e) {
-            if (_this19._realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
+            if (_this22._realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
               e.preventDefault();
               if (!e.repeat) {
-                _this19.setRealtimePttActive(true);
+                _this22.setRealtimePttActive(true);
               }
             }
           };
           this._realtimePttKeyUp = function (e) {
-            if (_this19._realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
+            if (_this22._realtimePushToTalk && (e.code === 'Space' || e.key === ' ')) {
               e.preventDefault();
-              _this19.setRealtimePttActive(false);
+              _this22.setRealtimePttActive(false);
             }
           };
           document.addEventListener('keydown', this._realtimePttKeyDown, true);
@@ -2575,7 +2942,7 @@ window.coreAIChatManager = function () {
         // listener knows how to speak. The button works by press-and-hold on both touch and mouse; Space
         // is the desktop shortcut.
         buildRealtimePttUi: function buildRealtimePttUi() {
-          var _this20 = this;
+          var _this23 = this;
           if (!this.conversationButton || this._realtimePttUiEl) {
             return;
           }
@@ -2601,10 +2968,10 @@ window.coreAIChatManager = function () {
           this._realtimePttUiEl = bar;
           var down = function down(e) {
             e.preventDefault();
-            _this20.setRealtimePttActive(true);
+            _this23.setRealtimePttActive(true);
           };
           var up = function up() {
-            _this20.setRealtimePttActive(false);
+            _this23.setRealtimePttActive(false);
           };
           btn.addEventListener('pointerdown', down);
           btn.addEventListener('pointerup', up);
@@ -2674,7 +3041,7 @@ window.coreAIChatManager = function () {
           return '<div class="card-body p-3">' + '<div class="fw-semibold mb-2" style="font-size:0.85rem;">Realtime audio</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-barge" type="checkbox"' + (prefs.bargeIn ? ' checked' : '') + '>' + '<label class="form-check-label">Allow interruptions (barge-in)</label>' + '</div>' + '<div class="form-text mb-2">Echo cancellation always runs, including with barge-in on. On (default) keeps the mic open so you can talk over the assistant. Turn <strong>off</strong> to also mute the mic while it speaks (below) — best for loud open speakers.</div>' + '<div class="js-hangover-wrap mb-2">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Echo guard delay: <strong class="js-hangover-val">' + prefs.hangoverMs + '</strong> ms</label>' + '<input type="range" class="form-range js-hangover" min="0" max="1000" step="50" value="' + prefs.hangoverMs + '">' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-ptt" type="checkbox"' + (prefs.pushToTalk ? ' checked' : '') + '>' + '<label class="form-check-label">Push-to-talk</label>' + '</div>' + '<div class="form-text mb-2">Hold <kbd>Space</kbd> to talk (desktop). Best for very noisy rooms.</div>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Assistant volume: <strong class="js-vol-val">' + Math.round(prefs.volume * 100) + '</strong>%</label>' + '<input type="range" class="form-range js-vol mb-2" min="0" max="100" step="5" value="' + Math.round(prefs.volume * 100) + '">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Microphone</label>' + '<select class="form-select form-select-sm js-mic mb-2"><option value="">Default microphone</option></select>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Language</label>' + '<select class="form-select form-select-sm js-lang mb-2">' + langOptions + '</select>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-tune" type="checkbox"' + (prefs.tuneTurnDetection ? ' checked' : '') + '>' + '<label class="form-check-label">Fine-tune turn detection</label>' + '</div>' + '<div class="js-tune-wrap mb-2"' + (prefs.tuneTurnDetection ? '' : ' style="display:none;"') + '>' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Reply after silence: <strong class="js-silence-val">' + prefs.silenceMs + '</strong> ms</label>' + '<input type="range" class="form-range js-silence" min="100" max="2000" step="100" value="' + prefs.silenceMs + '">' + '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Speech detection threshold: <strong class="js-thr-val">' + prefs.vadThreshold.toFixed(2) + '</strong></label>' + '<input type="range" class="form-range js-thr" min="0" max="1" step="0.05" value="' + prefs.vadThreshold + '">' + '<div class="form-text">Longer silence lets you pause without being cut off. Higher threshold needs louder speech, rejecting noise and echo. Applies to your next session.</div>' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-ns" type="checkbox"' + (prefs.noiseSuppression ? ' checked' : '') + '>' + '<label class="form-check-label">Noise suppression</label>' + '</div>' + '<div class="form-check form-switch mb-1">' + '<input class="form-check-input js-agc" type="checkbox"' + (prefs.autoGain ? ' checked' : '') + '>' + '<label class="form-check-label">Automatic gain</label>' + '</div>' + '<div class="form-text">Microphone, noise, gain and language changes apply to your next voice session.</div>' + '</div>';
         },
         wireRealtimeAudioSettings: function wireRealtimeAudioSettings(panel, gear) {
-          var _this21 = this;
+          var _this24 = this;
           var bargeInput = panel.querySelector('.js-barge');
           var hangoverInput = panel.querySelector('.js-hangover');
           var hangoverVal = panel.querySelector('.js-hangover-val');
@@ -2714,15 +3081,15 @@ window.coreAIChatManager = function () {
               silenceMs: parseInt(silenceInput.value, 10) || 500,
               vadThreshold: parseFloat(thrInput.value)
             };
-            _this21.applyRealtimeAudioPrefs(next);
-            _this21.saveRealtimeAudioPrefs(next);
+            _this24.applyRealtimeAudioPrefs(next);
+            _this24.saveRealtimeAudioPrefs(next);
           };
           var populateMics = function populateMics() {
             if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
               return;
             }
             navigator.mediaDevices.enumerateDevices().then(function (devices) {
-              var current = _this21._realtimeMicDeviceId || '';
+              var current = _this24._realtimeMicDeviceId || '';
               var opts = ['<option value="">Default microphone</option>'];
               devices.filter(function (d) {
                 return d.kind === 'audioinput';
@@ -2800,7 +3167,7 @@ window.coreAIChatManager = function () {
           });
         },
         startConversationMode: function startConversationMode() {
-          var _this22 = this;
+          var _this25 = this;
           if (!this.conversationModeEnabled || this.isConversationMode || !this.connection) {
             return;
           }
@@ -2819,8 +3186,8 @@ window.coreAIChatManager = function () {
               autoGainControl: true
             }
           }).then(function (stream) {
-            _this22._conversationSubject = new signalR.Subject();
-            _this22._conversationStream = stream;
+            _this25._conversationSubject = new signalR.Subject();
+            _this25._conversationStream = stream;
 
             // RMS (0..1) above which speech during TTS playback counts as an interrupt.
             var interruptRmsThreshold = 0.12;
@@ -2828,27 +3195,27 @@ window.coreAIChatManager = function () {
             // Capture raw 16 kHz PCM (16-bit mono) via Web Audio instead of MediaRecorder — see
             // startRecording for why WebM/Opus is avoided. The per-block RMS drives interrupt
             // detection during TTS playback, replacing the previous AnalyserNode.
-            _this22._conversationCapture = _this22._createPcmCapture(stream, function (base64, rms) {
-              if (_this22.isPlayingAudio && rms >= interruptRmsThreshold) {
+            _this25._conversationCapture = _this25._createPcmCapture(stream, function (base64, rms) {
+              if (_this25.isPlayingAudio && rms >= interruptRmsThreshold) {
                 // User is speaking over TTS — interrupt playback.
-                _this22.stopAudio();
+                _this25.stopAudio();
               }
               try {
-                _this22._conversationSubject.next(base64);
+                _this25._conversationSubject.next(base64);
               } catch (err) {
                 // Subject may have been completed already.
               }
             });
-            var profileId = _this22.getProfileId();
-            var sessionId = _this22.getSessionId() || '';
+            var profileId = _this25.getProfileId();
+            var sessionId = _this25.getSessionId() || '';
             var language = navigator.language || document.documentElement.lang || 'en-US';
-            var rate = _this22._conversationCapture && _this22._conversationCapture.sampleRate || 16000;
-            _this22.connection.send("StartConversation", profileId, sessionId, _this22._conversationSubject, "audio/pcm;rate=" + rate, language);
-            _this22.isRecording = true;
+            var rate = _this25._conversationCapture && _this25._conversationCapture.sampleRate || 16000;
+            _this25.connection.send("StartConversation", profileId, sessionId, _this25._conversationSubject, "audio/pcm;rate=" + rate, language);
+            _this25.isRecording = true;
           })["catch"](function (err) {
             console.error('Microphone access denied:', err);
-            _this22.isConversationMode = false;
-            _this22.updateConversationButton();
+            _this25.isConversationMode = false;
+            _this25.updateConversationButton();
           });
         },
         stopConversationMode: function stopConversationMode() {
@@ -2974,7 +3341,7 @@ window.coreAIChatManager = function () {
           return removedCount;
         },
         receiveNotification: function receiveNotification(notification) {
-          var _this23 = this;
+          var _this26 = this;
           if (!notification || !notification.type) {
             return;
           }
@@ -2989,7 +3356,7 @@ window.coreAIChatManager = function () {
           }
           this.scheduleNotificationDismiss(notification);
           this.$nextTick(function () {
-            _this23.scrollToBottom();
+            _this26.scrollToBottom();
           });
         },
         updateNotification: function updateNotification(notification) {
@@ -3006,12 +3373,12 @@ window.coreAIChatManager = function () {
           }
         },
         scheduleNotificationDismiss: function scheduleNotificationDismiss(notification) {
-          var _this24 = this;
+          var _this27 = this;
           if (!notification || !notification.type || !notification.autoDismissMs || notification.autoDismissMs <= 0) {
             return;
           }
           this.notificationDismissTimers[notification.type] = setTimeout(function () {
-            _this24.removeNotification(notification.type);
+            _this27.removeNotification(notification.type);
           }, notification.autoDismissMs);
         },
         clearNotificationDismiss: function clearNotificationDismiss(notificationType) {
@@ -3041,12 +3408,12 @@ window.coreAIChatManager = function () {
           });
         },
         scrollToBottom: function scrollToBottom() {
-          var _this25 = this;
+          var _this28 = this;
           if (!this.autoScroll) {
             return;
           }
           setTimeout(function () {
-            _this25.chatContainer.scrollTop = _this25.chatContainer.scrollHeight - _this25.chatContainer.clientHeight;
+            _this28.chatContainer.scrollTop = _this28.chatContainer.scrollHeight - _this28.chatContainer.clientHeight;
           }, 50);
         },
         handleUserInput: function handleUserInput(event) {
@@ -3102,35 +3469,35 @@ window.coreAIChatManager = function () {
           });
         },
         ensureSessionForDocuments: function ensureSessionForDocuments(profileId) {
-          var _this26 = this;
-          return _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee9() {
+          var _this29 = this;
+          return _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee0() {
             var sessionId;
-            return _regenerator().w(function (_context9) {
-              while (1) switch (_context9.n) {
+            return _regenerator().w(function (_context0) {
+              while (1) switch (_context0.n) {
                 case 0:
-                  sessionId = _this26.getSessionId();
+                  sessionId = _this29.getSessionId();
                   if (!sessionId) {
-                    _context9.n = 1;
+                    _context0.n = 1;
                     break;
                   }
-                  return _context9.a(2, sessionId);
+                  return _context0.a(2, sessionId);
                 case 1:
-                  if (!(!profileId || !_this26.connection)) {
-                    _context9.n = 2;
+                  if (!(!profileId || !_this29.connection)) {
+                    _context0.n = 2;
                     break;
                   }
-                  return _context9.a(2, null);
+                  return _context0.a(2, null);
                 case 2:
-                  _context9.n = 3;
-                  return _this26.requestNewSession(profileId);
+                  _context0.n = 3;
+                  return _this29.requestNewSession(profileId);
                 case 3:
-                  return _context9.a(2, _context9.v);
+                  return _context0.a(2, _context0.v);
               }
-            }, _callee9);
+            }, _callee0);
           }))();
         },
         requestNewSession: function requestNewSession(profileId) {
-          var _this27 = this;
+          var _this30 = this;
           if (this.pendingSessionPromise) {
             return this.pendingSessionPromise;
           }
@@ -3138,14 +3505,14 @@ window.coreAIChatManager = function () {
             return Promise.resolve(null);
           }
           this.pendingSessionPromise = new Promise(function (resolve, reject) {
-            _this27.pendingSessionResolver = resolve;
-            _this27.pendingSessionRejector = reject;
-            _this27.pendingSessionTimeoutId = window.setTimeout(function () {
-              _this27.rejectPendingSessionRequest('Timed out while creating a chat session.');
+            _this30.pendingSessionResolver = resolve;
+            _this30.pendingSessionRejector = reject;
+            _this30.pendingSessionTimeoutId = window.setTimeout(function () {
+              _this30.rejectPendingSessionRequest('Timed out while creating a chat session.');
             }, 15000);
           });
           this.connection.invoke("StartSession", profileId, null)["catch"](function (err) {
-            _this27.rejectPendingSessionRequest(err);
+            _this30.rejectPendingSessionRequest(err);
           });
           return this.pendingSessionPromise;
         },
@@ -3171,7 +3538,7 @@ window.coreAIChatManager = function () {
           this.pendingSessionTimeoutId = null;
         },
         initializeApp: function initializeApp() {
-          var _this28 = this;
+          var _this31 = this;
           this.inputElement = document.querySelector(config.inputElementSelector);
           this.buttonElement = document.querySelector(config.sendButtonElementSelector);
           this.chatContainer = document.querySelector(config.chatContainerElementSelector);
@@ -3207,7 +3574,7 @@ window.coreAIChatManager = function () {
                 fileInput.accept = config.allowedExtensions;
               }
               fileInput.addEventListener('change', function (e) {
-                return _this28.handleFileInputChange(e);
+                return _this31.handleFileInputChange(e);
               });
               this.documentBar.parentElement.appendChild(fileInput);
 
@@ -3215,13 +3582,13 @@ window.coreAIChatManager = function () {
               var inputArea = this.inputElement ? this.inputElement.closest('.ai-admin-widget-input, .text-bg-light') : null;
               if (inputArea) {
                 inputArea.addEventListener('dragover', function (e) {
-                  return _this28.handleDragOver(e);
+                  return _this31.handleDragOver(e);
                 });
                 inputArea.addEventListener('dragleave', function (e) {
-                  return _this28.handleDragLeave(e);
+                  return _this31.handleDragLeave(e);
                 });
                 inputArea.addEventListener('drop', function (e) {
-                  return _this28.handleDrop(e);
+                  return _this31.handleDrop(e);
                 });
               }
             }
@@ -3229,55 +3596,55 @@ window.coreAIChatManager = function () {
 
           // Pause auto-scroll when the user manually scrolls up during streaming.
           this.chatContainer.addEventListener('scroll', function () {
-            if (!_this28.stream) {
+            if (!_this31.stream) {
               return;
             }
             var threshold = 30;
-            var atBottom = _this28.chatContainer.scrollHeight - _this28.chatContainer.clientHeight - _this28.chatContainer.scrollTop <= threshold;
-            _this28.autoScroll = atBottom;
+            var atBottom = _this31.chatContainer.scrollHeight - _this31.chatContainer.clientHeight - _this31.chatContainer.scrollTop <= threshold;
+            _this31.autoScroll = atBottom;
           });
           this.inputElement.addEventListener('keydown', function (event) {
-            if (_this28.stream != null) {
+            if (_this31.stream != null) {
               return;
             }
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
-              _this28.buttonElement.click();
+              _this31.buttonElement.click();
             }
           });
           this.inputElement.addEventListener('input', function (e) {
-            _this28.handleUserInput(e);
+            _this31.handleUserInput(e);
             if (e.target.value.trim()) {
-              _this28.buttonElement.removeAttribute('disabled');
+              _this31.buttonElement.removeAttribute('disabled');
             } else {
-              _this28.buttonElement.setAttribute('disabled', true);
+              _this31.buttonElement.setAttribute('disabled', true);
             }
           });
           this.buttonElement.addEventListener('click', function () {
-            if (_this28.stream != null) {
-              _this28.stream.dispose();
-              _this28.stream = null;
-              _this28.streamingFinished();
-              _this28.hideTypingIndicator();
+            if (_this31.stream != null) {
+              _this31.stream.dispose();
+              _this31.stream = null;
+              _this31.streamingFinished();
+              _this31.hideTypingIndicator();
 
               // Clean up: remove empty assistant message or stop streaming animation.
-              if (_this28.messages.length > 0) {
-                var lastMsg = _this28.messages[_this28.messages.length - 1];
+              if (_this31.messages.length > 0) {
+                var lastMsg = _this31.messages[_this31.messages.length - 1];
                 if (lastMsg.role === 'assistant' && !lastMsg.content) {
-                  _this28.messages.pop();
+                  _this31.messages.pop();
                 } else if (lastMsg.isStreaming) {
                   lastMsg.isStreaming = false;
                 }
               }
               return;
             }
-            _this28.sendMessage();
+            _this31.sendMessage();
           });
           var promptGenerators = document.getElementsByClassName('profile-generated-prompt');
           for (var i = 0; i < promptGenerators.length; i++) {
             promptGenerators[i].addEventListener('click', function (e) {
               e.preventDefault();
-              _this28.generatePrompt(e.target);
+              _this31.generatePrompt(e.target);
             });
           }
           var chatSessions = document.getElementsByClassName('chat-session-history-item');
@@ -3289,8 +3656,8 @@ window.coreAIChatManager = function () {
                 console.error('an element with the class chat-session-history-item with no data-session-id set.');
                 return;
               }
-              _this28.loadSession(sessionId);
-              _this28.showChatScreen();
+              _this31.loadSession(sessionId);
+              _this31.showChatScreen();
             });
           }
           var initialMessages = Array.isArray(config.messages) ? config.messages : [];
@@ -3309,7 +3676,7 @@ window.coreAIChatManager = function () {
 
           // Update feedback icons in the DOM after initial messages have rendered.
           this.$nextTick(function () {
-            _this28.refreshAllFeedbackIcons();
+            _this31.refreshAllFeedbackIcons();
           });
 
           // Delegate click for code block copy buttons.
@@ -3341,7 +3708,7 @@ window.coreAIChatManager = function () {
             if (this.micButton) {
               this.micButton.style.display = '';
               this.micButton.addEventListener('click', function () {
-                _this28.toggleRecording();
+                _this31.toggleRecording();
               });
             }
           }
@@ -3353,10 +3720,10 @@ window.coreAIChatManager = function () {
               this.conversationButton.addEventListener('click', function (e) {
                 // Ignore keyboard-synthesized clicks (Space/Enter) during an active realtime
                 // session, so a push-to-talk Space press can never toggle the session off.
-                if (e && e.detail === 0 && _this28.isConversationMode && _this28.realtimeEnabled) {
+                if (e && e.detail === 0 && _this31.isConversationMode && _this31.realtimeEnabled) {
                   return;
                 }
-                _this28.toggleConversationMode();
+                _this31.toggleConversationMode();
               });
 
               // Realtime (speech-to-speech) exposes per-device audio settings next to the button.
@@ -3423,28 +3790,28 @@ window.coreAIChatManager = function () {
           this.copiedMessageIndex = -1;
         },
         copyResponse: function copyResponse(message, index, event) {
-          var _ref24,
+          var _ref25,
             _message$copyContent,
             _event$target,
             _event$target$closest,
-            _this29 = this;
-          var text = message && _typeof(message) === 'object' ? (_ref24 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref24 !== void 0 ? _ref24 : '' : message !== null && message !== void 0 ? message : '';
+            _this32 = this;
+          var text = message && _typeof(message) === 'object' ? (_ref25 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref25 !== void 0 ? _ref25 : '' : message !== null && message !== void 0 ? message : '';
           var button = (event === null || event === void 0 ? void 0 : event.currentTarget) || (event === null || event === void 0 || (_event$target = event.target) === null || _event$target === void 0 || (_event$target$closest = _event$target.closest) === null || _event$target$closest === void 0 ? void 0 : _event$target$closest.call(_event$target, '[data-copy-message-index]')) || null;
           navigator.clipboard.writeText(text).then(function () {
-            _this29.clearCopiedMessageState();
-            _this29.copiedMessageIndex = typeof index === 'number' ? index : -1;
-            _this29.activeCopyButton = button;
+            _this32.clearCopiedMessageState();
+            _this32.copiedMessageIndex = typeof index === 'number' ? index : -1;
+            _this32.activeCopyButton = button;
             if (button) {
-              _this29.setCopyButtonState(button, true);
+              _this32.setCopyButtonState(button, true);
             } else {
-              _this29.$nextTick(function () {
-                return _this29.updateCopyButtons();
+              _this32.$nextTick(function () {
+                return _this32.updateCopyButtons();
               });
             }
-            _this29.copyResetTimeoutId = window.setTimeout(function () {
-              _this29.clearCopiedMessageState();
-              _this29.$nextTick(function () {
-                return _this29.updateCopyButtons();
+            _this32.copyResetTimeoutId = window.setTimeout(function () {
+              _this32.clearCopiedMessageState();
+              _this32.$nextTick(function () {
+                return _this32.updateCopyButtons();
               });
             }, Number(config.copyResetDelayMs) || 2000);
           })["catch"](function (err) {
@@ -3545,9 +3912,9 @@ window.coreAIChatManager = function () {
           // no longer mutes tracks; browser echo cancellation handles echo.
         },
         copiedMessageIndex: function copiedMessageIndex() {
-          var _this30 = this;
+          var _this33 = this;
           this.$nextTick(function () {
-            return _this30.updateCopyButtons();
+            return _this33.updateCopyButtons();
           });
         },
         isConversationMode: function isConversationMode(active) {
@@ -3571,28 +3938,28 @@ window.coreAIChatManager = function () {
         }
       },
       mounted: function mounted() {
-        var _this31 = this;
-        _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee0() {
+        var _this34 = this;
+        _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee1() {
           var isInitialized;
-          return _regenerator().w(function (_context0) {
-            while (1) switch (_context0.n) {
+          return _regenerator().w(function (_context1) {
+            while (1) switch (_context1.n) {
               case 0:
-                _context0.n = 1;
-                return _this31.startConnection();
+                _context1.n = 1;
+                return _this34.startConnection();
               case 1:
-                isInitialized = _this31.initializeApp();
+                isInitialized = _this34.initializeApp();
                 if (isInitialized && hasWidgetConfig && widgetBehavior && typeof widgetBehavior.onMounted === 'function') {
-                  widgetBehavior.onMounted(_this31, config);
+                  widgetBehavior.onMounted(_this34, config);
                 }
-                _this31.$nextTick(function () {
-                  _this31.updateCopyButtons();
-                  refreshFontAwesomeIcons(_this31.$el);
-                  _this31.fontAwesomeObserver = observeFontAwesomeIcons(_this31.$el);
+                _this34.$nextTick(function () {
+                  _this34.updateCopyButtons();
+                  refreshFontAwesomeIcons(_this34.$el);
+                  _this34.fontAwesomeObserver = observeFontAwesomeIcons(_this34.$el);
                 });
               case 2:
-                return _context0.a(2);
+                return _context1.a(2);
             }
-          }, _callee0);
+          }, _callee1);
         }))();
         window.addEventListener('beforeunload', this.handleBeforeUnload);
         window.addEventListener('crestapps-ai-chat-stop-tts', this.handleExternalTtsStop);
