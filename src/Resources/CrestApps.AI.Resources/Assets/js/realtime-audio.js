@@ -45,6 +45,9 @@
         var onEnterRealtimeMode = opts.onEnterRealtimeMode || noop;
         var ensureConnected = opts.ensureConnected || function () { return Promise.resolve(true); };
         var sendStart = opts.sendStart || noop;
+        // Optional: resolve the assistant voice live at session start (e.g. from a settings picker) so it
+        // reflects the current selection rather than the value captured when the controller was attached.
+        var getVoiceName = opts.getVoiceName || null;
 
         function q(name) { var s = sel[name]; return s ? document.querySelector(s) : null; }
 
@@ -477,7 +480,7 @@
                             var language = realtimeLanguage || navigator.language || document.documentElement.lang || 'en-US';
                             var silenceMs = realtimeTuneTurnDetection ? realtimeSilenceMs : null;
                             var vadThreshold = realtimeTuneTurnDetection ? realtimeVadThreshold : null;
-                            var voice = realtimeVoiceName || '';
+                            var voice = (getVoiceName && getVoiceName()) || realtimeVoiceName || '';
                             sendStart(realtimeSubject, voice, language, silenceMs, vadThreshold);
                             if (realtimePushToTalk) { buildRealtimePttUi(); }
                         })

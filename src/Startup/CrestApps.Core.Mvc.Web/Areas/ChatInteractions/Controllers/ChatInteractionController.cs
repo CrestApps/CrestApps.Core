@@ -296,7 +296,7 @@ public sealed class ChatInteractionController : Controller
             RealtimeEnabled = effectiveChatMode == ChatMode.Realtime,
             TextToSpeechEnabled = chatInteractionSettings.EnableTextToSpeechPlayback && hasTextToSpeech,
             TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
-            RealtimeVoiceName = deploymentDefaults.DefaultRealtimeVoiceId,
+            RealtimeVoiceName = interaction.RealtimeVoiceName,
             RealtimeCapableDeploymentNames = realtimeDeploymentNames,
         };
 

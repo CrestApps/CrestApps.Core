@@ -2063,6 +2063,10 @@ window.chatInteractionManager = function () {
                                 this.connection.send('StartRealtimeConversation', this.getItemId(), subject, voice, language, silenceMs, vadThreshold);
                             },
                             voiceName: config.realtimeVoiceName || '',
+                            getVoiceName: () => {
+                                var el = config.realtimeVoiceSelectElementSelector ? document.querySelector(config.realtimeVoiceSelectElementSelector) : null;
+                                return el ? el.value : '';
+                            },
                             capableDeployments: config.realtimeCapableDeployments || [],
                             realtimeEnabled: config.realtimeEnabled === true,
                             selectors: {
@@ -2091,7 +2095,80 @@ window.chatInteractionManager = function () {
                                 if (this.isConversationMode && (!this.realtimeController || !this.realtimeController.isActive())) { this.stopConversationMode(); }
                             }
                         });
+
+                        this.setupRealtimeVoicePicker(config);
                     }
+                },
+                // Populates the per-interaction realtime voice picker from the selected realtime deployment's
+                // voices (via the realtime-voices endpoint), and shows it only for realtime-capable deployments.
+                setupRealtimeVoicePicker(config) {
+                    if (!config.realtimeVoiceSelectElementSelector || !config.realtimeVoicesUrl) {
+                        return;
+                    }
+
+                    var voiceSelect = document.querySelector(config.realtimeVoiceSelectElementSelector);
+                    if (!voiceSelect) {
+                        return;
+                    }
+
+                    var voiceGroup = config.realtimeVoiceGroupElementSelector ? document.querySelector(config.realtimeVoiceGroupElementSelector) : null;
+                    var deploymentSelect = config.deploymentSelectElementSelector ? document.querySelector(config.deploymentSelectElementSelector) : null;
+                    var capable = (config.realtimeCapableDeployments || []).map(function (n) { return (n || '').toLowerCase(); });
+                    var savedVoiceId = config.realtimeVoiceName || '';
+
+                    function isRealtimeDeployment(name) {
+                        return name && capable.indexOf(name.toLowerCase()) !== -1;
+                    }
+
+                    async function loadVoices() {
+                        var deploymentName = deploymentSelect ? deploymentSelect.value : '';
+                        var realtime = isRealtimeDeployment(deploymentName);
+                        if (voiceGroup) {
+                            voiceGroup.classList.toggle('d-none', !realtime);
+                        }
+                        if (!realtime) {
+                            return;
+                        }
+
+                        voiceSelect.innerHTML = '<option value="">Default voice</option>';
+
+                        try {
+                            const response = await fetch(config.realtimeVoicesUrl + '?deploymentName=' + encodeURIComponent(deploymentName), { credentials: 'same-origin' });
+                            const result = await response.json();
+                            if (!result || !Array.isArray(result.voices)) {
+                                return;
+                            }
+
+                            const grouped = new Map();
+                            for (const voice of result.voices) {
+                                const groupName = voice.gender || 'Voices';
+                                if (!grouped.has(groupName)) {
+                                    grouped.set(groupName, []);
+                                }
+                                grouped.get(groupName).push(voice);
+                            }
+
+                            Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b)).forEach(function (groupName) {
+                                const optgroup = document.createElement('optgroup');
+                                optgroup.label = groupName;
+                                grouped.get(groupName).forEach(function (voice) {
+                                    const option = document.createElement('option');
+                                    option.value = voice.id;
+                                    option.textContent = voice.name;
+                                    option.selected = voice.id === savedVoiceId;
+                                    optgroup.appendChild(option);
+                                });
+                                voiceSelect.appendChild(optgroup);
+                            });
+                        } catch (err) {
+                            /* ignore voice load failures */
+                        }
+                    }
+
+                    if (deploymentSelect) {
+                        deploymentSelect.addEventListener('change', loadVoices);
+                    }
+                    loadVoices();
                 },
                 loadInteraction(itemId) {
                     this.connection.invoke("LoadInteraction", itemId).catch(err => console.error(err));

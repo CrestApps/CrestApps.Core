@@ -419,6 +419,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         interaction.ChatDeploymentName = JsonHelper.GetString(settings, "deploymentName")
             ?? JsonHelper.GetString(settings, "deploymentId");
         interaction.UtilityDeploymentName = JsonHelper.GetString(settings, "utilityDeploymentName");
+        interaction.RealtimeVoiceName = JsonHelper.GetString(settings, "realtimeVoiceName");
         interaction.SystemMessage = JsonHelper.GetString(settings, "systemMessage");
         interaction.Temperature = JsonHelper.GetFloat(settings, "temperature");
         interaction.TopP = JsonHelper.GetFloat(settings, "topP");

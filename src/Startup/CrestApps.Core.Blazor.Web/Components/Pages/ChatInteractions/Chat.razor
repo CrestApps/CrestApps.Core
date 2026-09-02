@@ -105,6 +105,14 @@ else
                                     </select>
                                 </div>
 
+                                <div class="mb-3 d-none" id="chat-setting-realtimeVoice-group">
+                                    <label class="form-label" for="chat-setting-realtimeVoice">Voice</label>
+                                    <select id="chat-setting-realtimeVoice" class="form-select setting-input" data-setting="realtimeVoiceName">
+                                        <option value="">Default voice</option>
+                                    </select>
+                                    <div class="form-text">Voice for realtime (speech-to-speech), from the selected realtime model.</div>
+                                </div>
+
                                 <div class="mb-3">
                                     <label class="form-label" for="chat-setting-orchestrator">Orchestrator</label>
                                     <select id="chat-setting-orchestrator" class="form-select setting-input" data-setting="orchestratorName">
@@ -670,7 +678,7 @@ else
             RealtimeEnabled = effectiveChatMode == ChatMode.Realtime,
             TextToSpeechEnabled = settings.EnableTextToSpeechPlayback && hasTextToSpeech,
             TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
-            RealtimeVoiceName = deploymentDefaults.DefaultRealtimeVoiceId,
+            RealtimeVoiceName = interaction.RealtimeVoiceName,
             RealtimeCapableDeploymentNames = realtimeDeploymentNames,
         };
 
@@ -742,6 +750,9 @@ else
             realtimeButtonElementSelector = "#realtime-btn",
             deploymentSelectElementSelector = "#chat-setting-deployment",
             realtimeCapableDeployments = _model.RealtimeCapableDeploymentNames,
+            realtimeVoiceSelectElementSelector = "#chat-setting-realtimeVoice",
+            realtimeVoiceGroupElementSelector = "#chat-setting-realtimeVoice-group",
+            realtimeVoicesUrl = "/api/chat/realtime-voices",
         });
     }
 

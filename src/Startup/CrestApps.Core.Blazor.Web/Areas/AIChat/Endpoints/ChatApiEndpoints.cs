@@ -7,6 +7,7 @@ internal static class ChatApiEndpoints
         return builder
             .AddGetChatProfilesEndpoint()
             .AddCreateChatSessionEndpoint()
-            .AddGetChatSessionEndpoint();
+            .AddGetChatSessionEndpoint()
+            .AddGetRealtimeVoicesEndpoint();
     }
 }

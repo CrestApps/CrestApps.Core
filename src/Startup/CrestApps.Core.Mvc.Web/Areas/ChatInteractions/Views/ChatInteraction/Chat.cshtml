@@ -217,6 +217,14 @@
                         </select>
                     </div>
 
+                    <div class="mb-2 d-none" id="setting-realtimeVoice-group">
+                        <label class="form-label">Voice</label>
+                        <select class="form-select setting-input" id="setting-realtimeVoice" data-setting="realtimeVoiceName">
+                            <option value="">Default voice</option>
+                        </select>
+                        <div class="form-text">Voice for realtime (speech-to-speech), from the selected realtime model.</div>
+                    </div>
+
                     <div class="mb-2">
                         <label class="form-label">Orchestrator</label>
                         <select class="form-select setting-input" id="setting-orchestratorName" name="OrchestratorName" data-setting="orchestratorName">
@@ -718,6 +726,69 @@
             var realtimeCapableDeployments = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RealtimeCapableDeploymentNames))
                 .map(function (name) { return (name || '').toLowerCase(); });
             var deploymentSelect = document.getElementById('setting-deployment');
+
+            // --- Realtime voice picker (per-interaction, populated from the selected realtime model) ---
+            var realtimeVoiceSelect = document.getElementById('setting-realtimeVoice');
+            var realtimeVoiceGroup = document.getElementById('setting-realtimeVoice-group');
+            var realtimeVoicesUrl = '@Url.Action("GetRealtimeVoices", "Settings", new { area = "Admin" })';
+
+            function isRealtimeCapableDeployment(name) {
+                return name && realtimeCapableDeployments.indexOf(name.toLowerCase()) !== -1;
+            }
+
+            async function loadInteractionRealtimeVoices() {
+                if (!realtimeVoiceSelect) {
+                    return;
+                }
+
+                var deploymentName = deploymentSelect ? deploymentSelect.value : '';
+                var realtime = isRealtimeCapableDeployment(deploymentName);
+                if (realtimeVoiceGroup) {
+                    realtimeVoiceGroup.classList.toggle('d-none', !realtime);
+                }
+                if (!realtime) {
+                    return;
+                }
+
+                realtimeVoiceSelect.innerHTML = '<option value="">Default voice</option>';
+
+                try {
+                    const response = await fetch(realtimeVoicesUrl + '?deploymentName=' + encodeURIComponent(deploymentName), { credentials: 'same-origin' });
+                    const result = await response.json();
+                    if (!result || !Array.isArray(result.voices)) {
+                        return;
+                    }
+
+                    const grouped = new Map();
+                    for (const voice of result.voices) {
+                        const groupName = voice.gender || 'Voices';
+                        if (!grouped.has(groupName)) {
+                            grouped.set(groupName, []);
+                        }
+                        grouped.get(groupName).push(voice);
+                    }
+
+                    Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b)).forEach(function (groupName) {
+                        const optgroup = document.createElement('optgroup');
+                        optgroup.label = groupName;
+                        grouped.get(groupName).forEach(function (voice) {
+                            const option = document.createElement('option');
+                            option.value = voice.id;
+                            option.textContent = voice.name;
+                            option.selected = voice.id === realtimeVoiceName;
+                            optgroup.appendChild(option);
+                        });
+                        realtimeVoiceSelect.appendChild(optgroup);
+                    });
+                } catch (err) {
+                    /* ignore voice load failures */
+                }
+            }
+
+            if (deploymentSelect) {
+                deploymentSelect.addEventListener('change', loadInteractionRealtimeVoices);
+            }
+            loadInteractionRealtimeVoices();
 
             // --- Markdown rendering ---
             var renderer = new marked.Renderer();
@@ -2351,6 +2422,10 @@
                         connection.send('StartRealtimeConversation', itemId, subject, voice, language, silenceMs, vadThreshold);
                     },
                     voiceName: realtimeVoiceName,
+                    getVoiceName: function () {
+                        var el = document.getElementById('setting-realtimeVoice');
+                        return el ? el.value : '';
+                    },
                     capableDeployments: realtimeCapableDeployments,
                     realtimeEnabled: realtimeEnabled,
                     selectors: {
