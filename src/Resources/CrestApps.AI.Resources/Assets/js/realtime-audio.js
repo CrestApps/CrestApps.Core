@@ -62,7 +62,8 @@
         var realtimeStream = null, realtimeAudioCtx = null, realtimeSubject = null, realtimeProcessor = null,
             realtimeMicSource = null, realtimeZeroGain = null, realtimeGain = null, realtimePlayHead = 0, realtimeSources = [];
         // WebRTC transport state.
-        var realtimeIsWebRtc = false, realtimePc = null, realtimeRemoteAudioEl = null, realtimeWebRtcHandlersBound = false;
+        var realtimeIsWebRtc = false, realtimePc = null, realtimeRemoteAudioEl = null, realtimeWebRtcHandlersBound = false,
+            realtimeRemoteDescriptionSet = false, realtimePendingIce = [];
 
         // Per-device audio preferences (barge-in, echo guard, push-to-talk, volume, mic, etc.).
         var realtimeBargeIn = true, realtimeHangoverSec = 0.25, realtimePushToTalk = false, realtimePttActive = false,
@@ -546,6 +547,8 @@
                             onActivate();
                             updateRealtimeButton();
 
+                            realtimeRemoteDescriptionSet = false;
+                            realtimePendingIce = [];
                             var pc = new RTCPeerConnection({ iceServers: webRtcIceServers });
                             realtimePc = pc;
 
@@ -610,14 +613,27 @@
             realtimeWebRtcHandlersBound = true;
 
             connection.on('ReceiveRealtimeAnswer', function (sdp) {
-                if (realtimePc) {
-                    try { realtimePc.setRemoteDescription({ type: 'answer', sdp: sdp }); }
-                    catch (err) { console.error('Failed to apply the WebRTC answer.', err); }
-                }
+                if (!realtimePc) { return; }
+                realtimePc.setRemoteDescription({ type: 'answer', sdp: sdp })
+                    .then(function () {
+                        realtimeRemoteDescriptionSet = true;
+                        // Flush any ICE candidates that arrived before the answer was applied.
+                        var pending = realtimePendingIce;
+                        realtimePendingIce = [];
+                        pending.forEach(function (init) {
+                            try { realtimePc.addIceCandidate(init); } catch (err) { }
+                        });
+                    })
+                    .catch(function (err) { console.error('Failed to apply the WebRTC answer.', err); });
             });
             connection.on('ReceiveRealtimeIceCandidate', function (candidate, sdpMid, sdpMLineIndex) {
-                if (realtimePc && candidate) {
-                    try { realtimePc.addIceCandidate({ candidate: candidate, sdpMid: sdpMid, sdpMLineIndex: sdpMLineIndex }); } catch (err) { }
+                if (!realtimePc || !candidate) { return; }
+                var init = { candidate: candidate, sdpMid: sdpMid, sdpMLineIndex: sdpMLineIndex };
+                // A candidate can only be added after the remote description (answer) is set; buffer until then.
+                if (realtimeRemoteDescriptionSet) {
+                    try { realtimePc.addIceCandidate(init); } catch (err) { }
+                } else {
+                    realtimePendingIce.push(init);
                 }
             });
         }
