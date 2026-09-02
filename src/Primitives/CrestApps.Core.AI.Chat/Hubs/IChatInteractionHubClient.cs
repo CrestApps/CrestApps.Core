@@ -57,6 +57,17 @@ public interface IChatInteractionHubClient
     Task ReceiveAudioComplete(string identifier);
 
     /// <summary>
+    /// Receives the SDP answer for a server-relay WebRTC realtime session.
+    /// </summary>
+    /// <param name="sdp">The SDP answer.</param>
+    Task ReceiveRealtimeAnswer(string sdp);
+
+    /// <summary>
+    /// Receives a trickled ICE candidate from the server-relay WebRTC peer.
+    /// </summary>
+    Task ReceiveRealtimeIceCandidate(string candidate, string sdpMid, int sdpMLineIndex);
+
+    /// <summary>
     /// Receives the conversation User Message.
     /// </summary>
     /// <param name="identifier">The identifier.</param>

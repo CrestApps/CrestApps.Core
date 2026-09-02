@@ -737,89 +737,20 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             {
                 using var invocationScope = AIInvocationScope.Begin();
 
-                var interactionManager = services.GetRequiredService<ICatalogManager<ChatInteraction>>();
-                var interaction = await interactionManager.FindByIdAsync(itemId);
-                if (interaction is null)
+                var prepared = await PrepareRealtimeSessionAsync(services, itemId, cancellationToken);
+                if (prepared is null)
                 {
-                    await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
-
                     return;
                 }
 
-                if (!await AuthorizeAsync(services, interaction))
-                {
-                    await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
-
-                    return;
-                }
-
-                var capabilityService = services.GetRequiredService<IAIDeploymentCapabilityService>();
-
-                // The interaction's own selected deployment takes precedence: when it is a realtime
-                // (speech-to-speech) model, it is used as the realtime deployment regardless of the site chat mode.
-                var selectedIsRealtime = !string.IsNullOrWhiteSpace(interaction.ChatDeploymentName)
-                    && await capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, interaction.ChatDeploymentName, cancellationToken) is not null;
-
-                // Otherwise realtime voice must be enabled for the interaction via the site chat mode.
-                if (!selectedIsRealtime)
-                {
-                    var chatMode = await GetChatModeAsync(services);
-                    if (chatMode != ChatMode.Realtime)
-                    {
-                        await Clients.Caller.ReceiveError(GetConversationNotEnabledMessage());
-
-                        return;
-                    }
-                }
-
-                var defaultRealtimeDeploymentName = (await GetDeploymentSettingsAsync(services)).DefaultRealtimeDeploymentName;
-
-                // Prefer the interaction's own realtime deployment; fall back to the site default realtime deployment.
-                var realtimeDeploymentName = selectedIsRealtime ? interaction.ChatDeploymentName : defaultRealtimeDeploymentName;
-                if (await capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName, cancellationToken) is null)
-                {
-                    await Clients.Caller.ReceiveError(GetNoRealtimeDeploymentMessage());
-
-                    return;
-                }
-
-                await Groups.AddToGroupAsync(Context.ConnectionId, GetInteractionGroupName(interaction.ItemId), cancellationToken);
-
-                var deploymentSettings = await GetDeploymentSettingsAsync(services);
-                var effectiveVoice = !string.IsNullOrWhiteSpace(voice) ? voice : deploymentSettings.DefaultRealtimeVoiceId;
+                var (interaction, interactionManager, realtimeDeploymentName) = prepared.Value;
 
                 var promptStore = services.GetRequiredService<IChatInteractionPromptStore>();
                 var runner = services.GetRequiredService<RealtimeChatSessionRunner>();
                 var sink = new SignalRRealtimeConversationSink(Clients.Caller);
                 var turnStore = new ChatInteractionRealtimeTurnStore(promptStore);
 
-                var titleUpdated = false;
-                var runContext = new RealtimeChatRunContext
-                {
-                    Resource = interaction,
-                    SessionId = interaction.ItemId,
-                    Interaction = interaction,
-                    RealtimeDeploymentName = realtimeDeploymentName,
-                    SilenceDurationMs = silenceDurationMs,
-                    VadThreshold = vadThreshold,
-                    AllowInterruption = allowInterruption,
-                    Voice = effectiveVoice,
-                    SpeechLanguage = language,
-                    OnUserUtteranceAsync = async (text, turnCancellationToken) =>
-                    {
-                        if (!titleUpdated && string.IsNullOrEmpty(interaction.Title))
-                        {
-                            titleUpdated = true;
-                            interaction.Title = text.Length > 255 ? text[..255] : text;
-                            await interactionManager.UpdateAsync(interaction, cancellationToken: turnCancellationToken);
-                        }
-                    },
-                    OnAssistantCompletedAsync = async _ =>
-                    {
-                        // Commit at each turn boundary so a dropped connection still records history.
-                        await CommitChangesAsync(services);
-                    },
-                };
+                var runContext = await CreateRealtimeRunContextAsync(services, interaction, interactionManager, realtimeDeploymentName, voice, language, silenceDurationMs, vadThreshold, allowInterruption, cancellationToken);
 
                 await runner.RunAsync(runContext, turnStore, DecodeBase64AudioAsync(audioChunks, cancellationToken), sink, cancellationToken);
 
@@ -845,6 +776,265 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 Logger.LogWarning(writeEx, "Failed to write realtime conversation error message.");
             }
         }
+    }
+
+    /// <summary>
+    /// Starts a realtime (speech-to-speech) conversation over a server-relay WebRTC transport. The browser peers
+    /// with the hub (Opus audio), while the hub keeps driving the provider session over WebSocket exactly as the
+    /// SignalR/PCM transport does — the orchestrator, tools, and persistence are unchanged. The SDP answer and
+    /// trickled ICE candidates are delivered via the client callbacks; the invocation stays open for the session.
+    /// </summary>
+    public virtual async Task StartRealtimeWebRtc(string itemId, string offerSdp, string voice = null, string language = null, int? silenceDurationMs = null, float? vadThreshold = null, bool allowInterruption = true)
+    {
+        if (string.IsNullOrWhiteSpace(itemId))
+        {
+            await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(itemId)));
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(offerSdp))
+        {
+            await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(offerSdp)));
+
+            return;
+        }
+
+        var connectionId = Context.ConnectionId;
+        var cancellationToken = Context.ConnectionAborted;
+
+        try
+        {
+            await RunInScopeAsync(async services =>
+            {
+                using var invocationScope = AIInvocationScope.Begin();
+
+                var peerFactory = services.GetService<IWebRtcRealtimePeerFactory>();
+                if (peerFactory is null)
+                {
+                    await Clients.Caller.ReceiveError(GetWebRtcNotAvailableMessage());
+
+                    return;
+                }
+
+                var prepared = await PrepareRealtimeSessionAsync(services, itemId, cancellationToken);
+                if (prepared is null)
+                {
+                    return;
+                }
+
+                var (interaction, interactionManager, realtimeDeploymentName) = prepared.Value;
+
+                var registry = services.GetRequiredService<WebRtcRealtimePeerRegistry>();
+                var caller = Clients.Caller;
+
+                await using var peer = await peerFactory.CreateAsync(offerSdp, GetIceServers(services), cancellationToken);
+                registry.Add(connectionId, peer);
+
+                var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                peer.IceCandidateGenerated += candidate =>
+                {
+                    _ = caller.ReceiveRealtimeIceCandidate(candidate.Candidate, candidate.SdpMid, candidate.SdpMLineIndex);
+                };
+                peer.Connected += () => connected.TrySetResult();
+                peer.Closed += () => connected.TrySetException(new OperationCanceledException("The WebRTC peer closed before connecting."));
+
+                try
+                {
+                    await caller.ReceiveRealtimeAnswer(peer.AnswerSdp);
+
+                    // Wait for ICE to connect before starting the session.
+                    await connected.Task.WaitAsync(TimeSpan.FromSeconds(20), cancellationToken);
+
+                    var promptStore = services.GetRequiredService<IChatInteractionPromptStore>();
+                    var runner = services.GetRequiredService<RealtimeChatSessionRunner>();
+                    var innerSink = new SignalRRealtimeConversationSink(caller);
+                    var sink = new WebRtcRealtimeConversationSink(innerSink, peer);
+                    var turnStore = new ChatInteractionRealtimeTurnStore(promptStore);
+
+                    var runContext = await CreateRealtimeRunContextAsync(services, interaction, interactionManager, realtimeDeploymentName, voice, language, silenceDurationMs, vadThreshold, allowInterruption, cancellationToken);
+
+                    using var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    peer.Closed += () => sessionCts.Cancel();
+
+                    await runner.RunAsync(runContext, turnStore, peer.ReadAudioAsync(sessionCts.Token), sink, sessionCts.Token);
+
+                    await CommitChangesAsync(services);
+                }
+                finally
+                {
+                    registry.Remove(connectionId);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            if (ex is OperationCanceledException or TimeoutException)
+            {
+                Logger.LogDebug("Realtime WebRTC conversation ended or timed out before connecting.");
+
+                return;
+            }
+
+            Logger.LogError(ex, "An error occurred during realtime WebRTC conversation mode.");
+            try
+            {
+                await Clients.Caller.ReceiveError(GetConversationErrorMessage());
+            }
+            catch (Exception writeEx)
+            {
+                Logger.LogWarning(writeEx, "Failed to write realtime WebRTC conversation error message.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adds a trickled ICE candidate from the browser to the active server-relay WebRTC peer for this connection.
+    /// </summary>
+    public virtual Task AddRealtimeIceCandidate(string candidate, string sdpMid, int sdpMLineIndex)
+    {
+        var connectionId = Context.ConnectionId;
+
+        return RunInScopeAsync(services =>
+        {
+            var registry = services.GetRequiredService<WebRtcRealtimePeerRegistry>();
+            registry.Get(connectionId)?.AddIceCandidate(new WebRtcIceCandidate
+            {
+                Candidate = candidate,
+                SdpMid = sdpMid,
+                SdpMLineIndex = sdpMLineIndex,
+            });
+
+            return Task.CompletedTask;
+        });
+    }
+
+    /// <summary>
+    /// Validates the interaction and resolves the realtime deployment shared by both realtime transports. Sends a
+    /// client error and returns null when the session cannot start.
+    /// </summary>
+    private async Task<(ChatInteraction Interaction, ICatalogManager<ChatInteraction> Manager, string RealtimeDeploymentName)?> PrepareRealtimeSessionAsync(
+        IServiceProvider services,
+        string itemId,
+        CancellationToken cancellationToken)
+    {
+        var interactionManager = services.GetRequiredService<ICatalogManager<ChatInteraction>>();
+        var interaction = await interactionManager.FindByIdAsync(itemId, cancellationToken);
+        if (interaction is null)
+        {
+            await Clients.Caller.ReceiveError(GetInteractionNotFoundMessage());
+
+            return null;
+        }
+
+        if (!await AuthorizeAsync(services, interaction))
+        {
+            await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
+            return null;
+        }
+
+        var capabilityService = services.GetRequiredService<IAIDeploymentCapabilityService>();
+
+        // The interaction's own selected deployment takes precedence: when it is a realtime (speech-to-speech)
+        // model, it is used as the realtime deployment regardless of the site chat mode.
+        var selectedIsRealtime = !string.IsNullOrWhiteSpace(interaction.ChatDeploymentName)
+            && await capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, interaction.ChatDeploymentName, cancellationToken) is not null;
+
+        // Otherwise realtime voice must be enabled for the interaction via the site chat mode.
+        if (!selectedIsRealtime)
+        {
+            var chatMode = await GetChatModeAsync(services);
+            if (chatMode != ChatMode.Realtime)
+            {
+                await Clients.Caller.ReceiveError(GetConversationNotEnabledMessage());
+
+                return null;
+            }
+        }
+
+        var defaultRealtimeDeploymentName = (await GetDeploymentSettingsAsync(services)).DefaultRealtimeDeploymentName;
+
+        // Prefer the interaction's own realtime deployment; fall back to the site default realtime deployment.
+        var realtimeDeploymentName = selectedIsRealtime ? interaction.ChatDeploymentName : defaultRealtimeDeploymentName;
+        if (await capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName, cancellationToken) is null)
+        {
+            await Clients.Caller.ReceiveError(GetNoRealtimeDeploymentMessage());
+
+            return null;
+        }
+
+        await Groups.AddToGroupAsync(Context.ConnectionId, GetInteractionGroupName(interaction.ItemId), cancellationToken);
+
+        return (interaction, interactionManager, realtimeDeploymentName);
+    }
+
+    /// <summary>
+    /// Builds the <see cref="RealtimeChatRunContext"/> shared by both realtime transports.
+    /// </summary>
+    private async Task<RealtimeChatRunContext> CreateRealtimeRunContextAsync(
+        IServiceProvider services,
+        ChatInteraction interaction,
+        ICatalogManager<ChatInteraction> interactionManager,
+        string realtimeDeploymentName,
+        string voice,
+        string language,
+        int? silenceDurationMs,
+        float? vadThreshold,
+        bool allowInterruption,
+        CancellationToken cancellationToken)
+    {
+        var deploymentSettings = await GetDeploymentSettingsAsync(services);
+        var effectiveVoice = !string.IsNullOrWhiteSpace(voice) ? voice : deploymentSettings.DefaultRealtimeVoiceId;
+
+        var titleUpdated = false;
+
+        return new RealtimeChatRunContext
+        {
+            Resource = interaction,
+            SessionId = interaction.ItemId,
+            Interaction = interaction,
+            RealtimeDeploymentName = realtimeDeploymentName,
+            SilenceDurationMs = silenceDurationMs,
+            VadThreshold = vadThreshold,
+            AllowInterruption = allowInterruption,
+            Voice = effectiveVoice,
+            SpeechLanguage = language,
+            OnUserUtteranceAsync = async (text, turnCancellationToken) =>
+            {
+                if (!titleUpdated && string.IsNullOrEmpty(interaction.Title))
+                {
+                    titleUpdated = true;
+                    interaction.Title = text.Length > 255 ? text[..255] : text;
+                    await interactionManager.UpdateAsync(interaction, cancellationToken: turnCancellationToken);
+                }
+            },
+            OnAssistantCompletedAsync = async _ =>
+            {
+                // Commit at each turn boundary so a dropped connection still records history.
+                await CommitChangesAsync(services);
+            },
+        };
+    }
+
+    /// <summary>
+    /// Gets the ICE (STUN/TURN) servers offered to the browser for the server-relay WebRTC peer. Phase 1 uses a
+    /// public STUN server for local/same-network use; TURN for production behind NAT is configured later.
+    /// </summary>
+    private static IReadOnlyList<WebRtcIceServer> GetIceServers(IServiceProvider services)
+    {
+        return
+        [
+            new WebRtcIceServer { Urls = ["stun:stun.l.google.com:19302"] },
+        ];
+    }
+
+    /// <summary>
+    /// Gets the message returned when the WebRTC transport is not available on the server.
+    /// </summary>
+    protected virtual string GetWebRtcNotAvailableMessage()
+    {
+        return "The WebRTC realtime transport is not available on this server.";
     }
 
     /// <summary>

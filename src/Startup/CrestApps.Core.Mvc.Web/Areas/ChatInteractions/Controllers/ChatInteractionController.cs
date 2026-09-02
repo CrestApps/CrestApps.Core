@@ -294,6 +294,7 @@ public sealed class ChatInteractionController : Controller
             SpeechToTextEnabled = effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation,
             ConversationModeEnabled = effectiveChatMode == ChatMode.Conversation,
             RealtimeEnabled = effectiveChatMode == ChatMode.Realtime,
+            RealtimeWebRtcEnabled = HttpContext.RequestServices.GetService<CrestApps.Core.AI.Realtime.IWebRtcRealtimePeerFactory>() is not null,
             TextToSpeechEnabled = chatInteractionSettings.EnableTextToSpeechPlayback && hasTextToSpeech,
             TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
             RealtimeVoiceName = interaction.RealtimeVoiceName,

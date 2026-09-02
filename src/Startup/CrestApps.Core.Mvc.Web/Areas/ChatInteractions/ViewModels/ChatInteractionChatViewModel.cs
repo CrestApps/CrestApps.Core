@@ -117,6 +117,8 @@ internal sealed class ChatInteractionChatViewModel
 
     public bool RealtimeEnabled { get; set; }
 
+    public bool RealtimeWebRtcEnabled { get; set; }
+
     public bool TextToSpeechEnabled { get; set; }
 
     public string TextToSpeechVoiceName { get; set; }

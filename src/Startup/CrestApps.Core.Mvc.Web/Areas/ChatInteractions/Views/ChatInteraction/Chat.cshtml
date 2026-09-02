@@ -2421,6 +2421,10 @@
                     sendStart: function (subject, voice, language, silenceMs, vadThreshold, allowInterruption) {
                         connection.send('StartRealtimeConversation', itemId, subject, voice, language, silenceMs, vadThreshold, allowInterruption);
                     },
+                    webRtcEnabled: @(Model.RealtimeWebRtcEnabled ? "true" : "false"),
+                    sendStartWebRtc: function (offerSdp, voice, language, silenceMs, vadThreshold, allowInterruption) {
+                        connection.send('StartRealtimeWebRtc', itemId, offerSdp, voice, language, silenceMs, vadThreshold, allowInterruption);
+                    },
                     voiceName: realtimeVoiceName,
                     getVoiceName: function () {
                         var el = document.getElementById('setting-realtimeVoice');

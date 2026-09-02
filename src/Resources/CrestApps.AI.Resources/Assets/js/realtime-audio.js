@@ -48,12 +48,21 @@
         // Optional: resolve the assistant voice live at session start (e.g. from a settings picker) so it
         // reflects the current selection rather than the value captured when the controller was attached.
         var getVoiceName = opts.getVoiceName || null;
+        // Optional server-relay WebRTC transport: when the server advertises it and the callback is supplied, the
+        // controller uses WebRTC (real acoustic echo cancellation) instead of the PCM-over-SignalR path.
+        var sendStartWebRtc = opts.sendStartWebRtc || null;
+        var webRtcEnabled = opts.webRtcEnabled === true && typeof window.RTCPeerConnection === 'function' && !!sendStartWebRtc;
+        var webRtcIceServers = Array.isArray(opts.webRtcIceServers) && opts.webRtcIceServers.length
+            ? opts.webRtcIceServers
+            : [{ urls: 'stun:stun.l.google.com:19302' }];
 
         function q(name) { var s = sel[name]; return s ? document.querySelector(s) : null; }
 
         var isRealtimeActive = false;
         var realtimeStream = null, realtimeAudioCtx = null, realtimeSubject = null, realtimeProcessor = null,
             realtimeMicSource = null, realtimeZeroGain = null, realtimeGain = null, realtimePlayHead = 0, realtimeSources = [];
+        // WebRTC transport state.
+        var realtimeIsWebRtc = false, realtimePc = null, realtimeRemoteAudioEl = null, realtimeWebRtcHandlersBound = false;
 
         // Per-device audio preferences (barge-in, echo guard, push-to-talk, volume, mic, etc.).
         var realtimeBargeIn = true, realtimeHangoverSec = 0.25, realtimePushToTalk = false, realtimePttActive = false,
@@ -409,6 +418,15 @@
             if (!isRealtimeMode || isRealtimeActive || !connection) { return; }
 
             applyRealtimeAudioPrefs(loadRealtimeAudioPrefs());
+
+            // Prefer the WebRTC transport when the server advertises it: the browser's echo canceller references
+            // the assistant's media track, so the model can ignore its own voice with the mic open (open rooms).
+            if (webRtcEnabled) {
+                startRealtimeWebRtcConversation();
+
+                return;
+            }
+
             attachRealtimePushToTalk();
             // Drop focus from the just-clicked button so Space acts as push-to-talk, not a re-click.
             var focusedBtn = q('realtimeButton');
@@ -506,6 +524,116 @@
                 });
         }
 
+        // --- WebRTC (server-relay) transport ---
+
+        function startRealtimeWebRtcConversation() {
+            var micConstraints = {
+                echoCancellation: { ideal: true },
+                noiseSuppression: realtimeNoiseSuppression !== false,
+                autoGainControl: realtimeAutoGain !== false,
+                echoCancellationType: { ideal: 'system' },
+                voiceIsolation: { ideal: true }
+            };
+            if (realtimeMicDeviceId) { micConstraints.deviceId = { exact: realtimeMicDeviceId }; }
+
+            navigator.mediaDevices.getUserMedia({ audio: micConstraints })
+                .then(function (stream) {
+                    ensureConnected()
+                        .then(function () {
+                            realtimeStream = stream;
+                            isRealtimeActive = true;
+                            realtimeIsWebRtc = true;
+                            onActivate();
+                            updateRealtimeButton();
+
+                            var pc = new RTCPeerConnection({ iceServers: webRtcIceServers });
+                            realtimePc = pc;
+
+                            stream.getAudioTracks().forEach(function (track) { pc.addTrack(track, stream); });
+
+                            // Play the assistant's remote track through a hidden <audio> element. This gives the
+                            // browser's echo canceller a reference to remove the assistant's voice from the mic.
+                            var audioEl = document.createElement('audio');
+                            audioEl.autoplay = true;
+                            audioEl.style.display = 'none';
+                            document.body.appendChild(audioEl);
+                            realtimeRemoteAudioEl = audioEl;
+                            pc.ontrack = function (e) { if (e.streams && e.streams[0]) { audioEl.srcObject = e.streams[0]; } };
+
+                            pc.onicecandidate = function (e) {
+                                if (e.candidate) {
+                                    try { connection.send('AddRealtimeIceCandidate', e.candidate.candidate, e.candidate.sdpMid || '', e.candidate.sdpMLineIndex || 0); } catch (err) { }
+                                }
+                            };
+                            pc.onconnectionstatechange = function () {
+                                if ((pc.connectionState === 'failed' || pc.connectionState === 'closed') && isRealtimeActive) {
+                                    stopRealtimeConversation();
+                                }
+                            };
+
+                            bindWebRtcSignalingHandlers();
+
+                            pc.createOffer()
+                                .then(function (offer) { return pc.setLocalDescription(offer).then(function () { return offer; }); })
+                                .then(function (offer) {
+                                    var language = realtimeLanguage || navigator.language || document.documentElement.lang || 'en-US';
+                                    var silenceMs = realtimeTuneTurnDetection ? realtimeSilenceMs : null;
+                                    var vadThreshold = realtimeTuneTurnDetection ? realtimeVadThreshold : null;
+                                    var voice = (getVoiceName && getVoiceName()) || realtimeVoiceName || '';
+                                    sendStartWebRtc(offer.sdp, voice, language, silenceMs, vadThreshold, realtimeBargeIn);
+                                })
+                                .catch(function (err) {
+                                    console.error('Failed to create the WebRTC offer.', err);
+                                    stopRealtimeConversation();
+                                });
+                        })
+                        .catch(function (err) {
+                            stream.getTracks().forEach(function (t) { t.stop(); });
+                            isRealtimeActive = false;
+                            realtimeIsWebRtc = false;
+                            onDeactivate();
+                            updateRealtimeButton();
+                            console.error('The realtime WebRTC conversation could not start because the chat connection is not available.', err);
+                        });
+                })
+                .catch(function (err) {
+                    console.error('Microphone access denied:', err);
+                    isRealtimeActive = false;
+                    realtimeIsWebRtc = false;
+                    onDeactivate();
+                    updateRealtimeButton();
+                });
+        }
+
+        function bindWebRtcSignalingHandlers() {
+            if (realtimeWebRtcHandlersBound) { return; }
+            realtimeWebRtcHandlersBound = true;
+
+            connection.on('ReceiveRealtimeAnswer', function (sdp) {
+                if (realtimePc) {
+                    try { realtimePc.setRemoteDescription({ type: 'answer', sdp: sdp }); }
+                    catch (err) { console.error('Failed to apply the WebRTC answer.', err); }
+                }
+            });
+            connection.on('ReceiveRealtimeIceCandidate', function (candidate, sdpMid, sdpMLineIndex) {
+                if (realtimePc && candidate) {
+                    try { realtimePc.addIceCandidate({ candidate: candidate, sdpMid: sdpMid, sdpMLineIndex: sdpMLineIndex }); } catch (err) { }
+                }
+            });
+        }
+
+        function stopRealtimeWebRtc() {
+            if (realtimePc) {
+                try { realtimePc.close(); } catch (err) { }
+                realtimePc = null;
+            }
+            if (realtimeRemoteAudioEl) {
+                try { realtimeRemoteAudioEl.srcObject = null; realtimeRemoteAudioEl.remove(); } catch (err) { }
+                realtimeRemoteAudioEl = null;
+            }
+            realtimeIsWebRtc = false;
+        }
+
         function stopRealtimeConversation() {
             if (!isRealtimeActive) { return; }
 
@@ -514,6 +642,14 @@
             updateRealtimeButton();
             detachRealtimePushToTalk();
             removeRealtimePttUi();
+
+            if (realtimeIsWebRtc) {
+                stopRealtimeWebRtc();
+                try { if (realtimeStream) { realtimeStream.getTracks().forEach(function (t) { t.stop(); }); } } catch (err) { }
+                realtimeStream = null;
+
+                return;
+            }
 
             try { if (realtimeSubject) { realtimeSubject.complete(); } } catch (err) { /* already completed */ }
             realtimeSubject = null;

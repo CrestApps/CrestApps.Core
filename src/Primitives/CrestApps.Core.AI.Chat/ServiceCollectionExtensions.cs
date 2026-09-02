@@ -81,6 +81,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<PostSessionProcessingService>();
         services.TryAddScoped<AIChatSessionPostCloseProcessor>();
         services.TryAddScoped<CrestApps.Core.AI.Chat.Realtime.RealtimeChatSessionRunner>();
+        services.TryAddSingleton<CrestApps.Core.AI.Chat.Realtime.WebRtcRealtimePeerRegistry>();
         services.TryAddSingleton<AIChatSessionCloseCycleService>();
         services.TryAddSingleton<AIChatSessionCloseRunner>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIChatSessionCloseBackgroundService>());

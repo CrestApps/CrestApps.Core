@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.Realtime.WebRtc</RootNamespace>
+    <Title>CrestApps AI Realtime WebRTC Transport</Title>
+    <Description>
+			$(CrestAppsDescription)
+
+			Server-relay WebRTC transport for CrestApps AI realtime (speech-to-speech) voice,
+			backed by SIPSorcery for the peer connection and Concentus for Opus.
+		</Description>
+    <PackageTags>$(PackageTags) ai realtime webrtc voice sipsorcery opus</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SIPSorcery" />
+    <PackageReference Include="Concentus" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Abstractions/CrestApps.Core.AI.Abstractions/CrestApps.Core.AI.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
