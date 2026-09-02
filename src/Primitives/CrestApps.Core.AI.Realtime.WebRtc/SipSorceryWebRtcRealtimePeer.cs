@@ -2,7 +2,6 @@ using System.Net;
 using System.Threading.Channels;
 using Concentus;
 using Concentus.Enums;
-using CrestApps.Core.AI.Realtime;
 using Microsoft.Extensions.Logging;
 using SIPSorcery.Net;
 using SIPSorceryMedia.Abstractions;
@@ -45,6 +44,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     private bool _connectedRaised;
     private long _rtpReceived;
     private long _framesSent;
+    private short _recentPeak;
 
     public string AnswerSdp { get; private set; }
 
@@ -115,7 +115,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         });
     }
 
-    public IAsyncEnumerable<ReadOnlyMemory<byte>> ReadAudioAsync(CancellationToken cancellationToken)
+    public IAsyncEnumerable<ReadOnlyMemory<byte>> ReadAudioAsync(CancellationToken cancellationToken = default)
         => _incoming.Reader.ReadAllAsync(cancellationToken);
 
     public void SendAudio(ReadOnlyMemory<byte> pcm24k)
@@ -177,17 +177,42 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             return;
         }
 
-        if (Interlocked.Increment(ref _rtpReceived) == 1 && _logger.IsEnabled(LogLevel.Information))
-        {
-            _logger.LogInformation("WebRTC realtime: first inbound audio packet decoded ({Samples} samples @ 24 kHz).", samples);
-        }
+        var count = Interlocked.Increment(ref _rtpReceived);
 
         var bytes = new byte[samples * 2];
+        short peak = 0;
         for (var i = 0; i < samples; i++)
         {
             var sample = _decodeBuffer[i];
+            var magnitude = sample == short.MinValue ? short.MaxValue : Math.Abs(sample);
+            if (magnitude > peak)
+            {
+                peak = (short)magnitude;
+            }
+
             bytes[i * 2] = (byte)(sample & 0xFF);
             bytes[i * 2 + 1] = (byte)((sample >> 8) & 0xFF);
+        }
+
+        if (peak > _recentPeak)
+        {
+            _recentPeak = peak;
+        }
+
+        // Emit periodic inbound diagnostics: whether audio keeps flowing and how loud it reaches the provider
+        // (peak amplitude out of 32767). A near-zero peak while the user is speaking means the mic/AEC is
+        // gating the signal to silence, which explains the model not detecting speech.
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            if (count == 1)
+            {
+                _logger.LogInformation("WebRTC realtime: first inbound audio packet decoded ({Samples} samples @ 24 kHz).", samples);
+            }
+            else if (count % 250 == 0)
+            {
+                _logger.LogInformation("WebRTC realtime: inbound audio flowing ({Count} packets, recent peak amplitude {Peak}/32767).", count, _recentPeak);
+                _recentPeak = 0;
+            }
         }
 
         _incoming.Writer.TryWrite(bytes);

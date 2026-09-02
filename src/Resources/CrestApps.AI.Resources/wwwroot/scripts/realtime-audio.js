@@ -649,18 +649,18 @@
     // --- WebRTC (server-relay) transport ---
 
     function startRealtimeWebRtcConversation() {
+      // Keep the WebRTC capture constraints minimal. WebRTC's own echo canceller (AEC3) already references
+      // the remote assistant track we render into the hidden <audio> element, which is the entire reason we
+      // use WebRTC for open-room audio. The stronger hints we request on the WebSocket path
+      // (echoCancellationType:'system' + voiceIsolation) are counterproductive here: layered on top of the
+      // peer-connection AEC loop they gate the mic down to near-silence (~1-3% of full scale), so the model
+      // never detects speech. Ask only for standard echo cancellation and let AEC3 do its job.
       var micConstraints = {
         echoCancellation: {
           ideal: true
         },
         noiseSuppression: realtimeNoiseSuppression !== false,
-        autoGainControl: realtimeAutoGain !== false,
-        echoCancellationType: {
-          ideal: 'system'
-        },
-        voiceIsolation: {
-          ideal: true
-        }
+        autoGainControl: realtimeAutoGain !== false
       };
       if (realtimeMicDeviceId) {
         micConstraints.deviceId = {

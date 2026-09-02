@@ -1,4 +1,3 @@
-using CrestApps.Core.AI.Realtime;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Realtime.WebRtc;
@@ -15,7 +14,7 @@ internal sealed class SipSorceryWebRtcRealtimePeerFactory : IWebRtcRealtimePeerF
         _logger = logger;
     }
 
-    public async Task<IWebRtcRealtimePeer> CreateAsync(string offerSdp, IReadOnlyList<WebRtcIceServer> iceServers, CancellationToken cancellationToken)
+    public async Task<IWebRtcRealtimePeer> CreateAsync(string offerSdp, IReadOnlyList<WebRtcIceServer> iceServers, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(offerSdp);
 

@@ -37,7 +37,7 @@ public interface IWebRtcRealtimePeer : IAsyncDisposable
     /// Reads the microphone audio arriving from the browser as PCM16 (24 kHz, mono) frames, for use as the
     /// realtime runner's audio input.
     /// </summary>
-    IAsyncEnumerable<ReadOnlyMemory<byte>> ReadAudioAsync(CancellationToken cancellationToken);
+    IAsyncEnumerable<ReadOnlyMemory<byte>> ReadAudioAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Sends assistant audio (PCM16, 24 kHz, mono) to the browser as an Opus track.

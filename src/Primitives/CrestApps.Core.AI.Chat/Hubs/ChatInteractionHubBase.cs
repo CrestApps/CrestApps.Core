@@ -854,12 +854,35 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
                     var runContext = await CreateRealtimeRunContextAsync(services, interaction, interactionManager, realtimeDeploymentName, voice, language, silenceDurationMs, vadThreshold, allowInterruption, cancellationToken);
 
-                    using var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    peer.Closed += () => sessionCts.Cancel();
+                    var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-                    await runner.RunAsync(runContext, turnStore, peer.ReadAudioAsync(sessionCts.Token), sink, sessionCts.Token);
+                    // Cancel the session promptly if the peer drops. The peer can raise Closed during its own
+                    // disposal (after this scope has already torn the session down and disposed the source), so
+                    // guard against a disposed source to avoid faulting the hub method on teardown.
+                    void CancelSession()
+                    {
+                        try
+                        {
+                            sessionCts.Cancel();
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                        }
+                    }
 
-                    await CommitChangesAsync(services);
+                    peer.Closed += CancelSession;
+
+                    try
+                    {
+                        await runner.RunAsync(runContext, turnStore, peer.ReadAudioAsync(sessionCts.Token), sink, sessionCts.Token);
+
+                        await CommitChangesAsync(services);
+                    }
+                    finally
+                    {
+                        peer.Closed -= CancelSession;
+                        sessionCts.Dispose();
+                    }
                 }
                 finally
                 {

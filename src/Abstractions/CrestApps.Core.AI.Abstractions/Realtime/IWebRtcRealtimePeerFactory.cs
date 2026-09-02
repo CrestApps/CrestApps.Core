@@ -14,5 +14,5 @@ public interface IWebRtcRealtimePeerFactory
     /// <param name="offerSdp">The browser's SDP offer.</param>
     /// <param name="iceServers">The STUN/TURN servers to use for ICE.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    Task<IWebRtcRealtimePeer> CreateAsync(string offerSdp, IReadOnlyList<WebRtcIceServer> iceServers, CancellationToken cancellationToken);
+    Task<IWebRtcRealtimePeer> CreateAsync(string offerSdp, IReadOnlyList<WebRtcIceServer> iceServers, CancellationToken cancellationToken = default);
 }
