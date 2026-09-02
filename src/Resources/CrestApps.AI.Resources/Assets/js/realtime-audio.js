@@ -64,6 +64,10 @@
         // WebRTC transport state.
         var realtimeIsWebRtc = false, realtimePc = null, realtimeRemoteAudioEl = null, realtimeWebRtcHandlersBound = false,
             realtimeRemoteDescriptionSet = false, realtimePendingIce = [];
+        // WebRTC connect-time fallback state: we decide WebRTC-vs-WebSocket only at connect time (never mid-session).
+        var realtimeWebRtcConnected = false, realtimeWebRtcConnectTimer = null, realtimeFellBack = false;
+        // How long to wait for the WebRTC peer to connect before dropping to the WebSocket transport.
+        var REALTIME_WEBRTC_CONNECT_TIMEOUT_MS = 8000;
 
         // Per-device audio preferences (barge-in, echo guard, push-to-talk, volume, mic, etc.).
         var realtimeBargeIn = true, realtimeHangoverSec = 0.25, realtimePushToTalk = false, realtimePttActive = false,
@@ -227,7 +231,7 @@
                 '<input class="form-check-input js-barge" type="checkbox"' + (prefs.bargeIn ? ' checked' : '') + '>' +
                 '<label class="form-check-label">Allow interruptions (barge-in)</label>' +
                 '</div>' +
-                '<div class="form-text mb-2">Echo cancellation always runs, including with barge-in on. On (default) keeps the mic open so you can talk over the assistant. Turn <strong>off</strong> to also mute the mic while it speaks (below) — best for loud open speakers.</div>' +
+                '<div class="form-text mb-2 js-barge-help">Echo cancellation always runs, including with barge-in on. On (default) keeps the mic open so you can talk over the assistant. Turn <strong>off</strong> to also mute the mic while it speaks (below) — best for loud open speakers.</div>' +
                 '<div class="js-hangover-wrap mb-2">' +
                 '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Echo guard delay: <strong class="js-hangover-val">' + prefs.hangoverMs + '</strong> ms</label>' +
                 '<input type="range" class="form-range js-hangover" min="0" max="1000" step="50" value="' + prefs.hangoverMs + '">' +
@@ -286,6 +290,17 @@
             var silenceVal = panel.querySelector('.js-silence-val');
             var thrInput = panel.querySelector('.js-thr');
             var thrVal = panel.querySelector('.js-thr-val');
+
+            // On the WebRTC transport the half-duplex echo guard is inert: WebRTC's own acoustic echo canceller
+            // keeps the mic open and removes the assistant's voice, so there is nothing to mute or delay. Hide the
+            // echo-guard delay slider and simplify the barge-in help text accordingly.
+            if (webRtcEnabled) {
+                if (hangoverWrap) { hangoverWrap.style.display = 'none'; }
+                var bargeHelp = panel.querySelector('.js-barge-help');
+                if (bargeHelp) {
+                    bargeHelp.innerHTML = 'Acoustic echo cancellation keeps the mic open while the assistant speaks, so you can talk over it. Turn <strong>off</strong> to let the assistant finish before it listens again.';
+                }
+            }
 
             function reflect() {
                 var guardActive = !bargeInput.checked && !pttInput.checked;
@@ -419,15 +434,22 @@
             if (!isRealtimeMode || isRealtimeActive || !connection) { return; }
 
             applyRealtimeAudioPrefs(loadRealtimeAudioPrefs());
+            realtimeFellBack = false;
 
             // Prefer the WebRTC transport when the server advertises it: the browser's echo canceller references
             // the assistant's media track, so the model can ignore its own voice with the mic open (open rooms).
+            // If the peer cannot connect (blocked UDP, no TURN, unsupported), we fall back to WebSocket at connect
+            // time — see fallbackToWebSocket. The decision is made once, before the session starts.
             if (webRtcEnabled) {
                 startRealtimeWebRtcConversation();
 
                 return;
             }
 
+            startRealtimeWebSocketConversation();
+        }
+
+        function startRealtimeWebSocketConversation() {
             attachRealtimePushToTalk();
             // Drop focus from the just-clicked button so Space acts as push-to-talk, not a re-click.
             var focusedBtn = q('realtimeButton');
@@ -553,6 +575,7 @@
 
                             realtimeRemoteDescriptionSet = false;
                             realtimePendingIce = [];
+                            realtimeWebRtcConnected = false;
                             var pc = new RTCPeerConnection({ iceServers: webRtcIceServers });
                             realtimePc = pc;
 
@@ -573,12 +596,35 @@
                                 }
                             };
                             pc.onconnectionstatechange = function () {
-                                if ((pc.connectionState === 'failed' || pc.connectionState === 'closed') && isRealtimeActive) {
+                                if (pc.connectionState === 'connected') {
+                                    markWebRtcConnected();
+                                } else if (pc.connectionState === 'failed') {
+                                    // Before the peer connects, a failure means WebRTC is unusable here — fall back.
+                                    // After it connects, a drop ends the session (we never migrate mid-session).
+                                    if (!realtimeWebRtcConnected) { fallbackToWebSocket('connection failed'); }
+                                    else if (isRealtimeActive) { stopRealtimeConversation(); }
+                                } else if (pc.connectionState === 'closed' && isRealtimeActive && realtimeWebRtcConnected) {
                                     stopRealtimeConversation();
+                                }
+                            };
+                            pc.oniceconnectionstatechange = function () {
+                                var s = pc.iceConnectionState;
+                                if (s === 'connected' || s === 'completed') {
+                                    markWebRtcConnected();
+                                } else if (s === 'failed' && !realtimeWebRtcConnected) {
+                                    fallbackToWebSocket('ICE failed');
                                 }
                             };
 
                             bindWebRtcSignalingHandlers();
+
+                            // Fall back to WebSocket if the peer does not connect within the timeout (blocked UDP,
+                            // missing TURN, etc.). Cleared as soon as the peer connects (markWebRtcConnected).
+                            realtimeWebRtcConnectTimer = setTimeout(function () {
+                                if (!realtimeWebRtcConnected && isRealtimeActive) {
+                                    fallbackToWebSocket('connection timed out');
+                                }
+                            }, REALTIME_WEBRTC_CONNECT_TIMEOUT_MS);
 
                             pc.createOffer()
                                 .then(function (offer) { return pc.setLocalDescription(offer).then(function () { return offer; }); })
@@ -590,8 +636,8 @@
                                     sendStartWebRtc(offer.sdp, voice, language, silenceMs, vadThreshold, realtimeBargeIn);
                                 })
                                 .catch(function (err) {
-                                    console.error('Failed to create the WebRTC offer.', err);
-                                    stopRealtimeConversation();
+                                    console.error('Failed to create the WebRTC offer; falling back to WebSocket.', err);
+                                    fallbackToWebSocket('offer failed');
                                 });
                         })
                         .catch(function (err) {
@@ -654,8 +700,37 @@
             realtimeIsWebRtc = false;
         }
 
+        function markWebRtcConnected() {
+            if (realtimeWebRtcConnected) { return; }
+            realtimeWebRtcConnected = true;
+            if (realtimeWebRtcConnectTimer) { clearTimeout(realtimeWebRtcConnectTimer); realtimeWebRtcConnectTimer = null; }
+        }
+
+        // Connect-time only: tear down the failed WebRTC attempt and restart on the known-good WebSocket path.
+        // Never called once a session is established (see the connection-state handlers), so we never migrate audio
+        // mid-conversation — we only choose the transport before the model starts responding.
+        function fallbackToWebSocket(reason) {
+            if (realtimeFellBack) { return; }
+            realtimeFellBack = true;
+            if (realtimeWebRtcConnectTimer) { clearTimeout(realtimeWebRtcConnectTimer); realtimeWebRtcConnectTimer = null; }
+            if (window.console && console.warn) {
+                console.warn('Realtime WebRTC transport unavailable (' + reason + '); falling back to the WebSocket transport.');
+            }
+
+            try { if (realtimeStream) { realtimeStream.getTracks().forEach(function (t) { t.stop(); }); } } catch (err) { }
+            realtimeStream = null;
+            stopRealtimeWebRtc();
+            realtimeIsWebRtc = false;
+            // Reset the active flag so the WebSocket start proceeds cleanly; it re-activates immediately.
+            isRealtimeActive = false;
+
+            startRealtimeWebSocketConversation();
+        }
+
         function stopRealtimeConversation() {
             if (!isRealtimeActive) { return; }
+
+            if (realtimeWebRtcConnectTimer) { clearTimeout(realtimeWebRtcConnectTimer); realtimeWebRtcConnectTimer = null; }
 
             isRealtimeActive = false;
             onDeactivate();
