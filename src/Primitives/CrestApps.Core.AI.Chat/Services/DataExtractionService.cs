@@ -427,25 +427,34 @@ public sealed class DataExtractionService
 
     private async Task<IChatClient> GetChatClientAsync(AIProfile profile)
     {
-        if (_deploymentManager != null)
+        if (_deploymentManager == null)
         {
-            var deployment = await _deploymentManager.ResolveUtilityOrDefaultAsync(
-                utilityDeploymentName: profile.UtilityDeploymentName,
-                chatDeploymentName: profile.ChatDeploymentName);
+            return null;
+        }
 
-            if (deployment != null && !string.IsNullOrEmpty(deployment.ConnectionName) && !string.IsNullOrEmpty(deployment.ModelName))
+        var deployment = await _deploymentManager.ResolveUtilityOrDefaultAsync(
+            utilityDeploymentName: profile.UtilityDeploymentName,
+            chatDeploymentName: profile.ChatDeploymentName);
+
+        // Data extraction runs a text chat completion. When the profile's chat deployment is a realtime
+        // (speech-to-speech) model — which rejects text completions with HTTP 400 — fall back to a text-capable
+        // default so extraction still works, and never send the completion to a realtime model.
+        if (deployment != null && !deployment.CanServeTextCompletion())
+        {
+            deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility)
+                ?? await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat);
+
+            if (deployment != null && !deployment.CanServeTextCompletion())
             {
-                var chatClient = await _clientFactory.CreateChatClientAsync(
-                    deployment,
-                    builder => builder.UseDefaultResilience());
-
-                if (chatClient == null)
-                {
-                    return null;
-                }
-
-                return chatClient;
+                deployment = null;
             }
+        }
+
+        if (deployment != null && !string.IsNullOrEmpty(deployment.ConnectionName) && !string.IsNullOrEmpty(deployment.ModelName))
+        {
+            return await _clientFactory.CreateChatClientAsync(
+                deployment,
+                builder => builder.UseDefaultResilience());
         }
 
         return null;
