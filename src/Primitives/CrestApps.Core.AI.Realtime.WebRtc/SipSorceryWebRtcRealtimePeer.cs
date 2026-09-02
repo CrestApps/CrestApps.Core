@@ -202,17 +202,14 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         // Emit periodic inbound diagnostics: whether audio keeps flowing and how loud it reaches the provider
         // (peak amplitude out of 32767). A near-zero peak while the user is speaking means the mic/AEC is
         // gating the signal to silence, which explains the model not detecting speech.
-        if (_logger.IsEnabled(LogLevel.Information))
+        if (count == 1 && _logger.IsEnabled(LogLevel.Information))
         {
-            if (count == 1)
-            {
-                _logger.LogInformation("WebRTC realtime: first inbound audio packet decoded ({Samples} samples @ 24 kHz).", samples);
-            }
-            else if (count % 250 == 0)
-            {
-                _logger.LogInformation("WebRTC realtime: inbound audio flowing ({Count} packets, recent peak amplitude {Peak}/32767).", count, _recentPeak);
-                _recentPeak = 0;
-            }
+            _logger.LogInformation("WebRTC realtime: first inbound audio packet decoded ({Samples} samples @ 24 kHz).", samples);
+        }
+        else if (count % 250 == 0 && _logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("WebRTC realtime: inbound audio flowing ({Count} packets, recent peak amplitude {Peak}/32767).", count, _recentPeak);
+            _recentPeak = 0;
         }
 
         _incoming.Writer.TryWrite(bytes);
