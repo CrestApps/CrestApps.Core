@@ -2519,14 +2519,11 @@ window.coreAIChatManager = function () {
                     audioEl.volume = Math.max(0, Math.min(1, _this18._realtimeVolume != null ? _this18._realtimeVolume : 1));
                     document.body.appendChild(audioEl);
                     _this18._realtimeRemoteAudioEl = audioEl;
-                    // Route playback to the "communications" audio device, exactly as ChatGPT's voice mode
-                    // does, so the browser couples playback with the mic's echo canceller as a proper AEC
-                    // reference (open-room full-duplex without the model hearing its own voice).
-                    if (typeof audioEl.setSinkId === 'function') {
-                      try {
-                        audioEl.setSinkId('communications')["catch"](function () {});
-                      } catch (err) {}
-                    }
+                    // Route playback to the CONCRETE default output device (its real deviceId), as ChatGPT's
+                    // voice mode does, so the browser couples playback with the mic's echo canceller as a
+                    // proper AEC reference (open-room full-duplex without the model hearing its own voice).
+                    // The "communications" alias does not reliably couple AEC on multi-output machines.
+                    _this18.routeRealtimeOutputToDefaultDevice(audioEl);
                     pc.ontrack = function (e) {
                       if (e.streams && e.streams[0]) {
                         audioEl.srcObject = e.streams[0];
@@ -2742,6 +2739,47 @@ window.coreAIChatManager = function () {
               this._realtimeWebRtcMicTrack.enabled = true;
             } catch (e) {}
           }
+        },
+        // Route the assistant playback element to the CONCRETE default output device (its real deviceId),
+        // as ChatGPT's voice mode does — what couples playback with the mic's echo canceller as an AEC
+        // reference so the model ignores its own voice with the mic open. Falls back silently otherwise.
+        routeRealtimeOutputToDefaultDevice: function routeRealtimeOutputToDefaultDevice(el) {
+          if (!el || typeof el.setSinkId !== 'function' || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            return;
+          }
+          navigator.mediaDevices.enumerateDevices().then(function (devices) {
+            var outputs = devices.filter(function (d) {
+              return d.kind === 'audiooutput';
+            });
+            if (!outputs.length) {
+              return;
+            }
+            var defaultEntry = outputs.find(function (d) {
+              return d.deviceId === 'default';
+            });
+            var target = '';
+            if (defaultEntry && defaultEntry.groupId) {
+              var concrete = outputs.find(function (d) {
+                return d.deviceId !== 'default' && d.deviceId !== 'communications' && d.groupId === defaultEntry.groupId;
+              });
+              if (concrete) {
+                target = concrete.deviceId;
+              }
+            }
+            if (!target) {
+              var first = outputs.find(function (d) {
+                return d.deviceId !== 'default' && d.deviceId !== 'communications';
+              });
+              if (first) {
+                target = first.deviceId;
+              }
+            }
+            if (target) {
+              try {
+                el.setSinkId(target)["catch"](function () {});
+              } catch (e) {}
+            }
+          })["catch"](function () {});
         },
         stopRealtimeWebRtcTransport: function stopRealtimeWebRtcTransport() {
           this.stopRealtimeWebRtcEchoGuard();

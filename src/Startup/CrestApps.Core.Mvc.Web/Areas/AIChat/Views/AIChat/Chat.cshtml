@@ -65,6 +65,7 @@
     };
     var conversationModeEnabled = chatMode == ChatMode.Conversation;
     var realtimeEnabled = chatMode == ChatMode.Realtime;
+    var realtimeWebRtcEnabled = Context.RequestServices.GetService(typeof(CrestApps.Core.AI.Realtime.IWebRtcRealtimePeerFactory)) is not null;
     var ttsVoiceName = chatModeSettings?.VoiceName ?? defaultDeploymentSettings.DefaultTextToSpeechVoiceId;
     var realtimeVoiceName = chatModeSettings?.VoiceName ?? defaultDeploymentSettings.DefaultRealtimeVoiceId;
 }
@@ -216,6 +217,7 @@
      data-coreai-chat-tts-voice-name="@ttsVoiceName"
      data-coreai-chat-realtime-voice-name="@realtimeVoiceName"
      data-coreai-chat-realtime-enabled="@realtimeEnabled.ToString().ToLowerInvariant()"
+     data-coreai-chat-realtime-webrtc-enabled="@realtimeWebRtcEnabled.ToString().ToLowerInvariant()"
      data-coreai-chat-text-to-speech-enabled="@textToSpeechEnabled.ToString().ToLowerInvariant()"
      data-coreai-chat-session-documents-enabled="@((allowSessionDocuments || allowImageUploads).ToString().ToLowerInvariant())"
      data-coreai-chat-existing-documents="@JsonSerializer.Serialize(existingDocuments)"

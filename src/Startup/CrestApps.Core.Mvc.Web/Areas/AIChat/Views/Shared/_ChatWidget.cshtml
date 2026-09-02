@@ -139,6 +139,7 @@
      data-coreai-chat-initial-prompt="@profile.initialPrompt"
      data-coreai-chat-metrics-enabled="@profile.enableSessionMetrics.ToString().ToLowerInvariant()"
      data-coreai-chat-mode="@profile.chatMode"
+     data-coreai-chat-realtime-webrtc-enabled="@((Context.RequestServices.GetService(typeof(CrestApps.Core.AI.Realtime.IWebRtcRealtimePeerFactory)) is not null).ToString().ToLowerInvariant())"
      data-coreai-chat-mic-button-element-selector="#widget-mic-btn"
      data-coreai-chat-conversation-button-element-selector="#widget-conversation-btn"
      data-coreai-chat-tts-voice-name="@profile.ttsVoiceName"

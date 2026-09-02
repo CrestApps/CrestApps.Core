@@ -607,14 +607,13 @@
                             audioEl.volume = Math.max(0, Math.min(1, (realtimeVolume != null) ? realtimeVolume : 1));
                             document.body.appendChild(audioEl);
                             realtimeRemoteAudioEl = audioEl;
-                            // Route playback to the "communications" audio device, exactly as ChatGPT's voice mode
-                            // does. On the communications render path the browser couples playback with the mic's
-                            // echo canceller as a proper AEC reference (and Windows applies its voice-optimized
-                            // processing), which is what lets the model ignore its own voice with the mic open in an
-                            // open room. Without it our AEC is too weak and the model answers its own echo.
-                            if (typeof audioEl.setSinkId === 'function') {
-                                try { audioEl.setSinkId('communications').catch(function () { }); } catch (err) { }
-                            }
+                            // Route playback to the CONCRETE default output device, exactly as ChatGPT's voice mode
+                            // does (its dump routed to the real "RGB Speakers" device id, not the "communications"
+                            // alias). Rendering to the concrete default device is what lets the browser couple
+                            // playback with the mic's echo canceller as a proper AEC reference, so the model ignores
+                            // its own voice with the mic open in an open room. The "communications" alias does not
+                            // reliably couple AEC and can route to the wrong device on multi-output machines.
+                            routeRealtimeOutputToDefaultDevice(audioEl);
                             pc.ontrack = function (e) {
                                 if (e.streams && e.streams[0]) {
                                     audioEl.srcObject = e.streams[0];
@@ -811,6 +810,49 @@
             if (realtimeWebRtcMicTrack) {
                 try { realtimeWebRtcMicTrack.enabled = true; } catch (e) { }
             }
+        }
+
+        // Route the assistant playback element to the CONCRETE default output device (its real deviceId), the way
+        // ChatGPT's voice mode does. Rendering to the concrete default speaker — not the "default"/"communications"
+        // aliases — is what couples playback with the mic's echo canceller as an AEC reference, so the model can
+        // ignore its own voice with the mic open in an open room. Falls back silently if resolution isn't possible.
+        function routeRealtimeOutputToDefaultDevice(el) {
+            if (!el || typeof el.setSinkId !== 'function' || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                return;
+            }
+            navigator.mediaDevices.enumerateDevices().then(function (devices) {
+                var outputs = devices.filter(function (d) { return d.kind === 'audiooutput'; });
+                if (!outputs.length) { return; }
+
+                var defaultEntry = null;
+                for (var i = 0; i < outputs.length; i++) {
+                    if (outputs[i].deviceId === 'default') { defaultEntry = outputs[i]; break; }
+                }
+
+                var target = '';
+                // Prefer the concrete device that the "default" alias points at (matched by groupId).
+                if (defaultEntry && defaultEntry.groupId) {
+                    for (var j = 0; j < outputs.length; j++) {
+                        if (outputs[j].deviceId !== 'default' && outputs[j].deviceId !== 'communications' && outputs[j].groupId === defaultEntry.groupId) {
+                            target = outputs[j].deviceId;
+                            break;
+                        }
+                    }
+                }
+                // Fall back to the first concrete output if the alias could not be resolved.
+                if (!target) {
+                    for (var k = 0; k < outputs.length; k++) {
+                        if (outputs[k].deviceId !== 'default' && outputs[k].deviceId !== 'communications') {
+                            target = outputs[k].deviceId;
+                            break;
+                        }
+                    }
+                }
+
+                if (target) {
+                    try { el.setSinkId(target).catch(function () { }); } catch (e) { }
+                }
+            }).catch(function () { });
         }
 
         // Connect-time only: tear down the failed WebRTC attempt and restart on the known-good WebSocket path.

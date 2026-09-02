@@ -2370,12 +2370,11 @@ window.coreAIChatManager = function () {
                             audioEl.volume = Math.max(0, Math.min(1, (this._realtimeVolume != null) ? this._realtimeVolume : 1));
                             document.body.appendChild(audioEl);
                             this._realtimeRemoteAudioEl = audioEl;
-                            // Route playback to the "communications" audio device, exactly as ChatGPT's voice mode
-                            // does, so the browser couples playback with the mic's echo canceller as a proper AEC
-                            // reference (open-room full-duplex without the model hearing its own voice).
-                            if (typeof audioEl.setSinkId === 'function') {
-                                try { audioEl.setSinkId('communications').catch(() => { }); } catch (err) { }
-                            }
+                            // Route playback to the CONCRETE default output device (its real deviceId), as ChatGPT's
+                            // voice mode does, so the browser couples playback with the mic's echo canceller as a
+                            // proper AEC reference (open-room full-duplex without the model hearing its own voice).
+                            // The "communications" alias does not reliably couple AEC on multi-output machines.
+                            this.routeRealtimeOutputToDefaultDevice(audioEl);
                             pc.ontrack = (e) => {
                                 if (e.streams && e.streams[0]) {
                                     audioEl.srcObject = e.streams[0];
@@ -2538,6 +2537,29 @@ window.coreAIChatManager = function () {
                     if (this._realtimeWebRtcMicTrack) {
                         try { this._realtimeWebRtcMicTrack.enabled = true; } catch (e) { }
                     }
+                },
+                // Route the assistant playback element to the CONCRETE default output device (its real deviceId),
+                // as ChatGPT's voice mode does — what couples playback with the mic's echo canceller as an AEC
+                // reference so the model ignores its own voice with the mic open. Falls back silently otherwise.
+                routeRealtimeOutputToDefaultDevice(el) {
+                    if (!el || typeof el.setSinkId !== 'function' || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                        return;
+                    }
+                    navigator.mediaDevices.enumerateDevices().then((devices) => {
+                        var outputs = devices.filter((d) => d.kind === 'audiooutput');
+                        if (!outputs.length) { return; }
+                        var defaultEntry = outputs.find((d) => d.deviceId === 'default');
+                        var target = '';
+                        if (defaultEntry && defaultEntry.groupId) {
+                            var concrete = outputs.find((d) => d.deviceId !== 'default' && d.deviceId !== 'communications' && d.groupId === defaultEntry.groupId);
+                            if (concrete) { target = concrete.deviceId; }
+                        }
+                        if (!target) {
+                            var first = outputs.find((d) => d.deviceId !== 'default' && d.deviceId !== 'communications');
+                            if (first) { target = first.deviceId; }
+                        }
+                        if (target) { try { el.setSinkId(target).catch(() => { }); } catch (e) { } }
+                    }).catch(() => { });
                 },
                 stopRealtimeWebRtcTransport() {
                     this.stopRealtimeWebRtcEchoGuard();

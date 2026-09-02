@@ -9,6 +9,7 @@
 @using Microsoft.Extensions.Options
 @implements IDisposable
 @inject IAIProfileManager ProfileManager
+@inject IServiceProvider ServiceProvider
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject SiteSettingsStore SiteSettings
 @inject NavigationManager NavigationManager
@@ -57,6 +58,7 @@
          data-coreai-chat-initial-prompt="@_initialPrompt"
          data-coreai-chat-metrics-enabled="@_metricsEnabled.ToString().ToLowerInvariant()"
          data-coreai-chat-mode="@_chatMode"
+         data-coreai-chat-realtime-webrtc-enabled="@((ServiceProvider.GetService(typeof(CrestApps.Core.AI.Realtime.IWebRtcRealtimePeerFactory)) is not null).ToString().ToLowerInvariant())"
          data-coreai-chat-mic-button-element-selector="#widget-mic-btn"
          data-coreai-chat-conversation-button-element-selector="#widget-conversation-btn"
          data-coreai-chat-tts-voice-name="@_ttsVoiceName"
