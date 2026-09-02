@@ -2461,9 +2461,8 @@ window.coreAIChatManager = function () {
           // (echoCancellationType:'system' + voiceIsolation) gate the mic to near-silence when layered on
           // the peer-connection AEC loop, so the model never detects speech.
           var micConstraints = {
-            echoCancellation: {
-              ideal: true
-            },
+            // Match what ChatGPT's voice mode requests: a plain echoCancellation:true, nothing exotic.
+            echoCancellation: true,
             noiseSuppression: this._realtimeNoiseSuppression !== false,
             autoGainControl: this._realtimeAutoGain !== false
           };
@@ -2520,10 +2519,23 @@ window.coreAIChatManager = function () {
                     audioEl.volume = Math.max(0, Math.min(1, _this18._realtimeVolume != null ? _this18._realtimeVolume : 1));
                     document.body.appendChild(audioEl);
                     _this18._realtimeRemoteAudioEl = audioEl;
+                    // Route playback to the "communications" audio device, exactly as ChatGPT's voice mode
+                    // does, so the browser couples playback with the mic's echo canceller as a proper AEC
+                    // reference (open-room full-duplex without the model hearing its own voice).
+                    if (typeof audioEl.setSinkId === 'function') {
+                      try {
+                        audioEl.setSinkId('communications')["catch"](function () {});
+                      } catch (err) {}
+                    }
                     pc.ontrack = function (e) {
                       if (e.streams && e.streams[0]) {
                         audioEl.srcObject = e.streams[0];
-                        _this18.startRealtimeWebRtcEchoGuard(e.streams[0]);
+                        // Only tap the remote stream into Web Audio when we actually gate the mic (PTT or
+                        // the half-duplex barge-in-off guard). With barge-in on we keep the mic open and
+                        // rely on AEC, and feeding the remote track to Web Audio can disturb its reference.
+                        if (_this18._realtimePushToTalk || !_this18._realtimeBargeIn) {
+                          _this18.startRealtimeWebRtcEchoGuard(e.streams[0]);
+                        }
                       }
                     };
                     pc.onicecandidate = function (e) {
@@ -4066,7 +4078,8 @@ window.coreAIChatManager = function () {
       textToSpeechEnabled: 'data-coreai-chat-text-to-speech-enabled',
       sessionDocumentsEnabled: 'data-coreai-chat-session-documents-enabled',
       singleResponseMode: 'data-coreai-chat-single-response-mode',
-      realtimeEnabled: 'data-coreai-chat-realtime-enabled'
+      realtimeEnabled: 'data-coreai-chat-realtime-enabled',
+      realtimeWebRtcEnabled: 'data-coreai-chat-realtime-webrtc-enabled'
     };
     Object.keys(booleanAttributes).forEach(function (key) {
       var parsed = parseBooleanAttributeValue(getAttributeValue(element, booleanAttributes[key]));

@@ -2331,7 +2331,8 @@ window.coreAIChatManager = function () {
                     // (echoCancellationType:'system' + voiceIsolation) gate the mic to near-silence when layered on
                     // the peer-connection AEC loop, so the model never detects speech.
                     var micConstraints = {
-                        echoCancellation: { ideal: true },
+                        // Match what ChatGPT's voice mode requests: a plain echoCancellation:true, nothing exotic.
+                        echoCancellation: true,
                         noiseSuppression: this._realtimeNoiseSuppression !== false,
                         autoGainControl: this._realtimeAutoGain !== false
                     };
@@ -2369,10 +2370,21 @@ window.coreAIChatManager = function () {
                             audioEl.volume = Math.max(0, Math.min(1, (this._realtimeVolume != null) ? this._realtimeVolume : 1));
                             document.body.appendChild(audioEl);
                             this._realtimeRemoteAudioEl = audioEl;
+                            // Route playback to the "communications" audio device, exactly as ChatGPT's voice mode
+                            // does, so the browser couples playback with the mic's echo canceller as a proper AEC
+                            // reference (open-room full-duplex without the model hearing its own voice).
+                            if (typeof audioEl.setSinkId === 'function') {
+                                try { audioEl.setSinkId('communications').catch(() => { }); } catch (err) { }
+                            }
                             pc.ontrack = (e) => {
                                 if (e.streams && e.streams[0]) {
                                     audioEl.srcObject = e.streams[0];
-                                    this.startRealtimeWebRtcEchoGuard(e.streams[0]);
+                                    // Only tap the remote stream into Web Audio when we actually gate the mic (PTT or
+                                    // the half-duplex barge-in-off guard). With barge-in on we keep the mic open and
+                                    // rely on AEC, and feeding the remote track to Web Audio can disturb its reference.
+                                    if (this._realtimePushToTalk || !this._realtimeBargeIn) {
+                                        this.startRealtimeWebRtcEchoGuard(e.streams[0]);
+                                    }
                                 }
                             };
 

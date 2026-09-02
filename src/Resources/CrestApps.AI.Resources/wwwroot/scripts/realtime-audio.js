@@ -689,9 +689,10 @@
       // peer-connection AEC loop they gate the mic down to near-silence (~1-3% of full scale), so the model
       // never detects speech. Ask only for standard echo cancellation and let AEC3 do its job.
       var micConstraints = {
-        echoCancellation: {
-          ideal: true
-        },
+        // Match what ChatGPT's voice mode requests: a plain echoCancellation:true and nothing else exotic.
+        // The browser still applies its default noise suppression and auto gain; we only pass those through
+        // so the user's toggles can turn them off.
+        echoCancellation: true,
         noiseSuppression: realtimeNoiseSuppression !== false,
         autoGainControl: realtimeAutoGain !== false
       };
@@ -743,10 +744,26 @@
           audioEl.volume = Math.max(0, Math.min(1, realtimeVolume != null ? realtimeVolume : 1));
           document.body.appendChild(audioEl);
           realtimeRemoteAudioEl = audioEl;
+          // Route playback to the "communications" audio device, exactly as ChatGPT's voice mode
+          // does. On the communications render path the browser couples playback with the mic's
+          // echo canceller as a proper AEC reference (and Windows applies its voice-optimized
+          // processing), which is what lets the model ignore its own voice with the mic open in an
+          // open room. Without it our AEC is too weak and the model answers its own echo.
+          if (typeof audioEl.setSinkId === 'function') {
+            try {
+              audioEl.setSinkId('communications')["catch"](function () {});
+            } catch (err) {}
+          }
           pc.ontrack = function (e) {
             if (e.streams && e.streams[0]) {
               audioEl.srcObject = e.streams[0];
-              startWebRtcEchoGuard(e.streams[0]);
+              // Only tap the remote stream into Web Audio when we actually gate the mic —
+              // push-to-talk or the half-duplex barge-in-off guard. With barge-in on we keep
+              // the mic open and rely on the browser's echo canceller, and pulling the remote
+              // track into a Web Audio graph can disturb the AEC reference, so leave it alone.
+              if (realtimePushToTalk || !realtimeBargeIn) {
+                startWebRtcEchoGuard(e.streams[0]);
+              }
             }
           };
           pc.onicecandidate = function (e) {
