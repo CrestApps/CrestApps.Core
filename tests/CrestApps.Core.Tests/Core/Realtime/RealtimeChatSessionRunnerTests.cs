@@ -148,6 +148,72 @@ public sealed class RealtimeChatSessionRunnerTests
         Assert.Single(sink.SpeechStarted);
     }
 
+    [Fact]
+    public async Task RunAsync_WhenInterruptionDisabled_UserSpeechDoesNotSplitAssistantReply()
+    {
+        // With barge-in off the provider still raises speech-started when it hears the user, but it does not
+        // interrupt the active response. The runner must ignore it so the still-streaming reply is persisted as
+        // one turn instead of being flushed early (which split it into two bubbles).
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-3" };
+
+        var conversation = new FakeConversation(
+        [
+            Evt(RealtimeConversationEventType.AssistantTranscriptDelta, text: "changes in interest "),
+            Evt(RealtimeConversationEventType.UserSpeechStarted),
+            Evt(RealtimeConversationEventType.AssistantTranscriptDelta, text: "rates and inflation."),
+            Evt(RealtimeConversationEventType.AssistantTranscriptDone, text: "changes in interest rates and inflation."),
+        ]);
+        var (store, persisted) = CreateStore();
+        var sink = new RecordingSink();
+
+        using var scope = AIInvocationScope.Begin();
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext { Resource = profile, SessionId = session.SessionId, ChatSession = session, AllowInterruption = false },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        // A single, whole assistant turn — the speech-started event did not end it early.
+        var assistant = Assert.Single(persisted, p => p.Role == ChatRole.Assistant);
+        Assert.Equal("changes in interest rates and inflation.", assistant.Content);
+        Assert.Single(sink.AssistantCompleted);
+        Assert.Empty(sink.SpeechStarted);
+    }
+
+    [Fact]
+    public async Task RunAsync_SwallowsBenignActiveResponseError()
+    {
+        // "Conversation already has an active response in progress" is an expected race when the user speaks
+        // over the model with barge-in off — it must be logged, not shown to the user as a chat message.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-4" };
+
+        var conversation = new FakeConversation(
+        [
+            new RealtimeConversationEvent { Type = RealtimeConversationEventType.Error, ErrorMessage = "Conversation already has an active response in progress: resp_abc" },
+            new RealtimeConversationEvent { Type = RealtimeConversationEventType.Error, ErrorMessage = "Something actually went wrong." },
+        ]);
+        var (store, _) = CreateStore();
+        var sink = new RecordingSink();
+
+        using var scope = AIInvocationScope.Begin();
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext { Resource = profile, SessionId = session.SessionId, ChatSession = session },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        // The benign error was suppressed; the genuine error still reached the user.
+        Assert.Equal(["Something actually went wrong."], sink.Errors);
+    }
+
     private static RealtimeConversationEvent Evt(RealtimeConversationEventType type, string? text = null, byte[]? audio = null)
         => new()
         {

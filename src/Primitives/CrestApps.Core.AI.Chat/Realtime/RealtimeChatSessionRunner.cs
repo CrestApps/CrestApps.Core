@@ -106,6 +106,23 @@ public sealed class RealtimeChatSessionRunner
             or System.Net.Sockets.SocketException
             or System.Net.WebSockets.WebSocketException;
 
+    // Provider errors that are an expected consequence of open-mic turn-taking rather than a real failure, so
+    // they should be logged but never surfaced to the user as a chat message.
+    private static bool IsBenignRealtimeError(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        // "Conversation already has an active response in progress: resp_..." — barge-in off, the user spoke over
+        // the model and the provider refused to start a second overlapping response.
+        // "Cancellation failed: no active response found" / "no active response" — a barge-in cancel landed just
+        // after the response had already finished on its own.
+        return message.Contains("active response in progress", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("no active response", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static async Task PumpInputAsync(
         IRealtimeConversation conversation,
         IAsyncEnumerable<ReadOnlyMemory<byte>> audioInput,
@@ -162,9 +179,18 @@ public sealed class RealtimeChatSessionRunner
                     break;
 
                 case RealtimeConversationEventType.UserSpeechStarted:
-                    // Barge-in: persist whatever the assistant actually spoke before being interrupted.
-                    await FlushAssistantTurnAsync(context, turnStore, sink, sessionId, turn, finalText: null, cancellationToken);
-                    await sink.SpeechStartedAsync(sessionId, cancellationToken);
+                    // The provider raises speech-started whenever VAD hears the user, even when interruption is
+                    // disabled (barge-in off only turns off interrupt_response, not the detector). Only treat it
+                    // as a barge-in when interruption is allowed: persist whatever the assistant spoke before being
+                    // cut off and let the sink flush the queued/playing audio. When barge-in is off the model keeps
+                    // talking through the same response, so flushing here would end the turn early and split one
+                    // reply into two bubbles.
+                    if (context.AllowInterruption)
+                    {
+                        await FlushAssistantTurnAsync(context, turnStore, sink, sessionId, turn, finalText: null, cancellationToken);
+                        await sink.SpeechStartedAsync(sessionId, cancellationToken);
+                    }
+
                     break;
 
                 case RealtimeConversationEventType.ResponseCompleted:
@@ -176,6 +202,20 @@ public sealed class RealtimeChatSessionRunner
                     break;
 
                 case RealtimeConversationEventType.Error:
+                    if (IsBenignRealtimeError(evt.ErrorMessage))
+                    {
+                        // Expected races the user must never see as a chat bubble: with barge-in off the user
+                        // speaking mid-reply makes the provider reject a second response ("active response in
+                        // progress"); a barge-in cancel can arrive just after the response already ended ("no
+                        // active response"). Neither is actionable — log it and keep the conversation going.
+                        if (_logger.IsEnabled(LogLevel.Debug))
+                        {
+                            _logger.LogDebug("Ignoring benign realtime error for session {SessionId}: {Message}", sessionId, evt.ErrorMessage);
+                        }
+
+                        break;
+                    }
+
                     _logger.LogWarning("Realtime session error for session {SessionId}: {Message}", sessionId, evt.ErrorMessage);
                     await sink.ErrorAsync(evt.ErrorMessage ?? "An error occurred during the conversation.", cancellationToken);
                     break;
