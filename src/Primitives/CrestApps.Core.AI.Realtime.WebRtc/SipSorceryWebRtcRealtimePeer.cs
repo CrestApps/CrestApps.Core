@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
 using System.Threading.Channels;
 using Concentus;
@@ -20,12 +21,31 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     private const int SampleRate = 24000;
 
     // Opus frame we emit toward the browser: 20 ms @ 24 kHz.
-    private const int FrameSamples = SampleRate / 1000 * 20; // 480
+    private const int FrameDurationMs = 20;
+
+    private const int FrameSamples = SampleRate / 1000 * FrameDurationMs; // 480
+
+    // Inbound microphone audio is buffered only long enough to absorb a scheduling hiccup. An unbounded buffer
+    // grew without limit while the provider session was still opening and then burst several seconds of stale
+    // speech at it; capping the buffer and dropping the oldest frames keeps the conversation live instead.
+    private const int MaxBufferedInboundFrames = 100; // ~2 s at 20 ms per frame.
+
+    // Upper bound on how many frames one pacing tick may send when the loop woke up late. Catching up matters
+    // (Windows timer granularity is ~15.6 ms, so ticks routinely run long), but an unbounded burst would just
+    // flood the browser's jitter buffer again.
+    private const int MaxCatchUpFramesPerTick = 3;
 
     // RTP timestamp increment per 20 ms Opus frame on the negotiated 48 kHz Opus clock.
     private const uint RtpUnitsPerFrame = 960;
 
+    // How long the outgoing stream keeps running (on comfort silence) after the last real assistant frame. Long
+    // enough to cover the pauses inside and between replies; after that the stream stops until the next reply.
+    private const long SilenceTailMs = 10_000;
+
     private const int OpusPayloadType = 111;
+
+    // Longest run of lost packets worth concealing; beyond this the stream restarted rather than dropped frames.
+    private const int MaxConcealedPackets = 5;
 
     private readonly RTCPeerConnection _pc;
     private readonly IOpusDecoder _decoder;
@@ -38,8 +58,12 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     private readonly byte[] _encodeOut = new byte[4000];
     private readonly short[] _encodeFrame = new short[FrameSamples];
 
-    // Outgoing accumulator (assistant PCM arrives in arbitrary chunk sizes; Opus needs fixed 20 ms frames).
-    private readonly List<short> _encodePending = new(FrameSamples * 8);
+    // Outgoing accumulator (assistant PCM arrives in arbitrary chunk sizes; Opus needs fixed 20 ms frames). A ring
+    // buffer rather than a list: draining from the front of a list copies the remainder on every single frame,
+    // fifty times a second for the length of every reply.
+    private readonly short[] _encodePending = new short[FrameSamples * 16];
+    private int _encodePendingHead;
+    private int _encodePendingCount;
 
     // Encoded 20 ms Opus frames waiting to go out. They are drained to RTP on a 20 ms wall-clock cadence (see
     // PaceOutgoingAsync) so assistant audio — which the provider delivers faster than real time, in bursts —
@@ -47,15 +71,22 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     // safely discard the buffered tail from another thread while the pacing loop drains it.
     private readonly ConcurrentQueue<byte[]> _outgoing = new();
     private readonly CancellationTokenSource _pacingCts = new();
+    private readonly byte[] _silenceFrame;
     private readonly Task _pacingTask;
 
     private bool _closedRaised;
     private bool _connectedRaised;
     private long _rtpReceived;
     private long _framesSent;
+    private long _inboundDropped;
+    private ushort? _lastInboundSequence;
     private short _recentPeak;
+    private int _queuedFrames;
 
     public string AnswerSdp { get; private set; }
+
+    /// <inheritdoc />
+    public int QueuedPlaybackMs => Volatile.Read(ref _queuedFrames) * FrameDurationMs;
 
     public event Action<WebRtcIceCandidate> IceCandidateGenerated;
     public event Action Connected;
@@ -64,10 +95,13 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     public SipSorceryWebRtcRealtimePeer(IReadOnlyList<WebRtcIceServer> iceServers, ILogger logger)
     {
         _logger = logger;
-        _incoming = Channel.CreateUnbounded<ReadOnlyMemory<byte>>(new UnboundedChannelOptions
+        _incoming = Channel.CreateBounded<ReadOnlyMemory<byte>>(new BoundedChannelOptions(MaxBufferedInboundFrames)
         {
             SingleReader = true,
             SingleWriter = true,
+            // The provider only cares about what the user is saying now. If the reader stalls, dropping the
+            // oldest frames keeps latency bounded; blocking the RTP callback would stall the whole peer.
+            FullMode = BoundedChannelFullMode.DropOldest,
         });
 
         _decoder = OpusCodecFactory.CreateDecoder(SampleRate, 1);
@@ -80,8 +114,15 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 
         _pc = new RTCPeerConnection(config);
 
+        // Opus always negotiates at 48 kHz, and its SDP rtpmap channel count MUST be 2 for WebRTC: browsers
+        // (Chrome, Firefox) always offer "opus/48000/2" per RFC 7587, so advertising "opus/48000/1" here makes
+        // SIPSorcery's format matcher reject the offer as AudioIncompatible and the session dies on connect.
+        // The stream is still mono — that is signalled by the fmtp "stereo=0" parameter, not the rtpmap count —
+        // which is why we encode and decode a single channel above.
         var opusFormat = new AudioFormat(AudioCodecsEnum.OPUS, OpusPayloadType, 48000, 2);
         _pc.addTrack(new MediaStreamTrack(opusFormat, MediaStreamStatusEnum.SendRecv));
+
+        _silenceFrame = EncodeSilenceFrame();
 
         _pc.onicecandidate += OnLocalIceCandidate;
         _pc.onconnectionstatechange += OnConnectionStateChanged;
@@ -134,13 +175,12 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         var span = pcm24k.Span;
         for (var i = 0; i + 1 < span.Length; i += 2)
         {
-            _encodePending.Add((short)(span[i] | (span[i + 1] << 8)));
+            EnqueuePendingSample((short)(span[i] | (span[i + 1] << 8)));
         }
 
-        while (_encodePending.Count >= FrameSamples)
+        while (_encodePendingCount >= FrameSamples)
         {
-            CollectionsMarshalCopy(_encodePending, _encodeFrame, FrameSamples);
-            _encodePending.RemoveRange(0, FrameSamples);
+            DequeuePendingFrame(_encodeFrame);
 
             int encoded;
             try
@@ -157,6 +197,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             {
                 // Queue the frame; the pacing loop releases one frame every 20 ms so playback is real time.
                 _outgoing.Enqueue(_encodeOut.AsSpan(0, encoded).ToArray());
+                Interlocked.Increment(ref _queuedFrames);
             }
         }
     }
@@ -166,39 +207,126 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     {
         while (_outgoing.TryDequeue(out _))
         {
+            Interlocked.Decrement(ref _queuedFrames);
         }
 
-        _encodePending.Clear();
+        _encodePendingHead = 0;
+        _encodePendingCount = 0;
     }
 
-    // Releases exactly one 20 ms Opus frame per 20 ms of wall-clock time. The realtime provider produces audio
-    // faster than real time and hands it to us in bursts; sending each frame to RTP the instant it was encoded
-    // flooded the browser and made the assistant sound sped-up. Pacing to the media clock fixes the playback rate
-    // (and keeps the un-sent tail in our own queue, where it can later be flushed on a barge-in).
+    private void EnqueuePendingSample(short sample)
+    {
+        if (_encodePendingCount == _encodePending.Length)
+        {
+            // The accumulator only ever holds a partial frame plus whatever arrived with it; a full buffer means
+            // the encoder is not keeping up, and the freshest audio matters more than the oldest.
+            _encodePendingHead = (_encodePendingHead + 1) % _encodePending.Length;
+            _encodePendingCount--;
+        }
+
+        _encodePending[(_encodePendingHead + _encodePendingCount) % _encodePending.Length] = sample;
+        _encodePendingCount++;
+    }
+
+    private void DequeuePendingFrame(short[] destination)
+    {
+        for (var i = 0; i < FrameSamples; i++)
+        {
+            destination[i] = _encodePending[(_encodePendingHead + i) % _encodePending.Length];
+        }
+
+        _encodePendingHead = (_encodePendingHead + FrameSamples) % _encodePending.Length;
+        _encodePendingCount -= FrameSamples;
+    }
+
+    // Releases 20 ms Opus frames at the media clock's rate. The realtime provider produces audio faster than real
+    // time and hands it to us in bursts; sending each frame to RTP the instant it was encoded flooded the browser
+    // and made the assistant sound sped-up. Pacing fixes the playback rate (and keeps the un-sent tail in our own
+    // queue, where a barge-in can flush it).
+    //
+    // Two details matter beyond "one frame per tick":
+    //  * PeriodicTimer ticks late (Windows timer granularity is ~15.6 ms) and sending exactly one frame per tick
+    //    loses that slack permanently, so a long reply falls further and further behind the transcript. Frames are
+    //    therefore released against elapsed wall-clock time, catching up a bounded number of frames per tick.
+    //  * Gaps (an idle moment, or a barge-in flush) are filled with comfort silence rather than simply skipped.
+    //    RTP timestamps must stay contiguous with real time; if the stream stops and resumes with contiguous
+    //    timestamps the browser's jitter buffer treats the resumed audio as very late and time-stretches the
+    //    opening words of the next reply. (SIPSorcery's track timestamp is read-only, so it cannot be advanced
+    //    directly — keeping the stream running is the way to keep the clocks aligned.)
     private async Task PaceOutgoingAsync(CancellationToken cancellationToken)
     {
         try
         {
-            using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(20));
+            var clock = Stopwatch.StartNew();
+            var streaming = false;
+            var streamStartMs = 0L;
+            var framesSentInStream = 0L;
+            var lastRealFrameMs = 0L;
+
+            using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(FrameDurationMs));
             while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
             {
-                if (!_outgoing.TryDequeue(out var frame))
+                var nowMs = clock.ElapsedMilliseconds;
+
+                if (!streaming)
                 {
+                    // Nothing has been spoken yet (or the tail expired): stay silent until there is real audio.
+                    if (_outgoing.IsEmpty)
+                    {
+                        continue;
+                    }
+
+                    streaming = true;
+                    streamStartMs = nowMs;
+                    framesSentInStream = 0;
+                    lastRealFrameMs = nowMs;
+                }
+                else if (_outgoing.IsEmpty && nowMs - lastRealFrameMs > SilenceTailMs)
+                {
+                    // A long quiet stretch: stop the stream rather than trickle silence for the rest of the call.
+                    streaming = false;
+
                     continue;
                 }
 
-                try
-                {
-                    _pc.SendAudio(RtpUnitsPerFrame, frame);
+                // How many frames should have been released by now, counting the one due when the stream started.
+                var due = ((nowMs - streamStartMs) / FrameDurationMs) + 1;
+                var pending = Math.Min(due - framesSentInStream, MaxCatchUpFramesPerTick);
 
-                    if (Interlocked.Increment(ref _framesSent) == 1)
-                    {
-                        _logger.LogInformation("WebRTC realtime: first assistant audio frame sent to the browser.");
-                    }
-                }
-                catch (Exception ex)
+                for (var i = 0; i < pending; i++)
                 {
-                    _logger.LogDebug(ex, "Failed to send a paced realtime audio frame.");
+                    var isRealAudio = _outgoing.TryDequeue(out var frame);
+
+                    if (isRealAudio)
+                    {
+                        Interlocked.Decrement(ref _queuedFrames);
+                        lastRealFrameMs = nowMs;
+                    }
+                    else
+                    {
+                        frame = _silenceFrame;
+                    }
+
+                    framesSentInStream++;
+
+                    if (frame is not { Length: > 0 })
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        _pc.SendAudio(RtpUnitsPerFrame, frame);
+
+                        if (isRealAudio && Interlocked.Increment(ref _framesSent) == 1)
+                        {
+                            _logger.LogInformation("WebRTC realtime: first assistant audio frame sent to the browser.");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to send a paced realtime audio frame.");
+                    }
                 }
             }
         }
@@ -208,12 +336,62 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         }
     }
 
+    // Encodes the single 20 ms silence frame reused to keep the outgoing RTP stream contiguous through pauses.
+    // Done once during construction: the Opus encoder is also used by SendAudio on the provider pump thread, and
+    // Opus encoder state is not safe to touch from two threads at once.
+    private byte[] EncodeSilenceFrame()
+    {
+        try
+        {
+            var silence = new short[FrameSamples];
+            var buffer = new byte[256];
+            var encoded = _encoder.Encode(silence, FrameSamples, buffer, buffer.Length);
+
+            return encoded > 0 ? buffer.AsSpan(0, encoded).ToArray() : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to encode the realtime comfort-silence frame.");
+
+            return [];
+        }
+    }
+
     private void OnRtpPacketReceived(IPEndPoint remoteEndPoint, SDPMediaTypesEnum mediaType, RTPPacket packet)
     {
         if (mediaType != SDPMediaTypesEnum.audio || packet?.Payload is not { Length: > 0 } payload)
         {
             return;
         }
+
+        // A sequence gap means packets were lost on the way here. Running the decoder in concealment mode for the
+        // missing frame lets Opus interpolate across the gap; feeding the next packet straight in instead leaves an
+        // audible click and a worse signal for the provider's speech detection.
+        var sequenceNumber = packet.Header.SequenceNumber;
+        if (_lastInboundSequence.HasValue)
+        {
+            var expected = (ushort)(_lastInboundSequence.Value + 1);
+            var lost = (ushort)(sequenceNumber - expected);
+
+            // Only conceal a small run; a large jump is a stream restart, not loss.
+            if (lost is > 0 and <= MaxConcealedPackets)
+            {
+                for (var i = 0; i < lost; i++)
+                {
+                    try
+                    {
+                        _decoder.Decode(null, _decodeBuffer, FrameSamples, false);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Opus packet-loss concealment failed for a realtime audio gap.");
+                        break;
+                    }
+                }
+            }
+        }
+
+        _lastInboundSequence = sequenceNumber;
 
         int samples;
         try
@@ -264,6 +442,15 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         {
             _logger.LogDebug("WebRTC realtime: inbound audio flowing ({Count} packets, recent peak amplitude {Peak}/32767).", count, _recentPeak);
             _recentPeak = 0;
+        }
+
+        // The channel drops the oldest frame when it is full, so a write never fails here — but a persistently
+        // full buffer means the provider send path is not keeping up, which is worth saying out loud.
+        if (_incoming.Reader.Count >= MaxBufferedInboundFrames && Interlocked.Increment(ref _inboundDropped) % 50 == 1)
+        {
+            _logger.LogWarning(
+                "WebRTC realtime: the inbound microphone buffer is full ({Frames} frames); dropping the oldest audio because the provider send path is not keeping up.",
+                MaxBufferedInboundFrames);
         }
 
         _incoming.Writer.TryWrite(bytes);
@@ -382,11 +569,4 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         credential = server.Credential,
     };
 
-    private static void CollectionsMarshalCopy(List<short> source, short[] destination, int count)
-    {
-        for (var i = 0; i < count; i++)
-        {
-            destination[i] = source[i];
-        }
-    }
 }

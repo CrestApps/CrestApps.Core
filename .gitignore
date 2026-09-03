@@ -480,3 +480,5 @@ src/docs/node_modules/
 src/docs/build/
 src/docs/.docusaurus/
 src/docs/.cache-loader/
+# Playwright browser-test output.
+playwright-report/

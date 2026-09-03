@@ -60,8 +60,10 @@ public interface IAIChatHubClient
     /// Sends the finalized user message text in conversation mode.
     /// </summary>
     /// <param name="identifier">The conversation turn identifier.</param>
+    /// <param name="turnId">The realtime turn this message completes, or <see langword="null"/> for speech-to-text
+    /// conversation mode, which has no separate pending turn.</param>
     /// <param name="text">The user's final message text.</param>
-    Task ReceiveConversationUserMessage(string identifier, string text);
+    Task ReceiveConversationUserMessage(string identifier, string turnId, string text);
 
     /// <summary>
     /// Sends the server-relay WebRTC answer SDP back to the caller in response to its offer.
@@ -76,6 +78,15 @@ public interface IAIChatHubClient
     /// <param name="sdpMid">The media stream identification tag.</param>
     /// <param name="sdpMLineIndex">The media line index the candidate applies to.</param>
     Task ReceiveRealtimeIceCandidate(string candidate, string sdpMid, int sdpMLineIndex);
+
+    /// <summary>
+    /// Sends a realtime session lifecycle event (session ready/ended, speech started, playback flush) so the
+    /// browser can drive its own state instead of guessing from the audio it happens to receive.
+    /// </summary>
+    /// <param name="identifier">The session identifier the event belongs to.</param>
+    /// <param name="type">The event name (see <c>RealtimeClientEventTypes</c>).</param>
+    /// <param name="payload">Optional detail for the event, such as the reason a session ended.</param>
+    Task ReceiveRealtimeEvent(string identifier, string type, string payload);
 
     /// <summary>
     /// Sends a single token of the assistant's response in conversation mode.

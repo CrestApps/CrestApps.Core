@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Realtime client harness</title>
+</head>
+<body>
+    <!--
+        A standalone page for exercising the realtime client (realtime-audio.js) in a real browser without a
+        server, a SignalR connection or an AI provider. The module's hard parts — the microphone gate, transport
+        fallback, and the session state machine — are browser behaviour that no server-side test can reach, and
+        they are exactly where the bugs were.
+
+        The stub below records everything the module sends and lets a test push server events back at it.
+    -->
+    <!-- The settings popover opens upward from the button, so leave room above it for a click to land. -->
+    <div style="height:60vh;"></div>
+    <!-- Any other field on the page. Realtime mode hides the chat input itself, so this is what a user is
+         actually typing into when push-to-talk swallows the space bar. -->
+    <input id="other-input" type="text" aria-label="Unrelated field">
+    <div id="chat-row">
+        <input id="chat-input" type="text">
+        <button id="send-btn">Send</button>
+        <button id="mic-btn">Mic</button>
+        <button id="conversation-btn">Conversation</button>
+        <button id="realtime-btn"
+                data-start-title="Start speaking"
+                data-end-title="End Conversation"
+                data-start-html="&lt;i&gt;&lt;/i&gt; Start speaking"
+                data-end-html="&lt;i&gt;&lt;/i&gt; End Conversation">Start speaking</button>
+    </div>
+
+    <script src="../../src/Resources/CrestApps.AI.Resources/Assets/js/realtime-audio.js"></script>
+    <script>
+        // ---- Stub SignalR connection -------------------------------------------------------------------------
+        window.harness = {
+            sent: [],
+            invoked: [],
+            started: [],
+            states: [],
+            handlers: {},
+            closeHandlers: [],
+            reconnectingHandlers: [],
+            // What GetRealtimeIceServers resolves with; a test can swap this to simulate a TURN configuration.
+            iceServers: [{ urls: 'stun:stun.example.test:3478' }]
+        };
+
+        var connection = {
+            on: function (name, handler) {
+                (window.harness.handlers[name] = window.harness.handlers[name] || []).push(handler);
+            },
+            send: function () {
+                window.harness.sent.push(Array.prototype.slice.call(arguments));
+
+                return Promise.resolve();
+            },
+            invoke: function (name) {
+                window.harness.invoked.push(name);
+                if (name === 'GetRealtimeIceServers') { return Promise.resolve(window.harness.iceServers); }
+
+                return Promise.resolve(null);
+            },
+            onclose: function (handler) { window.harness.closeHandlers.push(handler); },
+            onreconnecting: function (handler) { window.harness.reconnectingHandlers.push(handler); }
+        };
+
+        // Raises a server-to-client event exactly as SignalR would.
+        window.harness.raise = function (name) {
+            var args = Array.prototype.slice.call(arguments, 1);
+            (window.harness.handlers[name] || []).forEach(function (h) { h.apply(null, args); });
+        };
+
+        window.harness.close = function () {
+            window.harness.closeHandlers.forEach(function (h) { h(); });
+        };
+
+        window.signalR = { Subject: function () { this.next = function () { }; this.complete = function () { }; } };
+
+        // ---- Attach the module under test ---------------------------------------------------------------------
+        window.controller = window.CoreAIRealtime.attach({
+            connection: connection,
+            ensureConnected: function () { return Promise.resolve(true); },
+            sendStart: function (subject, voice, language, silenceMs, vadThreshold, allowInterruption) {
+                window.harness.started.push({ transport: 'ws', voice: voice, language: language, silenceMs: silenceMs, vadThreshold: vadThreshold, allowInterruption: allowInterruption });
+            },
+            webRtcEnabled: window.HARNESS_WEBRTC !== false,
+            sendStartWebRtc: function (offerSdp, voice, language, silenceMs, vadThreshold, allowInterruption) {
+                window.harness.started.push({ transport: 'webrtc', sdp: offerSdp, voice: voice, language: language, silenceMs: silenceMs, vadThreshold: vadThreshold, allowInterruption: allowInterruption });
+            },
+            voiceName: 'alloy',
+            capableDeployments: [],
+            realtimeEnabled: true,
+            selectors: {
+                realtimeButton: '#realtime-btn',
+                input: '#chat-input',
+                sendButton: '#send-btn',
+                micButton: '#mic-btn',
+                conversationButton: '#conversation-btn'
+            },
+            onStateChange: function (e) { window.harness.states.push(e.state); },
+            onUserTurnPending: function (turnId) { window.harness.pendingTurn = turnId; },
+            onUserTurnDropped: function (turnId) { window.harness.droppedTurn = turnId; }
+        });
+    </script>
+</body>
+</html>

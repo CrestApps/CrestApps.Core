@@ -694,7 +694,26 @@ window.chatInteractionManager = function () {
                       }
                     }
                   });
-                  _this.connection.on("ReceiveConversationUserMessage", function (itemId, text) {
+                  _this.connection.on("ReceiveConversationUserMessage", function (itemId, turnId, text) {
+                    // Realtime: a placeholder for this turn was already inserted in the right position when
+                    // the utterance was captured (see onUserTurnPending), so just fill in its text.
+                    if (turnId && _this._realtimePendingTurns && _this._realtimePendingTurns[turnId]) {
+                      var pending = _this._realtimePendingTurns[turnId];
+                      delete _this._realtimePendingTurns[turnId];
+                      _this.stopAudio();
+                      if (text) {
+                        pending.content = text;
+                        pending.rawContent = text;
+                        pending.isPartial = false;
+                        updateMessagePresentation(pending, pending.references);
+                      } else {
+                        var emptyIndex = _this.messages.indexOf(pending);
+                        if (emptyIndex >= 0) {
+                          _this.messages.splice(emptyIndex, 1);
+                        }
+                      }
+                      return;
+                    }
                     if (text) {
                       _this.stopAudio();
 
@@ -2061,6 +2080,40 @@ window.chatInteractionManager = function () {
                 }
                 if (_this18.isConversationMode && (!_this18.realtimeController || !_this18.realtimeController.isActive())) {
                   _this18.stopConversationMode();
+                }
+              },
+              // The utterance has been captured but not transcribed yet. Showing a placeholder now
+              // puts the prompt above the reply it produces: transcription lags the spoken answer, so
+              // a bubble added only when the text arrives lands underneath its own reply.
+              onUserTurnPending: function onUserTurnPending(turnId) {
+                if (!turnId) {
+                  return;
+                }
+                var placeholder = {
+                  role: 'user',
+                  content: '',
+                  rawContent: '',
+                  references: {},
+                  isPartial: true
+                };
+                updateMessagePresentation(placeholder, placeholder.references);
+                _this18._realtimePendingTurns = _this18._realtimePendingTurns || {};
+                _this18._realtimePendingTurns[turnId] = placeholder;
+                _this18.messages.push(placeholder);
+                _this18.scrollToBottom();
+              },
+              onUserTurnDropped: function onUserTurnDropped(turnId) {
+                if (!turnId || !_this18._realtimePendingTurns) {
+                  return;
+                }
+                var dropped = _this18._realtimePendingTurns[turnId];
+                if (!dropped) {
+                  return;
+                }
+                delete _this18._realtimePendingTurns[turnId];
+                var at = _this18.messages.indexOf(dropped);
+                if (at >= 0) {
+                  _this18.messages.splice(at, 1);
                 }
               }
             });

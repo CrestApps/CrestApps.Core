@@ -1828,6 +1828,9 @@
             var conversationAudioContext = null;
             var conversationAnalyser = null;
             var conversationPartialMessage = null;
+            // Realtime placeholders keyed by turn id: inserted when an utterance is captured, filled in when its
+            // transcript arrives, removed when the utterance produced nothing worth showing.
+            var realtimePendingTurns = {};
             var conversationAssistantMessage = null;
             var conversationAssistantResponseId = null;
             var audioChunks = [];
@@ -2036,8 +2039,32 @@
                 inputEl.dispatchEvent(new Event('input'));
             });
 
-            connection.on('ReceiveConversationUserMessage', function (identifier, text) {
-                if (identifier !== itemId || !text) {
+            connection.on('ReceiveConversationUserMessage', function (identifier, turnId, text) {
+                if (identifier !== itemId) {
+                    return;
+                }
+
+                // Realtime: a placeholder for this turn was already inserted in the right position when the
+                // utterance was captured (see onUserTurnPending), so just fill in its text.
+                if (turnId && realtimePendingTurns[turnId]) {
+                    var pending = realtimePendingTurns[turnId];
+                    delete realtimePendingTurns[turnId];
+                    stopAudio();
+                    var pendingIndex = vm.messages.indexOf(pending);
+                    if (!text) {
+                        if (pendingIndex >= 0) { vm.messages.splice(pendingIndex, 1); }
+
+                        return;
+                    }
+                    pending.rawContent = text;
+                    pending.content = text;
+                    pending.htmlContent = renderMarkdown(text);
+                    pending.isPartial = false;
+
+                    return;
+                }
+
+                if (!text) {
                     return;
                 }
 
@@ -2473,6 +2500,25 @@
                     onEnterRealtimeMode: function () {
                         if (isRecording) { stopRecording(); }
                         if (isConversationMode && (!realtimeController || !realtimeController.isActive())) { stopConversationMode(); }
+                    },
+                    // The utterance has been captured but not transcribed yet. Showing a placeholder now puts the
+                    // prompt above the reply it produces: transcription lags the spoken answer, so a bubble added
+                    // only when the text arrives lands underneath its own reply.
+                    onUserTurnPending: function (turnId) {
+                        if (!turnId) { return; }
+                        var placeholder = createChatMessage("user", "");
+                        placeholder.isPartial = true;
+                        realtimePendingTurns[turnId] = placeholder;
+                        vm.messages.push(placeholder);
+                        vm.scrollToBottom();
+                    },
+                    onUserTurnDropped: function (turnId) {
+                        if (!turnId) { return; }
+                        var dropped = realtimePendingTurns[turnId];
+                        if (!dropped) { return; }
+                        delete realtimePendingTurns[turnId];
+                        var at = vm.messages.indexOf(dropped);
+                        if (at >= 0) { vm.messages.splice(at, 1); }
                     }
                 });
             }

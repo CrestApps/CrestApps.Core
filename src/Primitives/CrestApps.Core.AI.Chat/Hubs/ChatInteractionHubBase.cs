@@ -730,6 +730,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             return;
         }
 
+        var connectionId = Context.ConnectionId;
         var cancellationToken = Context.ConnectionAborted;
         try
         {
@@ -750,9 +751,16 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 var sink = new SignalRRealtimeConversationSink(Clients.Caller);
                 var turnStore = new ChatInteractionRealtimeTurnStore(promptStore);
 
-                var runContext = await CreateRealtimeRunContextAsync(services, interaction, interactionManager, realtimeDeploymentName, voice, language, silenceDurationMs, vadThreshold, allowInterruption, cancellationToken);
+                var runContext = await CreateRealtimeRunContextAsync(services, connectionId, interaction, interactionManager, realtimeDeploymentName, voice, language, silenceDurationMs, vadThreshold, allowInterruption, cancellationToken);
 
-                await runner.RunAsync(runContext, turnStore, DecodeBase64AudioAsync(audioChunks, cancellationToken), sink, cancellationToken);
+                try
+                {
+                    await runner.RunAsync(runContext, turnStore, DecodeBase64AudioAsync(audioChunks, cancellationToken), sink, cancellationToken);
+                }
+                finally
+                {
+                    services.GetRequiredService<RealtimeSessionRegistry>().Remove(connectionId);
+                }
 
                 await CommitChangesAsync(services);
             });
@@ -810,7 +818,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 using var invocationScope = AIInvocationScope.Begin();
 
                 var peerFactory = services.GetService<IWebRtcRealtimePeerFactory>();
-                if (peerFactory is null)
+                if (peerFactory is null || !RealtimeTransportSettings.IsWebRtcEnabled(services))
                 {
                     await Clients.Caller.ReceiveError(GetWebRtcNotAvailableMessage());
 
@@ -829,7 +837,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 var caller = Clients.Caller;
 
                 await using var peer = await peerFactory.CreateAsync(offerSdp, GetIceServers(services), cancellationToken);
-                registry.Add(connectionId, peer);
+                // A second voice session on the same connection displaces the first; dispose it rather than
+                // leaving a live peer holding its sockets and pacing loop for the rest of the connection.
+                var displaced = registry.Add(connectionId, peer);
+                if (displaced is not null)
+                {
+                    Logger.LogWarning("A second realtime WebRTC session started on connection {ConnectionId}; stopping the previous peer.", connectionId);
+                    await displaced.DisposeAsync();
+                }
 
                 var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 peer.IceCandidateGenerated += candidate =>
@@ -852,7 +867,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                     var sink = new WebRtcRealtimeConversationSink(innerSink, peer);
                     var turnStore = new ChatInteractionRealtimeTurnStore(promptStore);
 
-                    var runContext = await CreateRealtimeRunContextAsync(services, interaction, interactionManager, realtimeDeploymentName, voice, language, silenceDurationMs, vadThreshold, allowInterruption, cancellationToken);
+                    var runContext = await CreateRealtimeRunContextAsync(services, connectionId, interaction, interactionManager, realtimeDeploymentName, voice, language, silenceDurationMs, vadThreshold, allowInterruption, cancellationToken);
 
                     var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
@@ -880,6 +895,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                     }
                     finally
                     {
+                        services.GetRequiredService<RealtimeSessionRegistry>().Remove(connectionId);
                         peer.Closed -= CancelSession;
                         sessionCts.Dispose();
                     }
@@ -909,6 +925,63 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 Logger.LogWarning(writeEx, "Failed to write realtime WebRTC conversation error message.");
             }
         }
+    }
+
+    /// <summary>
+    /// Gets the ICE (STUN/TURN) servers the browser should use for its side of the server-relay WebRTC peer.
+    /// Called immediately before the peer is created so any ephemeral TURN credentials are freshly minted rather
+    /// than baked into the page at render time — and so the browser actually uses the configured TURN relay
+    /// instead of a public STUN server, which is the difference between connecting and silently falling back to
+    /// the WebSocket transport on a strict NAT.
+    /// </summary>
+    public virtual async Task<IReadOnlyList<RealtimeIceServerModel>> GetRealtimeIceServers()
+    {
+        IReadOnlyList<RealtimeIceServerModel> servers = [];
+
+        await RunInScopeAsync(services =>
+        {
+            servers = [.. GetIceServers(services).Select(RealtimeIceServerModel.From)];
+
+            return Task.CompletedTask;
+        });
+
+        return servers;
+    }
+
+    /// <summary>
+    /// Applies turn-taking settings to the caller's running realtime session. Barge-in and the voice-activity
+    /// knobs are enforced by the browser's microphone gate, the server's input pump and the provider's own turn
+    /// detection at the same time; without this, changing them mid-conversation moved only the browser's half and
+    /// left the three disagreeing until the user started a new session.
+    /// </summary>
+    /// <param name="allowInterruption">Whether the user may talk over the assistant.</param>
+    /// <param name="silenceDurationMs">The silence, in milliseconds, that ends a user turn, or null to keep the current value.</param>
+    /// <param name="vadThreshold">The voice-activity detection threshold (0.0-1.0), or null to keep the current value.</param>
+    public virtual Task UpdateRealtimeSettings(bool allowInterruption, int? silenceDurationMs = null, float? vadThreshold = null)
+    {
+        var connectionId = Context.ConnectionId;
+        var cancellationToken = Context.ConnectionAborted;
+
+        return RunInScopeAsync(async services =>
+        {
+            var registry = services.GetRequiredService<RealtimeSessionRegistry>();
+            var control = registry.Get(connectionId);
+
+            if (control is null)
+            {
+                return;
+            }
+
+            try
+            {
+                await control.ApplyTurnDetectionAsync(allowInterruption, silenceDurationMs, vadThreshold, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // A settings change must never end a conversation in progress.
+                Logger.LogWarning(ex, "Failed to apply realtime settings to the active session.");
+            }
+        });
     }
 
     /// <summary>
@@ -997,6 +1070,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// </summary>
     private async Task<RealtimeChatRunContext> CreateRealtimeRunContextAsync(
         IServiceProvider services,
+        string connectionId,
         ChatInteraction interaction,
         ICatalogManager<ChatInteraction> interactionManager,
         string realtimeDeploymentName,
@@ -1021,6 +1095,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             SilenceDurationMs = silenceDurationMs,
             VadThreshold = vadThreshold,
             AllowInterruption = allowInterruption,
+            IdleTimeout = RealtimeTransportSettings.GetIdleTimeout(services),
             Voice = effectiveVoice,
             SpeechLanguage = language,
             OnUserUtteranceAsync = async (text, turnCancellationToken) =>
@@ -1037,6 +1112,9 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 // Commit at each turn boundary so a dropped connection still records history.
                 await CommitChangesAsync(services);
             },
+            // Publish the live session so UpdateRealtimeSettings — which arrives on a different hub invocation —
+            // can reach it.
+            OnSessionStarted = control => services.GetRequiredService<RealtimeSessionRegistry>().Add(connectionId, control),
         };
     }
 
@@ -1797,7 +1875,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                     var fullText = committedText.ToString().TrimEnd();
 
                     await Clients.Caller.ReceiveTranscript(itemId, fullText, true);
-                    await Clients.Caller.ReceiveConversationUserMessage(itemId, fullText);
+                    await Clients.Caller.ReceiveConversationUserMessage(itemId, null, fullText);
 
                     committedText.Clear();
 
@@ -1834,7 +1912,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             var remainingText = committedText.ToString().TrimEnd();
             if (!string.IsNullOrEmpty(remainingText))
             {
-                await Clients.Caller.ReceiveConversationUserMessage(itemId, remainingText);
+                await Clients.Caller.ReceiveConversationUserMessage(itemId, null, remainingText);
                 try
                 {
                     await ProcessConversationPromptAsync(
@@ -2121,9 +2199,19 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             return _client.ReceiveAudioChunk(identifier, Convert.ToBase64String(audio.Span), "audio/pcm");
         }
 
-        public Task UserTranscriptAsync(string identifier, string text, CancellationToken cancellationToken)
+        public Task UserTranscriptAsync(string identifier, string turnId, string text, CancellationToken cancellationToken)
         {
-            return _client.ReceiveConversationUserMessage(identifier, text);
+            return _client.ReceiveConversationUserMessage(identifier, turnId, text);
+        }
+
+        public Task UserTurnPendingAsync(string identifier, string turnId, CancellationToken cancellationToken)
+        {
+            return _client.ReceiveRealtimeEvent(identifier, RealtimeClientEventTypes.UserTurnPending, turnId);
+        }
+
+        public Task UserTurnDroppedAsync(string identifier, string turnId, CancellationToken cancellationToken)
+        {
+            return _client.ReceiveRealtimeEvent(identifier, RealtimeClientEventTypes.UserTurnDropped, turnId);
         }
 
         public Task AssistantTranscriptDeltaAsync(
@@ -2146,18 +2234,30 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             return _client.ReceiveConversationAssistantComplete(identifier, messageId, references);
         }
 
+        public Task SessionReadyAsync(string identifier, CancellationToken cancellationToken)
+        {
+            return _client.ReceiveRealtimeEvent(identifier, RealtimeClientEventTypes.SessionReady, null);
+        }
+
+        public Task SessionEndedAsync(string identifier, string reason, CancellationToken cancellationToken)
+        {
+            return _client.ReceiveRealtimeEvent(identifier, RealtimeClientEventTypes.SessionEnded, reason);
+        }
+
         public Task SpeechStartedAsync(string identifier, CancellationToken cancellationToken)
         {
-            // The client detects its own microphone activity; no dedicated server signal is required today.
-            return Task.CompletedTask;
+            // On the WebSocket transport the provider streams the reply faster than real time, so seconds of it are
+            // already scheduled in the browser's Web Audio graph. The client cannot know an interruption happened
+            // from its own microphone alone (the gate may be closed, or push-to-talk may be in use), so tell it:
+            // without this signal the interrupted reply plays to the end and the new one is appended behind it.
+            return _client.ReceiveRealtimeEvent(identifier, RealtimeClientEventTypes.SpeechStarted, null);
         }
 
         public Task FlushPlaybackAsync(string identifier, CancellationToken cancellationToken)
         {
-            // WebRTC audio playback is flushed on the peer (see WebRtcRealtimeConversationSink). The WebSocket
-            // transport schedules PCM chunks client-side and has no server-driven flush signal today; the client's
-            // own barge-in handling covers stopping playback there.
-            return Task.CompletedTask;
+            // WebRTC audio is flushed on the peer itself (see WebRtcRealtimeConversationSink); on the WebSocket
+            // transport the buffered PCM lives in the browser, so the flush has to travel there.
+            return _client.ReceiveRealtimeEvent(identifier, RealtimeClientEventTypes.PlaybackFlush, null);
         }
 
         public Task ErrorAsync(string message, CancellationToken cancellationToken)

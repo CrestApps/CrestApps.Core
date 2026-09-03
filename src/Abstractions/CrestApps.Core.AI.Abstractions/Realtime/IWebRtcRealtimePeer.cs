@@ -40,6 +40,13 @@ public interface IWebRtcRealtimePeer : IAsyncDisposable
     IAsyncEnumerable<ReadOnlyMemory<byte>> ReadAudioAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets the amount of assistant audio, in milliseconds, that is encoded and queued but has not been sent to
+    /// the browser yet. Because outgoing audio is paced to the media clock, this is roughly how much longer the
+    /// user will keep hearing the current reply after the provider says it is done.
+    /// </summary>
+    int QueuedPlaybackMs { get; }
+
+    /// <summary>
     /// Sends assistant audio (PCM16, 24 kHz, mono) to the browser as an Opus track.
     /// </summary>
     void SendAudio(ReadOnlyMemory<byte> pcm24k);

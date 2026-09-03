@@ -718,7 +718,26 @@ window.chatInteractionManager = function () {
                         }
                     });
 
-                    this.connection.on("ReceiveConversationUserMessage", (itemId, text) => {
+                    this.connection.on("ReceiveConversationUserMessage", (itemId, turnId, text) => {
+                        // Realtime: a placeholder for this turn was already inserted in the right position when
+                        // the utterance was captured (see onUserTurnPending), so just fill in its text.
+                        if (turnId && this._realtimePendingTurns && this._realtimePendingTurns[turnId]) {
+                            var pending = this._realtimePendingTurns[turnId];
+                            delete this._realtimePendingTurns[turnId];
+                            this.stopAudio();
+                            if (text) {
+                                pending.content = text;
+                                pending.rawContent = text;
+                                pending.isPartial = false;
+                                updateMessagePresentation(pending, pending.references);
+                            } else {
+                                var emptyIndex = this.messages.indexOf(pending);
+                                if (emptyIndex >= 0) { this.messages.splice(emptyIndex, 1); }
+                            }
+
+                            return;
+                        }
+
                         if (text) {
                             this.stopAudio();
 
@@ -2109,6 +2128,26 @@ window.chatInteractionManager = function () {
                             onEnterRealtimeMode: () => {
                                 if (this.isRecording) { this.stopRecording(); }
                                 if (this.isConversationMode && (!this.realtimeController || !this.realtimeController.isActive())) { this.stopConversationMode(); }
+                            },
+                            // The utterance has been captured but not transcribed yet. Showing a placeholder now
+                            // puts the prompt above the reply it produces: transcription lags the spoken answer, so
+                            // a bubble added only when the text arrives lands underneath its own reply.
+                            onUserTurnPending: (turnId) => {
+                                if (!turnId) { return; }
+                                var placeholder = { role: 'user', content: '', rawContent: '', references: {}, isPartial: true };
+                                updateMessagePresentation(placeholder, placeholder.references);
+                                this._realtimePendingTurns = this._realtimePendingTurns || {};
+                                this._realtimePendingTurns[turnId] = placeholder;
+                                this.messages.push(placeholder);
+                                this.scrollToBottom();
+                            },
+                            onUserTurnDropped: (turnId) => {
+                                if (!turnId || !this._realtimePendingTurns) { return; }
+                                var dropped = this._realtimePendingTurns[turnId];
+                                if (!dropped) { return; }
+                                delete this._realtimePendingTurns[turnId];
+                                var at = this.messages.indexOf(dropped);
+                                if (at >= 0) { this.messages.splice(at, 1); }
                             }
                         });
 

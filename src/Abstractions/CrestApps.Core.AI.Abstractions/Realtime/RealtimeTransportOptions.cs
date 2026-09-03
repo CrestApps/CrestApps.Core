@@ -9,6 +9,29 @@ namespace CrestApps.Core.AI.Realtime;
 public sealed class RealtimeTransportOptions
 {
     /// <summary>
+    /// Gets or sets a value indicating whether the server-relay WebRTC transport is offered to browsers. Defaults
+    /// to <see langword="true"/>.
+    /// </summary>
+    /// <remarks>
+    /// WebRTC needs inbound UDP (or a TURN relay the server can reach). Hosts that cannot provide either — most
+    /// PaaS environments, for example — should turn this off: otherwise every voice session spends its connection
+    /// timeout attempting a peer that can never connect before falling back to the WebSocket transport, which is
+    /// pure added latency at the start of every conversation.
+    /// </remarks>
+    public bool EnableWebRtc { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets how long a realtime session may go without the user speaking before it is ended, in minutes.
+    /// Zero or negative disables the timeout. Defaults to 10 minutes.
+    /// </summary>
+    /// <remarks>
+    /// A realtime session bills for an open provider connection whether or not anyone is talking, and a forgotten
+    /// browser tab will happily hold one until the provider's own session cap (typically an hour) closes it. The
+    /// client is told why the session ended and can offer to resume.
+    /// </remarks>
+    public int IdleTimeoutMinutes { get; set; } = 10;
+
+    /// <summary>
     /// Gets or sets the STUN server URLs (for example <c>stun:stun.l.google.com:19302</c>). When empty, a public
     /// default STUN server is used so direct connectivity still works out of the box.
     /// </summary>

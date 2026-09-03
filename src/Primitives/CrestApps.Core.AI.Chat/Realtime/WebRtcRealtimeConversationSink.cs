@@ -21,6 +21,9 @@ internal sealed class WebRtcRealtimeConversationSink : IRealtimeConversationSink
         _peer = peer;
     }
 
+    /// <inheritdoc />
+    public int PendingPlaybackMs => _peer.QueuedPlaybackMs;
+
     public Task AssistantAudioAsync(string identifier, ReadOnlyMemory<byte> audio, CancellationToken cancellationToken)
     {
         _peer.SendAudio(audio);
@@ -28,8 +31,20 @@ internal sealed class WebRtcRealtimeConversationSink : IRealtimeConversationSink
         return Task.CompletedTask;
     }
 
-    public Task UserTranscriptAsync(string identifier, string text, CancellationToken cancellationToken)
-        => _inner.UserTranscriptAsync(identifier, text, cancellationToken);
+    public Task SessionReadyAsync(string identifier, CancellationToken cancellationToken)
+        => _inner.SessionReadyAsync(identifier, cancellationToken);
+
+    public Task SessionEndedAsync(string identifier, string reason, CancellationToken cancellationToken)
+        => _inner.SessionEndedAsync(identifier, reason, cancellationToken);
+
+    public Task UserTranscriptAsync(string identifier, string turnId, string text, CancellationToken cancellationToken)
+        => _inner.UserTranscriptAsync(identifier, turnId, text, cancellationToken);
+
+    public Task UserTurnPendingAsync(string identifier, string turnId, CancellationToken cancellationToken)
+        => _inner.UserTurnPendingAsync(identifier, turnId, cancellationToken);
+
+    public Task UserTurnDroppedAsync(string identifier, string turnId, CancellationToken cancellationToken)
+        => _inner.UserTurnDroppedAsync(identifier, turnId, cancellationToken);
 
     public Task AssistantTranscriptDeltaAsync(string identifier, string messageId, string text, string responseId, Dictionary<string, AICompletionReference>? references, CancellationToken cancellationToken)
         => _inner.AssistantTranscriptDeltaAsync(identifier, messageId, text, responseId, references, cancellationToken);

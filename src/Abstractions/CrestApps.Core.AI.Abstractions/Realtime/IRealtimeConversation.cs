@@ -22,6 +22,32 @@ public interface IRealtimeConversation : IAsyncDisposable
     /// </summary>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     IAsyncEnumerable<RealtimeConversationEvent> GetEventsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tells the provider that only the first <paramref name="audioEndMs"/> milliseconds of an assistant item were
+    /// actually heard, so the rest is removed from the conversation. Without this, an interrupted reply stays in
+    /// the model's context in full and it believes it said things the user never heard — which makes follow-ups
+    /// like "repeat that" or "what did you just say?" wrong.
+    /// </summary>
+    /// <param name="itemId">The assistant conversation item that was interrupted.</param>
+    /// <param name="audioEndMs">How much of the item's audio the user actually heard, in milliseconds.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    Task TruncateAssistantAudioAsync(string itemId, int audioEndMs, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Changes the provider's turn-detection settings on the running session, so a user who toggles barge-in or
+    /// retunes voice activity mid-conversation gets the new behaviour immediately instead of on their next
+    /// session — and so the provider does not keep interrupting itself after the client has stopped allowing it.
+    /// </summary>
+    /// <param name="allowInterruption">Whether the model may be interrupted while speaking.</param>
+    /// <param name="silenceDurationMs">The silence, in milliseconds, that ends a user turn, when specified.</param>
+    /// <param name="vadThreshold">The voice-activity detection threshold (0.0-1.0), when specified.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    Task UpdateTurnDetectionAsync(
+        bool allowInterruption,
+        int? silenceDurationMs,
+        float? vadThreshold,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -40,6 +66,12 @@ public enum RealtimeConversationEventType
     UserTranscript,
 
     /// <summary>
+    /// Input-audio transcription failed for a user utterance, so no <see cref="UserTranscript"/> will follow for
+    /// it. Emitted so turn bookkeeping that pairs utterances with transcripts stays aligned.
+    /// </summary>
+    UserTranscriptFailed,
+
+    /// <summary>
     /// An incremental piece of the assistant's spoken-response transcript.
     /// </summary>
     AssistantTranscriptDelta,
@@ -53,6 +85,13 @@ public enum RealtimeConversationEventType
     /// The user began speaking (voice-activity detection), which may interrupt the assistant.
     /// </summary>
     UserSpeechStarted,
+
+    /// <summary>
+    /// The provider committed the user's utterance as a conversation item and will transcribe it.
+    /// <see cref="RealtimeConversationEvent.ItemId"/> names the item, so the transcript that arrives later — or
+    /// the failure that arrives instead — can be paired with the right utterance.
+    /// </summary>
+    UserTurnCommitted,
 
     /// <summary>
     /// The model started generating a response for a turn (the provider created a response). Marks the point

@@ -68,11 +68,22 @@ public interface IChatInteractionHubClient
     Task ReceiveRealtimeIceCandidate(string candidate, string sdpMid, int sdpMLineIndex);
 
     /// <summary>
+    /// Receives a realtime session lifecycle event (session ready/ended, speech started, playback flush) so the
+    /// browser can drive its own state instead of guessing from the audio it happens to receive.
+    /// </summary>
+    /// <param name="identifier">The interaction identifier the event belongs to.</param>
+    /// <param name="type">The event name (see <c>RealtimeClientEventTypes</c>).</param>
+    /// <param name="payload">Optional detail for the event, such as the reason a session ended.</param>
+    Task ReceiveRealtimeEvent(string identifier, string type, string payload);
+
+    /// <summary>
     /// Receives the conversation User Message.
     /// </summary>
-    /// <param name="identifier">The identifier.</param>
-    /// <param name="text">The text.</param>
-    Task ReceiveConversationUserMessage(string identifier, string text);
+    /// <param name="identifier">The conversation turn identifier.</param>
+    /// <param name="turnId">The realtime turn this message completes, or <see langword="null"/> for speech-to-text
+    /// conversation mode, which has no separate pending turn.</param>
+    /// <param name="text">The user's final message text.</param>
+    Task ReceiveConversationUserMessage(string identifier, string turnId, string text);
 
     /// <summary>
     /// Receives the conversation Assistant Token.

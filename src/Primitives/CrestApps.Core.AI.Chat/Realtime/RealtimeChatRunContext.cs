@@ -53,18 +53,31 @@ public sealed class RealtimeChatRunContext
     /// <summary>
     /// Gets an optional server voice-activity silence duration (milliseconds) before the model ends a turn.
     /// </summary>
-    public int? SilenceDurationMs { get; init; }
+    public int? SilenceDurationMs { get; set; }
 
     /// <summary>
     /// Gets an optional server voice-activity detection threshold (0.0–1.0).
     /// </summary>
-    public float? VadThreshold { get; init; }
+    public float? VadThreshold { get; set; }
 
     /// <summary>
     /// Gets whether the user may interrupt (barge in on) the assistant while it is speaking. When false, the
     /// server voice-activity detector will not interrupt an in-progress response. Defaults to true.
     /// </summary>
-    public bool AllowInterruption { get; init; } = true;
+    public bool AllowInterruption { get; set; } = true;
+
+    /// <summary>
+    /// Gets an optional hook invoked once the provider session is live, handing the caller a control it can use to
+    /// change turn-taking settings mid-conversation. Without it, toggling barge-in during a session leaves the
+    /// client, the server pump and the provider disagreeing about the rules until the next session.
+    /// </summary>
+    public Action<RealtimeSessionControl>? OnSessionStarted { get; init; }
+
+    /// <summary>
+    /// Gets how long the session may go without the user speaking before it ends, or <see langword="null"/> to
+    /// let it run indefinitely.
+    /// </summary>
+    public TimeSpan? IdleTimeout { get; init; }
 
     /// <summary>
     /// Gets an optional hook invoked after each completed user utterance is persisted (e.g. title generation).

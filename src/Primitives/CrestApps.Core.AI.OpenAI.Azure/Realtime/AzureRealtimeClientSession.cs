@@ -91,6 +91,23 @@ internal sealed class AzureRealtimeClientSession : IRealtimeClientSession
 
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
+                        // An abnormal close carries the only explanation the caller will ever get for the session
+                        // disappearing (expired credentials, a rate limit, the provider's session cap). Surfacing
+                        // it as an error event makes it both diagnosable in logs and visible to the user, instead
+                        // of the conversation simply going quiet.
+                        var closeStatus = _socket.CloseStatus;
+                        if (closeStatus is not null and not WebSocketCloseStatus.NormalClosure and not WebSocketCloseStatus.Empty)
+                        {
+                            yield return new ErrorRealtimeServerMessage
+                            {
+                                Error = new ErrorContent(
+                                    $"The realtime connection closed unexpectedly ({closeStatus}): {_socket.CloseStatusDescription ?? "no detail provided"}.")
+                                {
+                                    ErrorCode = closeStatus.ToString(),
+                                },
+                            };
+                        }
+
                         yield break;
                     }
 

@@ -12,12 +12,24 @@ public sealed class WebRtcRealtimePeerRegistry
 {
     private readonly ConcurrentDictionary<string, IWebRtcRealtimePeer> _peers = new(StringComparer.Ordinal);
 
-    public void Add(string connectionId, IWebRtcRealtimePeer peer)
+    /// <summary>
+    /// Registers a connection's peer. A second session on the same connection replaces the first and returns the
+    /// one it displaced, so the caller can dispose it: silently overwriting leaked a live peer that kept holding
+    /// its sockets and pacing loop for the rest of the connection.
+    /// </summary>
+    /// <param name="connectionId">The SignalR connection id.</param>
+    /// <param name="peer">The peer to register.</param>
+    public IWebRtcRealtimePeer? Add(string connectionId, IWebRtcRealtimePeer peer)
     {
-        if (!string.IsNullOrEmpty(connectionId) && peer is not null)
+        if (string.IsNullOrEmpty(connectionId) || peer is null)
         {
-            _peers[connectionId] = peer;
+            return null;
         }
+
+        _peers.TryGetValue(connectionId, out var displaced);
+        _peers[connectionId] = peer;
+
+        return ReferenceEquals(displaced, peer) ? null : displaced;
     }
 
     public IWebRtcRealtimePeer? Get(string connectionId)

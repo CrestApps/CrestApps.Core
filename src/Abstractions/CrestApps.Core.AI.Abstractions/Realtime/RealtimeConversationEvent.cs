@@ -29,4 +29,17 @@ public sealed class RealtimeConversationEvent
     /// Gets the error message for <see cref="RealtimeConversationEventType.Error"/>.
     /// </summary>
     public string ErrorMessage { get; init; }
+
+    /// <summary>
+    /// Gets the provider's conversation item id the event belongs to, when the provider supplies one. This is the
+    /// only stable way to pair a user utterance with the transcript that arrives for it later, and the only way to
+    /// name the assistant item to truncate on a barge-in; the arrival order of events cannot be relied on for
+    /// either, because transcription lags the reply it belongs to and can fail outright.
+    /// </summary>
+    public string ItemId { get; init; }
+
+    /// <summary>
+    /// Gets the provider's response id for response lifecycle events, when the provider supplies one.
+    /// </summary>
+    public string ResponseId { get; init; }
 }
