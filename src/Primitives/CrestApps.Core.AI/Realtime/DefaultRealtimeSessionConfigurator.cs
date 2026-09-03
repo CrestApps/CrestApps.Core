@@ -11,6 +11,10 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigurator
 {
+    // End-of-turn silence (ms) used when the profile/user has not tuned turn detection. Longer than the provider
+    // default so a natural pause within a sentence does not prematurely end the user's turn.
+    private const int DefaultSilenceDurationMs = 800;
+
     /// <inheritdoc />
     public RealtimeSessionOptions Configure(RealtimeSessionConfiguratorContext context)
     {
@@ -21,9 +25,12 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
 
         // The Microsoft.Extensions.AI VAD options cannot express silence duration / detection threshold, so
         // carry them through RawRepresentationFactory for a provider that supports them (see AzureRealtimeProtocol).
+        // Default the end-of-turn silence longer than the provider's ~500 ms so a brief mid-sentence pause does not
+        // end the turn early — which otherwise made the model answer half-way and then treat the rest of the same
+        // sentence as a barge-in / second response. An explicit user setting still wins.
         var turnDetectionOverrides = new RealtimeTurnDetectionOverrides
         {
-            SilenceDurationMs = context.SilenceDurationMs,
+            SilenceDurationMs = context.SilenceDurationMs ?? DefaultSilenceDurationMs,
             Threshold = context.VadThreshold,
         };
 
