@@ -40,6 +40,13 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     // Outgoing accumulator (assistant PCM arrives in arbitrary chunk sizes; Opus needs fixed 20 ms frames).
     private readonly List<short> _encodePending = new(FrameSamples * 8);
 
+    // Encoded 20 ms Opus frames waiting to go out. They are drained to RTP on a 20 ms wall-clock cadence (see
+    // PaceOutgoingAsync) so assistant audio — which the provider delivers faster than real time, in bursts —
+    // plays back at natural speed instead of a rushed, sped-up stream.
+    private readonly Channel<byte[]> _outgoing;
+    private readonly CancellationTokenSource _pacingCts = new();
+    private readonly Task _pacingTask;
+
     private bool _closedRaised;
     private bool _connectedRaised;
     private long _rtpReceived;
@@ -78,6 +85,13 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         _pc.onconnectionstatechange += OnConnectionStateChanged;
         _pc.oniceconnectionstatechange += OnIceConnectionStateChanged;
         _pc.OnRtpPacketReceived += OnRtpPacketReceived;
+
+        _outgoing = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = true,
+        });
+        _pacingTask = PaceOutgoingAsync(_pacingCts.Token);
     }
 
     /// <summary>Sets the remote offer and produces the local answer.</summary>
@@ -144,13 +158,46 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 
             if (encoded > 0)
             {
-                _pc.SendAudio(RtpUnitsPerFrame, _encodeOut.AsSpan(0, encoded).ToArray());
+                // Queue the frame; the pacing loop releases one frame every 20 ms so playback is real time.
+                _outgoing.Writer.TryWrite(_encodeOut.AsSpan(0, encoded).ToArray());
+            }
+        }
+    }
 
-                if (Interlocked.Increment(ref _framesSent) == 1)
+    // Releases exactly one 20 ms Opus frame per 20 ms of wall-clock time. The realtime provider produces audio
+    // faster than real time and hands it to us in bursts; sending each frame to RTP the instant it was encoded
+    // flooded the browser and made the assistant sound sped-up. Pacing to the media clock fixes the playback rate
+    // (and keeps the un-sent tail in our own queue, where it can later be flushed on a barge-in).
+    private async Task PaceOutgoingAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(20));
+            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+            {
+                if (!_outgoing.Reader.TryRead(out var frame))
                 {
-                    _logger.LogInformation("WebRTC realtime: first assistant audio frame sent to the browser.");
+                    continue;
+                }
+
+                try
+                {
+                    _pc.SendAudio(RtpUnitsPerFrame, frame);
+
+                    if (Interlocked.Increment(ref _framesSent) == 1)
+                    {
+                        _logger.LogInformation("WebRTC realtime: first assistant audio frame sent to the browser.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to send a paced realtime audio frame.");
                 }
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected on teardown.
         }
     }
 
@@ -293,9 +340,24 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         Closed?.Invoke();
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         RaiseClosedOnce();
+
+        _outgoing.Writer.TryComplete();
+        try
+        {
+            await _pacingCts.CancelAsync().ConfigureAwait(false);
+            await _pacingTask.ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Error stopping the realtime audio pacing loop.");
+        }
+        finally
+        {
+            _pacingCts.Dispose();
+        }
 
         try
         {
@@ -305,8 +367,6 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         {
             _logger.LogDebug(ex, "Error closing the WebRTC peer connection.");
         }
-
-        return ValueTask.CompletedTask;
     }
 
     private static RTCIceServer ToRtcIceServer(WebRtcIceServer server) => new()
