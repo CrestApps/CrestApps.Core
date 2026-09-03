@@ -149,6 +149,16 @@ public sealed class RealtimeChatSessionRunner
     {
         var turn = new AssistantTurn();
 
+        // A provider response is currently generating (between response.created and response.done). Used only when
+        // interruption is disabled, to decide whether a user utterance can be answered or was ignored by the model.
+        var responseActive = false;
+
+        // With barge-in off, every user utterance that starts while a response is active is rejected by the
+        // provider ("active response in progress") and never answered. We record, in speech order, whether each
+        // utterance was ignored so its lagging transcript can be dropped rather than shown as an unanswered prompt.
+        // FIFO holds because both speech-started and transcript-completed arrive in utterance order.
+        var ignoredUtterances = new Queue<bool>();
+
         await foreach (var evt in conversation.GetEventsAsync(cancellationToken))
         {
             switch (evt.Type)
@@ -158,6 +168,13 @@ public sealed class RealtimeChatSessionRunner
                     break;
 
                 case RealtimeConversationEventType.UserTranscript:
+                    // With barge-in off, drop the transcript of an utterance that began while the model was already
+                    // responding — it was never answered, so surfacing it would show a prompt the model ignored.
+                    if (!context.AllowInterruption && ignoredUtterances.Count > 0 && ignoredUtterances.Dequeue())
+                    {
+                        break;
+                    }
+
                     // The user's transcript for a turn can arrive AFTER the assistant has begun replying to it
                     // (input-audio transcription lags the model's spoken reply), so it must NOT end the assistant
                     // turn — doing so cut the reply and split it into two turns/bubbles. The assistant turn is
@@ -190,10 +207,22 @@ public sealed class RealtimeChatSessionRunner
                         await FlushAssistantTurnAsync(context, turnStore, sink, sessionId, turn, finalText: null, cancellationToken);
                         await sink.SpeechStartedAsync(sessionId, cancellationToken);
                     }
+                    else
+                    {
+                        // Barge-in off: this utterance will be answered only if no response is running right now;
+                        // otherwise the provider rejects it and it must not be surfaced (see UserTranscript).
+                        ignoredUtterances.Enqueue(responseActive);
+                    }
 
                     break;
 
+                case RealtimeConversationEventType.ResponseStarted:
+                    responseActive = true;
+                    break;
+
                 case RealtimeConversationEventType.ResponseCompleted:
+                    responseActive = false;
+
                     if (string.Equals(evt.ResponseStatus, RealtimeResponseStatus.Cancelled, StringComparison.OrdinalIgnoreCase))
                     {
                         await FlushAssistantTurnAsync(context, turnStore, sink, sessionId, turn, finalText: null, cancellationToken);

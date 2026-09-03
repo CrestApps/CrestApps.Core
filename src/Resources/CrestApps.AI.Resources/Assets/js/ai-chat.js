@@ -2517,9 +2517,13 @@ window.coreAIChatManager = function () {
                         var gatedTrack = (dest.stream.getAudioTracks()[0]) || rawTrack;
                         var data = new Uint8Array(analyser.fftSize);
                         var speakingUntilMs = 0;
+                        var wasAssistantSpeaking = false;
+                        var listenGraceUntilMs = 0;
                         // Hangover keeps the gate open through pauses within a sentence so one utterance is not
                         // chopped into several provider turns; it closes only after this much continuous silence.
-                        var OPEN_LEVEL = 0.05, ECHO_MARGIN = 0.08, GATE_HANGOVER_MS = 1000;
+                        // LISTEN_GRACE opens the mic the instant the assistant stops (barge-in off) so the user's
+                        // next turn is not clipped while the gate waits to detect speech; it closes again if unused.
+                        var OPEN_LEVEL = 0.05, ECHO_MARGIN = 0.08, GATE_HANGOVER_MS = 1000, LISTEN_GRACE_MS = 1500;
 
                         var loop = () => {
                             this._realtimeWebRtcMonitorRaf = window.requestAnimationFrame(loop);
@@ -2550,13 +2554,16 @@ window.coreAIChatManager = function () {
                             if (micLevel > threshold) { speakingUntilMs = nowMs + GATE_HANGOVER_MS; }
                             var userActive = nowMs < speakingUntilMs;
 
+                            if (wasAssistantSpeaking && !assistantSpeaking) { listenGraceUntilMs = nowMs + LISTEN_GRACE_MS; }
+                            wasAssistantSpeaking = assistantSpeaking;
+
                             var open;
                             if (this._realtimePushToTalk) {
                                 open = !!this._realtimePttActive;
                             } else if (this._realtimeBargeIn) {
                                 open = userActive;
                             } else {
-                                open = userActive && !assistantSpeaking;
+                                open = !assistantSpeaking && (userActive || nowMs < listenGraceUntilMs);
                             }
 
                             var target = open ? 1 : 0;

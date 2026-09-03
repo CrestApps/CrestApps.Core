@@ -89,6 +89,13 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
                 };
 
             case ResponseCreatedRealtimeServerMessage response
+                when response.Type == RealtimeServerMessageType.ResponseCreated:
+                return new RealtimeConversationEvent
+                {
+                    Type = RealtimeConversationEventType.ResponseStarted,
+                };
+
+            case ResponseCreatedRealtimeServerMessage response
                 when response.Type == RealtimeServerMessageType.ResponseDone:
                 return new RealtimeConversationEvent
                 {

@@ -81,6 +81,10 @@
         // through natural pauses between words/phrases so one sentence is not chopped into several provider turns —
         // it closes only after this much continuous silence, i.e. once the user has clearly finished.
         var REALTIME_GATE_OPEN_LEVEL = 0.05, REALTIME_GATE_ECHO_MARGIN = 0.08, REALTIME_GATE_HANGOVER_MS = 1000;
+        // With barge-in off the mic is half-duplex: closed while the assistant speaks. The moment the assistant
+        // stops, open the mic for this grace window even before the user starts, so the start of their next turn
+        // is not clipped while the gate waits to detect speech. If they stay silent it closes again after this.
+        var REALTIME_GATE_LISTEN_GRACE_MS = 1500;
 
         // Per-device audio preferences (barge-in, echo guard, push-to-talk, volume, mic, etc.).
         var realtimeBargeIn = true, realtimeHangoverSec = 0.25, realtimePushToTalk = false, realtimePttActive = false,
@@ -790,6 +794,8 @@
                 var gatedTrack = (dest.stream.getAudioTracks()[0]) || rawTrack;
                 var data = new Uint8Array(analyser.fftSize);
                 var speakingUntilMs = 0;
+                var wasAssistantSpeaking = false;
+                var listenGraceUntilMs = 0;
 
                 var loop = function () {
                     realtimeWebRtcMonitorRaf = window.requestAnimationFrame(loop);
@@ -821,13 +827,18 @@
                     if (micLevel > threshold) { speakingUntilMs = nowMs + REALTIME_GATE_HANGOVER_MS; }
                     var userActive = nowMs < speakingUntilMs;
 
+                    // Open a listening grace the instant the assistant stops speaking so the user's next turn is
+                    // captured without clipping while barge-in is off (see REALTIME_GATE_LISTEN_GRACE_MS).
+                    if (wasAssistantSpeaking && !assistantSpeaking) { listenGraceUntilMs = nowMs + REALTIME_GATE_LISTEN_GRACE_MS; }
+                    wasAssistantSpeaking = assistantSpeaking;
+
                     var open;
                     if (realtimePushToTalk) {
                         open = !!realtimePttActive;
                     } else if (realtimeBargeIn) {
                         open = userActive;
                     } else {
-                        open = userActive && !assistantSpeaking;
+                        open = !assistantSpeaking && (userActive || nowMs < listenGraceUntilMs);
                     }
 
                     var target = open ? 1 : 0;

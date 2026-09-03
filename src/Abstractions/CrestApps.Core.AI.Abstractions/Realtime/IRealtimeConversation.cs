@@ -55,6 +55,12 @@ public enum RealtimeConversationEventType
     UserSpeechStarted,
 
     /// <summary>
+    /// The model started generating a response for a turn (the provider created a response). Marks the point
+    /// after which further user speech cannot be answered until the response completes (unless interruption is on).
+    /// </summary>
+    ResponseStarted,
+
+    /// <summary>
     /// The model finished generating a response for a turn. <see cref="RealtimeConversationEvent.ResponseStatus"/> carries the outcome.
     /// </summary>
     ResponseCompleted,

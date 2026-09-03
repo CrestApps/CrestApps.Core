@@ -185,6 +185,44 @@ public sealed class RealtimeChatSessionRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenInterruptionDisabled_DropsUtteranceSpokenDuringActiveResponse()
+    {
+        // Barge-in off: the user speaks "stocks" while the model is still answering the previous prompt. The
+        // provider ignores it (active response in progress), so its lagging transcript must not be shown or
+        // persisted — only the prompt that was actually answered survives.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-5" };
+
+        var conversation = new FakeConversation(
+        [
+            Evt(RealtimeConversationEventType.UserSpeechStarted),                                   // utterance A (answered)
+            Evt(RealtimeConversationEventType.ResponseStarted),
+            Evt(RealtimeConversationEventType.AssistantTranscriptDelta, text: "Here is the news."),
+            Evt(RealtimeConversationEventType.UserSpeechStarted),                                   // utterance B (ignored)
+            Evt(RealtimeConversationEventType.UserTranscript, text: "what is happening"),           // A's lagging transcript
+            Evt(RealtimeConversationEventType.UserTranscript, text: "stocks"),                      // B's transcript -> dropped
+            Evt(RealtimeConversationEventType.AssistantTranscriptDone, text: "Here is the news."),
+            Evt(RealtimeConversationEventType.ResponseCompleted),
+        ]);
+        var (store, persisted) = CreateStore();
+        var sink = new RecordingSink();
+
+        using var scope = AIInvocationScope.Begin();
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext { Resource = profile, SessionId = session.SessionId, ChatSession = session, AllowInterruption = false },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        // Only the answered prompt is surfaced and persisted; the ignored "stocks" utterance is dropped.
+        Assert.Equal(["what is happening"], sink.UserTranscripts);
+        Assert.Equal(["what is happening"], persisted.Where(p => p.Role == ChatRole.User).Select(p => p.Content));
+    }
+
+    [Fact]
     public async Task RunAsync_SwallowsBenignActiveResponseError()
     {
         // "Conversation already has an active response in progress" is an expected race when the user speaks
