@@ -70,9 +70,29 @@ test.describe('realtime voice client', () => {
         await expect.poll(() => page.evaluate(() => window.controller.isActive())).toBe(false);
     });
 
-    test('ends the session when the server reports an error', async ({ page }) => {
+    test('falls back rather than giving up when the server errors before the peer connects', async ({ page }) => {
+        // A server-side failure during the WebRTC handshake — a rejected offer, an unavailable peer factory — is a
+        // reason to try the other transport, not to end the conversation. Treating it as terminal is what turned a
+        // recoverable codec mismatch into a session that silently did nothing at all.
         await page.goto(HARNESS);
         await startSession(page);
+
+        await page.evaluate(() => window.harness.raise('ReceiveError', 'WebRTC offer rejected'));
+
+        await expect
+            .poll(() => page.evaluate(() => window.harness.started.some(s => s.transport === 'ws')))
+            .toBe(true);
+        await expect.poll(() => page.evaluate(() => window.controller.isActive())).toBe(true);
+    });
+
+    test('ends the session when the server reports an error on a live session', async ({ page }) => {
+        await page.goto(HARNESS);
+        await startSession(page);
+        // Reach the WebSocket path first, where an error is genuinely terminal.
+        await page.evaluate(() => window.harness.raise('ReceiveError', 'first failure'));
+        await expect
+            .poll(() => page.evaluate(() => window.harness.started.some(s => s.transport === 'ws')))
+            .toBe(true);
 
         await page.evaluate(() => window.harness.raise('ReceiveError', 'something failed'));
 

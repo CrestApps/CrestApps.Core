@@ -1326,7 +1326,19 @@
             // An error while a voice session is running is terminal for that session: the server has already
             // stopped, so keep the mic open no longer.
             connection.on('ReceiveError', function () {
-                if (isRealtimeActive) { endRealtimeSessionFromServer('error'); }
+                if (!isRealtimeActive) { return; }
+
+                // An error while the WebRTC peer is still being set up is a reason to try the other transport, not
+                // to give up: the WebSocket path may well work. Treating every error as terminal is what turned a
+                // recoverable server-side handshake failure into a session that silently did nothing at all.
+                if (realtimeIsWebRtc && !realtimeWebRtcConnected && !realtimeFellBack) {
+                    fallbackToWebSocket('server reported an error before the peer connected');
+
+                    return;
+                }
+
+                // Once the session is live, an error is terminal — the server has already stopped.
+                endRealtimeSessionFromServer('error');
             });
 
             if (typeof connection.onclose === 'function') {
