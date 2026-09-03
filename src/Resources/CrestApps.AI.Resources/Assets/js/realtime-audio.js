@@ -77,8 +77,10 @@
         // eliminates the model answering itself and the Whisper "Thank you" hallucinations from non-speech audio.
         var realtimeWebRtcGateGain = null, realtimeWebRtcRemoteAnalyser = null, realtimeWebRtcRemoteData = null;
         // Mic level (0..1) above which we treat it as user speech; the echo margin is added on top while the
-        // assistant is speaking so its residual echo alone never opens the gate.
-        var REALTIME_GATE_OPEN_LEVEL = 0.06, REALTIME_GATE_ECHO_MARGIN = 0.08;
+        // assistant is speaking so its residual echo alone never opens the gate. The hangover keeps the gate open
+        // through natural pauses between words/phrases so one sentence is not chopped into several provider turns —
+        // it closes only after this much continuous silence, i.e. once the user has clearly finished.
+        var REALTIME_GATE_OPEN_LEVEL = 0.05, REALTIME_GATE_ECHO_MARGIN = 0.08, REALTIME_GATE_HANGOVER_MS = 1000;
 
         // Per-device audio preferences (barge-in, echo guard, push-to-talk, volume, mic, etc.).
         var realtimeBargeIn = true, realtimeHangoverSec = 0.25, realtimePushToTalk = false, realtimePttActive = false,
@@ -816,7 +818,7 @@
 
                     var nowMs = (window.performance && performance.now) ? performance.now() : Date.now();
                     var threshold = REALTIME_GATE_OPEN_LEVEL + (assistantSpeaking ? REALTIME_GATE_ECHO_MARGIN : 0);
-                    if (micLevel > threshold) { speakingUntilMs = nowMs + (realtimeHangoverSec * 1000); }
+                    if (micLevel > threshold) { speakingUntilMs = nowMs + REALTIME_GATE_HANGOVER_MS; }
                     var userActive = nowMs < speakingUntilMs;
 
                     var open;

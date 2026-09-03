@@ -2507,7 +2507,9 @@ window.coreAIChatManager = function () {
                         var gatedTrack = (dest.stream.getAudioTracks()[0]) || rawTrack;
                         var data = new Uint8Array(analyser.fftSize);
                         var speakingUntilMs = 0;
-                        var OPEN_LEVEL = 0.06, ECHO_MARGIN = 0.08;
+                        // Hangover keeps the gate open through pauses within a sentence so one utterance is not
+                        // chopped into several provider turns; it closes only after this much continuous silence.
+                        var OPEN_LEVEL = 0.05, ECHO_MARGIN = 0.08, GATE_HANGOVER_MS = 1000;
 
                         var loop = () => {
                             this._realtimeWebRtcMonitorRaf = window.requestAnimationFrame(loop);
@@ -2534,9 +2536,8 @@ window.coreAIChatManager = function () {
                             var assistantSpeaking = assistantLevel > 0.03;
 
                             var nowMs = (window.performance && performance.now) ? performance.now() : Date.now();
-                            var hangoverSec = (this._realtimeHangoverSec != null) ? this._realtimeHangoverSec : 0.5;
                             var threshold = OPEN_LEVEL + (assistantSpeaking ? ECHO_MARGIN : 0);
-                            if (micLevel > threshold) { speakingUntilMs = nowMs + (hangoverSec * 1000); }
+                            if (micLevel > threshold) { speakingUntilMs = nowMs + GATE_HANGOVER_MS; }
                             var userActive = nowMs < speakingUntilMs;
 
                             var open;
