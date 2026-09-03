@@ -2740,9 +2740,11 @@ window.coreAIChatManager = function () {
             } catch (e) {}
           }
         },
-        // Route the assistant playback element to the CONCRETE default output device (its real deviceId),
-        // as ChatGPT's voice mode does — what couples playback with the mic's echo canceller as an AEC
-        // reference so the model ignores its own voice with the mic open. Falls back silently otherwise.
+        // Route the assistant playback element so the browser's echo canceller couples to it, the way
+        // ChatGPT's voice mode does. Preference: (1) the "communications" sink (Chrome/Edge) which puts the
+        // audio pipeline in communications mode and keeps full-duplex AEC stable across turns; (2) the
+        // concrete device the "default" alias points at (Firefox etc.), matched by groupId; (3) the first
+        // concrete output. Falls back silently otherwise.
         routeRealtimeOutputToDefaultDevice: function routeRealtimeOutputToDefaultDevice(el) {
           if (!el || typeof el.setSinkId !== 'function' || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
             return;
@@ -2754,16 +2756,23 @@ window.coreAIChatManager = function () {
             if (!outputs.length) {
               return;
             }
-            var defaultEntry = outputs.find(function (d) {
-              return d.deviceId === 'default';
-            });
             var target = '';
-            if (defaultEntry && defaultEntry.groupId) {
-              var concrete = outputs.find(function (d) {
-                return d.deviceId !== 'default' && d.deviceId !== 'communications' && d.groupId === defaultEntry.groupId;
+            if (outputs.some(function (d) {
+              return d.deviceId === 'communications';
+            })) {
+              target = 'communications';
+            }
+            if (!target) {
+              var defaultEntry = outputs.find(function (d) {
+                return d.deviceId === 'default';
               });
-              if (concrete) {
-                target = concrete.deviceId;
+              if (defaultEntry && defaultEntry.groupId) {
+                var concrete = outputs.find(function (d) {
+                  return d.deviceId !== 'default' && d.deviceId !== 'communications' && d.groupId === defaultEntry.groupId;
+                });
+                if (concrete) {
+                  target = concrete.deviceId;
+                }
               }
             }
             if (!target) {

@@ -995,10 +995,14 @@
       }
     }
 
-    // Route the assistant playback element to the CONCRETE default output device (its real deviceId), the way
-    // ChatGPT's voice mode does. Rendering to the concrete default speaker — not the "default"/"communications"
-    // aliases — is what couples playback with the mic's echo canceller as an AEC reference, so the model can
-    // ignore its own voice with the mic open in an open room. Falls back silently if resolution isn't possible.
+    // Route the assistant playback element so the browser's echo canceller couples to it as an AEC reference,
+    // the way ChatGPT's voice mode does. Preference order:
+    //   1. The "communications" sink (Chrome/Edge). Rendering here doesn't just pick a device — it puts the
+    //      browser's audio pipeline in COMMUNICATIONS mode, which is what actually couples playback with the
+    //      mic's echo canceller. This is what ChatGPT uses and what keeps full-duplex stable across turns.
+    //   2. The concrete device the "default" alias points at (browsers without a communications sink, e.g.
+    //      Firefox), matched by groupId.
+    //   3. The first concrete output.
     function routeRealtimeOutputToDefaultDevice(el) {
       if (!el || typeof el.setSinkId !== 'function' || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
         return;
@@ -1010,24 +1014,36 @@
         if (!outputs.length) {
           return;
         }
-        var defaultEntry = null;
+        var target = '';
+
+        // 1. Communications sink (keeps the browser's communications-mode AEC engaged).
         for (var i = 0; i < outputs.length; i++) {
-          if (outputs[i].deviceId === 'default') {
-            defaultEntry = outputs[i];
+          if (outputs[i].deviceId === 'communications') {
+            target = 'communications';
             break;
           }
         }
-        var target = '';
-        // Prefer the concrete device that the "default" alias points at (matched by groupId).
-        if (defaultEntry && defaultEntry.groupId) {
-          for (var j = 0; j < outputs.length; j++) {
-            if (outputs[j].deviceId !== 'default' && outputs[j].deviceId !== 'communications' && outputs[j].groupId === defaultEntry.groupId) {
-              target = outputs[j].deviceId;
+
+        // 2. The concrete device the "default" alias points at (matched by groupId).
+        if (!target) {
+          var defaultEntry = null;
+          for (var d = 0; d < outputs.length; d++) {
+            if (outputs[d].deviceId === 'default') {
+              defaultEntry = outputs[d];
               break;
             }
           }
+          if (defaultEntry && defaultEntry.groupId) {
+            for (var j = 0; j < outputs.length; j++) {
+              if (outputs[j].deviceId !== 'default' && outputs[j].deviceId !== 'communications' && outputs[j].groupId === defaultEntry.groupId) {
+                target = outputs[j].deviceId;
+                break;
+              }
+            }
+          }
         }
-        // Fall back to the first concrete output if the alias could not be resolved.
+
+        // 3. The first concrete output.
         if (!target) {
           for (var k = 0; k < outputs.length; k++) {
             if (outputs[k].deviceId !== 'default' && outputs[k].deviceId !== 'communications') {
