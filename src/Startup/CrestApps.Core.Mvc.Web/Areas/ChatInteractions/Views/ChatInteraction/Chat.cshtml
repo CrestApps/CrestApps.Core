@@ -1829,6 +1829,7 @@
             var conversationAnalyser = null;
             var conversationPartialMessage = null;
             var conversationAssistantMessage = null;
+            var conversationAssistantResponseId = null;
             var audioChunks = [];
             var audioPlayQueue = [];
             var isPlayingAudio = false;
@@ -2042,17 +2043,25 @@
 
                 stopAudio();
 
-                if (conversationAssistantMessage) {
-                    conversationAssistantMessage.isStreaming = false;
-                    conversationAssistantMessage = null;
-                }
-
                 if (conversationPartialMessage) {
                     conversationPartialMessage.rawContent = text;
                     conversationPartialMessage.content = text;
                     conversationPartialMessage.htmlContent = renderMarkdown(text);
                     conversationPartialMessage.isPartial = false;
                     conversationPartialMessage = null;
+                } else if (conversationAssistantMessage) {
+                    // Realtime: the user's transcript lags the assistant's reply for the SAME turn (the model
+                    // answers the audio before speech-to-text finishes). Place the user message just before the
+                    // assistant message that is currently streaming so the order stays You -> Assistant, and do NOT
+                    // end that assistant message here — ending it is what split one reply into two bubbles.
+                    var assistantIdx = vm.messages.indexOf(conversationAssistantMessage);
+                    var userMsg = createChatMessage('user', text);
+                    if (assistantIdx >= 0) {
+                        vm.messages.splice(assistantIdx, 0, userMsg);
+                    } else {
+                        vm.messages.push(userMsg);
+                    }
+                    vm.scrollToBottom();
                 } else {
                     vm.addMessage('user', text);
                 }
@@ -2063,11 +2072,19 @@
                     return;
                 }
 
+                // A new response id means a new turn — finalize the previous assistant message so two replies never
+                // merge into one bubble (also covers barge-in, where the next response starts a fresh message).
+                if (conversationAssistantMessage && conversationAssistantResponseId && responseId && conversationAssistantResponseId !== responseId) {
+                    conversationAssistantMessage.isStreaming = false;
+                    conversationAssistantMessage = null;
+                }
+
                 if (!conversationAssistantMessage) {
                     vm.addMessage('assistant', '', true);
                     conversationAssistantMessage = vm.messages[vm.messages.length - 1];
                     conversationAssistantMessage.id = messageId;
                     conversationAssistantMessage.references = {};
+                    conversationAssistantResponseId = responseId;
                 }
 
                 conversationAssistantMessage.rawContent = (conversationAssistantMessage.rawContent || '') + token;
@@ -2086,6 +2103,7 @@
                 conversationAssistantMessage.references = normalizeReferences(Object.assign({}, conversationAssistantMessage.references || {}, references || {}));
                 updateMessagePresentation(conversationAssistantMessage);
                 conversationAssistantMessage = null;
+                conversationAssistantResponseId = null;
                 vm.scrollToBottom();
                 vm.$nextTick(function () { renderPendingCharts(); });
             });
