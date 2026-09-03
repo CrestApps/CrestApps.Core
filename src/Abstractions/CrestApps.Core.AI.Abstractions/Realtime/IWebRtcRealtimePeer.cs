@@ -43,4 +43,10 @@ public interface IWebRtcRealtimePeer : IAsyncDisposable
     /// Sends assistant audio (PCM16, 24 kHz, mono) to the browser as an Opus track.
     /// </summary>
     void SendAudio(ReadOnlyMemory<byte> pcm24k);
+
+    /// <summary>
+    /// Discards any assistant audio still queued for playback. Called on barge-in so the interrupted response
+    /// stops immediately instead of playing out the buffered tail while the new response begins.
+    /// </summary>
+    void FlushPlayback();
 }

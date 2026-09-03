@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Threading.Channels;
 using Concentus;
@@ -42,8 +43,9 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 
     // Encoded 20 ms Opus frames waiting to go out. They are drained to RTP on a 20 ms wall-clock cadence (see
     // PaceOutgoingAsync) so assistant audio — which the provider delivers faster than real time, in bursts —
-    // plays back at natural speed instead of a rushed, sped-up stream.
-    private readonly Channel<byte[]> _outgoing;
+    // plays back at natural speed instead of a rushed, sped-up stream. A ConcurrentQueue so a barge-in flush can
+    // safely discard the buffered tail from another thread while the pacing loop drains it.
+    private readonly ConcurrentQueue<byte[]> _outgoing = new();
     private readonly CancellationTokenSource _pacingCts = new();
     private readonly Task _pacingTask;
 
@@ -86,11 +88,6 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         _pc.oniceconnectionstatechange += OnIceConnectionStateChanged;
         _pc.OnRtpPacketReceived += OnRtpPacketReceived;
 
-        _outgoing = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
-        {
-            SingleReader = true,
-            SingleWriter = true,
-        });
         _pacingTask = PaceOutgoingAsync(_pacingCts.Token);
     }
 
@@ -159,9 +156,19 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             if (encoded > 0)
             {
                 // Queue the frame; the pacing loop releases one frame every 20 ms so playback is real time.
-                _outgoing.Writer.TryWrite(_encodeOut.AsSpan(0, encoded).ToArray());
+                _outgoing.Enqueue(_encodeOut.AsSpan(0, encoded).ToArray());
             }
         }
+    }
+
+    /// <summary>Discards buffered assistant audio so an interrupted response stops immediately on barge-in.</summary>
+    public void FlushPlayback()
+    {
+        while (_outgoing.TryDequeue(out _))
+        {
+        }
+
+        _encodePending.Clear();
     }
 
     // Releases exactly one 20 ms Opus frame per 20 ms of wall-clock time. The realtime provider produces audio
@@ -175,7 +182,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(20));
             while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
             {
-                if (!_outgoing.Reader.TryRead(out var frame))
+                if (!_outgoing.TryDequeue(out var frame))
                 {
                     continue;
                 }
@@ -344,7 +351,6 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     {
         RaiseClosedOnce();
 
-        _outgoing.Writer.TryComplete();
         try
         {
             await _pacingCts.CancelAsync().ConfigureAwait(false);

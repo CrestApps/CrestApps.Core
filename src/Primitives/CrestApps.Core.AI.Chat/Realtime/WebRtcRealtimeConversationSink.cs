@@ -38,7 +38,13 @@ internal sealed class WebRtcRealtimeConversationSink : IRealtimeConversationSink
         => _inner.AssistantCompletedAsync(identifier, messageId, references, cancellationToken);
 
     public Task SpeechStartedAsync(string identifier, CancellationToken cancellationToken)
-        => _inner.SpeechStartedAsync(identifier, cancellationToken);
+    {
+        // Barge-in: drop the buffered tail of the interrupted response so playback stops immediately and the new
+        // response starts cleanly, instead of the browser finishing the old (paced) audio first.
+        _peer.FlushPlayback();
+
+        return _inner.SpeechStartedAsync(identifier, cancellationToken);
+    }
 
     public Task ErrorAsync(string message, CancellationToken cancellationToken)
         => _inner.ErrorAsync(message, cancellationToken);
