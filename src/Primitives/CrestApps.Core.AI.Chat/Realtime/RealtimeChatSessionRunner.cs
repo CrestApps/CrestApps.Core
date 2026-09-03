@@ -141,8 +141,10 @@ public sealed class RealtimeChatSessionRunner
                     break;
 
                 case RealtimeConversationEventType.UserTranscript:
-                    // A new user utterance ends any assistant turn still in flight.
-                    await FlushAssistantTurnAsync(context, turnStore, sink, sessionId, turn, finalText: null, cancellationToken);
+                    // The user's transcript for a turn can arrive AFTER the assistant has begun replying to it
+                    // (input-audio transcription lags the model's spoken reply), so it must NOT end the assistant
+                    // turn — doing so cut the reply and split it into two turns/bubbles. The assistant turn is
+                    // flushed on its own done event, or on UserSpeechStarted for a genuine barge-in.
                     await PersistUserTurnAsync(context, turnStore, sessionId, evt.Text, cancellationToken);
                     await sink.UserTranscriptAsync(sessionId, evt.Text, cancellationToken);
                     break;
