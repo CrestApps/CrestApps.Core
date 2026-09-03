@@ -96,6 +96,16 @@
     var realtimeWebRtcMicTrack = null,
       realtimeWebRtcMonitorCtx = null,
       realtimeWebRtcMonitorRaf = 0;
+    // Duck-and-detect mic gate: the outbound mic is silenced (gain 0) unless the user is genuinely speaking, so
+    // only real user speech ever reaches the model — never silence, room noise, or the assistant's echo. That
+    // eliminates the model answering itself and the Whisper "Thank you" hallucinations from non-speech audio.
+    var realtimeWebRtcGateGain = null,
+      realtimeWebRtcRemoteAnalyser = null,
+      realtimeWebRtcRemoteData = null;
+    // Mic level (0..1) above which we treat it as user speech; the echo margin is added on top while the
+    // assistant is speaking so its residual echo alone never opens the gate.
+    var REALTIME_GATE_OPEN_LEVEL = 0.06,
+      REALTIME_GATE_ECHO_MARGIN = 0.08;
 
     // Per-device audio preferences (barge-in, echo guard, push-to-talk, volume, mic, etc.).
     var realtimeBargeIn = true,
@@ -717,10 +727,12 @@
             iceServers: webRtcIceServers
           });
           realtimePc = pc;
-          realtimeWebRtcMicTrack = stream.getAudioTracks()[0] || null;
-          stream.getAudioTracks().forEach(function (track) {
-            pc.addTrack(track, stream);
-          });
+
+          // Send a gated version of the mic: silent unless the user is actually speaking.
+          var micTrackToSend = setupWebRtcMicGate(stream);
+          if (micTrackToSend) {
+            pc.addTrack(micTrackToSend, stream);
+          }
 
           // Push-to-talk and the barge-in/echo guard both gate the outbound mic track. Wire the
           // same push-to-talk controls the WebSocket path uses so they work on WebRTC too.
@@ -754,13 +766,10 @@
           pc.ontrack = function (e) {
             if (e.streams && e.streams[0]) {
               audioEl.srcObject = e.streams[0];
-              // Only tap the remote stream into Web Audio when we actually gate the mic —
-              // push-to-talk or the half-duplex barge-in-off guard. With barge-in on we keep
-              // the mic open and rely on the browser's echo canceller, and pulling the remote
-              // track into a Web Audio graph can disturb the AEC reference, so leave it alone.
-              if (realtimePushToTalk || !realtimeBargeIn) {
-                startWebRtcEchoGuard(e.streams[0]);
-              }
+              // Let the gate watch the assistant's level so it can raise the speech threshold
+              // while the assistant talks (barge-in on) and stay closed until it finishes
+              // (barge-in off).
+              attachWebRtcAssistantAnalyser(e.streams[0]);
             }
           };
           pc.onicecandidate = function (e) {
@@ -908,33 +917,41 @@
       }
     }
 
-    // Gates the outbound WebRTC mic track every animation frame based on the assistant's remote audio level:
-    //  - push-to-talk: mic open only while the key is held;
-    //  - barge-in on: mic always open — rely on WebRTC AEC (full duplex);
-    //  - barge-in off: mic muted while the assistant is audibly speaking, plus a hangover tail (half duplex),
-    //    which guarantees the model cannot hear itself even when AEC cannot fully cancel loud open-room echo.
-    function startWebRtcEchoGuard(remoteStream) {
+    // Duck-and-detect mic gate. The raw (AEC'd) mic runs through a Web Audio gain node whose output is the track
+    // we send the peer; the gain is 0 (silent) unless the user is actually speaking. A separate analyser reads
+    // the raw mic even while the outbound is muted (muting the track itself would starve the analyser).
+    //  - push-to-talk: open only while the key is held;
+    //  - barge-in on: open whenever the user speaks — even over the assistant (interrupts);
+    //  - barge-in off: open only when the user speaks and the assistant is silent (wait your turn).
+    // Because only genuine user speech is ever sent, the model never receives silence/room-noise/echo — so it
+    // does not answer itself and Whisper does not hallucinate phantom "Thank you" turns. Returns the track to
+    // add to the peer (the gated track, or the raw mic if Web Audio is unavailable).
+    function setupWebRtcMicGate(rawStream) {
       stopWebRtcEchoGuard();
+      var rawTrack = rawStream && rawStream.getAudioTracks()[0] || null;
+      realtimeWebRtcMicTrack = rawTrack;
       var AudioCtor = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtor || !remoteStream) {
-        return;
+      if (!AudioCtor || !rawTrack) {
+        return rawTrack;
       }
-      var ctx = null;
       try {
-        ctx = new AudioCtor();
-        var srcNode = ctx.createMediaStreamSource(remoteStream);
+        var ctx = new AudioCtor();
+        realtimeWebRtcMonitorCtx = ctx;
+        var source = ctx.createMediaStreamSource(rawStream);
         var analyser = ctx.createAnalyser();
         analyser.fftSize = 512;
-        srcNode.connect(analyser);
+        source.connect(analyser);
+        var gain = ctx.createGain();
+        gain.gain.value = 0;
+        source.connect(gain);
+        var dest = ctx.createMediaStreamDestination();
+        gain.connect(dest);
+        realtimeWebRtcGateGain = gain;
+        var gatedTrack = dest.stream.getAudioTracks()[0] || rawTrack;
         var data = new Uint8Array(analyser.fftSize);
-        realtimeWebRtcMonitorCtx = ctx;
         var speakingUntilMs = 0;
         var _loop = function loop() {
           realtimeWebRtcMonitorRaf = window.requestAnimationFrame(_loop);
-          var track = realtimeWebRtcMicTrack;
-          if (!track) {
-            return;
-          }
           analyser.getByteTimeDomainData(data);
           var peak = 0;
           for (var i = 0; i < data.length; i++) {
@@ -946,33 +963,75 @@
               peak = v;
             }
           }
-          // ~4/128 (about 3% of full scale): the assistant is producing audible output.
-          var assistantAudible = peak > 4;
+          var micLevel = peak / 128;
+          var assistantLevel = 0;
+          if (realtimeWebRtcRemoteAnalyser && realtimeWebRtcRemoteData) {
+            realtimeWebRtcRemoteAnalyser.getByteTimeDomainData(realtimeWebRtcRemoteData);
+            var rp = 0;
+            for (var j = 0; j < realtimeWebRtcRemoteData.length; j++) {
+              var rv = realtimeWebRtcRemoteData[j] - 128;
+              if (rv < 0) {
+                rv = -rv;
+              }
+              if (rv > rp) {
+                rp = rv;
+              }
+            }
+            assistantLevel = rp / 128;
+          }
+          var assistantSpeaking = assistantLevel > 0.03;
           var nowMs = window.performance && performance.now ? performance.now() : Date.now();
-          if (assistantAudible) {
+          var threshold = REALTIME_GATE_OPEN_LEVEL + (assistantSpeaking ? REALTIME_GATE_ECHO_MARGIN : 0);
+          if (micLevel > threshold) {
             speakingUntilMs = nowMs + realtimeHangoverSec * 1000;
           }
-          var wantEnabled;
+          var userActive = nowMs < speakingUntilMs;
+          var open;
           if (realtimePushToTalk) {
-            wantEnabled = !!realtimePttActive;
+            open = !!realtimePttActive;
           } else if (realtimeBargeIn) {
-            wantEnabled = true;
+            open = userActive;
           } else {
-            wantEnabled = nowMs >= speakingUntilMs;
+            open = userActive && !assistantSpeaking;
           }
-          if (track.enabled !== wantEnabled) {
-            track.enabled = wantEnabled;
+          var target = open ? 1 : 0;
+          try {
+            gain.gain.setTargetAtTime(target, ctx.currentTime, 0.015);
+          } catch (e) {
+            gain.gain.value = target;
           }
         };
         _loop();
+        return gatedTrack;
       } catch (err) {
-        if (ctx) {
+        if (realtimeWebRtcMonitorCtx) {
           try {
-            ctx.close();
+            realtimeWebRtcMonitorCtx.close();
           } catch (e) {}
+          realtimeWebRtcMonitorCtx = null;
         }
-        realtimeWebRtcMonitorCtx = null;
-        // Monitoring unavailable; WebRTC AEC still runs on its own.
+        realtimeWebRtcGateGain = null;
+        // Web Audio unavailable; send the raw mic (ungated).
+        return rawTrack;
+      }
+    }
+
+    // Taps the assistant's remote stream so the gate can measure its level (for the echo-margin threshold and
+    // barge-in-off half-duplex). Uses the gate's AudioContext; a no-op if the gate isn't running.
+    function attachWebRtcAssistantAnalyser(remoteStream) {
+      var ctx = realtimeWebRtcMonitorCtx;
+      if (!ctx || !remoteStream) {
+        return;
+      }
+      try {
+        var src = ctx.createMediaStreamSource(remoteStream);
+        var analyser = ctx.createAnalyser();
+        analyser.fftSize = 512;
+        src.connect(analyser);
+        realtimeWebRtcRemoteAnalyser = analyser;
+        realtimeWebRtcRemoteData = new Uint8Array(analyser.fftSize);
+      } catch (e) {
+        // Assistant-level detection unavailable; the gate still opens on user speech.
       }
     }
     function stopWebRtcEchoGuard() {
@@ -988,11 +1047,9 @@
         } catch (e) {}
         realtimeWebRtcMonitorCtx = null;
       }
-      if (realtimeWebRtcMicTrack) {
-        try {
-          realtimeWebRtcMicTrack.enabled = true;
-        } catch (e) {}
-      }
+      realtimeWebRtcGateGain = null;
+      realtimeWebRtcRemoteAnalyser = null;
+      realtimeWebRtcRemoteData = null;
     }
 
     // Route the assistant playback element so the browser's echo canceller couples to it as an AEC reference,

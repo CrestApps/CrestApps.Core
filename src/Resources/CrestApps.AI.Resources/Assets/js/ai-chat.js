@@ -2354,11 +2354,12 @@ window.coreAIChatManager = function () {
                             this._realtimeWebRtcConnected = false;
                             this._realtimeWebRtcRemoteDescriptionSet = false;
                             this._realtimeWebRtcPendingIce = [];
-                            this._realtimeWebRtcMicTrack = stream.getAudioTracks()[0] || null;
 
                             var pc = new RTCPeerConnection({ iceServers: this.realtimeWebRtcIceServers });
                             this._realtimePc = pc;
-                            stream.getAudioTracks().forEach(track => pc.addTrack(track, stream));
+                            // Send a gated version of the mic: silent unless the user is actually speaking.
+                            var micTrackToSend = this.setupWebRtcMicGate(stream);
+                            if (micTrackToSend) { pc.addTrack(micTrackToSend, stream); }
 
                             if (this._realtimePushToTalk) { this.buildRealtimePttUi(); }
 
@@ -2378,12 +2379,8 @@ window.coreAIChatManager = function () {
                             pc.ontrack = (e) => {
                                 if (e.streams && e.streams[0]) {
                                     audioEl.srcObject = e.streams[0];
-                                    // Only tap the remote stream into Web Audio when we actually gate the mic (PTT or
-                                    // the half-duplex barge-in-off guard). With barge-in on we keep the mic open and
-                                    // rely on AEC, and feeding the remote track to Web Audio can disturb its reference.
-                                    if (this._realtimePushToTalk || !this._realtimeBargeIn) {
-                                        this.startRealtimeWebRtcEchoGuard(e.streams[0]);
-                                    }
+                                    // Let the gate watch the assistant's level (echo-margin threshold + barge-in-off).
+                                    this.attachWebRtcAssistantAnalyser(e.streams[0]);
                                 }
                             };
 
@@ -2477,26 +2474,43 @@ window.coreAIChatManager = function () {
                     this._realtimeWebRtcConnected = true;
                     if (this._realtimeWebRtcConnectTimer) { clearTimeout(this._realtimeWebRtcConnectTimer); this._realtimeWebRtcConnectTimer = null; }
                 },
-                // Half-duplex echo guard for open rooms: watches the assistant's remote audio and gates the outbound
-                // mic track each frame (push-to-talk / barge-in on full duplex / barge-in off mutes while speaking).
-                startRealtimeWebRtcEchoGuard(remoteStream) {
+                // Duck-and-detect mic gate. The raw (AEC'd) mic runs through a Web Audio gain node whose output is the
+                // track we send the peer; gain is 0 (silent) unless the user is actually speaking. A separate analyser
+                // reads the raw mic even while the outbound is muted. push-to-talk: open only while held; barge-in on:
+                // open whenever the user speaks (interrupts); barge-in off: open only when the user speaks and the
+                // assistant is silent. Only genuine user speech is sent, so the model never hears silence/room-noise/
+                // echo — no self-answering, no Whisper "Thank you" phantoms. Returns the track to add to the peer.
+                setupWebRtcMicGate(rawStream) {
                     this.stopRealtimeWebRtcEchoGuard();
+                    var rawTrack = (rawStream && rawStream.getAudioTracks()[0]) || null;
+                    this._realtimeWebRtcMicTrack = rawTrack;
+
                     var AudioCtor = window.AudioContext || window.webkitAudioContext;
-                    if (!AudioCtor || !remoteStream) { return; }
-                    var ctx = null;
+                    if (!AudioCtor || !rawTrack) { return rawTrack; }
+
                     try {
-                        ctx = new AudioCtor();
-                        var srcNode = ctx.createMediaStreamSource(remoteStream);
+                        var ctx = new AudioCtor();
+                        this._realtimeWebRtcMonitorCtx = ctx;
+
+                        var source = ctx.createMediaStreamSource(rawStream);
                         var analyser = ctx.createAnalyser();
                         analyser.fftSize = 512;
-                        srcNode.connect(analyser);
+                        source.connect(analyser);
+
+                        var gain = ctx.createGain();
+                        gain.gain.value = 0;
+                        source.connect(gain);
+                        var dest = ctx.createMediaStreamDestination();
+                        gain.connect(dest);
+                        this._realtimeWebRtcGateGain = gain;
+
+                        var gatedTrack = (dest.stream.getAudioTracks()[0]) || rawTrack;
                         var data = new Uint8Array(analyser.fftSize);
-                        this._realtimeWebRtcMonitorCtx = ctx;
                         var speakingUntilMs = 0;
+                        var OPEN_LEVEL = 0.06, ECHO_MARGIN = 0.08;
+
                         var loop = () => {
                             this._realtimeWebRtcMonitorRaf = window.requestAnimationFrame(loop);
-                            var track = this._realtimeWebRtcMicTrack;
-                            if (!track) { return; }
                             analyser.getByteTimeDomainData(data);
                             var peak = 0;
                             for (var i = 0; i < data.length; i++) {
@@ -2504,26 +2518,59 @@ window.coreAIChatManager = function () {
                                 if (v < 0) { v = -v; }
                                 if (v > peak) { peak = v; }
                             }
-                            var assistantAudible = peak > 4;
-                            var nowMs = (window.performance && performance.now) ? performance.now() : Date.now();
-                            var hangoverSec = (this._realtimeHangoverSec != null) ? this._realtimeHangoverSec : 0.25;
-                            if (assistantAudible) { speakingUntilMs = nowMs + (hangoverSec * 1000); }
+                            var micLevel = peak / 128;
 
-                            var wantEnabled;
-                            if (this._realtimePushToTalk) {
-                                wantEnabled = !!this._realtimePttActive;
-                            } else if (this._realtimeBargeIn) {
-                                wantEnabled = true;
-                            } else {
-                                wantEnabled = nowMs >= speakingUntilMs;
+                            var assistantLevel = 0;
+                            if (this._realtimeWebRtcRemoteAnalyser && this._realtimeWebRtcRemoteData) {
+                                this._realtimeWebRtcRemoteAnalyser.getByteTimeDomainData(this._realtimeWebRtcRemoteData);
+                                var rp = 0;
+                                for (var j = 0; j < this._realtimeWebRtcRemoteData.length; j++) {
+                                    var rv = this._realtimeWebRtcRemoteData[j] - 128;
+                                    if (rv < 0) { rv = -rv; }
+                                    if (rv > rp) { rp = rv; }
+                                }
+                                assistantLevel = rp / 128;
                             }
-                            if (track.enabled !== wantEnabled) { track.enabled = wantEnabled; }
+                            var assistantSpeaking = assistantLevel > 0.03;
+
+                            var nowMs = (window.performance && performance.now) ? performance.now() : Date.now();
+                            var hangoverSec = (this._realtimeHangoverSec != null) ? this._realtimeHangoverSec : 0.5;
+                            var threshold = OPEN_LEVEL + (assistantSpeaking ? ECHO_MARGIN : 0);
+                            if (micLevel > threshold) { speakingUntilMs = nowMs + (hangoverSec * 1000); }
+                            var userActive = nowMs < speakingUntilMs;
+
+                            var open;
+                            if (this._realtimePushToTalk) {
+                                open = !!this._realtimePttActive;
+                            } else if (this._realtimeBargeIn) {
+                                open = userActive;
+                            } else {
+                                open = userActive && !assistantSpeaking;
+                            }
+
+                            var target = open ? 1 : 0;
+                            try { gain.gain.setTargetAtTime(target, ctx.currentTime, 0.015); }
+                            catch (e) { gain.gain.value = target; }
                         };
                         loop();
+                        return gatedTrack;
                     } catch (err) {
-                        if (ctx) { try { ctx.close(); } catch (e) { } }
-                        this._realtimeWebRtcMonitorCtx = null;
+                        if (this._realtimeWebRtcMonitorCtx) { try { this._realtimeWebRtcMonitorCtx.close(); } catch (e) { } this._realtimeWebRtcMonitorCtx = null; }
+                        this._realtimeWebRtcGateGain = null;
+                        return rawTrack;
                     }
+                },
+                attachWebRtcAssistantAnalyser(remoteStream) {
+                    var ctx = this._realtimeWebRtcMonitorCtx;
+                    if (!ctx || !remoteStream) { return; }
+                    try {
+                        var src = ctx.createMediaStreamSource(remoteStream);
+                        var analyser = ctx.createAnalyser();
+                        analyser.fftSize = 512;
+                        src.connect(analyser);
+                        this._realtimeWebRtcRemoteAnalyser = analyser;
+                        this._realtimeWebRtcRemoteData = new Uint8Array(analyser.fftSize);
+                    } catch (e) { /* assistant-level detection unavailable */ }
                 },
                 stopRealtimeWebRtcEchoGuard() {
                     if (this._realtimeWebRtcMonitorRaf) {
@@ -2534,9 +2581,9 @@ window.coreAIChatManager = function () {
                         try { this._realtimeWebRtcMonitorCtx.close(); } catch (e) { }
                         this._realtimeWebRtcMonitorCtx = null;
                     }
-                    if (this._realtimeWebRtcMicTrack) {
-                        try { this._realtimeWebRtcMicTrack.enabled = true; } catch (e) { }
-                    }
+                    this._realtimeWebRtcGateGain = null;
+                    this._realtimeWebRtcRemoteAnalyser = null;
+                    this._realtimeWebRtcRemoteData = null;
                 },
                 // Route the assistant playback element so the browser's echo canceller couples to it, the way
                 // ChatGPT's voice mode does. Preference: (1) the "communications" sink (Chrome/Edge) which puts the
