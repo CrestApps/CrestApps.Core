@@ -1284,16 +1284,6 @@ window.coreAIChatManager = function () {
                     if (text) {
                       _this3.stopAudio();
 
-                      // If there's an interrupted assistant message still streaming,
-                      // mark it as done to stop the spinner animation.
-                      if (_this3._conversationAssistantMessage) {
-                        var oldMsg = _this3.messages[_this3._conversationAssistantMessage.index];
-                        if (oldMsg) {
-                          oldMsg.isStreaming = false;
-                        }
-                        _this3._conversationAssistantMessage = null;
-                      }
-
                       // Replace the partial transcript message with the final one.
                       if (_this3._conversationPartialMessage) {
                         var escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1301,6 +1291,23 @@ window.coreAIChatManager = function () {
                         _this3._conversationPartialMessage.htmlContent = '<p>' + escaped + '</p>';
                         _this3._conversationPartialMessage.isPartial = false;
                         _this3._conversationPartialMessage = null;
+                      } else if (_this3._conversationAssistantMessage) {
+                        // Realtime: the user's transcript lags the assistant's reply for the SAME turn (the
+                        // model answers the audio before speech-to-text finishes). Insert the user message
+                        // just before the streaming assistant message so the order stays You -> Assistant,
+                        // and keep that message streaming — ending it here split one reply into two bubbles
+                        // above the prompt.
+                        var at = _this3._conversationAssistantMessage.index;
+                        var userMsg = {
+                          role: 'user',
+                          content: text,
+                          rawContent: text,
+                          userRating: null,
+                          references: {}
+                        };
+                        updateMessagePresentation(userMsg, userMsg.references);
+                        _this3.messages.splice(at, 0, userMsg);
+                        _this3._conversationAssistantMessage.index = at + 1;
                       } else {
                         _this3.addMessage({
                           role: 'user',
@@ -1311,6 +1318,15 @@ window.coreAIChatManager = function () {
                     }
                   });
                   _this3.connection.on("ReceiveConversationAssistantToken", function (sessionId, messageId, token, responseId, references, appearance) {
+                    // A new response id means a new turn — finalize the previous assistant message so two replies
+                    // never merge into one bubble (also covers barge-in, which starts a fresh response).
+                    if (_this3._conversationAssistantMessage && _this3._conversationAssistantResponseId && responseId && _this3._conversationAssistantResponseId !== responseId) {
+                      var prev = _this3.messages[_this3._conversationAssistantMessage.index];
+                      if (prev) {
+                        prev.isStreaming = false;
+                      }
+                      _this3._conversationAssistantMessage = null;
+                    }
                     if (!_this3._conversationAssistantMessage) {
                       _this3.stopAudio();
                       _this3.hideTypingIndicator();
@@ -1337,6 +1353,7 @@ window.coreAIChatManager = function () {
                         index: msgIndex,
                         content: ''
                       };
+                      _this3._conversationAssistantResponseId = responseId;
                     }
                     _this3._conversationAssistantMessage.content += token;
                     var msg = _this3.messages[_this3._conversationAssistantMessage.index];
@@ -1362,6 +1379,7 @@ window.coreAIChatManager = function () {
                         updateMessagePresentation(msg, msg.references);
                       }
                       _this3._conversationAssistantMessage = null;
+                      _this3._conversationAssistantResponseId = null;
                     }
                   });
                   _this3.connection.on("ReceiveAudioChunk", function (sessionId, base64Audio, contentType) {

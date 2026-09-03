@@ -1243,16 +1243,6 @@ window.coreAIChatManager = function () {
                         if (text) {
                             this.stopAudio();
 
-                            // If there's an interrupted assistant message still streaming,
-                            // mark it as done to stop the spinner animation.
-                            if (this._conversationAssistantMessage) {
-                                var oldMsg = this.messages[this._conversationAssistantMessage.index];
-                                if (oldMsg) {
-                                    oldMsg.isStreaming = false;
-                                }
-                                this._conversationAssistantMessage = null;
-                            }
-
                             // Replace the partial transcript message with the final one.
                             if (this._conversationPartialMessage) {
                                 var escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1260,6 +1250,17 @@ window.coreAIChatManager = function () {
                                 this._conversationPartialMessage.htmlContent = '<p>' + escaped + '</p>';
                                 this._conversationPartialMessage.isPartial = false;
                                 this._conversationPartialMessage = null;
+                            } else if (this._conversationAssistantMessage) {
+                                // Realtime: the user's transcript lags the assistant's reply for the SAME turn (the
+                                // model answers the audio before speech-to-text finishes). Insert the user message
+                                // just before the streaming assistant message so the order stays You -> Assistant,
+                                // and keep that message streaming — ending it here split one reply into two bubbles
+                                // above the prompt.
+                                var at = this._conversationAssistantMessage.index;
+                                var userMsg = { role: 'user', content: text, rawContent: text, userRating: null, references: {} };
+                                updateMessagePresentation(userMsg, userMsg.references);
+                                this.messages.splice(at, 0, userMsg);
+                                this._conversationAssistantMessage.index = at + 1;
                             } else {
                                 this.addMessage({
                                     role: 'user',
@@ -1271,6 +1272,13 @@ window.coreAIChatManager = function () {
                     });
 
                     this.connection.on("ReceiveConversationAssistantToken", (sessionId, messageId, token, responseId, references, appearance) => {
+                        // A new response id means a new turn — finalize the previous assistant message so two replies
+                        // never merge into one bubble (also covers barge-in, which starts a fresh response).
+                        if (this._conversationAssistantMessage && this._conversationAssistantResponseId && responseId && this._conversationAssistantResponseId !== responseId) {
+                            var prev = this.messages[this._conversationAssistantMessage.index];
+                            if (prev) { prev.isStreaming = false; }
+                            this._conversationAssistantMessage = null;
+                        }
                         if (!this._conversationAssistantMessage) {
                             this.stopAudio();
                             this.hideTypingIndicator();
@@ -1295,6 +1303,7 @@ window.coreAIChatManager = function () {
                             };
                             this.messages.push(newMessage);
                             this._conversationAssistantMessage = { index: msgIndex, content: '' };
+                            this._conversationAssistantResponseId = responseId;
                         }
 
                         this._conversationAssistantMessage.content += token;
@@ -1322,6 +1331,7 @@ window.coreAIChatManager = function () {
                                 updateMessagePresentation(msg, msg.references);
                             }
                             this._conversationAssistantMessage = null;
+                            this._conversationAssistantResponseId = null;
                         }
                     });
 

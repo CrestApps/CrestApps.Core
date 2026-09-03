@@ -698,16 +698,6 @@ window.chatInteractionManager = function () {
                     if (text) {
                       _this.stopAudio();
 
-                      // If there's an interrupted assistant message still streaming,
-                      // mark it as done to stop the spinner animation.
-                      if (_this._conversationAssistantMessage) {
-                        var oldMsg = _this.messages[_this._conversationAssistantMessage.index];
-                        if (oldMsg) {
-                          oldMsg.isStreaming = false;
-                        }
-                        _this._conversationAssistantMessage = null;
-                      }
-
                       // Replace the partial transcript message with the final one.
                       if (_this._conversationPartialMessage) {
                         var escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -715,6 +705,21 @@ window.chatInteractionManager = function () {
                         _this._conversationPartialMessage.htmlContent = '<p>' + escaped + '</p>';
                         _this._conversationPartialMessage.isPartial = false;
                         _this._conversationPartialMessage = null;
+                      } else if (_this._conversationAssistantMessage) {
+                        // Realtime: the user's transcript lags the assistant's reply for the SAME turn (the
+                        // model answers the audio before speech-to-text finishes). Insert the user message
+                        // just before the streaming assistant message so the order stays You -> Assistant,
+                        // and keep that message streaming — ending it here split one reply into two bubbles.
+                        var at = _this._conversationAssistantMessage.index;
+                        var userMsg = {
+                          role: 'user',
+                          content: text,
+                          rawContent: text,
+                          references: {}
+                        };
+                        updateMessagePresentation(userMsg, userMsg.references);
+                        _this.messages.splice(at, 0, userMsg);
+                        _this._conversationAssistantMessage.index = at + 1;
                       } else {
                         _this.addMessage({
                           role: 'user',
@@ -725,6 +730,15 @@ window.chatInteractionManager = function () {
                     }
                   });
                   _this.connection.on("ReceiveConversationAssistantToken", function (itemId, messageId, token, responseId, references, appearance) {
+                    // A new response id means a new turn — finalize the previous assistant message so two replies
+                    // never merge into one bubble (also covers barge-in, which starts a fresh response).
+                    if (_this._conversationAssistantMessage && _this._conversationAssistantResponseId && responseId && _this._conversationAssistantResponseId !== responseId) {
+                      var prev = _this.messages[_this._conversationAssistantMessage.index];
+                      if (prev) {
+                        prev.isStreaming = false;
+                      }
+                      _this._conversationAssistantMessage = null;
+                    }
                     if (!_this._conversationAssistantMessage) {
                       _this.stopAudio();
                       _this.hideTypingIndicator();
@@ -750,6 +764,7 @@ window.chatInteractionManager = function () {
                         index: msgIndex,
                         content: ''
                       };
+                      _this._conversationAssistantResponseId = responseId;
                     }
                     _this._conversationAssistantMessage.content += token;
                     var msg = _this.messages[_this._conversationAssistantMessage.index];
@@ -775,6 +790,7 @@ window.chatInteractionManager = function () {
                         updateMessagePresentation(msg, msg.references);
                       }
                       _this._conversationAssistantMessage = null;
+                      _this._conversationAssistantResponseId = null;
                     }
                   });
                   _this.connection.on("ReceiveAudioChunk", function (itemId, base64Audio, contentType) {
