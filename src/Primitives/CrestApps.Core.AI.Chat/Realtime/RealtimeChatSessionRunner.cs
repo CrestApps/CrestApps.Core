@@ -88,8 +88,13 @@ public sealed class RealtimeChatSessionRunner
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        var inbound = PumpInputAsync(conversation, audioInput, linkedCts.Token);
-        var outbound = PumpOutputAsync(context, turnStore, conversation, sink, context.SessionId, linkedCts.Token);
+        // Shared between the two pumps: whether the model is currently generating a response. With barge-in off it
+        // enforces half-duplex — the input pump drops the user's mic audio while a response is active so a follow-up
+        // spoken over the assistant never reaches the provider (and so is never processed or answered).
+        var responseState = new ResponseActivity();
+
+        var inbound = PumpInputAsync(conversation, audioInput, context.AllowInterruption, responseState, linkedCts.Token);
+        var outbound = PumpOutputAsync(context, turnStore, conversation, sink, context.SessionId, responseState, linkedCts.Token);
 
         await Task.WhenAny(inbound, outbound);
         await linkedCts.CancelAsync();
@@ -133,11 +138,22 @@ public sealed class RealtimeChatSessionRunner
     private static async Task PumpInputAsync(
         IRealtimeConversation conversation,
         IAsyncEnumerable<ReadOnlyMemory<byte>> audioInput,
+        bool allowInterruption,
+        ResponseActivity responseState,
         CancellationToken cancellationToken)
     {
         await foreach (var chunk in audioInput.WithCancellation(cancellationToken))
         {
             if (chunk.Length == 0)
+            {
+                continue;
+            }
+
+            // Half-duplex when interruption is disabled: while the model is answering, discard the user's mic audio
+            // instead of forwarding it. The provider never hears a follow-up spoken over the assistant, so it cannot
+            // start (and we never surface) a second overlapping response. When interruption is on, always forward —
+            // the provider needs the audio to detect a barge-in.
+            if (!allowInterruption && responseState.Active)
             {
                 continue;
             }
@@ -152,18 +168,16 @@ public sealed class RealtimeChatSessionRunner
         IRealtimeConversation conversation,
         IRealtimeConversationSink sink,
         string sessionId,
+        ResponseActivity responseState,
         CancellationToken cancellationToken)
     {
         var turn = new AssistantTurn();
 
-        // A provider response is currently generating (between response.created and response.done). Used only when
-        // interruption is disabled, to decide whether a user utterance can be answered or was ignored by the model.
-        var responseActive = false;
-
-        // With barge-in off, every user utterance that starts while a response is active is rejected by the
-        // provider ("active response in progress") and never answered. We record, in speech order, whether each
-        // utterance was ignored so its lagging transcript can be dropped rather than shown as an unanswered prompt.
-        // FIFO holds because both speech-started and transcript-completed arrive in utterance order.
+        // Safety net behind the input-pump half-duplex gate: with barge-in off the mic is muted while a response is
+        // active, so a follow-up should never reach the provider. If one still slips through at a boundary, record
+        // in speech order whether each utterance began during an active response so its lagging transcript can be
+        // dropped rather than shown as an unanswered prompt. FIFO holds because speech-started and transcript-
+        // completed both arrive in utterance order.
         var ignoredUtterances = new Queue<bool>();
 
         await foreach (var evt in conversation.GetEventsAsync(cancellationToken))
@@ -218,13 +232,13 @@ public sealed class RealtimeChatSessionRunner
                     {
                         // Barge-in off: this utterance will be answered only if no response is running right now;
                         // otherwise the provider rejects it and it must not be surfaced (see UserTranscript).
-                        ignoredUtterances.Enqueue(responseActive);
+                        ignoredUtterances.Enqueue(responseState.Active);
                     }
 
                     break;
 
                 case RealtimeConversationEventType.ResponseStarted:
-                    responseActive = true;
+                    responseState.Active = true;
                     if (_logger.IsEnabled(LogLevel.Debug))
                     {
                         _logger.LogDebug("Realtime response started for session {SessionId}.", sessionId);
@@ -233,7 +247,7 @@ public sealed class RealtimeChatSessionRunner
                     break;
 
                 case RealtimeConversationEventType.ResponseCompleted:
-                    responseActive = false;
+                    responseState.Active = false;
                     if (_logger.IsEnabled(LogLevel.Debug))
                     {
                         _logger.LogDebug("Realtime response completed for session {SessionId} (status={Status}).", sessionId, evt.ResponseStatus ?? "(none)");
@@ -339,6 +353,19 @@ public sealed class RealtimeChatSessionRunner
         }
 
         return new Dictionary<string, AICompletionReference>(references, StringComparer.OrdinalIgnoreCase);
+    }
+
+    // Tracks whether the model is currently generating a response, shared across the input and output pumps
+    // (different threads), so volatile guarantees the input pump sees the flip promptly.
+    private sealed class ResponseActivity
+    {
+        private volatile bool _active;
+
+        public bool Active
+        {
+            get => _active;
+            set => _active = value;
+        }
     }
 
     private sealed class AssistantTurn
