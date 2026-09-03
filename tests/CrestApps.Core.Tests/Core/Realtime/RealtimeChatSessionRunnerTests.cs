@@ -223,6 +223,58 @@ public sealed class RealtimeChatSessionRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenInterruptionDisabled_FlushesStalePlaybackWhenNewResponseStarts()
+    {
+        // Barge-in off: when a follow-up's response starts while the previous reply's paced audio is still draining,
+        // the runner flushes playback so the newest reply plays instead of the stale one finishing first. Barge-in
+        // on does not flush here (it flushes on the user's barge-in instead).
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-6" };
+
+        RealtimeConversationEvent[] Events() =>
+        [
+            Evt(RealtimeConversationEventType.ResponseStarted),
+            Evt(RealtimeConversationEventType.AssistantTranscriptDone, text: "first"),
+            Evt(RealtimeConversationEventType.ResponseCompleted),
+            Evt(RealtimeConversationEventType.ResponseStarted),
+            Evt(RealtimeConversationEventType.AssistantTranscriptDone, text: "second"),
+            Evt(RealtimeConversationEventType.ResponseCompleted),
+        ];
+
+        var offSink = new RecordingSink();
+        using (var scope = AIInvocationScope.Begin())
+        {
+            var (store, _) = CreateStore();
+            var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(new FakeConversation(Events())), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+            await runner.RunAsync(
+                new RealtimeChatRunContext { Resource = profile, SessionId = session.SessionId, ChatSession = session, AllowInterruption = false },
+                new ChatSessionRealtimeTurnStore(store.Object),
+                PendingAudio(TestContext.Current.CancellationToken),
+                offSink,
+                TestContext.Current.CancellationToken);
+        }
+
+        // One flush per response start while barge-in is off.
+        Assert.Equal(2, offSink.FlushedPlayback.Count);
+
+        var onSink = new RecordingSink();
+        using (var scope = AIInvocationScope.Begin())
+        {
+            var (store, _) = CreateStore();
+            var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(new FakeConversation(Events())), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+            await runner.RunAsync(
+                new RealtimeChatRunContext { Resource = profile, SessionId = session.SessionId, ChatSession = session, AllowInterruption = true },
+                new ChatSessionRealtimeTurnStore(store.Object),
+                PendingAudio(TestContext.Current.CancellationToken),
+                onSink,
+                TestContext.Current.CancellationToken);
+        }
+
+        // Barge-in on never flushes on response start.
+        Assert.Empty(onSink.FlushedPlayback);
+    }
+
+    [Fact]
     public async Task RunAsync_SwallowsBenignActiveResponseError()
     {
         // "Conversation already has an active response in progress" is an expected race when the user speaks
@@ -344,6 +396,8 @@ public sealed class RealtimeChatSessionRunnerTests
 
         public List<string> SpeechStarted { get; } = [];
 
+        public List<string> FlushedPlayback { get; } = [];
+
         public List<string> Errors { get; } = [];
 
         public Task AssistantAudioAsync(string identifier, ReadOnlyMemory<byte> audio, CancellationToken cancellationToken)
@@ -377,6 +431,13 @@ public sealed class RealtimeChatSessionRunnerTests
         public Task SpeechStartedAsync(string identifier, CancellationToken cancellationToken)
         {
             SpeechStarted.Add(identifier);
+
+            return Task.CompletedTask;
+        }
+
+        public Task FlushPlaybackAsync(string identifier, CancellationToken cancellationToken)
+        {
+            FlushedPlayback.Add(identifier);
 
             return Task.CompletedTask;
         }

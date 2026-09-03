@@ -47,6 +47,13 @@ public interface IRealtimeConversationSink
     Task SpeechStartedAsync(string identifier, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Drops any buffered/still-playing assistant audio so playback stops immediately. Used when a newer response
+    /// supersedes one whose audio is still draining (with barge-in off, a follow-up accepted after the previous
+    /// reply's text finished must not keep playing the old audio).
+    /// </summary>
+    Task FlushPlaybackAsync(string identifier, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Delivers an error to the client.
     /// </summary>
     Task ErrorAsync(string message, CancellationToken cancellationToken);

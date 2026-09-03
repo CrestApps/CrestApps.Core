@@ -238,6 +238,15 @@ public sealed class RealtimeChatSessionRunner
                     break;
 
                 case RealtimeConversationEventType.ResponseStarted:
+                    // With barge-in off the user can speak a follow-up once the previous reply's text is done, while
+                    // its paced audio is still draining. When that follow-up's response starts, drop the old audio so
+                    // the newest reply plays instead of the stale one finishing first. (No-op for the first response
+                    // of a turn and when nothing is buffered.)
+                    if (!context.AllowInterruption)
+                    {
+                        await sink.FlushPlaybackAsync(sessionId, cancellationToken);
+                    }
+
                     responseState.Active = true;
                     if (_logger.IsEnabled(LogLevel.Debug))
                     {

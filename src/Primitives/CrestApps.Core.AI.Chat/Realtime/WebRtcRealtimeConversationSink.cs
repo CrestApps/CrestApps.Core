@@ -46,6 +46,15 @@ internal sealed class WebRtcRealtimeConversationSink : IRealtimeConversationSink
         return _inner.SpeechStartedAsync(identifier, cancellationToken);
     }
 
+    public Task FlushPlaybackAsync(string identifier, CancellationToken cancellationToken)
+    {
+        // A newer response has superseded one whose paced audio is still draining — drop the old audio so the
+        // browser plays the newest reply instead of finishing the stale one.
+        _peer.FlushPlayback();
+
+        return _inner.FlushPlaybackAsync(identifier, cancellationToken);
+    }
+
     public Task ErrorAsync(string message, CancellationToken cancellationToken)
         => _inner.ErrorAsync(message, cancellationToken);
 }

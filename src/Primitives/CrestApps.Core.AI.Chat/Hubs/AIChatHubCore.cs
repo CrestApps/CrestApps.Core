@@ -2729,6 +2729,14 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             return Task.CompletedTask;
         }
 
+        public Task FlushPlaybackAsync(string identifier, CancellationToken cancellationToken)
+        {
+            // WebRTC audio playback is flushed on the peer (see WebRtcRealtimeConversationSink). The WebSocket
+            // transport schedules PCM chunks client-side and has no server-driven flush signal today; the client's
+            // own barge-in handling covers stopping playback there.
+            return Task.CompletedTask;
+        }
+
         public Task ErrorAsync(string message, CancellationToken cancellationToken)
         {
             return _client.ReceiveError(message);
