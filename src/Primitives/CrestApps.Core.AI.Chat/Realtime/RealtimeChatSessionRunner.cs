@@ -64,6 +64,13 @@ public sealed class RealtimeChatSessionRunner
         ArgumentNullException.ThrowIfNull(audioInput);
         ArgumentNullException.ThrowIfNull(sink);
 
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation(
+                "Realtime session {SessionId} starting (voice='{Voice}', allowInterruption={AllowInterruption}, deployment='{Deployment}').",
+                context.SessionId, context.Voice ?? "(default)", context.AllowInterruption, context.RealtimeDeploymentName ?? "(default)");
+        }
+
         await using var conversation = await _orchestrator.StartAsync(
             new RealtimeOrchestrationRequest
             {
@@ -218,10 +225,19 @@ public sealed class RealtimeChatSessionRunner
 
                 case RealtimeConversationEventType.ResponseStarted:
                     responseActive = true;
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug("Realtime response started for session {SessionId}.", sessionId);
+                    }
+
                     break;
 
                 case RealtimeConversationEventType.ResponseCompleted:
                     responseActive = false;
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug("Realtime response completed for session {SessionId} (status={Status}).", sessionId, evt.ResponseStatus ?? "(none)");
+                    }
 
                     if (string.Equals(evt.ResponseStatus, RealtimeResponseStatus.Cancelled, StringComparison.OrdinalIgnoreCase))
                     {
