@@ -2323,7 +2323,7 @@ window.coreAIChatManager = function () {
                             this.isRecording = true;
                             // In push-to-talk mode, show the hold-to-talk control + hint so the user knows how to speak.
                             if (this._realtimePushToTalk) { this.buildRealtimePttUi(); }
-                            this.suggestRealtimePreset();
+
                         })
                         .catch(err => {
                             console.error('Microphone access denied:', err);
@@ -2430,7 +2430,7 @@ window.coreAIChatManager = function () {
                             this._realtimePc = pc;
 
                             if (this._realtimePushToTalk) { this.buildRealtimePttUi(); }
-                            this.suggestRealtimePreset();
+
 
                             // Render the assistant's remote track into a hidden <audio> element (the AEC reference,
                             // and what the echo-guard monitor listens to for half-duplex mic muting).
@@ -2601,7 +2601,12 @@ window.coreAIChatManager = function () {
                         pushToTalk: !!this._realtimePushToTalk,
                         pttActive: !!this._realtimePttActive,
                         bargeIn: !!this._realtimeBargeIn,
-                        gateMode: this._realtimeGateMode || 'auto'
+                        gateMode: this._realtimeGateMode || 'auto',
+                        // The gate has to stay open longer than the provider's end-of-turn silence window: it
+                        // emits digital silence when closed, so whichever expires first is what ends the user's
+                        // turn, and a gate that closes first cuts people off mid-sentence. 800 ms mirrors the
+                        // server's DefaultSilenceDurationMs.
+                        speechHangoverMs: ((this._realtimeTuneTurnDetection && this._realtimeSilenceMs) ? this._realtimeSilenceMs : 800) + 600
                     };
                 },
                 // The gate runs on the audio thread and cannot read these properties, so every settings or
@@ -2710,29 +2715,29 @@ window.coreAIChatManager = function () {
                     var vadThreshold = this._realtimeTuneTurnDetection ? this._realtimeVadThreshold : null;
                     try { this.connection.send('UpdateRealtimeSettings', this._realtimeBargeIn, silenceMs, vadThreshold); } catch (err) { }
                 },
-                applyRealtimePreset(name) {
+                // keepBargeIn is for the automatic, device-label-driven suggestion: guessing the room from a
+                // microphone name is worth doing, but silently turning interruptions off because a device is
+                // called "USB" is not — barge-in changes the conversation more than anything else here. The
+                // applied values are pushed back into the panel so it can never describe a configuration that is
+                // not actually in effect.
+                applyRealtimePreset(name, keepBargeIn) {
                     var presets = (window.CoreAIRealtime && window.CoreAIRealtime.presets) || {};
                     var preset = presets[name];
                     if (!preset) { return; }
                     var prefs = this.loadRealtimeAudioPrefs();
-                    prefs.bargeIn = preset.bargeIn;
+                    if (!keepBargeIn) { prefs.bargeIn = preset.bargeIn; }
                     prefs.gateMode = preset.gateMode;
                     prefs.autoGain = preset.autoGain;
                     prefs.noiseSuppression = preset.noiseSuppression;
                     prefs.preset = name;
                     this.applyRealtimeAudioPrefs(prefs);
                     this.saveRealtimeAudioPrefs(prefs);
+                    if (this._refreshRealtimeSettingsUi) { this._refreshRealtimeSettingsUi(prefs); }
                     this.pushRealtimeSettingsToServer();
                 },
                 // Device labels only become readable after microphone permission is granted, so this is the first
                 // chance to notice a headset (safe for full duplex) or a standalone mic in front of speakers (not).
                 // Only ever a suggestion: an explicit choice is never overridden.
-                suggestRealtimePreset() {
-                    if (this._realtimePreset || !window.CoreAIRealtime || !window.CoreAIRealtime.suggestPresetFromDevices) { return; }
-                    window.CoreAIRealtime.suggestPresetFromDevices(this._realtimeMicDeviceId).then((suggested) => {
-                        if (suggested && !this._realtimePreset) { this.applyRealtimePreset(suggested); }
-                    });
-                },
                 isRealtimeWebRtcKnownBlocked() {
                     try { return window.sessionStorage.getItem('coreai.realtime.webrtcBlocked') === '1'; }
                     catch (err) { return false; }
@@ -2826,7 +2831,7 @@ window.coreAIChatManager = function () {
                 // These live in localStorage because they depend on the listener's hardware (a headset can
                 // allow barge-in; open speakers need the echo guard), which differs per device, not per profile.
                 loadRealtimeAudioPrefs() {
-                    var prefs = { bargeIn: true, hangoverMs: 500, pushToTalk: false, volume: 1, micDeviceId: '', noiseSuppression: true, autoGain: true, language: '', tuneTurnDetection: false, silenceMs: 500, vadThreshold: 0.5, gateMode: 'auto', outputDeviceId: '', preset: '' };
+                    var prefs = { bargeIn: true, hangoverMs: 500, pushToTalk: false, volume: 1, micDeviceId: '', noiseSuppression: true, autoGain: true, language: '', tuneTurnDetection: false, silenceMs: 500, vadThreshold: 0.5, gateMode: 'auto', outputDeviceId: '', preset: '', presetSuggested: false, version: 0 };
                     try {
                         var raw = window.localStorage.getItem('coreai.realtime.audioPrefs');
                         if (raw) {
@@ -2853,8 +2858,28 @@ window.coreAIChatManager = function () {
                             if (parsed.gateMode === 'auto' || parsed.gateMode === 'off' || parsed.gateMode === 'strict') { prefs.gateMode = parsed.gateMode; }
                             if (typeof parsed.outputDeviceId === 'string') { prefs.outputDeviceId = parsed.outputDeviceId; }
                             if (typeof parsed.preset === 'string') { prefs.preset = parsed.preset; }
+                            if (typeof parsed.presetSuggested === 'boolean') { prefs.presetSuggested = parsed.presetSuggested; }
+                            if (typeof parsed.version === 'number') { prefs.version = parsed.version; }
                         }
                     } catch (err) { /* storage unavailable or blocked */ }
+
+                    return this.repairRealtimeAudioPrefs(prefs);
+                },
+                // Preferences written by the removed device-label guess are indistinguishable from deliberate
+                // choices once stored, so they are cleared once. Anyone whose microphone happened to match its
+                // patterns is otherwise left with a strict gate and no automatic gain forever, which is what made
+                // the model stop hearing them.
+                repairRealtimeAudioPrefs(prefs) {
+                    if (prefs.version === 2) { return prefs; }
+
+                    prefs.version = 2;
+                    prefs.preset = '';
+                    prefs.presetSuggested = false;
+                    prefs.gateMode = 'auto';
+                    prefs.autoGain = true;
+                    prefs.noiseSuppression = true;
+                    this.saveRealtimeAudioPrefs(prefs);
+
                     return prefs;
                 },
                 saveRealtimeAudioPrefs(prefs) {
@@ -2875,6 +2900,7 @@ window.coreAIChatManager = function () {
                     this._realtimeGateMode = prefs.gateMode || 'auto';
                     this._realtimeOutputDeviceId = prefs.outputDeviceId || '';
                     this._realtimePreset = prefs.preset || '';
+                    this._realtimePresetSuggested = !!prefs.presetSuggested;
                     // The gate runs on the audio thread and cannot see these properties; push the change to it.
                     this.syncRealtimeGateMode();
                     // Apply live to an active session where possible.
@@ -3107,6 +3133,19 @@ window.coreAIChatManager = function () {
                     };
                     reflect();
 
+                    // Re-renders the controls from the stored preferences, so anything that changes them
+                    // elsewhere (a preset, the echo test) cannot leave the panel describing a configuration that
+                    // is not in effect.
+                    this._refreshRealtimeSettingsUi = (prefs) => {
+                        bargeInput.checked = !!prefs.bargeIn;
+                        pttInput.checked = !!prefs.pushToTalk;
+                        nsInput.checked = prefs.noiseSuppression !== false;
+                        agcInput.checked = prefs.autoGain !== false;
+                        gateSelect.value = prefs.gateMode || 'auto';
+                        presetSelect.value = prefs.preset || '';
+                        reflect();
+                    };
+
                     var persist = () => {
                         var next = {
                             bargeIn: bargeInput.checked,
@@ -3122,7 +3161,9 @@ window.coreAIChatManager = function () {
                             vadThreshold: parseFloat(thrInput.value),
                             gateMode: gateSelect.value || 'auto',
                             outputDeviceId: outSelect.value || '',
-                            preset: this._realtimePreset || ''
+                            preset: this._realtimePreset || '',
+                            presetSuggested: !!this._realtimePresetSuggested,
+                            version: 2
                         };
                         this.applyRealtimeAudioPrefs(next);
                         this.saveRealtimeAudioPrefs(next);

@@ -43,6 +43,13 @@ public sealed class RealtimeChatSessionRunner
     // truncation errs on the side of claiming the user heard slightly less rather than slightly more.
     private const int ClientJitterBufferMs = 80;
 
+    // Longest the half-duplex microphone gate will be held shut waiting for queued assistant audio to drain.
+    // The queue can run tens of seconds deep when the provider generates a long reply far faster than real time,
+    // and holding the gate for all of it means the user presses on, speaks, and is simply not heard for half a
+    // minute with no indication why. Past this point, letting them interrupt a still-playing reply is the lesser
+    // of the two failures.
+    private const int MaxHalfDuplexHoldMs = 2000;
+
     private readonly IRealtimeOrchestrator _orchestrator;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<RealtimeChatSessionRunner> _logger;
@@ -544,7 +551,16 @@ public sealed class RealtimeChatSessionRunner
     {
         // Only the half-duplex path reads this flag; with interruption on the microphone stays open regardless,
         // so there is nothing to hold and no reason to schedule a timer.
-        var pendingMs = allowInterruption ? 0 : sink.PendingPlaybackMs;
+        var queuedMs = allowInterruption ? 0 : sink.PendingPlaybackMs;
+        var pendingMs = Math.Min(queuedMs, MaxHalfDuplexHoldMs);
+
+        if (queuedMs > MaxHalfDuplexHoldMs)
+        {
+            _logger.LogWarning(
+                "Realtime session {SessionId}: {QueuedMs} ms of assistant audio is still queued; holding the " +
+                "half-duplex microphone gate for {HoldMs} ms only, so the user is not left unheard for the rest of it.",
+                sessionId, queuedMs, MaxHalfDuplexHoldMs);
+        }
 
         if (pendingMs <= 0)
         {

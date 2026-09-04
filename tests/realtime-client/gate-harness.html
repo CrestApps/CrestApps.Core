@@ -18,7 +18,10 @@
 
             // A steady 300 Hz tone at a controllable amplitude, standing in for the microphone.
             var micGain = ctx.createGain();
-            micGain.gain.value = 0;
+            // Start at a low room tone rather than digital silence. A real session opens a live microphone, so
+            // the gate's noise floor cold-starts on the room; starting from absolute silence anchors it at -100
+            // dB and makes any subsequent tone look like speech, which the product never sees.
+            micGain.gain.value = 0.0018;
             var micOsc = ctx.createOscillator();
             micOsc.frequency.value = 300;
             micOsc.connect(micGain);
@@ -40,7 +43,14 @@
 
             window.gateHarness = {};
 
-            window.gateHarness.ready = window.CoreAIRealtime.createMicGate(micDest.stream, { bargeIn: true, gateMode: 'auto' })
+            window.gateHarness.currentMicLevel = 0.0018;
+
+            // The source context must be running before the gate is built. A suspended context emits nothing, so
+            // the gate would cold-start its noise floor on digital silence and then treat the room tone as speech
+            // — an artefact of the harness that a real session, which opens a live microphone, never produces.
+            window.gateHarness.ready = (ctx.state === 'suspended' ? ctx.resume() : Promise.resolve())
+                .then(function () { return new Promise(function (r) { setTimeout(r, 300); }); })
+                .then(function () { return window.CoreAIRealtime.createMicGate(micDest.stream, { bargeIn: true, gateMode: 'auto' }); })
                 .then(function (gate) {
                     window.gateHarness.gate = gate;
                     gate.attachAssistantStream(assistantDest.stream);
@@ -54,12 +64,12 @@
                     window.gateHarness.analyser = analyser;
                     window.gateHarness.buffer = new Float32Array(analyser.fftSize);
 
-                    // Both contexts must actually be running before a test measures anything: resume() is async,
-                    // and a suspended context produces no audio at all, which looks exactly like a closed gate.
-                    return Promise.all([
-                        ctx.state === 'suspended' ? ctx.resume() : Promise.resolve(),
-                        outCtx.state === 'suspended' ? outCtx.resume() : Promise.resolve()
-                    ]).then(function () { return true; });
+                    // The measuring context must be running too: resume() is async, and a suspended context
+                    // produces no audio at all, which looks exactly like a closed gate.
+                    return (outCtx.state === 'suspended' ? outCtx.resume() : Promise.resolve())
+                        // Let the gate settle its noise floor on the room tone before any test measures.
+                        .then(function () { return new Promise(function (r) { setTimeout(r, 700); }); })
+                        .then(function () { return true; });
                 });
 
             // Judging "did the signal get through" purely relative to the input level breaks down at very low

@@ -73,13 +73,32 @@
         var nowMs = input.nowMs;
         var mode = input.mode || {};
 
-        // Adaptive noise floor: fall to a new quiet level quickly, rise towards a louder one slowly, so a burst
-        // of speech never drags the floor up far enough to gate the rest of the sentence out. This is what lets a
-        // quiet webcam microphone be heard where a fixed threshold never opened at all.
+        // Adaptive noise floor. It falls to a quieter room quickly, and rises only while the gate is shut — that
+        // is, only from audio we have judged is not speech.
+        //
+        // Letting it rise during speech makes the gate close on the talker: the estimate climbs towards their own
+        // voice, the level stops clearing floor + margin, and the sentence is cut part-way through. It survived
+        // testing because a loud speaker stays far enough above the floor to outrun it; someone a little further
+        // from the microphone does not, and their speech reaches the model chopped into fragments with no clean
+        // end-of-turn silence, so the provider never answers at all.
+        // Cold start: adopt the first measurement rather than easing down from a guess. Seeding low meant a room
+        // that is genuinely loud began 20 dB under its own noise, which opened the gate immediately and then held
+        // it open on the slow rise rate below.
+        if (state.floorDb === null) {
+            state.floorDb = micDb;
+        }
+
         if (micDb < state.floorDb) {
             state.floorDb += (micDb - state.floorDb) * 0.02;
         } else {
-            state.floorDb += (micDb - state.floorDb) * 0.0015;
+            // Rising. While the gate is shut this is responsive (~2 s). While it is open the audio is presumed to
+            // be speech and the floor barely moves (~50 s), because learning from the talker's own voice is what
+            // closed the gate part-way through their sentence. Past SustainedOpenMs the assumption is abandoned:
+            // nobody speaks continuously for that long, so it is ambient noise and the floor tracks it normally —
+            // without that, one loud stretch could hold the gate open indefinitely.
+            var sustained = state.openSince !== null && (nowMs - state.openSince) > 10000;
+            var rising = (state.open && !sustained) ? 0.00005 : 0.0015;
+            state.floorDb += (micDb - state.floorDb) * rising;
         }
 
         if (state.floorDb < -75) {
@@ -107,7 +126,10 @@
         // While the assistant is audible, an absolute floor as well: echo residual can sit well above a very
         // quiet room's noise floor without being anywhere near real speech.
         if (micDb > state.floorDb + margin && (!assistantSpeaking || micDb > -40)) {
-            state.speakUntil = nowMs + 1000;
+            // The hangover must outlast the provider's end-of-turn silence window. The gate emits digital silence
+            // when it closes, so whichever of the two expires first is what actually ends the user's turn — and a
+            // gate that closes first cuts people off mid-sentence and answers half a question.
+            state.speakUntil = nowMs + (mode.speechHangoverMs || 1000);
         } else if (state.open && micDb > state.floorDb + 3) {
             // Hysteresis: once open, stay open until the level really settles back towards the floor, so one
             // sentence is not chopped into several provider turns.
@@ -126,18 +148,26 @@
             state.open = !assistantSpeaking && (userActive || nowMs < state.listenGraceUntil);
         }
 
+        if (state.open && state.openSince === null) {
+            state.openSince = nowMs;
+        } else if (!state.open) {
+            state.openSince = null;
+        }
+
         return state;
     }
 
     function createGateState() {
         return {
-            floorDb: -60,
+            // Null until the first measurement, so the floor starts from the room rather than from a guess.
+            floorDb: null,
             speakUntil: 0,
             assistantUntil: 0,
             listenGraceUntil: 0,
             wasAssistantSpeaking: false,
             assistantSpeaking: false,
-            open: false
+            open: false,
+            openSince: null
         };
     }
 
@@ -425,11 +455,22 @@
     /*
      * Audio setup presets. The right settings depend on hardware the page cannot see, so rather than asking a
      * user to reason about barge-in, gates and echo margins, offer the three setups that actually occur.
+     *
+     * These are applied only when the user picks one, or when the echo self-test measures the room. They used to
+     * be guessed from the microphone's label on every session start, which silently overwrote settings people had
+     * deliberately chosen — a device merely called "USB" was enough to force a strict gate and turn automatic gain
+     * off, which together made a far-field microphone quiet enough that the model heard nothing at all. A guess
+     * that overrides an explicit choice is worse than no guess.
+     *
+     * Note that every preset keeps automatic gain ON. Turning it off for the room setup was intended to stop AGC
+     * amplifying echo tails, but it is exactly backwards for the hardware that preset targets: a microphone
+     * across the room needs more gain, not less. Without it a laptop array captured speech at roughly -41 dBFS,
+     * quiet enough that the provider never detected any speech at all and the assistant simply never replied.
      */
     var REALTIME_PRESETS = {
         headset: { bargeIn: true, gateMode: 'off', autoGain: true, noiseSuppression: true },
         laptop: { bargeIn: true, gateMode: 'auto', autoGain: true, noiseSuppression: true },
-        room: { bargeIn: false, gateMode: 'strict', autoGain: false, noiseSuppression: true }
+        room: { bargeIn: false, gateMode: 'strict', autoGain: true, noiseSuppression: true }
     };
 
     // Device labels that reliably indicate a headset (no acoustic path, so full duplex is safe) or a standalone
@@ -700,12 +741,17 @@
             realtimePttBound = false, realtimePttKeyDown = null, realtimePttKeyUp = null, realtimePttButton = null, realtimePttUiEl = null,
             realtimeVolume = 1, realtimeMicDeviceId = '', realtimeNoiseSuppression = true, realtimeAutoGain = true, realtimeLanguage = '',
             realtimeTuneTurnDetection = false, realtimeSilenceMs = 500, realtimeVadThreshold = 0.5, realtimeAudioSettingsBuilt = false,
-            realtimeGateMode = 'auto', realtimeOutputDeviceId = '', realtimePreset = '';
+            realtimeGateMode = 'auto', realtimeOutputDeviceId = '', realtimePreset = '', realtimePresetSuggested = false;
 
         // Per-device audio preferences live in localStorage because they depend on the listener's hardware
         // (headset vs open speakers), not on the interaction.
+        // Preferences written by the removed device-label guess are indistinguishable from deliberate choices once
+        // stored, so they are cleared once. Anyone whose microphone happened to match its patterns is otherwise
+        // left with a strict gate and no automatic gain forever, which is what made the model stop hearing them.
+        var REALTIME_PREFS_VERSION = 2;
+
         function loadRealtimeAudioPrefs() {
-            var prefs = { bargeIn: true, hangoverMs: 500, pushToTalk: false, volume: 1, micDeviceId: '', noiseSuppression: true, autoGain: true, language: '', tuneTurnDetection: false, silenceMs: 500, vadThreshold: 0.5, gateMode: 'auto', outputDeviceId: '', preset: '' };
+            var prefs = { bargeIn: true, hangoverMs: 500, pushToTalk: false, volume: 1, micDeviceId: '', noiseSuppression: true, autoGain: true, language: '', tuneTurnDetection: false, silenceMs: 500, vadThreshold: 0.5, gateMode: 'auto', outputDeviceId: '', preset: '', presetSuggested: false, version: 0 };
             try {
                 var raw = window.localStorage.getItem('coreai.realtime.audioPrefs');
                 if (raw) {
@@ -724,8 +770,25 @@
                     if (parsed.gateMode === 'auto' || parsed.gateMode === 'off' || parsed.gateMode === 'strict') { prefs.gateMode = parsed.gateMode; }
                     if (typeof parsed.outputDeviceId === 'string') { prefs.outputDeviceId = parsed.outputDeviceId; }
                     if (typeof parsed.preset === 'string') { prefs.preset = parsed.preset; }
+                    if (typeof parsed.presetSuggested === 'boolean') { prefs.presetSuggested = parsed.presetSuggested; }
+                    if (typeof parsed.version === 'number') { prefs.version = parsed.version; }
                 }
             } catch (err) { /* storage unavailable or blocked */ }
+
+            return repairRealtimeAudioPrefs(prefs);
+        }
+
+        function repairRealtimeAudioPrefs(prefs) {
+            if (prefs.version === REALTIME_PREFS_VERSION) { return prefs; }
+
+            prefs.version = REALTIME_PREFS_VERSION;
+            prefs.preset = '';
+            prefs.presetSuggested = false;
+            prefs.gateMode = 'auto';
+            prefs.autoGain = true;
+            prefs.noiseSuppression = true;
+            saveRealtimeAudioPrefs(prefs);
+
             return prefs;
         }
 
@@ -748,6 +811,7 @@
             realtimeGateMode = prefs.gateMode || 'auto';
             realtimeOutputDeviceId = prefs.outputDeviceId || '';
             realtimePreset = prefs.preset || '';
+            realtimePresetSuggested = !!prefs.presetSuggested;
             // The gate runs on the audio thread and cannot see these variables; push the change to it.
             syncRealtimeGateMode();
             if (realtimeGain) { realtimeGain.gain.value = realtimeVolume; }
@@ -849,19 +913,35 @@
         // The right settings depend on hardware the page cannot see. Rather than asking a user to reason about
         // barge-in, gates and echo margins, offer the three setups that actually occur and let a two-second
         // measurement decide between them.
-        function applyRealtimePreset(name) {
+        /*
+         * Applies an audio-setup preset.
+         *
+         * `keepBargeIn` is for the automatic, device-label-driven suggestion: guessing the room from a microphone's
+         * name is worth doing, but silently turning interruptions off because a device is called "USB" is not.
+         * Barge-in changes how the conversation behaves more than anything else in this panel, so the automatic
+         * path leaves whatever the user chose alone and only adjusts the gate and capture settings.
+         *
+         * Whatever is applied is pushed back into the settings controls. A preset that changed the settings
+         * without changing what the panel displayed left the UI claiming interruptions were on while the session
+         * ran half-duplex — and the resulting silence looked like the assistant refusing to listen.
+         */
+        function applyRealtimePreset(name, keepBargeIn) {
             var preset = REALTIME_PRESETS[name];
             if (!preset) { return; }
             var prefs = loadRealtimeAudioPrefs();
-            prefs.bargeIn = preset.bargeIn;
+            if (!keepBargeIn) { prefs.bargeIn = preset.bargeIn; }
             prefs.gateMode = preset.gateMode;
             prefs.autoGain = preset.autoGain;
             prefs.noiseSuppression = preset.noiseSuppression;
             prefs.preset = name;
             applyRealtimeAudioPrefs(prefs);
             saveRealtimeAudioPrefs(prefs);
+            refreshRealtimeSettingsUi(prefs);
             pushRealtimeSettingsToServer();
         }
+
+        // Set by the settings panel once it is built, so a preset applied from anywhere updates the controls.
+        var refreshRealtimeSettingsUi = function () { };
 
         function suggestRealtimePresetFromDevices() {
             return suggestPresetFromDevices(realtimeMicDeviceId);
@@ -1016,6 +1096,18 @@
             }
             reflect();
 
+            // Re-renders the controls from the stored preferences, so anything that changes them elsewhere (a
+            // preset, the echo test) cannot leave the panel describing a configuration that is not in effect.
+            refreshRealtimeSettingsUi = function (prefs) {
+                bargeInput.checked = !!prefs.bargeIn;
+                pttInput.checked = !!prefs.pushToTalk;
+                nsInput.checked = prefs.noiseSuppression !== false;
+                agcInput.checked = prefs.autoGain !== false;
+                gateSelect.value = prefs.gateMode || 'auto';
+                presetSelect.value = prefs.preset || '';
+                reflect();
+            };
+
             function persist() {
                 var next = {
                     bargeIn: bargeInput.checked,
@@ -1031,7 +1123,9 @@
                     vadThreshold: parseFloat(thrInput.value),
                     gateMode: gateSelect.value || 'auto',
                     outputDeviceId: outSelect.value || '',
-                    preset: realtimePreset
+                    preset: realtimePreset,
+                    presetSuggested: realtimePresetSuggested,
+                    version: REALTIME_PREFS_VERSION
                 };
                 applyRealtimeAudioPrefs(next);
                 saveRealtimeAudioPrefs(next);
@@ -1646,11 +1740,6 @@
                             // Device labels only become readable after permission is granted, so this is the first
                             // chance to notice a headset (safe for full duplex) or a standalone mic in front of
                             // speakers (not). Only ever a suggestion: an explicit choice is never overridden.
-                            if (!realtimePreset) {
-                                suggestRealtimePresetFromDevices().then(function (suggested) {
-                                    if (suggested && !realtimePreset) { applyRealtimePreset(suggested); }
-                                });
-                            }
 
                             attachRealtimePushToTalk();
                             var focusedBtn = q('realtimeButton');
@@ -1832,12 +1921,26 @@
 
         // --- Microphone gate (thin wrapper over the shared factory) ----------------------------------------
 
+        // The provider's default end-of-turn silence when the user has not tuned it (mirrors the server's
+        // DefaultSilenceDurationMs). The gate has to know it to avoid ending turns before the provider would.
+        var REALTIME_PROVIDER_DEFAULT_SILENCE_MS = 800;
+
+        // How much longer than the provider's silence window the gate stays open. The gate is a safety net around
+        // echo, not a turn detector; the provider's voice-activity detection sees the real speech and should be
+        // the one deciding a turn is over.
+        var REALTIME_GATE_HANGOVER_MARGIN_MS = 600;
+
         function realtimeGateModeMessage() {
+            var silenceMs = (realtimeTuneTurnDetection && realtimeSilenceMs)
+                ? realtimeSilenceMs
+                : REALTIME_PROVIDER_DEFAULT_SILENCE_MS;
+
             return {
                 pushToTalk: !!realtimePushToTalk,
                 pttActive: !!realtimePttActive,
                 bargeIn: !!realtimeBargeIn,
-                gateMode: realtimeGateMode || 'auto'
+                gateMode: realtimeGateMode || 'auto',
+                speechHangoverMs: silenceMs + REALTIME_GATE_HANGOVER_MARGIN_MS
             };
         }
 

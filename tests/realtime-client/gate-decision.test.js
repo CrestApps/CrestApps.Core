@@ -159,6 +159,27 @@ test('push-to-talk overrides everything', () => {
     assert.equal(closed.open, false);
 });
 
+test('the gate stays open through a long sentence from a moderately loud speaker', () => {
+    // The failure this pins: the noise floor used to rise while the gate was open, climbing towards the talker's
+    // own voice until their level no longer cleared floor + margin and the gate shut part-way through. A speaker
+    // at -30 dBFS — normal for someone an arm's length from a laptop microphone — was cut off after ~2 seconds,
+    // so the model received fragments with no clean end-of-turn silence and never answered.
+    const state = settled(-58);
+
+    for (let t = 20_000; t < 30_000; t += 10) {
+        decideGate(state, { micDb: -30, assistantDb: -100, nowMs: t, mode: AUTO });
+        assert.equal(state.open, true, `gate closed ${t - 20_000} ms into the sentence (floor ${state.floorDb.toFixed(1)} dB)`);
+    }
+});
+
+test('the floor still tracks a room that gets noisier while nobody is speaking', () => {
+    const state = settled(-58);
+    feed(state, { micDb: -45, ms: 30_000, from: 20_000 });
+
+    assert.equal(state.open, false);
+    assert.ok(state.floorDb > -50, `floor did not follow the louder room: ${state.floorDb.toFixed(1)}`);
+});
+
 test('a burst of speech does not drag the floor up enough to gate the rest of it out', () => {
     // The floor rises slowly on purpose; a fast-rising floor would close mid-sentence.
     const state = settled(-58);
