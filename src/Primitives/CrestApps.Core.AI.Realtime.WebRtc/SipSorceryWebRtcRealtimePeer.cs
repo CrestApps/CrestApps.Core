@@ -46,9 +46,20 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     // RTP timestamp increment per 20 ms Opus frame on the negotiated 48 kHz Opus clock.
     private const uint RtpUnitsPerFrame = 960;
 
-    // How long the outgoing stream keeps running (on comfort silence) after the last real assistant frame. Long
-    // enough to cover the pauses inside and between replies; after that the stream stops until the next reply.
-    private const long SilenceTailMs = 10_000;
+    // Pre-buffer before a reply's first frame is released: wait for this many frames, or this long, whichever
+    // comes first. (See PaceOutgoingAsync.)
+    private const int PrimeFrames = 6; // 120 ms
+    private const long PrimeMaxWaitMs = 150;
+
+    // Quiet stretch after which the next audio counts as a new reply and is pre-buffered again.
+    private const long SpurtGapMs = 250;
+
+    // A queue that runs dry within this long of the last real frame is a mid-reply underrun (hold briefly);
+    // beyond it the reply is simply over and silence is the right filler.
+    private const long ReplyContinuityMs = 400;
+
+    // How long a mid-reply underrun is held before silence is sent anyway.
+    private const long UnderrunHoldMs = 80;
 
     private const int OpusPayloadType = 111;
 
@@ -86,6 +97,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 
     private bool _closedRaised;
     private bool _connectedRaised;
+    private long _midReplySilenceFrames;
     private long _rtpReceived;
     private long _framesSent;
     private long _inboundDropped;
@@ -116,6 +128,15 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 
         _decoder = OpusCodecFactory.CreateDecoder(OpusDecodeRate, 1);
         _encoder = OpusCodecFactory.CreateEncoder(SampleRate, 1, OpusApplication.OPUS_APPLICATION_VOIP);
+
+        // The encoder's defaults land at ~16 kbps for 24 kHz mono voice — telephone quality, with smeared
+        // consonants that users heard as the assistant "reading words partially". The provider hands us clean
+        // 24 kHz PCM; keep it. 64 kbps VBR measures ~35 kbps average on speech with no clipping, and the highest
+        // complexity is cheap at this rate. In-band FEC lets the browser conceal an occasional lost packet.
+        _encoder.Bitrate = 64000;
+        _encoder.Complexity = 10;
+        _encoder.UseInbandFEC = true;
+        _encoder.PacketLossPercent = 5;
 
         var config = new RTCConfiguration
         {
@@ -254,15 +275,24 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     // and made the assistant sound sped-up. Pacing fixes the playback rate (and keeps the un-sent tail in our own
     // queue, where a barge-in can flush it).
     //
-    // Two details matter beyond "one frame per tick":
+    // Four details matter beyond "one frame per tick":
     //  * PeriodicTimer ticks late (Windows timer granularity is ~15.6 ms) and sending exactly one frame per tick
     //    loses that slack permanently, so a long reply falls further and further behind the transcript. Frames are
     //    therefore released against elapsed wall-clock time, catching up a bounded number of frames per tick.
-    //  * Gaps (an idle moment, or a barge-in flush) are filled with comfort silence rather than simply skipped.
-    //    RTP timestamps must stay contiguous with real time; if the stream stops and resumes with contiguous
-    //    timestamps the browser's jitter buffer treats the resumed audio as very late and time-stretches the
-    //    opening words of the next reply. (SIPSorcery's track timestamp is read-only, so it cannot be advanced
-    //    directly — keeping the stream running is the way to keep the clocks aligned.)
+    //  * Once the stream has started it never stops: quiet stretches carry comfort silence for the rest of the
+    //    session. RTP timestamps must stay contiguous with real time; a stream that stops and resumes with
+    //    contiguous timestamps makes the browser's jitter buffer treat the resumed audio as very late and
+    //    time-stretch the opening words of the next reply. (SIPSorcery's track timestamp is read-only, so it cannot
+    //    be advanced directly — keeping the stream running is the way to keep the clocks aligned. A silence frame
+    //    is a few bytes, fifty times a second.)
+    //  * A reply is pre-buffered before its first frame goes out. The provider delivers audio in bursts and the
+    //    loop feeding this queue also persists turns and sends transcripts, so a reply's first few hundred
+    //    milliseconds regularly ran the queue dry — and every dry tick sent 20 ms of silence into the middle of a
+    //    word. Waiting for a small cushion (or a short deadline, so brief replies are not delayed) removes most of
+    //    those holes at the cost of ~100 ms of latency.
+    //  * A mid-reply underrun holds for a few ticks before falling back to silence. Late frames then arrive with
+    //    their timestamps intact and the browser's jitter buffer stretches the preceding audio to cover the gap,
+    //    which sounds like nothing; a silence frame sounds like a dropped syllable.
     private async Task PaceOutgoingAsync(CancellationToken cancellationToken)
     {
         try
@@ -271,7 +301,11 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             var streaming = false;
             var streamStartMs = 0L;
             var framesSentInStream = 0L;
-            var lastRealFrameMs = 0L;
+            var lastRealFrameMs = -1L;
+            var emptySinceMs = -1L;
+            var priming = false;
+            var primingSinceMs = 0L;
+            var provisionalHoleFrames = 0L;
 
             using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(FrameDurationMs));
             while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
@@ -280,7 +314,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 
                 if (!streaming)
                 {
-                    // Nothing has been spoken yet (or the tail expired): stay silent until there is real audio.
+                    // Nothing has been spoken yet: stay silent until the first reply starts to arrive.
                     if (_outgoing.IsEmpty)
                     {
                         continue;
@@ -289,14 +323,8 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
                     streaming = true;
                     streamStartMs = nowMs;
                     framesSentInStream = 0;
-                    lastRealFrameMs = nowMs;
-                }
-                else if (_outgoing.IsEmpty && nowMs - lastRealFrameMs > SilenceTailMs)
-                {
-                    // A long quiet stretch: stop the stream rather than trickle silence for the rest of the call.
-                    streaming = false;
-
-                    continue;
+                    priming = true;
+                    primingSinceMs = nowMs;
                 }
 
                 // How many frames should have been released by now, counting the one due when the stream started.
@@ -305,15 +333,74 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 
                 for (var i = 0; i < pending; i++)
                 {
-                    var isRealAudio = _outgoing.TryDequeue(out var frame);
+                    byte[] frame;
+                    var isRealAudio = false;
 
-                    if (isRealAudio)
+                    if (!_outgoing.IsEmpty)
                     {
-                        Interlocked.Decrement(ref _queuedFrames);
-                        lastRealFrameMs = nowMs;
+                        // Audio after a quiet stretch is a new reply: build a cushion before releasing it.
+                        if (emptySinceMs >= 0 && nowMs - emptySinceMs > SpurtGapMs)
+                        {
+                            priming = true;
+                            primingSinceMs = nowMs;
+                        }
+
+                        emptySinceMs = -1;
+
+                        if (priming && Volatile.Read(ref _queuedFrames) < PrimeFrames && nowMs - primingSinceMs < PrimeMaxWaitMs)
+                        {
+                            frame = _silenceFrame;
+                        }
+                        else
+                        {
+                            priming = false;
+                            isRealAudio = _outgoing.TryDequeue(out frame!);
+                            if (isRealAudio)
+                            {
+                                Interlocked.Decrement(ref _queuedFrames);
+
+                                if (provisionalHoleFrames > 0)
+                                {
+                                    if (lastRealFrameMs >= 0 && nowMs - lastRealFrameMs < ReplyContinuityMs)
+                                    {
+                                        Interlocked.Add(ref _midReplySilenceFrames, provisionalHoleFrames);
+                                    }
+
+                                    provisionalHoleFrames = 0;
+                                }
+
+                                lastRealFrameMs = nowMs;
+                            }
+                            else
+                            {
+                                frame = _silenceFrame;
+                            }
+                        }
                     }
                     else
                     {
+                        if (emptySinceMs < 0)
+                        {
+                            emptySinceMs = nowMs;
+                        }
+
+                        // Mid-reply underrun: hold rather than send silence, for a few ticks. Not advancing
+                        // framesSentInStream leaves the missed frames "due", so they are released as a small
+                        // catch-up burst once audio returns.
+                        var midReply = lastRealFrameMs >= 0 && nowMs - lastRealFrameMs < ReplyContinuityMs;
+                        if (midReply && nowMs - emptySinceMs < UnderrunHoldMs)
+                        {
+                            break;
+                        }
+
+                        if (midReply)
+                        {
+                            // Diagnostics: silence inside a reply is an audible hole — but only if the reply then
+                            // continues. Counted provisionally here and confirmed when the next real frame arrives
+                            // in time; a reply that simply ended discards the count.
+                            provisionalHoleFrames++;
+                        }
+
                         frame = _silenceFrame;
                     }
 
@@ -550,6 +637,13 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     public async ValueTask DisposeAsync()
     {
         RaiseClosedOnce();
+
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation(
+                "WebRTC realtime: peer closing after {FramesSent} assistant frames sent, {InboundPackets} microphone packets received, {MidReplySilence} silence frame(s) inserted inside replies (underruns).",
+                Interlocked.Read(ref _framesSent), Interlocked.Read(ref _rtpReceived), Interlocked.Read(ref _midReplySilenceFrames));
+        }
 
         try
         {

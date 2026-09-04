@@ -124,6 +124,16 @@ is speaking" carries a short hangover so the gate does not re-open in every gap 
 The same gate runs on both transports, so the WebSocket fallback is not the one path on which the model can hear
 its own echo.
 
+## Playback quality
+
+Assistant audio is Opus-encoded at 64 kbps VBR (complexity 10, in-band FEC on); the encoder's defaults would land
+at ~16 kbps, which is telephone quality. The peer paces frames against a media clock, pre-buffers ~120 ms before
+releasing each reply, holds for up to 80 ms on a mid-reply underrun before sending silence (the browser's jitter
+buffer stretches the preceding audio instead, which is inaudible; a silence frame sounds like a dropped syllable),
+and keeps the RTP stream running on comfort silence for the whole session so timestamps stay aligned to real time.
+The live end-to-end check can record what the browser plays (`REALTIME_E2E_RECORD=1`) and reports the number of
+gaps inside the reply, which is the objective measure to watch if playback ever sounds choppy again.
+
 ## Turn detection
 
 The provider decides when the user has finished speaking. By default the session asks for **semantic** turn

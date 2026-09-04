@@ -485,3 +485,4 @@ playwright-report/
 
 # Spoken-question audio for the manual realtime end-to-end check (generated locally; see docs/core/realtime-voice.md).
 tests/realtime-client/e2e/*.wav
+tests/realtime-client/e2e/recordings/

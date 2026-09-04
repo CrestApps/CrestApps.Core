@@ -90,6 +90,34 @@ test('a spoken question is transcribed and answered', async ({ page, browserName
         await page.click('#chat-conversation-btn');
         startSampling();
 
+        // Optionally record what the browser actually plays (the remote WebRTC track) as PCM, so playback
+        // quality can be judged objectively — gaps inside the reply — and by ear, from a WAV in test-results.
+        const record = process.env.REALTIME_E2E_RECORD === '1';
+        if (record) {
+            await page.evaluate(() => {
+                const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+                (async () => {
+                    let el = null;
+                    for (let i = 0; i < 100 && !el; i++) {
+                        el = [...document.querySelectorAll('audio')].find((a) => a.srcObject);
+                        if (!el) { await wait(100); }
+                    }
+                    if (!el) { return; }
+                    const ctx = new AudioContext();
+                    const source = ctx.createMediaStreamSource(el.srcObject);
+                    const tap = ctx.createScriptProcessor(4096, 1, 1);
+                    const chunks = [];
+                    tap.onaudioprocess = (e) => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+                    const sink = ctx.createGain();
+                    sink.gain.value = 0;
+                    source.connect(tap);
+                    tap.connect(sink);
+                    sink.connect(ctx.destination);
+                    window.__recording = { ctx, chunks };
+                })();
+            });
+        }
+
         await expect(page.locator('[role=status]').first()).toContainText(/Listening/i, { timeout: 30_000 });
         note(`[test] listening (${browserName}, interruptions ${BARGE_IN ? 'on' : 'off'}, mic ${injectMic ? 'injected' : 'fake device'})`);
 
@@ -110,6 +138,65 @@ test('a spoken question is transcribed and answered', async ({ page, browserName
         // Let the reply play for a moment, then stop.
         await page.waitForTimeout(8_000);
         note(`[test] transcript:\n${await app.innerText()}`);
+
+        if (record) {
+            const recorded = await page.evaluate(() => {
+                const rec = window.__recording;
+                if (!rec) { return null; }
+                const total = rec.chunks.reduce((n, c) => n + c.length, 0);
+                const pcm = new Float32Array(total);
+                let at = 0;
+                for (const c of rec.chunks) { pcm.set(c, at); at += c.length; }
+                // Level per 20 ms window, in dBFS (RMS).
+                const win = Math.round(rec.ctx.sampleRate * 0.02);
+                const levels = [];
+                for (let i = 0; i + win <= pcm.length; i += win) {
+                    let sum = 0;
+                    for (let j = 0; j < win; j++) { sum += pcm[i + j] * pcm[i + j]; }
+                    const rms = Math.sqrt(sum / win);
+                    levels.push(rms > 1e-7 ? 20 * Math.log10(rms) : -100);
+                }
+                // Int16 for the WAV.
+                const int16 = new Int16Array(pcm.length);
+                for (let i = 0; i < pcm.length; i++) { int16[i] = Math.max(-32768, Math.min(32767, Math.round(pcm[i] * 32767))); }
+                let bin = '';
+                const bytes = new Uint8Array(int16.buffer);
+                for (let i = 0; i < bytes.length; i += 0x8000) { bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); }
+                return { sampleRate: rec.ctx.sampleRate, levels, pcmBase64: btoa(bin) };
+            });
+
+            if (recorded) {
+                const { sampleRate, levels, pcmBase64 } = recorded;
+                // Holes: silent 20 ms windows that sit between audible windows less than a second apart — i.e.
+                // inside a reply, not the pauses between turns.
+                const audible = levels.map((l) => l > -50);
+                let holes = 0, longestHoleMs = 0, run = 0, lastAudible = -1;
+                for (let i = 0; i < audible.length; i++) {
+                    if (audible[i]) {
+                        if (run > 0 && lastAudible >= 0 && i - lastAudible <= 50) { holes++; longestHoleMs = Math.max(longestHoleMs, run * 20); }
+                        run = 0;
+                        lastAudible = i;
+                    } else if (lastAudible >= 0) {
+                        run++;
+                    }
+                }
+                const audibleMs = audible.filter(Boolean).length * 20;
+                note(`[test] recording: ${(levels.length * 20 / 1000).toFixed(1)} s captured, ${audibleMs} ms audible, ${holes} hole(s) inside speech, longest ${longestHoleMs} ms`);
+
+                const pcm = Buffer.from(pcmBase64, 'base64');
+                const header = Buffer.alloc(44);
+                header.write('RIFF', 0); header.writeUInt32LE(36 + pcm.length, 4); header.write('WAVE', 8);
+                header.write('fmt ', 12); header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(1, 22);
+                header.writeUInt32LE(sampleRate, 24); header.writeUInt32LE(sampleRate * 2, 28); header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34);
+                header.write('data', 36); header.writeUInt32LE(pcm.length, 40);
+                const dir = process.env.REALTIME_E2E_RECORD_DIR || path.join(__dirname, 'recordings');
+                const file = path.join(dir, `realtime-reply-${browserName}-${process.env.REALTIME_E2E_LABEL || 'run'}.wav`);
+                fs.mkdirSync(dir, { recursive: true });
+                fs.writeFileSync(file, Buffer.concat([header, pcm]));
+                note(`[test] recording saved: ${file}`);
+            }
+        }
+
         await page.click('#chat-conversation-btn');
         await page.waitForTimeout(1_000);
     } finally {

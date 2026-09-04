@@ -124,6 +124,19 @@ synthesized spoken question as the microphone):
 Full C# suite green after the changes; `npm run test:gate` 22/22; `npm run test:client` green in Chromium and
 Firefox.
 
+**Playback quality pass (2026-09-04).** A tester heard the assistant "reading words partially". Measured causes
+and fixes, tagged `realtime-before-audio-quality` for easy reversal:
+
+| Cause | Evidence | Fix |
+|---|---|---|
+| Opus encoder at Concentus defaults | ~16 kbps average on real speech at 24 kHz mono (telephone quality). | 64 kbps VBR, complexity 10, in-band FEC: ~35 kbps average, no clipping, same level. |
+| Silence frames inserted into replies | The pacing loop sent 20 ms of silence on every tick the queue was dry; a new server counter (`peer closing … silence frame(s) inserted inside replies`) now measures it. | Pre-buffer 120 ms (or 150 ms max wait) before releasing a reply; hold up to 80 ms on a mid-reply underrun before falling back to silence. After: 0 frames (Chromium), 3 frames (Firefox) per session. |
+| Stream stopped after 10 s of quiet | Contiguous RTP timestamps across a wall-clock gap make the browser's jitter buffer time-stretch the first words of the next reply. | The stream now runs on comfort silence for the whole session. |
+
+The live check can record what the browser plays (`REALTIME_E2E_RECORD=1`, WAVs under
+`tests/realtime-client/e2e/recordings/`) and reports silent runs inside the reply; note that this metric also
+counts the assistant's natural pauses, so the server counter is the authoritative underrun measure.
+
 Not verified live: the OpenAI-direct provider, TURN through a blocked-UDP network, and real loudspeaker echo
 (the fake microphone has no acoustic path, so the echo-return learning is covered by the gate unit tests only).
 The open-office tester's setup is the one to re-test first.
