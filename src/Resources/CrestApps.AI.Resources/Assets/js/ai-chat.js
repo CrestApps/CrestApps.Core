@@ -1160,43 +1160,14 @@ window.coreAIChatManager = function () {
                         }
                     });
 
-                    // The server owns the realtime session's lifecycle; the browser cannot infer it from the audio
-                    // it happens to receive. Without these events a session that ended server-side (provider
-                    // socket closed, session cap, error) leaves the mic open and the button stuck on "End
-                    // Conversation" while audio is streamed into nothing.
-                    this.connection.on('ReceiveRealtimeEvent', (identifier, type, payload) => {
-                        if (!this.realtimeEnabled || !this.isConversationMode) { return; }
-
-                        if (type === 'session_ready') {
-                            this._realtimeSessionReady = true;
-                        } else if (type === 'session_ended') {
-                            console.info('The realtime voice session ended (' + (payload || 'completed') + ').');
-                            this.stopRealtimeConversation();
-                            this.reportRealtimeSessionEnded(payload || 'completed');
-                        } else if (type === 'speech_started') {
-                            // Barge-in: stop the reply already scheduled for playback. On WebRTC the server flushes
-                            // the peer itself, so this matters for the WebSocket transport.
-                            if (this._realtimeBargeIn) { this.flushRealtimePlayback(); }
-                        } else if (type === 'playback_flush') {
-                            this.flushRealtimePlayback();
-                        } else if (type === 'user_turn_pending') {
-                            this.addRealtimePendingTurn(payload);
-                        } else if (type === 'user_turn_dropped') {
-                            this.dropRealtimePendingTurn(payload);
-                        }
-                    });
+                    // Realtime lifecycle events (ReceiveRealtimeEvent, and ReceiveError while a voice session is
+                    // live) are handled by the shared CoreAIRealtime module — see setupRealtimeController.
 
                     this.connection.on("ReceiveError", (error) => {
                         console.error("SignalR Error: ", error);
 
                         if (this.isRecording) {
                             this.stopRecording();
-                        }
-
-                        // An error while a voice session is running is terminal for that session: the server has
-                        // already stopped, so do not keep the microphone open streaming into nothing.
-                        if (this.realtimeEnabled && this.isConversationMode) {
-                            this.stopRealtimeConversation();
                         }
 
                         // A server-side error (for example a session-start rate-limit rejection) ends the
@@ -1393,10 +1364,11 @@ window.coreAIChatManager = function () {
                             bytes[i] = binaryString.charCodeAt(i);
                         }
 
-                        // Realtime audio arrives as raw PCM16 and is scheduled for immediate playback via
-                        // the Web Audio API; conversation/TTS audio (mp3/wav) is collected and played on complete.
+                        // Realtime audio arrives as raw PCM16 (WebSocket transport) and is scheduled for immediate
+                        // playback by the shared module; conversation/TTS audio (mp3/wav) is collected and played on
+                        // complete.
                         if (contentType === 'audio/pcm') {
-                            this.playRealtimePcm(bytes);
+                            if (this.realtimeController) { this.realtimeController.receivePcm(bytes); }
                         } else {
                             this.audioChunks.push(bytes);
                         }
@@ -2160,11 +2132,9 @@ window.coreAIChatManager = function () {
                 },
                 toggleConversationMode() {
                     if (this.realtimeEnabled) {
-                        if (this.isConversationMode) {
-                            this.stopRealtimeConversation();
-                        } else {
-                            this.startRealtimeConversation();
-                        }
+                        // Realtime is driven by the shared module, which owns the button; this only exists for
+                        // callers that toggle programmatically.
+                        if (this.realtimeController) { this.realtimeController.toggle(); }
 
                         return;
                     }
@@ -2188,195 +2158,64 @@ window.coreAIChatManager = function () {
                     }
                 },
                 startRealtimeConversation() {
-                    if (!this.realtimeEnabled || this.isConversationMode || !this.connection) {
-                        return;
-                    }
-
-                    this.isConversationMode = true;
-                    this.updateConversationButton();
-                    this._conversationAssistantMessage = null;
-                    this.removeNotification('conversation-ended');
-
-                    // Apply the listener's saved audio preferences (barge-in, echo-guard, device, etc.).
-                    this.applyRealtimeAudioPrefs(this.loadRealtimeAudioPrefs());
-                    this.clearRealtimeStatus();
-                    this.attachRealtimePushToTalk();
-                    // Drop focus from the just-clicked button so Space acts as push-to-talk, not a re-click.
-                    if (this.conversationButton) { try { this.conversationButton.blur(); } catch (err) { } }
-                    this._realtimeFellBack = false;
-
-                    // Prefer the WebRTC transport when advertised; the browser's echo canceller references the
-                    // assistant's media track so the model can ignore its own voice with the mic open. If the peer
-                    // cannot connect (blocked UDP, no TURN, unsupported), fall back to WebSocket at connect time.
-                    if (this.realtimeWebRtcEnabled && !this.isRealtimeWebRtcKnownBlocked()) {
-                        this.startRealtimeWebRtcConversation();
-
-                        return;
-                    }
-
-                    this.startRealtimeWebSocketConversation();
-                },
-                startRealtimeWebSocketConversation() {
-                    var REALTIME_SAMPLE_RATE = 24000;
-                    // While the assistant is playing back, plus this hangover for the room echo tail, the
-                    // microphone uplink is muted so the model never hears (and answers) its own voice through
-                    // open speakers. Browser AEC alone cannot cancel loud external speakers.
-                    var REALTIME_ECHO_HANGOVER_SEC = 0.25;
-
-                    var audioConstraints = {
-                        channelCount: 1,
-                        echoCancellation: { ideal: true },
-                        noiseSuppression: this._realtimeNoiseSuppression !== false,
-                        autoGainControl: this._realtimeAutoGain !== false,
-                        // Request the strongest available acoustic echo cancellation so the model can ignore its
-                        // own voice in an open room. Chromium hints requested as "ideal" — ignored where
-                        // unsupported. 'system' prefers the OS/hardware AEC over the browser's software AEC.
-                        echoCancellationType: { ideal: 'system' },
-                        voiceIsolation: { ideal: true }
-                    };
-                    if (this._realtimeMicDeviceId) {
-                        audioConstraints.deviceId = { exact: this._realtimeMicDeviceId };
-                    }
-
-                    navigator.mediaDevices.getUserMedia({ audio: audioConstraints })
-                        .then(async (stream) => {
-                            // Wait for the SignalR connection to be ready before streaming audio, so a
-                            // realtime session started right after page load is not lost to a connect race.
-                            if (!(await this.ensureConnectionStarted())) {
-                                stream.getTracks().forEach(track => track.stop());
-                                this.isConversationMode = false;
-                                this.updateConversationButton();
-                                console.error('The realtime conversation could not start because the chat connection is not available.');
-
-                                return;
-                            }
-
-                            this._realtimeStream = stream;
-                            var AudioCtx = window.AudioContext || window.webkitAudioContext;
-                            this._realtimeAudioCtx = new AudioCtx({ sampleRate: REALTIME_SAMPLE_RATE });
-                            // Scheduled end of assistant playback; 0 means "not speaking" so the uplink starts open.
-                            this._realtimePlayHead = 0;
-                            this._realtimeSources = [];
-                            // Output gain lets the listener lower the assistant volume (which also reduces echo).
-                            this._realtimeGain = this._realtimeAudioCtx.createGain();
-                            this._realtimeGain.gain.value = (this._realtimeVolume != null) ? this._realtimeVolume : 1;
-                            this._realtimeGain.connect(this._realtimeAudioCtx.destination);
-
-                            this._realtimeSubject = new signalR.Subject();
-
-                            var source = this._realtimeAudioCtx.createMediaStreamSource(stream);
-                            var processor = this._realtimeAudioCtx.createScriptProcessor(4096, 1, 1);
-                            this._realtimeProcessor = processor;
-                            this._realtimeMicSource = source;
-
-                            processor.onaudioprocess = (event) => {
-                                var input = event.inputBuffer.getChannelData(0);
-                                // Decide whether to transmit the live mic or silence. We ALWAYS send a frame
-                                // (silence when muted) so the server keeps receiving a continuous audio stream and
-                                // its voice-activity detector promptly notices the pause and responds on its own.
-                                // Muted cases: push-to-talk not held, or the half-duplex echo guard while the
-                                // assistant is still playing back (skipped when barge-in is on).
-                                var muted;
-                                if (this._realtimePushToTalk) {
-                                    muted = !this._realtimePttActive;
-                                } else {
-                                    var hangover = (this._realtimeHangoverSec != null) ? this._realtimeHangoverSec : REALTIME_ECHO_HANGOVER_SEC;
-                                    muted = !this._realtimeBargeIn && this._realtimeAudioCtx && this._realtimeAudioCtx.currentTime < this._realtimePlayHead + hangover;
-                                }
-                                var pcm = new Int16Array(input.length);
-                                if (!muted) {
-                                    for (var i = 0; i < input.length; i++) {
-                                        var s = Math.max(-1, Math.min(1, input[i]));
-                                        pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                                    }
-                                }
-                                var bytes = new Uint8Array(pcm.buffer);
-                                var binary = '';
-                                for (var b = 0; b < bytes.length; b++) { binary += String.fromCharCode(bytes[b]); }
-                                try {
-                                    this._realtimeSubject.next(btoa(binary));
-                                } catch (err) {
-                                    // Subject may have been completed already.
-                                }
-                            };
-
-                            // A zero-gain node keeps the processor alive without echoing the mic to the speakers.
-                            var zeroGain = this._realtimeAudioCtx.createGain();
-                            zeroGain.gain.value = 0;
-                            this._realtimeZeroGain = zeroGain;
-                            source.connect(processor);
-                            processor.connect(zeroGain);
-                            zeroGain.connect(this._realtimeAudioCtx.destination);
-
-                            var profileId = this.getProfileId();
-                            var sessionId = this.getSessionId() || '';
-                            // "Auto" means auto-detect: send nothing. Sending the browser's locale instead pinned
-                            // transcription and the reply language to it, so a bilingual user with an English
-                            // browser speaking Spanish got English-forced transcripts and an English-locked reply.
-                            var language = this._realtimeLanguage || null;
-                            var voice = this.realtimeVoiceName || '';
-                            // Server VAD tuning is only sent when the listener opts in; otherwise the provider default applies.
-                            var silenceMs = this._realtimeTuneTurnDetection ? this._realtimeSilenceMs : null;
-                            var vadThreshold = this._realtimeTuneTurnDetection ? this._realtimeVadThreshold : null;
-
-                            this.connection.send("StartRealtimeConversation", profileId, sessionId, this._realtimeSubject, voice, language, silenceMs, vadThreshold, this._realtimeBargeIn);
-                            this.isRecording = true;
-                            // In push-to-talk mode, show the hold-to-talk control + hint so the user knows how to speak.
-                            if (this._realtimePushToTalk) { this.buildRealtimePttUi(); }
-
-                        })
-                        .catch(err => {
-                            console.error('Microphone access denied:', err);
-                            this.isConversationMode = false;
-                            this.updateConversationButton();
-                        });
+                    if (this.realtimeController) { this.realtimeController.start(); }
                 },
                 stopRealtimeConversation() {
-                    if (!this.isConversationMode) {
-                        return;
-                    }
-
-                    this.isConversationMode = false;
-                    this.isRecording = false;
-                    this.updateConversationButton();
-                    this.detachRealtimePushToTalk();
-                    this.removeRealtimePttUi();
-                    if (this._realtimeWebRtcConnectTimer) { clearTimeout(this._realtimeWebRtcConnectTimer); this._realtimeWebRtcConnectTimer = null; }
-
-                    if (this._realtimeIsWebRtc) {
-                        this.stopRealtimeWebRtcTransport();
-                        try { if (this._realtimeStream) { this._realtimeStream.getTracks().forEach(t => t.stop()); } } catch (err) { }
-                        this._realtimeStream = null;
-                        this._realtimeIsWebRtc = false;
-                        this.finishRealtimeConversationCleanup();
-
-                        return;
-                    }
-
-                    try {
-                        if (this._realtimeSubject) { this._realtimeSubject.complete(); }
-                    } catch (err) { /* already completed */ }
-                    this._realtimeSubject = null;
-
-                    try { if (this._realtimeProcessor) { this._realtimeProcessor.disconnect(); this._realtimeProcessor.onaudioprocess = null; } } catch (err) { }
-                    try { if (this._realtimeMicSource) { this._realtimeMicSource.disconnect(); } } catch (err) { }
-                    try { if (this._realtimeZeroGain) { this._realtimeZeroGain.disconnect(); } } catch (err) { }
-                    try { if (this._realtimeGain) { this._realtimeGain.disconnect(); } } catch (err) { }
-                    try { if (this._realtimeStream) { this._realtimeStream.getTracks().forEach(t => t.stop()); } } catch (err) { }
-                    this._realtimeProcessor = null;
-                    this._realtimeMicSource = null;
-                    this._realtimeZeroGain = null;
-                    this._realtimeGain = null;
-                    this._realtimeStream = null;
-
-                    this.flushRealtimePlayback();
-                    try { if (this._realtimeAudioCtx) { this._realtimeAudioCtx.close(); } } catch (err) { }
-                    this._realtimeAudioCtx = null;
-
-                    this.finishRealtimeConversationCleanup();
+                    if (this.realtimeController) { this.realtimeController.stop(); }
                 },
-                // Shared teardown tail run by both transports: clears any in-flight streaming state and shows the
-                // conversation-ended notification.
+                // Realtime (speech-to-speech) is the shared CoreAIRealtime module (realtime-audio.js): microphone
+                // capture and gating, the WebRTC transport with its WebSocket fallback, playback, the settings
+                // popover, push-to-talk, and the server-driven session lifecycle all live there, so this app and the
+                // chat-interaction client cannot drift apart. What is wired here is only how the module reaches this
+                // app's hub and transcript.
+                setupRealtimeController(config) {
+                    if (this.realtimeController || !this.conversationButton) { return; }
+                    if (!window.CoreAIRealtime || typeof window.CoreAIRealtime.attach !== 'function') {
+                        console.error('realtime-audio.js is not loaded; realtime voice is unavailable on this page.');
+
+                        return;
+                    }
+
+                    var self = this;
+                    this.realtimeController = window.CoreAIRealtime.attach({
+                        connection: this.connection,
+                        ensureConnected: function () {
+                            return self.ensureConnectionStarted().then(function (connected) {
+                                if (!connected) { throw new Error('The chat connection is not available.'); }
+
+                                return connected;
+                            });
+                        },
+                        sendStart: function (subject, voice, language, silenceMs, vadThreshold, allowInterruption) {
+                            self.connection.send('StartRealtimeConversation', self.getProfileId(), self.getSessionId() || '', subject, voice, language, silenceMs, vadThreshold, allowInterruption);
+                        },
+                        webRtcEnabled: this.realtimeWebRtcEnabled,
+                        sendStartWebRtc: function (offerSdp, voice, language, silenceMs, vadThreshold, allowInterruption) {
+                            self.connection.send('StartRealtimeWebRtc', self.getProfileId(), self.getSessionId() || '', offerSdp, voice, language, silenceMs, vadThreshold, allowInterruption);
+                        },
+                        webRtcIceServers: this.realtimeWebRtcIceServers || undefined,
+                        voiceName: this.realtimeVoiceName || '',
+                        getVoiceName: function () { return self.realtimeVoiceName || ''; },
+                        realtimeEnabled: true,
+                        // The conversation button doubles as the realtime button on this host; the module owns its
+                        // click, label and state from here on.
+                        selectors: { realtimeButton: config.conversationButtonElementSelector },
+                        onActivate: function () {
+                            self.isConversationMode = true;
+                            self._conversationAssistantMessage = null;
+                            self._conversationPartialMessage = null;
+                            self.removeNotification('conversation-ended');
+                        },
+                        onDeactivate: function () {
+                            self.isConversationMode = false;
+                            self.finishRealtimeConversationCleanup();
+                        },
+                        onUserTurnPending: function (turnId) { self.addRealtimePendingTurn(turnId); },
+                        onUserTurnDropped: function (turnId) { self.dropRealtimePendingTurn(turnId); }
+                    });
+                },
+                // Shared teardown tail: clears any in-flight streaming state and shows the conversation-ended
+                // notification.
                 finishRealtimeConversationCleanup() {
                     if (this._conversationAssistantMessage) {
                         var m = this.messages[this._conversationAssistantMessage.index];
@@ -2394,402 +2233,6 @@ window.coreAIChatManager = function () {
                         dismissible: true,
                         autoDismissMs: 5000
                     });
-                },
-                // --- WebRTC (server-relay) transport ---
-                startRealtimeWebRtcConversation() {
-                    // Minimal capture constraints: WebRTC's own AEC (AEC3) references the assistant track we render
-                    // into the hidden <audio> element. The stronger hints the WebSocket path requests
-                    // (echoCancellationType:'system' + voiceIsolation) gate the mic to near-silence when layered on
-                    // the peer-connection AEC loop, so the model never detects speech.
-                    var micConstraints = {
-                        // Match what ChatGPT's voice mode requests: a plain echoCancellation:true, nothing exotic.
-                        echoCancellation: true,
-                        noiseSuppression: this._realtimeNoiseSuppression !== false,
-                        autoGainControl: this._realtimeAutoGain !== false
-                    };
-                    if (this._realtimeMicDeviceId) { micConstraints.deviceId = { exact: this._realtimeMicDeviceId }; }
-
-                    navigator.mediaDevices.getUserMedia({ audio: micConstraints })
-                        .then(async (stream) => {
-                            if (!(await this.ensureConnectionStarted())) {
-                                stream.getTracks().forEach(track => track.stop());
-                                this.isConversationMode = false;
-                                this.updateConversationButton();
-                                console.error('The realtime WebRTC conversation could not start because the chat connection is not available.');
-
-                                return;
-                            }
-
-                            this._realtimeStream = stream;
-                            this._realtimeIsWebRtc = true;
-                            this._realtimeWebRtcConnected = false;
-                            this._realtimeWebRtcRemoteDescriptionSet = false;
-                            this._realtimeWebRtcPendingIce = [];
-
-                            var pc = new RTCPeerConnection({ iceServers: await this.resolveRealtimeIceServers() });
-                            this._realtimePc = pc;
-
-                            if (this._realtimePushToTalk) { this.buildRealtimePttUi(); }
-
-
-                            // Render the assistant's remote track into a hidden <audio> element (the AEC reference,
-                            // and what the echo-guard monitor listens to for half-duplex mic muting).
-                            var audioEl = document.createElement('audio');
-                            audioEl.autoplay = true;
-                            audioEl.style.display = 'none';
-                            audioEl.volume = Math.max(0, Math.min(1, (this._realtimeVolume != null) ? this._realtimeVolume : 1));
-                            document.body.appendChild(audioEl);
-                            this._realtimeRemoteAudioEl = audioEl;
-                            // Route playback so the browser couples it with the mic's echo canceller as a proper
-                            // AEC reference (see routeRealtimeOutputToDefaultDevice for the preference order).
-                            this.routeRealtimeOutputToDefaultDevice(audioEl);
-                            pc.ontrack = (e) => {
-                                if (e.streams && e.streams[0]) {
-                                    audioEl.srcObject = e.streams[0];
-                                    this.ensureRealtimePlayback(audioEl);
-                                    // Let the gate watch the assistant's level (echo-margin threshold + barge-in-off).
-                                    this.attachWebRtcAssistantAnalyser(e.streams[0]);
-                                }
-                            };
-
-                            pc.onicecandidate = (e) => {
-                                if (e.candidate) {
-                                    try { this.connection.send('AddRealtimeIceCandidate', e.candidate.candidate, e.candidate.sdpMid || '', e.candidate.sdpMLineIndex || 0); } catch (err) { }
-                                }
-                            };
-                            pc.onconnectionstatechange = () => {
-                                if (pc.connectionState === 'connected') {
-                                    this.markRealtimeWebRtcConnected();
-                                } else if (pc.connectionState === 'failed') {
-                                    if (!this._realtimeWebRtcConnected) { this.fallbackRealtimeToWebSocket('connection failed'); }
-                                    else if (this.isConversationMode) { this.stopRealtimeConversation(); }
-                                } else if (pc.connectionState === 'closed' && this.isConversationMode && this._realtimeWebRtcConnected) {
-                                    this.stopRealtimeConversation();
-                                }
-                            };
-                            pc.oniceconnectionstatechange = () => {
-                                var s = pc.iceConnectionState;
-                                if (s === 'connected' || s === 'completed') {
-                                    this.markRealtimeWebRtcConnected();
-                                } else if (s === 'failed' && !this._realtimeWebRtcConnected) {
-                                    this.fallbackRealtimeToWebSocket('ICE failed');
-                                }
-                            };
-
-                            this.bindRealtimeWebRtcSignaling();
-
-                            // Fall back to WebSocket if the peer does not connect in time (blocked UDP, no TURN, etc.).
-                            this._realtimeWebRtcConnectTimer = setTimeout(() => {
-                                if (!this._realtimeWebRtcConnected && this.isConversationMode) {
-                                    this.fallbackRealtimeToWebSocket('connection timed out');
-                                }
-                            }, 8000);
-
-                            var profileId = this.getProfileId();
-                            var sessionId = this.getSessionId() || '';
-                            // "Auto" means auto-detect: send nothing. Sending the browser's locale instead pinned
-                            // transcription and the reply language to it, so a bilingual user with an English
-                            // browser speaking Spanish got English-forced transcripts and an English-locked reply.
-                            var language = this._realtimeLanguage || null;
-                            var voice = this.realtimeVoiceName || '';
-                            var silenceMs = this._realtimeTuneTurnDetection ? this._realtimeSilenceMs : null;
-                            var vadThreshold = this._realtimeTuneTurnDetection ? this._realtimeVadThreshold : null;
-
-                            // Send a gated version of the mic: silent unless the user is actually speaking. The gate
-                            // loads an AudioWorklet, so its track is only available once that resolves.
-                            this.setupWebRtcMicGate(stream)
-                                .then(micTrackToSend => {
-                                    if (this._realtimePc !== pc) { return null; }
-                                    if (micTrackToSend) { pc.addTrack(micTrackToSend, stream); }
-
-                                    return pc.createOffer();
-                                })
-                                .then(offer => (offer && this._realtimePc === pc) ? pc.setLocalDescription(offer).then(() => offer) : null)
-                                .then(offer => {
-                                    if (!offer) { return; }
-                                    this.connection.send('StartRealtimeWebRtc', profileId, sessionId, offer.sdp, voice, language, silenceMs, vadThreshold, this._realtimeBargeIn);
-                                    this.isRecording = true;
-                                })
-                                .catch(err => {
-                                    console.error('Failed to create the WebRTC offer; falling back to WebSocket.', err);
-                                    this.fallbackRealtimeToWebSocket('offer failed');
-                                });
-                        })
-                        .catch(err => {
-                            console.error('Microphone access denied:', err);
-                            this.isConversationMode = false;
-                            this._realtimeIsWebRtc = false;
-                            this.updateConversationButton();
-                        });
-                },
-                bindRealtimeWebRtcSignaling() {
-                    if (this._realtimeWebRtcSignalingBound) { return; }
-                    this._realtimeWebRtcSignalingBound = true;
-
-                    this.connection.on('ReceiveRealtimeAnswer', (sdp) => {
-                        if (!this._realtimePc) { return; }
-                        this._realtimePc.setRemoteDescription({ type: 'answer', sdp: sdp })
-                            .then(() => {
-                                this._realtimeWebRtcRemoteDescriptionSet = true;
-                                var pending = this._realtimeWebRtcPendingIce || [];
-                                this._realtimeWebRtcPendingIce = [];
-                                pending.forEach((init) => {
-                                    try { this._realtimePc.addIceCandidate(init).catch(() => { }); } catch (err) { }
-                                });
-                            })
-                            .catch(err => console.error('Failed to apply the WebRTC answer.', err));
-                    });
-                    this.connection.on('ReceiveRealtimeIceCandidate', (candidate, sdpMid, sdpMLineIndex) => {
-                        if (!this._realtimePc || !candidate) { return; }
-                        var init = { candidate: candidate, sdpMid: sdpMid, sdpMLineIndex: sdpMLineIndex };
-                        if (this._realtimeWebRtcRemoteDescriptionSet) {
-                            try { this._realtimePc.addIceCandidate(init).catch(() => { }); } catch (err) { }
-                        } else {
-                            (this._realtimeWebRtcPendingIce = this._realtimeWebRtcPendingIce || []).push(init);
-                        }
-                    });
-                },
-                // Resolves the ICE servers from the server immediately before creating the peer. Fetching them per
-                // session (rather than embedding them at page render time) is what makes ephemeral TURN
-                // credentials usable: they expire, and a page open for an hour would otherwise hand the browser a
-                // dead credential. Falls back to a public STUN server so a failed call degrades to the old
-                // behaviour rather than breaking the session.
-                resolveRealtimeIceServers() {
-                    var fallback = [{ urls: 'stun:stun.l.google.com:19302' }];
-                    if (this.realtimeWebRtcIceServers) { return Promise.resolve(this.realtimeWebRtcIceServers); }
-                    if (!this.connection || typeof this.connection.invoke !== 'function') { return Promise.resolve(fallback); }
-
-                    return this.connection.invoke('GetRealtimeIceServers')
-                        .then(servers => (Array.isArray(servers) && servers.length) ? servers : fallback)
-                        .catch(err => {
-                            console.warn('Could not resolve the realtime ICE servers; using the default STUN server.', err);
-
-                            return fallback;
-                        });
-                },
-                markRealtimeWebRtcConnected() {
-                    if (this._realtimeWebRtcConnected) { return; }
-                    this._realtimeWebRtcConnected = true;
-                    if (this._realtimeWebRtcConnectTimer) { clearTimeout(this._realtimeWebRtcConnectTimer); this._realtimeWebRtcConnectTimer = null; }
-                },
-                // Microphone gate: the outbound mic is silent unless the user is genuinely speaking, so the model
-                // never hears silence, room noise, or its own echo — no self-answering, no transcription phantoms.
-                // The decision itself lives in the shared CoreAIRealtime.createMicGate factory (realtime-audio.js),
-                // which runs it in an AudioWorklet with an adaptive noise floor and a look-ahead delay; keeping one
-                // implementation is what stops the two chat clients drifting apart. When that script is not loaded
-                // the mic is sent ungated and the browser's echo cancellation carries the session on its own.
-                setupWebRtcMicGate(rawStream) {
-                    this.stopRealtimeWebRtcEchoGuard();
-                    var rawTrack = (rawStream && rawStream.getAudioTracks()[0]) || null;
-                    this._realtimeWebRtcMicTrack = rawTrack;
-
-                    if (!window.CoreAIRealtime || typeof window.CoreAIRealtime.createMicGate !== 'function') {
-                        return Promise.resolve(rawTrack);
-                    }
-
-                    return window.CoreAIRealtime.createMicGate(rawStream, this.realtimeGateMode()).then((gate) => {
-                        this._realtimeGate = gate;
-                        if (this._realtimeGatePendingRemoteStream) {
-                            gate.attachAssistantStream(this._realtimeGatePendingRemoteStream);
-                        }
-
-                        return gate.track || rawTrack;
-                    });
-                },
-                realtimeGateMode() {
-                    return {
-                        pushToTalk: !!this._realtimePushToTalk,
-                        pttActive: !!this._realtimePttActive,
-                        bargeIn: !!this._realtimeBargeIn,
-                        gateMode: this._realtimeGateMode || 'auto',
-                        // The gate has to stay open longer than the provider's end-of-turn silence window: it
-                        // emits digital silence when closed, so whichever expires first is what ends the user's
-                        // turn, and a gate that closes first cuts people off mid-sentence. 800 ms mirrors the
-                        // server's DefaultSilenceDurationMs.
-                        speechHangoverMs: ((this._realtimeTuneTurnDetection && this._realtimeSilenceMs) ? this._realtimeSilenceMs : 800) + 600
-                    };
-                },
-                // The gate runs on the audio thread and cannot read these properties, so every settings or
-                // push-to-talk change has to be pushed to it explicitly.
-                syncRealtimeGateMode() {
-                    if (this._realtimeGate) { this._realtimeGate.setMode(this.realtimeGateMode()); }
-                },
-                attachWebRtcAssistantAnalyser(remoteStream) {
-                    this._realtimeGatePendingRemoteStream = remoteStream || null;
-                    if (this._realtimeGate && remoteStream) { this._realtimeGate.attachAssistantStream(remoteStream); }
-                },
-                stopRealtimeWebRtcEchoGuard() {
-                    if (this._realtimeGate) {
-                        try { this._realtimeGate.stop(); } catch (e) { }
-                        this._realtimeGate = null;
-                    }
-                    this._realtimeGatePendingRemoteStream = null;
-                },
-                // Route the assistant playback element so the browser's echo canceller couples to it, the way
-                // ChatGPT's voice mode does. Preference: (1) the "communications" sink (Chrome/Edge) which puts the
-                // audio pipeline in communications mode and keeps full-duplex AEC stable across turns; (2) the
-                // concrete device the "default" alias points at, matched by groupId. If neither alias exists —
-                // Firefox exposes only concrete outputs — leave the browser's own default alone: picking "the first
-                // concrete output" there routed the assistant to whatever was enumerated first (often an HDMI
-                // monitor), so it appeared silent.
-                routeRealtimeOutputToDefaultDevice(el) {
-                    if (!window.CoreAIRealtime || !window.CoreAIRealtime.routeOutputToPreferredDevice) { return; }
-                    window.CoreAIRealtime.routeOutputToPreferredDevice(el, this._realtimeOutputDeviceId || '');
-                },
-                ensureRealtimePlayback(el) {
-                    if (!window.CoreAIRealtime || !window.CoreAIRealtime.ensurePlayback) { return; }
-                    window.CoreAIRealtime.ensurePlayback(el, () => {
-                        this.showRealtimeStatus('Audio is blocked by the browser — click the page to enable it.', false);
-                    });
-                },
-                // Applies the user's chosen speaker to the playing element, live: the point of the picker is that
-                // someone who cannot hear the assistant can fix it without ending the conversation.
-                applyRealtimeOutputDevice() {
-                    this.routeRealtimeOutputToDefaultDevice(this._realtimeRemoteAudioEl);
-                },
-                stopRealtimeWebRtcTransport() {
-                    this.stopRealtimeWebRtcEchoGuard();
-                    this._realtimeWebRtcMicTrack = null;
-                    if (this._realtimePc) {
-                        try { this._realtimePc.close(); } catch (err) { }
-                        this._realtimePc = null;
-                    }
-                    if (this._realtimeRemoteAudioEl) {
-                        try { this._realtimeRemoteAudioEl.srcObject = null; this._realtimeRemoteAudioEl.remove(); } catch (err) { }
-                        this._realtimeRemoteAudioEl = null;
-                    }
-                },
-                // Connect-time only: tear down the failed WebRTC attempt and restart on the WebSocket transport.
-                // Never called once a session is established, so audio is never migrated mid-conversation.
-                // A single status line under the conversation button, optionally with a Resume button. Mirrors the
-                // shared module so the two hosts say the same things in the same situations.
-                showRealtimeStatus(text, offerResume) {
-                    if (!this.conversationButton) { return; }
-
-                    if (!this._realtimeStatusEl) {
-                        this._realtimeStatusEl = document.createElement('div');
-                        this._realtimeStatusEl.className = 'form-text mt-2 mb-0 text-center';
-                        this._realtimeStatusEl.setAttribute('role', 'status');
-                        this._realtimeStatusEl.setAttribute('aria-live', 'polite');
-                        var row = this.conversationButton.parentElement;
-                        if (row && row.parentElement) { row.parentElement.appendChild(this._realtimeStatusEl); }
-                        else { this.conversationButton.insertAdjacentElement('afterend', this._realtimeStatusEl); }
-                    }
-
-                    this._realtimeStatusEl.replaceChildren();
-                    this._realtimeStatusEl.appendChild(document.createTextNode(text));
-
-                    if (offerResume) {
-                        var resume = document.createElement('button');
-                        resume.type = 'button';
-                        resume.className = 'btn btn-link btn-sm p-0 ms-2 align-baseline';
-                        resume.textContent = 'Resume';
-                        resume.addEventListener('click', () => {
-                            this.clearRealtimeStatus();
-                            this.startRealtimeConversation();
-                        });
-                        this._realtimeStatusEl.appendChild(resume);
-                    }
-                },
-                clearRealtimeStatus() {
-                    if (!this._realtimeStatusEl) { return; }
-                    try { this._realtimeStatusEl.remove(); } catch (err) { }
-                    this._realtimeStatusEl = null;
-                },
-                // Explains why a session stopped, and offers to pick the conversation back up when it can be.
-                reportRealtimeSessionEnded(reason) {
-                    if (reason === 'idle') {
-                        this.showRealtimeStatus('Voice paused after a period of silence.', true);
-                    } else if (reason === 'disconnected') {
-                        this.showRealtimeStatus('Voice session ended — the connection dropped.', true);
-                    } else if (reason === 'error') {
-                        this.showRealtimeStatus('Voice session ended unexpectedly.', true);
-                    }
-                },
-                // Barge-in and the voice-activity knobs are enforced by the browser gate, the server's input pump
-                // and the provider's turn detection at once. Changing only this one leaves the three disagreeing,
-                // so a change during a live session is sent on to the other two.
-                pushRealtimeSettingsToServer() {
-                    if (!this.isConversationMode || !this.connection) { return; }
-                    var silenceMs = this._realtimeTuneTurnDetection ? this._realtimeSilenceMs : null;
-                    var vadThreshold = this._realtimeTuneTurnDetection ? this._realtimeVadThreshold : null;
-                    try { this.connection.send('UpdateRealtimeSettings', this._realtimeBargeIn, silenceMs, vadThreshold); } catch (err) { }
-                },
-                // keepBargeIn is for the automatic, device-label-driven suggestion: guessing the room from a
-                // microphone name is worth doing, but silently turning interruptions off because a device is
-                // called "USB" is not — barge-in changes the conversation more than anything else here. The
-                // applied values are pushed back into the panel so it can never describe a configuration that is
-                // not actually in effect.
-                applyRealtimePreset(name, keepBargeIn) {
-                    var presets = (window.CoreAIRealtime && window.CoreAIRealtime.presets) || {};
-                    var preset = presets[name];
-                    if (!preset) { return; }
-                    var prefs = this.loadRealtimeAudioPrefs();
-                    if (!keepBargeIn) { prefs.bargeIn = preset.bargeIn; }
-                    prefs.gateMode = preset.gateMode;
-                    prefs.autoGain = preset.autoGain;
-                    prefs.noiseSuppression = preset.noiseSuppression;
-                    prefs.preset = name;
-                    this.applyRealtimeAudioPrefs(prefs);
-                    this.saveRealtimeAudioPrefs(prefs);
-                    if (this._refreshRealtimeSettingsUi) { this._refreshRealtimeSettingsUi(prefs); }
-                    this.pushRealtimeSettingsToServer();
-                },
-                // Device labels only become readable after microphone permission is granted, so this is the first
-                // chance to notice a headset (safe for full duplex) or a standalone mic in front of speakers (not).
-                // Only ever a suggestion: an explicit choice is never overridden.
-                isRealtimeWebRtcKnownBlocked() {
-                    try { return window.sessionStorage.getItem('coreai.realtime.webrtcBlocked') === '1'; }
-                    catch (err) { return false; }
-                },
-                rememberRealtimeWebRtcBlocked() {
-                    try { window.sessionStorage.setItem('coreai.realtime.webrtcBlocked', '1'); } catch (err) { }
-                },
-                fallbackRealtimeToWebSocket(reason) {
-                    if (this._realtimeFellBack) { return; }
-                    this._realtimeFellBack = true;
-                    if (this._realtimeWebRtcConnectTimer) { clearTimeout(this._realtimeWebRtcConnectTimer); this._realtimeWebRtcConnectTimer = null; }
-                    if (window.console && console.warn) {
-                        console.warn('Realtime WebRTC transport unavailable (' + reason + '); falling back to the WebSocket transport.');
-                    }
-                    // Without remembering this, a user on a network where WebRTC cannot work pays the full connect
-                    // timeout — and a second microphone prompt — at the start of every conversation.
-                    this.rememberRealtimeWebRtcBlocked();
-                    this.showRealtimeStatus('Using compatibility audio mode. Echo cancellation may be weaker — headphones are recommended.', false);
-
-                    try { if (this._realtimeStream) { this._realtimeStream.getTracks().forEach(t => t.stop()); } } catch (err) { }
-                    this._realtimeStream = null;
-                    this.stopRealtimeWebRtcTransport();
-                    this._realtimeIsWebRtc = false;
-
-                    this.startRealtimeWebSocketConversation();
-                },
-                playRealtimePcm(bytes) {
-                    if (!this._realtimeAudioCtx || !bytes || bytes.length < 2) {
-                        return;
-                    }
-
-                    var ctx = this._realtimeAudioCtx;
-                    var sampleCount = Math.floor(bytes.length / 2);
-                    var pcm = new Int16Array(bytes.buffer, bytes.byteOffset, sampleCount);
-                    var f32 = new Float32Array(sampleCount);
-                    for (var i = 0; i < sampleCount; i++) { f32[i] = pcm[i] / 0x8000; }
-
-                    var buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
-                    buffer.copyToChannel(f32, 0);
-                    var src = ctx.createBufferSource();
-                    src.buffer = buffer;
-                    src.connect(this._realtimeGain || ctx.destination);
-
-                    var now = ctx.currentTime;
-                    if (this._realtimePlayHead < now) { this._realtimePlayHead = now; }
-                    src.start(this._realtimePlayHead);
-                    this._realtimePlayHead += buffer.duration;
-                    this._realtimeSources = this._realtimeSources || [];
-                    this._realtimeSources.push(src);
-                    src.onended = () => {
-                        this._realtimeSources = (this._realtimeSources || []).filter(s => s !== src);
-                    };
                 },
                 // The utterance has been captured but not transcribed yet. Showing a placeholder now puts the
                 // prompt above the reply it produces: transcription lags the spoken answer, so a bubble added only
@@ -2821,490 +2264,6 @@ window.coreAIChatManager = function () {
                     delete this._realtimePendingTurns[turnId];
                     var at = this.messages.indexOf(dropped);
                     if (at >= 0) { this.messages.splice(at, 1); }
-                },
-                flushRealtimePlayback() {
-                    (this._realtimeSources || []).forEach(s => { try { s.stop(); } catch (err) { } });
-                    this._realtimeSources = [];
-                    if (this._realtimeAudioCtx) { this._realtimePlayHead = this._realtimeAudioCtx.currentTime; }
-                },
-                // --- Realtime audio preferences (per-browser, device-specific) ---
-                // These live in localStorage because they depend on the listener's hardware (a headset can
-                // allow barge-in; open speakers need the echo guard), which differs per device, not per profile.
-                loadRealtimeAudioPrefs() {
-                    var prefs = { bargeIn: true, hangoverMs: 500, pushToTalk: false, volume: 1, micDeviceId: '', noiseSuppression: true, autoGain: true, language: '', tuneTurnDetection: false, silenceMs: 500, vadThreshold: 0.5, gateMode: 'auto', outputDeviceId: '', preset: '', presetSuggested: false, version: 0 };
-                    try {
-                        var raw = window.localStorage.getItem('coreai.realtime.audioPrefs');
-                        if (raw) {
-                            var parsed = JSON.parse(raw);
-                            if (typeof parsed.bargeIn === 'boolean') { prefs.bargeIn = parsed.bargeIn; }
-                            if (typeof parsed.pushToTalk === 'boolean') { prefs.pushToTalk = parsed.pushToTalk; }
-                            if (typeof parsed.noiseSuppression === 'boolean') { prefs.noiseSuppression = parsed.noiseSuppression; }
-                            if (typeof parsed.autoGain === 'boolean') { prefs.autoGain = parsed.autoGain; }
-                            if (typeof parsed.tuneTurnDetection === 'boolean') { prefs.tuneTurnDetection = parsed.tuneTurnDetection; }
-                            if (typeof parsed.hangoverMs === 'number' && isFinite(parsed.hangoverMs)) {
-                                prefs.hangoverMs = Math.min(2000, Math.max(0, parsed.hangoverMs));
-                            }
-                            if (typeof parsed.silenceMs === 'number' && isFinite(parsed.silenceMs)) {
-                                prefs.silenceMs = Math.min(2000, Math.max(100, parsed.silenceMs));
-                            }
-                            if (typeof parsed.vadThreshold === 'number' && isFinite(parsed.vadThreshold)) {
-                                prefs.vadThreshold = Math.min(1, Math.max(0, parsed.vadThreshold));
-                            }
-                            if (typeof parsed.volume === 'number' && isFinite(parsed.volume)) {
-                                prefs.volume = Math.min(1, Math.max(0, parsed.volume));
-                            }
-                            if (typeof parsed.micDeviceId === 'string') { prefs.micDeviceId = parsed.micDeviceId; }
-                            if (typeof parsed.language === 'string') { prefs.language = parsed.language; }
-                            if (parsed.gateMode === 'auto' || parsed.gateMode === 'off' || parsed.gateMode === 'strict') { prefs.gateMode = parsed.gateMode; }
-                            if (typeof parsed.outputDeviceId === 'string') { prefs.outputDeviceId = parsed.outputDeviceId; }
-                            if (typeof parsed.preset === 'string') { prefs.preset = parsed.preset; }
-                            if (typeof parsed.presetSuggested === 'boolean') { prefs.presetSuggested = parsed.presetSuggested; }
-                            if (typeof parsed.version === 'number') { prefs.version = parsed.version; }
-                        }
-                    } catch (err) { /* storage unavailable or blocked */ }
-
-                    return this.repairRealtimeAudioPrefs(prefs);
-                },
-                // Preferences written by the removed device-label guess are indistinguishable from deliberate
-                // choices once stored, so they are cleared once. Anyone whose microphone happened to match its
-                // patterns is otherwise left with a strict gate and no automatic gain forever, which is what made
-                // the model stop hearing them.
-                repairRealtimeAudioPrefs(prefs) {
-                    if (prefs.version === 2) { return prefs; }
-
-                    prefs.version = 2;
-                    prefs.preset = '';
-                    prefs.presetSuggested = false;
-                    prefs.gateMode = 'auto';
-                    prefs.autoGain = true;
-                    prefs.noiseSuppression = true;
-                    this.saveRealtimeAudioPrefs(prefs);
-
-                    return prefs;
-                },
-                saveRealtimeAudioPrefs(prefs) {
-                    try { window.localStorage.setItem('coreai.realtime.audioPrefs', JSON.stringify(prefs)); } catch (err) { }
-                },
-                applyRealtimeAudioPrefs(prefs) {
-                    this._realtimeBargeIn = !!prefs.bargeIn;
-                    this._realtimeHangoverSec = (typeof prefs.hangoverMs === 'number' ? prefs.hangoverMs : 500) / 1000;
-                    this._realtimePushToTalk = !!prefs.pushToTalk;
-                    this._realtimeVolume = (typeof prefs.volume === 'number') ? prefs.volume : 1;
-                    this._realtimeMicDeviceId = prefs.micDeviceId || '';
-                    this._realtimeNoiseSuppression = prefs.noiseSuppression !== false;
-                    this._realtimeAutoGain = prefs.autoGain !== false;
-                    this._realtimeLanguage = prefs.language || '';
-                    this._realtimeTuneTurnDetection = !!prefs.tuneTurnDetection;
-                    this._realtimeSilenceMs = (typeof prefs.silenceMs === 'number') ? prefs.silenceMs : 500;
-                    this._realtimeVadThreshold = (typeof prefs.vadThreshold === 'number') ? prefs.vadThreshold : 0.5;
-                    this._realtimeGateMode = prefs.gateMode || 'auto';
-                    this._realtimeOutputDeviceId = prefs.outputDeviceId || '';
-                    this._realtimePreset = prefs.preset || '';
-                    this._realtimePresetSuggested = !!prefs.presetSuggested;
-                    // The gate runs on the audio thread and cannot see these properties; push the change to it.
-                    this.syncRealtimeGateMode();
-                    // Apply live to an active session where possible.
-                    if (this._realtimeGain) { this._realtimeGain.gain.value = this._realtimeVolume; }
-                    // On WebRTC the assistant plays through the hidden <audio> element; drive its volume from the
-                    // slider so lowering it actually quiets the speakers (and cuts the echo AEC must cancel).
-                    if (this._realtimeRemoteAudioEl) { this._realtimeRemoteAudioEl.volume = Math.max(0, Math.min(1, this._realtimeVolume)); }
-                },
-                // Push-to-talk: hold Space (or the realtime button via pointer) to open the mic. Bound only
-                // while a realtime session is active, so it never interferes with normal typing.
-                attachRealtimePushToTalk() {
-                    if (this._realtimePttBound) { return; }
-                    this._realtimePttBound = true;
-                    this._realtimePttActive = false;
-                    // Capture phase + preventDefault so Space never scrolls the page or activates a focused
-                    // button (Space-up on a focused button fires a click, which would toggle the session).
-                    this._realtimePttKeyDown = (e) => {
-                        if (this._realtimePushToTalk && !this.isEditableEventTarget(e.target) && (e.code === 'Space' || e.key === ' ')) {
-                            e.preventDefault();
-                            if (!e.repeat) { this.setRealtimePttActive(true); }
-                        }
-                    };
-                    this._realtimePttKeyUp = (e) => {
-                        if (this._realtimePushToTalk && !this.isEditableEventTarget(e.target) && (e.code === 'Space' || e.key === ' ')) {
-                            e.preventDefault();
-                            this.setRealtimePttActive(false);
-                        }
-                    };
-                    document.addEventListener('keydown', this._realtimePttKeyDown, true);
-                    document.addEventListener('keyup', this._realtimePttKeyUp, true);
-                },
-                // The push-to-talk handlers run in the capture phase and swallow Space, which would otherwise eat
-                // every space character the user types elsewhere on the page while a voice session is active.
-                isEditableEventTarget(target) {
-                    if (!target || !target.tagName) { return false; }
-                    var tag = target.tagName.toLowerCase();
-
-                    return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable === true;
-                },
-                setRealtimePttActive(active) {
-                    this._realtimePttActive = active;
-                    // The gate lives on the audio thread and cannot read this property.
-                    this.syncRealtimeGateMode();
-                    var btn = this._realtimePttButton;
-                    if (btn) {
-                        btn.classList.toggle('btn-danger', active);
-                        btn.classList.toggle('btn-outline-primary', !active);
-                        btn.innerHTML = active
-                            ? '<i class="bi bi-mic-fill me-1"></i> Listening…'
-                            : '<i class="bi bi-mic me-1"></i> Hold to talk';
-                    }
-                },
-                // Shows a "hold to talk" control + hint while a push-to-talk realtime session is active, so the
-                // listener knows how to speak. The button works by press-and-hold on both touch and mouse; Space
-                // is the desktop shortcut.
-                buildRealtimePttUi() {
-                    if (!this.conversationButton || this._realtimePttUiEl) { return; }
-                    var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-                    var bar = document.createElement('div');
-                    bar.className = 'text-center mt-2';
-                    var btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'btn btn-outline-primary btn-sm';
-                    btn.innerHTML = '<i class="bi bi-mic me-1"></i> Hold to talk';
-                    var hint = document.createElement('div');
-                    hint.className = 'form-text mt-1 mb-0';
-                    hint.innerHTML = coarse
-                        ? 'Push-to-talk is on — press and hold the button to speak.'
-                        : 'Push-to-talk is on — hold <kbd>Space</kbd> or this button to speak.';
-                    bar.appendChild(btn);
-                    bar.appendChild(hint);
-                    var row = this.conversationButton.parentElement;
-                    if (row && row.parentElement) { row.parentElement.appendChild(bar); }
-                    else { this.conversationButton.insertAdjacentElement('afterend', bar); }
-                    this._realtimePttButton = btn;
-                    this._realtimePttUiEl = bar;
-                    var down = (e) => { e.preventDefault(); this.setRealtimePttActive(true); };
-                    var up = () => { this.setRealtimePttActive(false); };
-                    btn.addEventListener('pointerdown', down);
-                    btn.addEventListener('pointerup', up);
-                    btn.addEventListener('pointerleave', up);
-                    btn.addEventListener('pointercancel', up);
-                    this.setRealtimePttActive(false);
-                },
-                removeRealtimePttUi() {
-                    this._realtimePttButton = null;
-                    if (this._realtimePttUiEl) { try { this._realtimePttUiEl.remove(); } catch (err) { } this._realtimePttUiEl = null; }
-                },
-                detachRealtimePushToTalk() {
-                    if (!this._realtimePttBound) { return; }
-                    this._realtimePttBound = false;
-                    this._realtimePttActive = false;
-                    try { document.removeEventListener('keydown', this._realtimePttKeyDown, true); } catch (err) { }
-                    try { document.removeEventListener('keyup', this._realtimePttKeyUp, true); } catch (err) { }
-                },
-                // Builds a gear-triggered popover next to the realtime button so the listener can tune barge-in,
-                // the echo-guard delay, push-to-talk, volume, microphone, noise handling, and language for their
-                // own setup. All values are per-device (localStorage).
-                setupRealtimeAudioSettings() {
-                    if (!this.conversationButton || this._realtimeAudioSettingsBuilt) {
-                        return;
-                    }
-                    this._realtimeAudioSettingsBuilt = true;
-
-                    var prefs = this.loadRealtimeAudioPrefs();
-                    this.applyRealtimeAudioPrefs(prefs);
-
-                    var wrap = document.createElement('span');
-                    wrap.style.position = 'relative';
-                    wrap.style.display = 'inline-flex';
-
-                    var gear = document.createElement('button');
-                    gear.type = 'button';
-                    gear.className = 'btn btn-outline-secondary';
-                    gear.title = 'Realtime audio settings';
-                    gear.innerHTML = '<i class="bi bi-gear"></i>';
-
-                    var panel = document.createElement('div');
-                    panel.className = 'card shadow-sm';
-                    panel.style.cssText = 'position:absolute;bottom:calc(100% + 6px);right:0;z-index:1080;width:290px;max-height:70vh;overflow:auto;display:none;';
-                    panel.innerHTML = this.realtimeAudioSettingsMarkup(prefs);
-
-                    wrap.appendChild(gear);
-                    wrap.appendChild(panel);
-                    this.conversationButton.insertAdjacentElement('afterend', wrap);
-                    this.wireRealtimeAudioSettings(panel, gear);
-                },
-                // The popover markup, shared by ai-chat.js so the same panel renders wherever realtime runs.
-                realtimeAudioSettingsMarkup(prefs) {
-                    var langs = [['en', 'English'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'], ['pt', 'Portuguese'], ['nl', 'Dutch'], ['zh', 'Chinese'], ['ja', 'Japanese'], ['ko', 'Korean'], ['ar', 'Arabic'], ['hi', 'Hindi'], ['ru', 'Russian']];
-                    var browserPrimary = (navigator.language || 'en').split('-')[0].toLowerCase();
-                    var browserName = (langs.filter(function (l) { return l[0] === browserPrimary; })[0] || [browserPrimary, browserPrimary.toUpperCase()])[1];
-                    var langOptions = '<option value=""' + (prefs.language === '' ? ' selected' : '') + '>Auto (' + browserName + ')</option>' +
-                        langs.map(function (l) { return '<option value="' + l[0] + '"' + (prefs.language === l[0] ? ' selected' : '') + '>' + l[1] + '</option>'; }).join('');
-                    return '<div class="card-body p-3">' +
-                        '<div class="fw-semibold mb-2" style="font-size:0.85rem;">Realtime audio</div>' +
-                        '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Audio setup</label>' +
-                        '<select class="form-select form-select-sm js-preset mb-1">' +
-                        '<option value="">Custom</option>' +
-                        '<option value="headset"' + (prefs.preset === 'headset' ? ' selected' : '') + '>Headset</option>' +
-                        '<option value="laptop"' + (prefs.preset === 'laptop' ? ' selected' : '') + '>Laptop speakers</option>' +
-                        '<option value="room"' + (prefs.preset === 'room' ? ' selected' : '') + '>Room speakers + separate mic</option>' +
-                        '</select>' +
-                        '<button type="button" class="btn btn-outline-secondary btn-sm mb-1 js-echo-test">Test my audio</button>' +
-                        '<div class="form-text mb-2 js-echo-result">Plays a short tone and measures how much of it your microphone hears back, then picks a setup that suits the room.</div>' +
-                        '<div class="form-check form-switch mb-1">' +
-                        '<input class="form-check-input js-barge" type="checkbox"' + (prefs.bargeIn ? ' checked' : '') + '>' +
-                        '<label class="form-check-label">Allow interruptions (barge-in)</label>' +
-                        '</div>' +
-                        '<div class="form-text mb-2">Echo cancellation always runs, including with barge-in on. On (default) keeps the mic open so you can talk over the assistant. Turn <strong>off</strong> to also mute the mic while it speaks (below) — best for loud open speakers.</div>' +
-                        '<div class="js-hangover-wrap mb-2">' +
-                        '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Echo guard delay: <strong class="js-hangover-val">' + prefs.hangoverMs + '</strong> ms</label>' +
-                        '<input type="range" class="form-range js-hangover" min="0" max="1000" step="50" value="' + prefs.hangoverMs + '">' +
-                        '</div>' +
-                        '<div class="form-check form-switch mb-1">' +
-                        '<input class="form-check-input js-ptt" type="checkbox"' + (prefs.pushToTalk ? ' checked' : '') + '>' +
-                        '<label class="form-check-label">Push-to-talk</label>' +
-                        '</div>' +
-                        '<div class="form-text mb-2">Hold <kbd>Space</kbd> to talk (desktop). Best for very noisy rooms.</div>' +
-                        '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Assistant volume: <strong class="js-vol-val">' + Math.round(prefs.volume * 100) + '</strong>%</label>' +
-                        '<input type="range" class="form-range js-vol mb-2" min="0" max="100" step="5" value="' + Math.round(prefs.volume * 100) + '">' +
-                        '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Microphone</label>' +
-                        '<select class="form-select form-select-sm js-mic mb-2"><option value="">Default microphone</option></select>' +
-                        '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Speaker</label>' +
-                        '<select class="form-select form-select-sm js-out mb-1"><option value="">Automatic</option></select>' +
-                        '<button type="button" class="btn btn-outline-secondary btn-sm mb-2 js-pick-out" style="display:none;">Choose speaker…</button>' +
-                        '<div class="form-text mb-2">Automatic uses your system\'s communications device, which is what lets the browser cancel the assistant\'s echo. On Windows that can differ from your normal playback device — if you cannot hear the assistant, pick the speakers you are actually listening to.</div>' +
-                        '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Language</label>' +
-                        '<select class="form-select form-select-sm js-lang mb-2">' + langOptions + '</select>' +
-                        '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Voice gate</label>' +
-                        '<select class="form-select form-select-sm js-gate mb-1">' +
-                        '<option value="auto"' + (prefs.gateMode === 'auto' ? ' selected' : '') + '>Auto (recommended)</option>' +
-                        '<option value="off"' + (prefs.gateMode === 'off' ? ' selected' : '') + '>Off (always-open mic)</option>' +
-                        '<option value="strict"' + (prefs.gateMode === 'strict' ? ' selected' : '') + '>Strict (loud rooms)</option>' +
-                        '</select>' +
-                        '<div class="form-text mb-2">Auto sends only your speech, adapting to the room. Off keeps the mic always open and relies on echo cancellation alone — best with a headset. Strict needs louder speech, for open speakers.</div>' +
-                        '<div class="form-check form-switch mb-1">' +
-                        '<input class="form-check-input js-tune" type="checkbox"' + (prefs.tuneTurnDetection ? ' checked' : '') + '>' +
-                        '<label class="form-check-label">Fine-tune turn detection</label>' +
-                        '</div>' +
-                        '<div class="js-tune-wrap mb-2"' + (prefs.tuneTurnDetection ? '' : ' style="display:none;"') + '>' +
-                        '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Reply after silence: <strong class="js-silence-val">' + prefs.silenceMs + '</strong> ms</label>' +
-                        '<input type="range" class="form-range js-silence" min="100" max="2000" step="100" value="' + prefs.silenceMs + '">' +
-                        '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Speech detection threshold: <strong class="js-thr-val">' + prefs.vadThreshold.toFixed(2) + '</strong></label>' +
-                        '<input type="range" class="form-range js-thr" min="0" max="1" step="0.05" value="' + prefs.vadThreshold + '">' +
-                        '<div class="form-text">Longer silence lets you pause without being cut off. Higher threshold needs louder speech, rejecting noise and echo. Applies to your next session.</div>' +
-                        '</div>' +
-                        '<div class="form-check form-switch mb-1">' +
-                        '<input class="form-check-input js-ns" type="checkbox"' + (prefs.noiseSuppression ? ' checked' : '') + '>' +
-                        '<label class="form-check-label">Noise suppression</label>' +
-                        '</div>' +
-                        '<div class="form-check form-switch mb-1">' +
-                        '<input class="form-check-input js-agc" type="checkbox"' + (prefs.autoGain ? ' checked' : '') + '>' +
-                        '<label class="form-check-label">Automatic gain</label>' +
-                        '</div>' +
-                        '<div class="form-text">Microphone, noise, gain and language changes apply to your next voice session.</div>' +
-                        '</div>';
-                },
-                wireRealtimeAudioSettings(panel, gear) {
-                    var bargeInput = panel.querySelector('.js-barge');
-                    var hangoverInput = panel.querySelector('.js-hangover');
-                    var hangoverVal = panel.querySelector('.js-hangover-val');
-                    var hangoverWrap = panel.querySelector('.js-hangover-wrap');
-                    var pttInput = panel.querySelector('.js-ptt');
-                    var volInput = panel.querySelector('.js-vol');
-                    var volVal = panel.querySelector('.js-vol-val');
-                    var micSelect = panel.querySelector('.js-mic');
-                    var langSelect = panel.querySelector('.js-lang');
-                    var gateSelect = panel.querySelector('.js-gate');
-                    var presetSelect = panel.querySelector('.js-preset');
-                    var echoTestButton = panel.querySelector('.js-echo-test');
-                    var echoResult = panel.querySelector('.js-echo-result');
-                    var outSelect = panel.querySelector('.js-out');
-                    var outPickButton = panel.querySelector('.js-pick-out');
-                    var nsInput = panel.querySelector('.js-ns');
-                    var agcInput = panel.querySelector('.js-agc');
-                    var tuneInput = panel.querySelector('.js-tune');
-                    var tuneWrap = panel.querySelector('.js-tune-wrap');
-                    var silenceInput = panel.querySelector('.js-silence');
-                    var silenceVal = panel.querySelector('.js-silence-val');
-                    var thrInput = panel.querySelector('.js-thr');
-                    var thrVal = panel.querySelector('.js-thr-val');
-
-                    var reflect = () => {
-                        // The echo guard is irrelevant when barge-in is on or push-to-talk gates the mic.
-                        var guardActive = !bargeInput.checked && !pttInput.checked;
-                        hangoverWrap.style.opacity = guardActive ? '1' : '0.5';
-                        hangoverInput.disabled = !guardActive;
-                        tuneWrap.style.display = tuneInput.checked ? '' : 'none';
-                    };
-                    reflect();
-
-                    // Re-renders the controls from the stored preferences, so anything that changes them
-                    // elsewhere (a preset, the echo test) cannot leave the panel describing a configuration that
-                    // is not in effect.
-                    this._refreshRealtimeSettingsUi = (prefs) => {
-                        bargeInput.checked = !!prefs.bargeIn;
-                        pttInput.checked = !!prefs.pushToTalk;
-                        nsInput.checked = prefs.noiseSuppression !== false;
-                        agcInput.checked = prefs.autoGain !== false;
-                        gateSelect.value = prefs.gateMode || 'auto';
-                        presetSelect.value = prefs.preset || '';
-                        reflect();
-                    };
-
-                    var persist = () => {
-                        var next = {
-                            bargeIn: bargeInput.checked,
-                            hangoverMs: parseInt(hangoverInput.value, 10) || 0,
-                            pushToTalk: pttInput.checked,
-                            volume: (parseInt(volInput.value, 10) || 0) / 100,
-                            micDeviceId: micSelect.value || '',
-                            noiseSuppression: nsInput.checked,
-                            autoGain: agcInput.checked,
-                            language: langSelect.value || '',
-                            tuneTurnDetection: tuneInput.checked,
-                            silenceMs: parseInt(silenceInput.value, 10) || 500,
-                            vadThreshold: parseFloat(thrInput.value),
-                            gateMode: gateSelect.value || 'auto',
-                            outputDeviceId: outSelect.value || '',
-                            preset: this._realtimePreset || '',
-                            presetSuggested: !!this._realtimePresetSuggested,
-                            version: 2
-                        };
-                        this.applyRealtimeAudioPrefs(next);
-                        this.saveRealtimeAudioPrefs(next);
-                        this.pushRealtimeSettingsToServer();
-                    };
-
-                    var populateMics = () => {
-                        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) { return; }
-                        navigator.mediaDevices.enumerateDevices().then((devices) => {
-                            var current = this._realtimeMicDeviceId || '';
-                            var opts = ['<option value="">Default microphone</option>'];
-                            devices.filter(function (d) { return d.kind === 'audioinput'; }).forEach(function (d, i) {
-                                var label = d.label || ('Microphone ' + (i + 1));
-                                opts.push('<option value="' + d.deviceId + '"' + (d.deviceId === current ? ' selected' : '') + '>' + label.replace(/</g, '') + '</option>');
-                            });
-                            micSelect.innerHTML = opts.join('');
-
-                            // Output devices are only enumerable where the browser exposes them (Chromium);
-                            // elsewhere the list stays on "Automatic" and the picker button is the way in.
-                            var outs = devices.filter(function (d) { return d.kind === 'audiooutput' && d.deviceId && d.deviceId !== 'communications' && d.deviceId !== 'default'; });
-                            if (outs.length) {
-                                var current = this._realtimeOutputDeviceId || '';
-                                var outOptions = ['<option value="">Automatic</option>'];
-                                outs.forEach(function (d, i) {
-                                    var label = d.label || ('Speaker ' + (i + 1));
-                                    outOptions.push('<option value="' + d.deviceId + '"' + (d.deviceId === current ? ' selected' : '') + '>' + label.replace(/</g, '') + '</option>');
-                                });
-                                outSelect.innerHTML = outOptions.join('');
-                            }
-                        }).catch(function () { });
-                    };
-                    populateMics();
-
-                    var constrainPanelHeight = () => {
-                        // Keep the popover inside its container (widget panel or chat area): cap its height to the
-                        // space above the button up to the nearest scroll/fixed ancestor, so it scrolls instead of
-                        // spilling out the top.
-                        var rect = gear.getBoundingClientRect();
-                        var boundaryTop = 8;
-                        var el = panel.parentElement ? panel.parentElement.parentElement : null;
-                        while (el && el !== document.body && el !== document.documentElement) {
-                            var s = window.getComputedStyle(el);
-                            if (s.overflowY === 'auto' || s.overflowY === 'scroll' || s.overflowY === 'hidden' || s.position === 'fixed') {
-                                boundaryTop = Math.max(boundaryTop, el.getBoundingClientRect().top);
-                                break;
-                            }
-                            el = el.parentElement;
-                        }
-                        panel.style.maxHeight = Math.max(160, rect.top - boundaryTop - 10) + 'px';
-                    };
-                    gear.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        var showing = panel.style.display === 'none';
-                        if (showing) { constrainPanelHeight(); populateMics(); }
-                        panel.style.display = showing ? 'block' : 'none';
-                    });
-                    panel.addEventListener('click', (e) => e.stopPropagation());
-                    document.addEventListener('click', () => { panel.style.display = 'none'; });
-                    bargeInput.addEventListener('change', () => { reflect(); persist(); });
-                    pttInput.addEventListener('change', () => { reflect(); persist(); });
-                    hangoverInput.addEventListener('input', () => { hangoverVal.textContent = hangoverInput.value; persist(); });
-                    volInput.addEventListener('input', () => { volVal.textContent = volInput.value; persist(); });
-                    micSelect.addEventListener('change', persist);
-                    langSelect.addEventListener('change', persist);
-                    gateSelect.addEventListener('change', () => {
-                        // Hand-tuning a control means the setup is no longer one of the named presets.
-                        this._realtimePreset = '';
-                        presetSelect.value = '';
-                        persist();
-                    });
-
-                    outSelect.addEventListener('change', () => {
-                        persist();
-                        this.applyRealtimeOutputDevice();
-                    });
-
-                    // Firefox exposes no output device list until the user picks one through this prompt.
-                    if (navigator.mediaDevices && typeof navigator.mediaDevices.selectAudioOutput === 'function') {
-                        outPickButton.style.display = '';
-                        outPickButton.addEventListener('click', () => {
-                            navigator.mediaDevices.selectAudioOutput().then((device) => {
-                                if (!device || !device.deviceId) { return; }
-                                var option = document.createElement('option');
-                                option.value = device.deviceId;
-                                option.textContent = device.label || 'Selected speaker';
-                                outSelect.appendChild(option);
-                                outSelect.value = device.deviceId;
-                                persist();
-                                this.applyRealtimeOutputDevice();
-                            }).catch(() => { });
-                        });
-                    }
-
-                    // Pushes a preset's values into the controls so the panel keeps showing what is in effect.
-                    var reflectPreset = (name) => {
-                        var presets = (window.CoreAIRealtime && window.CoreAIRealtime.presets) || {};
-                        var preset = presets[name];
-                        if (!preset) { return; }
-                        bargeInput.checked = preset.bargeIn;
-                        gateSelect.value = preset.gateMode;
-                        agcInput.checked = preset.autoGain;
-                        nsInput.checked = preset.noiseSuppression;
-                        presetSelect.value = name;
-                        this._realtimePreset = name;
-                        reflect();
-                        persist();
-                        this.pushRealtimeSettingsToServer();
-                    };
-
-                    presetSelect.addEventListener('change', () => {
-                        if (!presetSelect.value) { this._realtimePreset = ''; persist(); return; }
-                        reflectPreset(presetSelect.value);
-                    });
-
-                    echoTestButton.addEventListener('click', () => {
-                        if (!window.CoreAIRealtime || !window.CoreAIRealtime.runEchoTest) { return; }
-                        echoTestButton.disabled = true;
-                        echoResult.textContent = 'Listening… please stay quiet for a couple of seconds.';
-                        window.CoreAIRealtime.runEchoTest({
-                            noiseSuppression: this._realtimeNoiseSuppression,
-                            autoGain: this._realtimeAutoGain,
-                            outputDeviceId: this._realtimeOutputDeviceId
-                        }).then((result) => {
-                            var rounded = Math.round(result.marginDb);
-                            if (result.recommendation === 'room') {
-                                echoResult.textContent = 'Your microphone hears the speakers about ' + rounded + ' dB above the room (loud). Switching to the room setup, which waits its turn instead of talking over you.';
-                            } else {
-                                echoResult.textContent = 'Echo cancellation is handling the speakers well (' + rounded + ' dB above the room). Interruptions should work.';
-                            }
-                            reflectPreset(result.recommendation);
-                        }).catch((err) => {
-                            echoResult.textContent = 'The audio test could not run: ' + (err && err.message ? err.message : 'microphone unavailable') + '.';
-                        }).then(() => {
-                            echoTestButton.disabled = false;
-                        });
-                    });
-                    nsInput.addEventListener('change', persist);
-                    agcInput.addEventListener('change', persist);
-                    tuneInput.addEventListener('change', () => { reflect(); persist(); });
-                    silenceInput.addEventListener('input', () => { silenceVal.textContent = silenceInput.value; persist(); });
-                    thrInput.addEventListener('input', () => { thrVal.textContent = parseFloat(thrInput.value).toFixed(2); persist(); });
                 },
                 startConversationMode() {
                     if (!this.conversationModeEnabled || this.isConversationMode || !this.connection) {
@@ -3859,18 +2818,14 @@ window.coreAIChatManager = function () {
                     if ((this.conversationModeEnabled || this.realtimeEnabled) && config.conversationButtonElementSelector) {
                         this.conversationButton = document.querySelector(config.conversationButtonElementSelector);
                         if (this.conversationButton) {
-                            this.conversationButton.addEventListener('click', (e) => {
-                                // Ignore keyboard-synthesized clicks (Space/Enter) during an active realtime
-                                // session, so a push-to-talk Space press can never toggle the session off.
-                                if (e && e.detail === 0 && this.isConversationMode && this.realtimeEnabled) {
-                                    return;
-                                }
-                                this.toggleConversationMode();
-                            });
-
-                            // Realtime (speech-to-speech) exposes per-device audio settings next to the button.
                             if (this.realtimeEnabled) {
-                                this.setupRealtimeAudioSettings();
+                                // The shared realtime module owns the button (click, label, state) and adds the
+                                // voice settings popover next to it.
+                                this.setupRealtimeController(config);
+                            } else {
+                                this.conversationButton.addEventListener('click', () => {
+                                    this.toggleConversationMode();
+                                });
                             }
                         }
                     }

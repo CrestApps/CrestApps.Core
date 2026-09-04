@@ -61,6 +61,6 @@ public sealed class RealtimeSessionControl
         }
 
         await _conversation.UpdateTurnDetectionAsync(
-            allowInterruption, _context.SilenceDurationMs, _context.VadThreshold, cancellationToken);
+            allowInterruption, _context.SilenceDurationMs, _context.VadThreshold, turnDetectionType: null, cancellationToken);
     }
 }

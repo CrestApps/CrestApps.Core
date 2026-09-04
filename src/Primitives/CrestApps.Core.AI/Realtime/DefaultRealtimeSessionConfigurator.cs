@@ -1,19 +1,40 @@
 #pragma warning disable MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only.
 using CrestApps.Core.AI.Realtime;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
 /// <summary>
 /// Default <see cref="IRealtimeSessionConfigurator"/>. Assembles <see cref="RealtimeSessionOptions"/> from
-/// the resolved request inputs, applying PCM audio defaults, server voice-activity turn detection, and
+/// the resolved request inputs, applying PCM audio defaults, server turn detection, and
 /// input-audio transcription so both sides of the conversation produce a transcript.
 /// </summary>
 public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigurator
 {
-    // End-of-turn silence (ms) used when the profile/user has not tuned turn detection. Longer than the provider
-    // default so a natural pause within a sentence does not prematurely end the user's turn.
+    // End-of-turn silence (ms) used for server VAD when the profile/user has not tuned turn detection. Longer than
+    // the provider default so a natural pause within a sentence does not prematurely end the user's turn.
     private const int DefaultSilenceDurationMs = 800;
+
+    private readonly RealtimeTransportOptions _transportOptions;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultRealtimeSessionConfigurator"/> class with the default
+    /// transport options.
+    /// </summary>
+    public DefaultRealtimeSessionConfigurator()
+        : this(options: null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultRealtimeSessionConfigurator"/> class.
+    /// </summary>
+    /// <param name="options">The realtime transport options, which carry the default turn-detection algorithm.</param>
+    public DefaultRealtimeSessionConfigurator(IOptions<RealtimeTransportOptions> options)
+    {
+        _transportOptions = options?.Value ?? new RealtimeTransportOptions();
+    }
 
     /// <inheritdoc />
     public RealtimeSessionOptions Configure(RealtimeSessionConfiguratorContext context)
@@ -23,17 +44,6 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
         var tools = context.Tools ?? [];
         var hasTools = tools.Count > 0;
 
-        // The Microsoft.Extensions.AI VAD options cannot express silence duration / detection threshold, so
-        // carry them through RawRepresentationFactory for a provider that supports them (see AzureRealtimeProtocol).
-        // Default the end-of-turn silence longer than the provider's ~500 ms so a brief mid-sentence pause does not
-        // end the turn early — which otherwise made the model answer half-way and then treat the rest of the same
-        // sentence as a barge-in / second response. An explicit user setting still wins.
-        var turnDetectionOverrides = new RealtimeTurnDetectionOverrides
-        {
-            SilenceDurationMs = context.SilenceDurationMs ?? DefaultSilenceDurationMs,
-            Threshold = context.VadThreshold,
-        };
-
         return new RealtimeSessionOptions
         {
             Model = context.Model,
@@ -42,7 +52,11 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
             MaxOutputTokens = context.MaxOutputTokens,
             InputAudioFormat = new RealtimeAudioFormat("audio/pcm", context.InputSampleRate),
             OutputAudioFormat = new RealtimeAudioFormat("audio/pcm", context.OutputSampleRate),
-            RawRepresentationFactory = turnDetectionOverrides.HasValues ? (() => turnDetectionOverrides) : null,
+
+            // The Microsoft.Extensions.AI VAD options cannot express the algorithm, eagerness, silence duration or
+            // detection threshold, so they ride RawRepresentationFactory for a provider that supports them (see
+            // AzureRealtimeProtocol).
+            RawRepresentationFactory = () => BuildTurnDetection(context),
 
             // The realtime API accepts a single output modality; audio output still emits a text
             // transcript (response.output_audio_transcript.*) which drives the UI.
@@ -65,6 +79,44 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
 
             Tools = hasTools ? [.. tools] : null,
             ToolMode = hasTools ? ChatToolMode.Auto : null,
+        };
+    }
+
+    /// <summary>
+    /// Builds the turn-detection overrides for a session. Semantic detection is the default: the model decides
+    /// when the user has finished, so a pause for thought inside a question does not make the assistant answer
+    /// half of it — the single biggest difference between a conversation that feels natural and one that talks
+    /// over the user. An explicit silence/threshold tuning implies server VAD, since those knobs mean nothing to
+    /// the semantic detector.
+    /// </summary>
+    public RealtimeTurnDetectionOverrides BuildTurnDetection(RealtimeSessionConfiguratorContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        var type = !string.IsNullOrWhiteSpace(context.TurnDetectionType)
+            ? context.TurnDetectionType.Trim()
+            : (context.SilenceDurationMs.HasValue || context.VadThreshold.HasValue)
+                ? RealtimeTurnDetectionTypes.ServerVad
+                : (_transportOptions.TurnDetectionType ?? RealtimeTurnDetectionTypes.SemanticVad).Trim();
+
+        if (string.Equals(type, RealtimeTurnDetectionTypes.SemanticVad, StringComparison.OrdinalIgnoreCase))
+        {
+            var eagerness = !string.IsNullOrWhiteSpace(context.TurnDetectionEagerness)
+                ? context.TurnDetectionEagerness
+                : _transportOptions.TurnDetectionEagerness;
+
+            return new RealtimeTurnDetectionOverrides
+            {
+                Type = RealtimeTurnDetectionTypes.SemanticVad,
+                Eagerness = string.IsNullOrWhiteSpace(eagerness) ? null : eagerness.Trim().ToLowerInvariant(),
+            };
+        }
+
+        return new RealtimeTurnDetectionOverrides
+        {
+            Type = RealtimeTurnDetectionTypes.ServerVad,
+            SilenceDurationMs = context.SilenceDurationMs ?? DefaultSilenceDurationMs,
+            Threshold = context.VadThreshold,
         };
     }
 

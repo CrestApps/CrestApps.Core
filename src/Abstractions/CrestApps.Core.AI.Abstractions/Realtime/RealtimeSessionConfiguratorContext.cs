@@ -71,4 +71,16 @@ public sealed class RealtimeSessionConfiguratorContext
     /// to register, rejecting background noise and residual echo. <see langword="null"/> uses the provider default.
     /// </summary>
     public float? VadThreshold { get; init; }
+
+    /// <summary>
+    /// Gets the turn-detection algorithm to request (see <see cref="RealtimeTurnDetectionTypes"/>), or
+    /// <see langword="null"/> to use the configured default.
+    /// </summary>
+    public string TurnDetectionType { get; init; }
+
+    /// <summary>
+    /// Gets the semantic turn-detection eagerness (<c>low</c>, <c>medium</c>, <c>high</c>, <c>auto</c>), or
+    /// <see langword="null"/> to use the configured default.
+    /// </summary>
+    public string TurnDetectionEagerness { get; init; }
 }

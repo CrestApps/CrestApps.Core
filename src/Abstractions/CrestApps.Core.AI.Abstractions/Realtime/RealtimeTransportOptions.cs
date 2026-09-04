@@ -32,6 +32,23 @@ public sealed class RealtimeTransportOptions
     public int IdleTimeoutMinutes { get; set; } = 10;
 
     /// <summary>
+    /// Gets or sets the provider turn-detection algorithm: <c>semantic_vad</c> (default) or <c>server_vad</c>.
+    /// </summary>
+    /// <remarks>
+    /// Semantic turn detection lets the model decide when the user has finished speaking, so a pause for thought
+    /// in the middle of a question does not make the assistant answer the first half of it. Plain server VAD ends
+    /// the turn after a fixed silence instead. If the deployment rejects semantic detection the session falls back
+    /// to server VAD automatically.
+    /// </remarks>
+    public string TurnDetectionType { get; set; } = RealtimeTurnDetectionTypes.SemanticVad;
+
+    /// <summary>
+    /// Gets or sets how eagerly semantic turn detection ends the user's turn: <c>low</c> (waits longest),
+    /// <c>medium</c>, <c>high</c> (responds soonest) or <c>auto</c> (default). Ignored for <c>server_vad</c>.
+    /// </summary>
+    public string TurnDetectionEagerness { get; set; } = "auto";
+
+    /// <summary>
     /// Gets or sets the STUN server URLs (for example <c>stun:stun.l.google.com:19302</c>). When empty, a public
     /// default STUN server is used so direct connectivity still works out of the box.
     /// </summary>

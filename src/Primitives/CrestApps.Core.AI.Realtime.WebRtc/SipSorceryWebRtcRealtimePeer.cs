@@ -12,13 +12,21 @@ namespace CrestApps.Core.AI.Realtime.WebRtc;
 
 /// <summary>
 /// A server-relay WebRTC peer backed by SIPSorcery (ICE/DTLS/SRTP/RTP) and Concentus (Opus). Audio crosses the
-/// <see cref="IWebRtcRealtimePeer"/> boundary as PCM16 @ 24 kHz mono; Opus encode/decode is configured at 24 kHz
-/// so Opus reconciles the browser's native 48 kHz internally — no separate resampling is performed here.
+/// <see cref="IWebRtcRealtimePeer"/> boundary as PCM16 @ 24 kHz mono. Assistant audio is Opus-encoded at 24 kHz
+/// (the browser decodes that correctly at its native 48 kHz); microphone audio is decoded at 48 kHz and
+/// downsampled here — see <see cref="OpusDecodeRate"/> for why it cannot be decoded at 24 kHz directly.
 /// </summary>
 internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 {
     // Realtime pipeline audio format (matches RealtimeSessionConfiguratorContext defaults).
     private const int SampleRate = 24000;
+
+    // Inbound Opus is decoded at the codec's native rate and downsampled to the pipeline rate afterwards. Asking
+    // Concentus to decode straight to 24 kHz was the single biggest defect in the feature: its internal decoder
+    // resampler attenuates the output by roughly 40 dB, so a full-scale voice reached the provider at about
+    // -37 dBFS — below its speech detection — and "Listening…" never answered anyone who did not shout. Decoding at
+    // 48 kHz is exact; the 2:1 decimation below is ours.
+    private const int OpusDecodeRate = 48000;
 
     // Opus frame we emit toward the browser: 20 ms @ 24 kHz.
     private const int FrameDurationMs = 20;
@@ -53,8 +61,10 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     private readonly Channel<ReadOnlyMemory<byte>> _incoming;
     private readonly ILogger _logger;
 
-    // Decode scratch (large enough for any single Opus frame at 24 kHz).
-    private readonly short[] _decodeBuffer = new short[SampleRate / 1000 * 120];
+    // Decode scratch (large enough for any single Opus frame at the decode rate).
+    private readonly short[] _decodeBuffer = new short[OpusDecodeRate / 1000 * 120];
+    private readonly Pcm48To24Decimator _decimator = new();
+    private readonly short[] _decimated = new short[SampleRate / 1000 * 120];
     private readonly byte[] _encodeOut = new byte[4000];
     private readonly short[] _encodeFrame = new short[FrameSamples];
 
@@ -104,7 +114,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             FullMode = BoundedChannelFullMode.DropOldest,
         });
 
-        _decoder = OpusCodecFactory.CreateDecoder(SampleRate, 1);
+        _decoder = OpusCodecFactory.CreateDecoder(OpusDecodeRate, 1);
         _encoder = OpusCodecFactory.CreateEncoder(SampleRate, 1, OpusApplication.OPUS_APPLICATION_VOIP);
 
         var config = new RTCConfiguration
@@ -380,7 +390,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
                 {
                     try
                     {
-                        _decoder.Decode(null, _decodeBuffer, FrameSamples, false);
+                        _decoder.Decode(null, _decodeBuffer, OpusDecodeRate / 1000 * FrameDurationMs, false);
                     }
                     catch (Exception ex)
                     {
@@ -393,10 +403,10 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 
         _lastInboundSequence = sequenceNumber;
 
-        int samples;
+        int decoded;
         try
         {
-            samples = _decoder.Decode(payload, _decodeBuffer, _decodeBuffer.Length, false);
+            decoded = _decoder.Decode(payload, _decodeBuffer, _decodeBuffer.Length, false);
         }
         catch (Exception ex)
         {
@@ -404,10 +414,13 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             return;
         }
 
-        if (samples <= 0)
+        if (decoded <= 0)
         {
             return;
         }
+
+        // 48 kHz -> 24 kHz for the pipeline (see OpusDecodeRate).
+        var samples = _decimator.Process(_decodeBuffer.AsSpan(0, decoded), _decimated);
 
         var count = Interlocked.Increment(ref _rtpReceived);
 
@@ -415,7 +428,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         short peak = 0;
         for (var i = 0; i < samples; i++)
         {
-            var sample = _decodeBuffer[i];
+            var sample = _decimated[i];
             var magnitude = sample == short.MinValue ? short.MaxValue : Math.Abs(sample);
             if (magnitude > peak)
             {

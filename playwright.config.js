@@ -22,6 +22,8 @@ const firefoxMediaPrefs = {
 
 module.exports = defineConfig({
     testDir: './tests/realtime-client',
+    // The live end-to-end check needs a running host and a real provider; it has its own config under e2e/.
+    testIgnore: ['**/e2e/**'],
     // The transport-fallback tests deliberately wait out an 8-second connect timeout.
     timeout: 60_000,
     expect: { timeout: 10_000 },

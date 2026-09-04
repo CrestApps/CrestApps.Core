@@ -31,7 +31,7 @@ Browser ◀─WebRTC/Opus── Hub (WebRTC sink)     ◀─encode←PCM16(24k)�
 
 - The browser peers with **the application's hub**, not the model provider. The hub keeps talking to the provider over the existing WebSocket, so WebRTC works with any realtime provider without provider-side WebRTC.
 - **Transcripts, errors, and speech events stay on SignalR.** The WebRTC path carries audio only; the SignalR connection is also used for WebRTC signaling (SDP offer/answer and ICE candidates).
-- Audio crosses the boundary as **PCM16 @ 24 kHz mono**. [SIPSorcery](https://www.nuget.org/packages/SIPSorcery) handles ICE/DTLS/SRTP/RTP and [Concentus](https://www.nuget.org/packages/Concentus) handles Opus — the codec reconciles the browser's native 48 kHz internally, so no hand-written resampling is involved.
+- Audio crosses the boundary as **PCM16 @ 24 kHz mono**. [SIPSorcery](https://www.nuget.org/packages/SIPSorcery) handles ICE/DTLS/SRTP/RTP and [Concentus](https://www.nuget.org/packages/Concentus) handles Opus. Assistant audio is encoded at 24 kHz, which browsers decode correctly at their native 48 kHz. Microphone audio is decoded at 48 kHz and downsampled to 24 kHz by the peer itself: asking Concentus to decode straight to 24 kHz attenuates the output by roughly 40 dB (a full-scale voice arrived at about −37 dBFS, below the provider's speech detection), which is what made sessions sit at *Listening* without ever answering.
 
 ## Enabling the WebRTC transport
 
@@ -106,11 +106,37 @@ switches tabs, and a gate frozen closed means they are never heard again.
 
 It decides in dBFS against a **noise floor it tracks continuously** (falling fast, rising slowly), rather than
 against a fixed level: a quiet webcam microphone and a loud conference room need very different absolute
-thresholds but the same relative one. While the assistant is audible the margin is raised so its echo cannot open
-the gate on its own, and "the assistant is speaking" carries a short hangover so the gate does not re-open in
-every gap between its words. The gated signal is delayed ~80 ms so the gate is already open when the first
-consonant arrives — without that, every utterance lost its opening sound, which is exactly what degrades
+thresholds but the same relative one. The gated signal is delayed ~80 ms so the gate is already open when the
+first consonant arrives — without that, every utterance lost its opening sound, which is exactly what degrades
 transcription.
+
+There are no user-facing gate modes or thresholds; everything the gate needs it measures for itself. The part
+that makes open speakers work is the **echo return level**: while the assistant is audible and the gate is shut,
+the gate learns how loud the assistant's own voice comes back into the microphone (relative to the assistant's
+level) after echo cancellation has done what it can. From then on, while the assistant is audible, only a voice
+clearly louder than that expected echo — sustained for a quarter of a second — counts as the user interrupting.
+With a headset the expected echo is the room floor and interruptions are cheap; with loud speakers on the desk it
+is high and the gate simply waits its turn, which is the honest behaviour for that room. The estimate warms up
+within the first reply and follows slowly afterwards, so a user interrupting cannot be mistaken for echo in the
+time it takes to confirm them, and turning the volume down is noticed within a couple of seconds. "The assistant
+is speaking" carries a short hangover so the gate does not re-open in every gap between its words.
+
+The same gate runs on both transports, so the WebSocket fallback is not the one path on which the model can hear
+its own echo.
+
+## Turn detection
+
+The provider decides when the user has finished speaking. By default the session asks for **semantic** turn
+detection (`turn_detection.type = semantic_vad`): the model judges whether the utterance is complete, so a pause
+for thought in the middle of a question does not make the assistant answer the first half of it. This is the single
+biggest difference between a conversation that feels natural and one that talks over the user. If a deployment
+rejects semantic detection, the runner switches the session to plain server VAD (a silence timer) in place and the
+conversation continues.
+
+Both the algorithm and the semantic *eagerness* are configurable under `CrestApps:AI:RealtimeTransport`
+(`TurnDetectionType`, `TurnDetectionEagerness`). The gate above stays open for two seconds after the user's level
+drops, comfortably longer than any pause the detector is willing to wait through, because the gate emits digital
+silence when it closes and whichever of the two expires first is what actually ends the turn.
 
 ## Turn bookkeeping
 
@@ -147,22 +173,20 @@ after `IdleTimeoutMinutes` without user speech (10 by default; set it to `0` to 
 
 ## User controls
 
-These are per-device preferences (saved in the browser), independent of the transport:
+The settings popover is deliberately short. A user should be able to press **Start speaking** and talk, in any
+room, without first understanding acoustics; everything that used to be a knob (echo margins, gate modes,
+turn-detection timing, audio-setup presets, an echo self-test) is measured or decided automatically now. What
+remains are per-device preferences (saved in the browser), independent of the transport:
 
-- **Allow interruptions (barge-in)** — *on* (default) keeps the mic open so the user can talk over the assistant (relies on AEC on WebRTC). *Off* mutes the mic while the assistant speaks (half-duplex), a guaranteed no-echo mode for hostile audio setups or when the user prefers not to interrupt.
-- **Push-to-talk** — hold <kbd>Space</kbd> (or a button) to open the mic; best for very noisy rooms.
-- **Assistant volume** — lowers playback; on WebRTC this also reduces the echo the canceller must handle.
-- **Echo guard delay** — the half-duplex hangover tail; only relevant when barge-in is off.
-- **Voice gate** — *Auto* (default) sends only the user's speech, adapting to the room. *Off* keeps the microphone always open and relies on echo cancellation and the provider's voice-activity detection alone, which is the right choice with a headset. *Strict* raises the margins for open speakers in a loud room.
-- **Audio setup** — *Headset*, *Laptop speakers*, or *Room speakers + separate mic*, each of which sets barge-in, the voice gate and automatic gain together. A setup is suggested from the device labels once microphone permission is granted (a headset has no acoustic path, so full duplex is safe; a standalone microphone in front of speakers does).
-- **Test my audio** — plays a short two-tone chirp through the same output the assistant uses and measures how much of it survives echo cancellation on the way back in. More than ~6 dB above the room means the model will hear itself often enough to answer itself, and the room preset (half duplex) is chosen. This is the same decision meeting apps make, and it replaces guesswork for open-office users.
 - **Microphone** and **Speaker**. Automatic speaker routing follows the preference above; the picker exists because Windows keeps a separate *Default Device* and *Default Communications Device*, so the sink that gives the best echo cancellation is not always the one the user is listening to. On Firefox the browser's own picker is used, since it exposes no output list until the user chooses.
-- **Noise suppression**, **automatic gain**, **language**, and **turn-detection** tuning. Leaving the language on *Auto* sends no language hint at all, so the transcriber detects it — a bilingual user is not pinned to their browser's locale.
+- **Assistant volume** — lowers playback; this also reduces the echo the canceller and the gate must handle.
+- **Language** — *Automatic* sends no language hint at all, so the transcriber detects it and a bilingual user is not pinned to their browser's locale. Choosing a language pins both transcription and the assistant's replies to it.
+- **Allow interruptions** — *on* (default): talk over the assistant to interrupt it. The gate's learned echo level is what keeps the assistant's own voice from counting as an interruption, so this is safe with a headset, laptop speakers and most desk speakers alike. Turn it *off* only if the assistant keeps hearing itself: the microphone is then muted while it speaks (half duplex).
+- **Push-to-talk** — hold <kbd>Space</kbd> (or the button) to open the mic; for very noisy places.
 
-Barge-in and the turn-detection values apply to a conversation already in progress: they are enforced by the
-browser's gate, the server's input pump and the provider's turn detection at once, and changing only one of them
-leaves the three disagreeing. Turn-detection tuning currently reaches the provider on the Azure transport; on
-OpenAI-direct deployments the values are applied to the browser and server halves only.
+Noise suppression and automatic gain are always on. Interruptions apply to a conversation already in progress:
+they are enforced by the browser's gate, the server's input pump and the provider's turn detection at once, and
+changing only one of them leaves the three disagreeing, so a change is sent to all three.
 
 ## Configuration: STUN and TURN
 
@@ -236,6 +260,8 @@ If `TurnUrls` is set but neither a secret nor static credentials are provided, n
 | Property | Purpose |
 | --- | --- |
 | `EnableWebRtc` | Whether WebRTC is offered to browsers. Defaults to `true`. Turn it off on hosts with no inbound UDP and no reachable TURN relay — otherwise every session waits out the connect timeout before falling back. |
+| `TurnDetectionType` | `semantic_vad` (default) lets the model decide when the user has finished; `server_vad` ends the turn after a fixed silence. A deployment that rejects semantic detection is switched to server VAD automatically. |
+| `TurnDetectionEagerness` | For `semantic_vad`: `low`, `medium`, `high` or `auto` (default). Lower waits longer for the user to continue. |
 | `IdleTimeoutMinutes` | How long a session may go without user speech before it ends. Defaults to `10`; `0` disables it. |
 | `StunUrls` | STUN server URLs. Defaults to a public server when empty. |
 | `TurnUrls` | TURN server URLs (`turn:`/`turns:`). Empty means no relay. |
@@ -265,6 +291,24 @@ npm run test:client
 Runs the client against a static harness page in Chromium and Firefox with fake media devices — no server, no
 SignalR connection and no AI provider are involved. It covers transport selection and fallback, the session state
 machine, and that the gate actually gates a live audio graph.
+
+```bash
+REALTIME_E2E_PROFILE_ID=<realtime profile id> REALTIME_E2E_PASSWORD=<password> \
+REALTIME_E2E_WAV=<16-bit PCM WAV of a spoken question> \
+npx playwright test --config tests/realtime-client/e2e/playwright.e2e.config.js --project=chromium
+npx playwright test --config tests/realtime-client/e2e/playwright.e2e.config.js --project=firefox
+```
+
+A live end-to-end check against a running host and a real realtime deployment. The WAV becomes the microphone —
+Chromium plays it through its fake capture device; Firefox has no file-backed fake microphone, so the test
+replaces `getUserMedia` with a Web Audio graph playing the same file — and the test expects the spoken question to
+appear as the user's transcript and a reply to follow. This exercises the gate, the WebRTC transport (including
+SIPSorcery's interop with each browser), the provider's turn detection and the transcript pipeline together, and
+is the quickest way to confirm a deployment actually converses. `REALTIME_E2E_BARGE_IN=false` runs it with
+interruptions off. On Windows a suitable WAV can be produced with the built-in speech synthesizer
+(`System.Speech.Synthesis.SpeechSynthesizer`, 48 kHz, 16-bit, mono, with a couple of seconds of leading silence).
+The test logs the gate's live measurements, and the server logs the inbound peak amplitude every five seconds
+under `CrestApps.Core.AI.Realtime.WebRtc` — between them a silent failure is explainable.
 
 ## Diagnostics
 

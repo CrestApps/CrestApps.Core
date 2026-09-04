@@ -397,6 +397,36 @@ public sealed class RealtimeChatSessionRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenProviderRejectsSemanticTurnDetection_FallsBackToServerVad()
+    {
+        // A deployment without semantic turn detection rejects the session configuration. The conversation can
+        // continue on server VAD; the user must not see an error for it.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-vad" };
+
+        var conversation = new FakeConversation(
+        [
+            new RealtimeConversationEvent { Type = RealtimeConversationEventType.Error, ErrorMessage = "Invalid value: 'semantic_vad'. Supported values are: 'server_vad'." },
+        ]);
+        var (store, _) = CreateStore();
+        var sink = new RecordingSink();
+
+        using var scope = AIInvocationScope.Begin();
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext { Resource = profile, SessionId = session.SessionId, ChatSession = session, AllowInterruption = false },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        Assert.Empty(sink.Errors);
+        Assert.Equal([RealtimeTurnDetectionTypes.ServerVad], conversation.TurnDetectionTypes);
+        Assert.False(conversation.TurnDetectionUpdates.Single().AllowInterruption);
+    }
+
+    [Fact]
     public async Task RunAsync_SwallowsBenignActiveResponseError()
     {
         // "Conversation already has an active response in progress" is an expected race when the user speaks
@@ -763,9 +793,12 @@ public sealed class RealtimeChatSessionRunnerTests
             return Task.CompletedTask;
         }
 
-        public Task UpdateTurnDetectionAsync(bool allowInterruption, int? silenceDurationMs, float? vadThreshold, CancellationToken cancellationToken = default)
+        public List<string?> TurnDetectionTypes { get; } = [];
+
+        public Task UpdateTurnDetectionAsync(bool allowInterruption, int? silenceDurationMs, float? vadThreshold, string? turnDetectionType = null, CancellationToken cancellationToken = default)
         {
             TurnDetectionUpdates.Add((allowInterruption, silenceDurationMs, vadThreshold));
+            TurnDetectionTypes.Add(turnDetectionType);
 
             return Task.CompletedTask;
         }

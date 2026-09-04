@@ -54,49 +54,61 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
         bool allowInterruption,
         int? silenceDurationMs,
         float? vadThreshold,
+        string? turnDetectionType = null,
         CancellationToken cancellationToken = default)
     {
-        var options = _session.Options;
+        // Start from the turn detection the session was configured with, so a mid-call change keeps the same
+        // algorithm and eagerness unless the caller asks to switch.
+        var configured = _session.Options?.RawRepresentationFactory?.Invoke() as RealtimeTurnDetectionOverrides;
+        var type = !string.IsNullOrWhiteSpace(turnDetectionType)
+            ? turnDetectionType
+            : !string.IsNullOrWhiteSpace(configured?.Type)
+                ? configured!.Type
+                : RealtimeTurnDetectionTypes.ServerVad;
+        var semantic = string.Equals(type, RealtimeTurnDetectionTypes.SemanticVad, StringComparison.OrdinalIgnoreCase);
 
-        if (options is null)
+        // A session.update is a partial update: only the fields present are changed. Send just the turn detection.
+        // Re-sending the whole configuration was actively harmful — the provider rejects a voice once the assistant
+        // has spoken ("Cannot update a conversation's voice if assistant audio is present"), and that rejection was
+        // surfaced as an error that ended the conversation.
+        var payload = JsonSerializer.Serialize(new
         {
-            return Task.CompletedTask;
-        }
-
-        // Re-send the session options with new turn detection. The silence/threshold knobs have no place in the
-        // Microsoft.Extensions.AI options model, so they ride the raw representation exactly as they do when the
-        // session is first configured (see DefaultRealtimeSessionConfigurator).
-        var overrides = new RealtimeTurnDetectionOverrides
-        {
-            SilenceDurationMs = silenceDurationMs,
-            Threshold = vadThreshold,
-        };
-
-        // RealtimeSessionOptions is init-only, so the update carries a copy of the session as configured with only
-        // the turn-detection parts replaced. Everything else must be repeated verbatim: a session.update replaces
-        // the session's configuration, so omitting instructions or tools here would quietly strip them mid-call.
-        var updated = new RealtimeSessionOptions
-        {
-            Model = options.Model,
-            Instructions = options.Instructions,
-            Voice = options.Voice,
-            MaxOutputTokens = options.MaxOutputTokens,
-            InputAudioFormat = options.InputAudioFormat,
-            OutputAudioFormat = options.OutputAudioFormat,
-            OutputModalities = options.OutputModalities,
-            TranscriptionOptions = options.TranscriptionOptions,
-            Tools = options.Tools,
-            ToolMode = options.ToolMode,
-            RawRepresentationFactory = overrides.HasValues ? (() => overrides) : null,
-            VoiceActivityDetection = new VoiceActivityDetectionOptions
+            type = "session.update",
+            session = new
             {
-                Enabled = true,
-                AllowInterruption = allowInterruption,
+                type = "realtime",
+                audio = new
+                {
+                    input = new
+                    {
+                        turn_detection = semantic
+                            ? (object)new
+                            {
+                                type = RealtimeTurnDetectionTypes.SemanticVad,
+                                create_response = true,
+                                interrupt_response = allowInterruption,
+                                eagerness = string.IsNullOrWhiteSpace(configured?.Eagerness) ? "auto" : configured!.Eagerness,
+                            }
+                            : new
+                            {
+                                type = RealtimeTurnDetectionTypes.ServerVad,
+                                create_response = true,
+                                interrupt_response = allowInterruption,
+                                silence_duration_ms = silenceDurationMs ?? configured?.SilenceDurationMs ?? 800,
+                                threshold = vadThreshold ?? configured?.Threshold,
+                            },
+                    },
+                },
             },
-        };
+        }, RawJsonOptions);
 
-        return _session.SendAsync(new SessionUpdateRealtimeClientMessage(updated), cancellationToken);
+        return _session.SendAsync(new RealtimeClientMessage { RawRepresentation = payload }, cancellationToken);
     }
+
+    private static readonly JsonSerializerOptions RawJsonOptions = new()
+    {
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+    };
 
     /// <inheritdoc />
     public async IAsyncEnumerable<RealtimeConversationEvent> GetEventsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)

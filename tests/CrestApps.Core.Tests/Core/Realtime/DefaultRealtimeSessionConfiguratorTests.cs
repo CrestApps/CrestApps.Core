@@ -77,6 +77,52 @@ public sealed class DefaultRealtimeSessionConfiguratorTests
     }
 
     [Fact]
+    public void Configure_DefaultsToSemanticTurnDetection()
+    {
+        // The model deciding when the user has finished — rather than a silence timer — is what stops the assistant
+        // answering the first half of a question when the user pauses for thought.
+        var options = new DefaultRealtimeSessionConfigurator().Configure(new RealtimeSessionConfiguratorContext());
+
+        var turnDetection = Assert.IsType<RealtimeTurnDetectionOverrides>(options.RawRepresentationFactory!());
+        Assert.Equal(RealtimeTurnDetectionTypes.SemanticVad, turnDetection.Type);
+        Assert.Equal("auto", turnDetection.Eagerness);
+        Assert.Null(turnDetection.SilenceDurationMs);
+        Assert.Null(turnDetection.Threshold);
+    }
+
+    [Fact]
+    public void Configure_WithTunedSilence_UsesServerVad()
+    {
+        // The silence/threshold knobs mean nothing to the semantic detector, so tuning them implies server VAD.
+        var options = new DefaultRealtimeSessionConfigurator().Configure(new RealtimeSessionConfiguratorContext
+        {
+            SilenceDurationMs = 1200,
+            VadThreshold = 0.6f,
+        });
+
+        var turnDetection = Assert.IsType<RealtimeTurnDetectionOverrides>(options.RawRepresentationFactory!());
+        Assert.Equal(RealtimeTurnDetectionTypes.ServerVad, turnDetection.Type);
+        Assert.Equal(1200, turnDetection.SilenceDurationMs);
+        Assert.Equal(0.6f, turnDetection.Threshold);
+    }
+
+    [Fact]
+    public void Configure_HonorsConfiguredServerVadDefault()
+    {
+        var configurator = new DefaultRealtimeSessionConfigurator(Microsoft.Extensions.Options.Options.Create(new RealtimeTransportOptions
+        {
+            TurnDetectionType = RealtimeTurnDetectionTypes.ServerVad,
+        }));
+
+        var options = configurator.Configure(new RealtimeSessionConfiguratorContext());
+
+        var turnDetection = Assert.IsType<RealtimeTurnDetectionOverrides>(options.RawRepresentationFactory!());
+        Assert.Equal(RealtimeTurnDetectionTypes.ServerVad, turnDetection.Type);
+        // The default end-of-turn silence is longer than the provider's so a brief pause does not end the turn.
+        Assert.Equal(800, turnDetection.SilenceDurationMs);
+    }
+
+    [Fact]
     public void Configure_WithoutTranscriptionModel_LeavesTranscriptionNull()
     {
         var options = new DefaultRealtimeSessionConfigurator().Configure(new RealtimeSessionConfiguratorContext

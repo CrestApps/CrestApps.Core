@@ -220,8 +220,26 @@ public sealed class RealtimeChatSessionRunner
         // the model and the provider refused to start a second overlapping response.
         // "Cancellation failed: no active response found" / "no active response" — a barge-in cancel landed just
         // after the response had already finished on its own.
+        // "Audio content of Xms is already shorter than Yms" / "audio_end_ms" — a barge-in truncation that named
+        // more audio than the interrupted item holds; the reply was already over, nothing to trim.
         return message.Contains("active response in progress", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("no active response", StringComparison.OrdinalIgnoreCase);
+            || message.Contains("no active response", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("already shorter", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("audio_end_ms", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // The provider refused the turn-detection configuration (typically a deployment that does not support
+    // semantic_vad). The conversation can continue on plain server VAD instead of failing.
+    private static bool IsTurnDetectionRejection(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("semantic_vad", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("turn_detection", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("eagerness", StringComparison.OrdinalIgnoreCase);
     }
 
     // Takes the run context rather than a captured flag: barge-in can be toggled mid-conversation (see
@@ -303,6 +321,10 @@ public sealed class RealtimeChatSessionRunner
         // Diagnostics for a provider whose events this build does not recognise (see the warning at the end).
         var sawSpeechStarted = false;
         var sawAnyResponse = false;
+
+        // Whether the session has already been switched to server VAD after the provider rejected semantic turn
+        // detection; one fallback per session, never a loop.
+        var turnDetectionFallbackDone = false;
 
         await foreach (var evt in conversation.GetEventsAsync(cancellationToken))
         {
@@ -470,6 +492,30 @@ public sealed class RealtimeChatSessionRunner
                     break;
 
                 case RealtimeConversationEventType.Error:
+                    if (!turnDetectionFallbackDone && IsTurnDetectionRejection(evt.ErrorMessage))
+                    {
+                        // A deployment that does not support semantic turn detection rejects the session
+                        // configuration. Switch to server VAD in place rather than showing the user an error for a
+                        // conversation that can perfectly well continue.
+                        turnDetectionFallbackDone = true;
+                        _logger.LogWarning(
+                            "Realtime session {SessionId}: the provider rejected the turn-detection configuration ({Message}); falling back to server VAD.",
+                            sessionId, evt.ErrorMessage);
+
+                        try
+                        {
+                            await conversation.UpdateTurnDetectionAsync(
+                                context.AllowInterruption, context.SilenceDurationMs, context.VadThreshold,
+                                RealtimeTurnDetectionTypes.ServerVad, cancellationToken);
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            _logger.LogWarning(ex, "Realtime session {SessionId}: could not switch to server VAD.", sessionId);
+                        }
+
+                        break;
+                    }
+
                     if (IsBenignRealtimeError(evt.ErrorMessage))
                     {
                         // Expected races the user must never see as a chat bubble: with barge-in off the user

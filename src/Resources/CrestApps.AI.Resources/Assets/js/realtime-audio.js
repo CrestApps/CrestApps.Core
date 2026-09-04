@@ -28,9 +28,6 @@
     'use strict';
 
     var REALTIME_SAMPLE_RATE = 24000;
-    // While the assistant is playing back, plus this hangover for the room echo tail, the microphone uplink is
-    // muted so the model never hears (and answers) its own voice through open speakers.
-    var REALTIME_ECHO_HANGOVER_SEC = 0.25;
 
     // --- Microphone gate --------------------------------------------------------------------------------------
     //
@@ -40,8 +37,15 @@
     //
     //  - push-to-talk: open only while the key is held;
     //  - barge-in on: open whenever the user speaks — even over the assistant (interrupts);
-    //  - barge-in off: open only when the user speaks and the assistant is silent (wait your turn);
-    //  - gate "off": always open, relying on echo cancellation and the provider's own voice-activity detection.
+    //  - barge-in off: open only when the user speaks and the assistant is silent (wait your turn).
+    //
+    // There are no user-facing modes or thresholds: everything the gate needs it measures for itself. It tracks
+    // the room's noise floor, and — the part that makes open speakers work — it learns how loud the assistant's
+    // own voice comes back into the microphone after echo cancellation (the echo return level). While the
+    // assistant is audible, only a voice clearly louder than that expected echo counts as the user interrupting;
+    // with a headset the expected echo is the room floor and interruptions are cheap, with loud speakers next to
+    // the microphone it is high and the gate simply waits its turn. Echo cancellation is still the first line of
+    // defence; this is what keeps the model from hearing itself when cancellation is not enough.
     //
     // It runs in an AudioWorklet rather than on a requestAnimationFrame loop. rAF is paused for hidden documents,
     // so the old gate froze in whatever state it held the moment the user switched tabs: stuck closed meant they
@@ -52,8 +56,6 @@
     // Exported as window.CoreAIRealtime.createMicGate so both chat clients share one implementation.
     var REALTIME_GATE_LOOKAHEAD_MS = 80;
 
-    // The gate decision itself, as an AudioWorkletProcessor. Registered from a Blob URL so it needs no separate
-    // asset file (and no host-specific path configuration).
     /*
      * The gate's decision, as a pure function of the current state and one block of measurements.
      *
@@ -66,52 +68,138 @@
      * `state` is mutated and returned. Callers create it with createGateState().
      *
      *   input: { micDb, assistantDb, nowMs, mode }
-     *   mode:  { pushToTalk, pttActive, bargeIn, gateMode }  gateMode: 'auto' | 'off' | 'strict'
+     *   mode:  { pushToTalk, pttActive, bargeIn, speechHangoverMs }
      */
     function coreAiGateDecide(state, input) {
         var micDb = input.micDb;
+        var assistantDb = (typeof input.assistantDb === 'number') ? input.assistantDb : -100;
         var nowMs = input.nowMs;
         var mode = input.mode || {};
 
-        // Adaptive noise floor. It falls to a quieter room quickly, and rises only while the gate is shut — that
-        // is, only from audio we have judged is not speech.
+        // Elapsed time since the previous decision, so the time constants below mean the same thing whether the
+        // gate runs per 128-sample block on the audio thread or on a 20 ms timer.
+        var dtMs = state.lastMs === null ? 0 : Math.max(0, Math.min(50, nowMs - state.lastMs));
+        state.lastMs = nowMs;
+
+        // "The assistant is speaking" must survive the gaps between its words. Without this hangover the
+        // half-duplex gate re-opened in every inter-word pause and fed the echo tail straight back to the model.
+        if (assistantDb > -50) {
+            state.assistantUntil = nowMs + 400;
+        }
+
+        var assistantSpeaking = nowMs < state.assistantUntil;
+
+        // Peak-held assistant level. The echo of a word reaches the microphone 50-200 ms after the word was played,
+        // so the expected echo has to be judged against what the assistant was doing a moment ago, not against the
+        // instantaneous level (which is silent between its words). Decays at 20 dB/s.
+        if (assistantDb > state.assistantPeakDb) {
+            state.assistantPeakDb = assistantDb;
+        } else {
+            state.assistantPeakDb = Math.max(-100, state.assistantPeakDb - 0.02 * dtMs);
+        }
+
+        // Adaptive noise floor. It falls to a quieter room quickly, and rises only while the gate is shut and the
+        // assistant is silent — that is, only from audio we have judged is neither speech nor echo.
         //
         // Letting it rise during speech makes the gate close on the talker: the estimate climbs towards their own
-        // voice, the level stops clearing floor + margin, and the sentence is cut part-way through. It survived
-        // testing because a loud speaker stays far enough above the floor to outrun it; someone a little further
-        // from the microphone does not, and their speech reaches the model chopped into fragments with no clean
-        // end-of-turn silence, so the provider never answers at all.
-        // Cold start: adopt the first measurement rather than easing down from a guess. Seeding low meant a room
-        // that is genuinely loud began 20 dB under its own noise, which opened the gate immediately and then held
-        // it open on the slow rise rate below.
-        if (state.floorDb === null) {
+        // voice, the level stops clearing floor + margin, and the sentence is cut part-way through.
+        //
+        // Cold start. Digital silence is not a measurement: a capture pipeline delivers a few empty blocks before
+        // the microphone is live (and noise suppression emits exact zeros in a quiet headset), and seeding on
+        // those anchored the floor at the clamp and made the room itself look like speech. The first real block
+        // is not trustworthy either — it may well be the user already talking, and a floor seeded at their own
+        // level meant the gate never opened for them at all. So the seed is the first real block capped at a
+        // typical quiet-room level, and for the next half second the floor only ever moves down, taking the
+        // quietest thing it hears (the gaps between words, if it is speech) as the room.
+        if (micDb <= -95) {
+            if (state.floorDb === null) {
+                state.open = false;
+
+                return state;
+            }
+        } else if (state.floorDb === null) {
+            state.floorDb = Math.min(micDb, -50);
+            state.warmUpUntil = nowMs + 500;
+        } else if (nowMs < state.warmUpUntil && micDb < state.floorDb) {
             state.floorDb = micDb;
         }
 
         if (micDb < state.floorDb) {
-            state.floorDb += (micDb - state.floorDb) * 0.02;
-        } else {
+            state.floorDb += (micDb - state.floorDb) * Math.min(1, 0.0075 * dtMs);
+        } else if (!assistantSpeaking) {
             // Rising. While the gate is shut this is responsive (~2 s). While it is open the audio is presumed to
-            // be speech and the floor barely moves (~50 s), because learning from the talker's own voice is what
-            // closed the gate part-way through their sentence. Past SustainedOpenMs the assumption is abandoned:
-            // nobody speaks continuously for that long, so it is ambient noise and the floor tracks it normally —
-            // without that, one loud stretch could hold the gate open indefinitely.
+            // be speech and the floor moves slowly (~10 s), because learning from the talker's own voice is what
+            // closed the gate part-way through their sentence — but not so slowly that a steady sound could hold
+            // the gate open indefinitely. Past 10 s the assumption is abandoned altogether: nobody speaks
+            // continuously for that long, so it is ambient noise and the floor tracks it normally.
             var sustained = state.openSince !== null && (nowMs - state.openSince) > 10000;
-            var rising = (state.open && !sustained) ? 0.00005 : 0.0015;
-            state.floorDb += (micDb - state.floorDb) * rising;
+            var risingPerMs = (state.open && !sustained) ? 0.0001 : 0.00056;
+            state.floorDb += (micDb - state.floorDb) * Math.min(1, risingPerMs * dtMs);
         }
 
         if (state.floorDb < -75) {
             state.floorDb = -75;
         }
 
-        // "The assistant is speaking" must survive the gaps between its words. Without this hangover the
-        // half-duplex gate re-opened in every inter-word pause and fed the echo tail straight back to the model.
-        if (input.assistantDb > -50) {
-            state.assistantUntil = nowMs + 400;
+        // Echo return level: how loud the assistant comes back into the microphone, relative to its own level,
+        // after echo cancellation has done what it can. Learned only while the assistant is audible and the gate
+        // is shut, i.e. from audio we have judged is not the user. It warms up fast for the first second so the
+        // very first reply is protected, then follows slowly so a user interrupting cannot be mistaken for echo
+        // in the time it takes to confirm them (below). It falls slowly too, so turning the volume down is
+        // noticed within a couple of seconds.
+        if (assistantSpeaking && !state.open && assistantDb > -50 && !mode.pushToTalk) {
+            var erl = micDb - state.assistantPeakDb;
+            if (state.echoReturnDb === null) {
+                state.echoReturnDb = erl;
+            } else {
+                var warm = state.echoLearnedMs < 1000;
+                var ratePerMs = erl > state.echoReturnDb ? (warm ? 0.02 : 0.0012) : 0.0006;
+                state.echoReturnDb += (erl - state.echoReturnDb) * Math.min(1, ratePerMs * dtMs);
+            }
+            state.echoLearnedMs += dtMs;
         }
 
-        var assistantSpeaking = nowMs < state.assistantUntil;
+        // Where the assistant's echo is expected to sit right now, or far below anything if it has never been
+        // heard (a headset).
+        var expectedEchoDb = state.echoReturnDb === null ? -100 : (state.assistantPeakDb + state.echoReturnDb);
+
+        var openThreshold, holdThreshold;
+        if (assistantSpeaking) {
+            // Interrupting: the voice must clearly beat both the room and the expected echo, and be real speech
+            // in absolute terms — echo residual can sit well above a very quiet room's floor without being
+            // anywhere near a voice.
+            openThreshold = Math.max(state.floorDb + 12, expectedEchoDb + 8, -45);
+            holdThreshold = Math.max(state.floorDb + 3, expectedEchoDb + 3);
+        } else {
+            openThreshold = state.floorDb + 9;
+            holdThreshold = state.floorDb + 3;
+        }
+
+        var hangoverMs = mode.speechHangoverMs || 2000;
+
+        if (micDb > openThreshold) {
+            if (assistantSpeaking && !state.open) {
+                // An interruption has to be sustained for a moment before it counts. A single loud block over the
+                // assistant is far more often a click, a cough or an echo peak than the user; the look-ahead delay
+                // keeps the opening of a genuine interruption from being lost while we wait.
+                if (state.aboveSince === null) { state.aboveSince = nowMs; }
+                if (nowMs - state.aboveSince >= 250) { state.speakUntil = nowMs + hangoverMs; }
+            } else {
+                // The hangover must outlast the provider's end-of-turn detection. The gate emits digital silence
+                // when it closes, so whichever of the two expires first is what actually ends the user's turn —
+                // and a gate that closes first cuts people off mid-sentence and answers half a question.
+                state.speakUntil = nowMs + hangoverMs;
+            }
+        } else {
+            state.aboveSince = null;
+            if (state.open && micDb > holdThreshold) {
+                // Hysteresis: once open, stay open until the level really settles back towards the floor, so one
+                // sentence is not chopped into several provider turns.
+                state.speakUntil = Math.max(state.speakUntil, nowMs + 250);
+            }
+        }
+
+        var userActive = nowMs < state.speakUntil;
 
         if (!assistantSpeaking && state.wasAssistantSpeaking) {
             state.listenGraceUntil = nowMs + 1500;
@@ -120,28 +208,8 @@
         state.wasAssistantSpeaking = assistantSpeaking;
         state.assistantSpeaking = assistantSpeaking;
 
-        var strict = mode.gateMode === 'strict';
-        var margin = assistantSpeaking ? (strict ? 18 : 12) : (strict ? 12 : 9);
-
-        // While the assistant is audible, an absolute floor as well: echo residual can sit well above a very
-        // quiet room's noise floor without being anywhere near real speech.
-        if (micDb > state.floorDb + margin && (!assistantSpeaking || micDb > -40)) {
-            // The hangover must outlast the provider's end-of-turn silence window. The gate emits digital silence
-            // when it closes, so whichever of the two expires first is what actually ends the user's turn — and a
-            // gate that closes first cuts people off mid-sentence and answers half a question.
-            state.speakUntil = nowMs + (mode.speechHangoverMs || 1000);
-        } else if (state.open && micDb > state.floorDb + 3) {
-            // Hysteresis: once open, stay open until the level really settles back towards the floor, so one
-            // sentence is not chopped into several provider turns.
-            state.speakUntil = Math.max(state.speakUntil, nowMs + 250);
-        }
-
-        var userActive = nowMs < state.speakUntil;
-
         if (mode.pushToTalk) {
             state.open = !!mode.pttActive;
-        } else if (mode.gateMode === 'off') {
-            state.open = true;
         } else if (mode.bargeIn) {
             state.open = userActive;
         } else {
@@ -161,8 +229,15 @@
         return {
             // Null until the first measurement, so the floor starts from the room rather than from a guess.
             floorDb: null,
+            warmUpUntil: 0,
+            lastMs: null,
             speakUntil: 0,
             assistantUntil: 0,
+            assistantPeakDb: -100,
+            // Null until the assistant has been heard while the gate was shut (never, with a headset).
+            echoReturnDb: null,
+            echoLearnedMs: 0,
+            aboveSince: null,
             listenGraceUntil: 0,
             wasAssistantSpeaking: false,
             assistantSpeaking: false,
@@ -228,7 +303,7 @@
         '    this.delayPos = pos;',
         '    if (currentTime * 1000 - this.lastPost > 100) {',
         '      this.lastPost = currentTime * 1000;',
-        '      this.port.postMessage({ micDb: micDb, floorDb: this.state.floorDb, open: this.state.open, assistantSpeaking: this.state.assistantSpeaking });',
+        '      this.port.postMessage({ micDb: micDb, floorDb: this.state.floorDb, echoReturnDb: this.state.echoReturnDb, open: this.state.open, assistantSpeaking: this.state.assistantSpeaking });',
         '    }',
         '    return true;',
         '  }',
@@ -241,7 +316,7 @@
      *
      *   createMicGate(stream, mode) => Promise<{
      *       track,                        // the gated track to send (or the raw mic when Web Audio is missing)
-     *       setMode(mode),                // { pushToTalk, pttActive, bargeIn, gateMode }
+     *       setMode(mode),                // { pushToTalk, pttActive, bargeIn, speechHangoverMs }
      *       attachAssistantStream(stream),// so the gate knows when the assistant is audible
      *       getLevel(),                   // last measurement, for a mic meter
      *       stop()
@@ -338,7 +413,12 @@
                     processorOptions: { lookaheadMs: REALTIME_GATE_LOOKAHEAD_MS, mode: mode }
                 });
                 state.node = node;
-                node.port.onmessage = function (e) { state.level = e.data || null; };
+                node.port.onmessage = function (e) {
+                    state.level = e.data || null;
+                    // Also published on the module for support diagnostics (a host can read it from the console
+                    // without holding a reference to the gate).
+                    window.CoreAIRealtime.lastGateLevel = state.level;
+                };
 
                 state.micSource = state.ctx.createMediaStreamSource(rawStream);
                 state.micSource.connect(node, 0, 0);
@@ -453,32 +533,6 @@
     }
 
     /*
-     * Audio setup presets. The right settings depend on hardware the page cannot see, so rather than asking a
-     * user to reason about barge-in, gates and echo margins, offer the three setups that actually occur.
-     *
-     * These are applied only when the user picks one, or when the echo self-test measures the room. They used to
-     * be guessed from the microphone's label on every session start, which silently overwrote settings people had
-     * deliberately chosen — a device merely called "USB" was enough to force a strict gate and turn automatic gain
-     * off, which together made a far-field microphone quiet enough that the model heard nothing at all. A guess
-     * that overrides an explicit choice is worse than no guess.
-     *
-     * Note that every preset keeps automatic gain ON. Turning it off for the room setup was intended to stop AGC
-     * amplifying echo tails, but it is exactly backwards for the hardware that preset targets: a microphone
-     * across the room needs more gain, not less. Without it a laptop array captured speech at roughly -41 dBFS,
-     * quiet enough that the provider never detected any speech at all and the assistant simply never replied.
-     */
-    var REALTIME_PRESETS = {
-        headset: { bargeIn: true, gateMode: 'off', autoGain: true, noiseSuppression: true },
-        laptop: { bargeIn: true, gateMode: 'auto', autoGain: true, noiseSuppression: true },
-        room: { bargeIn: false, gateMode: 'strict', autoGain: true, noiseSuppression: true }
-    };
-
-    // Device labels that reliably indicate a headset (no acoustic path, so full duplex is safe) or a standalone
-    // microphone in front of speakers (where it is not).
-    var HEADSET_LABEL_PATTERN = /headset|headphone|earphone|earbud|airpods|jabra|plantronics|poly |buds/i;
-    var ROOM_MIC_LABEL_PATTERN = /usb|yeti|blue |array|conference|webcam|speakerphone/i;
-
-    /*
      * Routes an audio element to the device the browser's echo canceller couples to, or to an explicitly chosen
      * one. Preference order:
      *   1. The caller's chosen device, when they picked one.
@@ -546,123 +600,6 @@
                 }
             });
         }
-    }
-
-    /*
-     * Guesses an audio setup from the device labels, which are only readable once microphone permission has been
-     * granted. Resolves with a preset name, or null when nothing in the labels is conclusive.
-     */
-    function suggestPresetFromDevices(preferredMicId) {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) { return Promise.resolve(null); }
-
-        return navigator.mediaDevices.enumerateDevices().then(function (devices) {
-            var inputs = devices.filter(function (d) { return d.kind === 'audioinput' && d.label; });
-            if (!inputs.length) { return null; }
-            var active = inputs.filter(function (d) { return !preferredMicId || d.deviceId === preferredMicId; })[0] || inputs[0];
-            if (HEADSET_LABEL_PATTERN.test(active.label)) { return 'headset'; }
-            if (ROOM_MIC_LABEL_PATTERN.test(active.label)) { return 'room'; }
-
-            return null;
-        }).catch(function () { return null; });
-    }
-
-    /*
-     * Echo self-test. Plays a short two-tone chirp through the same sink the assistant uses, and measures how much
-     * of it survives echo cancellation on the way back into the microphone. This is the same decision meeting apps
-     * make when they choose half-duplex, and it replaces guesswork for open-office users: a room whose echo comes
-     * back loud cannot support barge-in no matter how the thresholds are tuned.
-     *
-     * Resolves with { floorDb, echoDb, marginDb, recommendation }.
-     */
-    function runEchoTest(options) {
-        options = options || {};
-        var AudioCtor = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtor || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            return Promise.reject(new Error('Audio capture is not available in this browser.'));
-        }
-
-        var ctx = null, stream = null;
-
-        function cleanup() {
-            try { if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); } } catch (e) { }
-            try { if (ctx) { ctx.close(); } } catch (e) { }
-        }
-
-        return navigator.mediaDevices.getUserMedia({
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: options.noiseSuppression !== false,
-                autoGainControl: options.autoGain !== false
-            }
-        }).then(function (micStream) {
-            stream = micStream;
-            ctx = new AudioCtor();
-            if (ctx.state === 'suspended' && typeof ctx.resume === 'function') { ctx.resume().catch(function () { }); }
-
-            var analyser = ctx.createAnalyser();
-            analyser.fftSize = 2048;
-            ctx.createMediaStreamSource(stream).connect(analyser);
-            var data = new Float32Array(analyser.fftSize);
-
-            function measureFor(ms) {
-                return new Promise(function (resolve) {
-                    var peak = -100;
-                    var until = Date.now() + ms;
-                    var tick = window.setInterval(function () {
-                        analyser.getFloatTimeDomainData(data);
-                        var db = coreAiRmsDb(data);
-                        if (db > peak) { peak = db; }
-                        if (Date.now() >= until) { window.clearInterval(tick); resolve(peak); }
-                    }, 20);
-                });
-            }
-
-            // Measure the room first, then the room plus the chirp; the difference is the residual echo.
-            return measureFor(700).then(function (floorDb) {
-                var dest = ctx.createMediaStreamDestination();
-                var playback = document.createElement('audio');
-                playback.autoplay = true;
-                playback.style.display = 'none';
-                playback.srcObject = dest.stream;
-                document.body.appendChild(playback);
-                // Route through the same sink the assistant uses, so the test measures the real signal path.
-                routeOutputToPreferredDevice(playback, options.outputDeviceId);
-                ensurePlayback(playback);
-
-                var gain = ctx.createGain();
-                gain.gain.value = 0.25;
-                gain.connect(dest);
-                [1000, 2000].forEach(function (frequency) {
-                    var osc = ctx.createOscillator();
-                    osc.frequency.value = frequency;
-                    osc.connect(gain);
-                    osc.start();
-                    osc.stop(ctx.currentTime + 1.2);
-                });
-
-                return measureFor(1100).then(function (echoDb) {
-                    try { playback.srcObject = null; playback.remove(); } catch (e) { }
-                    var marginDb = echoDb - floorDb;
-
-                    return {
-                        floorDb: floorDb,
-                        echoDb: echoDb,
-                        marginDb: marginDb,
-                        // Above ~6 dB of the chirp surviving cancellation, the model will hear itself often enough
-                        // to answer itself, and half-duplex is the honest recommendation.
-                        recommendation: marginDb > 6 ? 'room' : 'laptop'
-                    };
-                });
-            });
-        }).then(function (result) {
-            cleanup();
-
-            return result;
-        }).catch(function (err) {
-            cleanup();
-
-            throw err;
-        });
     }
 
     function attach(opts) {
@@ -736,41 +673,36 @@
         // enforces push-to-talk on the WebRTC mic track.
         var realtimeWebRtcMicTrack = null, realtimeGate = null, realtimeGatePendingRemoteStream = null;
 
-        // Per-device audio preferences (barge-in, echo guard, push-to-talk, volume, mic, etc.).
-        var realtimeBargeIn = true, realtimeHangoverSec = 0.25, realtimePushToTalk = false, realtimePttActive = false,
+        // Per-device audio preferences (interruptions, push-to-talk, volume, devices, language). They live in
+        // localStorage because they depend on the listener's hardware, not on the interaction.
+        var realtimeBargeIn = true, realtimePushToTalk = false, realtimePttActive = false,
             realtimePttBound = false, realtimePttKeyDown = null, realtimePttKeyUp = null, realtimePttButton = null, realtimePttUiEl = null,
-            realtimeVolume = 1, realtimeMicDeviceId = '', realtimeNoiseSuppression = true, realtimeAutoGain = true, realtimeLanguage = '',
-            realtimeTuneTurnDetection = false, realtimeSilenceMs = 500, realtimeVadThreshold = 0.5, realtimeAudioSettingsBuilt = false,
-            realtimeGateMode = 'auto', realtimeOutputDeviceId = '', realtimePreset = '', realtimePresetSuggested = false;
+            realtimeVolume = 1, realtimeMicDeviceId = '', realtimeOutputDeviceId = '', realtimeLanguage = '',
+            realtimeAudioSettingsBuilt = false;
 
-        // Per-device audio preferences live in localStorage because they depend on the listener's hardware
-        // (headset vs open speakers), not on the interaction.
-        // Preferences written by the removed device-label guess are indistinguishable from deliberate choices once
-        // stored, so they are cleared once. Anyone whose microphone happened to match its patterns is otherwise
-        // left with a strict gate and no automatic gain forever, which is what made the model stop hearing them.
-        var REALTIME_PREFS_VERSION = 2;
+        // The half-duplex echo tail on the WebSocket transport: how long the microphone stays muted after the
+        // scheduled end of the assistant's playback, covering the room's reverberation.
+        var REALTIME_WS_ECHO_HANGOVER_SEC = 0.5;
+
+        // Version 3 dropped the audio-setup presets, the voice-gate modes and the turn-detection sliders — all of
+        // that is measured or decided automatically now — and, the part that matters to anyone who used version 2,
+        // restores interruptions. The removed device-label guess had switched them off for every microphone whose
+        // name merely looked like a room microphone, and the earlier repair deliberately left that alone, so users
+        // found interruptions "off by default" with no idea why.
+        var REALTIME_PREFS_VERSION = 3;
 
         function loadRealtimeAudioPrefs() {
-            var prefs = { bargeIn: true, hangoverMs: 500, pushToTalk: false, volume: 1, micDeviceId: '', noiseSuppression: true, autoGain: true, language: '', tuneTurnDetection: false, silenceMs: 500, vadThreshold: 0.5, gateMode: 'auto', outputDeviceId: '', preset: '', presetSuggested: false, version: 0 };
+            var prefs = { bargeIn: true, pushToTalk: false, volume: 1, micDeviceId: '', outputDeviceId: '', language: '', version: 0 };
             try {
                 var raw = window.localStorage.getItem('coreai.realtime.audioPrefs');
                 if (raw) {
                     var parsed = JSON.parse(raw);
                     if (typeof parsed.bargeIn === 'boolean') { prefs.bargeIn = parsed.bargeIn; }
                     if (typeof parsed.pushToTalk === 'boolean') { prefs.pushToTalk = parsed.pushToTalk; }
-                    if (typeof parsed.noiseSuppression === 'boolean') { prefs.noiseSuppression = parsed.noiseSuppression; }
-                    if (typeof parsed.autoGain === 'boolean') { prefs.autoGain = parsed.autoGain; }
-                    if (typeof parsed.tuneTurnDetection === 'boolean') { prefs.tuneTurnDetection = parsed.tuneTurnDetection; }
-                    if (typeof parsed.hangoverMs === 'number' && isFinite(parsed.hangoverMs)) { prefs.hangoverMs = Math.min(2000, Math.max(0, parsed.hangoverMs)); }
-                    if (typeof parsed.silenceMs === 'number' && isFinite(parsed.silenceMs)) { prefs.silenceMs = Math.min(2000, Math.max(100, parsed.silenceMs)); }
-                    if (typeof parsed.vadThreshold === 'number' && isFinite(parsed.vadThreshold)) { prefs.vadThreshold = Math.min(1, Math.max(0, parsed.vadThreshold)); }
                     if (typeof parsed.volume === 'number' && isFinite(parsed.volume)) { prefs.volume = Math.min(1, Math.max(0, parsed.volume)); }
                     if (typeof parsed.micDeviceId === 'string') { prefs.micDeviceId = parsed.micDeviceId; }
-                    if (typeof parsed.language === 'string') { prefs.language = parsed.language; }
-                    if (parsed.gateMode === 'auto' || parsed.gateMode === 'off' || parsed.gateMode === 'strict') { prefs.gateMode = parsed.gateMode; }
                     if (typeof parsed.outputDeviceId === 'string') { prefs.outputDeviceId = parsed.outputDeviceId; }
-                    if (typeof parsed.preset === 'string') { prefs.preset = parsed.preset; }
-                    if (typeof parsed.presetSuggested === 'boolean') { prefs.presetSuggested = parsed.presetSuggested; }
+                    if (typeof parsed.language === 'string') { prefs.language = parsed.language; }
                     if (typeof parsed.version === 'number') { prefs.version = parsed.version; }
                 }
             } catch (err) { /* storage unavailable or blocked */ }
@@ -782,11 +714,8 @@
             if (prefs.version === REALTIME_PREFS_VERSION) { return prefs; }
 
             prefs.version = REALTIME_PREFS_VERSION;
-            prefs.preset = '';
-            prefs.presetSuggested = false;
-            prefs.gateMode = 'auto';
-            prefs.autoGain = true;
-            prefs.noiseSuppression = true;
+            prefs.bargeIn = true;
+            prefs.pushToTalk = false;
             saveRealtimeAudioPrefs(prefs);
 
             return prefs;
@@ -797,21 +726,12 @@
         }
 
         function applyRealtimeAudioPrefs(prefs) {
-            realtimeBargeIn = !!prefs.bargeIn;
-            realtimeHangoverSec = (typeof prefs.hangoverMs === 'number' ? prefs.hangoverMs : 500) / 1000;
+            realtimeBargeIn = prefs.bargeIn !== false;
             realtimePushToTalk = !!prefs.pushToTalk;
             realtimeVolume = (typeof prefs.volume === 'number') ? prefs.volume : 1;
             realtimeMicDeviceId = prefs.micDeviceId || '';
-            realtimeNoiseSuppression = prefs.noiseSuppression !== false;
-            realtimeAutoGain = prefs.autoGain !== false;
-            realtimeLanguage = prefs.language || '';
-            realtimeTuneTurnDetection = !!prefs.tuneTurnDetection;
-            realtimeSilenceMs = (typeof prefs.silenceMs === 'number') ? prefs.silenceMs : 500;
-            realtimeVadThreshold = (typeof prefs.vadThreshold === 'number') ? prefs.vadThreshold : 0.5;
-            realtimeGateMode = prefs.gateMode || 'auto';
             realtimeOutputDeviceId = prefs.outputDeviceId || '';
-            realtimePreset = prefs.preset || '';
-            realtimePresetSuggested = !!prefs.presetSuggested;
+            realtimeLanguage = prefs.language || '';
             // The gate runs on the audio thread and cannot see these variables; push the change to it.
             syncRealtimeGateMode();
             if (realtimeGain) { realtimeGain.gain.value = realtimeVolume; }
@@ -908,55 +828,12 @@
             if (realtimePttUiEl) { try { realtimePttUiEl.remove(); } catch (err) { } realtimePttUiEl = null; }
         }
 
-        // --- Audio setup presets -----------------------------------------------------------------------------
-        //
-        // The right settings depend on hardware the page cannot see. Rather than asking a user to reason about
-        // barge-in, gates and echo margins, offer the three setups that actually occur and let a two-second
-        // measurement decide between them.
-        /*
-         * Applies an audio-setup preset.
-         *
-         * `keepBargeIn` is for the automatic, device-label-driven suggestion: guessing the room from a microphone's
-         * name is worth doing, but silently turning interruptions off because a device is called "USB" is not.
-         * Barge-in changes how the conversation behaves more than anything else in this panel, so the automatic
-         * path leaves whatever the user chose alone and only adjusts the gate and capture settings.
-         *
-         * Whatever is applied is pushed back into the settings controls. A preset that changed the settings
-         * without changing what the panel displayed left the UI claiming interruptions were on while the session
-         * ran half-duplex — and the resulting silence looked like the assistant refusing to listen.
-         */
-        function applyRealtimePreset(name, keepBargeIn) {
-            var preset = REALTIME_PRESETS[name];
-            if (!preset) { return; }
-            var prefs = loadRealtimeAudioPrefs();
-            if (!keepBargeIn) { prefs.bargeIn = preset.bargeIn; }
-            prefs.gateMode = preset.gateMode;
-            prefs.autoGain = preset.autoGain;
-            prefs.noiseSuppression = preset.noiseSuppression;
-            prefs.preset = name;
-            applyRealtimeAudioPrefs(prefs);
-            saveRealtimeAudioPrefs(prefs);
-            refreshRealtimeSettingsUi(prefs);
-            pushRealtimeSettingsToServer();
-        }
-
-        // Set by the settings panel once it is built, so a preset applied from anywhere updates the controls.
-        var refreshRealtimeSettingsUi = function () { };
-
-        function suggestRealtimePresetFromDevices() {
-            return suggestPresetFromDevices(realtimeMicDeviceId);
-        }
-
-        // The echo self-test, with this session's current audio preferences (see runEchoTest).
-        function runRealtimeEchoTest() {
-            return runEchoTest({
-                noiseSuppression: realtimeNoiseSuppression,
-                autoGain: realtimeAutoGain,
-                outputDeviceId: realtimeOutputDeviceId
-            });
-        }
-
         // Builds a gear-triggered popover next to the realtime button with the per-device audio settings.
+        //
+        // It is deliberately short: a microphone, a speaker, the volume, the language, and two switches. Everything
+        // that used to be a knob here — echo margins, gate modes, turn-detection timing, audio-setup presets, an
+        // echo self-test — is measured or decided automatically now. A user should be able to press "Start
+        // speaking" and talk, in any room, without first understanding acoustics.
         function setupRealtimeAudioSettings() {
             var realtimeBtn = q('realtimeButton');
             if (!realtimeBtn || realtimeAudioSettingsBuilt) { return; }
@@ -973,13 +850,12 @@
             var gear = document.createElement('button');
             gear.type = 'button';
             gear.className = 'btn btn-outline-secondary';
-            gear.title = 'Realtime audio settings';
+            gear.title = localize('settingsTitle', 'Voice settings');
+            gear.setAttribute('aria-label', localize('settingsTitle', 'Voice settings'));
             gear.innerHTML = '<i class="bi bi-gear"></i>';
 
             var langs = [['en', 'English'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'], ['pt', 'Portuguese'], ['nl', 'Dutch'], ['zh', 'Chinese'], ['ja', 'Japanese'], ['ko', 'Korean'], ['ar', 'Arabic'], ['hi', 'Hindi'], ['ru', 'Russian']];
-            var browserPrimary = (navigator.language || 'en').split('-')[0].toLowerCase();
-            var browserName = (langs.filter(function (l) { return l[0] === browserPrimary; })[0] || [browserPrimary, browserPrimary.toUpperCase()])[1];
-            var langOptions = '<option value=""' + (prefs.language === '' ? ' selected' : '') + '>Auto (' + browserName + ')</option>' +
+            var langOptions = '<option value=""' + (prefs.language === '' ? ' selected' : '') + '>' + localize('languageAuto', 'Automatic') + '</option>' +
                 langs.map(function (l) { return '<option value="' + l[0] + '"' + (prefs.language === l[0] ? ' selected' : '') + '>' + l[1] + '</option>'; }).join('');
 
             var panel = document.createElement('div');
@@ -987,67 +863,27 @@
             panel.style.cssText = 'position:absolute;bottom:calc(100% + 6px);right:0;z-index:1080;width:290px;max-height:70vh;overflow:auto;display:none;';
             panel.innerHTML =
                 '<div class="card-body p-3">' +
-                '<div class="fw-semibold mb-2" style="font-size:0.85rem;">Realtime audio</div>' +
-                '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Audio setup</label>' +
-                '<select class="form-select form-select-sm js-preset mb-1">' +
-                '<option value="">Custom</option>' +
-                '<option value="headset"' + (prefs.preset === 'headset' ? ' selected' : '') + '>Headset</option>' +
-                '<option value="laptop"' + (prefs.preset === 'laptop' ? ' selected' : '') + '>Laptop speakers</option>' +
-                '<option value="room"' + (prefs.preset === 'room' ? ' selected' : '') + '>Room speakers + separate mic</option>' +
-                '</select>' +
-                '<button type="button" class="btn btn-outline-secondary btn-sm mb-1 js-echo-test">Test my audio</button>' +
-                '<div class="form-text mb-2 js-echo-result">Plays a short tone and measures how much of it your microphone hears back, then picks a setup that suits the room.</div>' +
-                '<div class="form-check form-switch mb-1">' +
-                '<input class="form-check-input js-barge" type="checkbox"' + (prefs.bargeIn ? ' checked' : '') + '>' +
-                '<label class="form-check-label">Allow interruptions (barge-in)</label>' +
-                '</div>' +
-                '<div class="form-text mb-2 js-barge-help">Echo cancellation always runs, including with barge-in on. On (default) keeps the mic open so you can talk over the assistant. Turn <strong>off</strong> to also mute the mic while it speaks (below) — best for loud open speakers.</div>' +
-                '<div class="js-hangover-wrap mb-2">' +
-                '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Echo guard delay: <strong class="js-hangover-val">' + prefs.hangoverMs + '</strong> ms</label>' +
-                '<input type="range" class="form-range js-hangover" min="0" max="1000" step="50" value="' + prefs.hangoverMs + '">' +
-                '</div>' +
-                '<div class="form-check form-switch mb-1">' +
-                '<input class="form-check-input js-ptt" type="checkbox"' + (prefs.pushToTalk ? ' checked' : '') + '>' +
-                '<label class="form-check-label">Push-to-talk</label>' +
-                '</div>' +
-                '<div class="form-text mb-2">Hold <kbd>Space</kbd> to talk (desktop). Best for very noisy rooms.</div>' +
-                '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Assistant volume: <strong class="js-vol-val">' + Math.round(prefs.volume * 100) + '</strong>%</label>' +
+                '<div class="fw-semibold mb-2" style="font-size:0.85rem;">' + localize('settingsTitle', 'Voice settings') + '</div>' +
+                '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">' + localize('microphone', 'Microphone') + '</label>' +
+                '<select class="form-select form-select-sm js-mic mb-2"><option value="">' + localize('defaultMicrophone', 'Default microphone') + '</option></select>' +
+                '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">' + localize('speaker', 'Speaker') + '</label>' +
+                '<select class="form-select form-select-sm js-out mb-1"><option value="">' + localize('automatic', 'Automatic') + '</option></select>' +
+                '<button type="button" class="btn btn-outline-secondary btn-sm mb-2 js-pick-out" style="display:none;">' + localize('chooseSpeaker', 'Choose speaker…') + '</button>' +
+                '<div class="form-text mb-2 js-out-help">' + localize('speakerHelp', 'Automatic uses the device your system uses for calls. If you cannot hear the assistant, pick the speakers you are actually listening to.') + '</div>' +
+                '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">' + localize('assistantVolume', 'Assistant volume') + ': <strong class="js-vol-val">' + Math.round(prefs.volume * 100) + '</strong>%</label>' +
                 '<input type="range" class="form-range js-vol mb-2" min="0" max="100" step="5" value="' + Math.round(prefs.volume * 100) + '">' +
-                '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Microphone</label>' +
-                '<select class="form-select form-select-sm js-mic mb-2"><option value="">Default microphone</option></select>' +
-                '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Speaker</label>' +
-                '<select class="form-select form-select-sm js-out mb-1"><option value="">Automatic</option></select>' +
-                '<button type="button" class="btn btn-outline-secondary btn-sm mb-2 js-pick-out" style="display:none;">Choose speaker…</button>' +
-                '<div class="form-text mb-2 js-out-help">Automatic uses your system\'s communications device, which is what lets the browser cancel the assistant\'s echo. On Windows that can differ from your normal playback device — if you cannot hear the assistant, pick the speakers you are actually listening to.</div>' +
-                '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Language</label>' +
+                '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">' + localize('language', 'Language') + '</label>' +
                 '<select class="form-select form-select-sm js-lang mb-2">' + langOptions + '</select>' +
-                '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Voice gate</label>' +
-                '<select class="form-select form-select-sm js-gate mb-1">' +
-                '<option value="auto"' + (prefs.gateMode === 'auto' ? ' selected' : '') + '>Auto (recommended)</option>' +
-                '<option value="off"' + (prefs.gateMode === 'off' ? ' selected' : '') + '>Off (always-open mic)</option>' +
-                '<option value="strict"' + (prefs.gateMode === 'strict' ? ' selected' : '') + '>Strict (loud rooms)</option>' +
-                '</select>' +
-                '<div class="form-text mb-2">Auto sends only your speech, adapting to the room. Off keeps the mic always open and relies on echo cancellation alone — best with a headset. Strict needs louder speech, for open speakers.</div>' +
                 '<div class="form-check form-switch mb-1">' +
-                '<input class="form-check-input js-tune" type="checkbox"' + (prefs.tuneTurnDetection ? ' checked' : '') + '>' +
-                '<label class="form-check-label">Fine-tune turn detection</label>' +
+                '<input class="form-check-input js-barge" type="checkbox" id="realtime-setting-barge"' + (prefs.bargeIn ? ' checked' : '') + '>' +
+                '<label class="form-check-label" for="realtime-setting-barge">' + localize('allowInterruptions', 'Allow interruptions') + '</label>' +
                 '</div>' +
-                '<div class="js-tune-wrap mb-2"' + (prefs.tuneTurnDetection ? '' : ' style="display:none;"') + '>' +
-                '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Reply after silence: <strong class="js-silence-val">' + prefs.silenceMs + '</strong> ms</label>' +
-                '<input type="range" class="form-range js-silence" min="100" max="2000" step="100" value="' + prefs.silenceMs + '">' +
-                '<label class="form-label mb-1 d-block" style="font-size:0.8rem;">Speech detection threshold: <strong class="js-thr-val">' + prefs.vadThreshold.toFixed(2) + '</strong></label>' +
-                '<input type="range" class="form-range js-thr" min="0" max="1" step="0.05" value="' + prefs.vadThreshold + '">' +
-                '<div class="form-text">Longer silence lets you pause without being cut off. Higher threshold needs louder speech, rejecting noise and echo. Applies immediately, including to a conversation already in progress.</div>' +
-                '</div>' +
+                '<div class="form-text mb-2">' + localize('allowInterruptionsHelp', 'Talk over the assistant to interrupt it. Turn this off if the assistant keeps hearing itself through your speakers.') + '</div>' +
                 '<div class="form-check form-switch mb-1">' +
-                '<input class="form-check-input js-ns" type="checkbox"' + (prefs.noiseSuppression ? ' checked' : '') + '>' +
-                '<label class="form-check-label">Noise suppression</label>' +
+                '<input class="form-check-input js-ptt" type="checkbox" id="realtime-setting-ptt"' + (prefs.pushToTalk ? ' checked' : '') + '>' +
+                '<label class="form-check-label" for="realtime-setting-ptt">' + localize('pushToTalk', 'Push-to-talk') + '</label>' +
                 '</div>' +
-                '<div class="form-check form-switch mb-1">' +
-                '<input class="form-check-input js-agc" type="checkbox"' + (prefs.autoGain ? ' checked' : '') + '>' +
-                '<label class="form-check-label">Automatic gain</label>' +
-                '</div>' +
-                '<div class="form-text">Microphone, noise, gain and language changes apply to your next voice session.</div>' +
+                '<div class="form-text">' + localize('pushToTalkHelp', 'Hold <kbd>Space</kbd> (or the button) to talk. For very noisy places.') + '</div>' +
                 '</div>';
 
             wrap.appendChild(gear);
@@ -1055,9 +891,6 @@
             realtimeBtn.insertAdjacentElement('afterend', wrap);
 
             var bargeInput = panel.querySelector('.js-barge');
-            var hangoverInput = panel.querySelector('.js-hangover');
-            var hangoverVal = panel.querySelector('.js-hangover-val');
-            var hangoverWrap = panel.querySelector('.js-hangover-wrap');
             var pttInput = panel.querySelector('.js-ptt');
             var volInput = panel.querySelector('.js-vol');
             var volVal = panel.querySelector('.js-vol-val');
@@ -1065,66 +898,15 @@
             var outSelect = panel.querySelector('.js-out');
             var outPickButton = panel.querySelector('.js-pick-out');
             var langSelect = panel.querySelector('.js-lang');
-            var gateSelect = panel.querySelector('.js-gate');
-            var presetSelect = panel.querySelector('.js-preset');
-            var echoTestButton = panel.querySelector('.js-echo-test');
-            var echoResult = panel.querySelector('.js-echo-result');
-            var nsInput = panel.querySelector('.js-ns');
-            var agcInput = panel.querySelector('.js-agc');
-            var tuneInput = panel.querySelector('.js-tune');
-            var tuneWrap = panel.querySelector('.js-tune-wrap');
-            var silenceInput = panel.querySelector('.js-silence');
-            var silenceVal = panel.querySelector('.js-silence-val');
-            var thrInput = panel.querySelector('.js-thr');
-            var thrVal = panel.querySelector('.js-thr-val');
-
-            // On WebRTC, acoustic echo cancellation runs continuously and the mic stays open with barge-in on
-            // (full duplex). Barge-in off still mutes the mic while the assistant speaks (half duplex) as a hard
-            // guarantee for loud open rooms where AEC alone is not enough, so the echo-guard delay stays relevant.
-            if (webRtcEnabled) {
-                var bargeHelp = panel.querySelector('.js-barge-help');
-                if (bargeHelp) {
-                    bargeHelp.innerHTML = 'Echo cancellation always runs. On (default) keeps the mic open so you can talk over the assistant. Turn <strong>off</strong> to also mute the mic while the assistant speaks — best for loud open speakers where echo cancellation alone is not enough.';
-                }
-            }
-
-            function reflect() {
-                var guardActive = !bargeInput.checked && !pttInput.checked;
-                hangoverWrap.style.opacity = guardActive ? '1' : '0.5';
-                hangoverInput.disabled = !guardActive;
-                tuneWrap.style.display = tuneInput.checked ? '' : 'none';
-            }
-            reflect();
-
-            // Re-renders the controls from the stored preferences, so anything that changes them elsewhere (a
-            // preset, the echo test) cannot leave the panel describing a configuration that is not in effect.
-            refreshRealtimeSettingsUi = function (prefs) {
-                bargeInput.checked = !!prefs.bargeIn;
-                pttInput.checked = !!prefs.pushToTalk;
-                nsInput.checked = prefs.noiseSuppression !== false;
-                agcInput.checked = prefs.autoGain !== false;
-                gateSelect.value = prefs.gateMode || 'auto';
-                presetSelect.value = prefs.preset || '';
-                reflect();
-            };
 
             function persist() {
                 var next = {
                     bargeIn: bargeInput.checked,
-                    hangoverMs: parseInt(hangoverInput.value, 10) || 0,
                     pushToTalk: pttInput.checked,
                     volume: (parseInt(volInput.value, 10) || 0) / 100,
                     micDeviceId: micSelect.value || '',
-                    noiseSuppression: nsInput.checked,
-                    autoGain: agcInput.checked,
-                    language: langSelect.value || '',
-                    tuneTurnDetection: tuneInput.checked,
-                    silenceMs: parseInt(silenceInput.value, 10) || 500,
-                    vadThreshold: parseFloat(thrInput.value),
-                    gateMode: gateSelect.value || 'auto',
                     outputDeviceId: outSelect.value || '',
-                    preset: realtimePreset,
-                    presetSuggested: realtimePresetSuggested,
+                    language: langSelect.value || '',
                     version: REALTIME_PREFS_VERSION
                 };
                 applyRealtimeAudioPrefs(next);
@@ -1132,37 +914,37 @@
                 pushRealtimeSettingsToServer();
             }
 
-            function populateMics() {
+            function populateDevices() {
                 if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) { return; }
                 navigator.mediaDevices.enumerateDevices().then(function (devices) {
-                    var options = ['<option value="">Default microphone</option>'];
+                    var options = ['<option value="">' + localize('defaultMicrophone', 'Default microphone') + '</option>'];
                     devices.filter(function (d) { return d.kind === 'audioinput'; }).forEach(function (d, i) {
-                        var label = d.label || ('Microphone ' + (i + 1));
+                        var label = d.label || (localize('microphone', 'Microphone') + ' ' + (i + 1));
                         options.push('<option value="' + d.deviceId + '"' + (d.deviceId === realtimeMicDeviceId ? ' selected' : '') + '>' + label.replace(/</g, '') + '</option>');
                     });
                     micSelect.innerHTML = options.join('');
 
                     // Output devices are only enumerable on browsers that expose them (Chromium); elsewhere the
-                    // list stays on "Automatic" and the picker button above is the way in.
+                    // list stays on "Automatic" and the picker button below is the way in.
                     var outs = devices.filter(function (d) { return d.kind === 'audiooutput' && d.deviceId && d.deviceId !== 'communications' && d.deviceId !== 'default'; });
                     if (outs.length) {
-                        var outOptions = ['<option value="">Automatic</option>'];
+                        var outOptions = ['<option value="">' + localize('automatic', 'Automatic') + '</option>'];
                         outs.forEach(function (d, i) {
-                            var label = d.label || ('Speaker ' + (i + 1));
+                            var label = d.label || (localize('speaker', 'Speaker') + ' ' + (i + 1));
                             outOptions.push('<option value="' + d.deviceId + '"' + (d.deviceId === realtimeOutputDeviceId ? ' selected' : '') + '>' + label.replace(/</g, '') + '</option>');
                         });
                         outSelect.innerHTML = outOptions.join('');
                     }
                 }).catch(function () { });
             }
-            populateMics();
+            populateDevices();
 
             // Unplugging the headset mid-conversation silently changes which devices exist. Refresh the lists, and
             // end the session if the microphone it was actually using has gone — continuing on a different device
             // without saying so is worse than stopping and letting the user restart.
             if (navigator.mediaDevices && typeof navigator.mediaDevices.addEventListener === 'function') {
                 navigator.mediaDevices.addEventListener('devicechange', function () {
-                    populateMics();
+                    populateDevices();
                     if (!isRealtimeActive || !realtimeMicDeviceId) { return; }
                     navigator.mediaDevices.enumerateDevices().then(function (devices) {
                         var stillThere = devices.some(function (d) { return d.kind === 'audioinput' && d.deviceId === realtimeMicDeviceId; });
@@ -1200,16 +982,16 @@
             gear.addEventListener('click', function (e) {
                 e.stopPropagation();
                 var showing = panel.style.display === 'none';
-                if (showing) { panel.style.display = 'block'; constrainPanel(); populateMics(); }
+                if (showing) { panel.style.display = 'block'; constrainPanel(); populateDevices(); }
                 panel.style.display = showing ? 'block' : 'none';
             });
             panel.addEventListener('click', function (e) { e.stopPropagation(); });
             document.addEventListener('click', function () { panel.style.display = 'none'; });
-            bargeInput.addEventListener('change', function () { reflect(); persist(); });
-            pttInput.addEventListener('change', function () { reflect(); persist(); });
-            hangoverInput.addEventListener('input', function () { hangoverVal.textContent = hangoverInput.value; persist(); });
+            bargeInput.addEventListener('change', persist);
+            pttInput.addEventListener('change', persist);
             volInput.addEventListener('input', function () { volVal.textContent = volInput.value; persist(); });
             micSelect.addEventListener('change', persist);
+            langSelect.addEventListener('change', persist);
             outSelect.addEventListener('change', function () {
                 persist();
                 // Apply live: the whole point of the picker is that a user who cannot hear the assistant can fix
@@ -1225,7 +1007,7 @@
                         if (!device || !device.deviceId) { return; }
                         var option = document.createElement('option');
                         option.value = device.deviceId;
-                        option.textContent = device.label || 'Selected speaker';
+                        option.textContent = device.label || localize('selectedSpeaker', 'Selected speaker');
                         outSelect.appendChild(option);
                         outSelect.value = device.deviceId;
                         persist();
@@ -1233,56 +1015,6 @@
                     }).catch(function () { });
                 });
             }
-            langSelect.addEventListener('change', persist);
-            gateSelect.addEventListener('change', function () {
-                // Hand-tuning a control means the setup is no longer one of the named presets.
-                realtimePreset = '';
-                presetSelect.value = '';
-                persist();
-            });
-
-            // Pushes a preset's values into the controls so the panel keeps showing what is actually in effect.
-            function reflectPreset(name) {
-                var preset = REALTIME_PRESETS[name];
-                if (!preset) { return; }
-                bargeInput.checked = preset.bargeIn;
-                gateSelect.value = preset.gateMode;
-                agcInput.checked = preset.autoGain;
-                nsInput.checked = preset.noiseSuppression;
-                presetSelect.value = name;
-                realtimePreset = name;
-                reflect();
-                persist();
-                pushRealtimeSettingsToServer();
-            }
-
-            presetSelect.addEventListener('change', function () {
-                if (!presetSelect.value) { realtimePreset = ''; persist(); return; }
-                reflectPreset(presetSelect.value);
-            });
-
-            echoTestButton.addEventListener('click', function () {
-                echoTestButton.disabled = true;
-                echoResult.textContent = 'Listening… please stay quiet for a couple of seconds.';
-                runRealtimeEchoTest().then(function (result) {
-                    var rounded = Math.round(result.marginDb);
-                    if (result.recommendation === 'room') {
-                        echoResult.textContent = 'Your microphone hears the speakers about ' + rounded + ' dB above the room (loud). Switching to the room setup, which waits its turn instead of talking over you.';
-                    } else {
-                        echoResult.textContent = 'Echo cancellation is handling the speakers well (' + rounded + ' dB above the room). Interruptions should work.';
-                    }
-                    reflectPreset(result.recommendation);
-                }).catch(function (err) {
-                    echoResult.textContent = 'The audio test could not run: ' + (err && err.message ? err.message : 'microphone unavailable') + '.';
-                }).then(function () {
-                    echoTestButton.disabled = false;
-                });
-            });
-            nsInput.addEventListener('change', persist);
-            agcInput.addEventListener('change', persist);
-            tuneInput.addEventListener('change', function () { reflect(); persist(); });
-            silenceInput.addEventListener('input', function () { silenceVal.textContent = silenceInput.value; persist(); });
-            thrInput.addEventListener('input', function () { thrVal.textContent = parseFloat(thrInput.value).toFixed(2); persist(); });
         }
 
         // The host supplies the button's markup as a data attribute. It is sanitized when DOMPurify is present;
@@ -1360,9 +1092,7 @@
         // still interrupts itself — so a change during a live session is sent on to the other two.
         function pushRealtimeSettingsToServer() {
             if (!isRealtimeActive || !connection || typeof connection.send !== 'function') { return; }
-            var silenceMs = realtimeTuneTurnDetection ? realtimeSilenceMs : null;
-            var vadThreshold = realtimeTuneTurnDetection ? realtimeVadThreshold : null;
-            try { connection.send('UpdateRealtimeSettings', realtimeBargeIn, silenceMs, vadThreshold); } catch (err) { }
+            try { connection.send('UpdateRealtimeSettings', realtimeBargeIn, null, null); } catch (err) { }
         }
 
         // Reports the session's state to the host so it can show something more honest than a button that flips to
@@ -1595,8 +1325,8 @@
             var audioConstraints = {
                 channelCount: 1,
                 echoCancellation: { ideal: true },
-                noiseSuppression: realtimeNoiseSuppression !== false,
-                autoGainControl: realtimeAutoGain !== false,
+                noiseSuppression: true,
+                autoGainControl: true,
                 // Ask for the strongest available acoustic echo cancellation so the model can ignore its own
                 // voice in an open room (loud speakers + open mic). These are Chromium hints requested as
                 // "ideal", so any browser that doesn't support them simply ignores them — never a hard failure.
@@ -1635,10 +1365,26 @@
                             realtimeGain.connect(realtimeAudioCtx.destination);
                             realtimeSubject = new window.signalR.Subject();
 
-                            var source = realtimeAudioCtx.createMediaStreamSource(stream);
+                            var ctxAtStart = realtimeAudioCtx;
                             var processor = realtimeAudioCtx.createScriptProcessor(4096, 1, 1);
                             realtimeProcessor = processor;
-                            realtimeMicSource = source;
+
+                            // The gate watches the assistant's playback to know when it is audible; on this
+                            // transport the assistant is a Web Audio graph, so tap the output gain into a stream.
+                            var monitorDest = realtimeAudioCtx.createMediaStreamDestination();
+                            realtimeGain.connect(monitorDest);
+
+                            // Send the gated microphone rather than the raw one, exactly as the WebRTC transport
+                            // does, so this fallback is not the one transport where the model hears its own echo.
+                            // Until the gate's worklet is ready the processor has no input and streams silence.
+                            setupMicGate(stream).then(function (micTrack) {
+                                if (!isRealtimeActive || realtimeAudioCtx !== ctxAtStart || !micTrack) { return; }
+                                var gatedStream = new MediaStream([micTrack]);
+                                var source = realtimeAudioCtx.createMediaStreamSource(gatedStream);
+                                realtimeMicSource = source;
+                                source.connect(processor);
+                                if (realtimeGate) { realtimeGate.attachAssistantStream(monitorDest.stream); }
+                            });
 
                             processor.onaudioprocess = function (event) {
                                 var input = event.inputBuffer.getChannelData(0);
@@ -1649,7 +1395,7 @@
                                 if (realtimePushToTalk) {
                                     muted = !realtimePttActive;
                                 } else {
-                                    muted = !realtimeBargeIn && realtimeAudioCtx && realtimeAudioCtx.currentTime < realtimePlayHead + realtimeHangoverSec;
+                                    muted = !realtimeBargeIn && realtimeAudioCtx && realtimeAudioCtx.currentTime < realtimePlayHead + REALTIME_WS_ECHO_HANGOVER_SEC;
                                 }
                                 var pcm = new Int16Array(input.length);
                                 if (!muted) {
@@ -1668,7 +1414,6 @@
                             var zeroGain = realtimeAudioCtx.createGain();
                             zeroGain.gain.value = 0;
                             realtimeZeroGain = zeroGain;
-                            source.connect(processor);
                             processor.connect(zeroGain);
                             zeroGain.connect(realtimeAudioCtx.destination);
 
@@ -1676,10 +1421,8 @@
                             // and the reply language to it, so a bilingual user with an English browser speaking Spanish
                             // got English-forced (garbage) transcripts and an English-locked assistant.
                             var language = realtimeLanguage || null;
-                            var silenceMs = realtimeTuneTurnDetection ? realtimeSilenceMs : null;
-                            var vadThreshold = realtimeTuneTurnDetection ? realtimeVadThreshold : null;
                             var voice = (getVoiceName && getVoiceName()) || realtimeVoiceName || '';
-                            sendStart(realtimeSubject, voice, language, silenceMs, vadThreshold, realtimeBargeIn);
+                            sendStart(realtimeSubject, voice, language, null, null, realtimeBargeIn);
                             if (realtimePushToTalk) { buildRealtimePttUi(); }
                         })
                         .catch(function (err) {
@@ -1712,8 +1455,8 @@
                 // The browser still applies its default noise suppression and auto gain; we only pass those through
                 // so the user's toggles can turn them off.
                 echoCancellation: true,
-                noiseSuppression: realtimeNoiseSuppression !== false,
-                autoGainControl: realtimeAutoGain !== false
+                noiseSuppression: true,
+                autoGainControl: true
             };
             if (realtimeMicDeviceId) { micConstraints.deviceId = { exact: realtimeMicDeviceId }; }
 
@@ -1825,7 +1568,7 @@
                             // Send a gated version of the mic: silent unless the user is actually speaking. The gate
                             // loads an AudioWorklet, so the track is only available once that resolves — hence the
                             // offer is created here rather than synchronously above.
-                            setupWebRtcMicGate(stream)
+                            setupMicGate(stream)
                                 .then(function (micTrackToSend) {
                                     if (realtimePc !== pc) { return null; }
                                     if (micTrackToSend) { pc.addTrack(micTrackToSend, stream); }
@@ -1841,10 +1584,8 @@
                                     if (!offer) { return; }
                                     // "Auto" means auto-detect: send nothing (see the WebSocket path above).
                                     var language = realtimeLanguage || null;
-                                    var silenceMs = realtimeTuneTurnDetection ? realtimeSilenceMs : null;
-                                    var vadThreshold = realtimeTuneTurnDetection ? realtimeVadThreshold : null;
                                     var voice = (getVoiceName && getVoiceName()) || realtimeVoiceName || '';
-                                    sendStartWebRtc(offer.sdp, voice, language, silenceMs, vadThreshold, realtimeBargeIn);
+                                    sendStartWebRtc(offer.sdp, voice, language, null, null, realtimeBargeIn);
                                 })
                                 .catch(function (err) {
                                     console.error('Failed to create the WebRTC offer; falling back to WebSocket.', err);
@@ -1921,26 +1662,18 @@
 
         // --- Microphone gate (thin wrapper over the shared factory) ----------------------------------------
 
-        // The provider's default end-of-turn silence when the user has not tuned it (mirrors the server's
-        // DefaultSilenceDurationMs). The gate has to know it to avoid ending turns before the provider would.
-        var REALTIME_PROVIDER_DEFAULT_SILENCE_MS = 800;
-
-        // How much longer than the provider's silence window the gate stays open. The gate is a safety net around
-        // echo, not a turn detector; the provider's voice-activity detection sees the real speech and should be
-        // the one deciding a turn is over.
-        var REALTIME_GATE_HANGOVER_MARGIN_MS = 600;
+        // How long the gate stays open after the user's level drops. The gate is a safety net around echo, not a
+        // turn detector: the provider's turn detection sees the real speech and should be the one deciding a
+        // turn is over, so this must comfortably outlast the pause it is willing to wait through. The gate emits
+        // digital silence when it closes, and whichever of the two expires first is what actually ends the turn.
+        var REALTIME_GATE_HANGOVER_MS = 2000;
 
         function realtimeGateModeMessage() {
-            var silenceMs = (realtimeTuneTurnDetection && realtimeSilenceMs)
-                ? realtimeSilenceMs
-                : REALTIME_PROVIDER_DEFAULT_SILENCE_MS;
-
             return {
                 pushToTalk: !!realtimePushToTalk,
                 pttActive: !!realtimePttActive,
                 bargeIn: !!realtimeBargeIn,
-                gateMode: realtimeGateMode || 'auto',
-                speechHangoverMs: silenceMs + REALTIME_GATE_HANGOVER_MARGIN_MS
+                speechHangoverMs: REALTIME_GATE_HANGOVER_MS
             };
         }
 
@@ -1950,8 +1683,8 @@
             if (realtimeGate) { realtimeGate.setMode(realtimeGateModeMessage()); }
         }
 
-        // Builds the gate and resolves with the track to add to the peer.
-        function setupWebRtcMicGate(rawStream) {
+        // Builds the gate and resolves with the track to send (over the peer, or into the WebSocket capture graph).
+        function setupMicGate(rawStream) {
             stopWebRtcEchoGuard();
             var rawTrack = (rawStream && rawStream.getAudioTracks()[0]) || null;
             realtimeWebRtcMicTrack = rawTrack;
@@ -2050,6 +1783,7 @@
 
             try { if (realtimeSubject) { realtimeSubject.complete(); } } catch (err) { /* already completed */ }
             realtimeSubject = null;
+            stopWebRtcEchoGuard();
 
             try { if (realtimeProcessor) { realtimeProcessor.disconnect(); realtimeProcessor.onaudioprocess = null; } } catch (err) { }
             try { if (realtimeMicSource) { realtimeMicSource.disconnect(); } } catch (err) { }
@@ -2150,12 +1884,9 @@
         decideGate: coreAiGateDecide,
         createGateState: createGateState,
         rmsDb: coreAiRmsDb,
-        // Host-agnostic audio-setup helpers, so a host that drives realtime itself still shares one
-        // implementation of these rather than growing its own.
-        presets: REALTIME_PRESETS,
-        suggestPresetFromDevices: suggestPresetFromDevices,
+        // Host-agnostic playback helpers, so a host that drives realtime itself still shares one implementation
+        // of these rather than growing its own.
         routeOutputToPreferredDevice: routeOutputToPreferredDevice,
-        ensurePlayback: ensurePlayback,
-        runEchoTest: runEchoTest
+        ensurePlayback: ensurePlayback
     };
 })(window, document);

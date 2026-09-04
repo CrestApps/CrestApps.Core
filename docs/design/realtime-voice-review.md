@@ -84,6 +84,50 @@ Where the implementation differs from what this document proposed, the reason is
   blocked-UDP network, SIPSorcery interop with Firefox, truncation against a real provider, the OpenAI-direct
   path, and how the pacing and comfort-silence changes actually sound. Those still need the manual passes below.
 
+### Second review (2026-09-03, after two users tested the build above)
+
+Two testers reported: (1) headset user — interruptions were *off by default*, and with them switched on in Chrome
+the session showed *Listening* but never answered; (2) open-office user (webcam microphone, two desk speakers,
+Chrome) — the assistant answered after the first few words instead of waiting for the whole question, and then
+would not take another prompt for a while. The server log for (2) shows 20 continuous seconds of audio at about
+−10 dBFS reaching the provider while the assistant was replying: louder than the user's own speech, i.e. the
+speakers' echo passing the level-only gate. Both testers also found the settings panel far too complicated.
+
+What was found and changed:
+
+| Cause | Fix |
+|---|---|
+| **The WebRTC transport delivered the microphone to the provider about 40 dB too quiet.** `SipSorceryWebRtcRealtimePeer` asked Concentus to decode the browser's 48 kHz Opus straight to 24 kHz; Concentus 2.2's decode-side resampler attenuates that output by ~40 dB (measured: a −6 dBFS tone decodes to peak 102/32767 at 24 kHz and 16522 at 48 kHz). A full-scale voice therefore reached the provider at about −37 dBFS — below its speech detection — which is the real reason "Listening…" never answered a headset user, and why the open-office user's session only reacted when the echo of two desk speakers was loud enough. Found with the new live end-to-end check (fake microphone playing a spoken WAV): the gate opened on the speech, an in-page WebRTC loopback received it at full level, yet the server logged −37 dBFS peaks. | Decode at 48 kHz (exact) and downsample 2:1 in the peer with a 31-tap low-pass FIR (`Pcm48To24Decimator`). Verified: decode48 + decimate returns a −6 dBFS tone at −6 dBFS with aliases rejected. The 24 kHz *encoder* direction was fine, which is why the assistant was always audible. |
+| The removed device-label guess had stored the *room* preset (interruptions **off**) for any microphone whose name matched a pattern, and the version-2 preference repair deliberately left `bargeIn` alone. That is why interruptions were "off by default". | Preferences version 3 restores interruptions and drops every removed field. |
+| The gate judged an interruption by level alone (`floor + margin`, absolute −40 dBFS). With desk speakers the echo residual after cancellation was louder than the user, so the assistant's own reply opened the gate, the provider heard it, interrupted itself, and kept detecting "speech" for as long as the reply played — the "won't take another prompt" symptom. | The gate now learns the **echo return level** (how loud the assistant comes back into the microphone relative to its own level) while the assistant is audible and the gate is shut, and only opens for a voice clearly above the *expected echo*, sustained for 250 ms. Warms up within the first reply; falls when the volume is turned down. With loud speakers the gate waits its turn; with a headset interruptions stay cheap. Covered by `gate-decision.test.js` (loud-speaker echo over a 20 s reply, first-reply echo before the estimate settles, real interruption over echo, headset, volume change). |
+| Turn detection was a silence timer (`server_vad`, 800 ms), so a pause for thought mid-question ended the turn and the assistant answered half of it. | Sessions request **`semantic_vad`** by default (`RealtimeTransportOptions.TurnDetectionType` / `TurnDetectionEagerness`); the model decides when the user is done. If a deployment rejects it, the runner switches the live session to server VAD and the conversation continues. The gate hangover is now 2 s so the gate never ends a turn before the detector would. |
+| `UpdateTurnDetectionAsync` re-sent the whole session configuration, including the voice. The provider rejects a voice once the assistant has spoken, and that error was surfaced and ended the session — so toggling interruptions mid-conversation could kill it. | It now sends a partial `session.update` carrying only `turn_detection`. |
+| A barge-in truncation naming more audio than the item held produced a provider error that was shown to the user. | Treated as benign (logged). |
+| The WebSocket fallback sent the raw microphone: it was the one transport where the model could hear its own echo. | The same gate now runs on the WebSocket path, with the assistant's Web Audio playback tapped as the gate's reference. |
+| The settings panel exposed audio-setup presets, an echo test, gate modes, an echo-guard delay, turn-detection sliders, and noise/gain switches. | The panel is now: microphone, speaker, volume, language, **Allow interruptions** (default on), push-to-talk. Everything else is measured or decided automatically. |
+| `ai-chat.js` still carried its own ~1,100-line copy of the realtime client (the last open item from F18), so every fix had to be made twice and the two hosts had already diverged. | The AI Chat host now calls `CoreAIRealtime.attach` like the chat-interaction host; the copy is gone. |
+
+Tests: `gate-decision.test.js` rewritten for the new rules (22 tests, including the cold-start cases: a user
+already talking when the microphone goes live, and a loud room heard first); new C# tests for the semantic
+default, the tuned-silence-implies-server-VAD rule, the semantic/server wire format, and the runner's fallback on
+a rejected turn-detection configuration.
+
+**Verified live** (`tests/realtime-client/e2e`, a real MVC host and the Azure `gpt-realtime` deployment, a
+synthesized spoken question as the microphone):
+
+| Browser | Interruptions | Result |
+|---|---|---|
+| Chromium (fake capture device) | on | "Hello there." → greeting; the greeting is cut off by the continuing question (barge-in, `response.done` status `cancelled`); "What is the capital of France?" → "The capital of France is Paris." Server inbound peak 32767/32767 (was 486 before the decoder fix). |
+| Chromium | off | "Hello there." → reply; the recorded user keeps talking over the reply and is correctly not heard (half duplex); the fragment after the reply gets its own answer. |
+| Firefox (getUserMedia replaced by a Web Audio graph playing the WAV) | on | Full exchange, transcript in order, "The capital of France is Paris." — first confirmation of SIPSorcery interop with Firefox. |
+
+Full C# suite green after the changes; `npm run test:gate` 22/22; `npm run test:client` green in Chromium and
+Firefox.
+
+Not verified live: the OpenAI-direct provider, TURN through a blocked-UDP network, and real loudspeaker echo
+(the fake microphone has no acoustic path, so the echo-return learning is covered by the gate unit tests only).
+The open-office tester's setup is the one to re-test first.
+
 ---
 
 ## 1. How it works today

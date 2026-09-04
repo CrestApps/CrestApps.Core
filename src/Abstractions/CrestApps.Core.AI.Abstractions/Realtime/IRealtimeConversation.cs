@@ -40,13 +40,18 @@ public interface IRealtimeConversation : IAsyncDisposable
     /// session — and so the provider does not keep interrupting itself after the client has stopped allowing it.
     /// </summary>
     /// <param name="allowInterruption">Whether the model may be interrupted while speaking.</param>
-    /// <param name="silenceDurationMs">The silence, in milliseconds, that ends a user turn, when specified.</param>
-    /// <param name="vadThreshold">The voice-activity detection threshold (0.0-1.0), when specified.</param>
+    /// <param name="silenceDurationMs">The silence, in milliseconds, that ends a user turn, when specified (server VAD only).</param>
+    /// <param name="vadThreshold">The voice-activity detection threshold (0.0-1.0), when specified (server VAD only).</param>
+    /// <param name="turnDetectionType">
+    /// The turn-detection algorithm to switch to (see <see cref="RealtimeTurnDetectionTypes"/>), or
+    /// <see langword="null"/> to keep the session's current algorithm.
+    /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     Task UpdateTurnDetectionAsync(
         bool allowInterruption,
         int? silenceDurationMs,
         float? vadThreshold,
+        string turnDetectionType = null,
         CancellationToken cancellationToken = default);
 }
 
