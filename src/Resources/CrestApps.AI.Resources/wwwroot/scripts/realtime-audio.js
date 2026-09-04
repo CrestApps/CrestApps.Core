@@ -113,8 +113,10 @@
     // those anchored the floor at the clamp and made the room itself look like speech. The first real block
     // is not trustworthy either — it may well be the user already talking, and a floor seeded at their own
     // level meant the gate never opened for them at all. So the seed is the first real block capped at a
-    // typical quiet-room level, and for the next half second the floor only ever moves down, taking the
-    // quietest thing it hears (the gaps between words, if it is speech) as the room.
+    // typical quiet-room level; the fast downward adaptation below then finds the real floor within a few
+    // hundred milliseconds. (Seeding from the quietest block instead was tried and rejected: block-to-block
+    // level varies by several dB even on steady room noise, so a floor set at the minimum let ordinary noise
+    // peaks open the gate.)
     if (micDb <= -95) {
       if (state.floorDb === null) {
         state.open = false;
@@ -122,9 +124,6 @@
       }
     } else if (state.floorDb === null) {
       state.floorDb = Math.min(micDb, -50);
-      state.warmUpUntil = nowMs + 500;
-    } else if (nowMs < state.warmUpUntil && micDb < state.floorDb) {
-      state.floorDb = micDb;
     }
     if (micDb < state.floorDb) {
       state.floorDb += (micDb - state.floorDb) * Math.min(1, 0.0075 * dtMs);
@@ -224,7 +223,6 @@
     return {
       // Null until the first measurement, so the floor starts from the room rather than from a guess.
       floorDb: null,
-      warmUpUntil: 0,
       lastMs: null,
       speakUntil: 0,
       assistantUntil: 0,
@@ -2048,6 +2046,54 @@
       }
       startRealtimeConversation();
     }
+
+    // Resolves with the receive-side statistics of the assistant's audio track (WebRTC transport only), in
+    // the browser's own words: packets lost, jitter, how much the jitter buffer is holding, and how often it
+    // had to conceal or time-stretch audio. Null on the WebSocket transport.
+    function getTransportStats() {
+      if (!realtimePc || typeof realtimePc.getStats !== 'function') {
+        return Promise.resolve(null);
+      }
+      return realtimePc.getStats().then(function (report) {
+        var result = {
+          transport: 'webrtc',
+          inbound: null,
+          codec: null
+        };
+        report.forEach(function (stat) {
+          if (stat.type === 'inbound-rtp' && stat.kind === 'audio') {
+            result.inbound = {
+              packetsReceived: stat.packetsReceived,
+              packetsLost: stat.packetsLost,
+              packetsDiscarded: stat.packetsDiscarded,
+              jitterMs: typeof stat.jitter === 'number' ? Math.round(stat.jitter * 1000) : null,
+              jitterBufferDelayMs: typeof stat.jitterBufferDelay === 'number' && stat.jitterBufferEmittedCount ? Math.round(stat.jitterBufferDelay / stat.jitterBufferEmittedCount * 1000) : null,
+              totalSamplesReceived: stat.totalSamplesReceived,
+              concealedSamples: stat.concealedSamples,
+              concealmentEvents: stat.concealmentEvents,
+              silentConcealedSamples: stat.silentConcealedSamples,
+              insertedSamplesForDeceleration: stat.insertedSamplesForDeceleration,
+              removedSamplesForAcceleration: stat.removedSamplesForAcceleration,
+              audioLevel: stat.audioLevel
+            };
+            if (stat.codecId) {
+              var codec = report.get(stat.codecId);
+              if (codec) {
+                result.codec = {
+                  mimeType: codec.mimeType,
+                  clockRate: codec.clockRate,
+                  channels: codec.channels,
+                  sdpFmtpLine: codec.sdpFmtpLine
+                };
+              }
+            }
+          }
+        });
+        return result;
+      })["catch"](function () {
+        return null;
+      });
+    }
     function playRealtimePcm(bytes) {
       if (!realtimeAudioCtx || !bytes || bytes.length < 2) {
         return;
@@ -2117,7 +2163,7 @@
 
     // Apply the initial input mode: audio-only when the interaction already uses a realtime deployment.
     applyRealtimeMode(isRealtimeMode || deploymentSelect && isRealtimeDeployment(deploymentSelect.value));
-    return {
+    var controller = {
       toggle: toggleRealtime,
       start: startRealtimeConversation,
       stop: stopRealtimeConversation,
@@ -2134,8 +2180,15 @@
       // hosts that want to render a microphone meter or explain why the mic is muted.
       getGateLevel: function getGateLevel() {
         return realtimeGate ? realtimeGate.getLevel() : null;
-      }
+      },
+      // The browser's own receive-side statistics for the assistant's audio on the WebRTC transport
+      // (packets lost, jitter, jitter-buffer delay, concealment), for diagnosing choppy playback.
+      getTransportStats: getTransportStats
     };
+
+    // The most recently attached controller, for diagnostics from the console or a test.
+    window.CoreAIRealtime.activeController = controller;
+    return controller;
   }
   window.CoreAIRealtime = {
     attach: attach,

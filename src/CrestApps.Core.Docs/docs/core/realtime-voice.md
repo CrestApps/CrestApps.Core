@@ -127,12 +127,25 @@ its own echo.
 ## Playback quality
 
 Assistant audio is Opus-encoded at 64 kbps VBR (complexity 10, in-band FEC on); the encoder's defaults would land
-at ~16 kbps, which is telephone quality. The peer paces frames against a media clock, pre-buffers ~120 ms before
-releasing each reply, holds for up to 80 ms on a mid-reply underrun before sending silence (the browser's jitter
-buffer stretches the preceding audio instead, which is inaudible; a silence frame sounds like a dropped syllable),
-and keeps the RTP stream running on comfort silence for the whole session so timestamps stay aligned to real time.
-The live end-to-end check can record what the browser plays (`REALTIME_E2E_RECORD=1`) and reports the number of
-gaps inside the reply, which is the objective measure to watch if playback ever sounds choppy again.
+at ~16 kbps, which is telephone quality.
+
+What the browser's jitter buffer reacts to is packet *timing*: irregular arrival makes it add delay and then
+time-stretch speech to shrink it again, which users hear as words speeding up or clipping. The peer therefore
+paces frames from a dedicated above-normal-priority thread (a timer callback on Windows fires on a ~16 ms grid and
+runs on a thread pool that builds and test runs in the same process starve), asks Windows for 1 ms timer
+resolution while a peer is alive, sends exactly one frame per 20 ms slot, never bursts to catch up after a stall,
+pre-buffers ~120 ms before releasing each reply, skips a few slots on a mid-reply underrun before sending silence
+(the jitter buffer stretches the preceding audio instead, which is inaudible; a silence frame sounds like a
+dropped syllable), and keeps the RTP stream running on comfort silence for the whole session so timestamps stay
+aligned to real time.
+
+Two measurements exist for this. The server logs, when a peer closes, how many silence frames landed inside
+replies (underruns). In the browser, `CoreAIRealtime.activeController.getTransportStats()` returns the receiver's
+own counters — packets lost, jitter, jitter-buffer delay, concealment, samples inserted or removed by
+time-stretching — which is the first thing to read if playback ever sounds choppy; the live end-to-end check logs
+them and can also record what the browser plays (`REALTIME_E2E_RECORD=1`). On a machine under a six-process CPU
+load, a 35-second reply measured 0 packets lost, 0 ms jitter and no acceleration in Chrome, and one concealment
+event in Firefox.
 
 ## Turn detection
 

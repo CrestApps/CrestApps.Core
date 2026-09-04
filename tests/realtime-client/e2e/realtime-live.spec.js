@@ -135,9 +135,13 @@ test('a spoken question is transcribed and answered', async ({ page, browserName
             .toBeGreaterThan(20);
         note('[test] assistant reply shown');
 
-        // Let the reply play for a moment, then stop.
-        await page.waitForTimeout(8_000);
+        // Let the reply play (REALTIME_E2E_REPLY_WAIT_MS, default 8 s), then stop.
+        await page.waitForTimeout(Number(process.env.REALTIME_E2E_REPLY_WAIT_MS) || 8_000);
         note(`[test] transcript:\n${await app.innerText()}`);
+
+        // The browser's own receive-side statistics: packets lost, jitter buffer, concealment.
+        const stats = await page.evaluate(() => (window.CoreAIRealtime && window.CoreAIRealtime.activeController) ? window.CoreAIRealtime.activeController.getTransportStats() : null).catch(() => null);
+        note(`[test] transport stats: ${JSON.stringify(stats)}`);
 
         if (record) {
             const recorded = await page.evaluate(() => {

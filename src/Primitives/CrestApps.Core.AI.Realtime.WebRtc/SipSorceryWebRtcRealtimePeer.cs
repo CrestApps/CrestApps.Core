@@ -38,16 +38,16 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     // speech at it; capping the buffer and dropping the oldest frames keeps the conversation live instead.
     private const int MaxBufferedInboundFrames = 100; // ~2 s at 20 ms per frame.
 
-    // Upper bound on how many frames one pacing tick may send when the loop woke up late. Catching up matters
-    // (Windows timer granularity is ~15.6 ms, so ticks routinely run long), but an unbounded burst would just
-    // flood the browser's jitter buffer again.
-    private const int MaxCatchUpFramesPerTick = 3;
+    // A pacing slot missed by this much or more (the pacing thread was not scheduled — a GC pause, a saturated
+    // machine) is not paid back: the schedule is re-based and the stream simply runs a little late. Paying it back
+    // as a burst is exactly what makes the browser's jitter buffer time-stretch speech.
+    private const long MaxStallDebtMs = 100;
 
     // RTP timestamp increment per 20 ms Opus frame on the negotiated 48 kHz Opus clock.
     private const uint RtpUnitsPerFrame = 960;
 
     // Pre-buffer before a reply's first frame is released: wait for this many frames, or this long, whichever
-    // comes first. (See PaceOutgoingAsync.)
+    // comes first. (See PaceOutgoing.)
     private const int PrimeFrames = 6; // 120 ms
     private const long PrimeMaxWaitMs = 150;
 
@@ -87,13 +87,13 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     private int _encodePendingCount;
 
     // Encoded 20 ms Opus frames waiting to go out. They are drained to RTP on a 20 ms wall-clock cadence (see
-    // PaceOutgoingAsync) so assistant audio — which the provider delivers faster than real time, in bursts —
+    // PaceOutgoing) so assistant audio — which the provider delivers faster than real time, in bursts —
     // plays back at natural speed instead of a rushed, sped-up stream. A ConcurrentQueue so a barge-in flush can
     // safely discard the buffered tail from another thread while the pacing loop drains it.
     private readonly ConcurrentQueue<byte[]> _outgoing = new();
     private readonly CancellationTokenSource _pacingCts = new();
+    private readonly Thread _pacingThread;
     private readonly byte[] _silenceFrame;
-    private readonly Task _pacingTask;
 
     private bool _closedRaised;
     private bool _connectedRaised;
@@ -160,7 +160,15 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         _pc.oniceconnectionstatechange += OnIceConnectionStateChanged;
         _pc.OnRtpPacketReceived += OnRtpPacketReceived;
 
-        _pacingTask = PaceOutgoingAsync(_pacingCts.Token);
+        // A dedicated thread, not the thread pool: the pool is what a build or a test run in the same process
+        // starves, and an audio pacer that is late by a scheduler quantum is an audio pacer that bursts.
+        _pacingThread = new Thread(PaceOutgoing)
+        {
+            IsBackground = true,
+            Name = "realtime-audio-pacer",
+            Priority = ThreadPriority.AboveNormal,
+        };
+        _pacingThread.Start();
     }
 
     /// <summary>Sets the remote offer and produces the local answer.</summary>
@@ -270,68 +278,107 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         _encodePendingCount -= FrameSamples;
     }
 
-    // Releases 20 ms Opus frames at the media clock's rate. The realtime provider produces audio faster than real
-    // time and hands it to us in bursts; sending each frame to RTP the instant it was encoded flooded the browser
-    // and made the assistant sound sped-up. Pacing fixes the playback rate (and keeps the un-sent tail in our own
-    // queue, where a barge-in can flush it).
+    // Releases 20 ms Opus frames at the media clock's rate, from a dedicated thread. The realtime provider produces
+    // audio faster than real time and hands it to us in bursts; sending each frame to RTP the instant it was
+    // encoded flooded the browser and made the assistant sound sped-up. Pacing fixes the playback rate (and keeps
+    // the un-sent tail in our own queue, where a barge-in can flush it).
     //
-    // Four details matter beyond "one frame per tick":
-    //  * PeriodicTimer ticks late (Windows timer granularity is ~15.6 ms) and sending exactly one frame per tick
-    //    loses that slack permanently, so a long reply falls further and further behind the transcript. Frames are
-    //    therefore released against elapsed wall-clock time, catching up a bounded number of frames per tick.
+    // What the browser's jitter buffer hears is the *timing* of packets, and it reacts to irregular timing by
+    // adding delay and then time-stretching speech to shrink it again — which users hear as words speeding up or
+    // clipping. So the sender's cadence has to be even, and that rules out timer callbacks: a PeriodicTimer on
+    // Windows fires on a ~15.6 ms grid, so a 20 ms period actually arrives as 16/31/16/31 ms and a catch-up burst
+    // of 2-3 frames every other tick, and it runs on the thread pool, which the same process starves whenever a
+    // build or a test run is going on. This loop instead runs on its own above-normal-priority thread, asks
+    // Windows for 1 ms timer resolution while a peer is alive, sleeps to just short of each frame's deadline and
+    // spins the last stretch, and sends exactly one frame per 20 ms slot. A slot that is missed by a lot (a stall)
+    // is caught up one extra frame at a time, never as a burst, and a debt larger than a few frames is written off
+    // rather than paid back all at once.
+    //
+    // Three further details:
     //  * Once the stream has started it never stops: quiet stretches carry comfort silence for the rest of the
     //    session. RTP timestamps must stay contiguous with real time; a stream that stops and resumes with
-    //    contiguous timestamps makes the browser's jitter buffer treat the resumed audio as very late and
-    //    time-stretch the opening words of the next reply. (SIPSorcery's track timestamp is read-only, so it cannot
-    //    be advanced directly — keeping the stream running is the way to keep the clocks aligned. A silence frame
-    //    is a few bytes, fifty times a second.)
+    //    contiguous timestamps makes the jitter buffer treat the resumed audio as very late and time-stretch the
+    //    opening words of the next reply. (SIPSorcery's track timestamp is read-only, so it cannot be advanced
+    //    directly — keeping the stream running is the way to keep the clocks aligned. A silence frame is a few
+    //    bytes, fifty times a second.)
     //  * A reply is pre-buffered before its first frame goes out. The provider delivers audio in bursts and the
     //    loop feeding this queue also persists turns and sends transcripts, so a reply's first few hundred
-    //    milliseconds regularly ran the queue dry — and every dry tick sent 20 ms of silence into the middle of a
+    //    milliseconds regularly ran the queue dry — and every dry slot sent 20 ms of silence into the middle of a
     //    word. Waiting for a small cushion (or a short deadline, so brief replies are not delayed) removes most of
     //    those holes at the cost of ~100 ms of latency.
-    //  * A mid-reply underrun holds for a few ticks before falling back to silence. Late frames then arrive with
-    //    their timestamps intact and the browser's jitter buffer stretches the preceding audio to cover the gap,
-    //    which sounds like nothing; a silence frame sounds like a dropped syllable.
-    private async Task PaceOutgoingAsync(CancellationToken cancellationToken)
+    //  * A mid-reply underrun skips a few slots before falling back to silence. Late frames then arrive with their
+    //    timestamps intact and the jitter buffer stretches the preceding audio to cover the gap, which sounds like
+    //    nothing; a silence frame sounds like a dropped syllable.
+    private void PaceOutgoing()
     {
+        var token = _pacingCts.Token;
+        var highResolution = OperatingSystem.IsWindows() && TryBeginHighResolutionTimer();
+
         try
         {
             var clock = Stopwatch.StartNew();
             var streaming = false;
-            var streamStartMs = 0L;
-            var framesSentInStream = 0L;
+            var nextDueMs = 0L;
             var lastRealFrameMs = -1L;
             var emptySinceMs = -1L;
             var priming = false;
             var primingSinceMs = 0L;
             var provisionalHoleFrames = 0L;
 
-            using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(FrameDurationMs));
-            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+            while (!token.IsCancellationRequested)
             {
-                var nowMs = clock.ElapsedMilliseconds;
-
                 if (!streaming)
                 {
                     // Nothing has been spoken yet: stay silent until the first reply starts to arrive.
                     if (_outgoing.IsEmpty)
                     {
+                        Thread.Sleep(5);
+
                         continue;
                     }
 
                     streaming = true;
-                    streamStartMs = nowMs;
-                    framesSentInStream = 0;
+                    nextDueMs = clock.ElapsedMilliseconds;
                     priming = true;
-                    primingSinceMs = nowMs;
+                    primingSinceMs = nextDueMs;
                 }
 
-                // How many frames should have been released by now, counting the one due when the stream started.
-                var due = ((nowMs - streamStartMs) / FrameDurationMs) + 1;
-                var pending = Math.Min(due - framesSentInStream, MaxCatchUpFramesPerTick);
+                // Wait for this slot: sleep to just short of the deadline, spin the rest.
+                var remaining = nextDueMs - clock.ElapsedMilliseconds;
+                if (remaining > 2)
+                {
+                    Thread.Sleep((int)(remaining - 1));
+                }
 
-                for (var i = 0; i < pending; i++)
+                while (clock.ElapsedMilliseconds < nextDueMs)
+                {
+                    if (token.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
+                    Thread.SpinWait(200);
+                }
+
+                var nowMs = clock.ElapsedMilliseconds;
+                var lateMs = nowMs - nextDueMs;
+
+                // A stall (the thread was not scheduled for a while). Pay back up to a few frames one extra frame
+                // per slot; beyond that, write the debt off — a burst is exactly what makes the jitter buffer
+                // time-stretch, and a late stream merely costs a little latency.
+                var framesThisSlot = 1;
+                if (lateMs >= MaxStallDebtMs)
+                {
+                    nextDueMs = nowMs;
+                }
+                else if (lateMs >= 2 * FrameDurationMs)
+                {
+                    framesThisSlot = 2;
+                }
+
+                nextDueMs += FrameDurationMs;
+
+                for (var i = 0; i < framesThisSlot; i++)
                 {
                     byte[] frame;
                     var isRealAudio = false;
@@ -384,9 +431,8 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
                             emptySinceMs = nowMs;
                         }
 
-                        // Mid-reply underrun: hold rather than send silence, for a few ticks. Not advancing
-                        // framesSentInStream leaves the missed frames "due", so they are released as a small
-                        // catch-up burst once audio returns.
+                        // Mid-reply underrun: skip the slot rather than send silence, for a short while. The frames
+                        // that arrive afterwards keep their timestamps and simply land a little late.
                         var midReply = lastRealFrameMs >= 0 && nowMs - lastRealFrameMs < ReplyContinuityMs;
                         if (midReply && nowMs - emptySinceMs < UnderrunHoldMs)
                         {
@@ -403,8 +449,6 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 
                         frame = _silenceFrame;
                     }
-
-                    framesSentInStream++;
 
                     if (frame is not { Length: > 0 })
                     {
@@ -427,12 +471,54 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
                 }
             }
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Expected on teardown.
+            _logger.LogWarning(ex, "The realtime audio pacing thread stopped unexpectedly.");
+        }
+        finally
+        {
+            if (highResolution)
+            {
+                EndHighResolutionTimer();
+            }
         }
     }
 
+    // Windows schedules Thread.Sleep on the system timer, which defaults to a ~15.6 ms grid — far too coarse for a
+    // 20 ms cadence. winmm's timeBeginPeriod(1) raises it to 1 ms process-wide while a peer is alive. Harmless
+    // elsewhere (never called), and a failure just means the coarser grid.
+    private static bool TryBeginHighResolutionTimer()
+    {
+        try
+        {
+            return NativeMethods.timeBeginPeriod(1) == 0;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static void EndHighResolutionTimer()
+    {
+        try
+        {
+            _ = NativeMethods.timeEndPeriod(1);
+        }
+        catch (Exception)
+        {
+            // Nothing to do.
+        }
+    }
+
+    private static class NativeMethods
+    {
+        [System.Runtime.InteropServices.DllImport("winmm.dll")]
+        public static extern uint timeBeginPeriod(uint uPeriod);
+
+        [System.Runtime.InteropServices.DllImport("winmm.dll")]
+        public static extern uint timeEndPeriod(uint uPeriod);
+    }
     // Encodes the single 20 ms silence frame reused to keep the outgoing RTP stream contiguous through pauses.
     // Done once during construction: the Opus encoder is also used by SendAudio on the provider pump thread, and
     // Opus encoder state is not safe to touch from two threads at once.
@@ -648,7 +734,12 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         try
         {
             await _pacingCts.CancelAsync().ConfigureAwait(false);
-            await _pacingTask.ConfigureAwait(false);
+
+            // The pacer checks the token at least every frame slot; give it a moment to unwind.
+            if (_pacingThread.IsAlive && !_pacingThread.Join(TimeSpan.FromMilliseconds(500)))
+            {
+                _logger.LogDebug("The realtime audio pacing thread did not stop within 500 ms.");
+            }
         }
         catch (Exception ex)
         {

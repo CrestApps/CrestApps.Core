@@ -133,6 +133,20 @@ and fixes, tagged `realtime-before-audio-quality` for easy reversal:
 | Silence frames inserted into replies | The pacing loop sent 20 ms of silence on every tick the queue was dry; a new server counter (`peer closing … silence frame(s) inserted inside replies`) now measures it. | Pre-buffer 120 ms (or 150 ms max wait) before releasing a reply; hold up to 80 ms on a mid-reply underrun before falling back to silence. After: 0 frames (Chromium), 3 frames (Firefox) per session. |
 | Stream stopped after 10 s of quiet | Contiguous RTP timestamps across a wall-clock gap make the browser's jitter buffer time-stretch the first words of the next reply. | The stream now runs on comfort silence for the whole session. |
 
+**Bursty sending (found from a Firefox report of words "speeding up").** The browser's jitter buffer time-stretches
+speech to shrink the delay it added after packets arrive in bursts, and the pacing loop burst by design: a
+`PeriodicTimer(20 ms)` on Windows fires on a ~16 ms grid and on the thread pool, so it sent 2–3 frames every other
+tick and far more after a stall — and the report came in while a build and the full test suite were running on the
+same machine. The loop now runs on a dedicated above-normal-priority thread with `timeBeginPeriod(1)`, one frame
+per 20 ms slot, no catch-up bursts (a stall of ≥100 ms is written off instead). Measured on a 35 s reply with six
+busy-loop processes loading the machine, via the new `getTransportStats()` client hook:
+
+| | Before (idle machine) | After (loaded machine) |
+|---|---|---|
+| Firefox jitter / buffer delay / concealment events / accelerated samples | 4 ms / 63 ms / 2 / 0 | 0 ms / 36 ms / 1 / 1379 |
+| Chrome jitter / buffer delay / concealment events / accelerated samples | 10 ms / 31 ms / 2 / 433 | 0 ms / 20 ms / 0 / 0 |
+| Packets lost (both) | 0 | 0 |
+
 The live check can record what the browser plays (`REALTIME_E2E_RECORD=1`, WAVs under
 `tests/realtime-client/e2e/recordings/`) and reports silent runs inside the reply; note that this metric also
 counts the assistant's natural pauses, so the server counter is the authoritative underrun measure.
