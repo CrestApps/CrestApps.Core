@@ -135,8 +135,31 @@ test('a spoken question is transcribed and answered', async ({ page, browserName
             .toBeGreaterThan(20);
         note('[test] assistant reply shown');
 
-        // Let the reply play (REALTIME_E2E_REPLY_WAIT_MS, default 8 s), then stop.
-        await page.waitForTimeout(Number(process.env.REALTIME_E2E_REPLY_WAIT_MS) || 8_000);
+        // Let the reply play (REALTIME_E2E_REPLY_WAIT_MS, default 8 s), sampling the receiver statistics once a
+        // second so that any concealment or time-stretching can be placed in time (while the assistant was
+        // audible, or in the silence before it) rather than only counted at the end.
+        const replyWaitMs = Number(process.env.REALTIME_E2E_REPLY_WAIT_MS) || 8_000;
+        const timeline = [];
+        let previous = null;
+        for (let elapsed = 0; elapsed < replyWaitMs; elapsed += 1_000) {
+            await page.waitForTimeout(Math.min(1_000, replyWaitMs - elapsed));
+            const sample = await page.evaluate(() => (window.CoreAIRealtime && window.CoreAIRealtime.activeController) ? window.CoreAIRealtime.activeController.getTransportStats() : null).catch(() => null);
+            const inbound = sample && sample.inbound;
+            if (!inbound) { continue; }
+            if (previous) {
+                const d = {
+                    t: Math.round((elapsed + 1_000) / 1_000),
+                    audible: inbound.audioLevel > 0.01,
+                    concealed: inbound.concealedSamples - previous.concealedSamples,
+                    decel: inbound.insertedSamplesForDeceleration - previous.insertedSamplesForDeceleration,
+                    accel: inbound.removedSamplesForAcceleration - previous.removedSamplesForAcceleration,
+                    lost: inbound.packetsLost - previous.packetsLost,
+                };
+                if (d.concealed || d.decel || d.accel || d.lost) { timeline.push(d); }
+            }
+            previous = inbound;
+        }
+        note(`[test] receiver events by second (samples at 48 kHz): ${timeline.length ? timeline.map((d) => `${d.t}s${d.audible ? "(speech)" : "(quiet)"} ${["concealed", "decel", "accel", "lost"].filter((k) => d[k]).map((k) => `${k}=${d[k]}`).join(" ")}`).join("; ") : "none"}`);
         note(`[test] transcript:\n${await app.innerText()}`);
 
         // The browser's own receive-side statistics: packets lost, jitter buffer, concealment.

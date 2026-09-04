@@ -126,8 +126,15 @@ its own echo.
 
 ## Playback quality
 
-Assistant audio is Opus-encoded at 64 kbps VBR (complexity 10, in-band FEC on); the encoder's defaults would land
-at ~16 kbps, which is telephone quality.
+Assistant audio is Opus-encoded in CELT-only mode (the transform half of Opus, the one it uses for music) at
+96 kbps VBR, complexity 10, with inter-frame prediction disabled so every frame decodes on its own. The encoder's
+defaults would land at ~16 kbps in the hybrid mode, which is telephone quality, and the hybrid mode's SILK layer
+re-synthesises everything below 8 kHz with a quality that varies from phoneme to phoneme. Prediction is off
+because the browser's decoder does not see one continuous stream: it sees pre-encoded comfort silence before each
+reply and across gaps, and packet-loss concealment where a slot went unsent, and a frame delta-coded against a
+state the decoder never saw comes out at the wrong level (measured on a recorded reply: an error as large as the
+signal itself in the first frames after such a splice; with prediction off, ~15 dB below it). In-band FEC is off:
+it exists only in the SILK modes, and asking for it with an expected loss rate is what forced the hybrid mode.
 
 The audio itself is played exactly as the provider produced it: every sample that arrives is framed, encoded and
 sent in order, and nothing on the way to the browser resamples, stretches or trims it. What the browser's jitter

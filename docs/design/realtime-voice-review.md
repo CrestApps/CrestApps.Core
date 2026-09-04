@@ -170,6 +170,25 @@ real deployment lands inside a cushion rather than making the buffer re-adapt. M
 | Firefox lost / concealment events / accelerated samples / buffer delay | — | 0 / 0 / 0 / 142 ms |
 | Server: gap frames inside replies / slots given up / samples dropped | 2 / — / unmeasured (ring) | 0 / 0 / 0 |
 
+**Tone change ("the voice got a little harsh for a moment").** Re-encoding a recorded reply offline through the
+same Concentus encoder (`scratchpad/opusprobe`, TOC byte per packet) ruled out mode or bandwidth switching: the
+64 kbps / FEC / 5 % loss settings put the encoder in hybrid SWB for every frame of a 49 s reply, no switches. What
+the probe did find is the splice: the peer sends a pre-encoded comfort-silence frame before each reply and across
+gaps, and the frame that follows it is delta-coded (SILK gains/LSFs in hybrid, band energies in CELT) against a
+state the decoder never saw. Decoding with such a silence frame spliced in every 200 packets and comparing the two
+frames after each splice against a clean decode:
+
+| Encoder | avg kbps | Splice error (avg / worst) |
+|---|---|---|
+| hybrid 64k VBR, FEC, loss 5 % (was) | 52 | −0.5 to −16 dB / **−0.1 dB** (as large as the signal) |
+| CELT forced 64k VBR | 47 | −0.6 dB / −0.0 dB |
+| CELT forced, prediction off | 47 | −14 to −16 dB / −4 to −7 dB |
+| CELT forced 96k VBR, prediction off (now) | 70 | −14 to −16 dB / −5 to −7 dB |
+
+The encoder now runs CELT-only, 96 kbps VBR, prediction disabled, no FEC. Every frame decodes on its own, so a
+splice, an unsent slot or a lost packet affects only itself, and the hybrid mode's phoneme-dependent SILK layer is
+gone. Live check after the change: both browsers 0 lost / 0 concealment / 0 accelerated on the 35 s reply.
+
 Not verified live: the OpenAI-direct provider, TURN through a blocked-UDP network, and real loudspeaker echo
 (the fake microphone has no acoustic path, so the echo-return learning is covered by the gate unit tests only).
 The open-office tester's setup is the one to re-test first.

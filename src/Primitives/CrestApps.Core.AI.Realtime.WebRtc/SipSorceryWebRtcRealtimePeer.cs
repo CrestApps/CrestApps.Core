@@ -141,14 +141,27 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         _decoder = OpusCodecFactory.CreateDecoder(OpusDecodeRate, 1);
         _encoder = OpusCodecFactory.CreateEncoder(SampleRate, 1, OpusApplication.OPUS_APPLICATION_VOIP);
 
-        // The encoder's defaults land at ~16 kbps for 24 kHz mono voice — telephone quality, with smeared
-        // consonants that users heard as the assistant "reading words partially". The provider hands us clean
-        // 24 kHz PCM; keep it. 64 kbps VBR measures ~35 kbps average on speech with no clipping, and the highest
-        // complexity is cheap at this rate. In-band FEC lets the browser conceal an occasional lost packet.
-        _encoder.Bitrate = 64000;
+        // The encoder's defaults land at ~16 kbps for 24 kHz mono voice in Opus's hybrid mode — telephone quality,
+        // with smeared consonants that users heard as the assistant "reading words partially". The provider hands
+        // us clean 24 kHz PCM; keep it, and keep it uniform:
+        //  - CELT only (the transform half of Opus, what it uses for music): a waveform codec with one consistent
+        //    timbre, where the hybrid mode's SILK layer re-synthesises everything below 8 kHz with a quality that
+        //    varies from phoneme to phoneme.
+        //  - Inter-frame prediction off, so every frame decodes on its own. The stream is not continuous from the
+        //    decoder's point of view — it sees pre-encoded comfort silence before each reply and across gaps, and
+        //    packet-loss concealment where a slot went unsent — and a frame that is delta-coded against a state
+        //    the decoder never saw comes out at the wrong level (measured: error as large as the signal itself in
+        //    the first frames after such a splice; with prediction off, ~15 dB below it).
+        //  - No in-band FEC: it exists only in the SILK modes, and asking for it with an expected loss rate is what
+        //    pushed the encoder into hybrid mode in the first place. Nothing was lost in any measurement; the
+        //    browser's concealment covers the rare packet that is.
+        // 96 kbps VBR measures ~70 kbps average on speech; the highest complexity is cheap at this rate.
+        _encoder.ForceMode = OpusMode.MODE_CELT_ONLY;
+        _encoder.PredictionDisabled = true;
+        _encoder.Bitrate = 96000;
         _encoder.Complexity = 10;
-        _encoder.UseInbandFEC = true;
-        _encoder.PacketLossPercent = 5;
+        _encoder.UseInbandFEC = false;
+        _encoder.PacketLossPercent = 0;
 
         var config = new RTCConfiguration
         {
