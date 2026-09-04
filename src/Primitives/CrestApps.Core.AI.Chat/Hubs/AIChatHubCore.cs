@@ -1077,7 +1077,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 {
                     Resource = profile,
                     SessionId = chatSession.SessionId,
-                    RealtimeDeploymentName = profile.RealtimeDeploymentName,
+                    RealtimeDeploymentName = realtimeDeploymentName,
                     SilenceDurationMs = silenceDurationMs,
                     VadThreshold = vadThreshold,
                     AllowInterruption = allowInterruption,
@@ -1283,7 +1283,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     {
                         Resource = profile,
                         SessionId = chatSession.SessionId,
-                        RealtimeDeploymentName = profile.RealtimeDeploymentName,
+                        RealtimeDeploymentName = realtimeDeploymentName,
                         SilenceDurationMs = silenceDurationMs,
                         VadThreshold = vadThreshold,
                         AllowInterruption = allowInterruption,

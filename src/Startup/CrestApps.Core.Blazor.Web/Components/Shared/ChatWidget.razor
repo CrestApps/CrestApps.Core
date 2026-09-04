@@ -41,6 +41,7 @@
          data-coreai-chat-widget-profile-initial-prompt="@_initialPrompt"
          data-coreai-chat-widget-profile-chat-mode="@_chatMode"
          data-coreai-chat-widget-profile-tts-voice-name="@_ttsVoiceName"
+         data-coreai-chat-widget-profile-realtime-voice-name="@_realtimeVoiceName"
          data-coreai-chat-widget-profile-enable-session-metrics="@_metricsEnabled.ToString().ToLowerInvariant()"
          data-coreai-chat-widget-profile-allow-session-documents="@((_allowSessionDocuments || _allowImageUploads).ToString().ToLowerInvariant())"
          data-coreai-chat-widget-new-chat-button-selector="#widget-new-chat"
@@ -62,6 +63,7 @@
          data-coreai-chat-mic-button-element-selector="#widget-mic-btn"
          data-coreai-chat-conversation-button-element-selector="#widget-conversation-btn"
          data-coreai-chat-tts-voice-name="@_ttsVoiceName"
+         data-coreai-chat-realtime-voice-name="@_realtimeVoiceName"
          data-coreai-chat-session-documents-enabled="@((_allowSessionDocuments || _allowImageUploads).ToString().ToLowerInvariant())"
          data-coreai-chat-document-bar-selector="#widget-chat-document-bar"
          data-coreai-chat-upload-document-url="/ai/chat-sessions/upload-document"
@@ -223,6 +225,7 @@
     private bool _allowSessionDocuments;
     private bool _textToSpeechEnabled;
     private string _ttsVoiceName;
+    private string _realtimeVoiceName;
     private string _supportedExtensionsAccept;
     private string _supportedExtensionsDisplay;
     private bool _allowImageUploads;
@@ -285,6 +288,7 @@
         var hasTtsDeployment = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
         var speechToTextEnabled = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
         _ttsVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId;
+        _realtimeVoiceName = deploymentDefaults.DefaultRealtimeVoiceId;
 
         ChatModeProfileSettings chatModeSettings = null;
         if (selectedProfile.TryGetSettings<ChatModeProfileSettings>(out chatModeSettings))
@@ -293,6 +297,7 @@
             if (!string.IsNullOrEmpty(chatModeSettings?.VoiceName))
             {
                 _ttsVoiceName = chatModeSettings.VoiceName;
+                _realtimeVoiceName = chatModeSettings.VoiceName;
             }
         }
 

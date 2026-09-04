@@ -100,8 +100,8 @@ laggy STT→LLM→TTS path we want to replace with a realtime session when the m
   `{type:function,name,description,parameters}`), `ToolMode`, parses `function_call` output items
   into `FunctionCallContent`, and writes `function_call_output` from a `FunctionResultContent`
   conversation item. `session.update` re‑config is supported (`SessionUpdateRealtimeClientMessage`).
-- `RealtimeVoiceBridge` (playground) only sets `Instructions`/`Voice`/formats/VAD/transcription —
-  **no tools, no RAG, no profile, no persistence.**
+- The product realtime session path now sets `Instructions`/`Voice`/formats/VAD/transcription through the
+  shared orchestrator and persists transcript turns; there is no separate raw playground bridge.
 - Model bits: `AIProfileType.RealtimeChat`, `AIProfile.RealtimeDeploymentName`,
   `AIDeploymentPurpose.Realtime`; voice resolution via `IRealtimeVoiceResolver`.
 - MEAI 10.9.0 ships an experimental `FunctionInvokingRealtimeClientSession` (the streaming analog of
@@ -363,7 +363,7 @@ acceptable for a voice UX and documented.
 | **1. Configurator** | `IRealtimeSessionConfigurator` + `DefaultRealtimeSessionConfigurator`. §3.1 RAG‑guidance branch in `PreemptiveRagOrchestrationHandler`. | Pure‑mapping unit tests. |
 | **2. Tool loop** | `FunctionInvokingRealtimeClientSession` decorator. | Unit tests with a **fake `IRealtimeClientSession`** (below). |
 | **3. Orchestrator** | `DefaultRealtimeOrchestrator` + `IRealtimeOrchestrator`/`RealtimeEvent`/`IRealtimeChannel`; DI wiring; scope establishment. | Orchestrator unit test: prepared context → session options correct; tool call round‑trips under scope. |
-| **4. Standalone proof** | Route `RealtimeController`/`RealtimeVoiceBridge` for a `RealtimeChat` profile through the orchestrator (tools + RAG, no persistence yet). | Manual playground: spoken tool call + data‑source question with spoken citations. |
+| **4. Standalone proof** | Validate the realtime orchestrator through the product chat surfaces (Chat Interactions, AI Profile sessions, and widgets). | Manual product-surface test: spoken tool call + data-source question with spoken citations. |
 | **5. Chat integration** | `StartRealtimeConversation` hub method, capability resolver, transcript persistence, client audio method. | Hub test with fake realtime client: both‑ends transcript persisted, references attached, title generated, per‑turn save. |
 
 ---
@@ -426,25 +426,10 @@ realtime tool loop under scope with the real MEAI middleware and a fake session,
 the runner's both-ends transcript persistence + barge-in). Full suite: **2837 passed, 0 failed**. Both
 sample hosts build; the MVC host boots and serves requests with the new DI graph.
 
-**Playground (manual test of the orchestrator) — done.** The MVC realtime test page
-(`/Realtime`, `RealtimeController`) now has a **RealtimeChat profile** selector. Selecting a profile routes
-the session through `RealtimeVoiceBridge.HandleProfileAsync` → `IRealtimeOrchestrator`, so the live
-speech-to-speech session honors the profile's system message, tools, and knowledge base (RAG via the
-search tool). Leaving it on "Raw deployment" keeps the original bare-instructions path. The existing
-`realtime-test.js` mic-capture/playback/transcript client is reused unchanged except for sending
-`profileId`. This is the fastest way to manually verify the orchestrator end to end.
-
-**Not yet done (chat-app UI).** Wiring the *product* chat UI's voice affordance to call
-`StartRealtimeConversation` (mic capture + assistant-audio playback + transcript inside the chat surface)
-for a realtime-capable profile. The hub method, sink, capability gate, and persistence are all in place and
-tested; this is the remaining front-end integration in the chat app. The `SpeechStarted` barge-in signal is
-a server-side no-op today (the client mutes its own playback); a dedicated client method can be added then.
-
-**Manual test steps (playground).** (1) Create an AI provider connection and a deployment whose purpose
-includes **Realtime** (e.g. Azure OpenAI `gpt-realtime`). (2) Create a **RealtimeChat** profile pointing at
-it; optionally give it tools and/or a data source. (3) Sign in, open **/Realtime**, pick the profile, choose
-a voice, click **Start talking**, and speak. Verify: spoken answers, the both-ends transcript, a tool being
-invoked when you ask something that needs it, and a cited answer when you ask about the data source.
+The temporary standalone realtime playground was removed after the product chat surfaces gained the
+`StartRealtimeConversation` integration. Realtime behavior is now manually exercised through Chat Interactions,
+AI Profile chat sessions, and the admin chat widget, which cover microphone capture, assistant audio, transcripts,
+tool invocation, knowledge retrieval, and persistence in their real user flows.
 
 ## 8. Open questions for review
 

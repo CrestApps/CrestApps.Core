@@ -53,4 +53,31 @@ public class AdminChatWidgetMountTests
         Assert.Contains("ai-chat-admin-widget-shell", component);
         Assert.Contains("openAIChatWidgetManager.initialize", component);
     }
+
+    [Fact]
+    public void Both_chat_widget_hosts_forward_the_profile_realtime_voice()
+    {
+        var mvcWidget = ReadAll("src/Startup/CrestApps.Core.Mvc.Web/Areas/AIChat/Views/Shared/_ChatWidget.cshtml");
+        var blazorWidget = ReadAll("src/Startup/CrestApps.Core.Blazor.Web/Components/Shared/ChatWidget.razor");
+        var widgetScript = ReadAll("src/Resources/CrestApps.AI.Resources/Assets/js/ai-chat-widget.js");
+
+        Assert.Contains("data-coreai-chat-realtime-voice-name", mvcWidget);
+        Assert.Contains("data-coreai-chat-realtime-voice-name", blazorWidget);
+        Assert.Contains("data-coreai-chat-widget-profile-realtime-voice-name", widgetScript);
+        Assert.Contains("realtimeVoiceName: profileRealtimeVoiceName", widgetScript);
+    }
+
+    [Fact]
+    public void Standalone_realtime_test_surface_is_not_registered()
+    {
+        var mvcLayout = ReadAll("src/Startup/CrestApps.Core.Mvc.Web/Views/Shared/_Layout.cshtml");
+        var blazorNav = ReadAll("src/Startup/CrestApps.Core.Blazor.Web/Components/Layout/NavMenu.razor");
+        var blazorApp = ReadAll("src/Startup/CrestApps.Core.Blazor.Web/Components/App.razor");
+        var blazorProgram = ReadAll("src/Startup/CrestApps.Core.Blazor.Web/Program.cs");
+
+        Assert.DoesNotContain("Realtime model test", mvcLayout);
+        Assert.DoesNotContain("/realtime", blazorNav);
+        Assert.DoesNotContain("realtime-test.js", blazorApp);
+        Assert.DoesNotContain("/Realtime/Stream", blazorProgram);
+    }
 }
