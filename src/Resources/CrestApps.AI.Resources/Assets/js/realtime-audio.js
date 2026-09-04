@@ -1030,9 +1030,10 @@
                 return;
             }
 
-            var template = document.createElement('template');
-            template.innerHTML = html;
-            button.replaceChildren(document.createTextNode(template.content.textContent || ''));
+            // No DOMPurify: never parse the untrusted markup as HTML. Strip any tags with a plain-string pass and
+            // collapse whitespace, then render the remaining label as text only.
+            var text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            button.replaceChildren(document.createTextNode(text));
         }
 
         function updateRealtimeButton() {
