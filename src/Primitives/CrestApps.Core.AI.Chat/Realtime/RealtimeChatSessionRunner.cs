@@ -1,6 +1,7 @@
 #pragma warning disable MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only.
 #nullable enable
 using System.Buffers;
+using System.Diagnostics;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Realtime;
@@ -49,6 +50,9 @@ public sealed class RealtimeChatSessionRunner
     // minute with no indication why. Past this point, letting them interrupt a still-playing reply is the lesser
     // of the two failures.
     private const int MaxHalfDuplexHoldMs = 2000;
+
+    // A microphone batch (~100 ms) that the provider takes this long to accept is a stall worth logging.
+    private const long SlowProviderSendMs = 1000;
 
     private readonly IRealtimeOrchestrator _orchestrator;
     private readonly TimeProvider _timeProvider;
@@ -244,7 +248,7 @@ public sealed class RealtimeChatSessionRunner
 
     // Takes the run context rather than a captured flag: barge-in can be toggled mid-conversation (see
     // RealtimeSessionControl), and the pump has to honour the change on the very next microphone frame.
-    private static async Task PumpInputAsync(
+    private async Task PumpInputAsync(
         IRealtimeConversation conversation,
         IAsyncEnumerable<ReadOnlyMemory<byte>> audioInput,
         RealtimeChatRunContext context,
@@ -252,6 +256,23 @@ public sealed class RealtimeChatSessionRunner
         CancellationToken cancellationToken)
     {
         var batch = new ArrayBufferWriter<byte>(MinimumInputBatchBytes * 2);
+        var sendClock = new Stopwatch();
+
+        // A send to the provider that takes longer than the audio it carries is the provider (or the network) not
+        // accepting input. The transport buffers ~2 s behind this loop and then drops the oldest audio, so a stall
+        // here is what the user experiences as "it did not hear me" — say how long it lasted.
+        async Task SendAsync(ReadOnlyMemory<byte> audio)
+        {
+            sendClock.Restart();
+            await conversation.SendAudioAsync(audio, cancellationToken);
+            var elapsedMs = sendClock.ElapsedMilliseconds;
+            if (elapsedMs >= SlowProviderSendMs)
+            {
+                _logger.LogWarning(
+                    "Realtime session {SessionId}: the provider accepted {AudioMs} ms of microphone audio only after {ElapsedMs} ms; audio behind it is being delayed or dropped.",
+                    context.SessionId, audio.Length / 2 * 1000 / SampleRate, elapsedMs);
+            }
+        }
 
         await foreach (var chunk in audioInput.WithCancellation(cancellationToken))
         {
@@ -275,7 +296,7 @@ public sealed class RealtimeChatSessionRunner
             // Transports that already deliver large frames (the SignalR path sends ~170 ms) pass straight through.
             if (batch.WrittenCount == 0 && chunk.Length >= MinimumInputBatchBytes)
             {
-                await conversation.SendAudioAsync(chunk, cancellationToken);
+                await SendAsync(chunk);
 
                 continue;
             }
@@ -284,14 +305,14 @@ public sealed class RealtimeChatSessionRunner
 
             if (batch.WrittenCount >= MinimumInputBatchBytes)
             {
-                await conversation.SendAudioAsync(batch.WrittenMemory.ToArray(), cancellationToken);
+                await SendAsync(batch.WrittenMemory.ToArray());
                 batch.ResetWrittenCount();
             }
         }
 
         if (batch.WrittenCount > 0)
         {
-            await conversation.SendAudioAsync(batch.WrittenMemory.ToArray(), cancellationToken);
+            await SendAsync(batch.WrittenMemory.ToArray());
         }
     }
 

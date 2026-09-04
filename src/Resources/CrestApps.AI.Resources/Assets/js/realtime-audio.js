@@ -1825,7 +1825,22 @@
             if (!realtimePc || typeof realtimePc.getStats !== 'function') { return Promise.resolve(null); }
 
             return realtimePc.getStats().then(function (report) {
-                var result = { transport: 'webrtc', inbound: null, codec: null };
+                // Where playback actually goes (the "communications" sink puts Chrome's pipeline in communications
+                // mode; empty means the browser default) and the receiver's requested cushion, so a report of
+                // "sounds different in this browser" can be tied to the output path.
+                var result = {
+                    transport: 'webrtc',
+                    inbound: null,
+                    codec: null,
+                    sinkId: (realtimeRemoteAudioEl && typeof realtimeRemoteAudioEl.sinkId === 'string') ? realtimeRemoteAudioEl.sinkId : null,
+                    jitterBufferTargetMs: (function () {
+                        try {
+                            var r = realtimePc.getReceivers().filter(function (x) { return x.track && x.track.kind === 'audio'; })[0];
+
+                            return (r && 'jitterBufferTarget' in r) ? r.jitterBufferTarget : null;
+                        } catch (e) { return null; }
+                    })()
+                };
                 report.forEach(function (stat) {
                     if (stat.type === 'inbound-rtp' && stat.kind === 'audio') {
                         result.inbound = {
