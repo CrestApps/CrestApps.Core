@@ -243,11 +243,55 @@ public sealed class GenerateFileTool : AIFunction
             if (header.Count > 0)
             {
                 fileContent.Header = header;
-                fileContent.Rows = rows;
+                fileContent.Rows = ReflowOverflowRows(header, rows);
             }
         }
 
         return fileContent;
+    }
+
+    /// <summary>
+    /// subtotal rows with a missing/blank total value.But it's a real, reproducible gap either way.
+    /// Repairs rows that split into extra fields because the model hand-authored the CSV/TSV text
+    /// itself (see this tool's JSON schema, which asks for raw delimited text rather than structured
+    /// rows) and left a delimiter character embedded in a field unquoted -- for example a client name
+    /// like "Acme, Inc." typed without surrounding quotes. A row with more fields than the header is
+    /// assumed to have overflowed in its leading field(s), since the AI-authored text most commonly puts
+    /// a free-text label first and numeric columns after, so those leading fields are rejoined into one
+    /// so the row realigns under the header instead of writing a misaligned/corrupted row to the file.
+    /// Rows that already match (or are short of) the header's column count are left untouched.
+    /// </summary>
+    private static IReadOnlyList<IReadOnlyList<string>> ReflowOverflowRows(
+        IReadOnlyList<string> header,
+        IReadOnlyList<IReadOnlyList<string>> rows)
+    {
+        var expectedCount = header.Count;
+        List<IReadOnlyList<string>> repaired = null;
+
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var row = rows[i];
+
+            if (row.Count <= expectedCount)
+            {
+                repaired?.Add(row);
+
+                continue;
+            }
+
+            repaired ??= new List<IReadOnlyList<string>>(rows.Take(i));
+
+            var overflow = row.Count - expectedCount;
+            var fixedRow = new List<string>(expectedCount)
+            {
+                string.Join(",", row.Take(overflow + 1)),
+            };
+            fixedRow.AddRange(row.Skip(overflow + 1));
+
+            repaired.Add(fixedRow);
+        }
+
+        return repaired ?? rows;
     }
 
     private static bool LooksLikeDownloadStatusMessage(string content)
