@@ -213,7 +213,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
             // by CapabilityEnforcingChatClient on the client-factory path.
             _logger.LogWarning(
                 "Deployment '{Deployment}' does not declare the '{Feature}' feature. The streaming request was completed as a single non-streaming response.",
-                deployment.ModelName, AIModelFeatureNames.Streaming);
+                deployment.ModelName, AIDeploymentFeatureNames.Streaming);
 
             var bufferedResponse = await CompleteAsync(messages, context, cancellationToken);
 
@@ -415,19 +415,19 @@ omit optional fields, or split the operation into multiple smaller calls.
     {
         // Only deployments that declare capability metadata are constrained, so existing
         // configurations keep streaming exactly as before.
-        if (!deployment.TryGet<AIDeploymentModelMetadata>(out _))
+        if (!deployment.TryGet<AIDeploymentMetadata>(out _))
         {
             return false;
         }
 
-        var capabilityService = _serviceProvider.GetService<IAIModelCapabilityService>();
+        var capabilityService = _serviceProvider.GetService<IAIDeploymentCapabilityService>();
 
         if (capabilityService is null)
         {
             return false;
         }
 
-        return !capabilityService.GetCapabilities(deployment).SupportsFeature(AIModelFeatureNames.Streaming);
+        return !capabilityService.GetCapabilities(deployment).SupportsFeature(AIDeploymentFeatureNames.Streaming);
     }
 
     private async ValueTask<(AIDeployment deployment, AIProviderConnectionEntry connection)> ResolveChatConfigurationAsync(string deploymentName)
@@ -582,7 +582,7 @@ omit optional fields, or split the operation into multiple smaller calls.
         if (chatOptions.AdditionalProperties is { Count: > 0 })
         {
             _logger.LogWarning(
-                "Model parameter value(s) '{Parameters}' resolved for deployment '{Deployment}' are not applied by the Azure OpenAI completion client, which does not forward ChatOptions.AdditionalProperties. Register an IAIModelParameterBinder that maps the parameter onto a supported option.",
+                "Model parameter value(s) '{Parameters}' resolved for deployment '{Deployment}' are not applied by the Azure OpenAI completion client, which does not forward ChatOptions.AdditionalProperties. Register an IAIDeploymentParameterBinder that maps the parameter onto a supported option.",
                 string.Join(", ", chatOptions.AdditionalProperties.Keys), deployment.ModelName);
         }
 

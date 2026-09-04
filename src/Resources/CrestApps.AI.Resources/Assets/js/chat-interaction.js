@@ -605,6 +605,8 @@ window.chatInteractionManager = function () {
                     conversationModeEnabled: config.chatMode === 'Conversation',
                     conversationButton: null,
                     isConversationMode: false,
+                    // Realtime (speech-to-speech) controller from the shared CoreAIRealtime module.
+                    realtimeController: null,
                     notifications: [],
                     notificationDismissTimers: {},
                     copyTitle: config.copyTitle,
@@ -716,19 +718,28 @@ window.chatInteractionManager = function () {
                         }
                     });
 
-                    this.connection.on("ReceiveConversationUserMessage", (itemId, text) => {
+                    this.connection.on("ReceiveConversationUserMessage", (itemId, turnId, text) => {
+                        // Realtime: a placeholder for this turn was already inserted in the right position when
+                        // the utterance was captured (see onUserTurnPending), so just fill in its text.
+                        if (turnId && this._realtimePendingTurns && this._realtimePendingTurns[turnId]) {
+                            var pending = this._realtimePendingTurns[turnId];
+                            delete this._realtimePendingTurns[turnId];
+                            this.stopAudio();
+                            if (text) {
+                                pending.content = text;
+                                pending.rawContent = text;
+                                pending.isPartial = false;
+                                updateMessagePresentation(pending, pending.references);
+                            } else {
+                                var emptyIndex = this.messages.indexOf(pending);
+                                if (emptyIndex >= 0) { this.messages.splice(emptyIndex, 1); }
+                            }
+
+                            return;
+                        }
+
                         if (text) {
                             this.stopAudio();
-
-                            // If there's an interrupted assistant message still streaming,
-                            // mark it as done to stop the spinner animation.
-                            if (this._conversationAssistantMessage) {
-                                var oldMsg = this.messages[this._conversationAssistantMessage.index];
-                                if (oldMsg) {
-                                    oldMsg.isStreaming = false;
-                                }
-                                this._conversationAssistantMessage = null;
-                            }
 
                             // Replace the partial transcript message with the final one.
                             if (this._conversationPartialMessage) {
@@ -737,6 +748,16 @@ window.chatInteractionManager = function () {
                                 this._conversationPartialMessage.htmlContent = '<p>' + escaped + '</p>';
                                 this._conversationPartialMessage.isPartial = false;
                                 this._conversationPartialMessage = null;
+                            } else if (this._conversationAssistantMessage) {
+                                // Realtime: the user's transcript lags the assistant's reply for the SAME turn (the
+                                // model answers the audio before speech-to-text finishes). Insert the user message
+                                // just before the streaming assistant message so the order stays You -> Assistant,
+                                // and keep that message streaming — ending it here split one reply into two bubbles.
+                                var at = this._conversationAssistantMessage.index;
+                                var userMsg = { role: 'user', content: text, rawContent: text, references: {} };
+                                updateMessagePresentation(userMsg, userMsg.references);
+                                this.messages.splice(at, 0, userMsg);
+                                this._conversationAssistantMessage.index = at + 1;
                             } else {
                                 this.addMessage({
                                     role: 'user',
@@ -748,6 +769,13 @@ window.chatInteractionManager = function () {
                     });
 
                     this.connection.on("ReceiveConversationAssistantToken", (itemId, messageId, token, responseId, references, appearance) => {
+                        // A new response id means a new turn — finalize the previous assistant message so two replies
+                        // never merge into one bubble (also covers barge-in, which starts a fresh response).
+                        if (this._conversationAssistantMessage && this._conversationAssistantResponseId && responseId && this._conversationAssistantResponseId !== responseId) {
+                            var prev = this.messages[this._conversationAssistantMessage.index];
+                            if (prev) { prev.isStreaming = false; }
+                            this._conversationAssistantMessage = null;
+                        }
                         if (!this._conversationAssistantMessage) {
                             this.stopAudio();
                             this.hideTypingIndicator();
@@ -771,6 +799,7 @@ window.chatInteractionManager = function () {
                             };
                             this.messages.push(newMessage);
                             this._conversationAssistantMessage = { index: msgIndex, content: '' };
+                            this._conversationAssistantResponseId = responseId;
                         }
 
                         this._conversationAssistantMessage.content += token;
@@ -798,6 +827,7 @@ window.chatInteractionManager = function () {
                                 updateMessagePresentation(msg, msg.references);
                             }
                             this._conversationAssistantMessage = null;
+                            this._conversationAssistantResponseId = null;
                         }
                     });
 
@@ -808,7 +838,12 @@ window.chatInteractionManager = function () {
                             for (let i = 0; i < binaryString.length; i++) {
                                 bytes[i] = binaryString.charCodeAt(i);
                             }
-                            this.audioChunks.push(bytes);
+                            // Realtime PCM streams straight to the low-latency player; other formats (TTS) are buffered.
+                            if (contentType === 'audio/pcm' && this.realtimeController) {
+                                this.realtimeController.receivePcm(bytes);
+                            } else {
+                                this.audioChunks.push(bytes);
+                            }
                         }
                     });
 
@@ -2044,6 +2079,151 @@ window.chatInteractionManager = function () {
                             });
                         }
                     }
+
+                    // Initialize realtime (speech-to-speech) mode via the shared CoreAIRealtime module. The
+                    // module owns the mic capture, playback, echo guard, push-to-talk and audio settings; the
+                    // callbacks below plug it into this app's connection and conversation-transcript display.
+                    if (window.CoreAIRealtime && config.realtimeButtonElementSelector) {
+                        this.realtimeController = window.CoreAIRealtime.attach({
+                            connection: this.connection,
+                            ensureConnected: () => Promise.resolve(this.connection),
+                            sendStart: (subject, voice, language, silenceMs, vadThreshold, allowInterruption) => {
+                                this.connection.send('StartRealtimeConversation', this.getItemId(), subject, voice, language, silenceMs, vadThreshold, allowInterruption);
+                            },
+                            // Prefer WebRTC (server-relay) when the server advertises it; the shared module falls back
+                            // to the WebSocket sendStart above if the peer cannot connect.
+                            webRtcEnabled: config.realtimeWebRtcEnabled === true,
+                            sendStartWebRtc: (offerSdp, voice, language, silenceMs, vadThreshold, allowInterruption) => {
+                                this.connection.send('StartRealtimeWebRtc', this.getItemId(), offerSdp, voice, language, silenceMs, vadThreshold, allowInterruption);
+                            },
+                            webRtcIceServers: Array.isArray(config.realtimeWebRtcIceServers) ? config.realtimeWebRtcIceServers : undefined,
+                            voiceName: config.realtimeVoiceName || '',
+                            getVoiceName: () => {
+                                var el = config.realtimeVoiceSelectElementSelector ? document.querySelector(config.realtimeVoiceSelectElementSelector) : null;
+                                return el ? el.value : '';
+                            },
+                            capableDeployments: config.realtimeCapableDeployments || [],
+                            realtimeEnabled: config.realtimeEnabled === true,
+                            selectors: {
+                                realtimeButton: config.realtimeButtonElementSelector,
+                                input: config.inputElementSelector,
+                                sendButton: config.sendButtonElementSelector,
+                                micButton: config.micButtonElementSelector,
+                                conversationButton: config.conversationButtonElementSelector,
+                                deploymentSelect: config.deploymentSelectElementSelector
+                            },
+                            onActivate: () => {
+                                this.isConversationMode = true;
+                                this._conversationPartialMessage = null;
+                                this._conversationAssistantMessage = null;
+                            },
+                            onDeactivate: () => {
+                                this.isConversationMode = false;
+                                if (this._conversationAssistantMessage) {
+                                    var m = this.messages[this._conversationAssistantMessage.index];
+                                    if (m) { m.isStreaming = false; }
+                                    this._conversationAssistantMessage = null;
+                                }
+                            },
+                            onEnterRealtimeMode: () => {
+                                if (this.isRecording) { this.stopRecording(); }
+                                if (this.isConversationMode && (!this.realtimeController || !this.realtimeController.isActive())) { this.stopConversationMode(); }
+                            },
+                            // The utterance has been captured but not transcribed yet. Showing a placeholder now
+                            // puts the prompt above the reply it produces: transcription lags the spoken answer, so
+                            // a bubble added only when the text arrives lands underneath its own reply.
+                            onUserTurnPending: (turnId) => {
+                                if (!turnId) { return; }
+                                var placeholder = { role: 'user', content: '', rawContent: '', references: {}, isPartial: true };
+                                updateMessagePresentation(placeholder, placeholder.references);
+                                this._realtimePendingTurns = this._realtimePendingTurns || {};
+                                this._realtimePendingTurns[turnId] = placeholder;
+                                this.messages.push(placeholder);
+                                this.scrollToBottom();
+                            },
+                            onUserTurnDropped: (turnId) => {
+                                if (!turnId || !this._realtimePendingTurns) { return; }
+                                var dropped = this._realtimePendingTurns[turnId];
+                                if (!dropped) { return; }
+                                delete this._realtimePendingTurns[turnId];
+                                var at = this.messages.indexOf(dropped);
+                                if (at >= 0) { this.messages.splice(at, 1); }
+                            }
+                        });
+
+                        this.setupRealtimeVoicePicker(config);
+                    }
+                },
+                // Populates the per-interaction realtime voice picker from the selected realtime deployment's
+                // voices (via the realtime-voices endpoint), and shows it only for realtime-capable deployments.
+                setupRealtimeVoicePicker(config) {
+                    if (!config.realtimeVoiceSelectElementSelector || !config.realtimeVoicesUrl) {
+                        return;
+                    }
+
+                    var voiceSelect = document.querySelector(config.realtimeVoiceSelectElementSelector);
+                    if (!voiceSelect) {
+                        return;
+                    }
+
+                    var voiceGroup = config.realtimeVoiceGroupElementSelector ? document.querySelector(config.realtimeVoiceGroupElementSelector) : null;
+                    var deploymentSelect = config.deploymentSelectElementSelector ? document.querySelector(config.deploymentSelectElementSelector) : null;
+                    var capable = (config.realtimeCapableDeployments || []).map(function (n) { return (n || '').toLowerCase(); });
+                    var savedVoiceId = config.realtimeVoiceName || '';
+
+                    function isRealtimeDeployment(name) {
+                        return name && capable.indexOf(name.toLowerCase()) !== -1;
+                    }
+
+                    async function loadVoices() {
+                        var deploymentName = deploymentSelect ? deploymentSelect.value : '';
+                        var realtime = isRealtimeDeployment(deploymentName);
+                        if (voiceGroup) {
+                            voiceGroup.classList.toggle('d-none', !realtime);
+                        }
+                        if (!realtime) {
+                            return;
+                        }
+
+                        voiceSelect.innerHTML = '<option value="">Default voice</option>';
+
+                        try {
+                            const response = await fetch(config.realtimeVoicesUrl + '?deploymentName=' + encodeURIComponent(deploymentName), { credentials: 'same-origin' });
+                            const result = await response.json();
+                            if (!result || !Array.isArray(result.voices)) {
+                                return;
+                            }
+
+                            const grouped = new Map();
+                            for (const voice of result.voices) {
+                                const groupName = voice.gender || 'Voices';
+                                if (!grouped.has(groupName)) {
+                                    grouped.set(groupName, []);
+                                }
+                                grouped.get(groupName).push(voice);
+                            }
+
+                            Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b)).forEach(function (groupName) {
+                                const optgroup = document.createElement('optgroup');
+                                optgroup.label = groupName;
+                                grouped.get(groupName).forEach(function (voice) {
+                                    const option = document.createElement('option');
+                                    option.value = voice.id;
+                                    option.textContent = voice.name;
+                                    option.selected = voice.id === savedVoiceId;
+                                    optgroup.appendChild(option);
+                                });
+                                voiceSelect.appendChild(optgroup);
+                            });
+                        } catch (err) {
+                            /* ignore voice load failures */
+                        }
+                    }
+
+                    if (deploymentSelect) {
+                        deploymentSelect.addEventListener('change', loadVoices);
+                    }
+                    loadVoices();
                 },
                 loadInteraction(itemId) {
                     this.connection.invoke("LoadInteraction", itemId).catch(err => console.error(err));
@@ -2057,6 +2237,11 @@ window.chatInteractionManager = function () {
                 clearHistory(itemId) {
                     const self = this;
                     const clearHistoryConfirmed = () => {
+                        // Force-stop any live realtime voice session before clearing history.
+                        if (self.realtimeController && self.realtimeController.isActive()) {
+                            self.realtimeController.stop();
+                        }
+
                         // Cancel any active stream before clearing history.
                         if (self.stream) {
                             self.stream.dispose();

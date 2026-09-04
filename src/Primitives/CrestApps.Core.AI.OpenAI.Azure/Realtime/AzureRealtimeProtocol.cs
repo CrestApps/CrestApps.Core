@@ -2,6 +2,7 @@
 #nullable enable
 using System.Text;
 using System.Text.Json;
+using CrestApps.Core.AI.Realtime;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Realtime;
@@ -182,7 +183,13 @@ internal static class AzureRealtimeProtocol
             writer.WriteString("model", transcription.ModelId);
             if (transcription.SpeechLanguage is not null)
             {
-                writer.WriteString("language", transcription.SpeechLanguage);
+                // The realtime transcription API expects an ISO-639-1 language code (for example "en"),
+                // not a full culture name ("en-US"), so use the primary subtag.
+                var language = transcription.SpeechLanguage.Split('-', '_')[0];
+                if (!string.IsNullOrWhiteSpace(language))
+                {
+                    writer.WriteString("language", language);
+                }
             }
 
             writer.WriteEndObject();
@@ -192,11 +199,12 @@ internal static class AzureRealtimeProtocol
         {
             if (vad.Enabled)
             {
-                writer.WriteStartObject("turn_detection");
-                writer.WriteString("type", "server_vad");
-                writer.WriteBoolean("create_response", true);
-                writer.WriteBoolean("interrupt_response", vad.AllowInterruption);
-                writer.WriteEndObject();
+                // The algorithm, eagerness, silence duration and detection threshold are not expressible via the
+                // MEAI VAD options, so they ride RawRepresentationFactory (see DefaultRealtimeSessionConfigurator /
+                // RealtimeTurnDetectionOverrides).
+                var overrides = options.RawRepresentationFactory?.Invoke() as RealtimeTurnDetectionOverrides;
+
+                WriteTurnDetection(writer, vad.AllowInterruption, overrides);
             }
             else
             {
@@ -219,6 +227,44 @@ internal static class AzureRealtimeProtocol
 
         WriteTools(writer, options.Tools);
         WriteToolChoice(writer, options.ToolMode);
+
+        writer.WriteEndObject();
+    }
+
+    /// <summary>
+    /// Writes a <c>turn_detection</c> object. Semantic detection carries only its eagerness; server VAD carries the
+    /// silence window and threshold. Sending the server-VAD knobs alongside <c>semantic_vad</c> is rejected by the
+    /// provider, so the two sets are never mixed.
+    /// </summary>
+    public static void WriteTurnDetection(Utf8JsonWriter writer, bool allowInterruption, RealtimeTurnDetectionOverrides? overrides)
+    {
+        var type = string.IsNullOrWhiteSpace(overrides?.Type) ? RealtimeTurnDetectionTypes.ServerVad : overrides!.Type;
+        var semantic = string.Equals(type, RealtimeTurnDetectionTypes.SemanticVad, StringComparison.OrdinalIgnoreCase);
+
+        writer.WriteStartObject("turn_detection");
+        writer.WriteString("type", semantic ? RealtimeTurnDetectionTypes.SemanticVad : RealtimeTurnDetectionTypes.ServerVad);
+        writer.WriteBoolean("create_response", true);
+        writer.WriteBoolean("interrupt_response", allowInterruption);
+
+        if (semantic)
+        {
+            if (!string.IsNullOrWhiteSpace(overrides?.Eagerness))
+            {
+                writer.WriteString("eagerness", overrides!.Eagerness);
+            }
+        }
+        else if (overrides is not null)
+        {
+            if (overrides.SilenceDurationMs is { } silenceMs)
+            {
+                writer.WriteNumber("silence_duration_ms", silenceMs);
+            }
+
+            if (overrides.Threshold is { } threshold)
+            {
+                writer.WriteNumber("threshold", threshold);
+            }
+        }
 
         writer.WriteEndObject();
     }

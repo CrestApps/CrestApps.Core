@@ -46,9 +46,4 @@ public enum AIDeploymentPurpose
     /// Vision purpose for understanding image inputs in chat-style interactions.
     /// </summary>
     Vision = 1 << 6,
-
-    /// <summary>
-    /// Real-time speech-to-speech conversation purpose using a duplex session with the provider.
-    /// </summary>
-    Realtime = 1 << 7,
 }

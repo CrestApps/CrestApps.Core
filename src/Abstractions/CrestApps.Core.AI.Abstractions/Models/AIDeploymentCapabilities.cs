@@ -11,7 +11,7 @@ public sealed class AIDeploymentCapabilities
     /// </summary>
     public static AIDeploymentCapabilities Empty { get; } = new AIDeploymentCapabilities([], []);
 
-    private readonly Dictionary<string, AIModelParameterDescriptor> _parameters;
+    private readonly Dictionary<string, AIDeploymentParameterDescriptor> _parameters;
     private readonly HashSet<string> _features;
 
     /// <summary>
@@ -20,8 +20,8 @@ public sealed class AIDeploymentCapabilities
     /// <param name="features">The features exposed by the deployment.</param>
     /// <param name="parameters">The effective parameters exposed by the deployment.</param>
     public AIDeploymentCapabilities(
-        IEnumerable<AIModelFeatureDescriptor> features,
-        IEnumerable<AIModelParameterDescriptor> parameters)
+        IEnumerable<AIDeploymentFeatureDescriptor> features,
+        IEnumerable<AIDeploymentParameterDescriptor> parameters)
     {
         ArgumentNullException.ThrowIfNull(features);
         ArgumentNullException.ThrowIfNull(parameters);
@@ -35,12 +35,12 @@ public sealed class AIDeploymentCapabilities
     /// <summary>
     /// Gets the features exposed by the deployment.
     /// </summary>
-    public IReadOnlyList<AIModelFeatureDescriptor> Features { get; }
+    public IReadOnlyList<AIDeploymentFeatureDescriptor> Features { get; }
 
     /// <summary>
     /// Gets the effective parameters exposed by the deployment.
     /// </summary>
-    public IReadOnlyList<AIModelParameterDescriptor> Parameters { get; }
+    public IReadOnlyList<AIDeploymentParameterDescriptor> Parameters { get; }
 
     /// <summary>
     /// Determines whether the deployment exposes the given feature.
@@ -56,7 +56,7 @@ public sealed class AIDeploymentCapabilities
     /// deployment does not expose it.
     /// </summary>
     /// <param name="parameterName">The technical name of the parameter.</param>
-    public AIModelParameterDescriptor GetParameter(string parameterName)
+    public AIDeploymentParameterDescriptor GetParameter(string parameterName)
     {
         if (string.IsNullOrWhiteSpace(parameterName))
         {

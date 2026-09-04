@@ -188,11 +188,15 @@ public sealed class FunctionInvocationAICompletionServiceHandlerTests
         IOptions<AIToolDefinitionOptions> toolDefinitions = null,
         ILogger<FunctionInvocationAICompletionServiceHandler> logger = null)
     {
-        return new FunctionInvocationAICompletionServiceHandler(
+        var materializer = new DefaultToolMaterializer(
             evaluator ?? new RecordingToolAccessEvaluator(),
-            userAccessor ?? new TestUserAccessor(),
             toolDefinitions ?? CreateToolDefinitions(_ => { }),
             new EmptyServiceProvider(),
+            NullLogger<DefaultToolMaterializer>.Instance);
+
+        return new FunctionInvocationAICompletionServiceHandler(
+            materializer,
+            userAccessor ?? new TestUserAccessor(),
             logger ?? NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
     }
 

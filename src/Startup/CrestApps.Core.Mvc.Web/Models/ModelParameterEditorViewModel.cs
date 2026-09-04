@@ -71,7 +71,7 @@ public sealed class ModelParameterFieldViewModel
     /// <summary>
     /// Gets or sets the editor semantics of the parameter.
     /// </summary>
-    public AIModelParameterKind Kind { get; set; }
+    public AIDeploymentParameterKind Kind { get; set; }
 
     /// <summary>
     /// Gets or sets every value registered for a choice parameter.

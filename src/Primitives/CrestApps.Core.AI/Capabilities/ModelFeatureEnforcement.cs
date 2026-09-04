@@ -35,13 +35,13 @@ internal static class ModelFeatureEnforcement
 
         var changed = false;
 
-        if (!capabilities.SupportsFeature(AIModelFeatureNames.ToolCalling))
+        if (!capabilities.SupportsFeature(AIDeploymentFeatureNames.ToolCalling))
         {
             if (options.Tools is { Count: > 0 })
             {
                 logger.LogWarning(
                     "Deployment '{Deployment}' does not declare the '{Feature}' feature. {Count} tool(s) were removed from the request.",
-                    deploymentName, AIModelFeatureNames.ToolCalling, options.Tools.Count);
+                    deploymentName, AIDeploymentFeatureNames.ToolCalling, options.Tools.Count);
 
                 options.Tools = null;
                 changed = true;
@@ -56,17 +56,17 @@ internal static class ModelFeatureEnforcement
             }
         }
 
-        if (!capabilities.SupportsFeature(AIModelFeatureNames.StructuredOutputs) && options.ResponseFormat is ChatResponseFormatJson)
+        if (!capabilities.SupportsFeature(AIDeploymentFeatureNames.StructuredOutputs) && options.ResponseFormat is ChatResponseFormatJson)
         {
             logger.LogWarning(
                 "Deployment '{Deployment}' does not declare the '{Feature}' feature. The JSON response format was removed from the request.",
-                deploymentName, AIModelFeatureNames.StructuredOutputs);
+                deploymentName, AIDeploymentFeatureNames.StructuredOutputs);
 
             options.ResponseFormat = null;
             changed = true;
         }
 
-        if (!capabilities.SupportsFeature(AIModelFeatureNames.Reasoning))
+        if (!capabilities.SupportsFeature(AIDeploymentFeatureNames.Reasoning))
         {
             // The deployment is not trained to reason, so no reasoning option may be sent to the
             // provider. Removing it prevents providers from rejecting the request outright.
@@ -74,7 +74,7 @@ internal static class ModelFeatureEnforcement
             {
                 logger.LogWarning(
                     "Deployment '{Deployment}' does not declare the '{Feature}' feature. The reasoning options were removed from the request.",
-                    deploymentName, AIModelFeatureNames.Reasoning);
+                    deploymentName, AIDeploymentFeatureNames.Reasoning);
 
                 options.Reasoning = null;
                 changed = true;
@@ -85,13 +85,13 @@ internal static class ModelFeatureEnforcement
             // Reasoning is supported, but the selected effort must still be exposed by the deployment
             // and be one of the values it allows; otherwise the provider may reject the request. Only
             // the effort is adjusted so any other reasoning state (such as Output) is preserved.
-            var descriptor = capabilities.GetParameter(AIModelParameterNames.ReasoningEffort);
+            var descriptor = capabilities.GetParameter(AIDeploymentParameterNames.ReasoningEffort);
 
             if (descriptor is null)
             {
                 logger.LogWarning(
                     "Deployment '{Deployment}' does not expose the '{Parameter}' parameter. The reasoning effort '{Effort}' was removed from the request.",
-                    deploymentName, AIModelParameterNames.ReasoningEffort, effort);
+                    deploymentName, AIDeploymentParameterNames.ReasoningEffort, effort);
 
                 options.Reasoning.Effort = null;
                 changed = true;

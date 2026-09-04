@@ -610,9 +610,9 @@ public sealed class AIProviderConnectionConfigurationTests
         Assert.Equal("ui-connection", connections.Single().ItemId);
     }
 
-    private static DefaultAIModelCapabilityService CreateCapabilityService()
+    private static DefaultAIDeploymentCapabilityService CreateCapabilityService()
     {
-        return new DefaultAIModelCapabilityService(Options.Create(new AIModelCapabilityOptions()), Mock.Of<IAIDeploymentStore>());
+        return new DefaultAIDeploymentCapabilityService(Options.Create(new AIDeploymentCapabilityOptions()), Mock.Of<IAIDeploymentStore>());
     }
 
     private static DefaultAIProviderConnectionStore CreateConnectionStore(

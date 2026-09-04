@@ -17,7 +17,9 @@ namespace CrestApps.Core.AI.OpenAI.Azure.Realtime;
 /// </remarks>
 internal sealed class AzureRealtimeClient : IRealtimeClient
 {
-    /// <summary>Establishes the WebSocket connection. Overridable so the transport can be faked in tests.</summary>
+    /// <summary>
+    /// Establishes the WebSocket connection. Overridable so the transport can be faked in tests.
+    /// </summary>
     /// <param name="uri">The fully-qualified realtime WebSocket URI.</param>
     /// <param name="headers">The request headers to attach (authentication).</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>

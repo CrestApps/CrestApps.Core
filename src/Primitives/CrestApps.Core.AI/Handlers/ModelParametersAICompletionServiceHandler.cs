@@ -14,8 +14,8 @@ namespace CrestApps.Core.AI.Handlers;
 /// </summary>
 public sealed class ModelParametersAICompletionServiceHandler : IAICompletionServiceHandler
 {
-    private readonly IAIModelCapabilityService _capabilityService;
-    private readonly IEnumerable<IAIModelParameterBinder> _binders;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
+    private readonly IEnumerable<IAIDeploymentParameterBinder> _binders;
     private readonly ILogger _logger;
 
     /// <summary>
@@ -25,8 +25,8 @@ public sealed class ModelParametersAICompletionServiceHandler : IAICompletionSer
     /// <param name="binders">The registered parameter binders.</param>
     /// <param name="logger">The logger.</param>
     public ModelParametersAICompletionServiceHandler(
-        IAIModelCapabilityService capabilityService,
-        IEnumerable<IAIModelParameterBinder> binders,
+        IAIDeploymentCapabilityService capabilityService,
+        IEnumerable<IAIDeploymentParameterBinder> binders,
         ILogger<ModelParametersAICompletionServiceHandler> logger)
     {
         _capabilityService = capabilityService;
@@ -57,7 +57,7 @@ public sealed class ModelParametersAICompletionServiceHandler : IAICompletionSer
                 continue;
             }
 
-            var bindingContext = new AIModelParameterBindingContext(descriptor, value, context.ChatOptions, context.CompletionContext)
+            var bindingContext = new AIDeploymentParameterBindingContext(descriptor, value, context.ChatOptions, context.CompletionContext)
             {
                 Deployment = context.Deployment,
             };
@@ -83,7 +83,7 @@ public sealed class ModelParametersAICompletionServiceHandler : IAICompletionSer
         }
     }
 
-    private static bool TryConvertValue(AIModelParameterDescriptor descriptor, string value, out object converted)
+    private static bool TryConvertValue(AIDeploymentParameterDescriptor descriptor, string value, out object converted)
     {
         // The value has already been validated against the descriptor, so conversion is expected to
         // succeed. Converting to the underlying primitive avoids sending numeric and Boolean values as
@@ -91,7 +91,7 @@ public sealed class ModelParametersAICompletionServiceHandler : IAICompletionSer
         // the parameter is skipped rather than sent as a mismatched string.
         switch (descriptor.Kind)
         {
-            case AIModelParameterKind.Integer:
+            case AIDeploymentParameterKind.Integer:
                 // Parse through decimal so the Int64 bounds are checked exactly. Using double would
                 // round long.MaxValue up to 2^63, allowing an out-of-range value to overflow the cast.
                 if (decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var integral) &&
@@ -106,7 +106,7 @@ public sealed class ModelParametersAICompletionServiceHandler : IAICompletionSer
 
                 break;
 
-            case AIModelParameterKind.Number:
+            case AIDeploymentParameterKind.Number:
                 if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && double.IsFinite(number))
                 {
                     converted = number;
@@ -116,7 +116,7 @@ public sealed class ModelParametersAICompletionServiceHandler : IAICompletionSer
 
                 break;
 
-            case AIModelParameterKind.Boolean:
+            case AIDeploymentParameterKind.Boolean:
                 if (bool.TryParse(value, out var boolean))
                 {
                     converted = boolean;
@@ -137,7 +137,7 @@ public sealed class ModelParametersAICompletionServiceHandler : IAICompletionSer
         return false;
     }
 
-    private string GetValue(AICompletionContext completionContext, AIModelParameterDescriptor descriptor)
+    private string GetValue(AICompletionContext completionContext, AIDeploymentParameterDescriptor descriptor)
     {
         if (!completionContext.ModelParameters.TryGetValue(descriptor.Name, out var value) || string.IsNullOrWhiteSpace(value))
         {

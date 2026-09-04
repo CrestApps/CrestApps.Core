@@ -88,6 +88,7 @@ const sidebars = {
                 },
                 'core/response-handlers',
                 'core/signalr',
+                'core/realtime-voice',
                 'core/tools',
                 'core/tool-instances',
                 'core/use-cases',

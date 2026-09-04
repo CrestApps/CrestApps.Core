@@ -1,6 +1,7 @@
 #pragma warning disable MEAI001 // The realtime types from Microsoft.Extensions.AI are for evaluation purposes only.
 #nullable enable
 using System.Buffers;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.AI;
@@ -69,10 +70,44 @@ internal sealed class AzureRealtimeClientSession : IRealtimeClientSession
                 ValueWebSocketReceiveResult result;
                 do
                 {
-                    result = await _socket.ReceiveAsync(rented.AsMemory(), cancellationToken);
+                    var aborted = false;
+                    try
+                    {
+                        result = await _socket.ReceiveAsync(rented.AsMemory(), cancellationToken);
+                    }
+                    catch (Exception ex) when (ex is OperationCanceledException or WebSocketException or IOException or SocketException)
+                    {
+                        // The session is being torn down (typically because the user stopped the conversation)
+                        // or the underlying socket was aborted. End the stream gracefully instead of surfacing a
+                        // transport exception — a user-requested stop is not an error.
+                        aborted = true;
+                        result = default;
+                    }
+
+                    if (aborted)
+                    {
+                        yield break;
+                    }
 
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
+                        // An abnormal close carries the only explanation the caller will ever get for the session
+                        // disappearing (expired credentials, a rate limit, the provider's session cap). Surfacing
+                        // it as an error event makes it both diagnosable in logs and visible to the user, instead
+                        // of the conversation simply going quiet.
+                        var closeStatus = _socket.CloseStatus;
+                        if (closeStatus is not null and not WebSocketCloseStatus.NormalClosure and not WebSocketCloseStatus.Empty)
+                        {
+                            yield return new ErrorRealtimeServerMessage
+                            {
+                                Error = new ErrorContent(
+                                    $"The realtime connection closed unexpectedly ({closeStatus}): {_socket.CloseStatusDescription ?? "no detail provided"}.")
+                                {
+                                    ErrorCode = closeStatus.ToString(),
+                                },
+                            };
+                        }
+
                         yield break;
                     }
 

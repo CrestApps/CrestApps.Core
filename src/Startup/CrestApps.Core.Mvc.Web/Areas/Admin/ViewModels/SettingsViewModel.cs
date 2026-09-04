@@ -83,6 +83,10 @@ public sealed class SettingsViewModel
 
     public string DefaultTextToSpeechVoiceId { get; set; }
 
+    public string DefaultRealtimeDeploymentName { get; set; }
+
+    public string DefaultRealtimeVoiceId { get; set; }
+
     // Copilot settings.
     public CopilotAuthenticationType CopilotAuthenticationType { get; set; }
 
@@ -179,6 +183,9 @@ public sealed class SettingsViewModel
 
     [BindNever]
     public IEnumerable<SelectListItem> TextToSpeechDeployments { get; set; } = [];
+
+    [BindNever]
+    public IEnumerable<SelectListItem> RealtimeDeployments { get; set; } = [];
 
     [BindNever]
     public IEnumerable<SelectListItem> ChatInteractionModes { get; set; } = [];

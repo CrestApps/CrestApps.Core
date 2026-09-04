@@ -87,6 +87,9 @@ builder.Services.AddControllersWithViews(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSharedAIChatProtection();
 
+// Server-relay WebRTC transport for realtime voice (primary when available; the client falls back to WebSocket).
+builder.Services.AddWebRtcRealtimeTransport();
+
 // =============================================================================
 // 3. CRESTAPPS FRAMEWORK COMPOSITION
 // =============================================================================

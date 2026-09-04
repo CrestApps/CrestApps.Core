@@ -27,7 +27,7 @@ else if (_model != null)
     <EditForm FormName="ai-aiconnections-edit" Model="_model" OnValidSubmit="HandleSubmitAsync">
         <input type="hidden" name="_model.ItemId" value="@_model.ItemId" />
         <div class="row">
-            <div class="col-md-8">
+            <div class="col-12">
                 <div class="mb-3">
                     <label for="displayText" class="form-label">Title</label>
                     <InputText id="displayText" class="form-control" @bind-Value="_model.DisplayText" placeholder="e.g., My OpenAI Connection" />

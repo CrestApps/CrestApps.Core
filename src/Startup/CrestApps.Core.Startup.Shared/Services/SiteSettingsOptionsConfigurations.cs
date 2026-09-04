@@ -238,5 +238,7 @@ internal static class SiteSettingsDefaultAIDeploymentOptionsMapper
         options.DefaultSpeechToTextDeploymentName = settings.DefaultSpeechToTextDeploymentName;
         options.DefaultTextToSpeechDeploymentName = settings.DefaultTextToSpeechDeploymentName;
         options.DefaultTextToSpeechVoiceId = settings.DefaultTextToSpeechVoiceId;
+        options.DefaultRealtimeDeploymentName = settings.DefaultRealtimeDeploymentName;
+        options.DefaultRealtimeVoiceId = settings.DefaultRealtimeVoiceId;
     }
 }

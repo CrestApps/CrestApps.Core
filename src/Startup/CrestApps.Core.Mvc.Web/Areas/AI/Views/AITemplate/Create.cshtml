@@ -1,9 +1,11 @@
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
 @using CrestApps.Core.AI.Models
+@inject CrestApps.Core.Startup.Shared.Services.SiteSettingsStore SiteSettings
 @model AITemplateViewModel
 @{
     ViewData["Title"] = "Create AI Template";
+    var defaultRealtimeDeploymentName = SiteSettings.Get<DefaultAIDeploymentSettings>().DefaultRealtimeDeploymentName;
     const string maxTokensHelp = "The maximum number of tokens (roughly words or word fragments) the AI can generate in a single response. Lower values produce shorter responses and reduce costs. Higher values allow for more detailed answers.";
     const string temperatureHelp = "Controls the randomness of AI responses. Lower values (closer to 0) make responses more focused and deterministic. Higher values (up to 2) make responses more creative and varied.";
     const string topPHelp = "Also called nucleus sampling. Controls diversity by limiting the AI to consider only the most probable tokens that sum to this value. Lower values are more focused, while higher values are more diverse.";
@@ -17,7 +19,7 @@
 
 <form asp-action="Create" method="post">
     <div class="row">
-        <div class="col-md-8">
+        <div class="col-12">
             <div class="mb-3">
                 <label asp-for="DisplayText" class="form-label">Title <span class="text-danger">*</span></label>
                 <input asp-for="DisplayText" class="form-control" id="templateTitle" required placeholder="e.g., Customer Support Template" />
@@ -142,6 +144,35 @@
                                         <option value="">Use default orchestrator</option>
                                     </select>
                                     <div class="form-text">The orchestrator that manages AI interactions.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label asp-for="ChatMode" class="form-label">Chat mode</label>
+                                    <select asp-for="ChatMode" class="form-select" asp-items="Html.GetEnumSelectList<ChatMode>()">
+                                        <option value="">Use default chat mode</option>
+                                    </select>
+                                    <div class="form-text">Select <strong>Realtime</strong> to seed a speech-to-speech voice profile.</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label asp-for="RealtimeDeploymentName" class="form-label">Realtime deployment</label>
+                                    <select asp-for="RealtimeDeploymentName" class="form-select" asp-items="Model.RealtimeDeployments">
+                                        <option value="">Use default realtime deployment</option>
+                                    </select>
+                                    <div class="form-text">The speech-to-speech deployment for the Realtime chat mode.</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4" id="templateVoiceGroup">
+                                <div class="mb-3">
+                                    <label asp-for="VoiceName" class="form-label">Voice</label>
+                                    <select asp-for="VoiceName" class="form-select">
+                                        <option value="">Default voice</option>
+                                    </select>
+                                    <div class="form-text">Voice for the Realtime chat mode, from the selected realtime deployment. Leave empty to use the site's default voice.</div>
                                 </div>
                             </div>
                         </div>
@@ -865,6 +896,86 @@
         var profileFields = document.getElementById('profileFields');
         var systemPromptFields = document.getElementById('systemPromptFields');
         var dataSourceSelect = document.getElementById('@Html.IdFor(m => m.DataSourceId)');
+
+        // --- Realtime voice loading (based on the selected realtime deployment) ---
+        var templateChatModeSelector = document.getElementById('@Html.IdFor(m => m.ChatMode)');
+        var templateRealtimeDeploymentSelector = document.getElementById('@Html.IdFor(m => m.RealtimeDeploymentName)');
+        var templateVoiceSelector = document.getElementById('@Html.IdFor(m => m.VoiceName)');
+        var templateVoiceGroup = document.getElementById('templateVoiceGroup');
+        var templateRealtimeVoicesUrl = '@Url.Action("GetRealtimeVoices", "Settings", new { area = "Admin" })';
+        var templateSelectedVoiceId = '@(Model.VoiceName ?? string.Empty)';
+        var templateDefaultRealtimeDeploymentName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(defaultRealtimeDeploymentName));
+
+        function isTemplateRealtimeMode() {
+            return templateChatModeSelector && templateChatModeSelector.value === '@nameof(ChatMode.Realtime)';
+        }
+
+        function toggleTemplateVoiceField() {
+            var realtime = isTemplateRealtimeMode();
+            if (templateVoiceGroup) {
+                templateVoiceGroup.classList.toggle('d-none', !realtime);
+            }
+            if (realtime) {
+                loadTemplateVoiceOptions();
+            }
+        }
+
+        async function loadTemplateVoiceOptions() {
+            if (!templateVoiceSelector) {
+                return;
+            }
+
+            templateVoiceSelector.innerHTML = '<option value="">Default voice</option>';
+
+            var deploymentName = (templateRealtimeDeploymentSelector && templateRealtimeDeploymentSelector.value) || templateDefaultRealtimeDeploymentName;
+            if (!deploymentName) {
+                return;
+            }
+
+            try {
+                const response = await fetch(templateRealtimeVoicesUrl + '?deploymentName=' + encodeURIComponent(deploymentName), { credentials: 'same-origin' });
+                const result = await response.json();
+                if (!result || !Array.isArray(result.voices)) {
+                    return;
+                }
+
+                const grouped = new Map();
+                for (const voice of result.voices) {
+                    const groupName = voice.gender || 'Voices';
+                    if (!grouped.has(groupName)) {
+                        grouped.set(groupName, []);
+                    }
+                    grouped.get(groupName).push(voice);
+                }
+
+                Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b)).forEach(function (groupName) {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = groupName;
+                    grouped.get(groupName).forEach(function (voice) {
+                        const option = document.createElement('option');
+                        option.value = voice.id;
+                        option.textContent = voice.name;
+                        option.selected = voice.id === templateSelectedVoiceId;
+                        optgroup.appendChild(option);
+                    });
+                    templateVoiceSelector.appendChild(optgroup);
+                });
+            } catch (err) {
+                /* ignore voice load failures */
+            }
+        }
+
+        if (templateChatModeSelector) {
+            templateChatModeSelector.addEventListener('change', toggleTemplateVoiceField);
+        }
+        if (templateRealtimeDeploymentSelector) {
+            templateRealtimeDeploymentSelector.addEventListener('change', function () {
+                if (isTemplateRealtimeMode()) {
+                    loadTemplateVoiceOptions();
+                }
+            });
+        }
+        toggleTemplateVoiceField();
 
         // --- Profile Type conditional visibility ---
         var profileTypeSelect = document.getElementById('profileTypeSelect');

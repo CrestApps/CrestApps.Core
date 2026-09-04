@@ -18,7 +18,9 @@ namespace CrestApps.Core.AI.OpenAI.Azure.Realtime;
 /// </remarks>
 internal static class AzureRealtimeClientFactory
 {
-    /// <summary>The token scope used for Microsoft Entra ID authentication against Azure OpenAI.</summary>
+    /// <summary>
+    /// The token scope used for Microsoft Entra ID authentication against Azure OpenAI.
+    /// </summary>
     private static readonly string[] _cognitiveServicesScopes = ["https://cognitiveservices.azure.com/.default"];
 
     public static IRealtimeClient Create(AIProviderConnectionEntry connection, string deploymentName)

@@ -165,9 +165,8 @@ SpeechVoice[] voices = await realtimeVoiceResolver.GetVoicesAsync(deployment);
   gender to help group a voice selector.
 
 :::note
-Real-time sessions currently apply the profile's system prompt (context window) and support tool declaration, but
-tool **invocation**, retrieval-augmented knowledge, and full AI-Profile-driven orchestration over a realtime session
-are a planned follow-up. Both sample hosts include a **Realtime model test** playground for trying it end to end.
+Realtime sessions apply the profile's system prompt, tools, retrieval-augmented knowledge, and orchestration.
+Use Chat Interactions, AI Profile chat sessions, or the admin chat widget to exercise realtime sessions end to end.
 :::
 
 ## Provider Comparison

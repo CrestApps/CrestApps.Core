@@ -1,6 +1,13 @@
 [
   {
     "inputs": [
+      "Assets/js/realtime-audio.js"
+    ],
+    "output": "wwwroot/scripts/realtime-audio.js",
+    "generateSourceMaps": true
+  },
+  {
+    "inputs": [
       "Assets/js/ai-chat.js"
     ],
     "output": "wwwroot/scripts/ai-chat.js",

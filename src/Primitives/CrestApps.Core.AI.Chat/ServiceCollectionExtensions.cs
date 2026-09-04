@@ -59,6 +59,18 @@ public static class ServiceCollectionExtensions
 
             // Allow larger messages for audio transcription payloads.
             options.MaximumReceiveMessageSize = 10 * 1024 * 1024;
+
+            // A realtime (speech-to-speech) session keeps its hub invocation open for the whole conversation.
+            // With the SignalR default of one parallel invocation per client, every other call from the same
+            // browser — trickled ICE candidates, loading a session, clearing history, settings — would queue
+            // behind it until the conversation ended. Allow a small number of concurrent invocations so the
+            // signaling and regular chat traffic keep flowing during a voice session.
+            options.MaximumParallelInvocationsPerClient = 8;
+
+            // Realtime audio is uploaded as a client-to-server stream of small Base64 frames. The default
+            // buffer of 10 items fills while the provider session is still opening (1-3 s), which blocks the
+            // connection's dispatch loop. Buffer a few seconds of frames instead.
+            options.StreamBufferCapacity = 64;
         });
 
         return services;
@@ -80,6 +92,9 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<DataExtractionService>();
         services.TryAddScoped<PostSessionProcessingService>();
         services.TryAddScoped<AIChatSessionPostCloseProcessor>();
+        services.TryAddScoped<CrestApps.Core.AI.Chat.Realtime.RealtimeChatSessionRunner>();
+        services.TryAddSingleton<CrestApps.Core.AI.Chat.Realtime.WebRtcRealtimePeerRegistry>();
+        services.TryAddSingleton<CrestApps.Core.AI.Chat.Realtime.RealtimeSessionRegistry>();
         services.TryAddSingleton<AIChatSessionCloseCycleService>();
         services.TryAddSingleton<AIChatSessionCloseRunner>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIChatSessionCloseBackgroundService>());

@@ -14,7 +14,9 @@ namespace CrestApps.Core.AI.OpenAI;
 /// </remarks>
 public static class OpenAIRealtimeVoices
 {
-    /// <summary>Gets the available realtime voices, in alphabetical order.</summary>
+    /// <summary>
+    /// Gets the available realtime voices, in alphabetical order.
+    /// </summary>
     public static SpeechVoice[] All { get; } =
     [
         Voice("alloy", SpeechVoiceGender.Neutral),

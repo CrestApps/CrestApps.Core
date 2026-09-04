@@ -91,14 +91,13 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
             _logger.LogTrace("[STT:{TraceId}] +{Elapsed}ms SpeechConfig created.", traceId, sw.ElapsedMilliseconds);
         }
 
-        var containerFormat = ResolveContainerFormat(options);
-        var audioFormat = AudioStreamFormat.GetCompressedFormat(containerFormat);
-        using var pushStream = AudioInputStream.CreatePushStream(audioFormat);
+        var (audioStreamFormat, formatDescription) = ResolveAudioStreamFormat(options);
+        using var pushStream = AudioInputStream.CreatePushStream(audioStreamFormat);
         using var audioConfig = AudioConfig.FromStreamInput(pushStream);
         using var recognizer = CreateRecognizer(speechConfig, audioConfig);
         if (_logger.IsEnabled(LogLevel.Trace))
         {
-            _logger.LogTrace("[STT:{TraceId}] +{Elapsed}ms Recognizer created. Format={Format}. Pushing audio...", traceId, sw.ElapsedMilliseconds, containerFormat);
+            _logger.LogTrace("[STT:{TraceId}] +{Elapsed}ms Recognizer created. Format={Format}. Pushing audio...", traceId, sw.ElapsedMilliseconds, formatDescription);
         }
 
         var buffer = new byte[1024];
@@ -171,9 +170,8 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
             _logger.LogTrace("[STT:{TraceId}] +{Elapsed}ms SpeechConfig created.", traceId, sw.ElapsedMilliseconds);
         }
 
-        var containerFormat = ResolveContainerFormat(options);
-        var audioFormat = AudioStreamFormat.GetCompressedFormat(containerFormat);
-        using var pushStream = AudioInputStream.CreatePushStream(audioFormat);
+        var (audioStreamFormat, formatDescription) = ResolveAudioStreamFormat(options);
+        using var pushStream = AudioInputStream.CreatePushStream(audioStreamFormat);
         using var audioConfig = AudioConfig.FromStreamInput(pushStream);
         using var recognizer = CreateRecognizer(speechConfig, audioConfig);
         // Create a linked CancellationTokenSource so SDK errors can immediately stop the push task.
@@ -181,7 +179,7 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
         var channel = Channel.CreateUnbounded<SpeechToTextResponseUpdate>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false, });
         if (_logger.IsEnabled(LogLevel.Trace))
         {
-            _logger.LogTrace("[STT:{TraceId}] +{Elapsed}ms Recognizer created. Format={Format}. Wiring events...", traceId, sw.ElapsedMilliseconds, containerFormat);
+            _logger.LogTrace("[STT:{TraceId}] +{Elapsed}ms Recognizer created. Format={Format}. Wiring events...", traceId, sw.ElapsedMilliseconds, formatDescription);
         }
 
         recognizer.Recognizing += (_, e) =>
@@ -510,6 +508,77 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
     }
 
 #pragma warning disable MEAI001
+    /// <summary>
+    /// Resolves the Azure <see cref="AudioStreamFormat"/> for the caller's audio. Raw PCM (for example
+    /// <c>audio/pcm;rate=16000</c> or <c>audio/l16;rate=16000</c>) is consumed directly as 16-bit mono PCM,
+    /// which bypasses GStreamer entirely and works with audio captured through Web Audio in any browser.
+    /// Everything else is treated as a compressed container and decoded through GStreamer. Browser
+    /// <c>MediaRecorder</c> output (Chromium's WebM/Opus in particular) cannot be reliably demuxed by the
+    /// SDK's streaming GStreamer pipeline, which is why callers should prefer raw PCM for microphone input.
+    /// </summary>
+    private (AudioStreamFormat Format, string Description) ResolveAudioStreamFormat(SpeechToTextOptions options)
+    {
+        var format = GetAudioFormatValue(options);
+
+        if (TryGetRawPcmSampleRate(format, out var sampleRate))
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Resolved audio format '{FormatString}' to raw PCM {SampleRate}Hz/16-bit/mono.", format, sampleRate);
+            }
+
+            return (AudioStreamFormat.GetWaveFormatPCM((uint)sampleRate, 16, 1), $"PCM {sampleRate}Hz");
+        }
+
+        var containerFormat = ResolveContainerFormat(options);
+
+        return (AudioStreamFormat.GetCompressedFormat(containerFormat), containerFormat.ToString());
+    }
+
+    /// <summary>
+    /// Reads the optional <c>audioFormat</c> hint from <see cref="SpeechToTextOptions.AdditionalProperties"/>.
+    /// </summary>
+    private static string GetAudioFormatValue(SpeechToTextOptions options)
+    {
+        return options?.AdditionalProperties is not null
+            && options.AdditionalProperties.TryGetValue("audioFormat", out var value)
+            && value is string s
+            ? s
+            : null;
+    }
+
+    /// <summary>
+    /// Determines whether the audio format hint denotes raw 16-bit PCM and, if so, extracts the sample rate
+    /// (defaulting to 16 kHz). Recognizes <c>audio/pcm</c> and <c>audio/l16</c> with an optional
+    /// <c>;rate=</c> parameter.
+    /// </summary>
+    internal static bool TryGetRawPcmSampleRate(string format, out int sampleRate)
+    {
+        sampleRate = 16000;
+
+        if (string.IsNullOrWhiteSpace(format))
+        {
+            return false;
+        }
+
+        var normalized = format.Trim().ToLowerInvariant();
+
+        if (!normalized.StartsWith("audio/pcm", StringComparison.Ordinal) && !normalized.StartsWith("audio/l16", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        foreach (var part in normalized.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (part.StartsWith("rate=", StringComparison.Ordinal) && int.TryParse(part.AsSpan(5), out var parsed) && parsed > 0)
+            {
+                sampleRate = parsed;
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>
     /// Reads an optional <c>audioFormat</c> value from <see cref="SpeechToTextOptions.AdditionalProperties"/>
     /// and maps it to an <see cref="AudioStreamContainerFormat"/>. Falls back to

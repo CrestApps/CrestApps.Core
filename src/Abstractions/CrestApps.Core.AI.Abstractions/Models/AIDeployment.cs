@@ -142,6 +142,25 @@ public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceA
     }
 
     /// <summary>
+    /// Determines whether this deployment can serve text chat completions. A realtime (speech-to-speech)
+    /// deployment serves only the realtime WebSocket API and rejects a text chat completion with an HTTP 400 —
+    /// even when it is also tagged with the text-generation feature — so any deployment that declares the
+    /// realtime feature cannot serve text completions. Deployments without capability metadata are treated as
+    /// capable, for backward compatibility.
+    /// </summary>
+    public bool CanServeTextCompletion()
+    {
+        if (!this.TryGet<AIDeploymentMetadata>(out var metadata) || metadata.Features is not { Length: > 0 })
+        {
+            return true;
+        }
+
+        var features = new HashSet<string>(metadata.Features, StringComparer.OrdinalIgnoreCase);
+
+        return !features.Contains(AIDeploymentFeatureNames.Realtime);
+    }
+
+    /// <summary>
     /// Clones the operation.
     /// </summary>
     public AIDeployment Clone()

@@ -19,7 +19,7 @@ namespace CrestApps.Core.AI.Services;
 internal sealed class CapabilityEnforcingChatClient : DelegatingChatClient
 {
     private readonly AIDeployment _deployment;
-    private readonly IAIModelCapabilityService _capabilityService;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
     private readonly ILogger _logger;
 
     /// <summary>
@@ -32,7 +32,7 @@ internal sealed class CapabilityEnforcingChatClient : DelegatingChatClient
     public CapabilityEnforcingChatClient(
         IChatClient innerClient,
         AIDeployment deployment,
-        IAIModelCapabilityService capabilityService,
+        IAIDeploymentCapabilityService capabilityService,
         ILogger logger)
         : base(innerClient)
     {
@@ -62,7 +62,7 @@ internal sealed class CapabilityEnforcingChatClient : DelegatingChatClient
         {
             _logger.LogWarning(
                 "Deployment '{Deployment}' does not declare the '{Feature}' feature. The streaming request was completed as a single non-streaming response.",
-                _deployment.ModelName, AIModelFeatureNames.Streaming);
+                _deployment.ModelName, AIDeploymentFeatureNames.Streaming);
 
             return BufferAsStreamAsync(messages, enforced, cancellationToken);
         }
@@ -88,19 +88,19 @@ internal sealed class CapabilityEnforcingChatClient : DelegatingChatClient
         // Streaming is a method choice rather than a request option, so it is enforced here by
         // completing the request without streaming. Only deployments that declare capability metadata
         // are constrained, which keeps existing configurations unchanged.
-        if (!_deployment.TryGet<AIDeploymentModelMetadata>(out _))
+        if (!_deployment.TryGet<AIDeploymentMetadata>(out _))
         {
             return false;
         }
 
-        return !_capabilityService.GetCapabilities(_deployment).SupportsFeature(AIModelFeatureNames.Streaming);
+        return !_capabilityService.GetCapabilities(_deployment).SupportsFeature(AIDeploymentFeatureNames.Streaming);
     }
 
     private ChatOptions Enforce(ChatOptions options)
     {
         // Enforcement is opt-in: a deployment without declared capability metadata is left untouched
         // so existing configurations keep working exactly as before.
-        if (options is null || !_deployment.TryGet<AIDeploymentModelMetadata>(out _))
+        if (options is null || !_deployment.TryGet<AIDeploymentMetadata>(out _))
         {
             return options;
         }

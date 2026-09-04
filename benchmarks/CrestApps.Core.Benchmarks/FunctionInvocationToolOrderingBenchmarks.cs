@@ -112,12 +112,16 @@ public class FunctionInvocationToolOrderingBenchmarks
     private static FunctionInvocationAICompletionServiceHandler CreateCurrentHandler(IServiceProvider serviceProvider)
     {
         // The benchmark inputs are not Chat Interactions, so the access evaluator is never consulted;
-        // these dependencies exist only to satisfy the constructor.
-        return new FunctionInvocationAICompletionServiceHandler(
+        // these dependencies exist only to satisfy the shared tool materializer.
+        var materializer = new DefaultToolMaterializer(
             new AllowAllToolAccessEvaluator(),
-            new StaticUserAccessor(),
             Options.Create(new AIToolDefinitionOptions()),
             serviceProvider,
+            NullLogger<DefaultToolMaterializer>.Instance);
+
+        return new FunctionInvocationAICompletionServiceHandler(
+            materializer,
+            new StaticUserAccessor(),
             NullLogger<FunctionInvocationAICompletionServiceHandler>.Instance);
     }
 
