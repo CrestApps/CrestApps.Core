@@ -1,6 +1,6 @@
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
-@model AIDeploymentModelParameterCardViewModel
+@model AIDeploymentParameterCardViewModel
 @{
     var parameter = Model.Parameter;
     var i = Model.Index;
@@ -32,7 +32,7 @@
         </label>
     </div>
     <div class="mt-3 @(parameter.IsSupported ? string.Empty : "d-none")" id="@bodyId">
-        @if (parameter.Kind == AIModelParameterKind.Choice && parameter.AvailableValues.Any())
+        @if (parameter.Kind == AIDeploymentParameterKind.Choice && parameter.AvailableValues.Any())
         {
             <div class="row g-2">
                 <div class="col-md-7">
@@ -78,7 +78,7 @@
                            class="form-control"
                            value="@parameter.DefaultValue" />
                 </div>
-                @if (parameter.Kind == AIModelParameterKind.Number || parameter.Kind == AIModelParameterKind.Integer)
+                @if (parameter.Kind == AIDeploymentParameterKind.Number || parameter.Kind == AIDeploymentParameterKind.Integer)
                 {
                     <div class="col-md-3">
                         <label class="form-label small" for="ModelParameters_@(parameter.ElementId)_Minimum">Minimum</label>

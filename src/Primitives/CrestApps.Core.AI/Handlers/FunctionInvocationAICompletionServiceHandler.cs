@@ -3,7 +3,6 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Security;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Handlers;
 
@@ -36,31 +35,23 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
     /// </summary>
     public const string ScopedEntriesKey = "_scopedToolEntries";
 
-    private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
+    private readonly IToolMaterializer _toolMaterializer;
     private readonly IUserAccessor _userAccessor;
-    private readonly IOptions<AIToolDefinitionOptions> _toolDefinitions;
-    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<FunctionInvocationAICompletionServiceHandler> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FunctionInvocationAICompletionServiceHandler"/> class.
     /// </summary>
-    /// <param name="toolAccessEvaluator">The tool access evaluator (used for Chat Interaction requests).</param>
+    /// <param name="toolMaterializer">The shared scoped-entries-to-tools materializer.</param>
     /// <param name="userAccessor">The accessor that resolves the principal owning the current request.</param>
-    /// <param name="toolDefinitions">The registered tool definitions, used to identify listable tools.</param>
-    /// <param name="serviceProvider">The service provider.</param>
     /// <param name="logger">The logger.</param>
     public FunctionInvocationAICompletionServiceHandler(
-        IAIToolAccessEvaluator toolAccessEvaluator,
+        IToolMaterializer toolMaterializer,
         IUserAccessor userAccessor,
-        IOptions<AIToolDefinitionOptions> toolDefinitions,
-        IServiceProvider serviceProvider,
         ILogger<FunctionInvocationAICompletionServiceHandler> logger)
     {
-        _toolAccessEvaluator = toolAccessEvaluator;
+        _toolMaterializer = toolMaterializer;
         _userAccessor = userAccessor;
-        _toolDefinitions = toolDefinitions;
-        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
@@ -89,109 +80,27 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
         // anonymous, so no session-time tool gate is applied.
         var isChatInteraction = context.CompletionContext.AdditionalProperties.ContainsKey(AICompletionContextKeys.Interaction);
 
-        // A null principal means there is no caller at all (such as a background task), so the
-        // request is treated as a trusted server-side invocation and the check is skipped.
-        var user = isChatInteraction ? _userAccessor.User : null;
-        var enforceAccess = isChatInteraction && user is not null;
+        var result = await _toolMaterializer.MaterializeAsync(
+            scopedEntries,
+            new ToolMaterializationOptions
+            {
+                EnforceListableAccess = isChatInteraction,
+                User = isChatInteraction ? _userAccessor.User : null,
+            },
+            cancellationToken);
 
-        var addedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        List<string> deniedToolNames = null;
-
-        // Snapshot a stable partition before authorization or factory callbacks can mutate the source.
-        var orderedEntries = new ToolRegistryEntry[scopedEntries.Count];
-        var nonMcpIndex = 0;
-        var mcpIndex = orderedEntries.Length;
-
-        foreach (var entry in scopedEntries)
+        foreach (var tool in result.Tools)
         {
-            if (entry.Source == ToolRegistryEntrySource.McpServer)
-            {
-                orderedEntries[--mcpIndex] = entry;
-            }
-            else
-            {
-                orderedEntries[nonMcpIndex++] = entry;
-            }
+            context.ChatOptions.Tools.Add(tool);
         }
 
-        Array.Reverse(orderedEntries, mcpIndex, orderedEntries.Length - mcpIndex);
-
-        foreach (var entry in orderedEntries)
-        {
-            // For Chat Interactions, verify the caller is allowed to use each listable (user-selectable)
-            // tool that was persisted in the interaction's settings. System and hidden/dependency tools
-            // are not user-selectable and are never checked.
-            if (enforceAccess &&
-                IsListable(entry) &&
-                !await _toolAccessEvaluator.IsAuthorizedAsync(user, entry.Name))
-            {
-                (deniedToolNames ??= []).Add(entry.Name);
-
-                if (_logger.IsEnabled(LogLevel.Debug))
-                {
-                    _logger.LogDebug(
-                        "Tool '{ToolName}' from {Source} ({Id}) denied by access evaluator for the current Chat Interaction caller.",
-                        entry.Name, entry.Source, entry.Id);
-                }
-
-                continue;
-            }
-
-            if (entry.CreateAsync is null)
-            {
-                _logger.LogWarning("Tool entry '{ToolName}' ({Id}) has no ToolFactory. Skipping.", entry.Name, entry.Id);
-                continue;
-            }
-
-            // Skip duplicate function names.
-            if (!addedNames.Add(entry.Name))
-            {
-                if (_logger.IsEnabled(LogLevel.Debug))
-                {
-                    _logger.LogDebug(
-                        "Skipping tool '{ToolName}' from {Source} ({Id}) - name already registered.",
-                        entry.Name, entry.Source, entry.Id);
-                }
-
-                continue;
-            }
-
-            try
-            {
-                var tool = await entry.CreateAsync(_serviceProvider);
-
-                if (tool is not null)
-                {
-                    context.ChatOptions.Tools.Add(tool);
-                }
-                else if (_logger.IsEnabled(LogLevel.Debug))
-                {
-                    _logger.LogDebug("ToolFactory returned null for '{ToolName}' ({Id}).", entry.Name, entry.Id);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to create tool '{ToolName}' ({Id}). Skipping.", entry.Name, entry.Id);
-            }
-        }
-
-        if (deniedToolNames is not null)
+        if (result.DeniedToolNames.Count > 0)
         {
             // Surface the denial above Debug level. Otherwise the caller only sees a degraded
             // answer with no indication that the configured tools were removed.
             _logger.LogWarning(
                 "The current Chat Interaction caller is not authorized to use the following listable AI tools, which were excluded from the request: {ToolNames}.",
-                string.Join(", ", deniedToolNames));
+                string.Join(", ", result.DeniedToolNames));
         }
-    }
-
-    /// <summary>
-    /// Determines whether an entry represents a listable (user-selectable) tool. Only listable tools
-    /// are subject to the per-user access check; system tools are auto-injected and hidden tools are
-    /// dependency-only, so both bypass it.
-    /// </summary>
-    private bool IsListable(ToolRegistryEntry entry)
-    {
-        return _toolDefinitions.Value.Tools.TryGetValue(entry.Name, out var definition) && definition.IsSelectable();
     }
 }

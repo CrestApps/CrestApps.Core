@@ -19,10 +19,14 @@ namespace CrestApps.Core.Templates.Tags;
 /// </remarks>
 public static class IncludeTemplateFilter
 {
-    /// <summary>The Liquid filter name.</summary>
+    /// <summary>
+    /// The Liquid filter name.
+    /// </summary>
     public const string FilterName = "include_prompt";
 
-    /// <summary>Maximum nesting depth for <c>include_prompt</c> chains.</summary>
+    /// <summary>
+    /// Maximum nesting depth for <c>include_prompt</c> chains.
+    /// </summary>
     public const int MaxIncludeDepth = 10;
 
     private const string IncludeStackKey = "__include_prompt_stack";

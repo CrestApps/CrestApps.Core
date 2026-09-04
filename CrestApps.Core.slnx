@@ -43,6 +43,7 @@
     <Project Path="src/Primitives/CrestApps.Core.AI.PostgreSQL/CrestApps.Core.AI.PostgreSQL.csproj">
       <Build Solution="Debug|*" Project="false" />
     </Project>
+    <Project Path="src/Primitives/CrestApps.Core.AI.Realtime.WebRtc/CrestApps.Core.AI.Realtime.WebRtc.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Resilience/CrestApps.Core.AI.Resilience.csproj">
       <Build Solution="Debug|*" Project="false" />
     </Project>

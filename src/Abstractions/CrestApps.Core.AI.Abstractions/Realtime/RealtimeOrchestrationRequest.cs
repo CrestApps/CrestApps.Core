@@ -1,0 +1,60 @@
+using CrestApps.Core.AI.Models;
+
+namespace CrestApps.Core.AI.Realtime;
+
+/// <summary>
+/// Describes a realtime session to start.
+/// </summary>
+public sealed class RealtimeOrchestrationRequest
+{
+    /// <summary>
+    /// Gets the resource (an <see cref="AIProfile"/> or <see cref="ChatInteraction"/>) that drives the session.
+    /// </summary>
+    public required object Resource { get; init; }
+
+    /// <summary>
+    /// Gets the realtime deployment name to use, or <see langword="null"/> to resolve the default realtime deployment.
+    /// </summary>
+    public string RealtimeDeploymentName { get; init; }
+
+    /// <summary>
+    /// Gets the chat session this conversation is attached to, when persisting transcript history.
+    /// </summary>
+    public AIChatSession ChatSession { get; init; }
+
+    /// <summary>
+    /// Gets the chat interaction this conversation is attached to, when applicable.
+    /// </summary>
+    public ChatInteraction Interaction { get; init; }
+
+    /// <summary>
+    /// Gets an optional voice id override for the session output audio.
+    /// </summary>
+    public string Voice { get; init; }
+
+    /// <summary>
+    /// Gets an optional BCP-47 language hint for input-audio transcription.
+    /// </summary>
+    public string SpeechLanguage { get; init; }
+
+    /// <summary>
+    /// Gets an optional server voice-activity silence duration (milliseconds) before the model ends a turn.
+    /// </summary>
+    public int? SilenceDurationMs { get; init; }
+
+    /// <summary>
+    /// Gets an optional server voice-activity detection threshold (0.0–1.0).
+    /// </summary>
+    public float? VadThreshold { get; init; }
+
+    /// <summary>
+    /// Gets whether the user may interrupt (barge in on) the assistant while it is speaking. When false, the
+    /// server voice-activity detector will not interrupt an in-progress response. Defaults to true.
+    /// </summary>
+    public bool AllowInterruption { get; init; } = true;
+
+    /// <summary>
+    /// Gets an optional delegate to further configure the prepared orchestration context.
+    /// </summary>
+    public Action<OrchestrationContext> ConfigureContext { get; init; }
+}

@@ -1,27 +1,28 @@
 ---
-sidebar_label: Model Capabilities
+sidebar_label: Deployment Capabilities
 sidebar_position: 16
-title: AI Model Capabilities
-description: Metadata-driven model features and model parameters that describe what an AI deployment supports and which options its consumers may configure.
+title: AI Deployment Capabilities
+description: Metadata-driven deployment features and parameters that describe what an AI deployment supports, which options its consumers may configure, and how a host should shape its chat UI around them.
 ---
 
-# AI Model Capabilities
+# AI Deployment Capabilities
 
-> A registry of **model features** and **model parameters** that lets deployments declare what their
-> model supports, so editors render only the relevant options and the runtime only sends supported values.
+> A registry of **deployment features** and **deployment parameters** that lets deployments declare what
+> their model supports, so editors render only the relevant options, the runtime only sends supported
+> values, and the **chat UI adapts its input to the selected model**.
 
 ## Why this exists
 
 Different models expose different knobs. A reasoning model accepts a reasoning effort level, a small
-chat model does not. Without metadata, every new knob turns into hardcoded, provider-specific UI and
-provider-specific request-building code.
+chat model does not, and a speech-to-speech model has no text box at all. Without metadata, every new
+knob turns into hardcoded, provider-specific UI and provider-specific request-building code.
 
 The capability system replaces that with two extensible concepts:
 
 | Concept | Shape | Example |
 | --- | --- | --- |
-| **Model feature** | A binary capability. The deployment either supports it or it does not. | `toolCalling`, `reasoning`, `streaming` |
-| **Model parameter** | A configurable option carrying metadata: kind, allowed values, range, and a default. | `reasoningEffort` |
+| **Feature** | A binary capability. The deployment either supports it or it does not. | `toolCalling`, `reasoning`, `realtime` |
+| **Parameter** | A configurable option carrying metadata: kind, allowed values, range, and a default. | `reasoningEffort` |
 
 Definitions are registered once at startup. An **AI Deployment** then declares which of those
 definitions its model actually exposes, optionally narrowing the allowed values. AI Profiles, AI
@@ -29,15 +30,17 @@ Profile Templates, and Chat Interactions store the selected values. At request t
 binds the selected values into the outgoing request.
 
 :::info
-Model features are **not** the same as `AIDeploymentPurpose`. `Purpose` (`Chat`, `Utility`,
-`Embedding`, `Image`, …) drives *routing* — which deployment is picked for a given job. Features
-describe *capabilities within* a deployment and deliberately avoid duplicating routing concerns.
+Features are **not** the same as `AIDeploymentPurpose`. `Purpose` (`Chat`, `Utility`, `Embedding`,
+`Image`, …) drives *routing* — which deployment is picked for a given job. Features describe
+*capabilities within* a deployment and deliberately avoid duplicating routing concerns. This is why
+realtime (speech-to-speech) is a **feature on a `Chat` deployment**, not a separate purpose: a realtime
+model is still a chat model — it just speaks instead of typing.
 :::
 
 ## Quick Start
 
 ```csharp
-builder.Services.AddCoreAIModelCapabilities();
+builder.Services.AddCoreAIDeploymentCapabilities();
 ```
 
 :::info
@@ -50,51 +53,60 @@ You rarely need to call this directly — `AddCoreAIServices()` chains it automa
 
 | Name | Constant | Default on new deployments | Description |
 | --- | --- | --- | --- |
-| `toolCalling` | `AIModelFeatureNames.ToolCalling` | ✅ | The model can call tools and functions supplied with the request. |
-| `structuredOutputs` | `AIModelFeatureNames.StructuredOutputs` | | The model can return responses that follow a supplied JSON schema. |
-| `streaming` | `AIModelFeatureNames.Streaming` | ✅ | The model can stream response updates as they are produced. |
-| `reasoning` | `AIModelFeatureNames.Reasoning` | | The model performs internal reasoning before producing an answer. |
-| `imageInput` | `AIModelFeatureNames.ImageInput` | | The model can understand image inputs (vision). |
-| `imageOutput` | `AIModelFeatureNames.ImageOutput` | | The model can generate images. |
-| `audioInput` | `AIModelFeatureNames.AudioInput` | | The model accepts audio input. |
-| `audioOutput` | `AIModelFeatureNames.AudioOutput` | | The model produces audio output. |
-| `videoInput` | `AIModelFeatureNames.VideoInput` | | The model can understand video inputs. |
-| `videoOutput` | `AIModelFeatureNames.VideoOutput` | | The model can generate video. |
+| `textGeneration` | `AIDeploymentFeatureNames.TextGeneration` | ✅ | The model can hold a text conversation. Clear this **only** for a speech-to-speech-only model that cannot handle text. |
+| `toolCalling` | `AIDeploymentFeatureNames.ToolCalling` | ✅ | The model can call tools and functions supplied with the request. |
+| `structuredOutputs` | `AIDeploymentFeatureNames.StructuredOutputs` | | The model can return responses that follow a supplied JSON schema. |
+| `streaming` | `AIDeploymentFeatureNames.Streaming` | ✅ | The model can stream response updates as they are produced. |
+| `reasoning` | `AIDeploymentFeatureNames.Reasoning` | | The model performs internal reasoning before producing an answer. |
+| `imageInput` | `AIDeploymentFeatureNames.ImageInput` | | The model can understand image inputs (vision). |
+| `imageOutput` | `AIDeploymentFeatureNames.ImageOutput` | | The model can generate images. |
+| `audioInput` | `AIDeploymentFeatureNames.AudioInput` | | The model accepts audio input. |
+| `audioOutput` | `AIDeploymentFeatureNames.AudioOutput` | | The model produces audio output. |
+| `videoInput` | `AIDeploymentFeatureNames.VideoInput` | | The model can understand video inputs. |
+| `videoOutput` | `AIDeploymentFeatureNames.VideoOutput` | | The model can generate video. |
+| `realtime` | `AIDeploymentFeatureNames.Realtime` | | The model supports real-time, bidirectional **speech-to-speech** sessions. |
 
 These represent **trained capabilities** the underlying model was built with. Provider-hosted tools
 (such as a web-search tool the provider runs on your behalf, or a computer-use tool) are *not* modeled
 as features because almost any tool-calling model can be handed such a tool — they are ordinary tools,
-not a trained
-trait. Set `AIModelFeatureDescriptor.EnabledByDefault` when registering a feature to pre-select it on
-newly created deployments; existing deployments are never changed by this flag.
+not a trained trait. Set `AIDeploymentFeatureDescriptor.EnabledByDefault` when registering a feature to
+pre-select it on newly created deployments; existing deployments are never changed by this flag.
+
+:::tip Opt-out vs opt-in features
+`textGeneration` is **opt-out**: a deployment is assumed to support it unless it declares metadata that
+omits it. Most models are text models, so this keeps every existing deployment working without change.
+`realtime` is **opt-in**: only a deployment that explicitly lists it is treated as a realtime model. The
+two together let a single flag flip a chat surface between text and voice — see
+[Building a capability-aware chat UI](#building-a-capability-aware-chat-ui).
+:::
 
 ### Parameters
 
 | Name | Constant | Kind | Allowed values | Default |
 | --- | --- | --- | --- | --- |
-| `reasoningEffort` | `AIModelParameterNames.ReasoningEffort` | `Choice` | `None` (shown as *Minimal*), `Low`, `Medium`, `High`, `ExtraHigh` | `Medium` |
+| `reasoningEffort` | `AIDeploymentParameterNames.ReasoningEffort` | `Choice` | `None` (shown as *Minimal*), `Low`, `Medium`, `High`, `ExtraHigh` | `Medium` |
 
 `reasoningEffort` maps onto `Microsoft.Extensions.AI.ChatOptions.Reasoning.Effort`, so it is
 provider-agnostic and ships in the core AI package rather than in a provider module. It also declares
-`RequiredFeature = AIModelFeatureNames.Reasoning`, which links the parameter to the `reasoning` trained
-feature (see [Linking a parameter to a feature](#linking-a-parameter-to-a-feature)).
+`RequiredFeature = AIDeploymentFeatureNames.Reasoning`, which links the parameter to the `reasoning`
+trained feature (see [Linking a parameter to a feature](#linking-a-parameter-to-a-feature)).
 
 ## Declaring what a deployment supports
 
 Capability metadata is stored on the deployment through the
-[extensible entity](./extensible-entity.md) `Properties` bag using `AIDeploymentModelMetadata`:
+[extensible entity](./extensible-entity.md) `Properties` bag using `AIDeploymentMetadata`:
 
 ```csharp
-deployment.Put(new AIDeploymentModelMetadata
+deployment.Put(new AIDeploymentMetadata
 {
     Features =
     [
-        AIModelFeatureNames.ToolCalling,
-        AIModelFeatureNames.Reasoning,
+        AIDeploymentFeatureNames.ToolCalling,
+        AIDeploymentFeatureNames.Reasoning,
     ],
-    Parameters = new Dictionary<string, AIDeploymentModelParameter>(StringComparer.OrdinalIgnoreCase)
+    Parameters = new Dictionary<string, AIDeploymentParameter>(StringComparer.OrdinalIgnoreCase)
     {
-        [AIModelParameterNames.ReasoningEffort] = new AIDeploymentModelParameter
+        [AIDeploymentParameterNames.ReasoningEffort] = new AIDeploymentParameter
         {
             AllowedValues = ["Low", "Medium", "High"],
             DefaultValue = "Medium",
@@ -103,8 +115,20 @@ deployment.Put(new AIDeploymentModelMetadata
 });
 ```
 
+A **speech-to-speech-only** model declares `realtime` and omits `textGeneration`, which is what tells
+every chat surface to run this deployment as audio-only:
+
+```csharp
+deployment.Put(new AIDeploymentMetadata
+{
+    // No textGeneration: this model cannot handle a text turn.
+    Features = [ AIDeploymentFeatureNames.Realtime ],
+});
+```
+
 Because `AIDeploymentCatalogHandler` deep-merges `Properties`, the same metadata can be supplied from
-configuration or a recipe with no extra code:
+configuration or a recipe with no extra code. Note the property key is the type name,
+`AIDeploymentMetadata`:
 
 ```json
 {
@@ -116,14 +140,24 @@ configuration or a recipe with no extra code:
           "ModelName": "gpt-5",
           "ConnectionName": "openai",
           "Properties": {
-            "AIDeploymentModelMetadata": {
-              "Features": [ "toolCalling", "reasoning", "streaming" ],
+            "AIDeploymentMetadata": {
+              "Features": [ "textGeneration", "toolCalling", "reasoning", "streaming" ],
               "Parameters": {
                 "reasoningEffort": {
                   "AllowedValues": [ "Low", "Medium", "High" ],
                   "DefaultValue": "Medium"
                 }
               }
+            }
+          }
+        },
+        {
+          "Name": "gpt-realtime",
+          "ModelName": "gpt-realtime",
+          "ConnectionName": "openai",
+          "Properties": {
+            "AIDeploymentMetadata": {
+              "Features": [ "realtime" ]
             }
           }
         }
@@ -143,15 +177,15 @@ A deployment-level parameter entry may narrow or override the registered definit
 
 ## Resolving capabilities
 
-`IAIModelCapabilityService` merges the registered definitions with the deployment metadata and returns
-only what the deployment exposes:
+`IAIDeploymentCapabilityService` merges the registered definitions with the deployment metadata and
+returns only what the deployment exposes:
 
 ```csharp
 public sealed class MyService
 {
-    private readonly IAIModelCapabilityService _capabilityService;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
 
-    public MyService(IAIModelCapabilityService capabilityService)
+    public MyService(IAIDeploymentCapabilityService capabilityService)
     {
         _capabilityService = capabilityService;
     }
@@ -160,7 +194,7 @@ public sealed class MyService
     {
         var capabilities = await _capabilityService.GetCapabilitiesAsync(deploymentName);
 
-        return capabilities.SupportsFeature(AIModelFeatureNames.Reasoning);
+        return capabilities.SupportsFeature(AIDeploymentFeatureNames.Reasoning);
     }
 }
 ```
@@ -171,22 +205,32 @@ public sealed class MyService
 | `GetRegisteredParameters()` | Every registered parameter descriptor, ordered. |
 | `GetCapabilities(AIDeployment)` | Resolves capabilities from an already loaded deployment. |
 | `GetCapabilitiesAsync(string, CancellationToken)` | Loads the deployment by name and resolves its capabilities. |
+| `SupportsFeatureOrUnconstrained(AIDeployment, string)` | Opt-out check: a deployment with **no** capability metadata counts as supporting the feature. Use for `textGeneration`. |
+| `GetDeploymentsWithFeatureAsync(string, CancellationToken)` | Every deployment whose model declares the feature. |
+| `ResolveDeploymentWithFeatureAsync(string, string?, CancellationToken)` | Returns the named deployment **only if** it declares the feature; when no name is given, the first deployment that declares it. Returns `null` when none qualifies. |
 
 The returned `AIDeploymentCapabilities` exposes `Features`, `Parameters`, `SupportsFeature`,
 `SupportsParameter`, and `GetParameter`. Descriptors are cloned, so the registered definitions are
 never mutated by a deployment override.
 
+:::note Opt-in vs opt-out at the call site
+Use `GetCapabilities(deployment).SupportsFeature("realtime")` for opt-in features — a deployment must
+explicitly declare `realtime`. Use `SupportsFeatureOrUnconstrained(deployment, "textGeneration")` for
+opt-out features — a deployment with no metadata is treated as text-capable, so legacy deployments keep
+working.
+:::
+
 ## Storing selected values
 
-Consumers store their selections with `AIModelParametersMetadata`, again through the extensible
+Consumers store their selections with `AIDeploymentParametersMetadata`, again through the extensible
 entity `Properties` bag:
 
 ```csharp
-profile.Put(new AIModelParametersMetadata
+profile.Put(new AIDeploymentParametersMetadata
 {
     Values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
-        [AIModelParameterNames.ReasoningEffort] = "High",
+        [AIDeploymentParameterNames.ReasoningEffort] = "High",
     },
 });
 ```
@@ -218,7 +262,7 @@ enforcement point:
    parameter is ignored and never leaves the process.
 2. When the stored value is missing or invalid for the resolved descriptor, the deployment default is
    used and a warning is logged.
-3. If an `IAIModelParameterBinder` is registered for the parameter, the binder shapes the request.
+3. If an `IAIDeploymentParameterBinder` is registered for the parameter, the binder shapes the request.
 4. Otherwise the value is written to `ChatOptions.AdditionalProperties` so providers that read raw
    properties still receive it.
 
@@ -251,10 +295,10 @@ client-factory path (`CapabilityEnforcingChatClient`) and to `AzureOpenAIComplet
 streams through the Azure SDK directly.
 
 Enforcement is **opt-in**: it only applies to deployments that declare capability metadata. A
-deployment with no `AIDeploymentModelMetadata` is treated as unconstrained, so existing configurations
-keep working unchanged. Combined with the parameter handler above, this guarantees that neither
-unsupported parameters (for example `reasoningEffort`) nor unsupported options (tools, structured
-output, reasoning) are sent to a model that was not trained for them.
+deployment with no `AIDeploymentMetadata` is treated as unconstrained, so existing configurations keep
+working unchanged. Combined with the parameter handler above, this guarantees that neither unsupported
+parameters (for example `reasoningEffort`) nor unsupported options (tools, structured output,
+reasoning) are sent to a model that was not trained for them.
 
 :::note
 Azure OpenAI builds `OpenAI.Chat.ChatCompletionOptions` directly instead of going through
@@ -263,12 +307,120 @@ reasoning effort onto `ChatCompletionOptions.ReasoningEffortLevel` as well, so b
 behave the same.
 :::
 
+## Building a capability-aware chat UI
+
+This is the pattern the built-in hosts follow, and the one your own chat surface should follow. The
+guiding rule is simple:
+
+> **The chat input is chosen from the effective deployment's capabilities — not from a global setting.**
+> A deployment that declares `realtime` renders as **audio-only**; every other chat deployment renders a
+> text box.
+
+### The two features that drive input modality
+
+| Feature | Meaning for the UI |
+| --- | --- |
+| `textGeneration` (opt-out, default on) | The model can take a typed turn. Render the text box, send button, and — when the site has the matching default deployments — the speech-to-text and STT/TTS conversation controls. |
+| `realtime` (opt-in) | The model is speech-to-speech. Render **only** a *Start speaking* control that opens a realtime voice session, and **hide the text box** — such a model cannot process a text turn, so sending text would fail. |
+
+A model that declares `realtime` and omits `textGeneration` is voice-only. A model that declares both is
+unusual but valid — treat it as realtime-capable for the voice control while still allowing text.
+
+### Effective chat mode
+
+`ChatMode` has four values: `TextInput`, `AudioInput`, `Conversation`, and `Realtime`. Resolve the
+effective mode on the server from the deployment the surface will actually use, letting a realtime model
+win:
+
+```csharp
+// The selected deployment takes precedence: a realtime model forces audio-only, because it
+// cannot handle a text turn.
+var selectedIsRealtime = !string.IsNullOrWhiteSpace(deploymentName)
+    && await _capabilityService.ResolveDeploymentWithFeatureAsync(
+        AIDeploymentFeatureNames.Realtime, deploymentName) is not null;
+
+var effectiveChatMode = selectedIsRealtime
+    ? ChatMode.Realtime
+    : /* fall back to your STT / conversation / text logic */ ChatMode.TextInput;
+```
+
+Where the deployment comes from depends on the surface:
+
+| Surface | Text deployment | Realtime deployment |
+| --- | --- | --- |
+| **AI Profile / AI Chat widget** | `AIProfile.ChatDeploymentName` | `AIProfile.RealtimeDeploymentName` (falls back to the site default) |
+| **Chat Interaction** | `ChatInteraction.ChatDeploymentName` | The **same** selected `ChatDeploymentName` when it declares `realtime`; otherwise the site default |
+| **Site default (fallback)** | — | `DefaultAIDeploymentSettings.DefaultRealtimeDeploymentName` |
+
+Because a Chat Interaction has a single deployment picker, selecting a realtime model there *is* the
+realtime deployment. The AI Profile keeps text and voice as separate fields so a profile can use a text
+model for typed turns and a realtime model for voice.
+
+### Switching the input live
+
+When your surface lets the operator change the deployment without a reload (the Chat Interaction picker
+does), pass the set of realtime-capable deployment names to the client and flip the input on change:
+
+```csharp
+// Server: expose which deployments are realtime-capable.
+var realtimeDeployments = await _capabilityService.GetDeploymentsWithFeatureAsync(
+    AIDeploymentFeatureNames.Realtime);
+model.RealtimeCapableDeploymentNames = realtimeDeployments
+    .Select(d => d.Name)
+    .Where(name => !string.IsNullOrWhiteSpace(name))
+    .ToArray();
+```
+
+```javascript
+// Client: audio-only when the selected deployment is realtime, text otherwise.
+function applyRealtimeMode(enable) {
+    chatInput.hidden = enable;
+    sendButton.hidden = enable;
+    realtimeButton.hidden = !enable;  // the "Start speaking" control
+}
+
+deploymentSelect.addEventListener('change', function () {
+    var name = deploymentSelect.value.toLowerCase();
+    applyRealtimeMode(realtimeCapableDeployments.indexOf(name) !== -1);
+});
+```
+
+### Realtime transport
+
+Realtime runs over the chat SignalR hub, not the request/response completion pipeline. The client and
+server exchange raw **PCM16, 24 kHz, mono** audio as base64 frames:
+
+- **Send** — capture the microphone, downmix to 16-bit PCM, and stream base64 frames through a
+  `signalR.Subject` to the hub's `StartRealtimeConversation` method (its first argument is the
+  session/interaction identifier, followed by the audio stream, the voice, and the language).
+- **Receive** — assistant audio arrives as `ReceiveAudioChunk(id, base64, "audio/pcm")`; schedule those
+  frames for immediate playback through the Web Audio API. (STT/TTS *conversation* audio arrives on the
+  same callback but tagged `audio/mp3` / `audio/wav` and is collected and played on completion — branch
+  on the content type.) User and assistant **transcripts** arrive through the same conversation
+  callbacks that STT/TTS conversation mode already uses, so realtime renders in the same message list.
+
+For complete client implementations of this contract, see the `CrestApps.Core.Mvc.Web`
+`Areas/AIChat` and `Areas/ChatInteractions` chat views (and the shared `ai-chat.js`), which capture the
+microphone, stream PCM16 frames, and play back the assistant audio.
+
+### Guardrails you get for free
+
+Even if a UI lets a bad combination through, the framework refuses to fail silently:
+
+- **Save-time validation** — the AI Profile, AI Profile Template, and Chat Interaction editors reject a
+  realtime-only model (one that does not support `textGeneration`) in a **text** chat slot, and reject a
+  non-realtime model in a **realtime** slot, using `SupportsFeatureOrUnconstrained` and
+  `ResolveDeploymentWithFeatureAsync` respectively.
+- **Runtime message** — if a text turn still reaches a realtime-only model, the chat surface returns a
+  clear explanation ("the selected chat deployment may not support text conversation…") as the assistant
+  response instead of an empty or failed turn.
+
 ## Registering your own definitions
 
 Any module can contribute definitions during startup.
 
 ```csharp
-services.AddAIModelFeature(
+services.AddAIDeploymentFeature(
     "webSearch",
     new LocalizedString("webSearch", "Web search"),
     feature =>
@@ -277,18 +429,18 @@ services.AddAIModelFeature(
         feature.Order = 200;
     });
 
-services.AddAIModelParameter(
+services.AddAIDeploymentParameter(
     "verbosity",
     new LocalizedString("verbosity", "Verbosity"),
     parameter =>
     {
-        parameter.Kind = AIModelParameterKind.Choice;
+        parameter.Kind = AIDeploymentParameterKind.Choice;
         parameter.DefaultValue = "medium";
         parameter.AllowedValues =
         [
-            new AIModelParameterOption { Value = "low", DisplayName = new LocalizedString("low", "Low") },
-            new AIModelParameterOption { Value = "medium", DisplayName = new LocalizedString("medium", "Medium") },
-            new AIModelParameterOption { Value = "high", DisplayName = new LocalizedString("high", "High") },
+            new AIDeploymentParameterOption { Value = "low", DisplayName = new LocalizedString("low", "Low") },
+            new AIDeploymentParameterOption { Value = "medium", DisplayName = new LocalizedString("medium", "Medium") },
+            new AIDeploymentParameterOption { Value = "high", DisplayName = new LocalizedString("high", "High") },
         ];
     });
 ```
@@ -303,13 +455,13 @@ setting `RequiredFeature` to the feature name. The built-in `reasoningEffort` pa
 depend on the `reasoning` feature:
 
 ```csharp
-services.AddAIModelParameter(
-    AIModelParameterNames.ReasoningEffort,
-    new LocalizedString(AIModelParameterNames.ReasoningEffort, "Reasoning effort"),
+services.AddAIDeploymentParameter(
+    AIDeploymentParameterNames.ReasoningEffort,
+    new LocalizedString(AIDeploymentParameterNames.ReasoningEffort, "Reasoning effort"),
     parameter =>
     {
-        parameter.Kind = AIModelParameterKind.Choice;
-        parameter.RequiredFeature = AIModelFeatureNames.Reasoning;
+        parameter.Kind = AIDeploymentParameterKind.Choice;
+        parameter.RequiredFeature = AIDeploymentFeatureNames.Reasoning;
         // allowed values, default, etc.
     });
 ```
@@ -318,9 +470,9 @@ When `RequiredFeature` is set, the deployment editor only shows the parameter wh
 feature checkbox is enabled, and clearing the feature also clears the dependent parameter so a
 contradictory combination (for example a `reasoningEffort` value on a model that is not a reasoning
 model) can never be saved. The relationship is also enforced in the framework:
-`IAIModelCapabilityService.GetCapabilities` excludes a parameter whose `RequiredFeature` is not among
-the deployment's declared features, so `ModelParametersAICompletionServiceHandler` never applies it —
-regardless of how the metadata was authored.
+`IAIDeploymentCapabilityService.GetCapabilities` excludes a parameter whose `RequiredFeature` is not
+among the deployment's declared features, so `ModelParametersAICompletionServiceHandler` never applies
+it — regardless of how the metadata was authored.
 
 ### Parameter kinds
 
@@ -334,15 +486,15 @@ regardless of how the metadata was authored.
 
 ### Custom binders
 
-Implement `IAIModelParameterBinder` when a parameter needs to shape the request beyond
+Implement `IAIDeploymentParameterBinder` when a parameter needs to shape the request beyond
 `AdditionalProperties`:
 
 ```csharp
-public sealed class VerbosityModelParameterBinder : IAIModelParameterBinder
+public sealed class VerbosityModelParameterBinder : IAIDeploymentParameterBinder
 {
     public string ParameterName => "verbosity";
 
-    public ValueTask BindAsync(AIModelParameterBindingContext context, CancellationToken cancellationToken = default)
+    public ValueTask BindAsync(AIDeploymentParameterBindingContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -355,7 +507,7 @@ public sealed class VerbosityModelParameterBinder : IAIModelParameterBinder
 ```
 
 ```csharp
-services.AddScoped<IAIModelParameterBinder, VerbosityModelParameterBinder>();
+services.AddScoped<IAIDeploymentParameterBinder, VerbosityModelParameterBinder>();
 ```
 
 The binding context exposes the resolved `Descriptor`, the selected `Value`, the `ChatOptions` being
@@ -374,7 +526,11 @@ Both sample hosts render the metadata rather than hardcoding options.
 - **AI Profile, AI Profile Template, and Chat Interaction editors** — render only the parameters the
   selected deployment supports, restricted to that deployment's allowed values, and show the selected
   deployment's declared trained capabilities as read-only badges so operators can see what the model
-  supports.
+  supports. They also validate the chosen deployment against the slot's required capability at save time
+  (see [Guardrails](#guardrails-you-get-for-free)).
+- **AI Chat and Chat Interaction chat views** — switch the input between a text box and an audio-only
+  *Start speaking* control based on the effective deployment's `realtime` capability, as described in
+  [Building a capability-aware chat UI](#building-a-capability-aware-chat-ui).
 
 In `CrestApps.Core.Mvc.Web` the server renders every registered parameter inside hidden, disabled
 wrappers together with a deployment-to-capability JSON map; a small script shows, enables, and filters
@@ -398,4 +554,6 @@ than deployment-level model parameters and are intentionally left unchanged.
 - [AI Core](./ai-core.md)
 - [AI Profiles](./ai-profiles.md)
 - [AI Templates](./ai-templates.md)
+- [Chat](./chat.md)
+- [SignalR](./signalr.md)
 - [Extensible Entity](./extensible-entity.md)

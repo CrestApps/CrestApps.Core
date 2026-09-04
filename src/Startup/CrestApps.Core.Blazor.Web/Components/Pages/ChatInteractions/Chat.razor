@@ -5,6 +5,7 @@
 @using CrestApps.Core
 @using CrestApps.Core.AI
 @using CrestApps.Core.AI.A2A.Models
+@using CrestApps.Core.AI.Capabilities
 @using CrestApps.Core.AI.Chat
 @using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Documents
@@ -13,6 +14,7 @@
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Orchestration
 @using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.AI.Realtime
 @using CrestApps.Core.AI.Tooling
 @using CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Models
 @using CrestApps.Core.Infrastructure.Indexing
@@ -40,6 +42,8 @@
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject IAIDocumentStore DocumentStore
 @inject IAIDeploymentManager DeploymentManager
+@inject IAIDeploymentCapabilityService CapabilityService
+@inject IServiceProvider ServiceProvider
 
 <PageTitle>Chat Interaction</PageTitle>
 
@@ -101,6 +105,14 @@ else
                                             </option>
                                         }
                                     </select>
+                                </div>
+
+                                <div class="mb-3 d-none" id="chat-setting-realtimeVoice-group">
+                                    <label class="form-label" for="chat-setting-realtimeVoice">Voice</label>
+                                    <select id="chat-setting-realtimeVoice" class="form-select setting-input" data-setting="realtimeVoiceName">
+                                        <option value="">Default voice</option>
+                                    </select>
+                                    <div class="form-text">Voice for realtime (speech-to-speech), from the selected realtime model.</div>
                                 </div>
 
                                 <div class="mb-3">
@@ -532,6 +544,20 @@ else
                                         data-stop-icon="<i class='bi bi-stop-fill'></i>">
                                     <i class="bi bi-send"></i>
                                 </button>
+                                @* Realtime (speech-to-speech) toggle. Rendered hidden and shown by the client when the
+                                   selected deployment is a realtime model, in which case the text input is hidden. *@
+                                <button type="button"
+                                        id="realtime-btn"
+                                        class="btn btn-outline-dark flex-grow-1"
+                                        title="Start speaking"
+                                        data-start-title="Start speaking"
+                                        data-end-title="End Conversation"
+                                        data-start-html="<i class='bi bi-soundwave me-1'></i> Start speaking"
+                                        data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation"
+                                        hidden>
+                                    <i class="bi bi-soundwave me-1"></i>
+                                    <span>Start speaking</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -575,13 +601,30 @@ else
 
         var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
         var hasTextToSpeech = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
-        var effectiveChatMode = settings.ChatMode switch
-        {
-            ChatMode.Conversation when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
-            ChatMode.Conversation when hasSpeechToText => ChatMode.AudioInput,
-            ChatMode.AudioInput when hasSpeechToText => ChatMode.AudioInput,
-            _ => ChatMode.TextInput,
-        };
+
+        // Every deployment whose model declares the realtime (speech-to-speech) capability. The chat client
+        // uses this to switch the input to audio-only when the user selects a realtime deployment.
+        var realtimeDeployments = await CapabilityService.GetDeploymentsWithFeatureAsync(AIDeploymentFeatureNames.Realtime);
+        var realtimeDeploymentNames = realtimeDeployments
+            .Select(deployment => deployment.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToArray();
+
+        // The interaction's own selected deployment takes precedence: when it is a realtime model the
+        // conversation must run in realtime mode, because such a model cannot handle a text turn.
+        var selectedDeploymentIsRealtime = !string.IsNullOrWhiteSpace(interaction.ChatDeploymentName)
+            && realtimeDeploymentNames.Contains(interaction.ChatDeploymentName, StringComparer.OrdinalIgnoreCase);
+
+        var effectiveChatMode = selectedDeploymentIsRealtime
+            ? ChatMode.Realtime
+            : settings.ChatMode switch
+            {
+                ChatMode.Realtime when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
+                ChatMode.Conversation when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
+                ChatMode.Conversation when hasSpeechToText => ChatMode.AudioInput,
+                ChatMode.AudioInput when hasSpeechToText => ChatMode.AudioInput,
+                _ => ChatMode.TextInput,
+            };
 
         var storedDocuments = await DocumentStore.GetDocumentsAsync(interaction.ItemId, AIReferenceTypes.Document.ChatInteraction);
         var visibleDocuments = (interaction.Documents ?? [])
@@ -634,8 +677,12 @@ else
             ChatMode = effectiveChatMode,
             SpeechToTextEnabled = effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation,
             ConversationModeEnabled = effectiveChatMode == ChatMode.Conversation,
+            RealtimeEnabled = effectiveChatMode == ChatMode.Realtime,
+            RealtimeWebRtcEnabled = CrestApps.Core.AI.Chat.Realtime.RealtimeTransportSettings.IsWebRtcEnabled(ServiceProvider),
             TextToSpeechEnabled = settings.EnableTextToSpeechPlayback && hasTextToSpeech,
             TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
+            RealtimeVoiceName = interaction.RealtimeVoiceName,
+            RealtimeCapableDeploymentNames = realtimeDeploymentNames,
         };
 
         var documentSettings = SiteSettingsStore.Get<InteractionDocumentSettings>();
@@ -701,6 +748,15 @@ else
             conversationButtonElementSelector = "#chat-conversation-btn",
             ttsVoiceName = _model.TextToSpeechVoiceName,
             textToSpeechEnabled = _model.TextToSpeechEnabled,
+            realtimeEnabled = _model.RealtimeEnabled,
+            realtimeWebRtcEnabled = _model.RealtimeWebRtcEnabled,
+            realtimeVoiceName = _model.RealtimeVoiceName,
+            realtimeButtonElementSelector = "#realtime-btn",
+            deploymentSelectElementSelector = "#chat-setting-deployment",
+            realtimeCapableDeployments = _model.RealtimeCapableDeploymentNames,
+            realtimeVoiceSelectElementSelector = "#chat-setting-realtimeVoice",
+            realtimeVoiceGroupElementSelector = "#chat-setting-realtimeVoice-group",
+            realtimeVoicesUrl = "/api/chat/realtime-voices",
         });
     }
 

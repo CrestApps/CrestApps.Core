@@ -11,7 +11,9 @@ public sealed class LimitedWriteStream : Stream
     private readonly Stream _inner;
     private long _written;
 
-    /// <summary>Initializes a new instance of the <see cref="LimitedWriteStream"/> class.</summary>
+    /// <summary>
+    /// Initializes a new instance of the <see cref="LimitedWriteStream"/> class.
+    /// </summary>
     /// <param name="inner">The underlying writable stream that receives the data.</param>
     /// <param name="maxBytes">The maximum number of bytes that may be written before an exception is thrown. Must be positive.</param>
     public LimitedWriteStream(Stream inner, long maxBytes)
@@ -27,10 +29,14 @@ public sealed class LimitedWriteStream : Stream
         MaxBytes = maxBytes;
     }
 
-    /// <summary>Gets the maximum number of bytes that may be written to the stream.</summary>
+    /// <summary>
+    /// Gets the maximum number of bytes that may be written to the stream.
+    /// </summary>
     public long MaxBytes { get; }
 
-    /// <summary>Gets the number of bytes that have been written so far.</summary>
+    /// <summary>
+    /// Gets the number of bytes that have been written so far.
+    /// </summary>
     public long BytesWritten => _written;
 
     /// <inheritdoc/>

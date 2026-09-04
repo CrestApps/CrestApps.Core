@@ -81,7 +81,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         // them, and it also covers callers that resolve the client and call it directly outside the
         // completion pipeline. The capability service is optional so hosts that do not register the
         // capability services keep working unchanged.
-        var capabilityService = _serviceProvider.GetService<IAIModelCapabilityService>();
+        var capabilityService = _serviceProvider.GetService<IAIDeploymentCapabilityService>();
 
         if (capabilityService is not null)
         {
@@ -221,6 +221,9 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         ArgumentNullException.ThrowIfNull(deployment);
         ArgumentException.ThrowIfNullOrEmpty(deployment.ClientName);
 
+        // Realtime eligibility (a chat deployment whose model declares the 'realtime' capability) is
+        // enforced by IAIDeploymentCapabilityService before the client is created, so no capability check
+        // is repeated here.
         var connection = await GetConnectionEntryAsync(deployment);
 
         return await ResolveClientAsync(deployment, connection,

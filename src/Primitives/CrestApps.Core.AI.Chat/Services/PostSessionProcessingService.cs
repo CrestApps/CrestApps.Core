@@ -99,7 +99,14 @@ public sealed class PostSessionProcessingService
 
         if (chatClient == null)
         {
-            throw new InvalidOperationException($"Unable to create a chat client for resolution analysis on profile '{profile.ItemId}'.");
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation(
+                    "Skipping resolution analysis for profile '{ProfileId}' — no text-capable deployment is available (a realtime-only deployment cannot run text analytics).",
+                    profile.ItemId);
+            }
+
+            return false;
         }
 
         var transcript = await RenderTranscriptAsync(AITemplateIds.ResolutionAnalysisPrompt, prompts, cancellationToken: cancellationToken);
@@ -149,7 +156,14 @@ public sealed class PostSessionProcessingService
 
         if (chatClient == null)
         {
-            throw new InvalidOperationException($"Unable to create a chat client for conversion goal evaluation on profile '{profile.ItemId}'.");
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation(
+                    "Skipping conversion goal evaluation for profile '{ProfileId}' — no text-capable deployment is available (a realtime-only deployment cannot run text analytics).",
+                    profile.ItemId);
+            }
+
+            return [];
         }
 
         var arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
@@ -331,8 +345,14 @@ public sealed class PostSessionProcessingService
 
         if (chatClient == null)
         {
-            throw new InvalidOperationException(
-                $"Unable to create a chat client for post-session processing on profile '{profile.ItemId}'.");
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation(
+                    "Skipping post-session task processing for profile '{ProfileId}' — no text-capable deployment is available (a realtime-only deployment cannot run text completions).",
+                    profile.ItemId);
+            }
+
+            return new();
         }
 
         var arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
@@ -1365,25 +1385,34 @@ public sealed class PostSessionProcessingService
 
     private async Task<IChatClient> GetChatClientAsync(AIProfile profile)
     {
-        if (_deploymentManager != null)
+        if (_deploymentManager == null)
         {
-            var deployment = await _deploymentManager.ResolveUtilityOrDefaultAsync(
-                utilityDeploymentName: profile.UtilityDeploymentName,
-                chatDeploymentName: profile.ChatDeploymentName);
+            return null;
+        }
 
-            if (deployment != null && !string.IsNullOrEmpty(deployment.ConnectionName) && !string.IsNullOrEmpty(deployment.ModelName))
+        var deployment = await _deploymentManager.ResolveUtilityOrDefaultAsync(
+            utilityDeploymentName: profile.UtilityDeploymentName,
+            chatDeploymentName: profile.ChatDeploymentName);
+
+        // Post-session analytics run text chat completions. When the profile's chat deployment is a realtime
+        // (speech-to-speech) model — which cannot serve a text completion and answers HTTP 400 — fall back to a
+        // text-capable default so analytics still work, and never send the completion to a realtime model.
+        if (deployment != null && !deployment.CanServeTextCompletion())
+        {
+            deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility)
+                ?? await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat);
+
+            if (deployment != null && !deployment.CanServeTextCompletion())
             {
-                var chatClient = await _clientFactory.CreateChatClientAsync(
-                    deployment,
-                    builder => builder.UseDefaultResilience());
-
-                if (chatClient == null)
-                {
-                    return null;
-                }
-
-                return chatClient;
+                deployment = null;
             }
+        }
+
+        if (deployment != null && !string.IsNullOrEmpty(deployment.ConnectionName) && !string.IsNullOrEmpty(deployment.ModelName))
+        {
+            return await _clientFactory.CreateChatClientAsync(
+                deployment,
+                builder => builder.UseDefaultResilience());
         }
 
         return null;

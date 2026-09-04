@@ -39,7 +39,7 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
     {
         // Arrange
         var handler = CreateHandler();
-        var deployment = CreateDeployment(AIModelFeatureNames.ToolCalling);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.ToolCalling);
         var context = CreateContext(deployment, tools: true);
 
         // Act
@@ -55,7 +55,7 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
     {
         // Arrange
         var handler = CreateHandler();
-        var deployment = CreateDeployment(AIModelFeatureNames.StructuredOutputs);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.StructuredOutputs);
         var context = CreateContext(deployment, tools: true);
         context.ChatOptions.ToolMode = ChatToolMode.RequireAny;
 
@@ -73,14 +73,14 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
         // Arrange
         var logger = new Mock<ILogger<ModelFeaturesAICompletionServiceHandler>>();
         var handler = CreateHandler(logger);
-        var deployment = CreateDeployment(AIModelFeatureNames.StructuredOutputs);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.StructuredOutputs);
         var context = CreateContext(deployment, tools: true);
 
         // Act
         await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
 
         // Assert
-        VerifyWarningLogged(logger, AIModelFeatureNames.ToolCalling);
+        VerifyWarningLogged(logger, AIDeploymentFeatureNames.ToolCalling);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
     {
         // Arrange
         var handler = CreateHandler();
-        var deployment = CreateDeployment(AIModelFeatureNames.StructuredOutputs);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.StructuredOutputs);
         var context = CreateContext(deployment, tools: false);
         context.ChatOptions.ToolMode = ChatToolMode.RequireAny;
 
@@ -105,7 +105,7 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
     {
         // Arrange
         var handler = CreateHandler();
-        var deployment = CreateDeployment(AIModelFeatureNames.ToolCalling);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.ToolCalling);
         var context = CreateContext(deployment, tools: false);
         context.ChatOptions.ResponseFormat = ChatResponseFormat.Json;
 
@@ -122,7 +122,7 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
         // Arrange
         var logger = new Mock<ILogger<ModelFeaturesAICompletionServiceHandler>>();
         var handler = CreateHandler(logger);
-        var deployment = CreateDeployment(AIModelFeatureNames.ToolCalling);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.ToolCalling);
         var context = CreateContext(deployment, tools: false);
         context.ChatOptions.ResponseFormat = ChatResponseFormat.Json;
 
@@ -130,7 +130,7 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
         await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
 
         // Assert
-        VerifyWarningLogged(logger, AIModelFeatureNames.StructuredOutputs);
+        VerifyWarningLogged(logger, AIDeploymentFeatureNames.StructuredOutputs);
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
     {
         // Arrange
         var handler = CreateHandler();
-        var deployment = CreateDeployment(AIModelFeatureNames.StructuredOutputs);
+        var deployment = CreateDeployment(AIDeploymentFeatureNames.StructuredOutputs);
         var context = CreateContext(deployment, tools: false);
         context.ChatOptions.ResponseFormat = ChatResponseFormat.Json;
 
@@ -150,44 +150,44 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
     }
 
     [Fact]
-    public void AddCoreAIModelCapabilities_ShouldRegisterTheTrainedFeatureSet()
+    public void AddCoreAIDeploymentCapabilities_ShouldRegisterTheTrainedFeatureSet()
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddCoreAIModelCapabilities();
+        services.AddCoreAIDeploymentCapabilities();
 
         var provider = services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IOptions<AIModelCapabilityOptions>>().Value;
+        var options = provider.GetRequiredService<IOptions<AIDeploymentCapabilityOptions>>().Value;
 
         // Assert
-        Assert.Contains(AIModelFeatureNames.ToolCalling, options.Features.Keys);
-        Assert.Contains(AIModelFeatureNames.ImageInput, options.Features.Keys);
-        Assert.Contains(AIModelFeatureNames.ImageOutput, options.Features.Keys);
-        Assert.Contains(AIModelFeatureNames.VideoInput, options.Features.Keys);
-        Assert.Contains(AIModelFeatureNames.VideoOutput, options.Features.Keys);
+        Assert.Contains(AIDeploymentFeatureNames.ToolCalling, options.Features.Keys);
+        Assert.Contains(AIDeploymentFeatureNames.ImageInput, options.Features.Keys);
+        Assert.Contains(AIDeploymentFeatureNames.ImageOutput, options.Features.Keys);
+        Assert.Contains(AIDeploymentFeatureNames.VideoInput, options.Features.Keys);
+        Assert.Contains(AIDeploymentFeatureNames.VideoOutput, options.Features.Keys);
         Assert.DoesNotContain("webSearch", options.Features.Keys);
         Assert.DoesNotContain("computerUse", options.Features.Keys);
-        Assert.True(options.Features[AIModelFeatureNames.ToolCalling].EnabledByDefault);
-        Assert.True(options.Features[AIModelFeatureNames.Streaming].EnabledByDefault);
-        Assert.False(options.Features[AIModelFeatureNames.Reasoning].EnabledByDefault);
-        Assert.Equal(AIModelFeatureNames.Reasoning, options.Parameters[AIModelParameterNames.ReasoningEffort].RequiredFeature);
+        Assert.True(options.Features[AIDeploymentFeatureNames.ToolCalling].EnabledByDefault);
+        Assert.True(options.Features[AIDeploymentFeatureNames.Streaming].EnabledByDefault);
+        Assert.False(options.Features[AIDeploymentFeatureNames.Reasoning].EnabledByDefault);
+        Assert.Equal(AIDeploymentFeatureNames.Reasoning, options.Parameters[AIDeploymentParameterNames.ReasoningEffort].RequiredFeature);
     }
 
     [Fact]
     public void Clone_ShouldCopyTheRequiredFeature()
     {
         // Arrange
-        var descriptor = new AIModelParameterDescriptor
+        var descriptor = new AIDeploymentParameterDescriptor
         {
-            Name = AIModelParameterNames.ReasoningEffort,
-            RequiredFeature = AIModelFeatureNames.Reasoning,
+            Name = AIDeploymentParameterNames.ReasoningEffort,
+            RequiredFeature = AIDeploymentFeatureNames.Reasoning,
         };
 
         // Act
         var clone = descriptor.Clone();
 
         // Assert
-        Assert.Equal(AIModelFeatureNames.Reasoning, clone.RequiredFeature);
+        Assert.Equal(AIDeploymentFeatureNames.Reasoning, clone.RequiredFeature);
     }
 
     private static AIDeployment CreateDeployment(params string[] features)
@@ -197,7 +197,7 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
             Name = "gpt-5",
         };
 
-        deployment.Put(new AIDeploymentModelMetadata
+        deployment.Put(new AIDeploymentMetadata
         {
             Features = features,
         });
@@ -228,11 +228,11 @@ public sealed class ModelFeaturesAICompletionServiceHandlerTests
 
     private static ModelFeaturesAICompletionServiceHandler CreateHandler(Mock<ILogger<ModelFeaturesAICompletionServiceHandler>> logger = null)
     {
-        var options = new AIModelCapabilityOptions();
-        options.AddFeature(AIModelFeatureNames.ToolCalling, new LocalizedString("Tool calling", "Tool calling"));
-        options.AddFeature(AIModelFeatureNames.StructuredOutputs, new LocalizedString("Structured outputs", "Structured outputs"));
+        var options = new AIDeploymentCapabilityOptions();
+        options.AddFeature(AIDeploymentFeatureNames.ToolCalling, new LocalizedString("Tool calling", "Tool calling"));
+        options.AddFeature(AIDeploymentFeatureNames.StructuredOutputs, new LocalizedString("Structured outputs", "Structured outputs"));
 
-        var service = new DefaultAIModelCapabilityService(Options.Create(options), Mock.Of<IAIDeploymentStore>());
+        var service = new DefaultAIDeploymentCapabilityService(Options.Create(options), Mock.Of<IAIDeploymentStore>());
 
         return new ModelFeaturesAICompletionServiceHandler(service, logger?.Object ?? NullLogger<ModelFeaturesAICompletionServiceHandler>.Instance);
     }

@@ -15,7 +15,7 @@
 
         @{
             var indexedParameters = Model.ModelParameters
-                .Select((parameter, index) => new AIDeploymentModelParameterCardViewModel { Parameter = parameter, Index = index })
+                .Select((parameter, index) => new AIDeploymentParameterCardViewModel { Parameter = parameter, Index = index })
                 .ToList();
 
             bool FeatureEnabled(string featureName)

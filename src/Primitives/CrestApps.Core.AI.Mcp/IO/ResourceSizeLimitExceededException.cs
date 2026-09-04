@@ -6,7 +6,9 @@ namespace CrestApps.Core.AI.Mcp.IO;
 /// </summary>
 public sealed class ResourceSizeLimitExceededException : Exception
 {
-    /// <summary>Initializes a new instance of the <see cref="ResourceSizeLimitExceededException"/> class.</summary>
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ResourceSizeLimitExceededException"/> class.
+    /// </summary>
     /// <param name="maxBytes">The configured maximum number of bytes that may be read.</param>
     public ResourceSizeLimitExceededException(long maxBytes)
         : base($"The remote resource exceeds the configured maximum size of {maxBytes:N0} bytes.")
@@ -14,6 +16,8 @@ public sealed class ResourceSizeLimitExceededException : Exception
         MaxBytes = maxBytes;
     }
 
-    /// <summary>Gets the configured maximum number of bytes that may be read for a single resource request.</summary>
+    /// <summary>
+    /// Gets the configured maximum number of bytes that may be read for a single resource request.
+    /// </summary>
     public long MaxBytes { get; }
 }

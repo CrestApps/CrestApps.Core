@@ -51,6 +51,9 @@ public sealed class AIProfileViewModel
 
     public string VoiceName { get; set; }
 
+    // Realtime (speech-to-speech) fields — used when ChatMode is Realtime.
+    public string RealtimeDeploymentName { get; set; }
+
     public bool EnableTextToSpeechPlayback { get; set; }
 
     // AI Parameters (from AIProfileMetadata)
@@ -204,6 +207,8 @@ public sealed class AIProfileViewModel
 
     public List<KeyValuePair<string, string>> UtilityDeployments { get; set; } = [];
 
+    public List<KeyValuePair<string, string>> RealtimeDeployments { get; set; } = [];
+
     public List<KeyValuePair<string, string>> Templates { get; set; } = [];
 
     public List<KeyValuePair<string, string>> AvailableProfileTemplates { get; set; } = [];
@@ -244,6 +249,7 @@ public sealed class AIProfileViewModel
 
             ChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput,
             VoiceName = chatModeSettings?.VoiceName,
+            RealtimeDeploymentName = profile.RealtimeDeploymentName,
             EnableTextToSpeechPlayback = chatModeSettings?.EnableTextToSpeechPlayback ?? false,
 
             LockSystemMessage = settings.LockSystemMessage,
@@ -278,7 +284,7 @@ public sealed class AIProfileViewModel
             EnableUserMemory = memoryMetadata.EnableUserMemory ?? false,
         };
 
-        if (profile.TryGet<AIModelParametersMetadata>(out var modelParameters) && modelParameters.Values is { Count: > 0 })
+        if (profile.TryGet<AIDeploymentParametersMetadata>(out var modelParameters) && modelParameters.Values is { Count: > 0 })
         {
             vm.ModelParameters = new Dictionary<string, string>(modelParameters.Values, StringComparer.OrdinalIgnoreCase);
         }
@@ -420,6 +426,7 @@ public sealed class AIProfileViewModel
         profile.Source = Source;
         profile.ChatDeploymentName = ChatDeploymentName;
         profile.UtilityDeploymentName = UtilityDeploymentName;
+        profile.RealtimeDeploymentName = ChatMode == ChatMode.Realtime ? RealtimeDeploymentName : profile.RealtimeDeploymentName;
         profile.OrchestratorName = OrchestratorName;
         profile.PromptTemplate = PromptTemplate;
         profile.PromptSubject = PromptSubject;
@@ -441,7 +448,7 @@ public sealed class AIProfileViewModel
             m.UseCaching = UseCaching;
         });
 
-        profile.Alter<AIModelParametersMetadata>(m =>
+        profile.Alter<AIDeploymentParametersMetadata>(m =>
         {
             m.Values = ModelParameters is null
                 ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -460,7 +467,7 @@ public sealed class AIProfileViewModel
         profile.AlterSettings<ChatModeProfileSettings>(settings =>
         {
             settings.ChatMode = ChatMode;
-            settings.VoiceName = ChatMode == ChatMode.Conversation
+            settings.VoiceName = ChatMode is ChatMode.Conversation or ChatMode.Realtime
                 ? VoiceName?.Trim()
                 : null;
             settings.EnableTextToSpeechPlayback = EnableTextToSpeechPlayback;

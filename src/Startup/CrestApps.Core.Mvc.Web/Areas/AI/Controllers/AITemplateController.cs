@@ -1,6 +1,7 @@
 using System.Globalization;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Copilot.Models;
@@ -49,8 +50,9 @@ public sealed class AITemplateController : Controller
     private readonly IOptionsSnapshot<CopilotOptions> _copilotOptions;
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
-    private readonly AIModelParameterViewService _modelParameterViewService;
+    private readonly AIDeploymentParameterViewService _modelParameterViewService;
     private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
 
     public AITemplateController(
         ICatalog<AIProfileTemplate> catalog,
@@ -69,8 +71,9 @@ public sealed class AITemplateController : Controller
         IOptionsSnapshot<CopilotOptions> copilotOptions,
         GitHubOAuthService oauthService,
         IOptions<AIToolDefinitionOptions> toolOptions,
-        AIModelParameterViewService modelParameterViewService,
-        IAIToolAccessEvaluator toolAccessEvaluator)
+        AIDeploymentParameterViewService modelParameterViewService,
+        IAIToolAccessEvaluator toolAccessEvaluator,
+        IAIDeploymentCapabilityService capabilityService)
     {
         _catalog = catalog;
         _deploymentCatalog = deploymentCatalog;
@@ -90,6 +93,7 @@ public sealed class AITemplateController : Controller
         _toolOptions = toolOptions.Value;
         _modelParameterViewService = modelParameterViewService;
         _toolAccessEvaluator = toolAccessEvaluator;
+        _capabilityService = capabilityService;
     }
 
     public async Task<IActionResult> Index()
@@ -118,6 +122,8 @@ public sealed class AITemplateController : Controller
         {
             ModelState.AddModelError(nameof(model.Source), "Source is required.");
         }
+
+        await ValidateDeploymentCapabilitiesAsync(model);
 
         if (!ModelState.IsValid)
         {
@@ -162,6 +168,8 @@ public sealed class AITemplateController : Controller
             ModelState.AddModelError(nameof(model.Name), "Technical name is required.");
         }
 
+        await ValidateDeploymentCapabilitiesAsync(model);
+
         if (!ModelState.IsValid)
         {
             await PopulateDropdownsAsync(model);
@@ -197,6 +205,37 @@ public sealed class AITemplateController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    /// <summary>
+    /// Validates that the template's chat deployment can hold a text conversation, so a template does not
+    /// assign a speech-to-speech-only model to chat where it would fail silently at request time.
+    /// </summary>
+    private async Task ValidateDeploymentCapabilitiesAsync(AITemplateViewModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.ChatDeploymentName))
+        {
+            return;
+        }
+
+        var deployments = await _deploymentCatalog.GetAllAsync();
+        var chatDeployment = deployments.FirstOrDefault(deployment => string.Equals(deployment.Name, model.ChatDeploymentName, StringComparison.OrdinalIgnoreCase));
+
+        if (chatDeployment is not null && !_capabilityService.SupportsFeatureOrUnconstrained(chatDeployment, AIDeploymentFeatureNames.TextGeneration))
+        {
+            ModelState.AddModelError(nameof(model.ChatDeploymentName), "The selected chat deployment is a speech-to-speech-only model and cannot hold a text conversation. Choose a text-capable chat deployment.");
+        }
+
+        // A realtime deployment, when set, must declare the realtime capability (matches the AI Profile editor).
+        if (!string.IsNullOrWhiteSpace(model.RealtimeDeploymentName))
+        {
+            var realtimeDeployment = deployments.FirstOrDefault(deployment => string.Equals(deployment.Name, model.RealtimeDeploymentName, StringComparison.OrdinalIgnoreCase));
+
+            if (realtimeDeployment is not null && !_capabilityService.GetCapabilities(realtimeDeployment).SupportsFeature(AIDeploymentFeatureNames.Realtime))
+            {
+                ModelState.AddModelError(nameof(model.RealtimeDeploymentName), "The selected realtime deployment does not declare the 'Realtime' capability. Enable it on the deployment's capabilities, or choose a realtime-capable deployment.");
+            }
+        }
+    }
+
     private async Task PopulateDropdownsAsync(AITemplateViewModel model)
     {
         model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(model.ModelParameters);
@@ -204,6 +243,11 @@ public sealed class AITemplateController : Controller
         var allDeployments = await _deploymentCatalog.GetAllAsync();
         model.ChatDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.UtilityDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        // Only realtime-capable chat deployments are eligible for the realtime slot.
+        model.RealtimeDeployments = allDeployments
+            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat) && _capabilityService.GetCapabilities(d).SupportsFeature(AIDeploymentFeatureNames.Realtime))
+            .Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name))
+            .ToList();
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
         var hasAnthropicOptions = _anthropicOptions.TryGetValidValue(out ClaudeOptions anthropicOptions);
         model.Orchestrators = orchestrators.Select(o => new SelectListItem(o.Value.Title ?? o.Key, o.Key)).ToList();

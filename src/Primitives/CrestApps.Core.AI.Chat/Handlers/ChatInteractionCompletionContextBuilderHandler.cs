@@ -43,7 +43,7 @@ internal sealed class ChatInteractionCompletionContextBuilderHandler : IAIComple
         context.Context.AdditionalProperties[AICompletionContextKeys.Interaction] = interaction;
         context.Context.AdditionalProperties[AICompletionContextKeys.InteractionId] = interaction.ItemId;
 
-        if (interaction.TryGet<AIModelParametersMetadata>(out var modelParameters))
+        if (interaction.TryGet<AIDeploymentParametersMetadata>(out var modelParameters))
         {
             context.Context.ApplyModelParameters(modelParameters);
         }

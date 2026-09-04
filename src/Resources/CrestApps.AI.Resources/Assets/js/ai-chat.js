@@ -708,6 +708,17 @@ window.coreAIChatManager = function () {
                     ttsInstanceId: 'ai-chat-' + Math.random().toString(36).slice(2),
                     singleResponseMode: !!config.singleResponseMode,
                     conversationModeEnabled: config.chatMode === 'Conversation',
+                    realtimeEnabled: config.chatMode === 'Realtime' || !!config.realtimeEnabled,
+                    // Server-relay WebRTC transport: primary when advertised and supported; the client falls back
+                    // to the WebSocket path below if the peer cannot connect.
+                    realtimeWebRtcEnabled: config.realtimeWebRtcEnabled === true && typeof window.RTCPeerConnection === 'function',
+                    // A host-supplied override. Normally the servers are fetched from the hub right before the
+                    // peer is created (resolveRealtimeIceServers) so configured TURN relays — and their
+                    // short-lived credentials — are actually used instead of a public STUN server.
+                    realtimeWebRtcIceServers: (Array.isArray(config.realtimeWebRtcIceServers) && config.realtimeWebRtcIceServers.length)
+                        ? config.realtimeWebRtcIceServers
+                        : null,
+                    realtimeVoiceName: config.realtimeVoiceName || null,
                     conversationButton: null,
                     isConversationMode: false,
                     notificationDismissTimers: {},
@@ -1119,6 +1130,8 @@ window.coreAIChatManager = function () {
                     this.connection.keepAliveIntervalInMilliseconds = 15000;
 
                     this.connection.on("LoadSession", (data) => {
+                        // Switching to another session must not leave a prior realtime/voice session running.
+                        this.forceStopActiveVoice();
                         this.initializeSession(data.sessionId, true);
                         this.messages = [];
                         this.documents = data.documents || [];
@@ -1146,6 +1159,9 @@ window.coreAIChatManager = function () {
                             });
                         }
                     });
+
+                    // Realtime lifecycle events (ReceiveRealtimeEvent, and ReceiveError while a voice session is
+                    // live) are handled by the shared CoreAIRealtime module — see setupRealtimeController.
 
                     this.connection.on("ReceiveError", (error) => {
                         console.error("SignalR Error: ", error);
@@ -1224,19 +1240,26 @@ window.coreAIChatManager = function () {
                         }
                     });
 
-                    this.connection.on("ReceiveConversationUserMessage", (sessionId, text) => {
+                    this.connection.on("ReceiveConversationUserMessage", (sessionId, turnId, text) => {
+                        // Realtime creates the chat session server-side; adopt its id (and update the page URL)
+                        // on the first turn so a refresh reloads the conversation instead of starting fresh.
+                        if (sessionId && this.getSessionId() !== sessionId) {
+                            this.initializeSession(sessionId);
+                        }
+
+                        // Realtime: a placeholder for this turn was already inserted in the right position when
+                        // the utterance was captured (see user_turn_pending), so just fill in its text.
+                        if (turnId && this._realtimePendingTurns && this._realtimePendingTurns[turnId]) {
+                            var pending = this._realtimePendingTurns[turnId];
+                            delete this._realtimePendingTurns[turnId];
+                            this.stopAudio();
+                            this.fillRealtimePendingTurn(pending, text);
+
+                            return;
+                        }
+
                         if (text) {
                             this.stopAudio();
-
-                            // If there's an interrupted assistant message still streaming,
-                            // mark it as done to stop the spinner animation.
-                            if (this._conversationAssistantMessage) {
-                                var oldMsg = this.messages[this._conversationAssistantMessage.index];
-                                if (oldMsg) {
-                                    oldMsg.isStreaming = false;
-                                }
-                                this._conversationAssistantMessage = null;
-                            }
 
                             // Replace the partial transcript message with the final one.
                             if (this._conversationPartialMessage) {
@@ -1245,6 +1268,17 @@ window.coreAIChatManager = function () {
                                 this._conversationPartialMessage.htmlContent = '<p>' + escaped + '</p>';
                                 this._conversationPartialMessage.isPartial = false;
                                 this._conversationPartialMessage = null;
+                            } else if (this._conversationAssistantMessage) {
+                                // Realtime: the user's transcript lags the assistant's reply for the SAME turn (the
+                                // model answers the audio before speech-to-text finishes). Insert the user message
+                                // just before the streaming assistant message so the order stays You -> Assistant,
+                                // and keep that message streaming — ending it here split one reply into two bubbles
+                                // above the prompt.
+                                var at = this._conversationAssistantMessage.index;
+                                var userMsg = { role: 'user', content: text, rawContent: text, userRating: null, references: {} };
+                                updateMessagePresentation(userMsg, userMsg.references);
+                                this.messages.splice(at, 0, userMsg);
+                                this._conversationAssistantMessage.index = at + 1;
                             } else {
                                 this.addMessage({
                                     role: 'user',
@@ -1256,6 +1290,13 @@ window.coreAIChatManager = function () {
                     });
 
                     this.connection.on("ReceiveConversationAssistantToken", (sessionId, messageId, token, responseId, references, appearance) => {
+                        // A new response id means a new turn — finalize the previous assistant message so two replies
+                        // never merge into one bubble (also covers barge-in, which starts a fresh response).
+                        if (this._conversationAssistantMessage && this._conversationAssistantResponseId && responseId && this._conversationAssistantResponseId !== responseId) {
+                            var prev = this.messages[this._conversationAssistantMessage.index];
+                            if (prev) { prev.isStreaming = false; }
+                            this._conversationAssistantMessage = null;
+                        }
                         if (!this._conversationAssistantMessage) {
                             this.stopAudio();
                             this.hideTypingIndicator();
@@ -1280,6 +1321,7 @@ window.coreAIChatManager = function () {
                             };
                             this.messages.push(newMessage);
                             this._conversationAssistantMessage = { index: msgIndex, content: '' };
+                            this._conversationAssistantResponseId = responseId;
                         }
 
                         this._conversationAssistantMessage.content += token;
@@ -1307,16 +1349,27 @@ window.coreAIChatManager = function () {
                                 updateMessagePresentation(msg, msg.references);
                             }
                             this._conversationAssistantMessage = null;
+                            this._conversationAssistantResponseId = null;
                         }
                     });
 
                     this.connection.on("ReceiveAudioChunk", (sessionId, base64Audio, contentType) => {
-                        if (base64Audio) {
-                            const binaryString = atob(base64Audio);
-                            const bytes = new Uint8Array(binaryString.length);
-                            for (let i = 0; i < binaryString.length; i++) {
-                                bytes[i] = binaryString.charCodeAt(i);
-                            }
+                        if (!base64Audio) {
+                            return;
+                        }
+
+                        const binaryString = atob(base64Audio);
+                        const bytes = new Uint8Array(binaryString.length);
+                        for (let i = 0; i < binaryString.length; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
+                        }
+
+                        // Realtime audio arrives as raw PCM16 (WebSocket transport) and is scheduled for immediate
+                        // playback by the shared module; conversation/TTS audio (mp3/wav) is collected and played on
+                        // complete.
+                        if (contentType === 'audio/pcm') {
+                            if (this.realtimeController) { this.realtimeController.receivePcm(bytes); }
+                        } else {
                             this.audioChunks.push(bytes);
                         }
                     });
@@ -1339,6 +1392,11 @@ window.coreAIChatManager = function () {
 
                     this.connection.onreconnecting(() => {
                         console.warn("SignalR: reconnecting...");
+
+                        // The realtime session lived inside the dropped connection; it cannot survive a reconnect.
+                        if (this.realtimeEnabled && this.isConversationMode) {
+                            this.stopRealtimeConversation();
+                        }
                     });
 
                     this.connection.onreconnected(() => {
@@ -1354,6 +1412,10 @@ window.coreAIChatManager = function () {
                             return;
                         }
 
+                        if (this.realtimeEnabled && this.isConversationMode) {
+                            this.stopRealtimeConversation();
+                        }
+
                         if (error) {
                             console.warn("SignalR connection closed with error:", error.message || error);
                         }
@@ -1364,6 +1426,45 @@ window.coreAIChatManager = function () {
                     } catch (err) {
                         console.error("SignalR Connection Error: ", err);
                     }
+                },
+                async ensureConnectionStarted() {
+                    if (!this.connection) {
+                        return false;
+                    }
+
+                    var states = signalR.HubConnectionState;
+                    if (this.connection.state === states.Connected) {
+                        return true;
+                    }
+
+                    // If the initial start failed or has not begun, start it now.
+                    if (this.connection.state === states.Disconnected) {
+                        try {
+                            await this.connection.start();
+                        } catch (err) {
+                            console.error("SignalR Connection Error: ", err);
+                        }
+
+                        return this.connection.state === states.Connected;
+                    }
+
+                    // The connection is still Connecting or Reconnecting: wait for it to settle so callers
+                    // (e.g. starting a realtime session) do not send before the socket is ready.
+                    return await new Promise((resolve) => {
+                        var settle = (value) => {
+                            clearTimeout(timeoutId);
+                            clearInterval(intervalId);
+                            resolve(value);
+                        };
+                        var timeoutId = setTimeout(() => settle(this.connection.state === states.Connected), 10000);
+                        var intervalId = setInterval(() => {
+                            if (this.connection.state === states.Connected) {
+                                settle(true);
+                            } else if (this.connection.state === states.Disconnected) {
+                                settle(false);
+                            }
+                        }, 100);
+                    });
                 },
                 addMessageInternal(message) {
                     if (message.role === 'assistant') {
@@ -1502,45 +1603,25 @@ window.coreAIChatManager = function () {
 
                     navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
                         .then(stream => {
-                            var mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
-                                ? 'audio/ogg;codecs=opus'
-                                : MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-                                    ? 'audio/webm;codecs=opus'
-                                    : 'audio/webm';
-
-                            this.mediaRecorder = new MediaRecorder(stream, {
-                                mimeType: mimeType,
-                                audioBitsPerSecond: 128000,
-                            });
-
                             this.preRecordingPrompt = this.prompt;
                             this._audioInputSent = false;
 
                             var subject = new signalR.Subject();
                             var profileId = this.getProfileId();
                             var sessionId = this.getSessionId() || '';
-                            var pendingChunk = Promise.resolve();
 
-                            this.mediaRecorder.addEventListener('dataavailable', (e) => {
-                                if (e.data && e.data.size > 0) {
-                                    pendingChunk = pendingChunk.then(async () => {
-                                        var data = await e.data.arrayBuffer();
-                                        var uint8Array = new Uint8Array(data);
-                                        var binaryString = uint8Array.reduce(function (str, byte) { return str + String.fromCharCode(byte); }, '');
-                                        var base64 = btoa(binaryString);
-                                        subject.next(base64);
-                                    });
-                                }
+                            // Capture raw 16 kHz PCM (16-bit mono) via Web Audio instead of MediaRecorder.
+                            // Browsers only agree on WebM/Opus for MediaRecorder, and Azure's speech SDK cannot
+                            // demux that container from a streaming push (it fails inside GStreamer). Raw PCM is
+                            // decoded natively with no GStreamer and is produced identically by every browser.
+                            this._sttCapture = this._createPcmCapture(stream, (base64) => {
+                                try { subject.next(base64); } catch (err) { /* completed */ }
                             });
+                            this._sttSubject = subject;
 
-                            this.mediaRecorder.addEventListener('stop', () => {
-                                stream.getTracks().forEach(track => track.stop());
-                                pendingChunk.then(() => subject.complete());
-                            });
-
+                            var rate = (this._sttCapture && this._sttCapture.sampleRate) || 16000;
                             var language = navigator.language || document.documentElement.lang || 'en-US';
-                            this.connection.send("SendAudioStream", profileId, sessionId, subject, mimeType, language);
-                            this.mediaRecorder.start(250);
+                            this.connection.send("SendAudioStream", profileId, sessionId, subject, "audio/pcm;rate=" + rate, language);
                             this.isRecording = true;
                             this.updateMicButton();
                         })
@@ -1549,13 +1630,92 @@ window.coreAIChatManager = function () {
                         });
                 },
                 stopRecording() {
-                    if (!this.isRecording || !this.mediaRecorder) {
+                    if (!this.isRecording) {
                         return;
                     }
 
-                    this.mediaRecorder.stop();
+                    this._stopPcmCapture(this._sttCapture);
+                    this._sttCapture = null;
+                    if (this._sttSubject) {
+                        try { this._sttSubject.complete(); } catch (err) { /* already completed */ }
+                        this._sttSubject = null;
+                    }
                     this.isRecording = false;
                     this.updateMicButton();
+                },
+                // Captures microphone audio as raw 16 kHz, 16-bit mono PCM using Web Audio and invokes
+                // onChunk(base64Pcm, rms) for each block. Returns a handle for _stopPcmCapture. This replaces
+                // MediaRecorder so every browser streams a format Azure decodes without GStreamer.
+                _createPcmCapture(stream, onChunk) {
+                    var AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    // Ask the browser to resample the mic to 16 kHz; fall back to manual resampling if it will not.
+                    var audioContext;
+                    try {
+                        audioContext = new AudioCtx({ sampleRate: 16000 });
+                    } catch (e) {
+                        audioContext = new AudioCtx();
+                    }
+                    var srcRate = audioContext.sampleRate;
+                    var source = audioContext.createMediaStreamSource(stream);
+                    var processor = audioContext.createScriptProcessor(4096, 1, 1);
+                    var self = this;
+                    processor.onaudioprocess = function (e) {
+                        var input = e.inputBuffer.getChannelData(0);
+                        var pcm16 = self._downsampleToInt16(input, srcRate, 16000);
+                        if (!pcm16 || pcm16.length === 0) {
+                            return;
+                        }
+                        var sum = 0;
+                        for (var i = 0; i < pcm16.length; i++) {
+                            var v = pcm16[i] / 32768;
+                            sum += v * v;
+                        }
+                        var rms = Math.sqrt(sum / pcm16.length);
+                        var bytes = new Uint8Array(pcm16.buffer);
+                        var binary = '';
+                        for (var j = 0; j < bytes.length; j++) {
+                            binary += String.fromCharCode(bytes[j]);
+                        }
+                        onChunk(btoa(binary), rms);
+                    };
+                    source.connect(processor);
+                    // Some browsers only fire onaudioprocess while the node is connected to a destination.
+                    processor.connect(audioContext.destination);
+                    return { audioContext: audioContext, source: source, processor: processor, stream: stream, sampleRate: 16000 };
+                },
+                _stopPcmCapture(capture) {
+                    if (!capture) {
+                        return;
+                    }
+                    try { if (capture.processor) { capture.processor.onaudioprocess = null; capture.processor.disconnect(); } } catch (e) { }
+                    try { if (capture.source) { capture.source.disconnect(); } } catch (e) { }
+                    try { if (capture.stream) { capture.stream.getTracks().forEach(function (t) { t.stop(); }); } } catch (e) { }
+                    try { if (capture.audioContext) { capture.audioContext.close(); } } catch (e) { }
+                },
+                // Converts a Float32 sample block to 16-bit PCM, resampling from srcRate to dstRate when needed.
+                _downsampleToInt16(input, srcRate, dstRate) {
+                    var s, i;
+                    if (!(dstRate < srcRate)) {
+                        var same = new Int16Array(input.length);
+                        for (i = 0; i < input.length; i++) {
+                            s = Math.max(-1, Math.min(1, input[i]));
+                            same[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                        }
+                        return same;
+                    }
+                    var ratio = srcRate / dstRate;
+                    var newLen = Math.floor(input.length / ratio);
+                    var out = new Int16Array(newLen);
+                    for (var j = 0; j < newLen; j++) {
+                        var idx = j * ratio;
+                        var i0 = Math.floor(idx);
+                        var i1 = (i0 + 1 < input.length) ? i0 + 1 : input.length - 1;
+                        var frac = idx - i0;
+                        s = input[i0] * (1 - frac) + input[i1] * frac;
+                        s = Math.max(-1, Math.min(1, s));
+                        out[j] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                    }
+                    return out;
                 },
                 toggleRecording() {
                     if (this.isRecording) {
@@ -1971,11 +2131,139 @@ window.coreAIChatManager = function () {
                     this.$nextTick(() => this.updateTtsPlaybackButtons());
                 },
                 toggleConversationMode() {
+                    if (this.realtimeEnabled) {
+                        // Realtime is driven by the shared module, which owns the button; this only exists for
+                        // callers that toggle programmatically.
+                        if (this.realtimeController) { this.realtimeController.toggle(); }
+
+                        return;
+                    }
+
                     if (this.isConversationMode) {
                         this.stopConversationMode();
                     } else {
                         this.startConversationMode();
                     }
+                },
+                // Force-stop any in-progress voice/realtime session (mic, playback, and the streamed audio),
+                // e.g. before starting a new chat or switching sessions, so it never keeps running in the background.
+                forceStopActiveVoice() {
+                    if (!this.isConversationMode) {
+                        return;
+                    }
+                    if (this.realtimeEnabled) {
+                        this.stopRealtimeConversation();
+                    } else {
+                        this.stopConversationMode();
+                    }
+                },
+                startRealtimeConversation() {
+                    if (this.realtimeController) { this.realtimeController.start(); }
+                },
+                stopRealtimeConversation() {
+                    if (this.realtimeController) { this.realtimeController.stop(); }
+                },
+                // Realtime (speech-to-speech) is the shared CoreAIRealtime module (realtime-audio.js): microphone
+                // capture and gating, the WebRTC transport with its WebSocket fallback, playback, the settings
+                // popover, push-to-talk, and the server-driven session lifecycle all live there, so this app and the
+                // chat-interaction client cannot drift apart. What is wired here is only how the module reaches this
+                // app's hub and transcript.
+                setupRealtimeController(config) {
+                    if (this.realtimeController || !this.conversationButton) { return; }
+                    if (!window.CoreAIRealtime || typeof window.CoreAIRealtime.attach !== 'function') {
+                        console.error('realtime-audio.js is not loaded; realtime voice is unavailable on this page.');
+
+                        return;
+                    }
+
+                    var self = this;
+                    this.realtimeController = window.CoreAIRealtime.attach({
+                        connection: this.connection,
+                        ensureConnected: function () {
+                            return self.ensureConnectionStarted().then(function (connected) {
+                                if (!connected) { throw new Error('The chat connection is not available.'); }
+
+                                return connected;
+                            });
+                        },
+                        sendStart: function (subject, voice, language, silenceMs, vadThreshold, allowInterruption) {
+                            self.connection.send('StartRealtimeConversation', self.getProfileId(), self.getSessionId() || '', subject, voice, language, silenceMs, vadThreshold, allowInterruption);
+                        },
+                        webRtcEnabled: this.realtimeWebRtcEnabled,
+                        sendStartWebRtc: function (offerSdp, voice, language, silenceMs, vadThreshold, allowInterruption) {
+                            self.connection.send('StartRealtimeWebRtc', self.getProfileId(), self.getSessionId() || '', offerSdp, voice, language, silenceMs, vadThreshold, allowInterruption);
+                        },
+                        webRtcIceServers: this.realtimeWebRtcIceServers || undefined,
+                        voiceName: this.realtimeVoiceName || '',
+                        getVoiceName: function () { return self.realtimeVoiceName || ''; },
+                        realtimeEnabled: true,
+                        // The conversation button doubles as the realtime button on this host; the module owns its
+                        // click, label and state from here on.
+                        selectors: { realtimeButton: config.conversationButtonElementSelector },
+                        onActivate: function () {
+                            self.isConversationMode = true;
+                            self._conversationAssistantMessage = null;
+                            self._conversationPartialMessage = null;
+                            self.removeNotification('conversation-ended');
+                        },
+                        onDeactivate: function () {
+                            self.isConversationMode = false;
+                            self.finishRealtimeConversationCleanup();
+                        },
+                        onUserTurnPending: function (turnId) { self.addRealtimePendingTurn(turnId); },
+                        onUserTurnDropped: function (turnId) { self.dropRealtimePendingTurn(turnId); }
+                    });
+                },
+                // Shared teardown tail: clears any in-flight streaming state and shows the conversation-ended
+                // notification.
+                finishRealtimeConversationCleanup() {
+                    if (this._conversationAssistantMessage) {
+                        var m = this.messages[this._conversationAssistantMessage.index];
+                        if (m) { m.isStreaming = false; }
+                        this._conversationAssistantMessage = null;
+                    }
+                    for (var i = 0; i < this.messages.length; i++) {
+                        if (this.messages[i].isStreaming) { this.messages[i].isStreaming = false; }
+                    }
+
+                    this.receiveNotification({
+                        type: 'conversation-ended',
+                        content: 'Conversation ended.',
+                        icon: 'fa-solid fa-circle-check',
+                        dismissible: true,
+                        autoDismissMs: 5000
+                    });
+                },
+                // The utterance has been captured but not transcribed yet. Showing a placeholder now puts the
+                // prompt above the reply it produces: transcription lags the spoken answer, so a bubble added only
+                // when the text arrives lands underneath its own reply.
+                addRealtimePendingTurn(turnId) {
+                    if (!turnId) { return; }
+                    this._realtimePendingTurns = this._realtimePendingTurns || {};
+                    var index = this.messages.length;
+                    this.addMessage({ role: 'user', content: '', isPartial: true });
+                    this._realtimePendingTurns[turnId] = this.messages[index];
+                },
+                fillRealtimePendingTurn(pending, text) {
+                    if (!pending) { return; }
+                    if (!text) {
+                        var emptyAt = this.messages.indexOf(pending);
+                        if (emptyAt >= 0) { this.messages.splice(emptyAt, 1); }
+
+                        return;
+                    }
+                    var escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    pending.content = text;
+                    pending.htmlContent = '<p>' + escaped + '</p>';
+                    pending.isPartial = false;
+                },
+                dropRealtimePendingTurn(turnId) {
+                    if (!turnId || !this._realtimePendingTurns) { return; }
+                    var dropped = this._realtimePendingTurns[turnId];
+                    if (!dropped) { return; }
+                    delete this._realtimePendingTurns[turnId];
+                    var at = this.messages.indexOf(dropped);
+                    if (at >= 0) { this.messages.splice(at, 1); }
                 },
                 startConversationMode() {
                     if (!this.conversationModeEnabled || this.isConversationMode || !this.connection) {
@@ -1992,89 +2280,33 @@ window.coreAIChatManager = function () {
                     this.removeNotification('conversation-ended');
                     navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
                         .then(stream => {
-                            var mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
-                                ? 'audio/ogg;codecs=opus'
-                                : MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-                                    ? 'audio/webm;codecs=opus'
-                                    : 'audio/webm';
-
-                            this.mediaRecorder = new MediaRecorder(stream, {
-                                mimeType: mimeType,
-                                audioBitsPerSecond: 128000,
-                            });
-
                             this._conversationSubject = new signalR.Subject();
                             this._conversationStream = stream;
 
-                            // Create an AnalyserNode for volume-based interrupt detection.
-                            // During TTS playback, detect when the user speaks above
-                            // the threshold to stop TTS (interrupt). Audio chunks are
-                            // always forwarded — browser echo cancellation handles
-                            // speaker echo so the STT stream has no gaps.
-                            var AudioCtx = window.AudioContext || window.webkitAudioContext;
-                            if (AudioCtx) {
-                                this._conversationAudioCtx = new AudioCtx();
-                                this._conversationAnalyser = this._conversationAudioCtx.createAnalyser();
-                                this._conversationAnalyser.fftSize = 256;
-                                var micSource = this._conversationAudioCtx.createMediaStreamSource(stream);
-                                micSource.connect(this._conversationAnalyser);
-                            }
+                            // RMS (0..1) above which speech during TTS playback counts as an interrupt.
+                            var interruptRmsThreshold = 0.12;
 
-                            var pendingChunk = Promise.resolve();
-                            var analyser = this._conversationAnalyser;
-                            var interruptVolumeThreshold = 30;
-
-                            this.mediaRecorder.addEventListener('dataavailable', (e) => {
-                                if (e.data && e.data.size > 0) {
-                                    // During TTS playback, check mic volume to detect
-                                    // user interruption (speaking above threshold).
-                                    if (this.isPlayingAudio && analyser) {
-                                        var freqData = new Uint8Array(analyser.frequencyBinCount);
-                                        analyser.getByteFrequencyData(freqData);
-                                        var sum = 0;
-                                        for (var k = 0; k < freqData.length; k++) { sum += freqData[k]; }
-                                        var avg = sum / freqData.length;
-
-                                        if (avg >= interruptVolumeThreshold) {
-                                            // User is speaking — interrupt TTS playback.
-                                            this.stopAudio();
-                                        }
-                                    }
-
-                                    // Always send audio to STT — browser echo cancellation
-                                    // handles speaker echo; continuous audio avoids gaps
-                                    // that increase recognition latency.
-                                    pendingChunk = pendingChunk.then(async () => {
-                                        var data = await e.data.arrayBuffer();
-                                        var uint8Array = new Uint8Array(data);
-                                        var binaryString = uint8Array.reduce(function (str, byte) { return str + String.fromCharCode(byte); }, '');
-                                        var base64 = btoa(binaryString);
-                                        try {
-                                            this._conversationSubject.next(base64);
-                                        } catch (err) {
-                                            // Subject may have been completed already.
-                                        }
-                                    });
+                            // Capture raw 16 kHz PCM (16-bit mono) via Web Audio instead of MediaRecorder — see
+                            // startRecording for why WebM/Opus is avoided. The per-block RMS drives interrupt
+                            // detection during TTS playback, replacing the previous AnalyserNode.
+                            this._conversationCapture = this._createPcmCapture(stream, (base64, rms) => {
+                                if (this.isPlayingAudio && rms >= interruptRmsThreshold) {
+                                    // User is speaking over TTS — interrupt playback.
+                                    this.stopAudio();
                                 }
-                            });
-
-                            this.mediaRecorder.addEventListener('stop', () => {
-                                stream.getTracks().forEach(track => track.stop());
-                                pendingChunk.then(() => {
-                                    try {
-                                        this._conversationSubject.complete();
-                                    } catch (err) {
-                                        // Already completed.
-                                    }
-                                });
+                                try {
+                                    this._conversationSubject.next(base64);
+                                } catch (err) {
+                                    // Subject may have been completed already.
+                                }
                             });
 
                             var profileId = this.getProfileId();
                             var sessionId = this.getSessionId() || '';
                             var language = navigator.language || document.documentElement.lang || 'en-US';
+                            var rate = (this._conversationCapture && this._conversationCapture.sampleRate) || 16000;
 
-                            this.connection.send("StartConversation", profileId, sessionId, this._conversationSubject, mimeType, language);
-                            this.mediaRecorder.start(250);
+                            this.connection.send("StartConversation", profileId, sessionId, this._conversationSubject, "audio/pcm;rate=" + rate, language);
                             this.isRecording = true;
                         })
                         .catch(err => {
@@ -2096,21 +2328,18 @@ window.coreAIChatManager = function () {
                         this.connection.invoke("StopConversation").catch(function () { });
                     }
 
-                    if (this.isRecording && this.mediaRecorder) {
-                        this.mediaRecorder.stop();
+                    if (this.isRecording) {
+                        this._stopPcmCapture(this._conversationCapture);
+                        this._conversationCapture = null;
+                        if (this._conversationSubject) {
+                            try { this._conversationSubject.complete(); } catch (err) { /* already completed */ }
+                        }
                         this.isRecording = false;
                     }
 
                     this.stopAudio();
                     this._conversationPartialTranscript = '';
                     this._conversationPartialMessage = null;
-
-                    // Clean up the AudioContext used for volume monitoring.
-                    if (this._conversationAudioCtx) {
-                        this._conversationAudioCtx.close().catch(function () { });
-                        this._conversationAudioCtx = null;
-                        this._conversationAnalyser = null;
-                    }
 
                     // Mark any in-flight assistant message as done to stop the spinner.
                     if (this._conversationAssistantMessage) {
@@ -2294,6 +2523,8 @@ window.coreAIChatManager = function () {
                     this.inputElement.setAttribute('data-session-id', sessionId || '');
                 },
                 resetSession() {
+                    // Force-stop an in-progress voice/realtime conversation so it doesn't keep running under the new session.
+                    this.forceStopActiveVoice();
                     this.stopRecording();
                     this.rejectPendingSessionRequest('Session was reset.');
                     this.setSessionId('');
@@ -2327,6 +2558,8 @@ window.coreAIChatManager = function () {
                         return;
                     }
 
+                    // Force-stop any live voice/realtime session before starting a new chat.
+                    this.forceStopActiveVoice();
                     this.requestNewSession(profileId).catch(err => console.error(err));
                 },
                 async ensureSessionForDocuments(profileId) {
@@ -2581,13 +2814,19 @@ window.coreAIChatManager = function () {
                         }
                     }
 
-                    // Initialize conversation mode button.
-                    if (this.conversationModeEnabled && config.conversationButtonElementSelector) {
+                    // Initialize conversation mode button (used for both STT/TTS conversation and realtime).
+                    if ((this.conversationModeEnabled || this.realtimeEnabled) && config.conversationButtonElementSelector) {
                         this.conversationButton = document.querySelector(config.conversationButtonElementSelector);
                         if (this.conversationButton) {
-                            this.conversationButton.addEventListener('click', () => {
-                                this.toggleConversationMode();
-                            });
+                            if (this.realtimeEnabled) {
+                                // The shared realtime module owns the button (click, label, state) and adds the
+                                // voice settings popover next to it.
+                                this.setupRealtimeController(config);
+                            } else {
+                                this.conversationButton.addEventListener('click', () => {
+                                    this.toggleConversationMode();
+                                });
+                            }
                         }
                     }
 
@@ -2916,6 +3155,7 @@ window.coreAIChatManager = function () {
             micButtonElementSelector: getAttributeValue(element, 'data-coreai-chat-mic-button-element-selector'),
             conversationButtonElementSelector: getAttributeValue(element, 'data-coreai-chat-conversation-button-element-selector'),
             ttsVoiceName: getAttributeValue(element, 'data-coreai-chat-tts-voice-name'),
+            realtimeVoiceName: getAttributeValue(element, 'data-coreai-chat-realtime-voice-name'),
             documentBarSelector: getAttributeValue(element, 'data-coreai-chat-document-bar-selector'),
             uploadDocumentUrl: getAttributeValue(element, 'data-coreai-chat-upload-document-url'),
             removeDocumentUrl: getAttributeValue(element, 'data-coreai-chat-remove-document-url'),
@@ -2935,6 +3175,8 @@ window.coreAIChatManager = function () {
             textToSpeechEnabled: 'data-coreai-chat-text-to-speech-enabled',
             sessionDocumentsEnabled: 'data-coreai-chat-session-documents-enabled',
             singleResponseMode: 'data-coreai-chat-single-response-mode',
+            realtimeEnabled: 'data-coreai-chat-realtime-enabled',
+            realtimeWebRtcEnabled: 'data-coreai-chat-realtime-webrtc-enabled',
         };
 
         Object.keys(booleanAttributes).forEach(key => {

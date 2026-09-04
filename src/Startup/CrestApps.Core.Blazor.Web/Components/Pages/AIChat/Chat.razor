@@ -3,6 +3,7 @@
 @attribute [Authorize(Policy = "Admin")]
 @using System.Text.Json
 @using CrestApps.Core.AI
+@using CrestApps.Core.AI.Capabilities
 @using CrestApps.Core.AI.Chat
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Models
@@ -10,10 +11,12 @@
 @using CrestApps.Core.Services
 @using Microsoft.Extensions.Options
 @inject IAIProfileManager ProfileManager
+@inject IServiceProvider ServiceProvider
 @inject IAIChatSessionManager SessionManager
 @inject IAIChatSessionPromptStore PromptStore
 @inject NavigationManager Navigation
 @inject SiteSettingsStore SiteSettings
+@inject IAIDeploymentCapabilityService CapabilityService
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 
 <PageTitle>Chat - @(_profileDisplayText ?? "AI Chat") - Blazor AI Integration Sample</PageTitle>
@@ -82,9 +85,11 @@ else
          data-coreai-chat-session-url-template="/ai-chat/chat/{sessionId}"
          data-coreai-chat-metrics-enabled="@_metricsEnabled.ToString().ToLowerInvariant()"
          data-coreai-chat-mode="@_chatMode"
+         data-coreai-chat-realtime-webrtc-enabled="@((ServiceProvider.GetService(typeof(CrestApps.Core.AI.Realtime.IWebRtcRealtimePeerFactory)) is not null).ToString().ToLowerInvariant())"
          data-coreai-chat-mic-button-element-selector="#chat-mic-btn"
          data-coreai-chat-conversation-button-element-selector="#chat-conversation-btn"
          data-coreai-chat-tts-voice-name="@_ttsVoiceName"
+         data-coreai-chat-realtime-voice-name="@_realtimeVoiceName"
          data-coreai-chat-text-to-speech-enabled="@_textToSpeechEnabled.ToString().ToLowerInvariant()"
          data-coreai-chat-session-documents-enabled="@((_allowSessionDocuments || _allowImageUploads).ToString().ToLowerInvariant())"
          data-coreai-chat-existing-documents="@_existingDocumentsJson"
@@ -117,32 +122,51 @@ else
 
                 <div class="border-top p-3 flex-shrink-0">
                     <div class="d-flex gap-2">
+                        @* The input and send button stay in the DOM even for realtime (voice-only) because the
+                           client reads the profile/session ids from the input; they are only hidden visually. *@
                         <textarea id="chat-input"
-                                  class="form-control"
+                                  class="form-control@(_chatMode == ChatMode.Realtime ? " d-none" : "")"
                                   rows="1"
                                   placeholder="Type a message..."
                                   data-session-id="@_sessionId"
                                   data-profile-id="@_profile.ItemId"></textarea>
-                        <button type="button" id="chat-mic-btn" class="btn btn-outline-secondary" title="Voice input" style="display: none;">
-                            <i class="bi bi-mic-fill"></i>
-                        </button>
-                        @if (_chatMode == ChatMode.Conversation)
+                        @if (_chatMode != ChatMode.Realtime)
+                        {
+                            <button type="button" id="chat-mic-btn" class="btn btn-outline-secondary" title="Voice input" style="display: none;">
+                                <i class="bi bi-mic-fill"></i>
+                            </button>
+                        }
+                        @if (_chatMode == ChatMode.Conversation || _chatMode == ChatMode.Realtime)
                         {
                             <button type="button"
                                     id="chat-conversation-btn"
-                                    class="btn btn-outline-dark"
-                                    title="Start Conversation"
-                                    data-start-title="Start Conversation"
+                                    class="btn btn-outline-dark@(_chatMode == ChatMode.Realtime ? " flex-grow-1" : "")"
+                                    title="@(_chatMode == ChatMode.Realtime ? "Start speaking" : "Start Conversation")"
+                                    data-start-title="@(_chatMode == ChatMode.Realtime ? "Start speaking" : "Start Conversation")"
                                     data-end-title="End Conversation"
-                                    data-start-html="<i class='bi bi-soundwave'></i>"
+                                    data-start-html="@(_chatMode == ChatMode.Realtime ? "<i class='bi bi-soundwave me-1'></i> Start speaking" : "<i class='bi bi-soundwave'></i>")"
                                     data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation">
-                                <i class="bi bi-soundwave"></i>
+                                @if (_chatMode == ChatMode.Realtime)
+                                {
+                                    <i class="bi bi-soundwave me-1"></i>
+                                    <span>Start speaking</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-soundwave"></i>
+                                }
                             </button>
                         }
-                        <button type="button" id="send-btn" class="btn btn-primary" data-start-icon="<i class='bi bi-send'></i>" data-stop-icon="<i class='bi bi-stop-fill'></i>">
+                        <button type="button" id="send-btn" class="btn btn-primary@(_chatMode == ChatMode.Realtime ? " d-none" : "")" data-start-icon="<i class='bi bi-send'></i>" data-stop-icon="<i class='bi bi-stop-fill'></i>">
                             <i class="bi bi-send"></i>
                         </button>
                     </div>
+                    @if (_chatMode == ChatMode.Realtime)
+                    {
+                        <div class="form-text mt-2 text-center">
+                            <i class="bi bi-info-circle"></i> This is a realtime voice profile. Click <strong>Start speaking</strong>, allow microphone access, and talk. Use headphones to avoid echo.
+                        </div>
+                    }
                 </div>
             </div>
         </div>
@@ -165,6 +189,7 @@ else
     private bool _metricsEnabled;
     private bool _textToSpeechEnabled;
     private string _ttsVoiceName;
+    private string _realtimeVoiceName;
     private ChatMode _chatMode;
     private string _supportedExtensionsAccept;
     private string _supportedExtensionsDisplay;
@@ -226,9 +251,20 @@ else
         var hasTtsDeployment = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
         _textToSpeechEnabled = (chatModeSettings?.EnableTextToSpeechPlayback ?? false) && hasTtsDeployment;
         _ttsVoiceName = chatModeSettings?.VoiceName ?? deploymentDefaults.DefaultTextToSpeechVoiceId;
+        _realtimeVoiceName = chatModeSettings?.VoiceName ?? deploymentDefaults.DefaultRealtimeVoiceId;
+
+        // Realtime is available only when a realtime-capable chat deployment resolves (the profile's realtime
+        // deployment, or the site default), so the client's realtime UI stays in sync with the hub's capability gate.
+        var realtimeDeploymentName = !string.IsNullOrWhiteSpace(_profile.RealtimeDeploymentName)
+            ? _profile.RealtimeDeploymentName
+            : deploymentDefaults.DefaultRealtimeDeploymentName;
+        var hasRealtimeDeployment = await CapabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName) is not null;
 
         _chatMode = configuredChatMode switch
         {
+            ChatMode.Realtime when hasRealtimeDeployment => ChatMode.Realtime,
+            // Realtime configured but no realtime deployment: fall back to STT/TTS conversation when possible.
+            ChatMode.Realtime when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
             ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
             ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
             ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,

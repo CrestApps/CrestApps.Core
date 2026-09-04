@@ -11,7 +11,7 @@
 <form asp-action="Create" method="post">
     @Html.AntiForgeryToken()
     <div class="row">
-        <div class="col-md-8">
+        <div class="col-12">
             <div class="mb-3">
                 <label asp-for="DisplayText" class="form-label">Title <span class="text-danger">*</span></label>
                 <input asp-for="DisplayText" class="form-control" required placeholder="e.g., Docs site" />

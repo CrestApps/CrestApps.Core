@@ -26,4 +26,12 @@ public enum ChatMode
     /// Requires both speech-to-text and text-to-speech deployments.
     /// </summary>
     Conversation,
+
+    /// <summary>
+    /// Full speech-to-speech voice interaction over a provider realtime session, rather than the
+    /// speech-to-text + chat + text-to-speech pipeline used by <see cref="Conversation"/>. Text turns still
+    /// use the profile's orchestrator; voice turns run through the realtime execution engine.
+    /// Requires a realtime deployment (per-profile or the site default).
+    /// </summary>
+    Realtime,
 }

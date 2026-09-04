@@ -52,8 +52,9 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
 
     /// <summary>
     /// Gets or sets the realtime deployment technical name for this profile.
-    /// Used by <see cref="AIProfileType.RealtimeChat"/> profiles to select the deployment
-    /// that backs the speech-to-speech realtime session.
+    /// Used by chat profiles whose chat mode is <see cref="ChatMode.Realtime"/> to select the deployment
+    /// that backs the speech-to-speech realtime session. When empty, the site default realtime deployment
+    /// is used.
     /// </summary>
     public string RealtimeDeploymentName { get; set; }
 

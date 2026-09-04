@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Microphone gate harness</title>
+</head>
+<body>
+    <!--
+        Drives CoreAIRealtime.createMicGate with synthetic audio instead of a microphone, and measures how much of
+        the time the gate lets the signal through. A known level in and a measurable level out is what makes the
+        gate's thresholds testable at all; real speech would not be.
+    -->
+    <script src="../../src/Resources/CrestApps.AI.Resources/Assets/js/realtime-audio.js"></script>
+    <script>
+        (function () {
+            var AudioCtor = window.AudioContext || window.webkitAudioContext;
+            var ctx = new AudioCtor();
+
+            // A steady 300 Hz tone at a controllable amplitude, standing in for the microphone.
+            var micGain = ctx.createGain();
+            // Start at a low room tone rather than digital silence. A real session opens a live microphone, so
+            // the gate's noise floor cold-starts on the room; starting from absolute silence anchors it at -100
+            // dB and makes any subsequent tone look like speech, which the product never sees.
+            micGain.gain.value = 0.0018;
+            var micOsc = ctx.createOscillator();
+            micOsc.frequency.value = 300;
+            micOsc.connect(micGain);
+            micOsc.start();
+
+            var micDest = ctx.createMediaStreamDestination();
+            micGain.connect(micDest);
+
+            // A second tone standing in for the assistant's playback, so "is the assistant audible" can be driven.
+            var assistantGain = ctx.createGain();
+            assistantGain.gain.value = 0;
+            var assistantOsc = ctx.createOscillator();
+            assistantOsc.frequency.value = 700;
+            assistantOsc.connect(assistantGain);
+            assistantOsc.start();
+
+            var assistantDest = ctx.createMediaStreamDestination();
+            assistantGain.connect(assistantDest);
+
+            window.gateHarness = {};
+
+            window.gateHarness.currentMicLevel = 0.0018;
+
+            // The source context must be running before the gate is built. A suspended context emits nothing, so
+            // the gate would cold-start its noise floor on digital silence and then treat the room tone as speech
+            // — an artefact of the harness that a real session, which opens a live microphone, never produces.
+            window.gateHarness.ready = (ctx.state === 'suspended' ? ctx.resume() : Promise.resolve())
+                .then(function () { return new Promise(function (r) { setTimeout(r, 300); }); })
+                .then(function () { return window.CoreAIRealtime.createMicGate(micDest.stream, { bargeIn: true, gateMode: 'auto' }); })
+                .then(function (gate) {
+                    window.gateHarness.gate = gate;
+                    gate.attachAssistantStream(assistantDest.stream);
+
+                    // Measure the gate's output by analysing the track it produced.
+                    var outCtx = new AudioCtor();
+                    var outStream = new MediaStream([gate.track]);
+                    var analyser = outCtx.createAnalyser();
+                    analyser.fftSize = 2048;
+                    outCtx.createMediaStreamSource(outStream).connect(analyser);
+                    window.gateHarness.analyser = analyser;
+                    window.gateHarness.buffer = new Float32Array(analyser.fftSize);
+
+                    // The measuring context must be running too: resume() is async, and a suspended context
+                    // produces no audio at all, which looks exactly like a closed gate.
+                    return (outCtx.state === 'suspended' ? outCtx.resume() : Promise.resolve())
+                        // Let the gate settle its noise floor on the room tone before any test measures.
+                        .then(function () { return new Promise(function (r) { setTimeout(r, 700); }); })
+                        .then(function () { return true; });
+                });
+
+            // Judging "did the signal get through" purely relative to the input level breaks down at very low
+            // levels, where the threshold falls below the noise of the audio path itself and browsers differ. An
+            // absolute floor keeps the comparison meaningful on a near-silent input.
+            var MIN_AUDIBLE_PEAK = 3e-4;
+
+            function peakOf(buffer) {
+                var peak = 0;
+                for (var i = 0; i < buffer.length; i++) {
+                    var v = Math.abs(buffer[i]);
+                    if (v > peak) { peak = v; }
+                }
+
+                return peak;
+            }
+
+            /*
+             * Plays `micLevel` (and `assistantLevel`) for `ms` under `mode`, and resolves with the fraction of
+             * samples during which the gate was letting the signal through.
+             *
+             * Uses setTimeout rather than requestAnimationFrame deliberately: one of the tests runs with the
+             * document hidden, where rAF is paused — which is the exact failure the worklet gate exists to fix.
+             */
+            // Sets the microphone level and resolves once it has been applied, without sampling anything.
+            window.gateHarness.speak = function (micLevel) {
+                micGain.gain.value = micLevel;
+                window.gateHarness.currentMicLevel = micLevel;
+
+                return Promise.resolve();
+            };
+
+            // Reads the gate's output once, right now. Used to observe the gate's state immediately after the
+            // main thread has been blocked.
+            window.gateHarness.sampleOnce = function () {
+                window.gateHarness.analyser.getFloatTimeDomainData(window.gateHarness.buffer);
+
+                return peakOf(window.gateHarness.buffer) > Math.max(window.gateHarness.currentMicLevel * 0.4, MIN_AUDIBLE_PEAK);
+            };
+
+            window.gateHarness.measure = function (micLevel, assistantLevel, ms, mode) {
+                window.gateHarness.currentMicLevel = micLevel;
+                if (mode) { window.gateHarness.gate.setMode(mode); }
+                micGain.gain.value = micLevel;
+                assistantGain.gain.value = assistantLevel || 0;
+
+                return new Promise(function (resolve) {
+                    var open = 0, total = 0;
+                    // The gate delays its output ~80 ms for look-ahead, so ignore the first stretch.
+                    var settleUntil = Date.now() + 250;
+                    var until = Date.now() + ms;
+
+                    var tick = window.setInterval(function () {
+                        if (Date.now() < settleUntil) { return; }
+                        window.gateHarness.analyser.getFloatTimeDomainData(window.gateHarness.buffer);
+                        total++;
+                        if (peakOf(window.gateHarness.buffer) > Math.max(micLevel * 0.4, MIN_AUDIBLE_PEAK)) { open++; }
+
+                        if (Date.now() >= until) {
+                            window.clearInterval(tick);
+                            resolve(total ? open / total : 0);
+                        }
+                    }, 20);
+                });
+            };
+        })();
+    </script>
+</body>
+</html>

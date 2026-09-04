@@ -1,5 +1,6 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Claude.Services;
@@ -65,7 +66,8 @@ public sealed class ChatInteractionController : Controller
     private readonly AIToolDefinitionOptions _toolOptions;
     private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
     private readonly ISourceCatalog<AIToolInstance> _toolInstanceCatalog;
-    private readonly AIModelParameterViewService _modelParameterViewService;
+    private readonly AIDeploymentParameterViewService _modelParameterViewService;
+    private readonly IAIDeploymentCapabilityService _capabilityService;
 
     public ChatInteractionController(
         ICatalogManager<ChatInteraction> interactionManager,
@@ -93,7 +95,8 @@ public sealed class ChatInteractionController : Controller
         IOptions<AIToolDefinitionOptions> toolOptions,
         IAIToolAccessEvaluator toolAccessEvaluator,
         ISourceCatalog<AIToolInstance> toolInstanceCatalog,
-        AIModelParameterViewService modelParameterViewService)
+        AIDeploymentParameterViewService modelParameterViewService,
+        IAIDeploymentCapabilityService capabilityService)
     {
         _interactionManager = interactionManager;
         _promptStore = promptStore;
@@ -121,6 +124,7 @@ public sealed class ChatInteractionController : Controller
         _toolAccessEvaluator = toolAccessEvaluator;
         _toolInstanceCatalog = toolInstanceCatalog;
         _modelParameterViewService = modelParameterViewService;
+        _capabilityService = capabilityService;
     }
 
     public async Task<IActionResult> Index()
@@ -215,13 +219,35 @@ public sealed class ChatInteractionController : Controller
         var chatMode = chatInteractionSettings.ChatMode;
         var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
         var hasTextToSpeech = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
-        var effectiveChatMode = chatMode switch
-        {
-            ChatMode.Conversation when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
-            ChatMode.Conversation when hasSpeechToText => ChatMode.AudioInput,
-            ChatMode.AudioInput when hasSpeechToText => ChatMode.AudioInput,
-            _ => ChatMode.TextInput,
-        };
+
+        // Every deployment whose model declares the realtime (speech-to-speech) capability. The chat client uses
+        // this to switch the input to audio-only when the user selects a realtime deployment.
+        var realtimeDeployments = await _capabilityService.GetDeploymentsWithFeatureAsync(AIDeploymentFeatureNames.Realtime);
+        var realtimeDeploymentNames = realtimeDeployments
+            .Select(deployment => deployment.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToArray();
+
+        // The interaction's own selected deployment takes precedence: when it is a realtime (speech-to-speech)
+        // model the conversation must run in realtime mode, because such a model cannot handle a text turn.
+        var selectedDeploymentIsRealtime = !string.IsNullOrWhiteSpace(interaction.ChatDeploymentName)
+            && realtimeDeploymentNames.Contains(interaction.ChatDeploymentName, StringComparer.OrdinalIgnoreCase);
+
+        // Realtime is otherwise available only when the default realtime deployment declares the realtime capability.
+        var hasRealtime = selectedDeploymentIsRealtime
+            || await _capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, deploymentDefaults.DefaultRealtimeDeploymentName) is not null;
+        var effectiveChatMode = selectedDeploymentIsRealtime
+            ? ChatMode.Realtime
+            : chatMode switch
+            {
+                ChatMode.Realtime when hasRealtime => ChatMode.Realtime,
+                // Realtime configured but no realtime deployment: fall back to STT/TTS conversation when possible.
+                ChatMode.Realtime when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
+                ChatMode.Conversation when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
+                ChatMode.Conversation when hasSpeechToText => ChatMode.AudioInput,
+                ChatMode.AudioInput when hasSpeechToText => ChatMode.AudioInput,
+                _ => ChatMode.TextInput,
+            };
 
         var model = new ChatInteractionChatViewModel
         {
@@ -267,8 +293,12 @@ public sealed class ChatInteractionController : Controller
             ChatMode = effectiveChatMode,
             SpeechToTextEnabled = effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation,
             ConversationModeEnabled = effectiveChatMode == ChatMode.Conversation,
+            RealtimeEnabled = effectiveChatMode == ChatMode.Realtime,
+            RealtimeWebRtcEnabled = CrestApps.Core.AI.Chat.Realtime.RealtimeTransportSettings.IsWebRtcEnabled(HttpContext.RequestServices),
             TextToSpeechEnabled = chatInteractionSettings.EnableTextToSpeechPlayback && hasTextToSpeech,
             TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
+            RealtimeVoiceName = interaction.RealtimeVoiceName,
+            RealtimeCapableDeploymentNames = realtimeDeploymentNames,
         };
 
         await PopulateChatDropdownsAsync(model);
@@ -642,7 +672,7 @@ public sealed class ChatInteractionController : Controller
             metadata.ToolInstanceNames = toolInstanceNames.ToArray();
         });
 
-        interaction.Alter<AIModelParametersMetadata>(metadata =>
+        interaction.Alter<AIDeploymentParametersMetadata>(metadata =>
         {
             metadata.Values = model.ModelParameters is null
                 ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

@@ -8,14 +8,14 @@ namespace CrestApps.Core.AI.Services;
 /// Applies the selected reasoning effort to <see cref="ChatOptions.Reasoning"/> so every provider
 /// adapter that understands the standard reasoning options receives the value.
 /// </summary>
-public sealed class ReasoningEffortModelParameterBinder : IAIModelParameterBinder
+public sealed class ReasoningEffortModelParameterBinder : IAIDeploymentParameterBinder
 {
     /// <inheritdoc/>
     public string ParameterName
-        => AIModelParameterNames.ReasoningEffort;
+        => AIDeploymentParameterNames.ReasoningEffort;
 
     /// <inheritdoc/>
-    public Task BindAsync(AIModelParameterBindingContext context, CancellationToken cancellationToken = default)
+    public Task BindAsync(AIDeploymentParameterBindingContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
 

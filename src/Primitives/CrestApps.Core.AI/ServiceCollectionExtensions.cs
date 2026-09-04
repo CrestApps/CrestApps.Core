@@ -193,7 +193,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIDeployment>, AIDeploymentCatalogHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProviderConnection>, AIProviderConnectionCatalogHandler>());
 
-        services.AddCoreAIModelCapabilities();
+        services.AddCoreAIDeploymentCapabilities();
 
         return services;
     }
@@ -203,99 +203,110 @@ public static class ServiceCollectionExtensions
     /// model parameters that ship with the framework.
     /// </summary>
     /// <param name="services">The service collection.</param>
-    public static IServiceCollection AddCoreAIModelCapabilities(this IServiceCollection services)
+    public static IServiceCollection AddCoreAIDeploymentCapabilities(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddOptions<AIModelCapabilityOptions>();
-        services.TryAddScoped<IAIModelCapabilityService, DefaultAIModelCapabilityService>();
+        services.AddOptions<AIDeploymentCapabilityOptions>();
+        services.TryAddScoped<IAIDeploymentCapabilityService, DefaultAIDeploymentCapabilityService>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionServiceHandler, ModelParametersAICompletionServiceHandler>());
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIModelParameterBinder, ReasoningEffortModelParameterBinder>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIDeploymentParameterBinder, ReasoningEffortModelParameterBinder>());
 
         services
-            .AddAIModelFeature(AIModelFeatureNames.ToolCalling, new LocalizedString(AIModelFeatureNames.ToolCalling, "Tool calling"), feature =>
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.TextGeneration, new LocalizedString(AIDeploymentFeatureNames.TextGeneration, "Text conversation"), feature =>
             {
-                feature.Description = new LocalizedString(AIModelFeatureNames.ToolCalling, "The model can call tools and functions supplied with the request.");
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.TextGeneration, "The model can hold a text conversation. Clear this only for a speech-to-speech-only model that cannot handle text.");
+                feature.Order = 5;
+                feature.EnabledByDefault = true;
+            })
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.ToolCalling, new LocalizedString(AIDeploymentFeatureNames.ToolCalling, "Tool calling"), feature =>
+            {
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.ToolCalling, "The model can call tools and functions supplied with the request.");
                 feature.Order = 10;
                 feature.EnabledByDefault = true;
             })
-            .AddAIModelFeature(AIModelFeatureNames.StructuredOutputs, new LocalizedString(AIModelFeatureNames.StructuredOutputs, "Structured outputs"), feature =>
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.StructuredOutputs, new LocalizedString(AIDeploymentFeatureNames.StructuredOutputs, "Structured outputs"), feature =>
             {
-                feature.Description = new LocalizedString(AIModelFeatureNames.StructuredOutputs, "The model can return responses that follow a supplied JSON schema.");
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.StructuredOutputs, "The model can return responses that follow a supplied JSON schema.");
                 feature.Order = 20;
             })
-            .AddAIModelFeature(AIModelFeatureNames.Streaming, new LocalizedString(AIModelFeatureNames.Streaming, "Streaming"), feature =>
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.Streaming, new LocalizedString(AIDeploymentFeatureNames.Streaming, "Streaming"), feature =>
             {
-                feature.Description = new LocalizedString(AIModelFeatureNames.Streaming, "The model can stream response updates as they are produced.");
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.Streaming, "The model can stream response updates as they are produced.");
                 feature.Order = 30;
                 feature.EnabledByDefault = true;
             })
-            .AddAIModelFeature(AIModelFeatureNames.Reasoning, new LocalizedString(AIModelFeatureNames.Reasoning, "Reasoning"), feature =>
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.Reasoning, new LocalizedString(AIDeploymentFeatureNames.Reasoning, "Reasoning"), feature =>
             {
-                feature.Description = new LocalizedString(AIModelFeatureNames.Reasoning, "The model performs internal reasoning before producing an answer.");
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.Reasoning, "The model performs internal reasoning before producing an answer.");
                 feature.Order = 40;
             })
-            .AddAIModelFeature(AIModelFeatureNames.ImageInput, new LocalizedString(AIModelFeatureNames.ImageInput, "Image input (vision)"), feature =>
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.ImageInput, new LocalizedString(AIDeploymentFeatureNames.ImageInput, "Image input (vision)"), feature =>
             {
-                feature.Description = new LocalizedString(AIModelFeatureNames.ImageInput, "The model can understand image inputs.");
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.ImageInput, "The model can understand image inputs.");
                 feature.Order = 50;
             })
-            .AddAIModelFeature(AIModelFeatureNames.ImageOutput, new LocalizedString(AIModelFeatureNames.ImageOutput, "Image output"), feature =>
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.ImageOutput, new LocalizedString(AIDeploymentFeatureNames.ImageOutput, "Image output"), feature =>
             {
-                feature.Description = new LocalizedString(AIModelFeatureNames.ImageOutput, "The model can generate images.");
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.ImageOutput, "The model can generate images.");
                 feature.Order = 60;
             })
-            .AddAIModelFeature(AIModelFeatureNames.AudioInput, new LocalizedString(AIModelFeatureNames.AudioInput, "Audio input"), feature =>
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.AudioInput, new LocalizedString(AIDeploymentFeatureNames.AudioInput, "Audio input"), feature =>
             {
-                feature.Description = new LocalizedString(AIModelFeatureNames.AudioInput, "The model accepts audio input.");
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.AudioInput, "The model accepts audio input.");
                 feature.Order = 70;
             })
-            .AddAIModelFeature(AIModelFeatureNames.AudioOutput, new LocalizedString(AIModelFeatureNames.AudioOutput, "Audio output"), feature =>
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.AudioOutput, new LocalizedString(AIDeploymentFeatureNames.AudioOutput, "Audio output"), feature =>
             {
-                feature.Description = new LocalizedString(AIModelFeatureNames.AudioOutput, "The model produces audio output.");
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.AudioOutput, "The model produces audio output.");
                 feature.Order = 80;
             })
-            .AddAIModelFeature(AIModelFeatureNames.VideoInput, new LocalizedString(AIModelFeatureNames.VideoInput, "Video input"), feature =>
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.VideoInput, new LocalizedString(AIDeploymentFeatureNames.VideoInput, "Video input"), feature =>
             {
-                feature.Description = new LocalizedString(AIModelFeatureNames.VideoInput, "The model can understand video inputs.");
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.VideoInput, "The model can understand video inputs.");
                 feature.Order = 90;
             })
-            .AddAIModelFeature(AIModelFeatureNames.VideoOutput, new LocalizedString(AIModelFeatureNames.VideoOutput, "Video output"), feature =>
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.VideoOutput, new LocalizedString(AIDeploymentFeatureNames.VideoOutput, "Video output"), feature =>
             {
-                feature.Description = new LocalizedString(AIModelFeatureNames.VideoOutput, "The model can generate video.");
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.VideoOutput, "The model can generate video.");
                 feature.Order = 100;
+            })
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.Realtime, new LocalizedString(AIDeploymentFeatureNames.Realtime, "Realtime (speech-to-speech)"), feature =>
+            {
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.Realtime, "The model supports real-time, bidirectional speech-to-speech sessions.");
+                feature.Order = 110;
             });
 
-        services.AddAIModelParameter(AIModelParameterNames.ReasoningEffort, new LocalizedString(AIModelParameterNames.ReasoningEffort, "Reasoning effort"), parameter =>
+        services.AddAIDeploymentParameter(AIDeploymentParameterNames.ReasoningEffort, new LocalizedString(AIDeploymentParameterNames.ReasoningEffort, "Reasoning effort"), parameter =>
         {
-            parameter.Description = new LocalizedString(AIModelParameterNames.ReasoningEffort, "Controls how much internal reasoning the model applies before answering. Higher values produce more thoughtful answers with increased latency and cost.");
-            parameter.Kind = AIModelParameterKind.Choice;
+            parameter.Description = new LocalizedString(AIDeploymentParameterNames.ReasoningEffort, "Controls how much internal reasoning the model applies before answering. Higher values produce more thoughtful answers with increased latency and cost.");
+            parameter.Kind = AIDeploymentParameterKind.Choice;
             parameter.DefaultValue = nameof(ReasoningEffort.Medium);
-            parameter.RequiredFeature = AIModelFeatureNames.Reasoning;
+            parameter.RequiredFeature = AIDeploymentFeatureNames.Reasoning;
             parameter.Order = 10;
             parameter.AllowedValues =
             [
-                new AIModelParameterOption
+                new AIDeploymentParameterOption
                 {
                     Value = nameof(ReasoningEffort.None),
                     DisplayName = new LocalizedString(nameof(ReasoningEffort.None), "Minimal"),
                 },
-                new AIModelParameterOption
+                new AIDeploymentParameterOption
                 {
                     Value = nameof(ReasoningEffort.Low),
                     DisplayName = new LocalizedString(nameof(ReasoningEffort.Low), "Low"),
                 },
-                new AIModelParameterOption
+                new AIDeploymentParameterOption
                 {
                     Value = nameof(ReasoningEffort.Medium),
                     DisplayName = new LocalizedString(nameof(ReasoningEffort.Medium), "Medium"),
                 },
-                new AIModelParameterOption
+                new AIDeploymentParameterOption
                 {
                     Value = nameof(ReasoningEffort.High),
                     DisplayName = new LocalizedString(nameof(ReasoningEffort.High), "High"),
                 },
-                new AIModelParameterOption
+                new AIDeploymentParameterOption
                 {
                     Value = nameof(ReasoningEffort.ExtraHigh),
                     DisplayName = new LocalizedString(nameof(ReasoningEffort.ExtraHigh), "Extra high"),
@@ -313,16 +324,16 @@ public static class ServiceCollectionExtensions
     /// <param name="name">The technical name of the feature.</param>
     /// <param name="displayName">The display text shown to operators.</param>
     /// <param name="configure">An optional delegate used to further configure the descriptor.</param>
-    public static IServiceCollection AddAIModelFeature(
+    public static IServiceCollection AddAIDeploymentFeature(
         this IServiceCollection services,
         string name,
         LocalizedString displayName,
-        Action<AIModelFeatureDescriptor> configure = null)
+        Action<AIDeploymentFeatureDescriptor> configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        return services.Configure<AIModelCapabilityOptions>(options => options.AddFeature(name, displayName, configure));
+        return services.Configure<AIDeploymentCapabilityOptions>(options => options.AddFeature(name, displayName, configure));
     }
 
     /// <summary>
@@ -332,16 +343,16 @@ public static class ServiceCollectionExtensions
     /// <param name="name">The technical name of the parameter.</param>
     /// <param name="displayName">The display text shown to operators.</param>
     /// <param name="configure">An optional delegate used to further configure the descriptor.</param>
-    public static IServiceCollection AddAIModelParameter(
+    public static IServiceCollection AddAIDeploymentParameter(
         this IServiceCollection services,
         string name,
         LocalizedString displayName,
-        Action<AIModelParameterDescriptor> configure = null)
+        Action<AIDeploymentParameterDescriptor> configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        return services.Configure<AIModelCapabilityOptions>(options => options.AddParameter(name, displayName, configure));
+        return services.Configure<AIDeploymentCapabilityOptions>(options => options.AddParameter(name, displayName, configure));
     }
 
     /// <summary>
@@ -652,10 +663,15 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, ProfileToolRegistryProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, AgentToolRegistryProvider>());
         services.TryAddScoped<IToolRegistry, DefaultToolRegistry>();
+        services.TryAddScoped<IToolMaterializer, DefaultToolMaterializer>();
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, CompletionContextOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, PreemptiveRagOrchestrationHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, RealtimeRagGuidanceHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, AIToolExecutionContextOrchestrationHandler>());
+
+        services.TryAddScoped<CrestApps.Core.AI.Realtime.IRealtimeSessionConfigurator, DefaultRealtimeSessionConfigurator>();
+        services.TryAddScoped<CrestApps.Core.AI.Realtime.IRealtimeOrchestrator, DefaultRealtimeOrchestrator>();
 
         services.TryAddScoped<IOrchestrationContextBuilder, DefaultOrchestrationContextBuilder>();
 

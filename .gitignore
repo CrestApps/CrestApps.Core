@@ -480,3 +480,9 @@ src/docs/node_modules/
 src/docs/build/
 src/docs/.docusaurus/
 src/docs/.cache-loader/
+# Playwright browser-test output.
+playwright-report/
+
+# Spoken-question audio for the manual realtime end-to-end check (generated locally; see docs/core/realtime-voice.md).
+tests/realtime-client/e2e/*.wav
+tests/realtime-client/e2e/recordings/

@@ -51,6 +51,52 @@ public sealed class AzureRealtimeTests
     }
 
     [Fact]
+    public void WriteClientMessage_SessionUpdate_SemanticVad_WritesEagernessAndNoSilenceKnobs()
+    {
+        // The server-VAD knobs are rejected alongside semantic_vad, so the two sets are never mixed on the wire.
+        var options = new RealtimeSessionOptions
+        {
+            VoiceActivityDetection = new VoiceActivityDetectionOptions { Enabled = true, AllowInterruption = false },
+            RawRepresentationFactory = () => new CrestApps.Core.AI.Realtime.RealtimeTurnDetectionOverrides
+            {
+                Type = CrestApps.Core.AI.Realtime.RealtimeTurnDetectionTypes.SemanticVad,
+                Eagerness = "low",
+                SilenceDurationMs = 800,
+            },
+        };
+
+        var json = WriteToJson(new SessionUpdateRealtimeClientMessage(options));
+
+        var turnDetection = json.GetProperty("session").GetProperty("audio").GetProperty("input").GetProperty("turn_detection");
+        Assert.Equal("semantic_vad", turnDetection.GetProperty("type").GetString());
+        Assert.Equal("low", turnDetection.GetProperty("eagerness").GetString());
+        Assert.False(turnDetection.GetProperty("interrupt_response").GetBoolean());
+        Assert.False(turnDetection.TryGetProperty("silence_duration_ms", out _));
+    }
+
+    [Fact]
+    public void WriteClientMessage_SessionUpdate_ServerVad_WritesSilenceAndThreshold()
+    {
+        var options = new RealtimeSessionOptions
+        {
+            VoiceActivityDetection = new VoiceActivityDetectionOptions { Enabled = true, AllowInterruption = true },
+            RawRepresentationFactory = () => new CrestApps.Core.AI.Realtime.RealtimeTurnDetectionOverrides
+            {
+                Type = CrestApps.Core.AI.Realtime.RealtimeTurnDetectionTypes.ServerVad,
+                SilenceDurationMs = 900,
+                Threshold = 0.6f,
+            },
+        };
+
+        var json = WriteToJson(new SessionUpdateRealtimeClientMessage(options));
+
+        var turnDetection = json.GetProperty("session").GetProperty("audio").GetProperty("input").GetProperty("turn_detection");
+        Assert.Equal("server_vad", turnDetection.GetProperty("type").GetString());
+        Assert.Equal(900, turnDetection.GetProperty("silence_duration_ms").GetInt32());
+        Assert.False(turnDetection.TryGetProperty("eagerness", out _));
+    }
+
+    [Fact]
     public void WriteClientMessage_SessionUpdate_DisabledVad_WritesNullTurnDetection()
     {
         var options = new RealtimeSessionOptions

@@ -25,13 +25,13 @@
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-    <script src="/_content/CrestApps.AI.Resources/scripts/document-drop-zone.js"></script>
-    <script src="/_content/CrestApps.AI.Resources/scripts/technical-name-generator.js"></script>
-    <script src="/_content/CrestApps.AI.Resources/scripts/ai-chat.js"></script>
-    <script src="/_content/CrestApps.AI.Resources/scripts/ai-chat-widget.js"></script>
-    <script src="/_content/CrestApps.AI.Resources/scripts/chat-interaction.js"></script>
-    <script src="/_content/CrestApps.AI.Resources/scripts/chat-interaction-settings.js"></script>
-    <script src="/_content/CrestApps.AI.Resources/scripts/realtime-test.js"></script>
+    <script src="/_content/CrestApps.AI.Resources/scripts/document-drop-zone.js?v=@AssetVersion"></script>
+    <script src="/_content/CrestApps.AI.Resources/scripts/technical-name-generator.js?v=@AssetVersion"></script>
+    <script src="/_content/CrestApps.AI.Resources/scripts/realtime-audio.js?v=@AssetVersion"></script>
+    <script src="/_content/CrestApps.AI.Resources/scripts/ai-chat.js?v=@AssetVersion"></script>
+    <script src="/_content/CrestApps.AI.Resources/scripts/ai-chat-widget.js?v=@AssetVersion"></script>
+    <script src="/_content/CrestApps.AI.Resources/scripts/chat-interaction.js?v=@AssetVersion"></script>
+    <script src="/_content/CrestApps.AI.Resources/scripts/chat-interaction-settings.js?v=@AssetVersion"></script>
     <script src="/_framework/blazor.web.js"></script>
     <script>
         window.renderMarkdownArticle = function (markdown) {
@@ -50,6 +50,10 @@
     private HttpContext HttpContext { get; set; }
 
     private string PageTitle => HttpContext?.Items["PageTitle"] as string;
+
+    // Cache-busting token for mutable local scripts (e.g. ai-chat.js). Computed once per process, so
+    // browsers cache within a run but always re-fetch after a redeploy/restart that ships new script content.
+    private static readonly string AssetVersion = DateTime.UtcNow.Ticks.ToString();
 
     // Disable prerendering so EditForm submissions never fall back to a static SSR POST,
     // which would require a FormName on every form. Interactive Server handles submission

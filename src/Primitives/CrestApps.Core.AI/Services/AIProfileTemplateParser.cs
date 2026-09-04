@@ -67,6 +67,28 @@ public static class AIProfileTemplateParser
             profileMetadata.UtilityDeploymentName = utilityDeploymentName;
         }
 
+        if (props.TryGetValue(nameof(ProfileTemplateMetadata.RealtimeDeploymentName), out var realtimeDeploymentName))
+        {
+            profileMetadata.RealtimeDeploymentName = realtimeDeploymentName;
+        }
+
+        if (props.TryGetValue(nameof(ProfileTemplateMetadata.ChatMode), out var chatModeStr) &&
+            Enum.TryParse<ChatMode>(chatModeStr, true, out var chatMode))
+        {
+            profileMetadata.ChatMode = chatMode;
+        }
+
+        if (props.TryGetValue(nameof(ProfileTemplateMetadata.VoiceName), out var voiceName))
+        {
+            profileMetadata.VoiceName = voiceName;
+        }
+
+        if (props.TryGetValue(nameof(ProfileTemplateMetadata.EnableTextToSpeechPlayback), out var enableTtsStr) &&
+            bool.TryParse(enableTtsStr, out var enableTts))
+        {
+            profileMetadata.EnableTextToSpeechPlayback = enableTts;
+        }
+
         if (props.TryGetValue(nameof(ProfileTemplateMetadata.OrchestratorName), out var orchestratorName))
         {
             profileMetadata.OrchestratorName = orchestratorName;
@@ -177,9 +199,9 @@ public static class AIProfileTemplateParser
         return template;
     }
 
-    private static AIModelParametersMetadata ParseModelParameters(Dictionary<string, string> props)
+    private static AIDeploymentParametersMetadata ParseModelParameters(Dictionary<string, string> props)
     {
-        var metadata = new AIModelParametersMetadata();
+        var metadata = new AIDeploymentParametersMetadata();
 
         if (props is null || !props.TryGetValue("ModelParameters", out var raw) || string.IsNullOrWhiteSpace(raw))
         {

@@ -75,7 +75,7 @@ internal static class YesSqlServiceCollectionExtensions
         services
             .AddScoped<AIProfileDocumentService>()
             .AddScoped<AIProfileTemplateDocumentService>()
-            .AddScoped<AIModelParameterViewService>();
+            .AddScoped<AIDeploymentParameterViewService>();
 
         services
             .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryHandler>()

@@ -42,6 +42,12 @@ public sealed class AITemplateViewModel
 
     public string UtilityDeploymentName { get; set; }
 
+    public string RealtimeDeploymentName { get; set; }
+
+    public ChatMode? ChatMode { get; set; }
+
+    public string VoiceName { get; set; }
+
     public string OrchestratorName { get; set; }
 
     public AISessionTitleType? TitleType { get; set; }
@@ -166,6 +172,9 @@ public sealed class AITemplateViewModel
     public IEnumerable<SelectListItem> UtilityDeployments { get; set; } = [];
 
     [BindNever]
+    public IEnumerable<SelectListItem> RealtimeDeployments { get; set; } = [];
+
+    [BindNever]
     public IEnumerable<SelectListItem> Orchestrators { get; set; } = [];
 
     [BindNever]
@@ -211,7 +220,7 @@ public sealed class AITemplateViewModel
         }
         else if (template.Source == AITemplateSources.Profile)
         {
-            if (template.TryGet<AIModelParametersMetadata>(out var modelParameters) && modelParameters.Values is { Count: > 0 })
+            if (template.TryGet<AIDeploymentParametersMetadata>(out var modelParameters) && modelParameters.Values is { Count: > 0 })
             {
                 model.ModelParameters = new Dictionary<string, string>(modelParameters.Values, StringComparer.OrdinalIgnoreCase);
             }
@@ -222,6 +231,9 @@ public sealed class AITemplateViewModel
                 model.SystemMessage = metadata.SystemMessage;
                 model.ChatDeploymentName = metadata.ChatDeploymentName;
                 model.UtilityDeploymentName = metadata.UtilityDeploymentName;
+                model.RealtimeDeploymentName = metadata.RealtimeDeploymentName;
+                model.ChatMode = metadata.ChatMode;
+                model.VoiceName = metadata.VoiceName;
                 model.OrchestratorName = metadata.OrchestratorName;
                 model.TitleType = metadata.TitleType;
                 model.Temperature = metadata.Temperature;
@@ -401,6 +413,9 @@ public sealed class AITemplateViewModel
                 SystemMessage = SystemMessage,
                 ChatDeploymentName = ChatDeploymentName,
                 UtilityDeploymentName = UtilityDeploymentName,
+                RealtimeDeploymentName = RealtimeDeploymentName,
+                ChatMode = ChatMode,
+                VoiceName = VoiceName,
                 OrchestratorName = OrchestratorName,
                 TitleType = TitleType,
                 Temperature = Temperature,
@@ -424,7 +439,7 @@ public sealed class AITemplateViewModel
                 ? []
                 : ModelParameters.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value));
 
-            template.Put(new AIModelParametersMetadata
+            template.Put(new AIDeploymentParametersMetadata
             {
                 Values = new Dictionary<string, string>(selectedModelParameters, StringComparer.OrdinalIgnoreCase),
             });

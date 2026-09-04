@@ -37,6 +37,12 @@ public sealed class ChatInteraction : CatalogItem, IModifiedUtcAwareModel
     public string UtilityDeploymentName { get; set; }
 
     /// <summary>
+    /// Gets or sets the realtime (speech-to-speech) voice for this interaction.
+    /// When not set, falls back to the site's default realtime voice.
+    /// </summary>
+    public string RealtimeVoiceName { get; set; }
+
+    /// <summary>
     /// Gets or sets the legacy chat deployment identifier that maps to <see cref="ChatDeploymentName"/>.
     /// </summary>
     [JsonIgnore]

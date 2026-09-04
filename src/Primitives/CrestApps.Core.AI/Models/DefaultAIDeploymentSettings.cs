@@ -55,6 +55,13 @@ public sealed class DefaultAIDeploymentSettings
     public string DefaultTextToSpeechDeploymentName { get; set; }
 
     /// <summary>
+    /// Gets or sets the default realtime (speech-to-speech) deployment technical name.
+    /// Used globally for realtime sessions when a realtime-mode chat profile does not specify its own
+    /// realtime deployment.
+    /// </summary>
+    public string DefaultRealtimeDeploymentName { get; set; }
+
+    /// <summary>
     /// Gets or sets the default Chat Deployment ID.
     /// </summary>
     [Obsolete("Use DefaultChatDeploymentName instead. Retained for backward compatibility.")]
@@ -179,4 +186,10 @@ public sealed class DefaultAIDeploymentSettings
     /// When a profile does not specify a voice, this value is used as the fallback.
     /// </summary>
     public string DefaultTextToSpeechVoiceId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the default voice identifier for realtime (speech-to-speech) sessions.
+    /// When a realtime-mode chat profile does not specify a voice, this value is used as the fallback.
+    /// </summary>
+    public string DefaultRealtimeVoiceId { get; set; }
 }
