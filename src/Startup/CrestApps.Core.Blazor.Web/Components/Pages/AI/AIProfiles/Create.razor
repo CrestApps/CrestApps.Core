@@ -55,7 +55,7 @@
 <PageTitle>Create AI Profile - Blazor AI Integration Sample</PageTitle>
 <link rel="stylesheet" href="/_content/CrestApps.AI.Resources/styles/document-drop-zone.css" />
 
-<h2><i class="bi bi-plus-lg"></i> Create AI Profile</h2>
+<h2><i class="fa-solid fa-plus"></i> Create AI Profile</h2>
 <hr />
 
 <EditForm FormName="ai-aiprofiles-create" Model="_model" OnValidSubmit="HandleSubmitAsync">
@@ -78,7 +78,7 @@
                         <div class="form-text">Select a profile template to pre-fill the form fields.</div>
                     </div>
                     <button type="button" class="btn btn-secondary" disabled="@string.IsNullOrEmpty(_selectedApplyTemplateId)" @onclick="ApplyTemplateAsync">
-                        <i class="bi bi-clipboard-check"></i> Apply
+                        <i class="fa-solid fa-clipboard-check"></i> Apply
                     </button>
                 </div>
             </div>
@@ -275,13 +275,13 @@
                     {
                         <div class="card mb-3">
                             <div class="card-header">
-                                <h6 class="card-title mb-0"><i class="bi bi-github me-1"></i> Copilot Configuration</h6>
+                                <h6 class="card-title mb-0"><i class="fa-brands fa-github me-1"></i> Copilot Configuration</h6>
                             </div>
                             <div class="card-body">
                                 @if (!_model.CopilotIsConfigured)
                                 {
                                     <div class="alert alert-warning mb-0">
-                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                        <i class="fa-solid fa-triangle-exclamation me-1"></i>
                                         <strong>Copilot is not configured.</strong> Go to <a href="/admin/settings"><strong>Settings</strong></a> and complete the Copilot section first.
                                     </div>
                                 }
@@ -313,10 +313,10 @@
                                     @if (_model.CopilotIsAuthenticated)
                                     {
                                         <div class="alert alert-success py-2 mb-3">
-                                            <i class="bi bi-check-circle-fill"></i> Connected as <strong>@_model.CopilotGitHubUsername</strong>
+                                            <i class="fa-solid fa-circle-check"></i> Connected as <strong>@_model.CopilotGitHubUsername</strong>
                                         </div>
                                         <div class="alert alert-warning py-2 mb-3">
-                                            <i class="bi bi-exclamation-triangle-fill"></i>
+                                            <i class="fa-solid fa-triangle-exclamation"></i>
                                             Using the Copilot orchestrator will allow any user chatting with this profile to utilize your GitHub credentials.
                                         </div>
                                         <div class="mb-3">
@@ -348,7 +348,7 @@
                                     else
                                     {
                                         <div class="text-center py-3">
-                                            <p class="text-muted"><i class="bi bi-github fs-1"></i></p>
+                                            <p class="text-muted"><i class="fa-brands fa-github fs-1"></i></p>
                                             <p class="text-muted">Copilot requires GitHub authentication. Sign in with your GitHub account to continue.</p>
                                         </div>
                                     }
@@ -363,7 +363,7 @@
                     {
                         <div class="card mb-3">
                             <div class="card-header">
-                                <h6 class="card-title mb-0"><i class="bi bi-lightning me-1"></i> Claude Configuration</h6>
+                                <h6 class="card-title mb-0"><i class="fa-solid fa-bolt me-1"></i> Claude Configuration</h6>
                             </div>
                             <div class="card-body">
                                 @if (!_model.ClaudeIsConfigured)
@@ -523,7 +523,7 @@
                                         <div class="card-header d-flex justify-content-between align-items-center py-2">
                                             <span class="fw-semibold">@title</span>
                                             <button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.PromptTemplates.RemoveAt(index)">
-                                                <i class="bi bi-trash"></i>
+                                                <i class="fa-solid fa-trash"></i>
                                             </button>
                                         </div>
                                         <div class="card-body">
@@ -620,7 +620,7 @@
                         <div class="form-text">Cache responses to improve performance for repeated queries.</div>
                     </div>
 
-                    <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-sliders"></i> Model parameters</h6>
+                    <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-sliders"></i> Model parameters</h6>
                     <p class="text-muted small">Only the parameters declared by the selected chat deployment are shown.</p>
                     <ModelParametersEditor DeploymentName="_model.ChatDeploymentName" Values="_model.ModelParameters" />
                 </div>
@@ -628,10 +628,10 @@
                 <!-- Capabilities Tab -->
                 <div style="display: @(_activeTab == "capabilities" ? "block" : "none")">
                     <!-- AI Agents -->
-                    <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-robot"></i> AI Agents</h6>
+                    <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-robot"></i> AI Agents</h6>
                     @if (_model.AvailableAgents.Count == 0)
                     {
-                        <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No agent profiles are available. Create an agent profile first.</div>
+                        <div class="alert alert-info mb-3"><i class="fa-solid fa-circle-info"></i> No agent profiles are available. Create an agent profile first.</div>
                     }
                     else
                     {
@@ -652,10 +652,10 @@
                     }
 
                     <!-- A2A Connections -->
-                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-diagram-3"></i> Agent to Agent Hosts</h6>
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-sitemap"></i> Agent to Agent Hosts</h6>
                     @if (_model.AvailableA2AConnections.Count == 0)
                     {
-                        <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No A2A host connections are configured. Add them under <strong>Agent to Agent Hosts</strong> first.</div>
+                        <div class="alert alert-info mb-3"><i class="fa-solid fa-circle-info"></i> No A2A host connections are configured. Add them under <strong>Agent to Agent Hosts</strong> first.</div>
                     }
                     else
                     {
@@ -673,10 +673,10 @@
                     }
 
                     <!-- MCP Hosts -->
-                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-plug"></i> MCP Hosts</h6>
                     @if (_model.AvailableMcpConnections.Count == 0)
                     {
-                        <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No MCP hosts are configured. Add them under <strong>MCP Hosts</strong> first.</div>
+                        <div class="alert alert-info mb-3"><i class="fa-solid fa-circle-info"></i> No MCP hosts are configured. Add them under <strong>MCP Hosts</strong> first.</div>
                     }
                     else
                     {
@@ -697,10 +697,10 @@
                     }
 
                     <!-- AI Tool Instances -->
-                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> AI Tool Instances</h6>
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-puzzle-piece"></i> AI Tool Instances</h6>
                     @if (_model.AvailableToolInstances.Count == 0)
                     {
-                        <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.</div>
+                        <div class="alert alert-info mb-3"><i class="fa-solid fa-circle-info"></i> No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.</div>
                     }
                     else
                     {
@@ -722,23 +722,23 @@
                     }
 
                     <!-- AI Tools -->
-                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-screwdriver-wrench"></i> AI Tools</h6>
                     @if (_model.AvailableTools.Count == 0)
                     {
-                        <div class="alert alert-info mb-0"><i class="bi bi-info-circle"></i> No selectable AI tools are registered.</div>
+                        <div class="alert alert-info mb-0"><i class="fa-solid fa-circle-info"></i> No selectable AI tools are registered.</div>
                     }
                     else
                     {
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <p class="text-muted mb-0 small">Select the tools this profile can use during conversations.</p>
                             <div class="btn-group btn-group-sm ms-3">
-                                <button type="button" class="btn btn-outline-primary" @onclick="SelectAllTools"><i class="bi bi-check-all"></i> Select all</button>
-                                <button type="button" class="btn btn-outline-secondary" @onclick="DeselectAllTools"><i class="bi bi-x-lg"></i> Deselect all</button>
+                                <button type="button" class="btn btn-outline-primary" @onclick="SelectAllTools"><i class="fa-solid fa-check-double"></i> Select all</button>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="DeselectAllTools"><i class="fa-solid fa-xmark"></i> Deselect all</button>
                             </div>
                         </div>
                         @foreach (var group in _model.AvailableTools.GroupBy(t => t.Category).OrderBy(g => g.Key))
                         {
-                            <h6 class="text-secondary mt-3 mb-2"><i class="bi bi-folder"></i> @group.Key</h6>
+                            <h6 class="text-secondary mt-3 mb-2"><i class="fa-solid fa-folder"></i> @group.Key</h6>
                             @foreach (var tool in group)
                             {
                                 <div class="form-check mb-2">
@@ -766,7 +766,7 @@
                         <div class="form-text">Store and recall user conversation history for personalized responses.</div>
                     </div>
 
-                    <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-database"></i> Data Source</h6>
+                    <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-database"></i> Data Source</h6>
                     <div class="mb-3">
                         <label class="form-label">Data source</label>
                         <InputSelect class="form-select" @bind-Value="_model.DataSourceId">
@@ -835,7 +835,7 @@
                     @if (!_model.HasDocumentIndexConfiguration)
                     {
                         <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i> Document knowledge-base search is not configured yet. Create an <strong>AI Documents</strong> index profile and select it under <strong>Settings → AI Settings → Documents</strong> before expecting uploaded documents to influence answers.
+                            <i class="fa-solid fa-triangle-exclamation"></i> Document knowledge-base search is not configured yet. Create an <strong>AI Documents</strong> index profile and select it under <strong>Settings → AI Settings → Documents</strong> before expecting uploaded documents to influence answers.
                         </div>
                     }
 
@@ -856,7 +856,7 @@
                     </div>
 
                     <div class="attached-documents-panel mt-3">
-                        <h6 class="mb-1"><i class="bi bi-paperclip"></i> Attach Documents</h6>
+                        <h6 class="mb-1"><i class="fa-solid fa-paperclip"></i> Attach Documents</h6>
                         <p class="text-muted small mb-3">Uploaded files will be indexed as hidden knowledge for this profile after you save it.</p>
 
                         @if (_model.AttachedDocuments.Count > 0)
@@ -870,7 +870,7 @@
                                 @foreach (var doc in _model.AttachedDocuments)
                                 {
                                     <div class="attached-document-card">
-                                        <span class="attached-document-icon"><i class="bi bi-file-earmark-text"></i></span>
+                                        <span class="attached-document-icon"><i class="fa-solid fa-file-lines"></i></span>
                                         <div class="attached-document-meta flex-grow-1">
                                             <div class="attached-document-name">@doc.FileName</div>
                                             <span class="attached-document-size">@FormatFileSize(doc.FileSize)</span>
@@ -887,12 +887,12 @@
                                 var index = i;
                                 var file = _pendingFiles[index];
                                 <div class="d-flex align-items-center mb-2 pending-doc-row">
-                                    <i class="bi bi-file-earmark-plus me-2 text-success"></i>
+                                    <i class="fa-solid fa-file-circle-plus me-2 text-success"></i>
                                     <span class="flex-grow-1">
                                         @file.Name <small class="text-muted">(@FormatFileSize(file.Size))</small> <span class="badge bg-info">New</span>
                                     </span>
                                     <button type="button" class="btn btn-sm btn-outline-danger" title="Remove" @onclick="() => RemovePendingFile(index)">
-                                        <i class="bi bi-trash"></i>
+                                        <i class="fa-solid fa-trash"></i>
                                     </button>
                                 </div>
                             }
@@ -905,14 +905,14 @@
                                        accept="@_supportedExtensionsAccept"
                                        class="d-none" />
                             <div class="document-drop-zone__body">
-                                <span class="document-drop-zone__icon"><i class="bi bi-cloud-arrow-up"></i></span>
+                                <span class="document-drop-zone__icon"><i class="fa-solid fa-cloud-arrow-up"></i></span>
                                 <div>
                                     <div class="document-drop-zone__title">Drag and drop files here</div>
                                     <div class="text-muted small">or browse for documents to attach as hidden profile knowledge</div>
                                 </div>
                                 <div class="document-drop-zone__actions">
                                     <button type="button" class="btn btn-outline-primary" id="profile-doc-browse" data-drop-zone-browse>
-                                        <i class="bi bi-folder2-open"></i> Browse files
+                                        <i class="fa-solid fa-folder-open"></i> Browse files
                                     </button>
                                 </div>
                                 <div class="form-text mb-0">Supported formats: @_supportedExtensionsDisplay</div>
@@ -952,7 +952,7 @@
                             </div>
                         </div>
 
-                        <h6 class="mb-2 mt-2 border-bottom pb-2"><i class="bi bi-list-check"></i> Extraction Entries</h6>
+                        <h6 class="mb-2 mt-2 border-bottom pb-2"><i class="fa-solid fa-list-check"></i> Extraction Entries</h6>
                         @for (var i = 0; i < _model.DataExtractionEntries.Count; i++)
                         {
                             var index = i;
@@ -962,7 +962,7 @@
                                 <div class="card-header d-flex justify-content-between align-items-center py-2">
                                     <span class="fw-semibold">@(string.IsNullOrWhiteSpace(entry.Name) ? "New Entry" : entry.Name)</span>
                                     <button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.DataExtractionEntries.RemoveAt(index)">
-                                        <i class="bi bi-trash"></i>
+                                        <i class="fa-solid fa-trash"></i>
                                     </button>
                                 </div>
                                 <div class="card-body">
@@ -987,14 +987,14 @@
                             </div>
                         }
                         <button type="button" class="btn btn-sm btn-success" @onclick="AddExtractionEntry">
-                            <i class="bi bi-plus"></i> Add Entry
+                            <i class="fa-solid fa-plus"></i> Add Entry
                         </button>
                     }
 
                     <hr class="my-4" />
                         <p class="text-muted mb-3">Configure session metrics and post-session processing for conversations using this profile.</p>
 
-                    <h6 class="mb-2"><i class="bi bi-graph-up"></i> Session Metrics</h6>
+                    <h6 class="mb-2"><i class="fa-solid fa-chart-line"></i> Session Metrics</h6>
                     <div class="mb-3">
                         <div class="form-check form-switch">
                             <InputCheckbox class="form-check-input" @bind-Value="_model.EnableSessionMetrics" />
@@ -1011,7 +1011,7 @@
                         <div class="form-text">The AI will determine whether the user's issue was resolved during the session.</div>
                     </div>
 
-                    <h6 class="mb-2"><i class="bi bi-clipboard-check"></i> Post-session Processing</h6>
+                    <h6 class="mb-2"><i class="fa-solid fa-clipboard-check"></i> Post-session Processing</h6>
                     <div class="mb-3">
                         <div class="form-check form-switch">
                             <InputCheckbox class="form-check-input" @bind-Value="_model.EnablePostSessionProcessing" />
@@ -1038,7 +1038,7 @@
                                         </li>
                                     </ul>
                                     <button type="button" class="btn btn-sm btn-outline-danger ms-2" @onclick="() => _model.PostSessionTasks.RemoveAt(index)">
-                                        <i class="bi bi-trash"></i>
+                                        <i class="fa-solid fa-trash"></i>
                                     </button>
                                 </div>
                                 <div class="card-body">
@@ -1082,7 +1082,7 @@
                                     </div>
                                     <div style="display: @(GetTaskActiveTab(index) == "caps" ? "block" : "none")">
                                         <p class="text-muted small mb-3">Select the capabilities available to this task.</p>
-                                        <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
+                                        <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-screwdriver-wrench"></i> AI Tools</h6>
                                         @if (_model.AvailableTools.Count == 0)
                                         {
                                             <p class="text-muted small">No AI tools registered.</p>
@@ -1091,7 +1091,7 @@
                                         {
                                             @foreach (var group in _model.AvailableTools.GroupBy(t => t.Category).OrderBy(g => g.Key))
                                             {
-                                                <h6 class="text-secondary mt-2 mb-1 small"><i class="bi bi-folder"></i> @group.Key</h6>
+                                                <h6 class="text-secondary mt-2 mb-1 small"><i class="fa-solid fa-folder"></i> @group.Key</h6>
                                                 @foreach (var tool in group)
                                                 {
                                                     <div class="form-check mb-1">
@@ -1104,7 +1104,7 @@
                                             }
                                         }
 
-                                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> AI Tool Instances</h6>
+                                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-puzzle-piece"></i> AI Tool Instances</h6>
                                         @if (_model.AvailableToolInstances.Count == 0)
                                         {
                                             <p class="text-muted small">No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.</p>
@@ -1129,13 +1129,13 @@
                             </div>
                         }
                         <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddPostSessionTask">
-                            <i class="bi bi-plus-circle"></i> Add Task
+                            <i class="fa-solid fa-circle-plus"></i> Add Task
                         </button>
                     }
 
                     <hr class="my-4" />
 
-                    <h6 class="mb-2"><i class="bi bi-bullseye"></i> Conversion Goals</h6>
+                    <h6 class="mb-2"><i class="fa-solid fa-bullseye"></i> Conversion Goals</h6>
                     <div class="mb-3">
                         <div class="form-check form-switch">
                             <InputCheckbox class="form-check-input" @bind-Value="_model.EnableConversionMetrics" />
@@ -1155,7 +1155,7 @@
                                 <div class="card-header d-flex justify-content-between align-items-center py-2">
                                     <span class="fw-semibold">@(string.IsNullOrWhiteSpace(goal.Name) ? "New goal" : goal.Name)</span>
                                     <button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.ConversionGoals.RemoveAt(index)">
-                                        <i class="bi bi-trash"></i>
+                                        <i class="fa-solid fa-trash"></i>
                                     </button>
                                 </div>
                                 <div class="card-body">
@@ -1185,7 +1185,7 @@
                             </div>
                         }
                         <button type="button" class="btn btn-sm btn-success" @onclick="AddConversionGoal">
-                            <i class="bi bi-plus"></i> Add Goal
+                            <i class="fa-solid fa-plus"></i> Add Goal
                         </button>
                     }
                 </div>
@@ -1217,31 +1217,31 @@
                     </div>
 
                     <hr />
-                    <h6 class="text-muted"><i class="bi bi-shield-lock"></i> Anti-Spam Throttle Override</h6>
+                    <h6 class="text-muted"><i class="fa-solid fa-shield-halved"></i> Anti-Spam Throttle Override</h6>
                     <p class="text-muted small">
                         Override the site-level anti-spam throttle limits for this profile. Leave a field empty to inherit the global setting.
                     </p>
 
                     <div class="mb-3">
-                        <label class="form-label">Max messages per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of chat messages a single visitor or user may send within the message window before further messages are throttled. Leave blank to inherit the site default; set to 0 to disable message throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                        <label class="form-label">Max messages per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of chat messages a single visitor or user may send within the message window before further messages are throttled. Leave blank to inherit the site default; set to 0 to disable message throttling."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                         <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityMaxMessagesPerWindow" />
                         <div class="form-text">Leave empty to use the site default. Set to 0 to disable message throttling for this profile.</div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Message rate-limit window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count messages for the message throttle. Leave blank to inherit the site default."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                        <label class="form-label">Message rate-limit window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count messages for the message throttle. Leave blank to inherit the site default."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                         <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityRateLimitWindowSeconds" />
                         <div class="form-text">Leave empty to use the site default.</div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Max anonymous sessions per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of new anonymous chat sessions that can be started from one visitor or IP bucket within the session window before starts are throttled. Leave blank to inherit the site default; set to 0 to disable session-start throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                        <label class="form-label">Max anonymous sessions per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of new anonymous chat sessions that can be started from one visitor or IP bucket within the session window before starts are throttled. Leave blank to inherit the site default; set to 0 to disable session-start throttling."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                         <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityMaxAnonymousSessionsPerWindow" />
                         <div class="form-text">Leave empty to use the site default. Set to 0 to disable anonymous session-start throttling for this profile.</div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Anonymous session window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count anonymous session starts. Leave blank to inherit the site default."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                        <label class="form-label">Anonymous session window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count anonymous session starts. Leave blank to inherit the site default."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                         <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityAnonymousSessionRateLimitWindowSeconds" />
                         <div class="form-text">Leave empty to use the site default.</div>
                     </div>
@@ -1250,7 +1250,7 @@
 
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-check-lg"></i> Create
+                    <i class="fa-solid fa-check"></i> Create
                 </button>
                 <a href="/ai/profiles" class="btn btn-secondary">Cancel</a>
             </div>

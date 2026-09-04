@@ -6,7 +6,6 @@
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
 @inject IAIProviderConnectionStore Store
-@inject INamedSourceCatalog<AIProviderConnection> Catalog
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 
@@ -15,13 +14,13 @@
 @if (_notFound)
 {
     <div class="alert alert-danger">
-        <i class="bi bi-exclamation-triangle-fill"></i> Connection not found.
+        <i class="fa-solid fa-triangle-exclamation"></i> Connection not found.
     </div>
     <a href="/ai/connections" class="btn btn-secondary">Back to Connections</a>
 }
 else if (_model != null)
 {
-    <h2><i class="bi bi-pencil"></i> Edit AI Connection</h2>
+    <h2><i class="fa-solid fa-pencil"></i> Edit AI Connection</h2>
     <hr />
 
     <EditForm FormName="ai-aiconnections-edit" Model="_model" OnValidSubmit="HandleSubmitAsync">
@@ -96,7 +95,7 @@ else if (_model != null)
 
                 <div class="mt-4">
                     <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-check-lg"></i> Save
+                        <i class="fa-solid fa-check"></i> Save
                     </button>
                     <a href="/ai/connections" class="btn btn-secondary">Cancel</a>
                 </div>
@@ -161,7 +160,7 @@ else if (_model != null)
 
     protected override async Task OnInitializedAsync()
     {
-        var connection = await Catalog.FindByIdAsync(Id);
+        var connection = await Store.FindByIdAsync(Id);
         if (connection == null)
         {
             _notFound = true;
@@ -210,7 +209,7 @@ else if (_model != null)
             }
         }
 
-        var connection = await Catalog.FindByIdAsync(_model.ItemId);
+        var connection = await Store.FindByIdAsync(_model.ItemId);
         if (connection == null)
         {
             _notFound = true;
@@ -236,7 +235,8 @@ else if (_model != null)
         }
 
         _model.ApplyTo(connection);
-        await Catalog.UpdateAsync(connection);
+        // Write through the multi-source store so its scoped merged-entry cache is invalidated; see Create.razor.
+        await Store.UpdateAsync(connection);
         await StoreCommitter.CommitAsync();
 
         Navigation.NavigateTo("/ai/connections");

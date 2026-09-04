@@ -2768,7 +2768,7 @@ window.chatInteractionDocumentManager = function () {
 
                 const name = createTextElement('div', 'fw-semibold small', documentInfo.fileName || 'Document');
                 const icon = window.document.createElement('i');
-                icon.className = 'bi bi-file-earmark-text me-1';
+                icon.className = 'fa-solid fa-file-lines me-1';
                 name.prepend(icon);
 
                 const size = createTextElement('div', 'text-muted small', formatFileSize(documentInfo.fileSize));
@@ -2780,7 +2780,7 @@ window.chatInteractionDocumentManager = function () {
                 removeButton.type = 'button';
                 removeButton.dataset.documentId = documentInfo.documentId;
                 const removeIcon = window.document.createElement('i');
-                removeIcon.className = 'bi bi-trash';
+                removeIcon.className = 'fa-solid fa-trash';
                 removeButton.prepend(removeIcon);
                 removeButton.addEventListener('click', () => removeDocument(documentInfo.documentId));
 

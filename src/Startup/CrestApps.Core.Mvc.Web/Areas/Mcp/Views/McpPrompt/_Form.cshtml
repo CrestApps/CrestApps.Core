@@ -51,7 +51,7 @@
             <div class="form-text">Example: <code>[{ "role": "user", "content": "Summarize {{topic}}" }]</code></div>
         </div>
         <div class="mt-4">
-            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> @(string.IsNullOrEmpty(Model.ItemId) ? "Create" : "Save")</button>
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> @(string.IsNullOrEmpty(Model.ItemId) ? "Create" : "Save")</button>
             <a asp-action="Index" class="btn btn-secondary">Cancel</a>
         </div>
     </div>

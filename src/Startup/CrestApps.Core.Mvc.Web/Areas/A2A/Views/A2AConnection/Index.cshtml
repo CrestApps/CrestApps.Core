@@ -7,16 +7,16 @@
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2><i class="bi bi-diagram-3"></i> Agent to Agent Hosts</h2>
+    <h2><i class="fa-solid fa-sitemap"></i> Agent to Agent Hosts</h2>
     <a asp-action="Create" class="btn btn-success">
-        <i class="bi bi-plus-lg"></i> Add Connection
+        <i class="fa-solid fa-plus"></i> Add Connection
     </a>
 </div>
 
 @if (!Model.Any())
 {
     <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> No A2A hosts are configured yet.
+        <i class="fa-solid fa-circle-info"></i> No A2A hosts are configured yet.
     </div>
 }
 else
@@ -41,11 +41,11 @@ else
                         <td><span class="badge bg-info text-dark">@(metadata?.AuthenticationType)</span></td>
                         <td>
                             <a asp-action="Edit" asp-route-id="@connection.ItemId" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-pencil"></i> Edit
+                                <i class="fa-solid fa-pencil"></i> Edit
                             </a>
                             <form asp-action="Delete" asp-route-id="@connection.ItemId" method="post" class="d-inline">
                                 <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this A2A connection?')">
-                                    <i class="bi bi-trash"></i> Delete
+                                    <i class="fa-solid fa-trash"></i> Delete
                                 </button>
                             </form>
                         </td>

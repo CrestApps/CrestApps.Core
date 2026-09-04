@@ -11,9 +11,9 @@
 <PageTitle>MCP Hosts</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2><i class="bi bi-hdd-network"></i> MCP Hosts</h2>
+    <h2><i class="fa-solid fa-network-wired"></i> MCP Hosts</h2>
     <a href="/mcp/connections/create" class="btn btn-success">
-        <i class="bi bi-plus-lg"></i> Add Host
+        <i class="fa-solid fa-plus"></i> Add Host
     </a>
 </div>
 
@@ -44,10 +44,10 @@ else
                         <td><span class="badge bg-info text-dark">@connection.Source</span></td>
                         <td>
                             <a href="/mcp/connections/edit/@connection.ItemId" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-pencil"></i> Edit
+                                <i class="fa-solid fa-pencil"></i> Edit
                             </a>
                             <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(connection.ItemId)">
-                                <i class="bi bi-trash"></i> Delete
+                                <i class="fa-solid fa-trash"></i> Delete
                             </button>
                         </td>
                     </tr>

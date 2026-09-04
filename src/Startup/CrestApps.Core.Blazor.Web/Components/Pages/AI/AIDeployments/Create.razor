@@ -7,7 +7,6 @@
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
 @inject IAIDeploymentStore DeploymentStore
-@inject INamedSourceCatalog<AIDeployment> DeploymentCatalog
 @inject IAIProviderConnectionStore ConnectionCatalog
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
@@ -15,7 +14,7 @@
 
 <PageTitle>Create AI Deployment - Blazor AI Integration Sample</PageTitle>
 
-<h2><i class="bi bi-plus-lg"></i> Create AI Deployment</h2>
+<h2><i class="fa-solid fa-plus"></i> Create AI Deployment</h2>
 <hr />
 
 <EditForm FormName="ai-aideployments-create" Model="_model" OnValidSubmit="HandleSubmitAsync">
@@ -124,7 +123,7 @@
 
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-check-lg"></i> Create
+                    <i class="fa-solid fa-check"></i> Create
                 </button>
                 <a href="/ai/deployments" class="btn btn-secondary">Cancel</a>
             </div>
@@ -304,7 +303,10 @@
 
         _model.ApplyTo(deployment);
 
-        await DeploymentCatalog.CreateAsync(deployment);
+        // Write through the multi-source store (not the direct catalog) so its scoped merged-entry
+        // cache is invalidated. In Blazor Server that store is shared for the whole circuit, so a write
+        // that bypassed it would leave the deployments list stale until a full page refresh.
+        await DeploymentStore.CreateAsync(deployment);
         await StoreCommitter.CommitAsync();
 
         Navigation.NavigateTo("/ai/deployments");

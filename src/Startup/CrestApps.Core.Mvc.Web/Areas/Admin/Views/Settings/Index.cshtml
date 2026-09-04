@@ -6,7 +6,7 @@
     ViewData["Title"] = "AI Settings";
 }
 
-<h2><i class="bi bi-gear"></i> AI Settings</h2>
+<h2><i class="fa-solid fa-gear"></i> AI Settings</h2>
 <hr />
 
 <form asp-action="Save" method="post">
@@ -221,7 +221,7 @@
 
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0"><i class="bi bi-shield-lock"></i> Prompt Security</h5>
+                    <h5 class="card-title mb-0"><i class="fa-solid fa-shield-halved"></i> Prompt Security</h5>
                 </div>
                 <div class="card-body">
                     <p class="text-muted mb-3">
@@ -232,7 +232,7 @@
                     <div class="mb-3">
                         <div class="form-check form-switch">
                             <input asp-for="SecurityEnabled" class="form-check-input" type="checkbox" data-security-toggle="true" />
-                            <label asp-for="SecurityEnabled" class="form-check-label">Enable prompt security layer <span class="text-muted" data-bs-toggle="tooltip" title="Master switch that turns the entire prompt-security layer on or off. When off, none of the defenses below are active and AI Profiles cannot enforce their own overrides."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <label asp-for="SecurityEnabled" class="form-check-label">Enable prompt security layer <span class="text-muted" data-bs-toggle="tooltip" title="Master switch that turns the entire prompt-security layer on or off. When off, none of the defenses below are active and AI Profiles cannot enforce their own overrides."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                         </div>
                         <div class="form-text">Master switch for all prompt security features. When disabled, none of the security defenses below are active.</div>
                     </div>
@@ -241,7 +241,7 @@
                         <div class="mb-3">
                             <div class="form-check form-switch">
                                 <input asp-for="SecurityEnableInjectionDetection" class="form-check-input" type="checkbox" />
-                                <label asp-for="SecurityEnableInjectionDetection" class="form-check-label">Enable injection detection <span class="text-muted" data-bs-toggle="tooltip" title="Scans incoming prompts for known injection patterns (such as attempts to ignore previous instructions or hijack the assistant persona) and blocks matches."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                                <label asp-for="SecurityEnableInjectionDetection" class="form-check-label">Enable injection detection <span class="text-muted" data-bs-toggle="tooltip" title="Scans incoming prompts for known injection patterns (such as attempts to ignore previous instructions or hijack the assistant persona) and blocks matches."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             </div>
                             <div class="form-text">Detects and blocks known prompt injection patterns such as "ignore previous instructions", persona hijacking, and role impersonation.</div>
                         </div>
@@ -249,7 +249,7 @@
                         <div class="mb-3">
                             <div class="form-check form-switch">
                                 <input asp-for="SecurityEnableOutputFiltering" class="form-check-input" type="checkbox" />
-                                <label asp-for="SecurityEnableOutputFiltering" class="form-check-label">Enable output filtering <span class="text-muted" data-bs-toggle="tooltip" title="Inspects AI responses before delivery and blocks or redacts output that leaks system prompts, tool configuration, or internal data."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                                <label asp-for="SecurityEnableOutputFiltering" class="form-check-label">Enable output filtering <span class="text-muted" data-bs-toggle="tooltip" title="Inspects AI responses before delivery and blocks or redacts output that leaks system prompts, tool configuration, or internal data."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             </div>
                             <div class="form-text">Scans AI responses for leaked system prompts, tool configurations, or internal data before delivering to the user.</div>
                         </div>
@@ -257,7 +257,7 @@
                         <div class="mb-3">
                             <div class="form-check form-switch">
                                 <input asp-for="SecurityEnableSecurityPreamble" class="form-check-input" type="checkbox" />
-                                <label asp-for="SecurityEnableSecurityPreamble" class="form-check-label">Enable security preamble <span class="text-muted" data-bs-toggle="tooltip" title="Prepends a hardened instruction to every system prompt telling the model never to reveal its configuration or bypass its rules."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                                <label asp-for="SecurityEnableSecurityPreamble" class="form-check-label">Enable security preamble <span class="text-muted" data-bs-toggle="tooltip" title="Prepends a hardened instruction to every system prompt telling the model never to reveal its configuration or bypass its rules."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             </div>
                             <div class="form-text">Prepends a hardened security instruction to system prompts that instructs the model to never reveal its configuration.</div>
                         </div>
@@ -265,7 +265,7 @@
                         <div class="mb-3">
                             <div class="form-check form-switch">
                                 <input asp-for="SecurityEnableInputDelimiters" class="form-check-input" type="checkbox" />
-                                <label asp-for="SecurityEnableInputDelimiters" class="form-check-label">Enable input delimiters <span class="text-muted" data-bs-toggle="tooltip" title="Wraps each user message in boundary markers so the model can clearly separate untrusted user content from trusted system instructions."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                                <label asp-for="SecurityEnableInputDelimiters" class="form-check-label">Enable input delimiters <span class="text-muted" data-bs-toggle="tooltip" title="Wraps each user message in boundary markers so the model can clearly separate untrusted user content from trusted system instructions."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             </div>
                             <div class="form-text">Wraps user messages with boundary markers to help the model distinguish user content from system instructions.</div>
                         </div>
@@ -273,27 +273,27 @@
                         <div class="mb-3">
                             <div class="form-check form-switch">
                                 <input asp-for="SecurityEnableAuditLogging" class="form-check-input" type="checkbox" />
-                                <label asp-for="SecurityEnableAuditLogging" class="form-check-label">Enable security audit logging <span class="text-muted" data-bs-toggle="tooltip" title="Records blocked prompts and other security events to the log so you can investigate injection attempts after the fact."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                                <label asp-for="SecurityEnableAuditLogging" class="form-check-label">Enable security audit logging <span class="text-muted" data-bs-toggle="tooltip" title="Records blocked prompts and other security events to the log so you can investigate injection attempts after the fact."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             </div>
                             <div class="form-text">Logs blocked prompts and security events for forensic investigation of injection attempts.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label asp-for="SecurityMaxPromptLength" class="form-label">Maximum prompt length (characters) <span class="text-muted" data-bs-toggle="tooltip" title="Any prompt longer than this character count is blocked before it reaches the model, limiting oversized or padding-based abuse."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <label asp-for="SecurityMaxPromptLength" class="form-label">Maximum prompt length (characters) <span class="text-muted" data-bs-toggle="tooltip" title="Any prompt longer than this character count is blocked before it reaches the model, limiting oversized or padding-based abuse."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             <input asp-for="SecurityMaxPromptLength" class="form-control" type="number" min="100" max="100000" style="max-width: 200px;" />
                             <span asp-validation-for="SecurityMaxPromptLength" class="text-danger"></span>
                             <div class="form-text">Prompts exceeding this length are automatically blocked. Default is 8,000 characters.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label asp-for="SecurityBlockingThreshold" class="form-label">Blocking threshold <span class="text-muted" data-bs-toggle="tooltip" title="Sets the minimum detected risk level that causes a prompt to be blocked. Lower thresholds block more aggressively."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <label asp-for="SecurityBlockingThreshold" class="form-label">Blocking threshold <span class="text-muted" data-bs-toggle="tooltip" title="Sets the minimum detected risk level that causes a prompt to be blocked. Lower thresholds block more aggressively."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             <select asp-for="SecurityBlockingThreshold" asp-items="Model.BlockingThresholds" class="form-select" style="max-width: 400px;">
                             </select>
                             <div class="form-text">Controls the minimum risk level at which prompts are blocked. Lower thresholds are stricter.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label asp-for="SecurityRemoteAddressMode" class="form-label">Remote address storage mode <span class="text-muted" data-bs-toggle="tooltip" title="Controls how a visitor remote address is stored for abuse controls: disabled, salted hash, plain text, or encrypted at rest while still hashing for throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <label asp-for="SecurityRemoteAddressMode" class="form-label">Remote address storage mode <span class="text-muted" data-bs-toggle="tooltip" title="Controls how a visitor remote address is stored for abuse controls: disabled, salted hash, plain text, or encrypted at rest while still hashing for throttling."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             <select asp-for="SecurityRemoteAddressMode" class="form-select" style="max-width: 400px;">
                                 <option value="@AIVisitorRemoteAddressMode.Disabled">Disabled</option>
                                 <option value="@AIVisitorRemoteAddressMode.Hashed">Hashed (Recommended)</option>
@@ -304,42 +304,42 @@
                         </div>
 
                         <div class="mb-3">
-                            <label asp-for="SecurityMaxMessagesPerWindow" class="form-label">Maximum messages per rate-limit window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of chat messages a single visitor or user may send within the message window before further messages are throttled. This is the site-wide default; individual AI Profiles can override it. Set to 0 to disable message throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <label asp-for="SecurityMaxMessagesPerWindow" class="form-label">Maximum messages per rate-limit window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of chat messages a single visitor or user may send within the message window before further messages are throttled. This is the site-wide default; individual AI Profiles can override it. Set to 0 to disable message throttling."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             <input asp-for="SecurityMaxMessagesPerWindow" class="form-control" type="number" min="0" max="1000" style="max-width: 200px;" />
                             <span asp-validation-for="SecurityMaxMessagesPerWindow" class="text-danger"></span>
                             <div class="form-text">Governs <strong>authenticated</strong> callers, and anonymous callers only when no anonymous message tiers are set below. Set to 0 to disable message throttling.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label asp-for="SecurityRateLimitWindowSeconds" class="form-label">Message rate-limit window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count messages for the message throttle. This is the site-wide default; individual AI Profiles can override it."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <label asp-for="SecurityRateLimitWindowSeconds" class="form-label">Message rate-limit window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count messages for the message throttle. This is the site-wide default; individual AI Profiles can override it."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             <input asp-for="SecurityRateLimitWindowSeconds" class="form-control" type="number" min="1" max="86400" style="max-width: 200px;" />
                             <span asp-validation-for="SecurityRateLimitWindowSeconds" class="text-danger"></span>
                             <div class="form-text">Determines how long message-throttle counters remain active.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label asp-for="SecurityAnonymousMessageRateLimitTiers" class="form-label">Anonymous message rate-limit tiers <span class="text-muted" data-bs-toggle="tooltip" title="Multi-tier sliding-window message limits applied to anonymous callers. A message is throttled when it would exceed any tier. Leave empty to fall back to the single message window above."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <label asp-for="SecurityAnonymousMessageRateLimitTiers" class="form-label">Anonymous message rate-limit tiers <span class="text-muted" data-bs-toggle="tooltip" title="Multi-tier sliding-window message limits applied to anonymous callers. A message is throttled when it would exceed any tier. Leave empty to fall back to the single message window above."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             <textarea asp-for="SecurityAnonymousMessageRateLimitTiers" class="form-control" rows="4" style="max-width: 400px;" placeholder="5, 00:00:30&#10;30, 00:05:00&#10;150, 01:00:00&#10;500, 1.00:00:00"></textarea>
                             <span asp-validation-for="SecurityAnonymousMessageRateLimitTiers" class="text-danger"></span>
                             <div class="form-text">One tier per line as <code>limit, window</code> (window as <code>hh:mm:ss</code>, e.g. <code>1.00:00:00</code> for a day). Applies to anonymous callers only; a message is throttled if it exceeds any tier. Leave empty to use the single window above.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label asp-for="SecurityMaxAnonymousSessionsPerWindow" class="form-label">Maximum anonymous sessions per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of new anonymous widget sessions that can be started from one visitor or IP bucket within the session window before starts are throttled. This is the site-wide default; individual AI Profiles can override it. Set to 0 to disable session-start throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <label asp-for="SecurityMaxAnonymousSessionsPerWindow" class="form-label">Maximum anonymous sessions per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of new anonymous widget sessions that can be started from one visitor or IP bucket within the session window before starts are throttled. This is the site-wide default; individual AI Profiles can override it. Set to 0 to disable session-start throttling."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             <input asp-for="SecurityMaxAnonymousSessionsPerWindow" class="form-control" type="number" min="0" max="500" style="max-width: 200px;" />
                             <span asp-validation-for="SecurityMaxAnonymousSessionsPerWindow" class="text-danger"></span>
                             <div class="form-text">Fallback used only when no anonymous session-start tiers are set below. Set to 0 to disable session-start throttling.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label asp-for="SecurityAnonymousSessionRateLimitWindowSeconds" class="form-label">Anonymous session window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count anonymous session starts. This is the site-wide default; individual AI Profiles can override it."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <label asp-for="SecurityAnonymousSessionRateLimitWindowSeconds" class="form-label">Anonymous session window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count anonymous session starts. This is the site-wide default; individual AI Profiles can override it."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             <input asp-for="SecurityAnonymousSessionRateLimitWindowSeconds" class="form-control" type="number" min="1" max="86400" style="max-width: 200px;" />
                             <span asp-validation-for="SecurityAnonymousSessionRateLimitWindowSeconds" class="text-danger"></span>
                             <div class="form-text">Determines how long anonymous session-start counters remain active for the ASP.NET Core and hub session throttles.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label asp-for="SecurityAnonymousSessionStartRateLimitTiers" class="form-label">Anonymous session-start rate-limit tiers <span class="text-muted" data-bs-toggle="tooltip" title="Multi-tier sliding-window limits on new anonymous session starts. A session start is throttled when it would exceed any tier. Leave empty to fall back to the single session window above."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <label asp-for="SecurityAnonymousSessionStartRateLimitTiers" class="form-label">Anonymous session-start rate-limit tiers <span class="text-muted" data-bs-toggle="tooltip" title="Multi-tier sliding-window limits on new anonymous session starts. A session start is throttled when it would exceed any tier. Leave empty to fall back to the single session window above."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             <textarea asp-for="SecurityAnonymousSessionStartRateLimitTiers" class="form-control" rows="4" style="max-width: 400px;" placeholder="5, 00:00:30&#10;10, 00:05:00&#10;150, 01:00:00&#10;500, 1.00:00:00"></textarea>
                             <span asp-validation-for="SecurityAnonymousSessionStartRateLimitTiers" class="text-danger"></span>
                             <div class="form-text">One tier per line as <code>limit, window</code> (window as <code>hh:mm:ss</code>, e.g. <code>1.00:00:00</code> for a day). Applies to anonymous callers only; a session start is throttled if it exceeds any tier. Leave empty to use the single window above.</div>
@@ -432,7 +432,7 @@
                         @if (string.IsNullOrWhiteSpace(Model.DefaultVisionDeploymentName))
                         {
                             <div class="alert alert-warning mt-2 mb-0 py-2 px-3">
-                                <i class="bi bi-exclamation-triangle"></i> No default vision deployment is configured. Uploaded images will not be analyzed unless a vision deployment is set in <strong>Default Deployments</strong>.
+                                <i class="fa-solid fa-triangle-exclamation"></i> No default vision deployment is configured. Uploaded images will not be analyzed unless a vision deployment is set in <strong>Default Deployments</strong>.
                             </div>
                         }
                     </div>
@@ -501,7 +501,7 @@
                                         <div class="input-group mt-1 mb-2" style="max-width: 600px;">
                                             <input type="text" class="form-control" readonly value="@Model.CopilotCallbackUrl" id="copilotComputedCallbackUrl" />
                                             <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('copilotComputedCallbackUrl').value)">
-                                                <i class="bi bi-clipboard"></i> Copy
+                                                <i class="fa-solid fa-clipboard"></i> Copy
                                             </button>
                                         </div>
                                     </li>
@@ -663,26 +663,26 @@
                         <label asp-for="McpServerExposeAllTools" class="form-check-label">Expose all tools and tool instances</label>
                     </div>
                     <div class="mb-3 @(Model.McpServerExposeAllTools ? "d-none" : null)" data-mcp-exposed-tools-picker="true">
-                        <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-tools"></i> Exposed tools</h6>
+                        <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-screwdriver-wrench"></i> Exposed tools</h6>
                         @if (Model.McpServerAvailableTools.Count > 0 || Model.McpServerAvailableToolInstances.Count > 0)
                         {
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <p class="text-muted mb-0 small">Select the tools and configured tool instances MCP clients can discover and invoke.</p>
                                 <div class="btn-group btn-group-sm ms-3" role="group">
-                                    <button type="button" class="btn btn-outline-primary" data-mcp-select-all-tools="true"><i class="bi bi-check-all"></i> Select all</button>
-                                    <button type="button" class="btn btn-outline-secondary" data-mcp-deselect-all-tools="true"><i class="bi bi-x-lg"></i> Deselect all</button>
+                                    <button type="button" class="btn btn-outline-primary" data-mcp-select-all-tools="true"><i class="fa-solid fa-check-double"></i> Select all</button>
+                                    <button type="button" class="btn btn-outline-secondary" data-mcp-deselect-all-tools="true"><i class="fa-solid fa-xmark"></i> Deselect all</button>
                                 </div>
                             </div>
                         }
                         @if (Model.McpServerAvailableTools.Count == 0)
                         {
-                            <div class="alert alert-info mb-3"><i class="bi bi-info-circle"></i> No AI tools are registered.</div>
+                            <div class="alert alert-info mb-3"><i class="fa-solid fa-circle-info"></i> No AI tools are registered.</div>
                         }
                         else
                         {
                             @foreach (var group in Model.McpServerAvailableTools.GroupBy(tool => tool.Category).OrderBy(group => group.Key))
                             {
-                                <h6 class="text-secondary mt-3 mb-2"><i class="bi bi-folder"></i> @group.Key</h6>
+                                <h6 class="text-secondary mt-3 mb-2"><i class="fa-solid fa-folder"></i> @group.Key</h6>
                                 @foreach (var tool in group)
                                 {
                                     <div class="form-check mb-2">
@@ -701,10 +701,10 @@
                             }
                         }
 
-                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> Exposed tool instances</h6>
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-puzzle-piece"></i> Exposed tool instances</h6>
                         @if (Model.McpServerAvailableToolInstances.Count == 0)
                         {
-                            <div class="alert alert-info mb-0"><i class="bi bi-info-circle"></i> No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.</div>
+                            <div class="alert alert-info mb-0"><i class="fa-solid fa-circle-info"></i> No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.</div>
                         }
                         else
                         {
@@ -792,7 +792,7 @@
 
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-check-lg"></i> Save Settings
+                    <i class="fa-solid fa-check"></i> Save Settings
                 </button>
             </div>
         </div>
