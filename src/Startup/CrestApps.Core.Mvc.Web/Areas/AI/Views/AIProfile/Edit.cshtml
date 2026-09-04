@@ -1216,12 +1216,19 @@
                 profileVoiceSelector.innerHTML = '<option value="">Default voice</option>';
             }
 
+            var voiceLoadToken = 0;
+
             async function loadVoiceOptions() {
                 resetVoiceOptions();
 
                 if (!profileVoiceSelector) {
                     return;
                 }
+
+                // Guard against overlapping loads: several init paths (and the change handlers) can call this in
+                // quick succession, and each awaits a fetch before appending. Without this token check the results
+                // of concurrent loads would all append, listing every voice more than once.
+                var token = ++voiceLoadToken;
 
                 var realtime = isRealtimeMode();
                 var deploymentName = realtime
@@ -1235,6 +1242,14 @@
                 const url = realtime ? profileRealtimeVoicesUrl : profileVoicesUrl;
                 const response = await fetch(url + '?deploymentName=' + encodeURIComponent(deploymentName), { credentials: 'same-origin' });
                 const result = await response.json();
+
+                // A newer load started while this one was awaiting; discard this stale result.
+                if (token !== voiceLoadToken) {
+                    return;
+                }
+
+                // Clear again now that we are the winning load and about to append.
+                resetVoiceOptions();
 
                 if (!result || !Array.isArray(result.voices)) {
                     return;
