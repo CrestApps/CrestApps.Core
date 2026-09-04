@@ -39,28 +39,36 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     private const int MaxBufferedInboundFrames = 100; // ~2 s at 20 ms per frame.
 
     // A pacing slot missed by this much or more (the pacing thread was not scheduled — a GC pause, a saturated
-    // machine) is not paid back: the schedule is re-based and the stream simply runs a little late. Paying it back
-    // as a burst is exactly what makes the browser's jitter buffer time-stretch speech.
+    // machine) is not paid back: the slots that went by are given up so the stream stays on time. Paying a long
+    // stall back as a burst, or running late from then on, is exactly what makes the browser's jitter buffer
+    // time-stretch speech.
     private const long MaxStallDebtMs = 100;
 
     // RTP timestamp increment per 20 ms Opus frame on the negotiated 48 kHz Opus clock.
     private const uint RtpUnitsPerFrame = 960;
 
     // Pre-buffer before a reply's first frame is released: wait for this many frames, or this long, whichever
-    // comes first. (See PaceOutgoing.)
-    private const int PrimeFrames = 6; // 120 ms
-    private const long PrimeMaxWaitMs = 150;
+    // comes first. The provider delivers audio in bursts of up to half a second with pauses between them; the
+    // cushion is what keeps those pauses from reaching the browser. (See PaceOutgoing.)
+    private const int PrimeFrames = 15; // 300 ms
+    private const long PrimeMaxWaitMs = 400;
 
-    // Quiet stretch after which the next audio counts as a new reply and is pre-buffered again.
+    // Shorter cap on the pre-buffer when a reply resumes after the provider stalled mid-way: the listener is
+    // already waiting inside a gap, so the cushion is rebuilt only as far as it can be quickly.
+    private const long ResumePrimeMaxWaitMs = 200;
+
+    // Quiet stretch after which the next audio counts as a new reply rather than the rest of the current one.
     private const long SpurtGapMs = 250;
 
-    // A queue that runs dry within this long of the last real frame is a mid-reply underrun (hold briefly);
+    // A queue that runs dry within this long of the last real frame is a mid-reply gap (audible, counted);
     // beyond it the reply is simply over and silence is the right filler.
     private const long ReplyContinuityMs = 400;
 
-    // How long a mid-reply underrun is held before silence is sent anyway.
-    private const long UnderrunHoldMs = 80;
+    // How long a mid-reply gap is left to the browser's packet-loss concealment before comfort silence is sent.
+    private const long ConcealedGapMs = 80;
 
+    // Payload type this side offers for Opus. The browser is the offerer, so the number actually sent is whatever
+    // its offer named (Chrome says 111, Firefox 109) — see ResolveOpusPayloadType.
     private const int OpusPayloadType = 111;
 
     // Longest run of lost packets worth concealing; beyond this the stream restarted rather than dropped frames.
@@ -79,12 +87,15 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     private readonly byte[] _encodeOut = new byte[4000];
     private readonly short[] _encodeFrame = new short[FrameSamples];
 
-    // Outgoing accumulator (assistant PCM arrives in arbitrary chunk sizes; Opus needs fixed 20 ms frames). A ring
-    // buffer rather than a list: draining from the front of a list copies the remainder on every single frame,
-    // fifty times a second for the length of every reply.
-    private readonly short[] _encodePending = new short[FrameSamples * 16];
-    private int _encodePendingHead;
+    // The partial 20 ms frame carried over between provider chunks lives in _encodeFrame; this is how much of it
+    // is filled. (Assistant PCM arrives in arbitrary chunk sizes; Opus needs fixed 20 ms frames.)
     private int _encodePendingCount;
+
+    // Accounting that proves nothing is dropped between the provider and the wire: samples handed to SendAudio
+    // versus samples encoded, and the largest single chunk seen.
+    private long _samplesReceived;
+    private long _samplesEncoded;
+    private int _largestChunkSamples;
 
     // Encoded 20 ms Opus frames waiting to go out. They are drained to RTP on a 20 ms wall-clock cadence (see
     // PaceOutgoing) so assistant audio — which the provider delivers faster than real time, in bursts —
@@ -98,6 +109,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     private bool _closedRaised;
     private bool _connectedRaised;
     private long _midReplySilenceFrames;
+    private long _stallSlotsSkipped;
     private long _rtpReceived;
     private long _framesSent;
     private long _inboundDropped;
@@ -211,33 +223,58 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 
     public void SendAudio(ReadOnlyMemory<byte> pcm24k)
     {
+        // Every sample the provider sends is encoded, in order, with nothing dropped and nothing altered: frames
+        // are cut as soon as 20 ms is available, and only the partial frame at the end of a chunk is carried over
+        // to the next one. A previous version pushed the whole chunk through a 320 ms ring buffer before
+        // encoding any of it, and the ring discarded the oldest samples when full — so every provider chunk
+        // longer than 320 ms lost its opening, which listeners heard as speech jumping ahead ("speeding up").
         var span = pcm24k.Span;
-        for (var i = 0; i + 1 < span.Length; i += 2)
+        var sampleCount = span.Length / 2;
+        Interlocked.Add(ref _samplesReceived, sampleCount);
+        if (sampleCount > _largestChunkSamples)
         {
-            EnqueuePendingSample((short)(span[i] | (span[i + 1] << 8)));
+            _largestChunkSamples = sampleCount;
         }
 
-        while (_encodePendingCount >= FrameSamples)
+        var i = 0;
+        while (i < sampleCount)
         {
-            DequeuePendingFrame(_encodeFrame);
-
-            int encoded;
-            try
+            // Fill the partial frame carried over from the previous chunk first.
+            while (_encodePendingCount < FrameSamples && i < sampleCount)
             {
-                encoded = _encoder.Encode(_encodeFrame, FrameSamples, _encodeOut, _encodeOut.Length);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to Opus-encode a realtime audio frame.");
-                continue;
+                _encodeFrame[_encodePendingCount++] = (short)(span[2 * i] | (span[2 * i + 1] << 8));
+                i++;
             }
 
-            if (encoded > 0)
+            if (_encodePendingCount < FrameSamples)
             {
-                // Queue the frame; the pacing loop releases one frame every 20 ms so playback is real time.
-                _outgoing.Enqueue(_encodeOut.AsSpan(0, encoded).ToArray());
-                Interlocked.Increment(ref _queuedFrames);
+                break;
             }
+
+            _encodePendingCount = 0;
+            EncodeAndQueueFrame(_encodeFrame);
+        }
+    }
+
+    private void EncodeAndQueueFrame(short[] frame)
+    {
+        int encoded;
+        try
+        {
+            encoded = _encoder.Encode(frame, FrameSamples, _encodeOut, _encodeOut.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to Opus-encode a realtime audio frame.");
+            return;
+        }
+
+        if (encoded > 0)
+        {
+            // Queue the frame; the pacing loop releases one frame every 20 ms so playback is real time.
+            _outgoing.Enqueue(_encodeOut.AsSpan(0, encoded).ToArray());
+            Interlocked.Increment(ref _queuedFrames);
+            Interlocked.Add(ref _samplesEncoded, FrameSamples);
         }
     }
 
@@ -249,33 +286,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             Interlocked.Decrement(ref _queuedFrames);
         }
 
-        _encodePendingHead = 0;
         _encodePendingCount = 0;
-    }
-
-    private void EnqueuePendingSample(short sample)
-    {
-        if (_encodePendingCount == _encodePending.Length)
-        {
-            // The accumulator only ever holds a partial frame plus whatever arrived with it; a full buffer means
-            // the encoder is not keeping up, and the freshest audio matters more than the oldest.
-            _encodePendingHead = (_encodePendingHead + 1) % _encodePending.Length;
-            _encodePendingCount--;
-        }
-
-        _encodePending[(_encodePendingHead + _encodePendingCount) % _encodePending.Length] = sample;
-        _encodePendingCount++;
-    }
-
-    private void DequeuePendingFrame(short[] destination)
-    {
-        for (var i = 0; i < FrameSamples; i++)
-        {
-            destination[i] = _encodePending[(_encodePendingHead + i) % _encodePending.Length];
-        }
-
-        _encodePendingHead = (_encodePendingHead + FrameSamples) % _encodePending.Length;
-        _encodePendingCount -= FrameSamples;
     }
 
     // Releases 20 ms Opus frames at the media clock's rate, from a dedicated thread. The realtime provider produces
@@ -323,7 +334,17 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             var emptySinceMs = -1L;
             var priming = false;
             var primingSinceMs = 0L;
+            var primingMaxWaitMs = PrimeMaxWaitMs;
             var provisionalHoleFrames = 0L;
+            var markNext = true;
+            var payloadType = OpusPayloadType;
+
+            // The RTP timestamp is driven by the wall clock, not by what was sent: every 20 ms slot owns one frame's
+            // worth of timestamp whether a frame went out in it or not. A frame therefore never arrives late
+            // relative to its own timestamp, so the browser's jitter buffer never has to speed speech up to catch
+            // up afterwards. A slot nothing was sent in is a short gap the browser conceals and then forgets, not a
+            // delay the rest of the reply carries. The audio itself is never resampled, stretched or trimmed here.
+            var timestamp = (uint)Random.Shared.Next();
 
             while (!token.IsCancellationRequested)
             {
@@ -338,9 +359,11 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
                     }
 
                     streaming = true;
+                    payloadType = ResolveOpusPayloadType();
                     nextDueMs = clock.ElapsedMilliseconds;
                     priming = true;
                     primingSinceMs = nextDueMs;
+                    primingMaxWaitMs = PrimeMaxWaitMs;
                 }
 
                 // Wait for this slot: sleep to just short of the deadline, spin the rest.
@@ -363,44 +386,54 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
                 var nowMs = clock.ElapsedMilliseconds;
                 var lateMs = nowMs - nextDueMs;
 
-                // A stall (the thread was not scheduled for a while). Pay back up to a few frames one extra frame
-                // per slot; beyond that, write the debt off — a burst is exactly what makes the jitter buffer
-                // time-stretch, and a late stream merely costs a little latency.
+                // A stall (the thread was not scheduled for a while). A short one is paid back one extra frame per
+                // slot, which the browser's jitter buffer absorbs. A long one is written off: the slots that went by
+                // are given up, timestamps included, so the stream stays on time instead of running late from then
+                // on. Nothing queued is lost; it plays after a gap the length of the stall.
                 var framesThisSlot = 1;
                 if (lateMs >= MaxStallDebtMs)
                 {
-                    nextDueMs = nowMs;
+                    var skipped = lateMs / FrameDurationMs;
+                    timestamp += (uint)skipped * RtpUnitsPerFrame;
+                    nextDueMs += skipped * FrameDurationMs;
+                    Interlocked.Add(ref _stallSlotsSkipped, skipped);
+                    markNext = true;
                 }
                 else if (lateMs >= 2 * FrameDurationMs)
                 {
                     framesThisSlot = 2;
                 }
 
-                nextDueMs += FrameDurationMs;
-
                 for (var i = 0; i < framesThisSlot; i++)
                 {
+                    nextDueMs += FrameDurationMs;
+                    var slotTimestamp = timestamp;
+                    timestamp += RtpUnitsPerFrame;
+
                     byte[] frame;
                     var isRealAudio = false;
 
                     if (!_outgoing.IsEmpty)
                     {
-                        // Audio after a quiet stretch is a new reply: build a cushion before releasing it.
-                        if (emptySinceMs >= 0 && nowMs - emptySinceMs > SpurtGapMs)
+                        // Audio arriving after the queue ran dry is pre-buffered again before it is released,
+                        // whether it starts a new reply or continues one the provider stalled on. Priming after a
+                        // mid-reply stall makes that one gap a little longer, but it is one gap rather than a
+                        // stutter of several while the provider catches up.
+                        if (emptySinceMs >= 0 && !priming)
                         {
                             priming = true;
                             primingSinceMs = nowMs;
+                            primingMaxWaitMs = nowMs - emptySinceMs > SpurtGapMs ? PrimeMaxWaitMs : ResumePrimeMaxWaitMs;
                         }
 
-                        emptySinceMs = -1;
-
-                        if (priming && Volatile.Read(ref _queuedFrames) < PrimeFrames && nowMs - primingSinceMs < PrimeMaxWaitMs)
+                        if (priming && Volatile.Read(ref _queuedFrames) < PrimeFrames && nowMs - primingSinceMs < primingMaxWaitMs)
                         {
-                            frame = _silenceFrame;
+                            frame = FillerFrame(nowMs, ref emptySinceMs, lastRealFrameMs, ref provisionalHoleFrames);
                         }
                         else
                         {
                             priming = false;
+                            emptySinceMs = -1;
                             isRealAudio = _outgoing.TryDequeue(out frame!);
                             if (isRealAudio)
                             {
@@ -426,38 +459,21 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
                     }
                     else
                     {
-                        if (emptySinceMs < 0)
-                        {
-                            emptySinceMs = nowMs;
-                        }
-
-                        // Mid-reply underrun: skip the slot rather than send silence, for a short while. The frames
-                        // that arrive afterwards keep their timestamps and simply land a little late.
-                        var midReply = lastRealFrameMs >= 0 && nowMs - lastRealFrameMs < ReplyContinuityMs;
-                        if (midReply && nowMs - emptySinceMs < UnderrunHoldMs)
-                        {
-                            break;
-                        }
-
-                        if (midReply)
-                        {
-                            // Diagnostics: silence inside a reply is an audible hole — but only if the reply then
-                            // continues. Counted provisionally here and confirmed when the next real frame arrives
-                            // in time; a reply that simply ended discards the count.
-                            provisionalHoleFrames++;
-                        }
-
-                        frame = _silenceFrame;
+                        frame = FillerFrame(nowMs, ref emptySinceMs, lastRealFrameMs, ref provisionalHoleFrames);
                     }
 
                     if (frame is not { Length: > 0 })
                     {
+                        // The slot goes by unsent; its timestamp is already accounted for.
+                        markNext = true;
+
                         continue;
                     }
 
                     try
                     {
-                        _pc.SendAudio(RtpUnitsPerFrame, frame);
+                        _pc.SendRtpRaw(SDPMediaTypesEnum.audio, frame, slotTimestamp, markNext ? 1 : 0, payloadType);
+                        markNext = false;
 
                         if (isRealAudio && Interlocked.Increment(ref _framesSent) == 1)
                         {
@@ -482,6 +498,49 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
                 EndHighResolutionTimer();
             }
         }
+    }
+
+    // The payload type negotiated for the audio the browser receives: the one its offer gave Opus. Packets sent under
+    // any other number are silently discarded by the browser.
+    private int ResolveOpusPayloadType()
+    {
+        try
+        {
+            var format = _pc.AudioStream?.GetSendingFormat();
+
+            return format is { ID: > 0 } ? format.Value.ID : OpusPayloadType;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to read the negotiated Opus payload type; using the offered default.");
+
+            return OpusPayloadType;
+        }
+    }
+
+    // What goes out in a slot that has no real audio to send. Inside a reply the first few slots send nothing at
+    // all, so the browser bridges them by extending the last waveform (Opus packet-loss concealment), which for a
+    // short gap sounds far better than a hard cut to silence; after that, and between replies, comfort silence
+    // keeps the stream alive. Either way the slot's timestamp advances, so what follows is never late.
+    private byte[] FillerFrame(long nowMs, ref long emptySinceMs, long lastRealFrameMs, ref long provisionalHoleFrames)
+    {
+        if (emptySinceMs < 0)
+        {
+            emptySinceMs = nowMs;
+        }
+
+        var midReply = lastRealFrameMs >= 0 && nowMs - lastRealFrameMs < ReplyContinuityMs;
+        if (!midReply)
+        {
+            return _silenceFrame;
+        }
+
+        // Diagnostics: a gap inside a reply is audible — but only if the reply then continues. Counted
+        // provisionally here and confirmed when the next real frame arrives in time; a reply that simply ended
+        // discards the count.
+        provisionalHoleFrames++;
+
+        return nowMs - emptySinceMs < ConcealedGapMs ? [] : _silenceFrame;
     }
 
     // Windows schedules Thread.Sleep on the system timer, which defaults to a ~15.6 ms grid — far too coarse for a
@@ -727,8 +786,10 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         if (_logger.IsEnabled(LogLevel.Information))
         {
             _logger.LogInformation(
-                "WebRTC realtime: peer closing after {FramesSent} assistant frames sent, {InboundPackets} microphone packets received, {MidReplySilence} silence frame(s) inserted inside replies (underruns).",
-                Interlocked.Read(ref _framesSent), Interlocked.Read(ref _rtpReceived), Interlocked.Read(ref _midReplySilenceFrames));
+                "WebRTC realtime: peer closing after {FramesSent} assistant frames sent, {InboundPackets} microphone packets received, {MidReplySilence} gap frame(s) inside replies (provider stalls), {StallSlots} pacing slot(s) given up (thread stalls); provider audio {SamplesReceived} samples in, {SamplesEncoded} encoded ({Unencoded} not yet framed), largest chunk {LargestChunkMs} ms.",
+                Interlocked.Read(ref _framesSent), Interlocked.Read(ref _rtpReceived), Interlocked.Read(ref _midReplySilenceFrames), Interlocked.Read(ref _stallSlotsSkipped),
+                Interlocked.Read(ref _samplesReceived), Interlocked.Read(ref _samplesEncoded),
+                Interlocked.Read(ref _samplesReceived) - Interlocked.Read(ref _samplesEncoded), _largestChunkSamples * 1000 / SampleRate);
         }
 
         try

@@ -684,6 +684,9 @@
     // network that blocks UDP, so the wait is cut short rather than run to the full timeout.
     var REALTIME_WEBRTC_CONNECT_TIMEOUT_MS = 8000;
     var REALTIME_WEBRTC_NO_RELAY_TIMEOUT_MS = 5000;
+    // Fixed receive-side cushion for assistant audio (see pc.ontrack). The server paces the stream on a
+    // 20 ms clock, so this only has to cover network jitter, not provider burstiness.
+    var REALTIME_WEBRTC_JITTER_BUFFER_TARGET_MS = 150;
     // Remembering a failed attempt for the rest of the browser session matters: without it, a user on a
     // network where WebRTC cannot work pays the full connection timeout — and a second microphone prompt —
     // at the start of every single conversation.
@@ -1665,6 +1668,16 @@
           // AEC reference (see routeRealtimeOutputToDefaultDevice for the preference order).
           routeRealtimeOutputToDefaultDevice(audioEl);
           pc.ontrack = function (e) {
+            // Ask the browser to hold a fixed cushion of received audio before playing it,
+            // rather than the adaptive minimum it would otherwise pick. Network jitter then
+            // lands inside the cushion instead of making the jitter buffer stretch or speed
+            // speech up to re-adapt; the audio itself is played as received. Ignored by
+            // browsers without the property.
+            try {
+              if (e.receiver && 'jitterBufferTarget' in e.receiver) {
+                e.receiver.jitterBufferTarget = REALTIME_WEBRTC_JITTER_BUFFER_TARGET_MS;
+              }
+            } catch (err) {}
             if (e.streams && e.streams[0]) {
               audioEl.srcObject = e.streams[0];
               ensureRealtimePlayback(audioEl);

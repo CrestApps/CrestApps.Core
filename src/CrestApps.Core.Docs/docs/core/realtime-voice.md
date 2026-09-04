@@ -129,23 +129,31 @@ its own echo.
 Assistant audio is Opus-encoded at 64 kbps VBR (complexity 10, in-band FEC on); the encoder's defaults would land
 at ~16 kbps, which is telephone quality.
 
-What the browser's jitter buffer reacts to is packet *timing*: irregular arrival makes it add delay and then
-time-stretch speech to shrink it again, which users hear as words speeding up or clipping. The peer therefore
-paces frames from a dedicated above-normal-priority thread (a timer callback on Windows fires on a ~16 ms grid and
-runs on a thread pool that builds and test runs in the same process starve), asks Windows for 1 ms timer
-resolution while a peer is alive, sends exactly one frame per 20 ms slot, never bursts to catch up after a stall,
-pre-buffers ~120 ms before releasing each reply, skips a few slots on a mid-reply underrun before sending silence
-(the jitter buffer stretches the preceding audio instead, which is inaudible; a silence frame sounds like a
-dropped syllable), and keeps the RTP stream running on comfort silence for the whole session so timestamps stay
-aligned to real time.
+The audio itself is played exactly as the provider produced it: every sample that arrives is framed, encoded and
+sent in order, and nothing on the way to the browser resamples, stretches or trims it. What the browser's jitter
+buffer reacts to is packet *timing*. A packet that arrives late relative to its RTP timestamp makes the buffer
+add delay and then speed speech up to shrink that delay again, which users hear as words rushing for a moment.
+The peer therefore paces frames from a dedicated above-normal-priority thread (a timer callback on Windows fires
+on a ~16 ms grid and runs on a thread pool that builds and test runs in the same process starve), asks Windows
+for 1 ms timer resolution while a peer is alive, and sends exactly one frame per 20 ms slot. The RTP timestamp is
+driven by the wall clock rather than by what was sent: every slot owns a frame's worth of timestamp whether a
+frame went out in it or not, so a frame is never late against its own timestamp and the browser never has to
+catch up. A slot with nothing to send — the provider stalled mid-reply, or the pacing thread was not scheduled —
+is left to the browser's packet-loss concealment for up to 80 ms and then filled with comfort silence: a short gap
+the browser forgets, not a delay the rest of the reply carries. Because the provider delivers audio in bursts of
+up to a second with pauses between them, a reply is buffered ~300 ms (400 ms at most) before it is released and
+briefly again (200 ms at most) when it resumes after a stall. The client, where the browser supports
+`RTCRtpReceiver.jitterBufferTarget`, pins the receiver's cushion at 150 ms so ordinary network jitter lands inside
+it instead of making the buffer re-adapt.
 
-Two measurements exist for this. The server logs, when a peer closes, how many silence frames landed inside
-replies (underruns). In the browser, `CoreAIRealtime.activeController.getTransportStats()` returns the receiver's
-own counters — packets lost, jitter, jitter-buffer delay, concealment, samples inserted or removed by
-time-stretching — which is the first thing to read if playback ever sounds choppy; the live end-to-end check logs
-them and can also record what the browser plays (`REALTIME_E2E_RECORD=1`). On a machine under a six-process CPU
-load, a 35-second reply measured 0 packets lost, 0 ms jitter and no acceleration in Chrome, and one concealment
-event in Firefox.
+Two measurements exist for this. The server logs, when a peer closes, how many gap frames landed inside replies
+(provider stalls), how many pacing slots were given up (thread stalls), how many provider samples came in versus
+were encoded, and the largest provider chunk seen. In the browser,
+`CoreAIRealtime.activeController.getTransportStats()` returns the receiver's own counters — packets lost, jitter,
+jitter-buffer delay, concealment, samples inserted or removed by time-stretching — which is the first thing to
+read if playback ever sounds choppy; the live end-to-end check logs them and can also record what the browser
+plays (`REALTIME_E2E_RECORD=1`). A 35-second reply measured 0 packets lost, 0 ms jitter, 0 concealment events and
+0 accelerated samples in both Chrome and Firefox, with the jitter buffer sitting at its 150 ms target.
 
 ## Turn detection
 

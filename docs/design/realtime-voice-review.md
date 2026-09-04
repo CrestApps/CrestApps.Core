@@ -151,6 +151,25 @@ The live check can record what the browser plays (`REALTIME_E2E_RECORD=1`, WAVs 
 `tests/realtime-client/e2e/recordings/`) and reports silent runs inside the reply; note that this metric also
 counts the assistant's natural pauses, so the server counter is the authoritative underrun measure.
 
+**Third pass (both testers still heard speech "speed up for a short period" on the rebuilt branch).** The
+requirement stated for this pass: the incoming audio must not be changed in any way — play it exactly as the
+model sent it. Two things violated that, one of them silently:
+
+| Cause | Evidence | Fix |
+|---|---|---|
+| Provider audio dropped before encoding | `SendAudio` pushed each provider chunk into a 320 ms ring buffer and only then framed it, discarding the oldest samples of any chunk larger than the ring. A new accounting line at peer close (`provider audio N samples in, M encoded, largest chunk X ms`) showed chunks of **550–1020 ms** on every long reply — so up to 700 ms vanished from the start of each of them, which is speech "jumping ahead". | Chunks are framed straight into the encoder; the counters now balance (`1152000 in, 1152000 encoded`). |
+| Late packets after a stall | The mid-reply underrun "hold" skipped slots without advancing the RTP timestamp, so everything after a provider stall arrived late against its timestamp. The browser's jitter buffer then concealed the gap and *accelerated* to shed the added delay: 2 holds on one reply ↔ 2 concealment events, 7.8 k removed samples. | Timestamps are driven by the wall clock (one frame's worth per 20 ms slot, sent or not). An unsent slot is a gap the browser conceals and forgets, never a delay it has to work off. Pre-buffer raised to 300 ms (400 ms cap) because that is the provider's burst pattern; a reply resuming after a stall is re-buffered (200 ms cap). |
+| Firefox silent on the raw send path | `SendRtpRaw` was given the constant payload type 111; Firefox offers Opus as 109 and discards the rest. | The negotiated sending format's payload type is used. |
+
+The client additionally pins `RTCRtpReceiver.jitterBufferTarget` at 150 ms where supported, so network jitter on a
+real deployment lands inside a cushion rather than making the buffer re-adapt. Measured on the same 35 s reply:
+
+| | Before this pass | After |
+|---|---|---|
+| Chrome lost / concealment events / accelerated samples / buffer delay | 0 / 2 / 7821 / 75 ms | 0 / 0 / 0 / 146 ms |
+| Firefox lost / concealment events / accelerated samples / buffer delay | — | 0 / 0 / 0 / 142 ms |
+| Server: gap frames inside replies / slots given up / samples dropped | 2 / — / unmeasured (ring) | 0 / 0 / 0 |
+
 Not verified live: the OpenAI-direct provider, TURN through a blocked-UDP network, and real loudspeaker echo
 (the fake microphone has no acoustic path, so the echo-return learning is covered by the gate unit tests only).
 The open-office tester's setup is the one to re-test first.
