@@ -435,6 +435,16 @@ public sealed class RealtimeChatSessionRunner
 
                     if (context.AllowInterruption)
                     {
+                        if (responseState.Active && _logger.IsEnabled(LogLevel.Information))
+                        {
+                            // Support diagnostic: a reply that "stumbles and then continues" is one that was cut
+                            // off here and re-generated. If this fires when nobody spoke, the microphone gate let
+                            // echo or room noise through and this line is the evidence.
+                            _logger.LogInformation(
+                                "Realtime session {SessionId}: the provider heard the user while a reply was playing; the reply is interrupted after {HeardMs} ms of audio.",
+                                sessionId, Math.Max(0, playback.SentMs - sink.PendingPlaybackMs));
+                        }
+
                         await TruncateInterruptedAssistantItemAsync(conversation, sink, playback, sessionId, cancellationToken);
                         await FlushAssistantTurnAsync(context, turnStore, sink, sessionId, turn, finalText: null, cancellationToken);
                         await sink.SpeechStartedAsync(sessionId, cancellationToken);
