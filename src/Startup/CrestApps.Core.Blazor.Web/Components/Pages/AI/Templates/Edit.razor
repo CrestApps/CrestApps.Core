@@ -52,7 +52,7 @@
     return;
 }
 
-<h2><i class="bi bi-pencil-square"></i> Edit AI Template</h2>
+<h2><i class="fa-solid fa-pen-to-square"></i> Edit AI Template</h2>
 <hr />
 
 <EditForm FormName="ai-aitemplates-edit" Model="_model" OnValidSubmit="HandleSubmitAsync">
@@ -262,7 +262,7 @@
                         @if (!string.IsNullOrEmpty(_model.OrchestratorName) && string.Equals(_model.OrchestratorName, CopilotOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
                         {
                             <div class="card mb-3">
-                                <div class="card-header"><h6 class="card-title mb-0"><i class="bi bi-github me-1"></i> Copilot Configuration</h6></div>
+                                <div class="card-header"><h6 class="card-title mb-0"><i class="fa-brands fa-github me-1"></i> Copilot Configuration</h6></div>
                                 <div class="card-body">
                                     @if (!_model.CopilotIsConfigured)
                                     {
@@ -296,7 +296,7 @@
                         @if (!string.IsNullOrEmpty(_model.OrchestratorName) && string.Equals(_model.OrchestratorName, ClaudeOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
                         {
                             <div class="card mb-3">
-                                <div class="card-header"><h6 class="card-title mb-0"><i class="bi bi-lightning me-1"></i> Claude Configuration</h6></div>
+                                <div class="card-header"><h6 class="card-title mb-0"><i class="fa-solid fa-bolt me-1"></i> Claude Configuration</h6></div>
                                 <div class="card-body">
                                     @if (!_model.ClaudeIsConfigured)
                                     {
@@ -423,7 +423,7 @@
                                     <div class="card mb-1">
                                         <div class="card-header d-flex justify-content-between align-items-center py-2">
                                             <span class="fw-semibold">@(opt?.Title ?? sel.TemplateId)</span>
-                                            <button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.PromptTemplates.RemoveAt(index)"><i class="bi bi-trash"></i></button>
+                                            <button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.PromptTemplates.RemoveAt(index)"><i class="fa-solid fa-trash"></i></button>
                                         </div>
                                         <div class="card-body">
                                             <label class="form-label">Template parameters</label>
@@ -454,14 +454,14 @@
                         </div>
                         <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.UseCaching" /><label class="form-check-label">Enable response caching</label></div><div class="form-text">Cache responses to improve performance for repeated queries.</div></div>
 
-                    <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-sliders"></i> Model parameters</h6>
+                    <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-sliders"></i> Model parameters</h6>
                     <p class="text-muted small">Only the parameters declared by the selected chat deployment are shown.</p>
                     <ModelParametersEditor DeploymentName="_model.ChatDeploymentName" Values="_model.ModelParameters" />
                     </div>
 
                     <!-- Capabilities -->
                     <div style="display: @(_activeTab == "capabilities" ? "block" : "none")">
-                        <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-robot"></i> AI Agents</h6>
+                        <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-robot"></i> AI Agents</h6>
                         @foreach (var agent in _model.AvailableAgents)
                         {
                             <div class="form-check mb-2">
@@ -470,7 +470,7 @@
                             </div>
                         }
 
-                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-diagram-3"></i> A2A Hosts</h6>
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-sitemap"></i> A2A Hosts</h6>
                         @foreach (var c in _model.AvailableA2AConnections)
                         {
                             <div class="form-check mb-2">
@@ -479,7 +479,7 @@
                             </div>
                         }
 
-                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-plug"></i> MCP Hosts</h6>
                         @foreach (var c in _model.AvailableMcpConnections)
                         {
                             <div class="form-check mb-2">
@@ -488,7 +488,7 @@
                             </div>
                         }
 
-                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-screwdriver-wrench"></i> AI Tools</h6>
                         @foreach (var group in _model.AvailableTools.GroupBy(t => t.Category).OrderBy(g => g.Key))
                         {
                             <h6 class="text-secondary mt-3 mb-2">@group.Key</h6>
@@ -505,7 +505,7 @@
                     <!-- Knowledge -->
                     <div style="display: @(_activeTab == "knowledge" ? "block" : "none")">
                         <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableUserMemory" /><label class="form-check-label">Enable user memory</label></div><div class="form-text">Store and recall user conversation history for personalized responses.</div></div>
-                        <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-database"></i> Data Source</h6>
+                        <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-database"></i> Data Source</h6>
                         <div class="mb-3">
                             <InputSelect class="form-select" @bind-Value="_model.DataSourceId">
                                 <option value="">No data source</option>
@@ -556,7 +556,7 @@
                             {
                                 var idx = i; var entry = _model.DataExtractionEntries[idx];
                                 <div class="card mb-2">
-                                    <div class="card-header d-flex justify-content-between py-2"><span class="fw-semibold">@(string.IsNullOrWhiteSpace(entry.Name) ? "New Entry" : entry.Name)</span><button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.DataExtractionEntries.RemoveAt(idx)"><i class="bi bi-trash"></i></button></div>
+                                    <div class="card-header d-flex justify-content-between py-2"><span class="fw-semibold">@(string.IsNullOrWhiteSpace(entry.Name) ? "New Entry" : entry.Name)</span><button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.DataExtractionEntries.RemoveAt(idx)"><i class="fa-solid fa-trash"></i></button></div>
                                     <div class="card-body">
                                         <div class="mb-3"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="entry.Name" /></div>
                                         <div class="mb-3"><label class="form-label">Description</label><InputTextArea class="form-control" rows="3" @bind-Value="entry.Description" /></div>
@@ -565,13 +565,13 @@
                                     </div>
                                 </div>
                             }
-                            <button type="button" class="btn btn-sm btn-success" @onclick="() => _model.DataExtractionEntries.Add(new DataExtractionEntryItem())"><i class="bi bi-plus"></i> Add Entry</button>
+                            <button type="button" class="btn btn-sm btn-success" @onclick="() => _model.DataExtractionEntries.Add(new DataExtractionEntryItem())"><i class="fa-solid fa-plus"></i> Add Entry</button>
                         }
                         <hr class="my-4" />
                         <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableSessionMetrics" /><label class="form-check-label">Enable session metrics</label></div><div class="form-text">Capture usage, latency, and feedback metrics for analytics.</div></div>
                         <div class="mb-4"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnableAIResolutionDetection" /><label class="form-check-label">Enable AI resolution detection</label></div><div class="form-text">When enabled, the AI will determine whether the user's issue was resolved during the session.</div></div>
 
-                        <h6 class="mb-2"><i class="bi bi-clipboard-check"></i> Post-session Processing</h6>
+                        <h6 class="mb-2"><i class="fa-solid fa-clipboard-check"></i> Post-session Processing</h6>
                         <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.EnablePostSessionProcessing" /><label class="form-check-label">Enable post-session processing</label></div></div>
                         @if (_model.EnablePostSessionProcessing)
                         {
@@ -579,7 +579,7 @@
                             {
                                 var idx = i; var task = _model.PostSessionTasks[idx];
                                 <div class="card mb-2">
-                                    <div class="card-header d-flex justify-content-between py-2"><span class="fw-semibold">@(string.IsNullOrWhiteSpace(task.Name) ? "New Task" : task.Name)</span><button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.PostSessionTasks.RemoveAt(idx)"><i class="bi bi-trash"></i></button></div>
+                                    <div class="card-header d-flex justify-content-between py-2"><span class="fw-semibold">@(string.IsNullOrWhiteSpace(task.Name) ? "New Task" : task.Name)</span><button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.PostSessionTasks.RemoveAt(idx)"><i class="fa-solid fa-trash"></i></button></div>
                                     <div class="card-body">
                                         <div class="mb-3"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="task.Name" /></div>
                                         <div class="mb-3"><label class="form-label">Type</label><InputSelect class="form-select" @bind-Value="task.Type">@foreach (var tt in Enum.GetValues<PostSessionTaskType>()) { <option value="@tt">@tt</option> }</InputSelect></div>
@@ -589,7 +589,7 @@
                                     </div>
                                 </div>
                             }
-                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => _model.PostSessionTasks.Add(new PostSessionTaskItem())"><i class="bi bi-plus-circle"></i> Add Task</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => _model.PostSessionTasks.Add(new PostSessionTaskItem())"><i class="fa-solid fa-circle-plus"></i> Add Task</button>
                         }
 
                         <hr class="my-4" />
@@ -600,7 +600,7 @@
                             {
                                 var idx = i; var goal = _model.ConversionGoals[idx];
                                 <div class="card mb-2">
-                                    <div class="card-header d-flex justify-content-between py-2"><span class="fw-semibold">@(string.IsNullOrWhiteSpace(goal.Name) ? "New goal" : goal.Name)</span><button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.ConversionGoals.RemoveAt(idx)"><i class="bi bi-trash"></i></button></div>
+                                    <div class="card-header d-flex justify-content-between py-2"><span class="fw-semibold">@(string.IsNullOrWhiteSpace(goal.Name) ? "New goal" : goal.Name)</span><button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.ConversionGoals.RemoveAt(idx)"><i class="fa-solid fa-trash"></i></button></div>
                                     <div class="card-body">
                                         <div class="mb-3"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="goal.Name" /></div>
                                         <div class="mb-3"><label class="form-label">Description</label><InputTextArea class="form-control" rows="3" @bind-Value="goal.Description" /></div>
@@ -611,7 +611,7 @@
                                     </div>
                                 </div>
                             }
-                            <button type="button" class="btn btn-sm btn-success" @onclick="() => _model.ConversionGoals.Add(new ConversionGoalItem())"><i class="bi bi-plus"></i> Add Goal</button>
+                            <button type="button" class="btn btn-sm btn-success" @onclick="() => _model.ConversionGoals.Add(new ConversionGoalItem())"><i class="fa-solid fa-plus"></i> Add Goal</button>
                         }
                     </div>
 
@@ -621,29 +621,29 @@
                         <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.LockSystemMessage" /><label class="form-check-label">Lock system message</label></div><div class="form-text">Prevent modification of the system message after creation.</div></div>
 
                         <hr />
-                        <h6 class="text-muted"><i class="bi bi-shield-lock"></i> Anti-Spam Throttle Override</h6>
+                        <h6 class="text-muted"><i class="fa-solid fa-shield-halved"></i> Anti-Spam Throttle Override</h6>
                         <p class="text-muted small">Override the site-level anti-spam throttle limits for profiles created from this template. Leave a field empty to inherit the global setting.</p>
 
                         <div class="mb-3">
-                            <label class="form-label">Max messages per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of chat messages a single visitor or user may send within the message window before further messages are throttled. Leave blank to inherit the site default; set to 0 to disable message throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <label class="form-label">Max messages per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of chat messages a single visitor or user may send within the message window before further messages are throttled. Leave blank to inherit the site default; set to 0 to disable message throttling."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityMaxMessagesPerWindow" />
                             <div class="form-text">Leave empty to use the site default. Set to 0 to disable message throttling.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Message rate-limit window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count messages for the message throttle. Leave blank to inherit the site default."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <label class="form-label">Message rate-limit window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count messages for the message throttle. Leave blank to inherit the site default."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityRateLimitWindowSeconds" />
                             <div class="form-text">Leave empty to use the site default.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Max anonymous sessions per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of new anonymous chat sessions that can be started from one visitor or IP bucket within the session window before starts are throttled. Leave blank to inherit the site default; set to 0 to disable session-start throttling."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <label class="form-label">Max anonymous sessions per window <span class="text-muted" data-bs-toggle="tooltip" title="The maximum number of new anonymous chat sessions that can be started from one visitor or IP bucket within the session window before starts are throttled. Leave blank to inherit the site default; set to 0 to disable session-start throttling."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityMaxAnonymousSessionsPerWindow" />
                             <div class="form-text">Leave empty to use the site default. Set to 0 to disable anonymous session-start throttling.</div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Anonymous session window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count anonymous session starts. Leave blank to inherit the site default."><i class="bi bi-question-circle" aria-hidden="true"></i></span></label>
+                            <label class="form-label">Anonymous session window (seconds) <span class="text-muted" data-bs-toggle="tooltip" title="The length, in seconds, of the sliding window used to count anonymous session starts. Leave blank to inherit the site default."><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span></label>
                             <InputNumber class="form-control" style="max-width: 200px;" @bind-Value="_model.SecurityAnonymousSessionRateLimitWindowSeconds" />
                             <div class="form-text">Leave empty to use the site default.</div>
                         </div>
@@ -652,7 +652,7 @@
             }
 
             <div class="mt-4">
-                <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save</button>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Save</button>
                 <a href="/ai/templates" class="btn btn-secondary">Cancel</a>
             </div>
         </div>

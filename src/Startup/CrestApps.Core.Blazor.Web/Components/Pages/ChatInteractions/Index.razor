@@ -13,9 +13,9 @@
 <PageTitle>Chat Interactions - Blazor AI Integration Sample</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2><i class="bi bi-chat-left-dots"></i> Chat Interactions</h2>
+    <h2><i class="fa-solid fa-comment-dots"></i> Chat Interactions</h2>
     <button class="btn btn-success" @onclick="CreateNewAsync">
-        <i class="bi bi-plus-lg"></i> New Chat
+        <i class="fa-solid fa-plus"></i> New Chat
     </button>
 </div>
 
@@ -26,7 +26,7 @@
 else if (_interactions.Count == 0)
 {
     <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> No chat interactions yet. Create one to start chatting with AI using custom parameters.
+        <i class="fa-solid fa-circle-info"></i> No chat interactions yet. Create one to start chatting with AI using custom parameters.
     </div>
 }
 else
@@ -54,10 +54,10 @@ else
                         </td>
                         <td>
                             <a href="/chat-interactions/chat/@interaction.ItemId" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-chat-left-text"></i> Chat
+                                <i class="fa-solid fa-comment"></i> Chat
                             </a>
                             <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(interaction.ItemId)">
-                                <i class="bi bi-trash"></i> Delete
+                                <i class="fa-solid fa-trash"></i> Delete
                             </button>
                         </td>
                     </tr>

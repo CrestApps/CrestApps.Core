@@ -19,7 +19,7 @@
     var supportedExtensionsDisplay = ChatDocumentOptions.Value.GetAllowedFileExtensionsDisplayValue(allowImageUploads, allowDocumentUploads);
 }
 
-<h2><i class="bi bi-plus-lg"></i> New Chat Interaction</h2>
+<h2><i class="fa-solid fa-plus"></i> New Chat Interaction</h2>
 <hr />
 <p class="text-muted">Configure AI parameters and start chatting. Unlike AI Profile chat, you can fully customize the behavior here.</p>
 
@@ -114,7 +114,7 @@
                             <label class="form-label">
                                 Prompt templates
                                 <span class="text-muted" data-bs-toggle="tooltip" title="Add one or more reusable prompt templates that will be rendered in order before the custom system instructions.">
-                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                                 </span>
                             </label>
                             <div class="d-flex flex-wrap gap-2 mb-3">
@@ -169,11 +169,11 @@
                                         <div class="card-header d-flex justify-content-between align-items-center py-2">
                                             <a class="btn btn-sm btn-link text-start text-decoration-none flex-grow-1 px-0"
                                                    data-bs-toggle="collapse" href="#promptCollapse_@i" role="button" aria-expanded="false">
-                                                <i class="bi bi-chevron-right me-1"></i>
+                                                <i class="fa-solid fa-chevron-right me-1"></i>
                                                 <span class="prompt-template-title fw-semibold">@title</span>
                                             </a>
                                             <button type="button" class="btn btn-sm btn-danger remove-prompt-template-btn" title="Remove">
-                                                <i class="bi bi-trash"></i>
+                                                <i class="fa-solid fa-trash"></i>
                                             </button>
                                         </div>
                                         <div id="promptCollapse_@i" class="collapse">
@@ -232,7 +232,7 @@
                             <label asp-for="MaxTokens" class="form-label parameter-label">
                                 <span>Max tokens</span>
                                 <span class="parameter-help-icon" data-bs-toggle="tooltip" title="@maxTokensHelp">
-                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                                 </span>
                             </label>
                             <input asp-for="MaxTokens" type="number" class="form-control" min="1" />
@@ -241,7 +241,7 @@
                             <label asp-for="Temperature" class="form-label parameter-label">
                                 <span>Temperature</span>
                                 <span class="parameter-help-icon" data-bs-toggle="tooltip" title="@temperatureHelp">
-                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                                 </span>
                             </label>
                             <input asp-for="Temperature" type="number" class="form-control" step="0.1" min="0" max="2" placeholder="0.7" />
@@ -250,7 +250,7 @@
                             <label asp-for="TopP" class="form-label parameter-label">
                                 <span>Top P</span>
                                 <span class="parameter-help-icon" data-bs-toggle="tooltip" title="@topPHelp">
-                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                                 </span>
                             </label>
                             <input asp-for="TopP" type="number" class="form-control" step="0.1" min="0" max="1" placeholder="1.0" />
@@ -259,7 +259,7 @@
                             <label asp-for="FrequencyPenalty" class="form-label parameter-label">
                                 <span>Frequency penalty</span>
                                 <span class="parameter-help-icon" data-bs-toggle="tooltip" title="@frequencyPenaltyHelp">
-                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                                 </span>
                             </label>
                             <input asp-for="FrequencyPenalty" type="number" class="form-control" step="0.1" min="-2" max="2" placeholder="0" />
@@ -268,7 +268,7 @@
                             <label asp-for="PresencePenalty" class="form-label parameter-label">
                                 <span>Presence penalty</span>
                                 <span class="parameter-help-icon" data-bs-toggle="tooltip" title="@presencePenaltyHelp">
-                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                                 </span>
                             </label>
                             <input asp-for="PresencePenalty" type="number" class="form-control" step="0.1" min="-2" max="2" placeholder="0" />
@@ -277,7 +277,7 @@
                             <label asp-for="PastMessagesCount" class="form-label parameter-label">
                                 <span>Past messages</span>
                                 <span class="parameter-help-icon" data-bs-toggle="tooltip" title="@pastMessagesHelp">
-                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                                 </span>
                             </label>
                             <input asp-for="PastMessagesCount" type="number" class="form-control" min="0" placeholder="10" />
@@ -285,7 +285,7 @@
                     </div>
                     @if (Model.ModelParameterEditor is not null && Model.ModelParameterEditor.HasParameters)
                     {
-                        <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-sliders"></i> Model parameters</h6>
+                        <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-sliders"></i> Model parameters</h6>
                         <p class="text-muted small">Only the parameters declared by the selected deployment are shown.</p>
                         <partial name="_ModelParameters" model="Model.ModelParameterEditor" />
                     }
@@ -294,11 +294,11 @@
                 <!-- Capabilities Tab -->
                 <div class="tab-pane fade" id="capabilities" role="tabpanel">
                     <!-- AI Agents Section -->
-                    <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-robot"></i> AI Agents</h6>
+                    <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-robot"></i> AI Agents</h6>
                     @if (Model.AvailableAgents.Count == 0)
                     {
                         <div class="alert alert-info mb-3">
-                            <i class="bi bi-info-circle"></i> No AI agent profiles are available. Create agent-type AI profiles first.
+                            <i class="fa-solid fa-circle-info"></i> No AI agent profiles are available. Create agent-type AI profiles first.
                         </div>
                     }
                     else
@@ -317,11 +317,11 @@
                     }
 
                     <!-- AI Tools Section -->
-                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-screwdriver-wrench"></i> AI Tools</h6>
                     @if (Model.AvailableTools.Count == 0)
                     {
                         <div class="alert alert-info mb-3">
-                            <i class="bi bi-info-circle"></i> No selectable AI tools are registered.
+                            <i class="fa-solid fa-circle-info"></i> No selectable AI tools are registered.
                         </div>
                     }
                     else
@@ -329,13 +329,13 @@
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <p class="text-muted mb-0 small">Select the tools this interaction can use during conversations.</p>
                             <div class="btn-group btn-group-sm ms-3" role="group">
-                                <button type="button" class="btn btn-outline-primary" id="select-all-tools"><i class="bi bi-check-all"></i> Select all</button>
-                                <button type="button" class="btn btn-outline-secondary" id="deselect-all-tools"><i class="bi bi-x-lg"></i> Deselect all</button>
+                                <button type="button" class="btn btn-outline-primary" id="select-all-tools"><i class="fa-solid fa-check-double"></i> Select all</button>
+                                <button type="button" class="btn btn-outline-secondary" id="deselect-all-tools"><i class="fa-solid fa-xmark"></i> Deselect all</button>
                             </div>
                         </div>
                         @foreach (var group in Model.AvailableTools.GroupBy(t => t.Category).OrderBy(g => g.Key))
                         {
-                            <h6 class="text-secondary mt-3 mb-2"><i class="bi bi-folder"></i> @group.Key</h6>
+                            <h6 class="text-secondary mt-3 mb-2"><i class="fa-solid fa-folder"></i> @group.Key</h6>
                             @foreach (var tool in group)
                             {
                                 <div class="form-check mb-2">
@@ -356,11 +356,11 @@
                     }
 
                     <!-- AI Tool Instances Section -->
-                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> AI Tool Instances</h6>
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-puzzle-piece"></i> AI Tool Instances</h6>
                     @if (Model.AvailableToolInstances.Count == 0)
                     {
                         <div class="alert alert-info mb-3">
-                            <i class="bi bi-info-circle"></i> No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.
+                            <i class="fa-solid fa-circle-info"></i> No tool instances are configured. Add them under <strong>AI Tool Instances</strong> first.
                         </div>
                     }
                     else
@@ -386,11 +386,11 @@
                     }
 
                     <!-- A2A Connections Section -->
-                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-diagram-3"></i> Agent to Agent Hosts</h6>
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-sitemap"></i> Agent to Agent Hosts</h6>
                     @if (Model.AvailableA2AConnections.Count == 0)
                     {
                         <div class="alert alert-info mb-3">
-                            <i class="bi bi-info-circle"></i> No A2A host connections are configured. Add them under <strong>Agent to Agent Hosts</strong> first.
+                            <i class="fa-solid fa-circle-info"></i> No A2A host connections are configured. Add them under <strong>Agent to Agent Hosts</strong> first.
                         </div>
                     }
                     else
@@ -410,11 +410,11 @@
                     }
 
                     <!-- MCP Hosts Section -->
-                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-plug"></i> MCP Hosts</h6>
                     @if (Model.AvailableMcpConnections.Count == 0)
                     {
                         <div class="alert alert-info mb-0">
-                            <i class="bi bi-info-circle"></i> No MCP host connections are configured. Add them under <strong>MCP Hosts</strong> first.
+                            <i class="fa-solid fa-circle-info"></i> No MCP host connections are configured. Add them under <strong>MCP Hosts</strong> first.
                         </div>
                     }
                     else
@@ -445,7 +445,7 @@
                         <label asp-for="DataSourceId" class="form-label">
                             Data source
                             <span class="text-muted ms-1" data-bs-toggle="tooltip" title="The data source used to retrieve background knowledge for this interaction.">
-                                <i class="bi bi-question-circle"></i>
+                                <i class="fa-solid fa-circle-question"></i>
                             </span>
                         </label>
                         <select asp-for="DataSourceId" class="form-select" asp-items="Model.DataSources">
@@ -457,7 +457,7 @@
                         <label asp-for="DataSourceFilter" class="form-label">
                             Filter
                             <span class="text-muted ms-1" data-bs-toggle="tooltip" title="Optional provider-specific filter expression that limits which records can be retrieved from the selected data source.">
-                                <i class="bi bi-question-circle"></i>
+                                <i class="fa-solid fa-circle-question"></i>
                             </span>
                         </label>
                         <input asp-for="DataSourceFilter" class="form-control" placeholder="Optional provider-specific filter" />
@@ -469,7 +469,7 @@
                             <label asp-for="DataSourceIsInScope" class="form-check-label">
                                 Restrict answers to retrieved data only
                                 <span class="text-muted ms-1" data-bs-toggle="tooltip" title="When enabled, responses stay grounded in the retrieved knowledge instead of supplementing with general model knowledge.">
-                                    <i class="bi bi-question-circle"></i>
+                                    <i class="fa-solid fa-circle-question"></i>
                                 </span>
                             </label>
                         </div>
@@ -489,7 +489,7 @@
                                 <label asp-for="DataSourceStrictness" class="form-label">
                                     Strictness
                                     <span class="text-muted ms-1" data-bs-toggle="tooltip" title="Controls how strictly retrieved data source matches must align with the user request.">
-                                        <i class="bi bi-question-circle"></i>
+                                        <i class="fa-solid fa-circle-question"></i>
                                     </span>
                                 </label>
                                 <input asp-for="DataSourceStrictness" type="number" class="form-control" min="1" max="5" placeholder="Default provider setting" />
@@ -501,7 +501,7 @@
                                 <label asp-for="DataSourceTopNDocuments" class="form-label">
                                     Retrieved documents
                                     <span class="text-muted ms-1" data-bs-toggle="tooltip" title="Controls how many data source documents are retrieved for retrieval-augmented generation.">
-                                        <i class="bi bi-question-circle"></i>
+                                        <i class="fa-solid fa-circle-question"></i>
                                     </span>
                                 </label>
                                 <input asp-for="DataSourceTopNDocuments" type="number" class="form-control" min="1" max="20" placeholder="Default provider setting" />
@@ -513,13 +513,13 @@
                     @if (Model.HasDocumentIndexConfiguration)
                     {
                         <div class="alert alert-info">
-                            <i class="bi bi-info-circle"></i> Documents uploaded here are indexed into the <strong>@Model.DocumentIndexProfileName</strong> AI Documents index and can be used as background knowledge during chat.
+                            <i class="fa-solid fa-circle-info"></i> Documents uploaded here are indexed into the <strong>@Model.DocumentIndexProfileName</strong> AI Documents index and can be used as background knowledge during chat.
                         </div>
                     }
                     else
                     {
                         <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i> Document knowledge-base search is not configured yet. Create an <strong>AI Documents</strong> index profile and select it under <strong>Settings → AI Settings → Documents</strong> before expecting uploaded documents to influence answers.
+                            <i class="fa-solid fa-triangle-exclamation"></i> Document knowledge-base search is not configured yet. Create an <strong>AI Documents</strong> index profile and select it under <strong>Settings → AI Settings → Documents</strong> before expecting uploaded documents to influence answers.
                         </div>
                     }
 
@@ -532,7 +532,7 @@
                             ? "Upload documents and images"
                             : allowImageUploads ? "Upload images" : "Upload documents";
 
-                        <h6 class="mt-3 mb-2" id="doc-add-heading"><i class="bi bi-paperclip"></i> @uploadHeading</h6>
+                        <h6 class="mt-3 mb-2" id="doc-add-heading"><i class="fa-solid fa-paperclip"></i> @uploadHeading</h6>
                         <div id="pending-docs-list" class="mb-3"></div>
                         <label class="form-label" for="doc-add-input" id="doc-add-label">@uploadLabel</label>
                         <div class="input-group">
@@ -546,7 +546,7 @@
 
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-chat-left-text"></i> Create &amp; Start Chat
+                    <i class="fa-solid fa-comment"></i> Create &amp; Start Chat
                 </button>
                 <a asp-action="Index" class="btn btn-secondary">Cancel</a>
             </div>
@@ -641,10 +641,10 @@
                     card.innerHTML =
                         '<div class="card-header d-flex justify-content-between align-items-center py-2">' +
                             '<a class="btn btn-sm btn-link text-start text-decoration-none flex-grow-1 px-0" data-bs-toggle="collapse" href="#" role="button" aria-expanded="true">' +
-                                '<i class="bi bi-chevron-down me-1"></i>' +
+                                '<i class="fa-solid fa-chevron-down me-1"></i>' +
                                 '<span class="prompt-template-title fw-semibold">' + escapeH(title) + '</span>' +
                             '</a>' +
-                            '<button type="button" class="btn btn-sm btn-danger remove-prompt-template-btn" title="Remove"><i class="bi bi-trash"></i></button>' +
+                            '<button type="button" class="btn btn-sm btn-danger remove-prompt-template-btn" title="Remove"><i class="fa-solid fa-trash"></i></button>' +
                         '</div>' +
                         '<div class="collapse show">' +
                             '<div class="card-body">' +

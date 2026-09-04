@@ -51,7 +51,7 @@
             </div>
 
             <div class="source-fields" data-source="http-api-request">
-            <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-globe"></i> Request</h5>
+            <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-globe"></i> Request</h5>
 
 
             <div class="mb-3">
@@ -91,7 +91,7 @@
                 <span asp-validation-for="TimeoutSeconds" class="text-danger"></span>
             </div>
 
-            <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-shield-lock"></i> Authentication</h5>
+            <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-shield-halved"></i> Authentication</h5>
 
             <div class="mb-3">
                 <label asp-for="AuthenticationType" class="form-label">Authentication type</label>
@@ -177,7 +177,7 @@
                 <div class="form-text">The access token is requested on demand, cached securely on the instance, and refreshed automatically. Providing a username uses the OAuth 2.0 password grant.</div>
             </div>
 
-            <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-robot"></i> Model-provided arguments</h5>
+            <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-robot"></i> Model-provided arguments</h5>
             <p class="text-muted small">Choose which parts of the request the AI model is allowed to fill in at invocation time.</p>
 
             <div class="form-check mb-2">
@@ -195,7 +195,7 @@
             </div>
 
             <div class="source-fields" data-source="sitemap-documentation">
-                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (sitemap crawl)</h5>
+                <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-book"></i> Documentation site (sitemap crawl)</h5>
                 <div class="mb-3">
                     <label asp-for="SitemapBaseUrl" class="form-label">Base URL <span class="text-danger">*</span></label>
                     <input asp-for="SitemapBaseUrl" class="form-control" placeholder="https://core.crestapps.com" />
@@ -223,7 +223,7 @@
             </div>
 
             <div class="source-fields" data-source="search-index-documentation">
-                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (prebuilt search index)</h5>
+                <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-book"></i> Documentation site (prebuilt search index)</h5>
                 <div class="mb-3">
                     <label asp-for="SearchIndexBaseUrl" class="form-label">Base URL <span class="text-danger">*</span></label>
                     <input asp-for="SearchIndexBaseUrl" class="form-control" placeholder="https://www.mkdocs.org" />
@@ -244,7 +244,7 @@
             </div>
 
             <div class="source-fields" data-source="algolia-documentation">
-                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (Algolia DocSearch)</h5>
+                <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-book"></i> Documentation site (Algolia DocSearch)</h5>
                 <div class="mb-3">
                     <label asp-for="AlgoliaApplicationId" class="form-label">Application ID <span class="text-danger">*</span></label>
                     <input asp-for="AlgoliaApplicationId" class="form-control" placeholder="BH4D9OD16A" />
@@ -273,7 +273,7 @@
             </div>
 
             <div class="source-fields" data-source="website-search">
-                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-search"></i> Website search (live API)</h5>
+                <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-magnifying-glass"></i> Website search (live API)</h5>
                 <p class="text-muted small">Queries the site's own search API on each request — no crawling or caching. Defaults target the WordPress REST search endpoint, so a WordPress site needs only a base URL.</p>
                 <div class="mb-3">
                     <label asp-for="WebsiteSearchBaseUrl" class="form-label">Base URL <span class="text-danger">*</span></label>
@@ -336,7 +336,7 @@
             <partial name="_Parameters" model="Model" />
 
             <div class="mt-4">
-                <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> @(string.IsNullOrEmpty(Model.ItemId) ? "Create" : "Save")</button>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> @(string.IsNullOrEmpty(Model.ItemId) ? "Create" : "Save")</button>
                 <a asp-action="Index" class="btn btn-secondary">Cancel</a>
             </div>
         </div>

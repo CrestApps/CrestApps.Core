@@ -30,8 +30,8 @@
          data-coreai-chat-widget-state-name="@_widgetStateName"
          data-coreai-chat-widget-open-state-value="true"
          data-coreai-chat-widget-closed-state-value="false"
-         data-coreai-chat-widget-open-icon-html="<i class='bi bi-x-lg'></i>"
-         data-coreai-chat-widget-closed-icon-html="<i class='bi bi-chat-dots-fill'></i>"
+         data-coreai-chat-widget-open-icon-html="<i class='fa-solid fa-xmark'></i>"
+         data-coreai-chat-widget-closed-icon-html="<i class='fa-solid fa-comment-dots'></i>"
          data-coreai-chat-widget-message-template-selector="#widget-chat-message-template"
          data-coreai-chat-widget-indicator-template-selector="#widget-chat-indicator-template"
          data-coreai-chat-widget-profile-id="@_profile.ItemId"
@@ -147,7 +147,7 @@
 
         <!-- Floating toggle button -->
         <button id="widget-toggle" class="ai-chat-widget-toggle" title="Open chat">
-            <i class="bi bi-chat-dots-fill"></i>
+            <i class="fa-solid fa-comment-dots"></i>
         </button>
 
         <!-- Widget container -->
@@ -155,16 +155,16 @@
             <div class="ai-chat-widget-header">
                 <span class="title">AI Chat</span>
                 <div class="ai-chat-widget-header-actions">
-                    <button id="widget-new-chat" title="New Chat"><i class="bi bi-plus-lg"></i></button>
-                    <button id="widget-reset-size" class="d-none" title="Reset size"><i class="bi bi-arrows-angle-contract"></i></button>
-                    <button id="widget-close" title="Close"><i class="bi bi-x-lg"></i></button>
+                    <button id="widget-new-chat" title="New Chat"><i class="fa-solid fa-plus"></i></button>
+                    <button id="widget-reset-size" class="d-none" title="Reset size"><i class="fa-solid fa-compress"></i></button>
+                    <button id="widget-close" title="Close"><i class="fa-solid fa-xmark"></i></button>
                 </div>
             </div>
 
             <div id="widget-chat-container" class="ai-chat-widget-messages">
                 <div id="widget-placeholder">
                     <div class="ai-chat-widget-welcome">
-                        <i class="bi bi-robot" style="font-size: 2rem;"></i><br />
+                        <i class="fa-solid fa-robot" style="font-size: 2rem;"></i><br />
                         @_welcomeMessage
                     </div>
                 </div>
@@ -183,7 +183,7 @@
                           data-session-id=""
                           data-profile-id="@_profile.ItemId"></textarea>
                 <button type="button" id="widget-mic-btn" class="btn btn-outline-secondary btn-sm" title="Voice input" style="display: none;">
-                    <i class="bi bi-mic-fill"></i>
+                    <i class="fa-solid fa-microphone"></i>
                 </button>
                 @if (_chatMode == ChatMode.Conversation || _chatMode == ChatMode.Realtime)
                 {
@@ -193,21 +193,21 @@
                             title="@(_chatMode == ChatMode.Realtime ? "Start speaking" : "Start Conversation")"
                             data-start-title="@(_chatMode == ChatMode.Realtime ? "Start speaking" : "Start Conversation")"
                             data-end-title="End Conversation"
-                            data-start-html="@(_chatMode == ChatMode.Realtime ? "<i class='bi bi-soundwave me-1'></i> Start speaking" : "<i class='bi bi-soundwave'></i>")"
-                            data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation">
+                            data-start-html="@(_chatMode == ChatMode.Realtime ? "<i class='fa-solid fa-wave-square me-1'></i> Start speaking" : "<i class='fa-solid fa-wave-square'></i>")"
+                            data-end-html="<i class='fa-solid fa-stop me-1'></i> End Conversation">
                         @if (_chatMode == ChatMode.Realtime)
                         {
-                            <i class="bi bi-soundwave me-1"></i>
+                            <i class="fa-solid fa-wave-square me-1"></i>
                             <span>Start speaking</span>
                         }
                         else
                         {
-                            <i class="bi bi-soundwave"></i>
+                            <i class="fa-solid fa-wave-square"></i>
                         }
                     </button>
                 }
                 <button type="button" id="widget-send-btn" class="@(_chatMode == ChatMode.Realtime ? "d-none" : null)">
-                    <i class="bi bi-send"></i>
+                    <i class="fa-solid fa-paper-plane"></i>
                 </button>
             </div>
         </div>
