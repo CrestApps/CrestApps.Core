@@ -449,12 +449,8 @@
                         </div>
                         <div class="form-text">Cache responses to improve performance for repeated queries.</div>
                     </div>
-                    @if (Model.ModelParameterEditor is not null && Model.ModelParameterEditor.HasParameters)
-                    {
-                        <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-sliders"></i> Model parameters</h6>
-                        <p class="text-muted small">Only the parameters declared by the selected chat deployment are shown.</p>
-                        <partial name="_ModelParameters" model="Model.ModelParameterEditor" />
-                    }
+                    <partial name="_ModelParameters" model="Model.ModelParameterEditor" />
+                    <partial name="_ModelParameters" model="Model.UtilityModelParameterEditor" />
                 </div>
 
                 <!-- Capabilities Tab -->

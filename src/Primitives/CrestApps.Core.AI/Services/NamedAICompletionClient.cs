@@ -143,11 +143,9 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         ArgumentNullException.ThrowIfNull(messages);
         ArgumentNullException.ThrowIfNull(context);
 
-        // Use the deployment resolver with fallback to legacy dictionary-based resolution.
-        var deployment = await ResolveDeploymentAsync(
-            AIDeploymentPurpose.Chat,
-            ClientName,
-            deploymentName: context.ChatDeploymentName);
+        // Use the deployment resolver with fallback to legacy dictionary-based resolution. A utility
+        // completion resolves the utility deployment and falls back to the chat deployment.
+        var deployment = await ResolveRequestDeploymentAsync(context, ClientName);
 
         if (deployment == null)
         {
@@ -196,11 +194,9 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         ArgumentNullException.ThrowIfNull(messages);
         ArgumentNullException.ThrowIfNull(context);
 
-        // Use the deployment resolver with fallback to legacy dictionary-based resolution.
-        var deployment = await ResolveDeploymentAsync(
-            AIDeploymentPurpose.Chat,
-            ClientName,
-            deploymentName: context.ChatDeploymentName);
+        // Use the deployment resolver with fallback to legacy dictionary-based resolution. A utility
+        // completion resolves the utility deployment and falls back to the chat deployment.
+        var deployment = await ResolveRequestDeploymentAsync(context, ClientName);
 
         if (deployment == null)
         {

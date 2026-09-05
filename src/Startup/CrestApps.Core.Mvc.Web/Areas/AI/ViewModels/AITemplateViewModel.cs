@@ -193,10 +193,22 @@ public sealed class AITemplateViewModel
     public Dictionary<string, string> ModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
+    /// Gets or sets the model parameter values selected for the utility deployment of this template,
+    /// keyed by the registered parameter technical name.
+    /// </summary>
+    public Dictionary<string, string> UtilityModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Gets or sets the metadata-driven model parameter editor.
     /// </summary>
     [BindNever]
     public ModelParameterEditorViewModel ModelParameterEditor { get; set; }
+
+    /// <summary>
+    /// Gets or sets the metadata-driven model parameter editor for the utility deployment.
+    /// </summary>
+    [BindNever]
+    public ModelParameterEditorViewModel UtilityModelParameterEditor { get; set; }
 
     public static AITemplateViewModel FromTemplate(AIProfileTemplate template)
     {
@@ -220,9 +232,17 @@ public sealed class AITemplateViewModel
         }
         else if (template.Source == AITemplateSources.Profile)
         {
-            if (template.TryGet<AIDeploymentParametersMetadata>(out var modelParameters) && modelParameters.Values is { Count: > 0 })
+            if (template.TryGet<AIDeploymentParametersMetadata>(out var modelParameters))
             {
-                model.ModelParameters = new Dictionary<string, string>(modelParameters.Values, StringComparer.OrdinalIgnoreCase);
+                if (modelParameters.Values is { Count: > 0 })
+                {
+                    model.ModelParameters = new Dictionary<string, string>(modelParameters.Values, StringComparer.OrdinalIgnoreCase);
+                }
+
+                if (modelParameters.UtilityValues is { Count: > 0 })
+                {
+                    model.UtilityModelParameters = new Dictionary<string, string>(modelParameters.UtilityValues, StringComparer.OrdinalIgnoreCase);
+                }
             }
 
             if (template.TryGet<ProfileTemplateMetadata>(out var metadata))
@@ -435,13 +455,10 @@ public sealed class AITemplateViewModel
                     .ToArray() ?? [],
             });
 
-            var selectedModelParameters = ModelParameters is null
-                ? []
-                : ModelParameters.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value));
-
             template.Put(new AIDeploymentParametersMetadata
             {
-                Values = new Dictionary<string, string>(selectedModelParameters, StringComparer.OrdinalIgnoreCase),
+                Values = SelectedModelParameters(ModelParameters),
+                UtilityValues = SelectedModelParameters(UtilityModelParameters),
             });
 
             template.Put(new AIProfileMcpMetadata
@@ -635,5 +652,17 @@ public sealed class AITemplateViewModel
             template.Remove<ClaudeSessionMetadata>();
             template.Remove<CopilotSessionMetadata>();
         }
+    }
+
+    private static Dictionary<string, string> SelectedModelParameters(Dictionary<string, string> values)
+    {
+        if (values is null)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return new Dictionary<string, string>(
+            values.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value)),
+            StringComparer.OrdinalIgnoreCase);
     }
 }

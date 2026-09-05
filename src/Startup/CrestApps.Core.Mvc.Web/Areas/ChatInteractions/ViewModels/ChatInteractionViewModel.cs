@@ -16,6 +16,8 @@ public sealed class ChatInteractionViewModel
 
     public string ChatDeploymentName { get; set; }
 
+    public string UtilityDeploymentName { get; set; }
+
     public string OrchestratorName { get; set; }
 
     public string SystemMessage { get; set; }
@@ -108,6 +110,9 @@ public sealed class ChatInteractionViewModel
     public IEnumerable<SelectListItem> Deployments { get; set; } = [];
 
     [BindNever]
+    public IEnumerable<SelectListItem> UtilityDeployments { get; set; } = [];
+
+    [BindNever]
     public IEnumerable<SelectListItem> Orchestrators { get; set; } = [];
 
     [BindNever]
@@ -129,10 +134,22 @@ public sealed class ChatInteractionViewModel
     public Dictionary<string, string> ModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
+    /// Gets or sets the model parameter values selected for the utility deployment of this interaction,
+    /// keyed by the registered parameter technical name.
+    /// </summary>
+    public Dictionary<string, string> UtilityModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Gets or sets the metadata-driven model parameter editor.
     /// </summary>
     [BindNever]
     public ModelParameterEditorViewModel ModelParameterEditor { get; set; }
+
+    /// <summary>
+    /// Gets or sets the metadata-driven model parameter editor for the utility deployment.
+    /// </summary>
+    [BindNever]
+    public ModelParameterEditorViewModel UtilityModelParameterEditor { get; set; }
 }
 
 public sealed class AgentSelectionItem

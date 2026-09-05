@@ -313,7 +313,16 @@ public sealed class AIProfileController : Controller
 
     private async Task PopulateDropdownsAsync(AIProfileViewModel model)
     {
-        model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(model.ModelParameters);
+        model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(
+            model.ModelParameters,
+            description: "Only the parameters declared by the selected chat deployment are shown.");
+        model.UtilityModelParameterEditor = await _modelParameterViewService.BuildAsync(
+            model.UtilityModelParameters,
+            deploymentFieldName: nameof(AIProfileViewModel.UtilityDeploymentName),
+            fieldPrefix: nameof(AIProfileViewModel.UtilityModelParameters),
+            elementPrefix: "utilityModelParameters",
+            title: "Utility model parameters",
+            description: "Applied to background completions such as title generation, data extraction, and post-session processing. Only the parameters declared by the selected utility deployment are shown.");
 
         var allDeployments = await _deploymentCatalog.GetAllAsync();
         model.ChatDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
@@ -483,13 +492,19 @@ public sealed class AIProfileController : Controller
 
     private static void ApplyTemplateToProfile(AIProfile profile, AIProfileTemplate template)
     {
-        if (template.TryGet<AIDeploymentParametersMetadata>(out var templateModelParameters) && templateModelParameters.Values is { Count: > 0 })
+        if (template.TryGet<AIDeploymentParametersMetadata>(out var templateModelParameters) &&
+            (templateModelParameters.Values is { Count: > 0 } || templateModelParameters.UtilityValues is { Count: > 0 }))
         {
             profile.Alter<AIDeploymentParametersMetadata>(m =>
             {
-                foreach (var entry in templateModelParameters.Values)
+                foreach (var entry in templateModelParameters.Values ?? [])
                 {
                     m.Values[entry.Key] = entry.Value;
+                }
+
+                foreach (var entry in templateModelParameters.UtilityValues ?? [])
+                {
+                    m.UtilityValues[entry.Key] = entry.Value;
                 }
             });
         }

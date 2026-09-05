@@ -166,6 +166,7 @@ public sealed class ChatInteractionController : Controller
         interaction.OwnerId = User.Identity?.Name ?? "anonymous";
         interaction.Author = User.Identity?.Name ?? "anonymous";
         interaction.ChatDeploymentName = model.ChatDeploymentName;
+        interaction.UtilityDeploymentName = model.UtilityDeploymentName;
         interaction.OrchestratorName = model.OrchestratorName;
         interaction.SystemMessage = model.SystemMessage;
         interaction.Temperature = model.Temperature;
@@ -327,11 +328,28 @@ public sealed class ChatInteractionController : Controller
 
     private async Task PopulateDropdownsAsync(ChatInteractionViewModel model)
     {
-        model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(model.ModelParameters);
+        model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(
+            model.ModelParameters,
+            description: "Only the parameters declared by the selected deployment are shown.");
+        model.UtilityModelParameterEditor = await _modelParameterViewService.BuildAsync(
+            model.UtilityModelParameters,
+            deploymentFieldName: nameof(ChatInteractionViewModel.UtilityDeploymentName),
+            fieldPrefix: nameof(ChatInteractionViewModel.UtilityModelParameters),
+            elementPrefix: "utilityModelParameters",
+            title: "Utility model parameters",
+            description: "Applied to background completions such as title generation, data extraction, and post-session processing. Only the parameters declared by the selected utility deployment are shown.");
 
         var deployments = await _deploymentCatalog.GetAllAsync();
         model.Deployments = deployments
             .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat))
+            .Select(d => new SelectListItem(
+                string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
+        ? d.Name
+        : $"{d.Name} ({d.ModelName})",
+        d.Name))
+            .ToList();
+        model.UtilityDeployments = deployments
+            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat))
             .Select(d => new SelectListItem(
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
         ? d.Name
@@ -639,6 +657,18 @@ public sealed class ChatInteractionController : Controller
             .ToList();
     }
 
+    private static Dictionary<string, string> SelectedModelParameters(Dictionary<string, string> values)
+    {
+        if (values is null)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return new Dictionary<string, string>(
+            values.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value)),
+            StringComparer.OrdinalIgnoreCase);
+    }
+
     private async Task ApplyMetadataAsync(ChatInteraction interaction, ChatInteractionViewModel model)
     {
         var dataSourceId = await ResolveDataSourceIdAsync(model.DataSourceId);
@@ -674,11 +704,8 @@ public sealed class ChatInteractionController : Controller
 
         interaction.Alter<AIDeploymentParametersMetadata>(metadata =>
         {
-            metadata.Values = model.ModelParameters is null
-                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, string>(
-                    model.ModelParameters.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value)),
-                    StringComparer.OrdinalIgnoreCase);
+            metadata.Values = SelectedModelParameters(model.ModelParameters);
+            metadata.UtilityValues = SelectedModelParameters(model.UtilityModelParameters);
         });
 
         if (string.Equals(model.OrchestratorName, ClaudeOrchestrator.OrchestratorName, StringComparison.OrdinalIgnoreCase))
