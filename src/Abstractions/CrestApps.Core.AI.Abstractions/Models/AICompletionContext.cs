@@ -95,6 +95,14 @@ public sealed class AICompletionContext
     /// </summary>
     public string UtilityDeploymentName { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether this request is a background utility completion, such as
+    /// title generation, data extraction, or post-session processing. When <see langword="true"/>, the
+    /// utility deployment is resolved instead of the chat deployment and the parameter values held by
+    /// <see cref="UtilityModelParameters"/> are applied instead of <see cref="ModelParameters"/>.
+    /// </summary>
+    public bool IsUtilityCompletion { get; set; }
+
     [JsonInclude]
     [JsonPropertyName("DeploymentId")]
     private string _deploymentIdBackingField
@@ -122,6 +130,14 @@ public sealed class AICompletionContext
     /// expose are discarded before the request is sent to the provider.
     /// </summary>
     public Dictionary<string, string> ModelParameters { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gets the model parameter values selected for the utility deployment, keyed by the registered
+    /// parameter technical name. These values are applied only to background utility completions, and
+    /// values for parameters that the resolved utility deployment does not expose are discarded before
+    /// the request is sent to the provider.
+    /// </summary>
+    public Dictionary<string, string> UtilityModelParameters { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Gets the additional provider-specific properties applied to the completion request.

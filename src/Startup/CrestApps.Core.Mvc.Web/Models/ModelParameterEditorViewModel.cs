@@ -25,6 +25,17 @@ public sealed class ModelParameterEditorViewModel
     public string ElementPrefix { get; set; } = "modelParameters";
 
     /// <summary>
+    /// Gets or sets the heading rendered above the editor. The heading is hidden along with the rest
+    /// of the editor when the selected deployment exposes no configurable parameter.
+    /// </summary>
+    public string Title { get; set; } = "Model parameters";
+
+    /// <summary>
+    /// Gets or sets the descriptive text rendered under the heading.
+    /// </summary>
+    public string Description { get; set; }
+
+    /// <summary>
     /// Gets or sets every registered model parameter along with the value currently selected.
     /// </summary>
     public List<ModelParameterFieldViewModel> Parameters { get; set; } = [];
@@ -33,13 +44,6 @@ public sealed class ModelParameterEditorViewModel
     /// Gets or sets the per-deployment capability map serialized as JSON and consumed by the editor script.
     /// </summary>
     public string CapabilitiesJson { get; set; } = "{}";
-
-    /// <summary>
-    /// Gets or sets the per-deployment trained feature map serialized as JSON and consumed by the editor
-    /// script to render the read-only capability badges. Keyed by deployment name, each value is the list
-    /// of trained feature display names the deployment declares.
-    /// </summary>
-    public string FeaturesJson { get; set; } = "{}";
 
     /// <summary>
     /// Gets a value indicating whether at least one parameter is registered.

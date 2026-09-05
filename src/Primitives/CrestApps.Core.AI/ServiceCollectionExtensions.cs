@@ -209,6 +209,7 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<AIDeploymentCapabilityOptions>();
         services.TryAddScoped<IAIDeploymentCapabilityService, DefaultAIDeploymentCapabilityService>();
+        services.TryAddScoped<IAIDeploymentParameterApplier, DefaultAIDeploymentParameterApplier>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionServiceHandler, ModelParametersAICompletionServiceHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIDeploymentParameterBinder, ReasoningEffortModelParameterBinder>());
 

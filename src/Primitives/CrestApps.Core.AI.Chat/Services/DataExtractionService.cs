@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
@@ -20,6 +21,7 @@ public sealed class DataExtractionService
 {
     private readonly IAIClientFactory _clientFactory;
     private readonly IAIDeploymentManager _deploymentManager;
+    private readonly IAIDeploymentParameterApplier _parameterApplier;
     private readonly ITemplateService _aiTemplateService;
     private readonly ITemplateParser _markdownTemplateParser;
     private readonly TimeProvider _timeProvider;
@@ -34,16 +36,19 @@ public sealed class DataExtractionService
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="parameterApplier">The model parameter applier.</param>
     public DataExtractionService(
         IAIClientFactory clientFactory,
         ITemplateService aiTemplateService,
         IEnumerable<ITemplateParser> templateParsers,
         TimeProvider timeProvider,
         ILogger<DataExtractionService> logger,
-        IAIDeploymentManager deploymentManager = null)
+        IAIDeploymentManager deploymentManager = null,
+        IAIDeploymentParameterApplier parameterApplier = null)
     {
         _clientFactory = clientFactory;
         _deploymentManager = deploymentManager;
+        _parameterApplier = parameterApplier;
         _aiTemplateService = aiTemplateService;
         _markdownTemplateParser = ResolveMarkdownTemplateParser(templateParsers);
         _timeProvider = timeProvider;
@@ -454,7 +459,9 @@ public sealed class DataExtractionService
         {
             return await _clientFactory.CreateChatClientAsync(
                 deployment,
-                builder => builder.UseDefaultResilience());
+                builder => builder
+                    .UseDefaultResilience()
+                    .UseUtilityModelParameters(_parameterApplier, deployment, profile));
         }
 
         return null;
