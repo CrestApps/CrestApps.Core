@@ -1,4 +1,5 @@
 #pragma warning disable MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only.
+using CrestApps.Core;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
@@ -100,11 +101,16 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
 
         var tools = await MaterializeToolsAsync(context, cancellationToken);
 
+        // The fallback voice is an OpenAI voice name. A cascaded deployment speaks through whatever
+        // provider its text-to-speech leg uses, where that name means nothing and would be rejected, so
+        // leave the voice unset and let that provider fall back to its own configured default.
+        var isCascaded = deployment.TryGet<CascadedRealtimeMetadata>(out var cascade) && cascade.IsComplete();
+
         var options = _sessionConfigurator.Configure(new RealtimeSessionConfiguratorContext
         {
             Model = deployment.ModelName,
             Instructions = context.CompletionContext?.SystemMessage,
-            Voice = string.IsNullOrWhiteSpace(request.Voice) ? DefaultVoice : request.Voice,
+            Voice = string.IsNullOrWhiteSpace(request.Voice) && !isCascaded ? DefaultVoice : request.Voice,
             Tools = tools,
             MaxOutputTokens = context.CompletionContext?.MaxTokens,
             SpeechLanguage = request.SpeechLanguage,
