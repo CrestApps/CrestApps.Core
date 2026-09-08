@@ -687,6 +687,88 @@ public sealed class RealtimeChatSessionRunnerTests
         Assert.Equal([RealtimeSessionEndReasons.Idle], sink.SessionEnded);
     }
 
+    [Fact]
+    public async Task RunAsync_OnADeferredSession_GroundsTheUtteranceThenAsksForTheAnswer()
+    {
+        // The realtime equivalent of preemptive RAG: the session opened before anyone spoke, so retrieval runs
+        // when the transcript arrives — and the model is only asked to answer once it has that knowledge.
+        var conversation = new FakeConversation(
+        [
+            Evt(RealtimeConversationEventType.UserTranscript, text: "what is the refund policy"),
+        ])
+        {
+            RespondsAutomatically = false,
+        };
+
+        await RunSessionAsync(conversation);
+
+        Assert.Equal(["what is the refund policy"], conversation.GroundedUtterances);
+        Assert.Equal(1, conversation.ResponseRequests);
+    }
+
+    [Fact]
+    public async Task RunAsync_OnADeferredSession_WhenTranscriptionFails_StillAsksForTheAnswer()
+    {
+        // There is nothing to retrieve against, but the model heard the audio. Skipping the request would leave
+        // the user waiting on a reply that never comes, because this session never answers on its own.
+        var conversation = new FakeConversation(
+        [
+            Evt(RealtimeConversationEventType.UserTranscriptFailed, itemId: "item-1"),
+        ])
+        {
+            RespondsAutomatically = false,
+        };
+
+        await RunSessionAsync(conversation);
+
+        Assert.Empty(conversation.GroundedUtterances);
+        Assert.Equal(1, conversation.ResponseRequests);
+    }
+
+    [Fact]
+    public async Task RunAsync_OnAnAutomaticSession_NeitherGroundsNorRequestsAResponse()
+    {
+        // A session with no knowledge base attached keeps the provider's own turn handling untouched.
+        var conversation = new FakeConversation(
+        [
+            Evt(RealtimeConversationEventType.UserTranscript, text: "hello there"),
+        ]);
+
+        await RunSessionAsync(conversation);
+
+        Assert.Empty(conversation.GroundedUtterances);
+        Assert.Equal(0, conversation.ResponseRequests);
+    }
+
+    /// <summary>
+    /// Runs one session over the scripted conversation with the minimum surrounding state, for tests that only
+    /// care about what the runner asked the conversation to do.
+    /// </summary>
+    /// <param name="conversation">The scripted conversation.</param>
+    private static async Task RunSessionAsync(FakeConversation conversation)
+    {
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-1" };
+        var (store, _) = CreateStore();
+
+        using var scope = AIInvocationScope.Begin();
+
+        var runner = new RealtimeChatSessionRunner(
+            new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext
+            {
+                Resource = profile,
+                SessionId = session.SessionId,
+                ChatSession = session,
+            },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            new RecordingSink(),
+            TestContext.Current.CancellationToken);
+    }
+
     private static RealtimeConversationEvent Evt(
         RealtimeConversationEventType type,
         string? text = null,
@@ -779,9 +861,38 @@ public sealed class RealtimeChatSessionRunnerTests
 
         public List<(bool AllowInterruption, int? SilenceMs, float? Threshold)> TurnDetectionUpdates { get; } = [];
 
+        /// <summary>
+        /// When false the session defers replies to the host, which must ground the turn and ask for the answer.
+        /// </summary>
+        public bool RespondsAutomatically { get; init; } = true;
+
+        /// <summary>
+        /// The utterances the runner asked to ground, in order.
+        /// </summary>
+        public List<string> GroundedUtterances { get; } = [];
+
+        /// <summary>
+        /// How many times the runner asked the model to answer.
+        /// </summary>
+        public int ResponseRequests { get; private set; }
+
         public Task SendAudioAsync(ReadOnlyMemory<byte> audio, CancellationToken cancellationToken = default)
         {
             SentAudio.Add(audio);
+
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> GroundTurnAsync(string utterance, CancellationToken cancellationToken = default)
+        {
+            GroundedUtterances.Add(utterance);
+
+            return Task.FromResult(true);
+        }
+
+        public Task RequestResponseAsync(CancellationToken cancellationToken = default)
+        {
+            ResponseRequests++;
 
             return Task.CompletedTask;
         }

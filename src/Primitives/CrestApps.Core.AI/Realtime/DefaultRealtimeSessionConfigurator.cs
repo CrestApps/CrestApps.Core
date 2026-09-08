@@ -109,6 +109,7 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
             {
                 Type = RealtimeTurnDetectionTypes.SemanticVad,
                 Eagerness = string.IsNullOrWhiteSpace(eagerness) ? null : eagerness.Trim().ToLowerInvariant(),
+                CreateResponse = context.CreateResponseAutomatically,
             };
         }
 
@@ -117,6 +118,7 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
             Type = RealtimeTurnDetectionTypes.ServerVad,
             SilenceDurationMs = context.SilenceDurationMs ?? DefaultSilenceDurationMs,
             Threshold = context.VadThreshold,
+            CreateResponse = context.CreateResponseAutomatically,
         };
     }
 

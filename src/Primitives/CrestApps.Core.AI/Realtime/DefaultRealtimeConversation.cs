@@ -18,17 +18,73 @@ namespace CrestApps.Core.AI.Services;
 internal sealed class DefaultRealtimeConversation : IRealtimeConversation
 {
     private readonly IRealtimeClientSession _session;
+    private readonly Func<string, CancellationToken, Task<string?>>? _groundTurnAsync;
     private int _disposed;
 
     public DefaultRealtimeConversation(IRealtimeClientSession session)
+        : this(session, groundTurnAsync: null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultRealtimeConversation"/> class.
+    /// </summary>
+    /// <param name="session">The provider session.</param>
+    /// <param name="groundTurnAsync">
+    /// Retrieves the knowledge for one utterance, or <see langword="null"/> when the session is not grounded and
+    /// the provider answers on its own.
+    /// </param>
+    public DefaultRealtimeConversation(IRealtimeClientSession session, Func<string, CancellationToken, Task<string?>>? groundTurnAsync)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
+        _groundTurnAsync = groundTurnAsync;
     }
+
+    /// <inheritdoc />
+    public bool RespondsAutomatically => _groundTurnAsync is null;
 
     /// <inheritdoc />
     public Task SendAudioAsync(ReadOnlyMemory<byte> audio, CancellationToken cancellationToken = default)
     {
         return _session.SendAsync(new InputAudioBufferAppendRealtimeClientMessage(new DataContent(audio, "audio/pcm")), cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> GroundTurnAsync(string utterance, CancellationToken cancellationToken = default)
+    {
+        if (_groundTurnAsync is null || string.IsNullOrWhiteSpace(utterance))
+        {
+            return false;
+        }
+
+        var retrieved = await _groundTurnAsync(utterance, cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(retrieved))
+        {
+            return false;
+        }
+
+        // The retrieved knowledge goes in as a system item rather than being folded into the session
+        // instructions. Instructions are the session's standing identity: rewriting them every turn would both
+        // accumulate every previous answer's context and re-send a voice the provider refuses to change once the
+        // assistant has spoken.
+        var item = new RealtimeConversationItem([new TextContent(retrieved)], id: null, ChatRole.System);
+
+        await _session.SendAsync(new CreateConversationItemRealtimeClientMessage(item), cancellationToken);
+
+        return true;
+    }
+
+    /// <inheritdoc />
+    public Task RequestResponseAsync(CancellationToken cancellationToken = default)
+    {
+        // A session the provider already answers for would produce a second, duplicate reply.
+        if (RespondsAutomatically)
+        {
+            return Task.CompletedTask;
+        }
+
+        return _session.SendAsync(new CreateResponseRealtimeClientMessage(), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -67,6 +123,11 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
                 : RealtimeTurnDetectionTypes.ServerVad;
         var semantic = string.Equals(type, RealtimeTurnDetectionTypes.SemanticVad, StringComparison.OrdinalIgnoreCase);
 
+        // Carry the session's response-creation mode across. A grounded session defers the reply until the host
+        // has retrieved for the turn; letting a mid-call barge-in or VAD change quietly restore the provider's
+        // automatic reply would answer before the knowledge arrives — and then answer a second time.
+        var createResponse = configured?.CreateResponse ?? true;
+
         // A session.update is a partial update: only the fields present are changed. Send just the turn detection.
         // Re-sending the whole configuration was actively harmful — the provider rejects a voice once the assistant
         // has spoken ("Cannot update a conversation's voice if assistant audio is present"), and that rejection was
@@ -85,14 +146,14 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
                             ? (object)new
                             {
                                 type = RealtimeTurnDetectionTypes.SemanticVad,
-                                create_response = true,
+                                create_response = createResponse,
                                 interrupt_response = allowInterruption,
                                 eagerness = string.IsNullOrWhiteSpace(configured?.Eagerness) ? "auto" : configured!.Eagerness,
                             }
                             : new
                             {
                                 type = RealtimeTurnDetectionTypes.ServerVad,
-                                create_response = true,
+                                create_response = createResponse,
                                 interrupt_response = allowInterruption,
                                 silence_duration_ms = silenceDurationMs ?? configured?.SilenceDurationMs ?? 800,
                                 threshold = vadThreshold ?? configured?.Threshold,

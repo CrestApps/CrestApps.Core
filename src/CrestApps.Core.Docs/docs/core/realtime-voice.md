@@ -222,6 +222,47 @@ Both the algorithm and the semantic *eagerness* are configurable under `CrestApp
 drops, comfortably longer than any pause the detector is willing to wait through, because the gate emits digital
 silence when it closes and whichever of the two expires first is what actually ends the turn.
 
+## Knowledge base grounding
+
+A text completion retrieves from the knowledge base **before** the model runs: the profile's data source is
+searched with the user's message and the matching chunks are placed in the system message, so the model cannot
+fail to see them. A realtime session has no such moment — it opens before anyone has spoken, so there is no
+query to search with.
+
+Retrieval therefore runs **once per spoken turn**. When a profile has a data source (or session documents)
+attached and preemptive RAG is enabled site-wide, the session is opened with `turn_detection.create_response =
+false`, and each turn goes:
+
+```
+user stops speaking → provider commits + transcribes the turn
+                    → host searches the knowledge base with that transcript
+                    → retrieved chunks are added as a system conversation item
+                    → host sends response.create → the model answers from them
+```
+
+This runs the same `IPreemptiveRagHandler` pipeline the text path uses — data source, documents, memory — so
+citations, `IsInScope` strictness, top-N and filters all behave identically, and a grounded answer carries its
+`[doc:n]` references into the transcript like any other. Extend it by registering an `IPreemptiveRagHandler`, or
+replace the whole policy with your own `IRealtimeTurnGrounding`.
+
+Three consequences worth knowing:
+
+- **A grounded turn is slower to start**, by one vector search. The provider no longer replies the instant it
+  stops hearing the user; it waits for the transcript and the search. Sessions without a knowledge base are
+  untouched and keep the provider's own immediate replies.
+- **Retrieval uses the utterance verbatim.** The text path first rewrites the message into focused queries with a
+  utility LLM call; that is skipped here, because it would add a second round-trip to every spoken turn and it
+  earns its cost by resolving follow-ups against conversation history, which a per-turn realtime context does not
+  carry.
+- **The search tool is still advertised.** Grounding gives the model the knowledge up front; the tool lets it go
+  looking for more. When preemptive RAG is switched off site-wide, the tool is the only path, exactly as in text.
+
+The knowledge base is only as reachable as the deployment that calls it. If the deployment behind the session —
+for a cascade, its **chat** leg — does not declare the `toolCalling` feature, the tools resolved for the session
+are stripped before the model sees them, and the orchestrator logs an error naming the deployment. Starting a
+session with tools but without an ambient `AIInvocationScope` now throws rather than letting every tool call
+return an error string the model would relay as "I don't have that information".
+
 ## Turn bookkeeping
 
 Two things about realtime turns are not obvious and shape how the transcript is built.
@@ -402,6 +443,11 @@ buffer overflows. The runner logs response start/completion and session end reas
 `CrestApps.Core.AI.Chat.Realtime.RealtimeChatSessionRunner` — including a warning when a session ran a whole
 conversation without the provider ever reporting user speech, which means that deployment's events are not
 recognised and barge-in cannot work for it.
+
+For a session that answers knowledge questions from the model's own training data instead of the knowledge base,
+the orchestrator's debug line reports the tool count and whether per-turn retrieval is on, and it logs an error
+when the deployment that would call the tools does not declare `toolCalling`. `CrestApps.Core.AI.Services.
+DefaultRealtimeTurnGrounding` logs at debug whether each turn's retrieval returned content.
 
 In the browser, `CoreAIRealtime`'s controller exposes `getState()` and `getGateLevel()` — the latter returns the
 gate's most recent measurement (level, tracked noise floor, whether it is open, whether the assistant is audible),

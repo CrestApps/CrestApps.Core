@@ -74,11 +74,75 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         Assert.Contains("TOOL_RESULT", result!.Result?.ToString());
     }
 
+    [Fact]
+    public async Task StartAsync_WithToolsButNoInvocationScope_Throws()
+    {
+        // Every tool call would come back as "requires an active AI execution context" in plain text, and the
+        // model would relay that to the user as not knowing the answer. Fail where the cause is visible.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var fakeClient = new FakeRealtimeClient(new FakeRealtimeSession([]));
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(profile, new EchoTool(), fakeClient, requestServices);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => orchestrator.StartAsync(
+            new RealtimeOrchestrationRequest { Resource = profile },
+            TestContext.Current.CancellationToken));
+
+        Assert.Contains("AIInvocationScope", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StartAsync_WhenGroundingIsAvailable_DefersResponseCreationToTheHost()
+    {
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new FakeRealtimeSession([]);
+        var grounding = new FakeRealtimeTurnGrounding(available: true);
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(profile, new EchoTool(), new FakeRealtimeClient(session), requestServices, grounding);
+
+        using var scope = AIInvocationScope.Begin();
+
+        await using var conversation = await orchestrator.StartAsync(
+            new RealtimeOrchestrationRequest { Resource = profile },
+            TestContext.Current.CancellationToken);
+
+        // The provider must not answer on its own; the host answers once it has retrieved for the turn.
+        var turnDetection = Assert.IsType<RealtimeTurnDetectionOverrides>(session.Options!.RawRepresentationFactory!());
+        Assert.False(turnDetection.CreateResponse);
+        Assert.False(conversation.RespondsAutomatically);
+
+        Assert.True(await conversation.GroundTurnAsync("what is the refund policy", TestContext.Current.CancellationToken));
+        Assert.Equal("what is the refund policy", Assert.Single(grounding.Utterances));
+    }
+
+    [Fact]
+    public async Task StartAsync_WhenGroundingIsUnavailable_LeavesTheProviderAnswering()
+    {
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new FakeRealtimeSession([]);
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(profile, new EchoTool(), new FakeRealtimeClient(session), requestServices);
+
+        using var scope = AIInvocationScope.Begin();
+
+        await using var conversation = await orchestrator.StartAsync(
+            new RealtimeOrchestrationRequest { Resource = profile },
+            TestContext.Current.CancellationToken);
+
+        var turnDetection = Assert.IsType<RealtimeTurnDetectionOverrides>(session.Options!.RawRepresentationFactory!());
+        Assert.True(turnDetection.CreateResponse);
+        Assert.True(conversation.RespondsAutomatically);
+    }
+
     private static DefaultRealtimeOrchestrator CreateOrchestrator(
         AIProfile profile,
         AIFunction tool,
         IRealtimeClient client,
-        IServiceProvider requestServices)
+        IServiceProvider requestServices,
+        IRealtimeTurnGrounding? grounding = null)
     {
         var context = new OrchestrationContext
         {
@@ -122,6 +186,7 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
             toolRegistry.Object,
             materializer.Object,
             new DefaultRealtimeSessionConfigurator(),
+            grounding ?? UngroundedTurnGrounding.Instance,
             requestServices,
             NullLoggerFactory.Instance,
             NullLogger<DefaultRealtimeOrchestrator>.Instance);

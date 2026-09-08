@@ -390,6 +390,14 @@ public sealed class RealtimeChatSessionRunner
                             _logger.LogDebug(
                                 "Input-audio transcription failed for session {SessionId}: {Message}", sessionId, evt.ErrorMessage ?? "(no detail)");
                         }
+
+                        // A grounded session holds its reply until the host asks for it. There is no transcript to
+                        // retrieve against, but the model still heard the audio — so let it answer ungrounded
+                        // rather than leaving the user in silence waiting for a reply that never comes.
+                        if (failed is not { Ignored: true })
+                        {
+                            await RequestGroundedResponseAsync(conversation, sessionId, utterance: null, cancellationToken);
+                        }
                     }
 
                     break;
@@ -427,6 +435,11 @@ public sealed class RealtimeChatSessionRunner
 
                         await sink.UserTranscriptAsync(sessionId, turnId, evt.Text, cancellationToken);
                         await NotifyUserUtteranceAsync(context, evt.Text, cancellationToken);
+
+                        // Retrieve the knowledge for what was just asked and hand it to the model before it
+                        // answers. This is the realtime equivalent of the text path's preemptive RAG: the session
+                        // opened before anyone had spoken, so retrieval could not happen at PREPARE time.
+                        await RequestGroundedResponseAsync(conversation, sessionId, evt.Text, cancellationToken);
                     }
 
                     break;
@@ -704,6 +717,54 @@ public sealed class RealtimeChatSessionRunner
         }
 
         playback.Reset();
+    }
+
+    /// <summary>
+    /// Grounds one turn and asks the model to answer it. Does nothing on a session the provider answers by
+    /// itself, which is every session without a knowledge base attached.
+    /// </summary>
+    /// <param name="conversation">The live conversation.</param>
+    /// <param name="sessionId">The session identifier, for diagnostics.</param>
+    /// <param name="utterance">What the user said, or <see langword="null"/> when transcription failed.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    private async Task RequestGroundedResponseAsync(
+        IRealtimeConversation conversation,
+        string sessionId,
+        string? utterance,
+        CancellationToken cancellationToken)
+    {
+        if (conversation.RespondsAutomatically)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(utterance))
+            {
+                var grounded = await conversation.GroundTurnAsync(utterance, cancellationToken);
+
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Realtime session {SessionId}: knowledge retrieval for the current turn {Outcome}.",
+                        sessionId, grounded ? "returned content" : "found nothing relevant");
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Retrieval is an enhancement; a failure must not cost the user their answer. Fall through and let
+            // the model reply from the conversation alone.
+            _logger.LogError(ex, "Knowledge retrieval failed for realtime session {SessionId}. The model answers without it.", sessionId);
+        }
+
+        // Unconditional: the reply is deferred to us, so skipping this leaves the session silent forever.
+        await conversation.RequestResponseAsync(cancellationToken);
     }
 
     private static Task NotifyUserUtteranceAsync(RealtimeChatRunContext context, string text, CancellationToken cancellationToken)

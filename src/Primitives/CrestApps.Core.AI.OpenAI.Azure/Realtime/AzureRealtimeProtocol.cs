@@ -243,7 +243,11 @@ internal static class AzureRealtimeProtocol
 
         writer.WriteStartObject("turn_detection");
         writer.WriteString("type", semantic ? RealtimeTurnDetectionTypes.SemanticVad : RealtimeTurnDetectionTypes.ServerVad);
-        writer.WriteBoolean("create_response", true);
+
+        // A grounded session answers only once the host has retrieved the knowledge for the turn, so the provider
+        // must not reply the instant it stops hearing the user. Everything else still applies: the turn is ended,
+        // committed and transcribed exactly as before.
+        writer.WriteBoolean("create_response", overrides?.CreateResponse ?? true);
         writer.WriteBoolean("interrupt_response", allowInterruption);
 
         if (semantic)
