@@ -49,6 +49,41 @@ public sealed class RealtimeTransportOptions
     public string TurnDetectionEagerness { get; set; } = "auto";
 
     /// <summary>
+    /// Gets or sets a value indicating whether a realtime session with a knowledge base attached retrieves for
+    /// every turn before it answers. Defaults to <see langword="true"/>.
+    /// </summary>
+    /// <remarks>
+    /// This is the voice-only switch. Grounding also requires the site-wide preemptive RAG setting, so turning
+    /// that off disables both paths; this one turns retrieval off for voice while leaving text untouched. With it
+    /// off, a realtime session falls back to the search tool — the model answers only as well as it chooses to
+    /// search, which is faster to start speaking and less reliably grounded.
+    /// </remarks>
+    public bool EnableKnowledgeGrounding { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets how long knowledge retrieval may run before the assistant says a short acknowledgement to
+    /// cover the wait, in milliseconds. Zero or negative disables the acknowledgement. Defaults to 700 ms.
+    /// </summary>
+    /// <remarks>
+    /// A grounded turn cannot start speaking until the search returns, and silence reads as a broken assistant
+    /// long before it reads as a thoughtful one. Retrieval that beats this deadline says nothing at all, so a fast
+    /// index never pays for the filler; only a slow one does.
+    /// </remarks>
+    public int GroundingAcknowledgementDelayMs { get; set; } = 700;
+
+    /// <summary>
+    /// Gets or sets how long a committed user turn may go unanswered on a grounded session before a reply is
+    /// requested anyway, in seconds. Zero or negative disables the watchdog. Defaults to 15 seconds.
+    /// </summary>
+    /// <remarks>
+    /// A grounded session speaks only when the host asks it to, so anything that swallows a turn — a transcript
+    /// that never arrives, neither completed nor failed — would leave the assistant mute for the rest of the
+    /// conversation. An ungrounded answer is a poor answer; a silent assistant is a broken product, so the
+    /// watchdog always prefers the former.
+    /// </remarks>
+    public int GroundingResponseWatchdogSeconds { get; set; } = 15;
+
+    /// <summary>
     /// Gets or sets the STUN server URLs (for example <c>stun:stun.l.google.com:19302</c>). When empty, a public
     /// default STUN server is used so direct connectivity still works out of the box.
     /// </summary>

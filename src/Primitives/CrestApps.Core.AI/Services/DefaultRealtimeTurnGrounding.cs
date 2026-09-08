@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -24,6 +25,7 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
 
     private readonly IEnumerable<IPreemptiveRagHandler> _handlers;
     private readonly DefaultOrchestratorSettings _settings;
+    private readonly RealtimeTransportOptions _transportOptions;
     private readonly ILogger<DefaultRealtimeTurnGrounding> _logger;
 
     /// <summary>
@@ -31,14 +33,17 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
     /// </summary>
     /// <param name="handlers">The preemptive RAG handlers.</param>
     /// <param name="settings">The orchestrator settings carrying the preemptive RAG switch.</param>
+    /// <param name="transportOptions">The realtime transport options carrying the voice-only grounding switch.</param>
     /// <param name="logger">The logger.</param>
     public DefaultRealtimeTurnGrounding(
         IEnumerable<IPreemptiveRagHandler> handlers,
         IOptionsMonitor<DefaultOrchestratorSettings> settings,
+        IOptions<RealtimeTransportOptions> transportOptions,
         ILogger<DefaultRealtimeTurnGrounding> logger)
     {
         _handlers = handlers;
         _settings = settings.CurrentValue;
+        _transportOptions = transportOptions?.Value ?? new RealtimeTransportOptions();
         _logger = logger;
     }
 
@@ -48,9 +53,31 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(resource);
 
-        // The site-wide switch governs both paths: a host that has deliberately turned preemptive retrieval off
-        // wants the model to decide when to search, in voice exactly as in text.
-        if (!_settings.EnablePreemptiveRag || context.CompletionContext is null)
+        // Two switches, deliberately. The site-wide one governs both paths: a host that has turned preemptive
+        // retrieval off wants the model to decide when to search, in voice exactly as in text. The transport one
+        // turns grounding off for voice alone, for a host that wants text grounded but voice as quick to start
+        // speaking as possible.
+        if (!_settings.EnablePreemptiveRag)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Realtime knowledge grounding is off: preemptive RAG is disabled site-wide.");
+            }
+
+            return false;
+        }
+
+        if (!_transportOptions.EnableKnowledgeGrounding)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Realtime knowledge grounding is off: CrestApps:AI:RealtimeTransport:EnableKnowledgeGrounding is false.");
+            }
+
+            return false;
+        }
+
+        if (context.CompletionContext is null)
         {
             return false;
         }
@@ -62,7 +89,17 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
             && context.CompletionContext.AdditionalProperties.TryGetValue(AICompletionContextKeys.HasDocuments, out var value)
             && value is true;
 
-        return (hasDataSource || hasDocuments) && _handlers.Any();
+        var hasHandlers = _handlers.Any();
+        var available = (hasDataSource || hasDocuments) && hasHandlers;
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Realtime knowledge grounding availability: {Available} (dataSource={HasDataSource}, documents={HasDocuments}, handlers={HasHandlers}).",
+                available, hasDataSource, hasDocuments, hasHandlers);
+        }
+
+        return available;
     }
 
     /// <inheritdoc />
@@ -80,6 +117,7 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
             return null;
         }
 
+        var stopwatch = Stopwatch.StartNew();
         var turnContext = CreateTurnContext(context, utterance);
         var builtContext = new OrchestrationContextBuiltContext(resource, turnContext);
         var usableHandlers = new List<IPreemptiveRagHandler>();
@@ -94,7 +132,19 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
 
         if (usableHandlers.Count == 0)
         {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Realtime retrieval skipped: no preemptive RAG handler accepted this turn.");
+            }
+
             return null;
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Realtime retrieval starting for utterance ({Length} chars) across {HandlerCount} handler(s): {Handlers}.",
+                utterance.Length, usableHandlers.Count, string.Join(", ", usableHandlers.Select(h => h.GetType().Name)));
         }
 
         // The text path rewrites the user's message into focused queries with a utility LLM call first. That is
@@ -123,18 +173,29 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
             }
         }
 
-        PromoteReferences(turnContext);
+        var referenceCount = PromoteReferences(turnContext);
 
         var retrieved = turnContext.SystemMessageBuilder.ToString();
+
+        stopwatch.Stop();
 
         if (string.IsNullOrWhiteSpace(retrieved))
         {
             if (_logger.IsEnabled(LogLevel.Debug))
             {
-                _logger.LogDebug("Realtime preemptive RAG found no relevant content for the current utterance.");
+                _logger.LogDebug(
+                    "Realtime retrieval found no relevant content for the current utterance ({ElapsedMs} ms).",
+                    stopwatch.ElapsedMilliseconds);
             }
 
             return null;
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Realtime retrieval returned {Length} chars and {ReferenceCount} citation(s) in {ElapsedMs} ms.",
+                retrieved.Length, referenceCount, stopwatch.ElapsedMilliseconds);
         }
 
         return retrieved;
@@ -169,14 +230,17 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
     /// already land, so a grounded turn cites its sources like any other.
     /// </summary>
     /// <param name="turnContext">The per-turn context the handlers wrote to.</param>
-    private static void PromoteReferences(OrchestrationContext turnContext)
+    /// <returns>The number of citations promoted.</returns>
+    private static int PromoteReferences(OrchestrationContext turnContext)
     {
         var invocation = AIInvocationScope.Current;
 
         if (invocation is null)
         {
-            return;
+            return 0;
         }
+
+        var promoted = 0;
 
         foreach (var key in _referencePropertyKeys)
         {
@@ -186,8 +250,11 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
                 foreach (var (marker, reference) in references)
                 {
                     invocation.ToolReferences[marker] = reference;
+                    promoted++;
                 }
             }
         }
+
+        return promoted;
     }
 }

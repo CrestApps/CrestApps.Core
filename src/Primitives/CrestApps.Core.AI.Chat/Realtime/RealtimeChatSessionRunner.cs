@@ -328,6 +328,22 @@ public sealed class RealtimeChatSessionRunner
     {
         var turn = new AssistantTurn();
 
+        // Only a grounded session needs one: it is the thing that asks the model to answer, which the provider
+        // otherwise does for itself.
+        await using var grounding = conversation.RespondsAutomatically
+            ? null
+            : new GroundedTurnCoordinator(
+                conversation, sessionId, context.AcknowledgementDelay, context.ResponseWatchdogTimeout, _logger);
+
+        if (grounding is not null && _logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation(
+                "Realtime session {SessionId}: knowledge grounding is active. Replies are requested by the server after retrieval (acknowledgement after {AcknowledgementMs} ms, watchdog {WatchdogSeconds}s).",
+                sessionId,
+                context.AcknowledgementDelay?.TotalMilliseconds ?? 0,
+                context.ResponseWatchdogTimeout?.TotalSeconds ?? 0);
+        }
+
         // User utterances that have been committed by the provider but not yet transcribed. Keyed by the
         // provider's item id, which is the only thing that reliably pairs an utterance with its transcript:
         // transcription lags the spoken reply, can fail outright, and (with barge-in off) some utterances are
@@ -371,6 +387,10 @@ public sealed class RealtimeChatSessionRunner
                         // with the prompt underneath its own reply.
                         await turnStore.CreateUserTurnAsync(sessionId, committed, string.Empty, _timeProvider.GetUtcNow().UtcDateTime, cancellationToken);
                         await sink.UserTurnPendingAsync(sessionId, committed, cancellationToken);
+
+                        // A grounded session speaks only when asked, so from here on this turn owes the user a
+                        // response request. The watchdog guarantees one even if the transcript never arrives.
+                        grounding?.TurnCommitted(evt.ItemId, cancellationToken);
                     }
 
                     break;
@@ -394,9 +414,13 @@ public sealed class RealtimeChatSessionRunner
                         // A grounded session holds its reply until the host asks for it. There is no transcript to
                         // retrieve against, but the model still heard the audio — so let it answer ungrounded
                         // rather than leaving the user in silence waiting for a reply that never comes.
-                        if (failed is not { Ignored: true })
+                        if (failed is { Ignored: true })
                         {
-                            await RequestGroundedResponseAsync(conversation, sessionId, utterance: null, cancellationToken);
+                            grounding?.TurnIgnored(evt.ItemId);
+                        }
+                        else
+                        {
+                            grounding?.TurnTranscriptionFailed(evt.ItemId, cancellationToken);
                         }
                     }
 
@@ -412,6 +436,7 @@ public sealed class RealtimeChatSessionRunner
                         {
                             await turnStore.DeleteUserTurnAsync(sessionId, resolved.TurnId, cancellationToken);
                             await sink.UserTurnDroppedAsync(sessionId, resolved.TurnId, cancellationToken);
+                            grounding?.TurnIgnored(evt.ItemId);
 
                             break;
                         }
@@ -438,13 +463,22 @@ public sealed class RealtimeChatSessionRunner
 
                         // Retrieve the knowledge for what was just asked and hand it to the model before it
                         // answers. This is the realtime equivalent of the text path's preemptive RAG: the session
-                        // opened before anyone had spoken, so retrieval could not happen at PREPARE time.
-                        await RequestGroundedResponseAsync(conversation, sessionId, evt.Text, cancellationToken);
+                        // opened before anyone had spoken, so retrieval could not happen at PREPARE time. It runs
+                        // off this pump, which has to keep draining while the search is in flight.
+                        grounding?.BeginTurn(evt.ItemId, evt.Text, cancellationToken);
                     }
 
                     break;
 
                 case RealtimeConversationEventType.AssistantTranscriptDelta:
+                    // "Let me look that up" is audio that covers a wait, not something the assistant said in the
+                    // conversation — the provider is not told about it either. Its audio plays; its words stay out
+                    // of the transcript and out of history.
+                    if (grounding?.IsAcknowledgement(evt.ResponseId) == true)
+                    {
+                        break;
+                    }
+
                     turn.MessageId ??= UniqueId.GenerateId();
                     turn.Builder.Append(evt.Text);
                     turn.HasContent = true;
@@ -453,6 +487,11 @@ public sealed class RealtimeChatSessionRunner
                     break;
 
                 case RealtimeConversationEventType.AssistantTranscriptDone:
+                    if (grounding?.IsAcknowledgement(evt.ResponseId) == true)
+                    {
+                        break;
+                    }
+
                     playback.Reset();
                     await FlushAssistantTurnAsync(context, turnStore, sink, sessionId, turn, finalText: evt.Text, cancellationToken);
                     break;
@@ -469,6 +508,10 @@ public sealed class RealtimeChatSessionRunner
 
                     if (context.AllowInterruption)
                     {
+                        // Whatever the user is saying now commits its own turn. Answering the one they talked over
+                        // would arrive late and address the wrong question.
+                        grounding?.AbandonTurn();
+
                         if (responseState.Active && _logger.IsEnabled(LogLevel.Information))
                         {
                             // Support diagnostic: a reply that "stumbles and then continues" is one that was cut
@@ -499,6 +542,7 @@ public sealed class RealtimeChatSessionRunner
                     responseState.Activate();
                     sawAnyResponse = true;
                     playback.Reset();
+                    grounding?.ResponseStarted(evt.ResponseId);
                     if (_logger.IsEnabled(LogLevel.Debug))
                     {
                         _logger.LogDebug("Realtime response started for session {SessionId} (response {ResponseId}).", sessionId, evt.ResponseId ?? "(none)");
@@ -511,6 +555,10 @@ public sealed class RealtimeChatSessionRunner
                     {
                         _logger.LogDebug("Realtime response completed for session {SessionId} (status={Status}).", sessionId, evt.ResponseStatus ?? "(none)");
                     }
+
+                    // Releases a turn waiting for its spoken acknowledgement to finish: the provider rejects a
+                    // second response while one is still active.
+                    grounding?.ResponseCompleted(evt.ResponseId);
 
                     // "Done" from the provider means it stopped generating, not that the user has heard the reply:
                     // on a paced transport seconds of audio can still be queued. Reopening the half-duplex mic gate
@@ -717,54 +765,6 @@ public sealed class RealtimeChatSessionRunner
         }
 
         playback.Reset();
-    }
-
-    /// <summary>
-    /// Grounds one turn and asks the model to answer it. Does nothing on a session the provider answers by
-    /// itself, which is every session without a knowledge base attached.
-    /// </summary>
-    /// <param name="conversation">The live conversation.</param>
-    /// <param name="sessionId">The session identifier, for diagnostics.</param>
-    /// <param name="utterance">What the user said, or <see langword="null"/> when transcription failed.</param>
-    /// <param name="cancellationToken">A token to cancel the operation.</param>
-    private async Task RequestGroundedResponseAsync(
-        IRealtimeConversation conversation,
-        string sessionId,
-        string? utterance,
-        CancellationToken cancellationToken)
-    {
-        if (conversation.RespondsAutomatically)
-        {
-            return;
-        }
-
-        try
-        {
-            if (!string.IsNullOrWhiteSpace(utterance))
-            {
-                var grounded = await conversation.GroundTurnAsync(utterance, cancellationToken);
-
-                if (_logger.IsEnabled(LogLevel.Debug))
-                {
-                    _logger.LogDebug(
-                        "Realtime session {SessionId}: knowledge retrieval for the current turn {Outcome}.",
-                        sessionId, grounded ? "returned content" : "found nothing relevant");
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            // Retrieval is an enhancement; a failure must not cost the user their answer. Fall through and let
-            // the model reply from the conversation alone.
-            _logger.LogError(ex, "Knowledge retrieval failed for realtime session {SessionId}. The model answers without it.", sessionId);
-        }
-
-        // Unconditional: the reply is deferred to us, so skipping this leaves the session silent forever.
-        await conversation.RequestResponseAsync(cancellationToken);
     }
 
     private static Task NotifyUserUtteranceAsync(RealtimeChatRunContext context, string text, CancellationToken cancellationToken)

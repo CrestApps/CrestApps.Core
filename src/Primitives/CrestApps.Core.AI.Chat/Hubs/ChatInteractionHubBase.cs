@@ -1096,6 +1096,8 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             VadThreshold = vadThreshold,
             AllowInterruption = allowInterruption,
             IdleTimeout = RealtimeTransportSettings.GetIdleTimeout(services),
+            AcknowledgementDelay = RealtimeTransportSettings.GetGroundingAcknowledgementDelay(services),
+            ResponseWatchdogTimeout = RealtimeTransportSettings.GetGroundingResponseWatchdog(services),
             Voice = effectiveVoice,
             SpeechLanguage = language,
             OnUserUtteranceAsync = async (text, turnCancellationToken) =>

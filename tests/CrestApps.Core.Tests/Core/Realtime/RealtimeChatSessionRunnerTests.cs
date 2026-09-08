@@ -883,11 +883,33 @@ public sealed class RealtimeChatSessionRunnerTests
             return Task.CompletedTask;
         }
 
-        public Task<bool> GroundTurnAsync(string utterance, CancellationToken cancellationToken = default)
+        /// <summary>
+        /// Held open so a test can model a slow knowledge base and observe the spoken acknowledgement.
+        /// </summary>
+        public TaskCompletionSource<bool>? RetrievalGate { get; init; }
+
+        /// <summary>
+        /// The acknowledgement instructions the runner asked for, in order.
+        /// </summary>
+        public List<string> Acknowledgements { get; } = [];
+
+        public async Task<bool> GroundTurnAsync(string utterance, CancellationToken cancellationToken = default)
         {
             GroundedUtterances.Add(utterance);
 
-            return Task.FromResult(true);
+            if (RetrievalGate is not null)
+            {
+                return await RetrievalGate.Task.WaitAsync(cancellationToken);
+            }
+
+            return true;
+        }
+
+        public Task RequestAcknowledgementAsync(string instructions, CancellationToken cancellationToken = default)
+        {
+            Acknowledgements.Add(instructions);
+
+            return Task.CompletedTask;
         }
 
         public Task RequestResponseAsync(CancellationToken cancellationToken = default)

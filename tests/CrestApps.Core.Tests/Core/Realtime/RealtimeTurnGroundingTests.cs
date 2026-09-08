@@ -9,6 +9,7 @@ using CrestApps.Core.AI.Services;
 using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Tests.Core.Realtime;
 
@@ -240,6 +241,64 @@ public sealed class RealtimeTurnGroundingTests
     }
 
     [Fact]
+    public void IsGroundingAvailable_WhenTheVoiceOnlySwitchIsOff_IsOff()
+    {
+        // Lets a host keep text grounded while leaving voice as quick to start speaking as possible.
+        var grounding = CreateGrounding(new RecordingPreemptiveRagHandler("x"), preemptiveEnabled: true, voiceEnabled: false);
+
+        Assert.False(grounding.IsGroundingAvailable(CreateContext(dataSourceId: "ds-1"), new AIProfile()));
+    }
+
+    [Fact]
+    public async Task RequestAcknowledgementAsync_SpeaksOutOfBandWithoutToolsOrHistory()
+    {
+        var session = new RecordingSession();
+        var conversation = new DefaultRealtimeConversation(session, (_, _) => Task.FromResult<string?>(null));
+
+        await conversation.RequestAcknowledgementAsync("Say one short filler sentence.", TestContext.Current.CancellationToken);
+
+        var message = Assert.IsType<CreateResponseRealtimeClientMessage>(Assert.Single(session.Sent));
+        Assert.Equal("Say one short filler sentence.", message.Instructions);
+
+        // Never added to the conversation: the model must not later see itself having said "let me look that up"
+        // and treat it as an answer already begun.
+        Assert.True(message.ExcludeFromConversation);
+
+        // A filler that searched would defeat its own purpose, and one that ran long would still be talking when
+        // the answer is ready.
+        Assert.IsType<NoneChatToolMode>(message.ToolMode);
+        Assert.NotNull(message.MaxOutputTokens);
+    }
+
+    [Fact]
+    public async Task RequestAcknowledgementAsync_OnAnAutomaticSession_IsANoOp()
+    {
+        var session = new RecordingSession();
+        var conversation = new DefaultRealtimeConversation(session);
+
+        await conversation.RequestAcknowledgementAsync("Say something.", TestContext.Current.CancellationToken);
+
+        Assert.Empty(session.Sent);
+    }
+
+    [Fact]
+    public async Task RequestResponseAsync_DoesNotOverrideTheSessionTools()
+    {
+        // The answer must be able to call every tool the session advertised — the search tool included, so the
+        // model can go looking for more than retrieval handed it. Writing tools or a tool choice onto this
+        // response would replace the session's for that turn.
+        var session = new RecordingSession();
+        var conversation = new DefaultRealtimeConversation(session, (_, _) => Task.FromResult<string?>(null));
+
+        await conversation.RequestResponseAsync(TestContext.Current.CancellationToken);
+
+        var message = Assert.IsType<CreateResponseRealtimeClientMessage>(Assert.Single(session.Sent));
+        Assert.Null(message.Tools);
+        Assert.Null(message.ToolMode);
+        Assert.Null(message.Instructions);
+    }
+
+    [Fact]
     public void IsGroundingAvailable_WithNoHandlersRegistered_IsOff()
     {
         var grounding = CreateGrounding([], preemptiveEnabled: true);
@@ -259,14 +318,15 @@ public sealed class RealtimeTurnGroundingTests
         };
     }
 
-    private static DefaultRealtimeTurnGrounding CreateGrounding(IPreemptiveRagHandler handler, bool preemptiveEnabled)
-        => CreateGrounding([handler], preemptiveEnabled);
+    private static DefaultRealtimeTurnGrounding CreateGrounding(IPreemptiveRagHandler handler, bool preemptiveEnabled, bool voiceEnabled = true)
+        => CreateGrounding([handler], preemptiveEnabled, voiceEnabled);
 
-    private static DefaultRealtimeTurnGrounding CreateGrounding(IPreemptiveRagHandler[] handlers, bool preemptiveEnabled)
+    private static DefaultRealtimeTurnGrounding CreateGrounding(IPreemptiveRagHandler[] handlers, bool preemptiveEnabled, bool voiceEnabled = true)
     {
         return new DefaultRealtimeTurnGrounding(
             handlers,
             new TestOptionsMonitor<DefaultOrchestratorSettings> { CurrentValue = new DefaultOrchestratorSettings { EnablePreemptiveRag = preemptiveEnabled } },
+            Options.Create(new RealtimeTransportOptions { EnableKnowledgeGrounding = voiceEnabled }),
             NullLogger<DefaultRealtimeTurnGrounding>.Instance);
     }
 

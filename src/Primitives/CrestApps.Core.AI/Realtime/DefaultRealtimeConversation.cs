@@ -17,6 +17,10 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 internal sealed class DefaultRealtimeConversation : IRealtimeConversation
 {
+    // A spoken acknowledgement is one short sentence. Capping it keeps a model that decides to be chatty from
+    // still talking when the answer it was covering for is ready.
+    private const int AcknowledgementMaxOutputTokens = 64;
+
     private readonly IRealtimeClientSession _session;
     private readonly Func<string, CancellationToken, Task<string?>>? _groundTurnAsync;
     private int _disposed;
@@ -85,6 +89,33 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
         }
 
         return _session.SendAsync(new CreateResponseRealtimeClientMessage(), cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task RequestAcknowledgementAsync(string instructions, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instructions);
+
+        if (RespondsAutomatically)
+        {
+            return Task.CompletedTask;
+        }
+
+        var message = new CreateResponseRealtimeClientMessage
+        {
+            Instructions = instructions,
+
+            // Out-of-band: spoken, but never added to the conversation. Without this the model would see itself
+            // having said "let me look that up" and treat it as part of the answer it then has to continue.
+            ExcludeFromConversation = true,
+
+            // A filler that calls the search tool would defeat its whole purpose — it exists to cover the search
+            // already running — and one that runs long would still be talking when the answer is ready.
+            ToolMode = ChatToolMode.None,
+            MaxOutputTokens = AcknowledgementMaxOutputTokens,
+        };
+
+        return _session.SendAsync(message, cancellationToken);
     }
 
     /// <inheritdoc />

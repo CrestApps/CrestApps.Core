@@ -42,6 +42,20 @@ public interface IRealtimeConversation : IAsyncDisposable
     Task RequestResponseAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Asks the model to speak a short acknowledgement — "let me look that up" — to cover a wait the user would
+    /// otherwise hear as silence.
+    /// </summary>
+    /// <remarks>
+    /// The response is requested out-of-band: it is spoken but never added to the conversation, so the model does
+    /// not later see itself having said it, and it cannot call tools or run long. Like
+    /// <see cref="RequestResponseAsync"/> it is a no-op on a session that responds automatically, which never has
+    /// a wait to cover.
+    /// </remarks>
+    /// <param name="instructions">What the model should say.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    Task RequestAcknowledgementAsync(string instructions, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Streams conversation events (assistant audio, transcripts, turn and error signals) until the
     /// session ends or the token is cancelled. Enumerating this stream also drives the realtime tool
     /// loop, so it must be enumerated within the caller's <c>AIInvocationScope</c>.

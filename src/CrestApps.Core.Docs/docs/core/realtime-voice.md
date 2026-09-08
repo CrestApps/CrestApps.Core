@@ -254,8 +254,40 @@ Three consequences worth knowing:
   utility LLM call; that is skipped here, because it would add a second round-trip to every spoken turn and it
   earns its cost by resolving follow-ups against conversation history, which a per-turn realtime context does not
   carry.
-- **The search tool is still advertised.** Grounding gives the model the knowledge up front; the tool lets it go
-  looking for more. When preemptive RAG is switched off site-wide, the tool is the only path, exactly as in text.
+- **The search tool is still advertised, and every tool stays available on every turn.** The answer's
+  `response.create` carries no tool overrides, so the session's full toolset and `tool_choice: auto` apply exactly
+  as they do without grounding. Retrieval gives the model the knowledge up front; the tool lets it go looking for
+  more.
+
+### Covering the wait
+
+Silence between the user finishing and the assistant starting reads as a broken assistant long before it reads as
+a thoughtful one. So retrieval races a timer: if the search returns before
+`GroundingAcknowledgementDelayMs` (default 700 ms) the answer comes straight back with nothing in front of it. If
+it does not, the assistant says one short line — "let me look that up" — while the search finishes.
+
+That acknowledgement is requested **out of band** (`conversation: "none"`), with tools off and a small token cap.
+It is spoken, but never added to the conversation, never streamed as an assistant turn, and never persisted: the
+model does not later see itself having said it, and it does not appear in history. A fast index never pays for it;
+only a slow one does.
+
+### The muteness backstop
+
+A grounded session speaks only when the server asks it to, which means a swallowed turn — one that produces
+neither a transcript nor a transcription failure — would leave the assistant mute for the rest of the
+conversation. Every path therefore ends in a response request, including the failure paths, and
+`GroundingResponseWatchdogSeconds` (default 15) is the backstop for the paths that do not exist yet. An ungrounded
+answer is a poor answer; a silent assistant is a broken product, so the watchdog always prefers the former. It
+logs a warning when it fires — if you see that line, something upstream is dropping turns.
+
+### Switches
+
+| Setting | Default | Effect |
+| --- | --- | --- |
+| Admin → Settings → *Enable preemptive RAG* | on | Governs **both** text and voice. Off means the model decides when to search, everywhere. |
+| `CrestApps:AI:RealtimeTransport:EnableKnowledgeGrounding` | `true` | Voice only. Off leaves text grounded and returns voice to the search tool, which starts speaking sooner and grounds less reliably. |
+| `CrestApps:AI:RealtimeTransport:GroundingAcknowledgementDelayMs` | `700` | How long retrieval may run before the wait is covered aloud. `0` never speaks one. |
+| `CrestApps:AI:RealtimeTransport:GroundingResponseWatchdogSeconds` | `15` | How long a committed turn may go unanswered before a reply is requested anyway. `0` disables the backstop. |
 
 The knowledge base is only as reachable as the deployment that calls it. If the deployment behind the session —
 for a cascade, its **chat** leg — does not declare the `toolCalling` feature, the tools resolved for the session
@@ -444,10 +476,37 @@ buffer overflows. The runner logs response start/completion and session end reas
 conversation without the provider ever reporting user speech, which means that deployment's events are not
 recognised and barge-in cannot work for it.
 
-For a session that answers knowledge questions from the model's own training data instead of the knowledge base,
-the orchestrator's debug line reports the tool count and whether per-turn retrieval is on, and it logs an error
-when the deployment that would call the tools does not declare `toolCalling`. `CrestApps.Core.AI.Services.
-DefaultRealtimeTurnGrounding` logs at debug whether each turn's retrieval returned content.
+### Tracing knowledge grounding
+
+To confirm grounding is working, raise `CrestApps.Core.AI.Services.DefaultRealtimeTurnGrounding` and
+`CrestApps.Core.AI.Chat.Realtime` to `Debug`. One healthy grounded turn looks like this:
+
+```
+info: Realtime session abc123: knowledge grounding is active. Replies are requested by the server
+      after retrieval (acknowledgement after 700 ms, watchdog 15s).
+dbug: Realtime knowledge grounding availability: True (dataSource=True, documents=False, handlers=True).
+dbug: Realtime retrieval starting for utterance (31 chars) across 1 handler(s): DataSourcePreemptiveRagHandler.
+dbug: Realtime retrieval returned 2841 chars and 3 citation(s) in 214 ms.
+dbug: Realtime session abc123: retrieval finished in 219 ms and added context to the conversation.
+dbug: Realtime session abc123: answer requested 221 ms after the transcript arrived.
+```
+
+What each line tells you:
+
+- **No "knowledge grounding is active" line** — the session is not grounded. The availability line says why:
+  `dataSource=False, documents=False` means nothing is attached to the profile; the two "grounding is off" lines
+  name the switch that disabled it.
+- **"added nothing"** — retrieval ran and the index returned nothing relevant for that utterance. The model still
+  answers, and the search tool remains available to it.
+- **"still running after 700 ms, so the wait is covered"** (Information) — the index is slower than the
+  acknowledgement deadline. This is the line that explains why some turns say "let me look that up" and others
+  do not.
+- **"a committed turn produced no transcript within 15s"** (Warning) — the backstop fired. The session recovered,
+  but something upstream dropped a turn and it will keep happening.
+- **"does not declare the 'toolCalling' feature"** (Error) — the deployment that would call the tools, or a
+  cascade's **chat** leg, has them stripped before the model sees them. Fix the model's capability metadata.
+
+The orchestrator's own debug line reports the tool count and whether per-turn retrieval is on for the session.
 
 In the browser, `CoreAIRealtime`'s controller exposes `getState()` and `getGateLevel()` — the latter returns the
 gate's most recent measurement (level, tracked noise floor, whether it is open, whether the assistant is audible),

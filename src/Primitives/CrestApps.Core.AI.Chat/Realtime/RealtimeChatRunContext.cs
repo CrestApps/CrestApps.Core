@@ -80,6 +80,20 @@ public sealed class RealtimeChatRunContext
     public TimeSpan? IdleTimeout { get; init; }
 
     /// <summary>
+    /// Gets how long knowledge retrieval may run before the assistant covers the wait aloud, or
+    /// <see langword="null"/> to never speak one. Only applies to a grounded session, which is the only kind that
+    /// makes the user wait before it starts speaking.
+    /// </summary>
+    public TimeSpan? AcknowledgementDelay { get; init; }
+
+    /// <summary>
+    /// Gets how long a committed turn may go unanswered on a grounded session before a reply is requested
+    /// anyway, or <see langword="null"/> to disable the backstop. A grounded session speaks only when the server
+    /// asks it to, so without this a swallowed turn would leave the assistant mute for good.
+    /// </summary>
+    public TimeSpan? ResponseWatchdogTimeout { get; init; }
+
+    /// <summary>
     /// Gets an optional hook invoked after each completed user utterance is persisted (e.g. title generation).
     /// </summary>
     public Func<string, CancellationToken, Task>? OnUserUtteranceAsync { get; init; }
