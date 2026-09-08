@@ -665,6 +665,9 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, AgentToolRegistryProvider>());
         services.TryAddScoped<IToolRegistry, DefaultToolRegistry>();
         services.TryAddScoped<IToolMaterializer, DefaultToolMaterializer>();
+        services.TryAddSingleton(sp => new ToolRelevanceScoper(
+            sp.GetRequiredService<ITextTokenizer>(),
+            sp.GetRequiredService<IOptions<DefaultOrchestratorOptions>>().Value));
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, CompletionContextOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, PreemptiveRagOrchestrationHandler>());

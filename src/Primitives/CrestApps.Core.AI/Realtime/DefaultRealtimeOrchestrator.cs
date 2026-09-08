@@ -30,6 +30,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
     private readonly IToolMaterializer _toolMaterializer;
     private readonly IRealtimeSessionConfigurator _sessionConfigurator;
     private readonly IRealtimeTurnGrounding _turnGrounding;
+    private readonly ToolRelevanceScoper _toolScoper;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<DefaultRealtimeOrchestrator> _logger;
@@ -48,6 +49,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         IToolMaterializer toolMaterializer,
         IRealtimeSessionConfigurator sessionConfigurator,
         IRealtimeTurnGrounding turnGrounding,
+        ToolRelevanceScoper toolScoper,
         IServiceProvider serviceProvider,
         ILoggerFactory loggerFactory,
         ILogger<DefaultRealtimeOrchestrator> logger)
@@ -60,6 +62,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         _toolMaterializer = toolMaterializer;
         _sessionConfigurator = sessionConfigurator;
         _turnGrounding = turnGrounding;
+        _toolScoper = toolScoper;
         _serviceProvider = serviceProvider;
         _loggerFactory = loggerFactory;
         _logger = logger;
@@ -109,7 +112,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             ?? throw new InvalidOperationException(
                 "Unable to resolve a realtime deployment. Create a chat AI deployment whose model declares the 'realtime' capability.");
 
-        var tools = await MaterializeToolsAsync(context, cancellationToken);
+        var tools = await MaterializeToolsAsync(context, request.Resource, cancellationToken);
 
         // A session that advertises tools but has no ambient scope cannot execute a single one of them: every
         // call would return "requires an active AI execution context" as ordinary text, and the model would
@@ -250,20 +253,42 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             toolDeploymentName, AIDeploymentFeatureNames.ToolCalling, tools.Count, AIDeploymentFeatureNames.ToolCalling);
     }
 
-    private async Task<IReadOnlyList<AITool>> MaterializeToolsAsync(OrchestrationContext context, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<AITool>> MaterializeToolsAsync(OrchestrationContext context, object resource, CancellationToken cancellationToken)
     {
         if (context.DisableTools || context.CompletionContext is null)
         {
             return [];
         }
 
-        // Realtime configures its tools once (no per-turn planning); inject the full resolved set.
-        // The profile is the authorization boundary, as with AI Sessions, so no per-user gate is applied.
+        // Realtime configures its tools once, at session open, and every one of them sits in the model's context
+        // for every response of the conversation. The profile is the authorization boundary, as with AI Sessions,
+        // so no per-user gate is applied.
         var entries = await _toolRegistry.GetAllAsync(context.CompletionContext, cancellationToken);
 
         if (entries.Count == 0)
         {
             return [];
+        }
+
+        // A tool another tool depends on must survive scoping, exactly as on the chat path.
+        DefaultOrchestrator.MergeDependencyToolNames(context);
+
+        // Past the same threshold at which chat stops passing tools through whole, trim to the ones relevant to
+        // what this assistant is for. There is no user message yet to score against, so the profile's own
+        // instructions stand in for one. Chat re-scopes per request; realtime cannot without deferring every
+        // reply, so this one decision has to hold for the whole session — which is why it is a warning, not a
+        // debug line: the fix is to curate the profile, not to rely on the cut.
+        if (_toolScoper.ShouldScope(entries.Count))
+        {
+            var scoped = _toolScoper.Scope(context.CompletionContext.SystemMessage, context.MustIncludeTools, entries);
+            var dropped = entries.Where(entry => !scoped.Contains(entry)).Select(entry => entry.Name).ToArray();
+
+            _logger.LogWarning(
+                "Realtime session for '{ResourceType}' resolved {Total} tool(s), above the {Threshold} a session carries well. Scoped to {Kept} by relevance to the profile's instructions; the model will not see: [{Dropped}]. Curate the profile's tools — or select fewer tools from its MCP connections — so this cut is not needed.",
+                resource.GetType().Name,
+                entries.Count, _toolScoper.ScopingThreshold, scoped.Count, string.Join(", ", dropped));
+
+            entries = scoped;
         }
 
         var result = await _toolMaterializer.MaterializeAsync(entries, ToolMaterializationOptions.Default, cancellationToken);
