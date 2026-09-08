@@ -20,6 +20,52 @@ Two transports carry that audio. The application selects between them automatica
 | **WebRTC** (server-relay) | Primary — whenever the server advertises it and the browser supports `RTCPeerConnection`, and the peer connects | The browser's acoustic echo canceller (AEC) keeps the mic open (full-duplex) |
 | **WebSocket** (PCM over SignalR) | Fallback — when WebRTC can't connect (blocked UDP, no TURN, unsupported browser) | Browser AEC still applies to the played-back audio; barge-in off additionally mutes the mic while the assistant speaks |
 
+## Providers without a speech-to-speech model
+
+Most providers do not ship a speech-to-speech model. A **cascaded realtime deployment** serves the same
+experience by chaining three deployments you already have — one that transcribes, one that reasons, and one
+that speaks:
+
+```
+mic ──▶ realtime speech-to-text ──▶ chat (tools, data sources) ──▶ text-to-speech ──▶ speaker
+```
+
+Everything above the client is unchanged: a cascaded deployment produces the same realtime messages a native
+provider does, so the orchestrator, the chat UI, transcripts, and turn persistence all behave identically.
+The legs may come from different vendors — transcribe with one, reason with another, speak with a third.
+
+Configure it by storing `CascadedRealtimeMetadata` on a deployment that also declares the `realtime` feature:
+
+```csharp
+var deployment = await deploymentManager.NewAsync("cascaded-voice", clientName);
+
+deployment.Alter<CascadedRealtimeMetadata>(cascade =>
+{
+    cascade.SpeechToTextDeploymentName = "elevenlabs-scribe";
+    cascade.ChatDeploymentName = "gpt-4o";
+    cascade.TextToSpeechDeploymentName = "elevenlabs-tts";
+});
+
+deployment.Alter<AIDeploymentMetadata>(metadata =>
+{
+    metadata.Features = [AIDeploymentFeatureNames.Realtime];
+});
+```
+
+What to expect from each leg:
+
+- **Speech-to-text** must expose a realtime client that supports a transcription session. It hears the user
+  continuously; a committed transcript is what ends the user's turn and starts the reply.
+- **Chat** produces the reply. Tools, data sources, and the profile's system message are applied here, so a
+  cascaded session keeps every capability a text profile has. Function invocation is applied automatically.
+- **Text-to-speech** speaks the reply. The reply is spoken a sentence at a time so audio starts playing while
+  the model is still writing, and the voice picker for the deployment lists this leg's voices.
+
+Two differences from a native speech-to-speech model are worth planning for. Latency is higher, because a turn
+passes through three services instead of one. And interruption is driven by transcription: when the user
+speaks over the assistant, the first partial transcript cancels the in-flight reply and tells the client to
+drop the audio it has buffered, so barge-in responds as fast as the transcriber reports speech.
+
 ## Architecture: server-relay WebRTC
 
 The realtime orchestrator, tool loop, system-prompt injection, and persistence are **transport-agnostic**. WebRTC swaps only the two audio boundaries; the server still drives the provider session.

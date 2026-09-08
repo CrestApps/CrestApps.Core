@@ -1,7 +1,9 @@
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Connections;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Realtime;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -219,6 +221,14 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
     public async ValueTask<IRealtimeClient> CreateRealtimeClientAsync(AIDeployment deployment)
     {
         ArgumentNullException.ThrowIfNull(deployment);
+
+        // A cascaded deployment names three other deployments instead of speaking to a provider itself, so
+        // it is composed here: a client provider only ever sees one connection and could never reach them.
+        if (deployment.TryGet<CascadedRealtimeMetadata>(out var cascade) && cascade.IsComplete())
+        {
+            return await CreateCascadedRealtimeClientAsync(deployment, cascade);
+        }
+
         ArgumentException.ThrowIfNullOrEmpty(deployment.ClientName);
 
         // Realtime eligibility (a chat deployment whose model declares the 'realtime' capability) is
@@ -228,6 +238,69 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         return await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetRealtimeClientAsync(conn, model));
+    }
+
+    /// <summary>
+    /// Composes the realtime client for a deployment that answers speech with speech by chaining a
+    /// transcription deployment, a chat deployment, and a text-to-speech deployment.
+    /// </summary>
+    /// <param name="deployment">The cascaded realtime deployment.</param>
+    /// <param name="cascade">The metadata naming the deployments to chain.</param>
+    private async ValueTask<IRealtimeClient> CreateCascadedRealtimeClientAsync(AIDeployment deployment, CascadedRealtimeMetadata cascade)
+    {
+        var deploymentStore = _serviceProvider.GetRequiredService<IAIDeploymentStore>();
+
+        var speechToText = await ResolveCascadeLegAsync(deploymentStore, deployment, cascade.SpeechToTextDeploymentName, "speech-to-text");
+        var chat = await ResolveCascadeLegAsync(deploymentStore, deployment, cascade.ChatDeploymentName, "chat");
+        var textToSpeech = await ResolveCascadeLegAsync(deploymentStore, deployment, cascade.TextToSpeechDeploymentName, "text-to-speech");
+
+        // A cascade whose transcription leg is itself a cascade would compose forever.
+        if (speechToText.TryGet<CascadedRealtimeMetadata>(out var nested) && nested.IsComplete())
+        {
+            throw new InvalidOperationException($"The cascaded realtime deployment '{deployment.Name}' names '{speechToText.Name}' for speech-to-text, but that deployment is itself cascaded. Name a deployment that transcribes directly.");
+        }
+
+        var transcriptionClient = await CreateRealtimeClientAsync(speechToText);
+
+        try
+        {
+            // Tools resolved for the conversation are invoked on the chat leg, which is the only leg that
+            // can call them. The realtime middleware above this client then sees no tool calls to handle.
+            var chatClient = await CreateChatClientAsync(chat, builder => builder.UseFunctionInvocation());
+            var speechClient = await CreateTextToSpeechClientAsync(textToSpeech);
+
+            return new CascadedRealtimeClient(
+                transcriptionClient,
+                chatClient,
+                speechClient,
+                textToSpeech.ModelName,
+                _serviceProvider.GetRequiredService<ILogger<CascadedRealtimeClient>>());
+        }
+        catch
+        {
+            transcriptionClient.Dispose();
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Loads one of the deployments a cascade chains together.
+    /// </summary>
+    /// <param name="deploymentStore">The deployment store.</param>
+    /// <param name="deployment">The cascaded deployment doing the naming, used for diagnostics.</param>
+    /// <param name="name">The technical name of the deployment to load.</param>
+    /// <param name="role">The role the named deployment plays in the cascade, used for diagnostics.</param>
+    private static async ValueTask<AIDeployment> ResolveCascadeLegAsync(
+        IAIDeploymentStore deploymentStore,
+        AIDeployment deployment,
+        string name,
+        string role)
+    {
+        var leg = await deploymentStore.FindByNameAsync(name);
+
+        return leg
+            ?? throw new InvalidOperationException($"The cascaded realtime deployment '{deployment.Name}' names '{name}' as its {role} deployment, but no deployment with that name exists.");
     }
 #pragma warning restore MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
 
