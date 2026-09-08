@@ -222,6 +222,67 @@ Both the algorithm and the semantic *eagerness* are configurable under `CrestApp
 drops, comfortably longer than any pause the detector is willing to wait through, because the gate emits digital
 silence when it closes and whichever of the two expires first is what actually ends the turn.
 
+## Voice profiles: choosing tools
+
+A voice agent is only as reliable as its tool list is short. Every tool a realtime session carries sits in the
+model's context on **every turn** of the conversation — not once per request, as in chat — and a model picks
+well from a handful of clearly distinct tools and poorly from a catalog. This is how every voice-agent platform
+works, and OpenAI's own realtime guidance says the same: curate a small, explicit tool set per agent. Nobody ships a
+catalog into a voice loop.
+
+**Pick the tools on the profile.** A customer-service voice profile with `validate_customer`, `lookup_account`,
+`update_customer_info` and the automatic knowledge base search is four to six tools. That is the common case,
+and it already works — select them on the profile's Tools tab and nothing more is needed.
+
+**Take tools from MCP connections individually.** An MCP server routinely exposes dozens of tools. Rather than
+attaching the whole connection, untick *Use all tools* under it and choose the few this profile needs. A profile
+saved before this existed — or with the switch left on — takes every tool the connection offers, exactly as
+before. An empty selection keeps the connection for its prompts and resources but contributes no tools.
+
+### What makes the tools reliable
+
+Tool count is rarely what breaks a customer-service voice agent in practice. These are:
+
+1. **Ordering enforced by the tool, not the prompt.** The model must not call `update_customer_info` before
+   `validate_customer` has succeeded. Instructions alone will not guarantee it — models skip steps under
+   conversational pressure. Have `validate_customer` record a verified flag in
+   `AIInvocationScope.Current.Items`, and have every mutating tool read it and refuse, with a short spoken-friendly
+   message, when it is absent. The scope lives for the whole session, so the flag does too.
+2. **Confirm before writes.** "I'll update your address to 12 Oak Street — is that right?" Misheard digits are the
+   dominant voice failure, and this is the standard defence. It belongs in the system prompt of any profile with
+   mutating tools.
+3. **Tool results written to be spoken.** The model reads results aloud. A tool that returns a JSON blob produces
+   a robotic answer or a stumble; one that returns `"Account found: Jane Doe, premium plan, last payment March 3."`
+   produces a sentence. Audit any tool a voice profile will use for output shaped for a chat window.
+4. **Distinct names and descriptions.** With a small set this is the whole selection problem. `lookup_account`,
+   `find_customer` and `get_customer_details` side by side is how the model picks the wrong one.
+
+### The safety net
+
+If a profile still resolves more tools than chat's own scoping threshold (`DefaultOrchestratorOptions.ScopingThreshold`,
+default 30), the realtime orchestrator trims the set at session open — by token relevance to the profile's
+instructions, the same lightweight scoring the chat orchestrator uses, capped at `InitialToolCount` (default 20)
+plus any tool that must be kept (the knowledge base search, and anything another tool depends on). It logs a
+**warning** naming the profile and the tools the model will not see:
+
+```
+warn: Realtime session for 'AIProfile' resolved 42 tool(s), above the 30 a session carries well.
+      Scoped to 21 by relevance to the profile's instructions; the model will not see: [...].
+      Curate the profile's tools — or select fewer tools from its MCP connections — so this cut is not needed.
+```
+
+Treat that line as a to-do, not a feature. Chat can re-scope on every request because it has the user's message;
+a voice session cannot without deferring every reply, so this one decision has to hold for the whole conversation.
+A curated profile never triggers it.
+
+### For breadth: hand off, don't grow the list
+
+When a business genuinely needs sixty tools across billing, shipping and returns, the answer is not a longer list.
+It is a small triage agent that hands off — "transfer to billing" is itself a tool, and calling it swaps the
+session's instructions and tools to the specialist's small set. Each specialist stays short and reliable. This is
+how OpenAI's own realtime agent examples are structured; the framework does not implement handoffs yet, but every
+piece above is designed so that it can.
+
 ## Knowledge base grounding
 
 A text completion retrieves from the knowledge base **before** the model runs: the profile's data source is
@@ -505,6 +566,11 @@ What each line tells you:
   but something upstream dropped a turn and it will keep happening.
 - **"does not declare the 'toolCalling' feature"** (Error) — the deployment that would call the tools, or a
   cascade's **chat** leg, has them stripped before the model sees them. Fix the model's capability metadata.
+- **"resolved N tool(s), above the 30 a session carries well"** (Warning) — the profile brings more tools than a
+  voice session should carry, and the set was trimmed at session open. The line lists what the model will not see;
+  curate the profile or select fewer tools from its MCP connections.
+- **"MCP connection '…': 3 of 40 tool(s) selected for this profile"** (Debug, `CrestApps.Core.AI.Mcp`) — per-tool
+  selection is in effect for that connection.
 
 The orchestrator's own debug line reports the tool count and whether per-turn retrieval is on for the session.
 
