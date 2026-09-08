@@ -2,6 +2,7 @@
 #nullable enable
 using System.Buffers;
 using System.Diagnostics;
+using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Realtime;
@@ -57,18 +58,29 @@ public sealed class RealtimeChatSessionRunner
     private readonly IRealtimeOrchestrator _orchestrator;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<RealtimeChatSessionRunner> _logger;
+    private readonly CitationReferenceCollector? _citationCollector;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RealtimeChatSessionRunner"/> class.
     /// </summary>
+    /// <param name="orchestrator">The realtime orchestrator.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="citationCollector">
+    /// Resolves the links on citations before they reach the transcript, exactly as the text hubs do. Optional,
+    /// because it is registered by the chat-interactions feature while this runner belongs to session processing:
+    /// a host with one but not the other still gets citations, just without links.
+    /// </param>
     public RealtimeChatSessionRunner(
         IRealtimeOrchestrator orchestrator,
         TimeProvider timeProvider,
-        ILogger<RealtimeChatSessionRunner> logger)
+        ILogger<RealtimeChatSessionRunner> logger,
+        CitationReferenceCollector? citationCollector = null)
     {
         _orchestrator = orchestrator;
         _timeProvider = timeProvider;
         _logger = logger;
+        _citationCollector = citationCollector;
     }
 
     /// <summary>
@@ -815,8 +827,22 @@ public sealed class RealtimeChatSessionRunner
         }
     }
 
-    private static Dictionary<string, AICompletionReference>? SnapshotReferences()
+    private Dictionary<string, AICompletionReference>? SnapshotReferences()
     {
+        if (_citationCollector is not null)
+        {
+            // The same collection the text hubs run after a reply: it copies the citations gathered on the scope
+            // and resolves each one's link. Without it a citation reaches the client with no link and renders as
+            // plain text — the client only makes a citation clickable when a link is present.
+            var resolved = new Dictionary<string, AICompletionReference>(StringComparer.OrdinalIgnoreCase);
+
+            // Article ids feed hosts that do follow-up lookups after a text reply; a spoken turn has no such
+            // consumer, so they are collected and discarded.
+            _citationCollector.CollectToolReferences(resolved, []);
+
+            return resolved.Count == 0 ? null : resolved;
+        }
+
         var references = AIInvocationScope.Current?.ToolReferences;
 
         if (references is null || references.Count == 0)

@@ -2,10 +2,14 @@
 using System.Runtime.CompilerServices;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat.Realtime;
+using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Realtime;
+using CrestApps.Core.AI.Services;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -767,6 +771,89 @@ public sealed class RealtimeChatSessionRunnerTests
             PendingAudio(TestContext.Current.CancellationToken),
             new RecordingSink(),
             TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task RunAsync_ResolvesCitationLinks_SoTheClientRendersThemAsLinks()
+    {
+        // The client only makes a citation clickable when it carries a link. The text hubs resolve links through
+        // CitationReferenceCollector after every reply; the realtime runner used to copy the scope's references
+        // raw, so every spoken answer's citations arrived link-less and rendered as plain text.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-1" };
+
+        var conversation = new FakeConversation(
+        [
+            Evt(RealtimeConversationEventType.AssistantTranscriptDelta, text: "See the article."),
+            Evt(RealtimeConversationEventType.AssistantTranscriptDone, text: "See the article."),
+        ]);
+        var (store, persisted) = CreateStore();
+
+        using var services = new ServiceCollection()
+            .AddKeyedSingleton<IAIReferenceLinkResolver>("articles", new FixedLinkResolver("https://kb.example/articles/"))
+            .BuildServiceProvider();
+        var collector = new CitationReferenceCollector(new CompositeAIReferenceLinkResolver(services));
+
+        using var scope = AIInvocationScope.Begin();
+        scope.Context.ToolReferences["[doc:1]"] = new AICompletionReference
+        {
+            Index = 1,
+            Title = "What Are Large Language Models?",
+            ReferenceId = "kb-42",
+            ReferenceType = "articles",
+        };
+
+        var runner = new RealtimeChatSessionRunner(
+            new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance, collector);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext { Resource = profile, SessionId = session.SessionId, ChatSession = session },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            new RecordingSink(),
+            TestContext.Current.CancellationToken);
+
+        var reference = Assert.Single(persisted).References!["[doc:1]"];
+        Assert.Equal("https://kb.example/articles/kb-42", reference.Link);
+        Assert.Equal("What Are Large Language Models?", reference.Title);
+    }
+
+    [Fact]
+    public async Task RunAsync_WithoutACollector_StillCarriesCitations()
+    {
+        // A host that registers session processing but not chat interactions has no collector. Citations must
+        // still reach the transcript — just without links, which is what it had before.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-1" };
+        var conversation = new FakeConversation(
+        [
+            Evt(RealtimeConversationEventType.AssistantTranscriptDone, text: "See the article."),
+        ]);
+        var (store, persisted) = CreateStore();
+
+        using var scope = AIInvocationScope.Begin();
+        scope.Context.ToolReferences["[doc:1]"] = new AICompletionReference { Index = 1, Title = "Source", ReferenceId = "kb-1", ReferenceType = "articles" };
+
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext { Resource = profile, SessionId = session.SessionId, ChatSession = session },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            new RecordingSink(),
+            TestContext.Current.CancellationToken);
+
+        var reference = Assert.Single(persisted).References!["[doc:1]"];
+        Assert.Null(reference.Link);
+    }
+
+    private sealed class FixedLinkResolver : IAIReferenceLinkResolver
+    {
+        private readonly string _prefix;
+
+        public FixedLinkResolver(string prefix) => _prefix = prefix;
+
+        public string ResolveLink(string referenceId, IDictionary<string, object> metadata) => _prefix + referenceId;
     }
 
     private static RealtimeConversationEvent Evt(
