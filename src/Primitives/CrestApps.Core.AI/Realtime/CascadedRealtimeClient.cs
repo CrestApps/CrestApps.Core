@@ -20,6 +20,7 @@ public sealed class CascadedRealtimeClient : IRealtimeClient
     private readonly IRealtimeClient _transcriptionClient;
     private readonly IChatClient _chatClient;
     private readonly ITextToSpeechClient _speechClient;
+    private readonly string? _transcriptionModelId;
     private readonly string? _speechModelId;
     private readonly ILogger<CascadedRealtimeClient> _logger;
 
@@ -29,18 +30,21 @@ public sealed class CascadedRealtimeClient : IRealtimeClient
     /// <param name="transcriptionClient">The realtime client that transcribes the user's speech.</param>
     /// <param name="chatClient">The chat client that generates the reply. Supply one that already has function invocation applied when the session should be able to call tools.</param>
     /// <param name="speechClient">The text-to-speech client that speaks the reply.</param>
+    /// <param name="transcriptionModelId">The model the speech-to-text deployment should use, or <see langword="null"/> for its default.</param>
     /// <param name="speechModelId">The model the text-to-speech deployment should use, or <see langword="null"/> for its default.</param>
     /// <param name="logger">The logger.</param>
     public CascadedRealtimeClient(
         IRealtimeClient transcriptionClient,
         IChatClient chatClient,
         ITextToSpeechClient speechClient,
+        string? transcriptionModelId,
         string? speechModelId,
         ILogger<CascadedRealtimeClient> logger)
     {
         _transcriptionClient = transcriptionClient;
         _chatClient = chatClient;
         _speechClient = speechClient;
+        _transcriptionModelId = transcriptionModelId;
         _speechModelId = speechModelId;
         _logger = logger;
     }
@@ -111,15 +115,41 @@ public sealed class CascadedRealtimeClient : IRealtimeClient
     /// over: the reply is produced by the chat leg, not by the transcriber.
     /// </summary>
     /// <param name="options">The session options the caller requested.</param>
-    private static RealtimeSessionOptions BuildTranscriptionOptions(RealtimeSessionOptions? options)
+    private RealtimeSessionOptions BuildTranscriptionOptions(RealtimeSessionOptions? options)
     {
         return new RealtimeSessionOptions
         {
             SessionKind = RealtimeSessionKind.Transcription,
             InputAudioFormat = options?.InputAudioFormat,
-            TranscriptionOptions = options?.TranscriptionOptions,
+            TranscriptionOptions = BuildTranscriptionModelOptions(options),
             VoiceActivityDetection = options?.VoiceActivityDetection,
             RawRepresentationFactory = options?.RawRepresentationFactory,
+        };
+    }
+
+    /// <summary>
+    /// Builds the transcription options for the speech-to-text leg, naming that leg's own model.
+    /// </summary>
+    /// <param name="options">The session options the caller requested.</param>
+    /// <remarks>
+    /// The caller's transcription model names a model of whichever provider serves a native realtime
+    /// session, which is rarely the provider transcribing here. Forwarding it would ask this provider for a
+    /// model it has never heard of, so the speech-to-text deployment's own model wins.
+    /// </remarks>
+    private TranscriptionOptions? BuildTranscriptionModelOptions(RealtimeSessionOptions? options)
+    {
+        if (string.IsNullOrWhiteSpace(_transcriptionModelId) && options?.TranscriptionOptions is null)
+        {
+            return null;
+        }
+
+        return new TranscriptionOptions
+        {
+            ModelId = string.IsNullOrWhiteSpace(_transcriptionModelId)
+                ? options?.TranscriptionOptions?.ModelId
+                : _transcriptionModelId,
+            SpeechLanguage = options?.TranscriptionOptions?.SpeechLanguage,
+            Prompt = options?.TranscriptionOptions?.Prompt,
         };
     }
 

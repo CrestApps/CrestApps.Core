@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Capabilities;
+﻿using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
@@ -273,6 +273,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
                 transcriptionClient,
                 chatClient,
                 speechClient,
+                speechToText.ModelName,
                 textToSpeech.ModelName,
                 _serviceProvider.GetRequiredService<ILogger<CascadedRealtimeClient>>());
         }
