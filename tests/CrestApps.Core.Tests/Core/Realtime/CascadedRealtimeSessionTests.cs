@@ -149,6 +149,47 @@ public sealed class CascadedRealtimeSessionTests
         Assert.Equal(RealtimeResponseStatus.Cancelled, done.Status);
     }
 
+    // A speech model that answers with a container instead of raw samples would be played as noise, with
+    // nothing anywhere reporting a problem, so the format is checked rather than trusted.
+    [Fact]
+    public async Task Session_RefusesAudioThatIsNotRawPcm()
+    {
+        var transcription = new FakeTranscriptionSession();
+
+        await using var session = new CascadedRealtimeSession(
+            transcription,
+            new FakeChatClient(["All good."]),
+            new FakeSpeechClient(_audioChunk, mediaType: "audio/mp3"),
+            new RealtimeSessionOptions(),
+            chatOptions: null,
+            speechOptions: new TextToSpeechOptions(),
+            NullLogger.Instance);
+
+        session.Start();
+
+        transcription.Emit(Completed("hello"));
+        transcription.Complete();
+
+        var messages = await ReadAllAsync(session);
+
+        var error = Assert.Single(messages.OfType<ErrorRealtimeServerMessage>());
+        Assert.Contains("audio/mp3", error.Error?.Message);
+
+        Assert.DoesNotContain(messages, message => message.Type == RealtimeServerMessageType.OutputAudioDelta);
+    }
+
+    [Theory]
+    [InlineData("audio/L16", true)]
+    [InlineData("audio/l16", true)]
+    [InlineData("audio/pcm", true)]
+    [InlineData("audio/mp3", false)]
+    [InlineData("audio/wav", false)]
+    [InlineData(null, false)]
+    public void IsRawPcm_AcceptsOnlyHeaderlessSamples(string? mediaType, bool expected)
+    {
+        Assert.Equal(expected, CascadedRealtimeSession.IsRawPcm(mediaType));
+    }
+
     [Fact]
     public async Task SendAsync_ForwardsToTheTranscriptionLeg()
     {
@@ -331,10 +372,12 @@ public sealed class CascadedRealtimeSessionTests
     private sealed class FakeSpeechClient : ITextToSpeechClient
     {
         private readonly byte[] _audio;
+        private readonly string _mediaType;
 
-        public FakeSpeechClient(byte[] audio)
+        public FakeSpeechClient(byte[] audio, string mediaType = "audio/pcm")
         {
             _audio = audio;
+            _mediaType = mediaType;
         }
 
         public async IAsyncEnumerable<TextToSpeechResponseUpdate> GetStreamingAudioAsync(
@@ -344,7 +387,7 @@ public sealed class CascadedRealtimeSessionTests
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            yield return new TextToSpeechResponseUpdate([new DataContent(_audio, "audio/pcm")]);
+            yield return new TextToSpeechResponseUpdate([new DataContent(_audio, _mediaType)]);
 
             await Task.CompletedTask;
         }

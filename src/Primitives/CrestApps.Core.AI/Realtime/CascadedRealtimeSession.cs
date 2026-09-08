@@ -33,6 +33,11 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     // words to a speech model produces clipped, oddly-cadenced audio.
     private const int MinimumSpeakableLength = 24;
 
+    // Assistant audio is emitted straight onto the realtime timeline, where it is played as raw PCM
+    // frames. A speech model that answers with a container instead — MP3, WAV — would be played as noise,
+    // so the format is checked rather than trusted.
+    private const string PcmMediaType = "audio/L16";
+
     private readonly IRealtimeClientSession _transcription;
     private readonly IChatClient _chatClient;
     private readonly ITextToSpeechClient _speechClient;
@@ -366,6 +371,11 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
                     continue;
                 }
 
+                if (!IsRawPcm(audio.MediaType))
+                {
+                    throw new NotSupportedException($"The text-to-speech deployment answered with '{audio.MediaType}' audio, but a realtime session plays raw PCM ('{PcmMediaType}'). Configure that deployment to produce raw PCM at the session's output sample rate, or choose one that can.");
+                }
+
                 await WriteAsync(new OutputTextAudioRealtimeServerMessage(RealtimeServerMessageType.OutputAudioDelta)
                 {
                     Audio = Convert.ToBase64String(audio.Data.Span),
@@ -373,6 +383,20 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
                 });
             }
         }
+    }
+
+    /// <summary>
+    /// Determines whether a media type describes raw, headerless PCM samples.
+    /// </summary>
+    /// <param name="mediaType">The media type reported by the speech model.</param>
+    /// <remarks>
+    /// <c>audio/L16</c> is the registered type for linear PCM; <c>audio/pcm</c> is the informal spelling the
+    /// realtime APIs use for the same bytes. Both are accepted, and everything else is refused.
+    /// </remarks>
+    internal static bool IsRawPcm(string? mediaType)
+    {
+        return string.Equals(mediaType, PcmMediaType, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mediaType, "audio/pcm", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

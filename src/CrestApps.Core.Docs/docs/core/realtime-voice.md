@@ -55,11 +55,18 @@ deployment.Alter<AIDeploymentMetadata>(metadata =>
 What to expect from each leg:
 
 - **Speech-to-text** must expose a realtime client that supports a transcription session. It hears the user
-  continuously; a committed transcript is what ends the user's turn and starts the reply.
+  continuously; a committed transcript is what ends the user's turn and starts the reply. It transcribes with
+  its own deployment's model, not the one a native realtime session would name.
 - **Chat** produces the reply. Tools, data sources, and the profile's system message are applied here, so a
   cascaded session keeps every capability a text profile has. Function invocation is applied automatically.
 - **Text-to-speech** speaks the reply. The reply is spoken a sentence at a time so audio starts playing while
   the model is still writing, and the voice picker for the deployment lists this leg's voices.
+
+  It must answer with **raw PCM** at the session's output sample rate — `audio/L16` or `audio/pcm`. Realtime
+  audio is played as headerless samples, so a reply encoded as MP3 or wrapped in a WAV container would be
+  played as noise. The session refuses anything else rather than emitting it, naming the format it was given.
+  Providers are asked for `Pcm<rate>` (for example `Pcm24000`); a provider that cannot produce raw PCM cannot
+  serve this leg.
 
 Two differences from a native speech-to-speech model are worth planning for. Latency is higher, because a turn
 passes through three services instead of one. And interruption is driven by transcription: when the user
