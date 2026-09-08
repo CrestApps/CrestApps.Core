@@ -76,6 +76,13 @@ public sealed class AICompletionContext
     public string[] McpConnectionIds { get; set; }
 
     /// <summary>
+    /// Gets or sets, per MCP connection identifier, the names of the tools this request may use from that
+    /// connection. A connection absent from the map — or mapped to <see langword="null"/> — contributes every tool
+    /// it exposes; one mapped to an empty array contributes none.
+    /// </summary>
+    public IDictionary<string, string[]> McpToolNames { get; set; }
+
+    /// <summary>
     /// Gets or sets the Agent-to-Agent (A2A) connection identifiers available to this request.
     /// </summary>
     public string[] A2AConnectionIds { get; set; }

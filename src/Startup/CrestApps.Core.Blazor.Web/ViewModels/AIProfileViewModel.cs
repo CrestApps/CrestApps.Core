@@ -109,6 +109,12 @@ public sealed class AIProfileViewModel
     // MCP Connections
     public string[] SelectedMcpConnectionIds { get; set; } = [];
 
+    /// <summary>
+    /// Per MCP connection, the tools this profile takes from it. A connection with no entry takes every tool it
+    /// exposes; an empty entry takes none.
+    /// </summary>
+    public Dictionary<string, string[]> SelectedMcpToolNames { get; set; } = new(StringComparer.Ordinal);
+
     public List<McpConnectionSelectionItem> AvailableMcpConnections { get; set; } = [];
 
     // AI Tool Instances
@@ -348,6 +354,9 @@ public sealed class AIProfileViewModel
         if (profile.TryGet<AIProfileMcpMetadata>(out var mcpMetadata))
         {
             vm.SelectedMcpConnectionIds = mcpMetadata.ConnectionIds ?? [];
+            vm.SelectedMcpToolNames = mcpMetadata.ToolNames is null
+                ? new Dictionary<string, string[]>(StringComparer.Ordinal)
+                : new Dictionary<string, string[]>(mcpMetadata.ToolNames, StringComparer.Ordinal);
         }
 
         if (profile.TryGet<AIToolInstanceMetadata>(out var toolInstanceMetadata))
@@ -505,6 +514,14 @@ public sealed class AIProfileViewModel
                 .Where(id => !string.IsNullOrWhiteSpace(id))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray() ?? [];
+
+            // Only selections for connections the profile still uses; null when every connection takes all its
+            // tools, so an untouched profile round-trips to exactly what it was.
+            var toolSelections = (SelectedMcpToolNames ?? [])
+                .Where(kv => kv.Value is not null && x.ConnectionIds.Contains(kv.Key, StringComparer.Ordinal))
+                .ToDictionary(kv => kv.Key, kv => kv.Value.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.Ordinal).ToArray(), StringComparer.Ordinal);
+
+            x.ToolNames = toolSelections.Count == 0 ? null : toolSelections;
         });
 
         profile.Alter<AIToolInstanceMetadata>(x =>
@@ -816,6 +833,37 @@ public sealed class McpConnectionSelectionItem
     public string DisplayText { get; set; }
 
     public string Source { get; set; }
+
+    public bool IsSelected { get; set; }
+
+    /// <summary>
+    /// Whether the profile takes every tool the connection exposes (the default) or only <see cref="Tools"/>
+    /// marked selected.
+    /// </summary>
+    public bool UseAllTools { get; set; } = true;
+
+    /// <summary>
+    /// Whether <see cref="Tools"/> has been loaded from the server. Loading is on demand: it costs a round-trip
+    /// to the MCP server, so it only happens for a connection whose individual tools are being chosen.
+    /// </summary>
+    public bool ToolsLoaded { get; set; }
+
+    /// <summary>
+    /// Why the tools could not be loaded, when they could not.
+    /// </summary>
+    public string ToolsError { get; set; }
+
+    public List<McpToolSelectionItem> Tools { get; set; } = [];
+}
+
+/// <summary>
+/// One tool exposed by an MCP connection, as offered for selection on a profile.
+/// </summary>
+public sealed class McpToolSelectionItem
+{
+    public string Name { get; set; }
+
+    public string Description { get; set; }
 
     public bool IsSelected { get; set; }
 }

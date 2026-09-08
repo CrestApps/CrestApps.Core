@@ -72,10 +72,29 @@ internal sealed class McpToolRegistryProvider : IToolRegistryProvider
 
                 var connectionId = connection.ItemId;
 
+                // A profile may take only some of a connection's tools. No entry for the connection means all of
+                // them, which keeps every existing profile behaving exactly as it did.
+                HashSet<string> allowedToolNames = null;
+
+                if (context.McpToolNames is not null &&
+                    context.McpToolNames.TryGetValue(connectionId, out var selectedToolNames) &&
+                    selectedToolNames is not null)
+                {
+                    allowedToolNames = new HashSet<string>(selectedToolNames, StringComparer.Ordinal);
+                }
+
+                var skipped = 0;
+
                 foreach (var tool in capabilities.Tools)
                 {
                     if (string.IsNullOrWhiteSpace(tool.Name))
                     {
+                        continue;
+                    }
+
+                    if (allowedToolNames is not null && !allowedToolNames.Contains(tool.Name))
+                    {
+                        skipped++;
                         continue;
                     }
 
@@ -93,6 +112,13 @@ internal sealed class McpToolRegistryProvider : IToolRegistryProvider
                         CreateAsync = _ => ValueTask.FromResult<AITool>(
                             new McpToolProxyFunction(toolName, toolDescription, toolSchema, connectionId)),
                     });
+                }
+
+                if (allowedToolNames is not null && _logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "MCP connection '{ConnectionId}': {Selected} of {Total} tool(s) selected for this profile; {Skipped} not offered to the model.",
+                        connectionId, capabilities.Tools.Count - skipped, capabilities.Tools.Count, skipped);
                 }
             }
             catch (OperationCanceledException)

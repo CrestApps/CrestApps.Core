@@ -107,6 +107,18 @@ public sealed class AIProfileViewModel
     public string[] SelectedMcpConnectionIds { get; set; } = [];
     public List<McpConnectionSelectionItem> AvailableMcpConnections { get; set; } = [];
 
+    /// <summary>
+    /// Per MCP connection, the tools this profile takes from it, bound from the per-tool checkboxes. A connection
+    /// with no entry takes every tool it exposes.
+    /// </summary>
+    public Dictionary<string, string[]> SelectedMcpToolNames { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The connections whose "Use all tools" switch was on when the form was posted. Overrides any per-tool
+    /// selection posted for the same connection.
+    /// </summary>
+    public string[] McpConnectionsUsingAllTools { get; set; } = [];
+
     // AI Tool Instances
     public string[] SelectedToolInstanceNames { get; set; } = [];
     public List<AIToolInstanceSelectionItem> AvailableToolInstances { get; set; } = [];
@@ -348,6 +360,9 @@ public sealed class AIProfileViewModel
         if (profile.TryGet<AIProfileMcpMetadata>(out var mcpMetadata))
         {
             vm.SelectedMcpConnectionIds = mcpMetadata.ConnectionIds ?? [];
+            vm.SelectedMcpToolNames = mcpMetadata.ToolNames is null
+                ? new Dictionary<string, string[]>(StringComparer.Ordinal)
+                : new Dictionary<string, string[]>(mcpMetadata.ToolNames, StringComparer.Ordinal);
         }
 
         if (profile.TryGet<AIToolInstanceMetadata>(out var toolInstanceMetadata))
@@ -433,6 +448,37 @@ public sealed class AIProfileViewModel
         return vm;
     }
 
+    /// <summary>
+    /// Turns the posted switches and checkboxes into the stored per-connection selection. "Use all tools" wins;
+    /// a connection that posted no tool list keeps all its tools; an empty list keeps none. Null when every
+    /// connection takes all its tools, so an untouched profile round-trips to exactly what it was.
+    /// </summary>
+    private Dictionary<string, string[]> BuildMcpToolSelections(string[] connectionIds)
+    {
+        var usingAll = new HashSet<string>(McpConnectionsUsingAllTools ?? [], StringComparer.Ordinal);
+        var selections = new Dictionary<string, string[]>(StringComparer.Ordinal);
+
+        foreach (var connectionId in connectionIds ?? [])
+        {
+            if (usingAll.Contains(connectionId))
+            {
+                continue;
+            }
+
+            if (SelectedMcpToolNames is not null &&
+                SelectedMcpToolNames.TryGetValue(connectionId, out var names) &&
+                names is not null)
+            {
+                selections[connectionId] = names
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+            }
+        }
+
+        return selections.Count == 0 ? null : selections;
+    }
+
     public void ApplyTo(AIProfile profile)
     {
         profile.Name = Name;
@@ -507,6 +553,8 @@ public sealed class AIProfileViewModel
                 .Where(id => !string.IsNullOrWhiteSpace(id))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray() ?? [];
+
+            x.ToolNames = BuildMcpToolSelections(x.ConnectionIds);
         });
 
         profile.Alter<AIToolInstanceMetadata>(x =>
