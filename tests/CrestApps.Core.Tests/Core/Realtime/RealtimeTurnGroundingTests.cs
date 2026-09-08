@@ -1,6 +1,7 @@
 #pragma warning disable MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only.
 #nullable enable
 using System.Text.Json;
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -10,6 +11,7 @@ using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Moq;
 
 namespace CrestApps.Core.Tests.Core.Realtime;
 
@@ -46,6 +48,25 @@ public sealed class RealtimeTurnGroundingTests
         var turnDetection = Assert.IsType<RealtimeTurnDetectionOverrides>(options.RawRepresentationFactory!());
         Assert.Equal(RealtimeTurnDetectionTypes.ServerVad, turnDetection.Type);
         Assert.False(turnDetection.CreateResponse);
+    }
+
+    [Fact]
+    public void Configure_WithoutAChosenLanguage_TellsTheModelToMirrorTheUser()
+    {
+        // "Automatic" on the client sends no language. The model still must not drift on its own, so the directive
+        // mirrors the user's language instead of pinning a locale that may not be the one they are speaking.
+        var options = new DefaultRealtimeSessionConfigurator().Configure(new RealtimeSessionConfiguratorContext
+        {
+            Model = "gpt-realtime",
+            Instructions = "You answer questions about the knowledge base.",
+        });
+
+        Assert.StartsWith("Always speak and respond in the same language the user is speaking", options.Instructions);
+        Assert.Contains("Do not switch to another language on your own", options.Instructions);
+        Assert.EndsWith("You answer questions about the knowledge base.", options.Instructions);
+
+        // No language hint reaches transcription: the transcriber keeps auto-detecting.
+        Assert.Null(options.TranscriptionOptions?.SpeechLanguage);
     }
 
     [Fact]
@@ -206,6 +227,56 @@ public sealed class RealtimeTurnGroundingTests
     }
 
     [Fact]
+    public async Task RetrieveAsync_InScopeProfileWithNoResults_StillReturnsTheStayInScopeGuidance()
+    {
+        // "Restrict answers to retrieved data only" with nothing retrieved used to inject nothing, and the model
+        // answered from its own knowledge — the one thing a restricted profile must never do.
+        var profile = new AIProfile();
+        profile.Put(new AIDataSourceRagMetadata { IsInScope = true });
+        var grounding = CreateGrounding(new RecordingPreemptiveRagHandler(string.Empty), preemptiveEnabled: true);
+
+        using var scope = AIInvocationScope.Begin();
+
+        var retrieved = await grounding.RetrieveAsync(CreateContext(dataSourceId: "ds-1"), profile, "what is RAG", TestContext.Current.CancellationToken);
+
+        Assert.NotNull(retrieved);
+        Assert.Contains("GUIDANCE:" + AITemplateIds.RagScopeNoRefsToolsEnabled, retrieved);
+    }
+
+    [Fact]
+    public async Task RetrieveAsync_InScopeProfileWithResults_AppendsTheWithinRetrievedDataGuidance()
+    {
+        var profile = new AIProfile();
+        profile.Put(new AIDataSourceRagMetadata { IsInScope = true });
+        var handler = new RecordingPreemptiveRagHandler("KNOWLEDGE BLOCK")
+        {
+            References = new Dictionary<string, AICompletionReference> { ["[doc:1]"] = new() { Index = 1, ReferenceId = "kb-1" } },
+        };
+        var grounding = CreateGrounding(handler, preemptiveEnabled: true);
+
+        using var scope = AIInvocationScope.Begin();
+
+        var retrieved = await grounding.RetrieveAsync(CreateContext(dataSourceId: "ds-1"), profile, "what is RAG", TestContext.Current.CancellationToken);
+
+        Assert.StartsWith("KNOWLEDGE BLOCK", retrieved);
+        Assert.Contains("GUIDANCE:" + AITemplateIds.RagScopeWithRefs, retrieved);
+    }
+
+    [Fact]
+    public async Task RetrieveAsync_ProfileNotInScopeWithNoResults_ReturnsNothing()
+    {
+        // Out of scope, the model may use its own knowledge, and the response guidelines already sit in the
+        // session instructions; there is nothing per-turn to add.
+        var grounding = CreateGrounding(new RecordingPreemptiveRagHandler(string.Empty), preemptiveEnabled: true);
+
+        using var scope = AIInvocationScope.Begin();
+
+        var retrieved = await grounding.RetrieveAsync(CreateContext(dataSourceId: "ds-1"), new AIProfile(), "hello", TestContext.Current.CancellationToken);
+
+        Assert.Null(retrieved);
+    }
+
+    [Fact]
     public void IsGroundingAvailable_WithADataSource_IsOn()
     {
         var grounding = CreateGrounding(new RecordingPreemptiveRagHandler("x"), preemptiveEnabled: true);
@@ -325,6 +396,7 @@ public sealed class RealtimeTurnGroundingTests
     {
         return new DefaultRealtimeTurnGrounding(
             handlers,
+            CreateTemplateService(),
             new TestOptionsMonitor<DefaultOrchestratorSettings> { CurrentValue = new DefaultOrchestratorSettings { EnablePreemptiveRag = preemptiveEnabled } },
             Options.Create(new RealtimeTransportOptions { EnableKnowledgeGrounding = voiceEnabled }),
             NullLogger<DefaultRealtimeTurnGrounding>.Instance);
@@ -372,6 +444,19 @@ public sealed class RealtimeTurnGroundingTests
 
             return Task.CompletedTask;
         }
+    }
+
+    /// <summary>
+    /// Renders every template as a marker carrying its id, so a test can assert which guidance was chosen.
+    /// </summary>
+    private static CrestApps.Core.Templates.Services.ITemplateService CreateTemplateService()
+    {
+        var templates = new Mock<CrestApps.Core.Templates.Services.ITemplateService>();
+        templates
+            .Setup(t => t.RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string id, IDictionary<string, object>? _, CancellationToken _) => "GUIDANCE:" + id);
+
+        return templates.Object;
     }
 
     private sealed class RecordingSession : IRealtimeClientSession

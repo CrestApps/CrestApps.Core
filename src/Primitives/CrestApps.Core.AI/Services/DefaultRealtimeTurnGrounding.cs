@@ -3,6 +3,8 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Realtime;
+using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -24,6 +26,7 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
     private static readonly string[] _referencePropertyKeys = ["DataSourceReferences", "DocumentReferences"];
 
     private readonly IEnumerable<IPreemptiveRagHandler> _handlers;
+    private readonly ITemplateService _templateService;
     private readonly DefaultOrchestratorSettings _settings;
     private readonly RealtimeTransportOptions _transportOptions;
     private readonly ILogger<DefaultRealtimeTurnGrounding> _logger;
@@ -32,16 +35,19 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
     /// Initializes a new instance of the <see cref="DefaultRealtimeTurnGrounding"/> class.
     /// </summary>
     /// <param name="handlers">The preemptive RAG handlers.</param>
+    /// <param name="templateService">Renders the scope guidance that accompanies what was (or was not) retrieved.</param>
     /// <param name="settings">The orchestrator settings carrying the preemptive RAG switch.</param>
     /// <param name="transportOptions">The realtime transport options carrying the voice-only grounding switch.</param>
     /// <param name="logger">The logger.</param>
     public DefaultRealtimeTurnGrounding(
         IEnumerable<IPreemptiveRagHandler> handlers,
+        ITemplateService templateService,
         IOptionsMonitor<DefaultOrchestratorSettings> settings,
         IOptions<RealtimeTransportOptions> transportOptions,
         ILogger<DefaultRealtimeTurnGrounding> logger)
     {
         _handlers = handlers;
+        _templateService = templateService;
         _settings = settings.CurrentValue;
         _transportOptions = transportOptions?.Value ?? new RealtimeTransportOptions();
         _logger = logger;
@@ -59,20 +65,14 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
         // speaking as possible.
         if (!_settings.EnablePreemptiveRag)
         {
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug("Realtime knowledge grounding is off: preemptive RAG is disabled site-wide.");
-            }
+            _logger.LogInformation("Realtime knowledge grounding is off: preemptive RAG is disabled site-wide (Settings > Enable preemptive RAG). Knowledge retrieval relies on the model calling the search tool.");
 
             return false;
         }
 
         if (!_transportOptions.EnableKnowledgeGrounding)
         {
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug("Realtime knowledge grounding is off: CrestApps:AI:RealtimeTransport:EnableKnowledgeGrounding is false.");
-            }
+            _logger.LogInformation("Realtime knowledge grounding is off: CrestApps:AI:RealtimeTransport:EnableKnowledgeGrounding is false. Knowledge retrieval relies on the model calling the search tool.");
 
             return false;
         }
@@ -92,9 +92,10 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
         var hasHandlers = _handlers.Any();
         var available = (hasDataSource || hasDocuments) && hasHandlers;
 
-        if (_logger.IsEnabled(LogLevel.Debug))
+        // Once per session; this is the first line to read when a knowledge question comes back ungrounded.
+        if (_logger.IsEnabled(LogLevel.Information))
         {
-            _logger.LogDebug(
+            _logger.LogInformation(
                 "Realtime knowledge grounding availability: {Available} (dataSource={HasDataSource}, documents={HasDocuments}, handlers={HasHandlers}).",
                 available, hasDataSource, hasDocuments, hasHandlers);
         }
@@ -175,6 +176,11 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
 
         var referenceCount = PromoteReferences(turnContext);
 
+        // The same scope guidance the text path attaches after its preemptive search. For a profile restricted
+        // to retrieved data it is what stands between "nothing was found" and an answer from the model's own
+        // knowledge — which is exactly the failure a restricted profile exists to prevent.
+        await AppendScopeGuidanceAsync(turnContext, resource, referenceCount > 0, cancellationToken);
+
         var retrieved = turnContext.SystemMessageBuilder.ToString();
 
         stopwatch.Stop();
@@ -199,6 +205,70 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
         }
 
         return retrieved;
+    }
+
+    /// <summary>
+    /// Mirrors <c>PreemptiveRagOrchestrationHandler</c>: an in-scope profile is told to stay within what was
+    /// retrieved, or — when nothing was — to say so and search rather than improvise. A profile that is not
+    /// in scope already carries the response guidelines in its session instructions, so nothing is added.
+    /// </summary>
+    private async Task AppendScopeGuidanceAsync(OrchestrationContext turnContext, object resource, bool hasReferences, CancellationToken cancellationToken)
+    {
+        var ragMetadata = GetRagMetadata(resource);
+
+        if (ragMetadata?.IsInScope != true)
+        {
+            return;
+        }
+
+        string templateId;
+        Dictionary<string, object> arguments = null;
+
+        if (hasReferences)
+        {
+            templateId = AITemplateIds.RagScopeWithRefs;
+        }
+        else if (turnContext.DisableTools)
+        {
+            templateId = AITemplateIds.RagScopeNoRefsToolsDisabled;
+        }
+        else
+        {
+            templateId = AITemplateIds.RagScopeNoRefsToolsEnabled;
+            arguments = new Dictionary<string, object>
+            {
+                ["searchToolNames"] = new[] { SystemToolNames.SearchDataSources, SystemToolNames.SearchDocuments },
+            };
+        }
+
+        var guidance = await _templateService.RenderAsync(templateId, arguments, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(guidance))
+        {
+            turnContext.SystemMessageBuilder.AppendLine();
+            turnContext.SystemMessageBuilder.AppendLine(guidance);
+        }
+
+        if (!hasReferences && _logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation(
+                "Realtime retrieval found nothing for an in-scope profile; the model is instructed to stay within the knowledge base rather than answer from its own knowledge.");
+        }
+    }
+
+    private static AIDataSourceRagMetadata GetRagMetadata(object resource)
+    {
+        if (resource is AIProfile profile && profile.TryGet<AIDataSourceRagMetadata>(out var ragMetadata))
+        {
+            return ragMetadata;
+        }
+
+        if (resource is ChatInteraction interaction && interaction.TryGet<AIDataSourceRagMetadata>(out var interactionRagMetadata))
+        {
+            return interactionRagMetadata;
+        }
+
+        return null;
     }
 
     /// <summary>
