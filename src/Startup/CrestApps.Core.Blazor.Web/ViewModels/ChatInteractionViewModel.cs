@@ -9,6 +9,8 @@ public sealed class ChatInteractionViewModel
 
     public string ChatDeploymentName { get; set; }
 
+    public string UtilityDeploymentName { get; set; }
+
     public string OrchestratorName { get; set; }
 
     public string SystemMessage { get; set; }
@@ -88,6 +90,7 @@ public sealed class ChatInteractionViewModel
 
     public List<SelectOption> DataSources { get; set; } = [];
     public List<SelectOption> Deployments { get; set; } = [];
+    public List<SelectOption> UtilityDeployments { get; set; } = [];
     public List<SelectOption> Orchestrators { get; set; } = [];
     public List<SelectOption> CopilotAvailableModels { get; set; } = [];
     public List<SelectOption> AnthropicAvailableModels { get; set; } = [];
@@ -99,6 +102,12 @@ public sealed class ChatInteractionViewModel
     /// parameter technical name.
     /// </summary>
     public Dictionary<string, string> ModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gets or sets the model parameter values selected for the utility deployment of this interaction,
+    /// keyed by the registered parameter technical name.
+    /// </summary>
+    public Dictionary<string, string> UtilityModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class SelectOption

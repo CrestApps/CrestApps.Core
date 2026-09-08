@@ -163,9 +163,9 @@
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h5 class="mb-0"><i class="bi bi-chat-left-dots"></i> @(Model.Title ?? "Untitled Chat")</h5>
+    <h5 class="mb-0"><i class="fa-solid fa-comment-dots"></i> @(Model.Title ?? "Untitled Chat")</h5>
     <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left"></i> Back
+        <i class="fa-solid fa-arrow-left"></i> Back
     </a>
 </div>
 
@@ -182,17 +182,17 @@
             <ul class="nav nav-pills nav-fill mb-3" id="settingsTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="tab-settings" data-bs-toggle="pill" data-bs-target="#pane-settings" type="button" role="tab">
-                        <i class="bi bi-gear"></i> General
+                        <i class="fa-solid fa-gear"></i> General
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="tab-knowledge" data-bs-toggle="pill" data-bs-target="#pane-knowledge" type="button" role="tab">
-                        <i class="bi bi-database"></i> Knowledge
+                        <i class="fa-solid fa-database"></i> Knowledge
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="tab-capabilities" data-bs-toggle="pill" data-bs-target="#pane-capabilities" type="button" role="tab">
-                        <i class="bi bi-lightning"></i> Capabilities
+                        <i class="fa-solid fa-bolt"></i> Capabilities
                     </button>
                 </li>
             </ul>
@@ -302,7 +302,7 @@
                             <label class="form-label parameter-label" for="setting-maxTokens">
                                 <span>Max tokens</span>
                                 <span class="parameter-help-icon" data-bs-toggle="tooltip" title="@maxTokensHelp">
-                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                                 </span>
                             </label>
                             <input type="number" class="form-control setting-input" id="setting-maxTokens"
@@ -312,7 +312,7 @@
                             <label class="form-label parameter-label" for="setting-temperature">
                                 <span>Temperature</span>
                                 <span class="parameter-help-icon" data-bs-toggle="tooltip" title="@temperatureHelp">
-                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                                 </span>
                             </label>
                             <input type="number" class="form-control setting-input" id="setting-temperature"
@@ -322,7 +322,7 @@
                             <label class="form-label parameter-label" for="setting-topP">
                                 <span>Top P</span>
                                 <span class="parameter-help-icon" data-bs-toggle="tooltip" title="@topPHelp">
-                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                                 </span>
                             </label>
                             <input type="number" class="form-control setting-input" id="setting-topP"
@@ -332,7 +332,7 @@
                             <label class="form-label parameter-label" for="setting-frequencyPenalty">
                                 <span>Frequency penalty</span>
                                 <span class="parameter-help-icon" data-bs-toggle="tooltip" title="@frequencyPenaltyHelp">
-                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                                 </span>
                             </label>
                             <input type="number" class="form-control setting-input" id="setting-frequencyPenalty"
@@ -342,7 +342,7 @@
                             <label class="form-label parameter-label" for="setting-presencePenalty">
                                 <span>Presence penalty</span>
                                 <span class="parameter-help-icon" data-bs-toggle="tooltip" title="@presencePenaltyHelp">
-                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                                 </span>
                             </label>
                             <input type="number" class="form-control setting-input" id="setting-presencePenalty"
@@ -352,7 +352,7 @@
                             <label class="form-label parameter-label" for="setting-pastMessagesCount">
                                 <span>Past messages</span>
                                 <span class="parameter-help-icon" data-bs-toggle="tooltip" title="@pastMessagesHelp">
-                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                                 </span>
                             </label>
                             <input type="number" class="form-control setting-input" id="setting-pastMessagesCount"
@@ -367,7 +367,7 @@
                     @if (Model.AvailableAgents.Count > 0)
                     {
                         <div class="capability-section">
-                            <h6 class="small fw-bold mb-2"><i class="bi bi-robot"></i> AI Agents</h6>
+                            <h6 class="small fw-bold mb-2"><i class="fa-solid fa-robot"></i> AI Agents</h6>
                             @foreach (var agent in Model.AvailableAgents)
                             {
                                 <div class="form-check mb-1">
@@ -387,7 +387,7 @@
                     {
                         <div class="capability-section">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h6 class="small fw-bold mb-0"><i class="bi bi-tools"></i> AI Tools</h6>
+                                <h6 class="small fw-bold mb-0"><i class="fa-solid fa-screwdriver-wrench"></i> AI Tools</h6>
                                 <div class="btn-group btn-group-sm">
                                     <button type="button" class="btn btn-outline-primary btn-sm py-0 px-1" id="chat-select-all-tools" style="font-size:0.7rem;">All</button>
                                     <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1" id="chat-deselect-all-tools" style="font-size:0.7rem;">None</button>
@@ -419,7 +419,7 @@
                     @if (Model.AvailableToolInstances.Count > 0)
                     {
                         <div class="capability-section">
-                            <h6 class="small fw-bold mb-2"><i class="bi bi-plugin"></i> AI Tool Instances</h6>
+                            <h6 class="small fw-bold mb-2"><i class="fa-solid fa-puzzle-piece"></i> AI Tool Instances</h6>
                             @foreach (var instance in Model.AvailableToolInstances)
                             {
                                 <div class="form-check mb-1">
@@ -443,7 +443,7 @@
                     @if (Model.AvailableA2AConnections.Any())
                     {
                         <div class="capability-section">
-                            <h6 class="small fw-bold mb-2"><i class="bi bi-diagram-3"></i> A2A Hosts</h6>
+                            <h6 class="small fw-bold mb-2"><i class="fa-solid fa-sitemap"></i> A2A Hosts</h6>
                             @foreach (var connection in Model.AvailableA2AConnections)
                             {
                                 <div class="form-check mb-1">
@@ -463,7 +463,7 @@
                     @if (Model.AvailableMcpConnections.Any())
                     {
                         <div class="capability-section">
-                            <h6 class="small fw-bold mb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>
+                            <h6 class="small fw-bold mb-2"><i class="fa-solid fa-plug"></i> MCP Hosts</h6>
                             @foreach (var connection in Model.AvailableMcpConnections)
                             {
                                 <div class="form-check mb-1">
@@ -487,7 +487,7 @@
                         && !Model.AvailableA2AConnections.Any() && !Model.AvailableMcpConnections.Any())
                     {
                         <div class="text-muted small text-center py-3">
-                            <i class="bi bi-info-circle"></i> No capabilities are available to configure.
+                            <i class="fa-solid fa-circle-info"></i> No capabilities are available to configure.
                         </div>
                     }
                 </div>
@@ -498,7 +498,7 @@
                         <label class="form-label">
                             Data source
                             <span class="text-muted ms-1" data-bs-toggle="tooltip" title="The data source used to retrieve background knowledge for this interaction.">
-                                <i class="bi bi-question-circle"></i>
+                                <i class="fa-solid fa-circle-question"></i>
                             </span>
                         </label>
                         <select asp-for="DataSourceId" asp-items="Model.DataSources" class="form-select setting-input" id="setting-dataSourceId" data-setting="dataSourceId">
@@ -511,7 +511,7 @@
                         <label class="form-label">
                             Filter
                             <span class="text-muted ms-1" data-bs-toggle="tooltip" title="Optional provider-specific filter expression that limits which records can be retrieved from the selected data source.">
-                                <i class="bi bi-question-circle"></i>
+                                <i class="fa-solid fa-circle-question"></i>
                             </span>
                         </label>
                         <input type="text" class="form-control setting-input" id="setting-filter"
@@ -525,7 +525,7 @@
                         <label class="form-check-label" for="setting-isInScope">
                             Restrict answers to retrieved data only
                             <span class="text-muted ms-1" data-bs-toggle="tooltip" title="When enabled, responses stay grounded in the retrieved knowledge instead of supplementing with general model knowledge.">
-                                <i class="bi bi-question-circle"></i>
+                                <i class="fa-solid fa-circle-question"></i>
                             </span>
                         </label>
                     </div>
@@ -534,7 +534,7 @@
                         <label class="form-label">
                             Document retrieval mode
                             <span class="text-muted ms-1" data-bs-toggle="tooltip" title="Overrides the site default when this interaction searches uploaded document knowledge.">
-                                <i class="bi bi-question-circle"></i>
+                                <i class="fa-solid fa-circle-question"></i>
                             </span>
                         </label>
                         <select class="form-select setting-input" id="setting-documentRetrievalMode" data-setting="documentRetrievalMode">
@@ -550,7 +550,7 @@
                         <label class="form-label">
                             Strictness
                             <span class="text-muted ms-1" data-bs-toggle="tooltip" title="Controls how strictly retrieved data source matches must align with the user request.">
-                                <i class="bi bi-question-circle"></i>
+                                <i class="fa-solid fa-circle-question"></i>
                             </span>
                         </label>
                         <input type="number" class="form-control setting-input" id="setting-strictness"
@@ -562,7 +562,7 @@
                         <label class="form-label">
                             Retrieved documents
                             <span class="text-muted ms-1" data-bs-toggle="tooltip" title="Controls how many data source documents are retrieved for retrieval-augmented generation.">
-                                <i class="bi bi-question-circle"></i>
+                                <i class="fa-solid fa-circle-question"></i>
                             </span>
                         </label>
                         <input type="number" class="form-control setting-input" id="setting-topNDocuments"
@@ -573,7 +573,7 @@
                     @if (!Model.HasDocumentIndexConfiguration)
                     {
                         <div class="alert alert-warning small py-2 mb-2">
-                            <i class="bi bi-exclamation-triangle"></i> Document indexing is not configured.
+                            <i class="fa-solid fa-triangle-exclamation"></i> Document indexing is not configured.
                         </div>
                     }
 
@@ -587,19 +587,19 @@
                             : allowImageUploads ? "or browse for images to upload into this chat interaction" : "or browse for documents to upload into this chat interaction";
 
                         <div class="mb-2">
-                            <label class="form-label" id="chat-doc-upload-label"><i class="bi bi-paperclip"></i> @uploadLabel</label>
+                            <label class="form-label" id="chat-doc-upload-label"><i class="fa-solid fa-paperclip"></i> @uploadLabel</label>
                             <div class="document-drop-zone" id="chat-doc-drop-zone" data-document-drop-zone-file-input="#chat-doc-upload" data-document-drop-zone-browse-button="#chat-doc-browse">
                                 <input type="file" class="d-none" id="chat-doc-upload" multiple
                                        accept="@supportedExtensionsAccept" />
                                 <div class="document-drop-zone__body">
-                                    <span class="document-drop-zone__icon"><i class="bi bi-cloud-arrow-up"></i></span>
+                                    <span class="document-drop-zone__icon"><i class="fa-solid fa-cloud-arrow-up"></i></span>
                                     <div>
                                         <div class="document-drop-zone__title">Drag and drop files here</div>
                                         <div class="text-muted small" id="chat-doc-upload-description">@uploadDescription</div>
                                     </div>
                                     <div class="document-drop-zone__actions">
                                         <button type="button" class="btn btn-outline-primary" id="chat-doc-browse" data-drop-zone-browse>
-                                            <i class="bi bi-folder2-open"></i> Browse files
+                                            <i class="fa-solid fa-folder-open"></i> Browse files
                                         </button>
                                     </div>
                                     <div class="form-text mb-0" id="chat-doc-upload-hint">Supported formats: @supportedExtensionsDisplay</div>
@@ -624,10 +624,10 @@
         <!-- Chat header with Clear History -->
         <div class="d-flex justify-content-between align-items-center border-bottom px-3 py-2 bg-white">
             <span class="text-muted small" id="chat-title-display">
-                <i class="bi bi-chat-left-dots"></i> <span id="chat-title-text">@(Model.Title ?? "Untitled Chat")</span>
+                <i class="fa-solid fa-comment-dots"></i> <span id="chat-title-text">@(Model.Title ?? "Untitled Chat")</span>
             </span>
             <button type="button" id="clear-history-btn" class="btn btn-outline-danger btn-sm">
-                <i class="bi bi-trash3"></i> Clear history
+                <i class="fa-solid fa-trash"></i> Clear history
             </button>
         </div>
 
@@ -635,7 +635,7 @@
         <div id="chat-container" class="flex-grow-1 overflow-auto">
             <div id="chat-placeholder">
                 <div class="p-3 text-muted">
-                    <i class="bi bi-robot"></i> Start chatting! Your messages are sent directly to the AI with the parameters you configured.
+                    <i class="fa-solid fa-robot"></i> Start chatting! Your messages are sent directly to the AI with the parameters you configured.
                 </div>
             </div>
             <div id="chat-app"></div>
@@ -652,7 +652,7 @@
                 @if (Model.SpeechToTextEnabled)
                 {
                     <button type="button" id="mic-btn" class="btn btn-outline-secondary" title="Record audio">
-                        <i class="bi bi-mic"></i>
+                        <i class="fa-solid fa-microphone"></i>
                     </button>
                 }
                 @if (Model.ConversationModeEnabled)
@@ -663,13 +663,13 @@
                             title="Start Conversation"
                             data-start-title="Start Conversation"
                             data-end-title="End Conversation"
-                            data-start-html="<i class='bi bi-soundwave'></i>"
-                            data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation">
-                        <i class="bi bi-soundwave"></i>
+                            data-start-html="<i class='fa-solid fa-wave-square'></i>"
+                            data-end-html="<i class='fa-solid fa-stop me-1'></i> End Conversation">
+                        <i class="fa-solid fa-wave-square"></i>
                     </button>
                 }
                 <button type="button" id="send-btn" class="btn btn-primary">
-                    <i class="bi bi-send"></i> Send
+                    <i class="fa-solid fa-paper-plane"></i> Send
                 </button>
                 @* Realtime (speech-to-speech) toggle. Rendered hidden and shown by the client when the selected
                    deployment is a realtime model, in which case the text input above is hidden (audio-only).
@@ -680,10 +680,10 @@
                         title="Start speaking"
                         data-start-title="Start speaking"
                         data-end-title="End Conversation"
-                        data-start-html="<i class='bi bi-soundwave me-1'></i> Start speaking"
-                        data-end-html="<i class='bi bi-stop-fill me-1'></i> End Conversation"
+                        data-start-html="<i class='fa-solid fa-wave-square me-1'></i> Start speaking"
+                        data-end-html="<i class='fa-solid fa-stop me-1'></i> End Conversation"
                         hidden>
-                    <i class="bi bi-soundwave me-1"></i>
+                    <i class="fa-solid fa-wave-square me-1"></i>
                     <span>Start speaking</span>
                 </button>
             </div>
@@ -1199,11 +1199,11 @@
                     row.className = 'd-flex justify-content-between align-items-start border rounded px-2 py-2 bg-white';
                     row.innerHTML =
                         '<div class="me-2">' +
-                            '<div class="fw-semibold small"><i class="bi bi-file-earmark-text me-1"></i>' + DOMPurify.sanitize(doc.fileName || 'Document') + '</div>' +
+                            '<div class="fw-semibold small"><i class="fa-solid fa-file-lines me-1"></i>' + DOMPurify.sanitize(doc.fileName || 'Document') + '</div>' +
                             '<div class="text-muted small">' + DOMPurify.sanitize(formatFileSize(doc.fileSize)) + '</div>' +
                         '</div>' +
                         '<button type="button" class="btn btn-sm btn-outline-danger remove-chat-document-btn" data-document-id="' + DOMPurify.sanitize(doc.documentId) + '">' +
-                            '<i class="bi bi-trash"></i> Remove' +
+                            '<i class="fa-solid fa-trash"></i> Remove' +
                         '</button>';
 
                     container.appendChild(row);
@@ -1776,12 +1776,12 @@
                     '<div class="ai-chat-messages">' +
                         '<div v-for="(message, index) in messages" :key="index" class="ai-chat-message-item">' +
                             '<div v-if="message.isSystem" class="text-center py-2">' +
-                                '<span class="badge text-bg-secondary"><i class="bi bi-info-circle"></i> {{ message.content }}</span>' +
+                                '<span class="badge text-bg-secondary"><i class="fa-solid fa-circle-info"></i> {{ message.content }}</span>' +
                             '</div>' +
                             '<template v-else>' +
                                 '<div v-if="message.role === \'user\'" class="ai-chat-msg-role ai-chat-msg-role-user">You</div>' +
                                 '<div v-else class="ai-chat-msg-role ai-chat-msg-role-assistant">' +
-                                    '<i :class="\'bi bi-robot\' + (message.isStreaming ? \' ai-streaming-icon\' : \' ai-bot-icon\')"></i> ' +
+                                    '<i :class="\'fa-solid fa-robot\' + (message.isStreaming ? \' ai-streaming-icon\' : \' ai-bot-icon\')"></i> ' +
                                     'Assistant' +
                                 '</div>' +
                                 '<div class="lh-base">' +
@@ -1795,7 +1795,7 @@
                                     '<span class="message-buttons-container" v-if="message.role === \'assistant\' && !message.isStreaming">' +
                                         (textToSpeechEnabled
                                             ? '<button class="btn btn-sm btn-link text-secondary p-0 me-1" :class="{ \'tts-playing\': ttsPlayingMessageIndex === index }" v-on:click="toggleMessageTts(message, index)" :title="ttsPlayingMessageIndex === index ? \'Pause audio\' : \'Read aloud\'">' +
-                                                '<i :class="ttsPlayingMessageIndex === index ? \'bi bi-pause-circle-fill\' : \'bi bi-play-circle-fill\'"></i>' +
+                                                '<i :class="ttsPlayingMessageIndex === index ? \'fa-solid fa-circle-pause\' : \'fa-solid fa-circle-play\'"></i>' +
                                               '</button>'
                                             : '') +
                                         '<button class="btn btn-sm btn-link text-secondary p-0 button-message-toolbox" v-on:click="copyResponse(message, $event)" title="Copy response">' +
@@ -1890,8 +1890,8 @@
                 micBtn.classList.toggle('btn-outline-secondary', !isRecording);
                 micBtn.title = isRecording ? 'Stop recording' : 'Record audio';
                 micBtn.innerHTML = isRecording
-                    ? '<i class="bi bi-stop-circle"></i>'
-                    : '<i class="bi bi-mic"></i>';
+                    ? '<i class="fa-solid fa-circle-stop"></i>'
+                    : '<i class="fa-solid fa-microphone"></i>';
             }
 
             function updateConversationButton() {
@@ -1907,8 +1907,8 @@
                     ? (conversationBtn.getAttribute('data-end-title') || 'End Conversation')
                     : (conversationBtn.getAttribute('data-start-title') || 'Start Conversation');
                 var buttonHtml = isConversationMode
-                    ? (conversationBtn.getAttribute('data-end-html') || '<i class="bi bi-stop-fill me-1"></i> End Conversation')
-                    : (conversationBtn.getAttribute('data-start-html') || '<i class="bi bi-soundwave"></i>');
+                    ? (conversationBtn.getAttribute('data-end-html') || '<i class="fa-solid fa-stop me-1"></i> End Conversation')
+                    : (conversationBtn.getAttribute('data-start-html') || '<i class="fa-solid fa-wave-square"></i>');
                 conversationBtn.replaceChildren(DOMPurify.sanitize(buttonHtml, { RETURN_DOM_FRAGMENT: true }));
 
                 if (!isConversationMode) {
@@ -2748,7 +2748,7 @@
                         '<div class="d-flex justify-content-between align-items-center">' +
                         '<span class="fw-bold small">' + (title || templateId) + '</span>' +
                         '<button type="button" class="btn btn-sm btn-outline-danger border-0 p-0 ms-2" aria-label="Remove">' +
-                        '<i class="bi bi-trash"></i></button></div>';
+                        '<i class="fa-solid fa-trash"></i></button></div>';
 
                     if (description) {
                         headerHtml += '<div class="text-muted small">' + description + '</div>';

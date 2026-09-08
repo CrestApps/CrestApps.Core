@@ -239,15 +239,51 @@ This works on `AIProfile`, `AIProfileTemplate`, and `ChatInteraction`. Profile a
 context builder handlers copy the stored values onto `AICompletionContext.ModelParameters` before the
 request is built.
 
+### Utility deployment values
+
+A profile, profile template, or chat interaction selects two deployments: a **chat** deployment and a
+**utility** deployment. The utility deployment backs the background completions the framework runs on
+its own — title generation, orchestration planning, data extraction, and post-session processing — and
+is often a different, cheaper model with different capabilities.
+
+`AIDeploymentParametersMetadata.UtilityValues` holds the values selected for the utility deployment,
+alongside `Values`, which holds the values selected for the chat deployment:
+
+```csharp
+profile.Put(new AIDeploymentParametersMetadata
+{
+    Values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        [AIDeploymentParameterNames.ReasoningEffort] = "High",
+    },
+    UtilityValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        [AIDeploymentParameterNames.ReasoningEffort] = "Low",
+    },
+});
+```
+
+The context builder handlers copy these onto `AICompletionContext.UtilityModelParameters`. A caller
+marks a request as a background utility completion by setting
+`AICompletionContext.IsUtilityCompletion`, which makes the completion client resolve the utility
+deployment (falling back to the chat deployment) and apply `UtilityModelParameters` instead of
+`ModelParameters`.
+
+The editors for AI profiles, AI profile templates, and chat interactions render a second parameter
+editor bound to the selected utility deployment, so an operator can pick a reasoning effort for the
+utility model independently of the chat model. Each editor shows only the parameters its own
+deployment declares.
+
 ### Markdown profile templates
 
-Markdown-authored profile templates can set values through the `ModelParameters` front-matter key.
-Pairs are `name=value`, separated by `;` or by a new line:
+Markdown-authored profile templates can set values through the `ModelParameters` and
+`UtilityModelParameters` front-matter keys. Pairs are `name=value`, separated by `;` or by a new line:
 
 ```markdown
 ---
 Name: Deep research
 ModelParameters: reasoningEffort=High
+UtilityModelParameters: reasoningEffort=Low
 ---
 
 You are a meticulous research assistant.
@@ -255,8 +291,8 @@ You are a meticulous research assistant.
 
 ## Runtime binding
 
-`ModelParametersAICompletionServiceHandler` runs as an `IAICompletionServiceHandler` and is the single
-enforcement point:
+`ModelParametersAICompletionServiceHandler` runs as an `IAICompletionServiceHandler` and delegates to
+`IAIDeploymentParameterApplier`, which is the single enforcement point:
 
 1. It iterates only the parameters the **deployment** exposes. A value stored for an unsupported
    parameter is ignored and never leaves the process.
@@ -268,6 +304,24 @@ enforcement point:
 
 `ReasoningEffortModelParameterBinder` implements step 3 for `reasoningEffort` by setting
 `ChatOptions.Reasoning.Effort`.
+
+The applier takes an `AIDeploymentParameterScope` that selects which stored values to read: `Chat`
+reads `AICompletionContext.ModelParameters`, `Utility` reads
+`AICompletionContext.UtilityModelParameters`. The handler picks the scope from
+`AICompletionContext.IsUtilityCompletion`.
+
+Background completions that resolve an `IChatClient` from `IAIClientFactory` and call it directly
+bypass the completion pipeline. Those call sites add the applier to the client pipeline with
+`ChatClientBuilder.UseModelParameters` (or `UseUtilityModelParameters`, which derives the context from
+an `AIProfile`), so a directly resolved client honors the same operator selections:
+
+```csharp
+var client = await clientFactory.CreateChatClientAsync(
+    utilityDeployment,
+    builder => builder
+        .UseDefaultResilience()
+        .UseUtilityModelParameters(parameterApplier, utilityDeployment, profile));
+```
 
 ### Feature enforcement
 
@@ -524,10 +578,12 @@ Both sample hosts render the metadata rather than hardcoding options.
   linked to a feature. Each parameter offers a *supported* toggle, an allowed-values selector, a default
   value, and numeric bounds where applicable.
 - **AI Profile, AI Profile Template, and Chat Interaction editors** — render only the parameters the
-  selected deployment supports, restricted to that deployment's allowed values, and show the selected
-  deployment's declared trained capabilities as read-only badges so operators can see what the model
-  supports. They also validate the chosen deployment against the slot's required capability at save time
-  (see [Guardrails](#guardrails-you-get-for-free)).
+  selected deployment supports, restricted to that deployment's allowed values. Nothing read-only is
+  rendered: the editor is inputs only, and the whole block — its heading included — is hidden when the
+  selected deployment declares no configurable parameter. Each screen renders two editors, one bound to
+  the chat deployment and one bound to the utility deployment, so the two models are configured
+  independently. They also validate the chosen deployment against the slot's required capability at save
+  time (see [Guardrails](#guardrails-you-get-for-free)).
 - **AI Chat and Chat Interaction chat views** — switch the input between a text box and an audio-only
   *Start speaking* control based on the effective deployment's `realtime` capability, as described in
   [Building a capability-aware chat UI](#building-a-capability-aware-chat-ui).

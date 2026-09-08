@@ -95,10 +95,10 @@ internal sealed record ToastNotification(
     public string IconClass =>
         Level switch
         {
-            ToastNotificationLevel.Success => "bi bi-check-circle-fill",
-            ToastNotificationLevel.Error => "bi bi-exclamation-triangle-fill",
-            ToastNotificationLevel.Warning => "bi bi-exclamation-circle-fill",
-            _ => "bi bi-info-circle-fill",
+            ToastNotificationLevel.Success => "fa-solid fa-circle-check",
+            ToastNotificationLevel.Error => "fa-solid fa-triangle-exclamation",
+            ToastNotificationLevel.Warning => "fa-solid fa-circle-exclamation",
+            _ => "fa-solid fa-circle-info",
         };
 
     public string ColorClass =>

@@ -15,9 +15,9 @@
 <PageTitle>Index Profiles</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2><i class="bi bi-database-gear"></i> Index Profiles</h2>
+    <h2><i class="fa-solid fa-database"></i> Index Profiles</h2>
     <a href="/indexing/profiles/create" class="btn btn-success">
-        <i class="bi bi-plus-lg"></i> Create New Index Profile
+        <i class="fa-solid fa-plus"></i> Create New Index Profile
     </a>
 </div>
 
@@ -28,7 +28,7 @@
 else if (_profiles.Count == 0)
 {
     <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> No index profiles found.
+        <i class="fa-solid fa-circle-info"></i> No index profiles found.
         Create one to connect to Elasticsearch or Azure AI Search.
     </div>
 }
@@ -56,16 +56,16 @@ else
                         <td>
                             <div class="d-flex flex-nowrap gap-2">
                                 <button type="button" class="btn btn-sm btn-outline-warning" @onclick="() => RebuildAsync(item.ItemId)">
-                                    <i class="bi bi-arrow-clockwise"></i> Rebuild
+                                    <i class="fa-solid fa-arrows-rotate"></i> Rebuild
                                 </button>
                                 <button type="button" class="btn btn-sm btn-outline-success" @onclick="() => ReindexAsync(item.ItemId)">
-                                    <i class="bi bi-arrow-repeat"></i> Reindex
+                                    <i class="fa-solid fa-arrows-rotate"></i> Reindex
                                 </button>
                                 <a href="/indexing/profiles/edit/@item.ItemId" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-pencil"></i> Edit
+                                    <i class="fa-solid fa-pencil"></i> Edit
                                 </a>
                                 <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item.ItemId)">
-                                    <i class="bi bi-trash"></i> Delete
+                                    <i class="fa-solid fa-trash"></i> Delete
                                 </button>
                             </div>
                         </td>

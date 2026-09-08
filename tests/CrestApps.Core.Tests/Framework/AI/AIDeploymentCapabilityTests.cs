@@ -292,7 +292,7 @@ public sealed class AIDeploymentCapabilityTests
     public async Task ConfigureAsync_WhenTheSelectedValueIsNotSupported_ShouldLogWarning()
     {
         // Arrange
-        var logger = new Mock<ILogger<ModelParametersAICompletionServiceHandler>>();
+        var logger = new Mock<ILogger<DefaultAIDeploymentParameterApplier>>();
         var handler = CreateHandler(logger: logger);
         var deployment = CreateDeployment(new AIDeploymentParameter
         {
@@ -514,7 +514,7 @@ public sealed class AIDeploymentCapabilityTests
             },
         });
 
-        var logger = new Mock<ILogger<ModelParametersAICompletionServiceHandler>>();
+        var logger = new Mock<ILogger<DefaultAIDeploymentParameterApplier>>();
         var handler = CreateHandler(options, logger);
 
         // A value larger than long.MaxValue passes the descriptor's numeric validation but cannot be
@@ -559,6 +559,72 @@ public sealed class AIDeploymentCapabilityTests
         // Assert
         Assert.Equal("High", context.ModelParameters["reasoningEffort"]);
         Assert.False(context.ModelParameters.ContainsKey("ignored"));
+    }
+
+    [Fact]
+    public void ApplyModelParameters_ShouldCopyTheStoredUtilityValuesIntoTheCompletionContext()
+    {
+        // Arrange
+        var context = new AICompletionContext();
+        var metadata = new AIDeploymentParametersMetadata
+        {
+            Values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["reasoningEffort"] = "High",
+            },
+            UtilityValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["reasoningEffort"] = "Low",
+                ["ignored"] = " ",
+            },
+        };
+
+        // Act
+        context.ApplyModelParameters(metadata);
+
+        // Assert
+        Assert.Equal("High", context.ModelParameters["reasoningEffort"]);
+        Assert.Equal("Low", context.UtilityModelParameters["reasoningEffort"]);
+        Assert.False(context.UtilityModelParameters.ContainsKey("ignored"));
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_WhenTheRequestIsAUtilityCompletion_ShouldApplyTheUtilityValue()
+    {
+        // Arrange
+        var handler = CreateHandler();
+        var deployment = CreateDeployment(new AIDeploymentParameter
+        {
+            AllowedValues = ["Low", "Medium", "High"],
+        });
+        var context = CreateConfigureContext(deployment, ("reasoningEffort", "High"));
+        context.CompletionContext.IsUtilityCompletion = true;
+        context.CompletionContext.UtilityModelParameters["reasoningEffort"] = "Low";
+
+        // Act
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ReasoningEffort.Low, context.ChatOptions.Reasoning?.Effort);
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_WhenTheRequestIsNotAUtilityCompletion_ShouldIgnoreTheUtilityValue()
+    {
+        // Arrange
+        var handler = CreateHandler();
+        var deployment = CreateDeployment(new AIDeploymentParameter
+        {
+            AllowedValues = ["Low", "Medium", "High"],
+        });
+        var context = CreateConfigureContext(deployment, ("reasoningEffort", "High"));
+        context.CompletionContext.UtilityModelParameters["reasoningEffort"] = "Low";
+
+        // Act
+        await handler.ConfigureAsync(context, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ReasoningEffort.High, context.ChatOptions.Reasoning?.Effort);
     }
 
     private static AIDeployment CreateDeployment(AIDeploymentParameter parameter)
@@ -644,13 +710,15 @@ public sealed class AIDeploymentCapabilityTests
 
     private static ModelParametersAICompletionServiceHandler CreateHandler(
         AIDeploymentCapabilityOptions options = null,
-        Mock<ILogger<ModelParametersAICompletionServiceHandler>> logger = null)
+        Mock<ILogger<DefaultAIDeploymentParameterApplier>> logger = null)
     {
         var service = new DefaultAIDeploymentCapabilityService(Options.Create(options ?? CreateOptions()), Mock.Of<IAIDeploymentStore>());
 
-        return new ModelParametersAICompletionServiceHandler(
+        var applier = new DefaultAIDeploymentParameterApplier(
             service,
             [new ReasoningEffortModelParameterBinder()],
-            logger?.Object ?? NullLogger<ModelParametersAICompletionServiceHandler>.Instance);
+            logger?.Object ?? NullLogger<DefaultAIDeploymentParameterApplier>.Instance);
+
+        return new ModelParametersAICompletionServiceHandler(applier);
     }
 }

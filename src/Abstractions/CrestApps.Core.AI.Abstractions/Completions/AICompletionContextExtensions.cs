@@ -8,8 +8,8 @@ namespace CrestApps.Core.AI.Completions;
 public static class AICompletionContextExtensions
 {
     /// <summary>
-    /// Copies the model parameter values held by the given metadata onto the completion context.
-    /// Empty values are ignored so a stored blank never overrides a deployment default.
+    /// Copies the chat and utility model parameter values held by the given metadata onto the completion
+    /// context. Empty values are ignored so a stored blank never overrides a deployment default.
     /// </summary>
     /// <param name="context">The completion context to populate.</param>
     /// <param name="metadata">The metadata holding the selected model parameter values.</param>
@@ -17,19 +17,30 @@ public static class AICompletionContextExtensions
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (metadata?.Values is not { Count: > 0 })
+        if (metadata is null)
         {
             return;
         }
 
-        foreach (var (name, value) in metadata.Values)
+        Copy(metadata.Values, context.ModelParameters);
+        Copy(metadata.UtilityValues, context.UtilityModelParameters);
+    }
+
+    private static void Copy(Dictionary<string, string> source, Dictionary<string, string> destination)
+    {
+        if (source is not { Count: > 0 })
+        {
+            return;
+        }
+
+        foreach (var (name, value) in source)
         {
             if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(value))
             {
                 continue;
             }
 
-            context.ModelParameters[name] = value;
+            destination[name] = value;
         }
     }
 }

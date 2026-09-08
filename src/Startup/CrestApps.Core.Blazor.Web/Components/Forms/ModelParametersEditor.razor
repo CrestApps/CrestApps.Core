@@ -3,26 +3,20 @@
 @using CrestApps.Core.AI.Models
 @inject IAIDeploymentCapabilityService CapabilityService
 
-@if (_capabilities.Features.Count > 0)
-{
-    <div class="mb-3">
-        <label class="form-label d-block mb-1">Model capabilities</label>
-        <div class="d-flex flex-wrap gap-1">
-            @foreach (var feature in _capabilities.Features)
-            {
-                <span class="badge rounded-pill text-bg-info">@(feature.DisplayName?.Value ?? feature.Name)</span>
-            }
-        </div>
-        <div class="form-text">Trained capabilities the selected deployment declares support for.</div>
-    </div>
-}
-
 @if (_capabilities.Parameters.Count > 0)
 {
+    @if (!string.IsNullOrWhiteSpace(Title))
+    {
+        <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-sliders"></i> @Title</h6>
+    }
+    @if (!string.IsNullOrWhiteSpace(Description))
+    {
+        <p class="text-muted small">@Description</p>
+    }
     @foreach (var parameter in _capabilities.Parameters)
     {
         var parameterName = parameter.Name;
-        var elementId = $"modelParameter_{parameterName.Replace('.', '_')}";
+        var elementId = $"{ElementIdPrefix}_{parameterName.Replace('.', '_')}";
         <div class="mb-3">
             <label class="form-label" for="@elementId">@(parameter.DisplayName?.Value ?? parameter.Name)</label>
             @if (parameter.Kind == AIDeploymentParameterKind.Choice)
@@ -76,12 +70,6 @@
         </div>
     }
 }
-else if (ShowEmptyNotice)
-{
-    <div class="alert alert-secondary py-2 mb-3" role="status">
-        The selected deployment does not expose any configurable model parameters.
-    </div>
-}
 
 @code {
     private AIDeploymentCapabilities _capabilities = AIDeploymentCapabilities.Empty;
@@ -100,10 +88,24 @@ else if (ShowEmptyNotice)
     public Dictionary<string, string> Values { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Gets or sets a value indicating whether a notice is rendered when the deployment exposes no parameters.
+    /// Gets or sets the heading rendered above the editor. The heading is rendered only when the
+    /// selected deployment exposes at least one configurable parameter.
     /// </summary>
     [Parameter]
-    public bool ShowEmptyNotice { get; set; } = true;
+    public string Title { get; set; } = "Model parameters";
+
+    /// <summary>
+    /// Gets or sets the descriptive text rendered under the heading.
+    /// </summary>
+    [Parameter]
+    public string Description { get; set; }
+
+    /// <summary>
+    /// Gets or sets the prefix applied to generated element identifiers so a page can render more than
+    /// one editor without colliding.
+    /// </summary>
+    [Parameter]
+    public string ElementIdPrefix { get; set; } = "modelParameter";
 
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()

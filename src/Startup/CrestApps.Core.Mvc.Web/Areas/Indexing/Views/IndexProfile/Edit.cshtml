@@ -9,7 +9,7 @@
         Model.EmbeddingDeployments.Any(deployment => string.Equals(deployment.Value, Model.EmbeddingDeploymentName, StringComparison.Ordinal));
 }
 
-<h2><i class="bi bi-pencil"></i> Edit Index Profile</h2>
+<h2><i class="fa-solid fa-pencil"></i> Edit Index Profile</h2>
 <hr />
 
 <form asp-action="Edit" method="post">
@@ -77,7 +77,7 @@
 
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-check-lg"></i> Save
+                    <i class="fa-solid fa-check"></i> Save
                 </button>
                 <a asp-action="Index" class="btn btn-secondary ms-2">Cancel</a>
             </div>

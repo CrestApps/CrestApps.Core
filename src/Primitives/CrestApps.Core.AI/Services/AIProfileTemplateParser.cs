@@ -189,7 +189,7 @@ public static class AIProfileTemplateParser
 
         var modelParameters = ParseModelParameters(props);
 
-        if (modelParameters.Values.Count > 0)
+        if (modelParameters.Values.Count > 0 || modelParameters.UtilityValues.Count > 0)
         {
             template.Put(modelParameters);
         }
@@ -203,9 +203,22 @@ public static class AIProfileTemplateParser
     {
         var metadata = new AIDeploymentParametersMetadata();
 
-        if (props is null || !props.TryGetValue("ModelParameters", out var raw) || string.IsNullOrWhiteSpace(raw))
+        if (props is null)
         {
             return metadata;
+        }
+
+        ParseModelParameterValues(props, "ModelParameters", metadata.Values);
+        ParseModelParameterValues(props, "UtilityModelParameters", metadata.UtilityValues);
+
+        return metadata;
+    }
+
+    private static void ParseModelParameterValues(Dictionary<string, string> props, string propertyName, Dictionary<string, string> values)
+    {
+        if (!props.TryGetValue(propertyName, out var raw) || string.IsNullOrWhiteSpace(raw))
+        {
+            return;
         }
 
         foreach (var pair in raw.Split([';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -225,10 +238,8 @@ public static class AIProfileTemplateParser
                 continue;
             }
 
-            metadata.Values[name] = value;
+            values[name] = value;
         }
-
-        return metadata;
     }
 
     /// <summary>

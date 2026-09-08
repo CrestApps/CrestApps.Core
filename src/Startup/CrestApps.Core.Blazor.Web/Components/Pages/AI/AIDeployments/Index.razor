@@ -6,7 +6,6 @@
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
 @inject IAIDeploymentStore Store
-@inject INamedSourceCatalog<AIDeployment> Catalog
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -15,9 +14,9 @@
 <PageTitle>AI Deployments - Blazor AI Integration Sample</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2><i class="bi bi-box-seam"></i> AI Deployments</h2>
+    <h2><i class="fa-solid fa-box"></i> AI Deployments</h2>
     <a href="/ai/deployments/create" class="btn btn-success">
-        <i class="bi bi-plus-lg"></i> Create New Deployment
+        <i class="fa-solid fa-plus"></i> Create New Deployment
     </a>
 </div>
 
@@ -28,7 +27,7 @@
 else if (_deployments.Count == 0)
 {
     <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> No deployments found. Create a deployment to map models to connections.
+        <i class="fa-solid fa-circle-info"></i> No deployments found. Create a deployment to map models to connections.
     </div>
 }
 else
@@ -70,10 +69,10 @@ else
                                     <td>@(string.IsNullOrEmpty(deployment.ConnectionName) ? "Standalone" : deployment.ConnectionName)</td>
                                     <td>
                                         <a href="/ai/deployments/edit/@deployment.ItemId" class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-pencil"></i> Edit
+                                            <i class="fa-solid fa-pencil"></i> Edit
                                         </a>
                                         <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(deployment.ItemId)">
-                                            <i class="bi bi-trash"></i> Delete
+                                            <i class="fa-solid fa-trash"></i> Delete
                                         </button>
                                     </td>
                                 </tr>
@@ -163,7 +162,7 @@ else
             return;
         }
 
-        var deployment = await Catalog.FindByIdAsync(id);
+        var deployment = await Store.FindByIdAsync(id);
         if (deployment == null)
         {
             ToastNotifications.ShowError("Deployment not found.");
@@ -178,7 +177,8 @@ else
             return;
         }
 
-        await Catalog.DeleteAsync(deployment);
+        // Delete through the multi-source store so its scoped merged-entry cache is invalidated before we reload.
+        await Store.DeleteAsync(deployment);
         await StoreCommitter.CommitAsync();
         await LoadDeploymentsAsync();
     }

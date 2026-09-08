@@ -107,9 +107,9 @@
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2><i class="bi bi-play-circle"></i> Test — @(Model.DisplayText ?? Model.Name)</h2>
+    <h2><i class="fa-solid fa-circle-play"></i> Test — @(Model.DisplayText ?? Model.Name)</h2>
     <a asp-area="AI" asp-controller="AIProfile" asp-action="Index" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left"></i> Back to Profiles
+        <i class="fa-solid fa-arrow-left"></i> Back to Profiles
     </a>
 </div>
 
@@ -118,7 +118,7 @@
         <div id="test-container" class="flex-grow-1 overflow-auto">
             <div id="test-placeholder">
                 <div class="p-3 text-muted text-center">
-                    <i class="bi bi-robot"></i> Send a message to test this @Model.Type.ToString().ToLower() profile.
+                    <i class="fa-solid fa-robot"></i> Send a message to test this @Model.Type.ToString().ToLower() profile.
                 </div>
             </div>
             <div id="test-app"></div>
@@ -130,8 +130,8 @@
                           rows="1"
                           placeholder="Type a message..."
                           data-profile-id="@Model.ItemId"></textarea>
-                <button type="button" id="test-send-btn" class="btn btn-primary" data-start-icon="<i class='bi bi-send'></i>" data-stop-icon="<i class='bi bi-stop-fill'></i>">
-                    <i class="bi bi-send"></i>
+                <button type="button" id="test-send-btn" class="btn btn-primary" data-start-icon="<i class='fa-solid fa-paper-plane'></i>" data-stop-icon="<i class='fa-solid fa-stop'></i>">
+                    <i class="fa-solid fa-paper-plane"></i>
                 </button>
             </div>
         </div>

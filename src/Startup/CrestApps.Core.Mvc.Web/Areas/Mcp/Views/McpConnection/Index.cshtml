@@ -4,8 +4,8 @@
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2><i class="bi bi-hdd-network"></i> MCP Hosts</h2>
-    <a asp-action="Create" class="btn btn-success"><i class="bi bi-plus-lg"></i> Add Host</a>
+    <h2><i class="fa-solid fa-network-wired"></i> MCP Hosts</h2>
+    <a asp-action="Create" class="btn btn-success"><i class="fa-solid fa-plus"></i> Add Host</a>
 </div>
 
 @if (!Model.Any())
@@ -30,9 +30,9 @@ else
                     <td><strong>@connection.DisplayText</strong></td>
                     <td><span class="badge bg-info text-dark">@connection.Source</span></td>
                     <td>
-                        <a asp-action="Edit" asp-route-id="@connection.ItemId" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Edit</a>
+                        <a asp-action="Edit" asp-route-id="@connection.ItemId" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-pencil"></i> Edit</a>
                         <form asp-action="Delete" asp-route-id="@connection.ItemId" method="post" class="d-inline">
-                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this MCP connection?')"><i class="bi bi-trash"></i> Delete</button>
+                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this MCP connection?')"><i class="fa-solid fa-trash"></i> Delete</button>
                         </form>
                     </td>
                 </tr>

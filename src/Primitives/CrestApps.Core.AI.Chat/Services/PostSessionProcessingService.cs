@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Text.Json;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
@@ -29,6 +30,7 @@ public sealed class PostSessionProcessingService
 
     private readonly IAIClientFactory _clientFactory;
     private readonly IAIDeploymentManager _deploymentManager;
+    private readonly IAIDeploymentParameterApplier _parameterApplier;
     private readonly IToolRegistry _toolRegistry;
     private readonly ITemplateService _aiTemplateService;
     private readonly ITemplateParser _markdownTemplateParser;
@@ -51,6 +53,7 @@ public sealed class PostSessionProcessingService
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="loggerFactory">The logger factory.</param>
     /// <param name="deploymentManager">The deployment manager.</param>
+    /// <param name="parameterApplier">The model parameter applier.</param>
     public PostSessionProcessingService(
         IAIClientFactory clientFactory,
         IToolRegistry toolRegistry,
@@ -60,10 +63,12 @@ public sealed class PostSessionProcessingService
         IServiceProvider serviceProvider,
         TimeProvider timeProvider,
         ILoggerFactory loggerFactory,
-        IAIDeploymentManager deploymentManager = null)
+        IAIDeploymentManager deploymentManager = null,
+        IAIDeploymentParameterApplier parameterApplier = null)
     {
         _clientFactory = clientFactory;
         _deploymentManager = deploymentManager;
+        _parameterApplier = parameterApplier;
         _toolRegistry = toolRegistry;
         _aiTemplateService = aiTemplateService;
         _markdownTemplateParser = ResolveMarkdownTemplateParser(templateParsers);
@@ -1412,7 +1417,9 @@ public sealed class PostSessionProcessingService
         {
             return await _clientFactory.CreateChatClientAsync(
                 deployment,
-                builder => builder.UseDefaultResilience());
+                builder => builder
+                    .UseDefaultResilience()
+                    .UseUtilityModelParameters(_parameterApplier, deployment, profile));
         }
 
         return null;

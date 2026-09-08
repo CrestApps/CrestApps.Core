@@ -223,6 +223,12 @@ public sealed class AIProfileViewModel
     /// </summary>
     public Dictionary<string, string> ModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Gets or sets the model parameter values selected for the utility deployment of this profile,
+    /// keyed by the registered parameter technical name.
+    /// </summary>
+    public Dictionary<string, string> UtilityModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     public static AIProfileViewModel FromProfile(AIProfile profile)
     {
         var settings = profile.GetOrCreateSettings<AIProfileSettings>();
@@ -284,9 +290,17 @@ public sealed class AIProfileViewModel
             EnableUserMemory = memoryMetadata.EnableUserMemory ?? false,
         };
 
-        if (profile.TryGet<AIDeploymentParametersMetadata>(out var modelParameters) && modelParameters.Values is { Count: > 0 })
+        if (profile.TryGet<AIDeploymentParametersMetadata>(out var modelParameters))
         {
-            vm.ModelParameters = new Dictionary<string, string>(modelParameters.Values, StringComparer.OrdinalIgnoreCase);
+            if (modelParameters.Values is { Count: > 0 })
+            {
+                vm.ModelParameters = new Dictionary<string, string>(modelParameters.Values, StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (modelParameters.UtilityValues is { Count: > 0 })
+            {
+                vm.UtilityModelParameters = new Dictionary<string, string>(modelParameters.UtilityValues, StringComparer.OrdinalIgnoreCase);
+            }
         }
 
         if (profile.TryGet<AIProfileMetadata>(out var metadata))
@@ -450,11 +464,8 @@ public sealed class AIProfileViewModel
 
         profile.Alter<AIDeploymentParametersMetadata>(m =>
         {
-            m.Values = ModelParameters is null
-                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, string>(
-                    ModelParameters.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value)),
-                    StringComparer.OrdinalIgnoreCase);
+            m.Values = SelectedModelParameters(ModelParameters);
+            m.UtilityValues = SelectedModelParameters(UtilityModelParameters);
         });
 
         profile.AlterSettings<AIProfileSettings>(s =>
@@ -671,6 +682,18 @@ public sealed class AIProfileViewModel
                 ? TimeSpan.FromSeconds(SecurityAnonymousSessionRateLimitWindowSeconds.Value)
                 : null,
         });
+    }
+
+    private static Dictionary<string, string> SelectedModelParameters(Dictionary<string, string> values)
+    {
+        if (values is null)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return new Dictionary<string, string>(
+            values.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value)),
+            StringComparer.OrdinalIgnoreCase);
     }
 }
 

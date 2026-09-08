@@ -19,7 +19,7 @@
 
 <PageTitle>Edit Tool Instance</PageTitle>
 
-<h2><i class="bi bi-pencil-square"></i> Edit Tool Instance</h2>
+<h2><i class="fa-solid fa-pen-to-square"></i> Edit Tool Instance</h2>
 <hr />
 
 @if (_notFound)
@@ -68,7 +68,7 @@ else
 
             @if (string.Equals(_model.Source, HttpApiRequestToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
             {
-            <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-globe"></i> Request</h5>
+            <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-globe"></i> Request</h5>
 
             <div class="mb-3">
                 <label class="form-label">Base URL</label>
@@ -106,7 +106,7 @@ else
                 <ValidationMessage For="() => _model.TimeoutSeconds" />
             </div>
 
-            <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-shield-lock"></i> Authentication</h5>
+            <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-shield-halved"></i> Authentication</h5>
 
             <div class="mb-3">
                 <label class="form-label">Authentication type</label>
@@ -217,7 +217,7 @@ else
                 <p class="text-muted small">The access token is requested on demand, cached securely on the instance, and refreshed automatically. Providing a username uses the OAuth 2.0 password grant.</p>
             }
 
-            <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-robot"></i> Model-provided arguments</h5>
+            <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-robot"></i> Model-provided arguments</h5>
             <p class="text-muted small">Choose which parts of the request the AI model is allowed to fill in at invocation time.</p>
 
             <div class="form-check mb-2">
@@ -236,7 +236,7 @@ else
 
             @if (string.Equals(_model.Source, DocumentationToolConstants.SitemapSourceName, StringComparison.OrdinalIgnoreCase))
             {
-                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (sitemap crawl)</h5>
+                <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-book"></i> Documentation site (sitemap crawl)</h5>
 
                 <div class="mb-3">
                     <label class="form-label">Base URL <span class="text-danger">*</span></label>
@@ -265,7 +265,7 @@ else
 
             @if (string.Equals(_model.Source, DocumentationToolConstants.SearchIndexSourceName, StringComparison.OrdinalIgnoreCase))
             {
-                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (prebuilt search index)</h5>
+                <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-book"></i> Documentation site (prebuilt search index)</h5>
 
                 <div class="mb-3">
                     <label class="form-label">Base URL <span class="text-danger">*</span></label>
@@ -288,7 +288,7 @@ else
 
             @if (string.Equals(_model.Source, DocumentationToolConstants.AlgoliaSourceName, StringComparison.OrdinalIgnoreCase))
             {
-                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-book"></i> Documentation site (Algolia DocSearch)</h5>
+                <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-book"></i> Documentation site (Algolia DocSearch)</h5>
 
                 <div class="mb-3">
                     <label class="form-label">Application ID <span class="text-danger">*</span></label>
@@ -317,7 +317,7 @@ else
 
             @if (string.Equals(_model.Source, DocumentationToolConstants.WebsiteSearchSourceName, StringComparison.OrdinalIgnoreCase))
             {
-                <h5 class="mt-4 border-bottom pb-2"><i class="bi bi-search"></i> Website search (live API)</h5>
+                <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-magnifying-glass"></i> Website search (live API)</h5>
                 <p class="text-muted small">Queries the site's own search API on each request — no crawling or caching. Defaults target the WordPress REST search endpoint, so a WordPress site needs only a base URL.</p>
 
                 <div class="mb-3">
@@ -383,7 +383,7 @@ else
                                          PathTemplate="@_model.PathTemplate" />
 
             <div class="mt-4">
-                <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save</button>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Save</button>
                 <a href="/tooling/instances" class="btn btn-secondary">Cancel</a>
             </div>
         </div>

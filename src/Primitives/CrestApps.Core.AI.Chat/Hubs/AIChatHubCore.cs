@@ -509,6 +509,10 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             c.MaxTokens = 64;
             c.DataSourceId = null;
             c.DisableTools = true;
+
+            // Title generation runs on the utility deployment, so the values selected for that
+            // deployment are applied instead of the chat deployment's.
+            c.IsUtilityCompletion = true;
         });
         var deploymentManager = services.GetService<IAIDeploymentManager>();
         if (deploymentManager is null)

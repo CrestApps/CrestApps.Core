@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
@@ -35,6 +36,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
     private readonly IAIClientFactory _aiClientFactory;
     private readonly ITemplateService _aiTemplateService;
     private readonly IAIDeploymentManager _deploymentManager;
+    private readonly IAIDeploymentParameterApplier _parameterApplier;
     private readonly IToolRegistry _toolRegistry;
     private readonly ITextTokenizer _tokenizer;
     private readonly DefaultOrchestratorOptions _options;
@@ -51,6 +53,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
     /// <param name="tokenizer">The tokenizer.</param>
     /// <param name="options">The options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="parameterApplier">The model parameter applier.</param>
     public DefaultOrchestrator(
         IAICompletionService completionService,
         IAIClientFactory aiClientFactory,
@@ -59,12 +62,14 @@ public sealed class DefaultOrchestrator : IOrchestrator
         IToolRegistry toolRegistry,
         ITextTokenizer tokenizer,
         IOptions<DefaultOrchestratorOptions> options,
-        ILogger<DefaultOrchestrator> logger)
+        ILogger<DefaultOrchestrator> logger,
+        IAIDeploymentParameterApplier parameterApplier = null)
     {
         _completionService = completionService;
         _aiClientFactory = aiClientFactory;
         _aiTemplateService = aiTemplateService;
         _deploymentManager = deploymentManager;
+        _parameterApplier = parameterApplier;
         _toolRegistry = toolRegistry;
         _tokenizer = tokenizer;
         _options = options.Value;
@@ -502,6 +507,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
     /// <summary>
     /// Attempts to create a chat client using the utility deployment,
     /// falling back to the chat deployment if no utility deployment is configured.
+    /// The client applies the model parameters selected for the utility deployment.
     /// Returns <c>null</c> if no deployment can be resolved.
     /// </summary>
     private async Task<IChatClient> GetUtilityChatClientAsync(OrchestrationContext context)
@@ -517,7 +523,9 @@ public sealed class DefaultOrchestrator : IOrchestrator
 
         var chatClient = await _aiClientFactory.CreateChatClientAsync(
             deployment,
-            builder => builder.UseDefaultResilience());
+            builder => builder
+                .UseDefaultResilience()
+                .UseModelParameters(_parameterApplier, deployment, context.CompletionContext, AIDeploymentParameterScope.Utility));
 
         if (chatClient == null)
         {

@@ -12,7 +12,7 @@
 
 <PageTitle>Chat Analytics - Blazor AI Integration Sample</PageTitle>
 
-<h2><i class="bi bi-bar-chart-line"></i> Chat analytics</h2>
+<h2><i class="fa-solid fa-chart-column"></i> Chat analytics</h2>
 <p class="text-muted">Review chat-session activity, performance, conversion, and feedback across AI chat profiles.</p>
 <hr />
 
@@ -38,7 +38,7 @@
             </div>
             <div class="col-md-2 d-flex gap-2">
                 <button class="btn btn-primary flex-fill" @onclick="RunReportAsync">
-                    <i class="bi bi-funnel"></i> Show
+                    <i class="fa-solid fa-filter"></i> Show
                 </button>
             </div>
         </div>
@@ -61,7 +61,7 @@ else
 {
     <div class="d-flex justify-content-end mb-3">
         <button class="btn btn-outline-secondary" @onclick="ExportCsvAsync">
-            <i class="bi bi-filetype-csv"></i> Export CSV
+            <i class="fa-solid fa-file-csv"></i> Export CSV
         </button>
     </div>
 
@@ -154,13 +154,13 @@ else
                         <div class="row text-center">
                             <div class="col-md-3 mb-3">
                                 <div class="border rounded p-3">
-                                    <div class="fs-2 fw-bold text-success"><i class="bi bi-hand-thumbs-up me-1"></i>@_model.ThumbsUpCount</div>
+                                    <div class="fs-2 fw-bold text-success"><i class="fa-solid fa-thumbs-up me-1"></i>@_model.ThumbsUpCount</div>
                                     <div class="text-muted">Positive ratings</div>
                                 </div>
                             </div>
                             <div class="col-md-3 mb-3">
                                 <div class="border rounded p-3">
-                                    <div class="fs-2 fw-bold text-danger"><i class="bi bi-hand-thumbs-down me-1"></i>@_model.ThumbsDownCount</div>
+                                    <div class="fs-2 fw-bold text-danger"><i class="fa-solid fa-thumbs-down me-1"></i>@_model.ThumbsDownCount</div>
                                     <div class="text-muted">Negative ratings</div>
                                 </div>
                             </div>
@@ -183,11 +183,11 @@ else
                             <div class="progress mb-3" style="height: 40px;">
                                 <div class="progress-bar bg-success d-flex align-items-center justify-content-center gap-1 px-2"
                                      role="progressbar" style="width: @(_model.ThumbsUpPercent)%">
-                                    <i class="bi bi-hand-thumbs-up"></i><span>@_model.ThumbsUpPercent%</span>
+                                    <i class="fa-solid fa-thumbs-up"></i><span>@_model.ThumbsUpPercent%</span>
                                 </div>
                                 <div class="progress-bar bg-danger d-flex align-items-center justify-content-center gap-1 px-2"
                                      role="progressbar" style="width: @(_model.ThumbsDownPercent)%">
-                                    <i class="bi bi-hand-thumbs-down"></i><span>@_model.ThumbsDownPercent%</span>
+                                    <i class="fa-solid fa-thumbs-down"></i><span>@_model.ThumbsDownPercent%</span>
                                 </div>
                             </div>
                         }

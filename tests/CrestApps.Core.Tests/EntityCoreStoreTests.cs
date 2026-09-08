@@ -68,6 +68,43 @@ public sealed class EntityCoreStoreTests
     }
 
     [Fact]
+    public async Task Document_catalog_create_then_update_in_same_uncommitted_scope_does_not_duplicate()
+    {
+        // Reproduces the realtime voice bug: the whole conversation shares one DbContext that is only
+        // committed between turns, and a user turn is created (on commit) and then updated (when its
+        // transcript arrives) before any commit. UpdateAsync must find the pending, not-yet-persisted
+        // Added record locally instead of issuing a second insert that violates the unique
+        // (EntityType, ItemId) index on commit.
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await using var harness = await EntityCoreTestHarness.CreateAsync();
+        using var scope = harness.Services.CreateScope();
+        var promptStore = scope.ServiceProvider.GetRequiredService<IAIChatSessionPromptStore>();
+        var committer = scope.ServiceProvider.GetRequiredService<IStoreCommitter>();
+
+        var prompt = new AIChatSessionPrompt
+        {
+            ItemId = UniqueId.GenerateId(),
+            SessionId = "session-realtime",
+            Role = Microsoft.Extensions.AI.ChatRole.User,
+            Content = string.Empty,
+            CreatedUtc = DateTime.UtcNow,
+        };
+
+        // Create then update the same item id with no commit in between (as the realtime runner does).
+        await promptStore.CreateAsync(prompt, cancellationToken);
+        prompt.Content = "Hello there";
+        await promptStore.UpdateAsync(prompt, cancellationToken);
+
+        // Previously this threw SqliteException 'UNIQUE constraint failed: CA_CatalogRecords.EntityType, CA_CatalogRecords.ItemId'.
+        await committer.CommitAsync(cancellationToken);
+
+        Assert.Equal(1, await promptStore.CountAsync("session-realtime"));
+        var persisted = Assert.Single(await promptStore.GetPromptsAsync("session-realtime"));
+        Assert.Equal("Hello there", persisted.Content);
+    }
+
+    [Fact]
     public async Task Entity_core_stores_support_specialized_queries()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

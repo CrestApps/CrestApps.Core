@@ -7,7 +7,6 @@
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
 @inject IAIDeploymentStore DeploymentStore
-@inject INamedSourceCatalog<AIDeployment> DeploymentCatalog
 @inject IAIProviderConnectionStore ConnectionCatalog
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
@@ -17,7 +16,7 @@
 @if (_notFound)
 {
     <div class="alert alert-warning">
-        <i class="bi bi-exclamation-triangle"></i> Deployment not found.
+        <i class="fa-solid fa-triangle-exclamation"></i> Deployment not found.
     </div>
     <a href="/ai/deployments" class="btn btn-secondary">Back to Deployments</a>
 }
@@ -27,7 +26,7 @@ else if (_model == null)
 }
 else
 {
-    <h2><i class="bi bi-pencil"></i> Edit AI Deployment</h2>
+    <h2><i class="fa-solid fa-pencil"></i> Edit AI Deployment</h2>
     <hr />
 
     <EditForm FormName="ai-aideployments-edit" Model="_model" OnValidSubmit="HandleSubmitAsync">
@@ -134,7 +133,7 @@ else
 
                 <div class="mt-4">
                     <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-check-lg"></i> Save
+                        <i class="fa-solid fa-check"></i> Save
                     </button>
                     <a href="/ai/deployments" class="btn btn-secondary">Cancel</a>
                 </div>
@@ -191,7 +190,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var deployment = await DeploymentCatalog.FindByIdAsync(Id);
+        var deployment = await DeploymentStore.FindByIdAsync(Id);
 
         if (deployment == null)
         {
@@ -312,7 +311,7 @@ else
             return;
         }
 
-        var deployment = await DeploymentCatalog.FindByIdAsync(_model.ItemId);
+        var deployment = await DeploymentStore.FindByIdAsync(_model.ItemId);
 
         if (deployment == null)
         {
@@ -336,7 +335,8 @@ else
 
         _model.ApplyTo(deployment);
 
-        await DeploymentCatalog.UpdateAsync(deployment);
+        // Write through the multi-source store so its scoped merged-entry cache is invalidated; see Create.razor.
+        await DeploymentStore.UpdateAsync(deployment);
         await StoreCommitter.CommitAsync();
 
         Navigation.NavigateTo("/ai/deployments");

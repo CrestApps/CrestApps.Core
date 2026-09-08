@@ -11,9 +11,9 @@
 <PageTitle>Templates - Blazor AI Integration Sample</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2><i class="bi bi-file-earmark-text"></i> Templates</h2>
+    <h2><i class="fa-solid fa-file-lines"></i> Templates</h2>
     <a href="/ai/templates/create" class="btn btn-primary">
-        <i class="bi bi-plus-lg"></i> New Template
+        <i class="fa-solid fa-plus"></i> New Template
     </a>
 </div>
 
@@ -24,7 +24,7 @@
 else if (_templates.Count == 0)
 {
     <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> No templates configured yet.
+        <i class="fa-solid fa-circle-info"></i> No templates configured yet.
         <a href="/ai/templates/create">Create your first template</a>.
     </div>
 }
@@ -61,7 +61,7 @@ else
                         <td>
                             @if (template.IsListable)
                             {
-                                <span class="badge bg-success"><i class="bi bi-check-lg"></i> Yes</span>
+                                <span class="badge bg-success"><i class="fa-solid fa-check"></i> Yes</span>
                             }
                             else
                             {
@@ -71,10 +71,10 @@ else
                         <td class="text-nowrap">
                             <div class="d-inline-flex flex-nowrap gap-2">
                                 <a href="/ai/templates/edit/@template.ItemId" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-pencil"></i> Edit
+                                    <i class="fa-solid fa-pencil"></i> Edit
                                 </a>
                                 <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(template.ItemId)">
-                                    <i class="bi bi-trash"></i> Delete
+                                    <i class="fa-solid fa-trash"></i> Delete
                                 </button>
                             </div>
                         </td>

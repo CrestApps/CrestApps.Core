@@ -6,14 +6,13 @@
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
 @inject IAIProviderConnectionStore Store
-@inject INamedSourceCatalog<AIProviderConnection> Catalog
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
 <PageTitle>Create AI Connection - Blazor AI Integration Sample</PageTitle>
 
-<h2><i class="bi bi-plus-lg"></i> Create AI Connection</h2>
+<h2><i class="fa-solid fa-plus"></i> Create AI Connection</h2>
 <hr />
 
 <EditForm FormName="ai-aiconnections-create" Model="_model" OnValidSubmit="HandleSubmitAsync">
@@ -89,7 +88,7 @@
 
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-check-lg"></i> Create
+                    <i class="fa-solid fa-check"></i> Create
                 </button>
                 <a href="/ai/connections" class="btn btn-secondary">Cancel</a>
             </div>
@@ -201,7 +200,9 @@
         };
 
         _model.ApplyTo(connection);
-        await Catalog.CreateAsync(connection);
+        // Write through the multi-source store so its scoped merged-entry cache is invalidated; otherwise the
+        // connections list (read from the same circuit-scoped store) stays stale until a full page refresh.
+        await Store.CreateAsync(connection);
         await StoreCommitter.CommitAsync();
 
         Navigation.NavigateTo("/ai/connections");

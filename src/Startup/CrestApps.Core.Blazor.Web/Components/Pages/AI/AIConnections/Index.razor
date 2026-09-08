@@ -6,7 +6,6 @@
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
 @inject IAIProviderConnectionStore Store
-@inject INamedSourceCatalog<AIProviderConnection> Catalog
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -15,9 +14,9 @@
 <PageTitle>AI Connections - Blazor AI Integration Sample</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2><i class="bi bi-plug"></i> AI Connections</h2>
+    <h2><i class="fa-solid fa-plug"></i> AI Connections</h2>
     <a href="/ai/connections/create" class="btn btn-success">
-        <i class="bi bi-plus-lg"></i> Create New Connection
+        <i class="fa-solid fa-plus"></i> Create New Connection
     </a>
 </div>
 
@@ -28,7 +27,7 @@
 else if (_connections.Count == 0)
 {
     <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> No AI connections found. Create a connection to link AI providers.
+        <i class="fa-solid fa-circle-info"></i> No AI connections found. Create a connection to link AI providers.
     </div>
 }
 else
@@ -61,10 +60,10 @@ else
                                     </td>
                                     <td>
                                         <a href="/ai/connections/edit/@connection.ItemId" class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-pencil"></i> Edit
+                                            <i class="fa-solid fa-pencil"></i> Edit
                                         </a>
                                         <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(connection.ItemId)">
-                                            <i class="bi bi-trash"></i> Delete
+                                            <i class="fa-solid fa-trash"></i> Delete
                                         </button>
                                     </td>
                                 </tr>
@@ -145,7 +144,7 @@ else
             return;
         }
 
-        var connection = await Catalog.FindByIdAsync(id);
+        var connection = await Store.FindByIdAsync(id);
         if (connection == null)
         {
             ToastNotifications.ShowError("Connection not found.");
@@ -160,7 +159,8 @@ else
             return;
         }
 
-        await Catalog.DeleteAsync(connection);
+        // Delete through the multi-source store so its scoped merged-entry cache is invalidated before we reload.
+        await Store.DeleteAsync(connection);
         await StoreCommitter.CommitAsync();
         await LoadConnectionsAsync();
     }

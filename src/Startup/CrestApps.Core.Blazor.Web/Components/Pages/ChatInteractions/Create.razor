@@ -44,7 +44,7 @@
 
 <PageTitle>New Chat Interaction - Blazor AI Integration Sample</PageTitle>
 
-<h2><i class="bi bi-plus-lg"></i> New Chat Interaction</h2>
+<h2><i class="fa-solid fa-plus"></i> New Chat Interaction</h2>
 <hr />
 <p class="text-muted">Configure AI parameters and start chatting. Unlike AI Profile chat, you can fully customize the behavior here.</p>
 
@@ -85,6 +85,18 @@
                     </div>
 
                     <div class="mb-3">
+                        <label for="utilityDeployment" class="form-label">Utility deployment</label>
+                        <InputSelect id="utilityDeployment" class="form-select" @bind-Value="_model.UtilityDeploymentName">
+                            <option value="">Use the default utility deployment</option>
+                            @foreach (var d in _model.UtilityDeployments)
+                            {
+                                <option value="@d.Value">@d.Text</option>
+                            }
+                        </InputSelect>
+                        <div class="form-text">The deployment used for background completions such as title generation. Leave blank to use the site default.</div>
+                    </div>
+
+                    <div class="mb-3">
                         <label for="orchestrator" class="form-label">Orchestrator</label>
                         <InputSelect id="orchestrator" class="form-select" @bind-Value="_model.OrchestratorName">
                             <option value="">Use default orchestrator</option>
@@ -102,7 +114,7 @@
                             <label class="form-label">
                                 Prompt templates
                                 <span class="text-muted" data-bs-toggle="tooltip" title="Add one or more reusable prompt templates that will be rendered in order before the custom system instructions.">
-                                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                                 </span>
                             </label>
                             <div class="d-flex flex-wrap gap-2 mb-3">
@@ -163,11 +175,11 @@
                                     <div class="card mb-1" data-template-id="@selection.TemplateId">
                                         <div class="card-header d-flex justify-content-between align-items-center py-2">
                                             <button type="button" class="btn btn-sm btn-link text-start text-decoration-none flex-grow-1 px-0" data-bs-toggle="collapse" data-bs-target="#@collapseId" aria-expanded="false">
-                                                <i class="bi bi-chevron-right me-1"></i>
+                                                <i class="fa-solid fa-chevron-right me-1"></i>
                                                 <span class="fw-semibold">@title</span>
                                             </button>
                                             <button type="button" class="btn btn-sm btn-danger" @onclick="() => _model.PromptTemplates.RemoveAt(index)">
-                                                <i class="bi bi-trash"></i>
+                                                <i class="fa-solid fa-trash"></i>
                                             </button>
                                         </div>
                                         <div id="@collapseId" class="collapse">
@@ -246,18 +258,24 @@
                         </div>
                     </div>
 
-                    <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-sliders"></i> Model parameters</h6>
-                    <p class="text-muted small">Only the parameters declared by the selected deployment are shown.</p>
-                    <ModelParametersEditor DeploymentName="_model.ChatDeploymentName" Values="_model.ModelParameters" />
+                    <ModelParametersEditor DeploymentName="@_model.ChatDeploymentName"
+                                           Values="_model.ModelParameters"
+                                           Description="Only the parameters declared by the selected deployment are shown." />
+
+                    <ModelParametersEditor DeploymentName="@_model.UtilityDeploymentName"
+                                           Values="_model.UtilityModelParameters"
+                                           ElementIdPrefix="utilityModelParameter"
+                                           Title="Utility model parameters"
+                                           Description="Applied to background completions such as title generation, data extraction, and post-session processing. Only the parameters declared by the selected utility deployment are shown." />
                 }
                 else if (_activeTab == "capabilities")
                 {
                     <!-- AI Agents -->
-                    <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-robot"></i> AI Agents</h6>
+                    <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-robot"></i> AI Agents</h6>
                     @if (_model.AvailableAgents.Count == 0)
                     {
                         <div class="alert alert-info mb-3">
-                            <i class="bi bi-info-circle"></i> No AI agent profiles are available. Create agent-type AI profiles first.
+                            <i class="fa-solid fa-circle-info"></i> No AI agent profiles are available. Create agent-type AI profiles first.
                         </div>
                     }
                     else
@@ -276,11 +294,11 @@
                     }
 
                     <!-- AI Tools -->
-                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-tools"></i> AI Tools</h6>
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-screwdriver-wrench"></i> AI Tools</h6>
                     @if (_model.AvailableTools.Count == 0)
                     {
                         <div class="alert alert-info mb-3">
-                            <i class="bi bi-info-circle"></i> No selectable AI tools are registered.
+                            <i class="fa-solid fa-circle-info"></i> No selectable AI tools are registered.
                         </div>
                     }
                     else
@@ -288,13 +306,13 @@
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <p class="text-muted mb-0 small">Select the tools this interaction can use during conversations.</p>
                             <div class="btn-group btn-group-sm ms-3" role="group">
-                                <button type="button" class="btn btn-outline-primary" @onclick="SelectAllTools"><i class="bi bi-check-all"></i> Select all</button>
-                                <button type="button" class="btn btn-outline-secondary" @onclick="DeselectAllTools"><i class="bi bi-x-lg"></i> Deselect all</button>
+                                <button type="button" class="btn btn-outline-primary" @onclick="SelectAllTools"><i class="fa-solid fa-check-double"></i> Select all</button>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="DeselectAllTools"><i class="fa-solid fa-xmark"></i> Deselect all</button>
                             </div>
                         </div>
                         @foreach (var group in _model.AvailableTools.GroupBy(t => t.Category).OrderBy(g => g.Key))
                         {
-                            <h6 class="text-secondary mt-3 mb-2"><i class="bi bi-folder"></i> @group.Key</h6>
+                            <h6 class="text-secondary mt-3 mb-2"><i class="fa-solid fa-folder"></i> @group.Key</h6>
                             @foreach (var tool in group)
                             {
                                 <div class="form-check mb-2">
@@ -313,11 +331,11 @@
                     }
 
                     <!-- AI Tool Instances -->
-                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plugin"></i> Tool Instances</h6>
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-puzzle-piece"></i> Tool Instances</h6>
                     @if (_model.AvailableToolInstances.Count == 0)
                     {
                         <div class="alert alert-info mb-3">
-                            <i class="bi bi-info-circle"></i> No tool instances are configured.
+                            <i class="fa-solid fa-circle-info"></i> No tool instances are configured.
                         </div>
                     }
                     else
@@ -341,11 +359,11 @@
                     }
 
                     <!-- A2A Connections -->
-                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-diagram-3"></i> Agent to Agent Hosts</h6>
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-sitemap"></i> Agent to Agent Hosts</h6>
                     @if (_model.AvailableA2AConnections.Count == 0)
                     {
                         <div class="alert alert-info mb-3">
-                            <i class="bi bi-info-circle"></i> No A2A host connections are configured.
+                            <i class="fa-solid fa-circle-info"></i> No A2A host connections are configured.
                         </div>
                     }
                     else
@@ -365,11 +383,11 @@
                     }
 
                     <!-- MCP Hosts -->
-                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="bi bi-plug"></i> MCP Hosts</h6>
+                    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-plug"></i> MCP Hosts</h6>
                     @if (_model.AvailableMcpConnections.Count == 0)
                     {
                         <div class="alert alert-info mb-0">
-                            <i class="bi bi-info-circle"></i> No MCP host connections are configured.
+                            <i class="fa-solid fa-circle-info"></i> No MCP host connections are configured.
                         </div>
                     }
                     else
@@ -446,13 +464,13 @@
                     @if (_model.HasDocumentIndexConfiguration)
                     {
                         <div class="alert alert-info">
-                            <i class="bi bi-info-circle"></i> Documents uploaded here are indexed into the <strong>@_model.DocumentIndexProfileName</strong> AI Documents index and can be used as background knowledge during chat.
+                            <i class="fa-solid fa-circle-info"></i> Documents uploaded here are indexed into the <strong>@_model.DocumentIndexProfileName</strong> AI Documents index and can be used as background knowledge during chat.
                         </div>
                     }
                     else
                     {
                         <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i> Document knowledge-base search is not configured yet. Create an <strong>AI Documents</strong> index profile and select it under <strong>Settings → AI Settings → Documents</strong> before expecting uploaded documents to influence answers.
+                            <i class="fa-solid fa-triangle-exclamation"></i> Document knowledge-base search is not configured yet. Create an <strong>AI Documents</strong> index profile and select it under <strong>Settings → AI Settings → Documents</strong> before expecting uploaded documents to influence answers.
                         </div>
                     }
 
@@ -465,7 +483,7 @@
                             ? "Upload documents and images"
                             : _model.AllowImageUploads ? "Upload images" : "Upload documents";
 
-                        <h6 class="mt-3 mb-2"><i class="bi bi-paperclip"></i> @uploadHeading</h6>
+                        <h6 class="mt-3 mb-2"><i class="fa-solid fa-paperclip"></i> @uploadHeading</h6>
                         <div class="mb-3">
                             <label class="form-label">@uploadLabel</label>
                             <InputFile class="form-control" OnChange="OnDocumentsSelected" multiple accept="@SupportedExtensionsAccept" />
@@ -477,7 +495,7 @@
 
             <div class="mt-3">
                 <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-chat-left-text"></i> Create &amp; Start Chat
+                    <i class="fa-solid fa-comment"></i> Create &amp; Start Chat
                 </button>
                 <a href="/chat-interactions" class="btn btn-secondary">Cancel</a>
             </div>
@@ -504,6 +522,12 @@
         var deployments = await DeploymentCatalog.GetAllAsync();
         _model.Deployments = deployments
             .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat))
+            .Select(d => new SelectOption(
+                string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})",
+                d.Name))
+            .ToList();
+        _model.UtilityDeployments = deployments
+            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat))
             .Select(d => new SelectOption(
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})",
                 d.Name))
@@ -670,6 +694,7 @@
         interaction.OwnerId = userName;
         interaction.Author = userName;
         interaction.ChatDeploymentName = _model.ChatDeploymentName;
+        interaction.UtilityDeploymentName = _model.UtilityDeploymentName;
         interaction.OrchestratorName = _model.OrchestratorName;
         interaction.SystemMessage = _model.SystemMessage;
         interaction.Temperature = _model.Temperature;
@@ -695,11 +720,8 @@
 
         interaction.Alter<AIDeploymentParametersMetadata>(metadata =>
         {
-            metadata.Values = _model.ModelParameters is null
-                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, string>(
-                    _model.ModelParameters.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value)),
-                    StringComparer.OrdinalIgnoreCase);
+            metadata.Values = SelectedModelParameters(_model.ModelParameters);
+            metadata.UtilityValues = SelectedModelParameters(_model.UtilityModelParameters);
         });
 
         if (!string.IsNullOrWhiteSpace(_model.DataSourceId))
@@ -776,5 +798,17 @@
         {
             return null;
         }
+    }
+
+    private static Dictionary<string, string> SelectedModelParameters(Dictionary<string, string> values)
+    {
+        if (values is null)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return new Dictionary<string, string>(
+            values.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value)),
+            StringComparer.OrdinalIgnoreCase);
     }
 }

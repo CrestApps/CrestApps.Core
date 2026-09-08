@@ -789,8 +789,8 @@
                 realtimePttButton.classList.toggle('btn-danger', active);
                 realtimePttButton.classList.toggle('btn-outline-primary', !active);
                 realtimePttButton.innerHTML = active
-                    ? '<i class="bi bi-mic-fill me-1"></i> Listening…'
-                    : '<i class="bi bi-mic me-1"></i> Hold to talk';
+                    ? '<i class="fa-solid fa-microphone me-1"></i> Listening…'
+                    : '<i class="fa-solid fa-microphone me-1"></i> Hold to talk';
             }
         }
 
@@ -804,7 +804,7 @@
             var btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'btn btn-outline-primary btn-sm';
-            btn.innerHTML = '<i class="bi bi-mic me-1"></i> Hold to talk';
+            btn.innerHTML = '<i class="fa-solid fa-microphone me-1"></i> Hold to talk';
             var hint = document.createElement('div');
             hint.className = 'form-text mt-1 mb-0';
             hint.innerHTML = coarse
@@ -853,7 +853,7 @@
             gear.className = 'btn btn-outline-secondary';
             gear.title = localize('settingsTitle', 'Voice settings');
             gear.setAttribute('aria-label', localize('settingsTitle', 'Voice settings'));
-            gear.innerHTML = '<i class="bi bi-gear"></i>';
+            gear.innerHTML = '<i class="fa-solid fa-gear"></i>';
 
             var langs = [['en', 'English'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'], ['pt', 'Portuguese'], ['nl', 'Dutch'], ['zh', 'Chinese'], ['ja', 'Japanese'], ['ko', 'Korean'], ['ar', 'Arabic'], ['hi', 'Hindi'], ['ru', 'Russian']];
             var langOptions = '<option value=""' + (prefs.language === '' ? ' selected' : '') + '>' + localize('languageAuto', 'Automatic') + '</option>' +

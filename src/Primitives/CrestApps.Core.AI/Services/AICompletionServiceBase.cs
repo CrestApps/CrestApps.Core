@@ -62,6 +62,32 @@ public abstract class AICompletionServiceBase
     }
 
     /// <summary>
+    /// Resolves the deployment that serves the given completion request. A request marked as a
+    /// background utility completion resolves the utility deployment first and falls back to the chat
+    /// deployment when no utility deployment is configured.
+    /// </summary>
+    /// <param name="context">The completion context of the current request.</param>
+    /// <param name="providerName">The provider name.</param>
+    protected virtual async ValueTask<AIDeployment> ResolveRequestDeploymentAsync(
+        AICompletionContext context,
+        string providerName)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        if (context.IsUtilityCompletion)
+        {
+            var utilityDeployment = await ResolveDeploymentAsync(AIDeploymentPurpose.Utility, providerName, context.UtilityDeploymentName);
+
+            if (utilityDeployment != null)
+            {
+                return utilityDeployment;
+            }
+        }
+
+        return await ResolveDeploymentAsync(AIDeploymentPurpose.Chat, providerName, context.ChatDeploymentName);
+    }
+
+    /// <summary>
     /// Gets total messages to skip.
     /// </summary>
     /// <param name="totalMessages">The total messages.</param>

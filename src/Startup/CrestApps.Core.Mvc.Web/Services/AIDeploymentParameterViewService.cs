@@ -35,17 +35,23 @@ public sealed class AIDeploymentParameterViewService
     /// <param name="deploymentFieldName">The name of the form field that holds the selected chat deployment.</param>
     /// <param name="fieldPrefix">The form field prefix used when posting the selected values.</param>
     /// <param name="elementPrefix">The prefix applied to generated element identifiers.</param>
+    /// <param name="title">The heading rendered above the editor.</param>
+    /// <param name="description">The descriptive text rendered under the heading.</param>
     public async Task<ModelParameterEditorViewModel> BuildAsync(
         IDictionary<string, string> values,
         string deploymentFieldName = "ChatDeploymentName",
         string fieldPrefix = "ModelParameters",
-        string elementPrefix = "modelParameters")
+        string elementPrefix = "modelParameters",
+        string title = "Model parameters",
+        string description = null)
     {
         var model = new ModelParameterEditorViewModel
         {
             DeploymentFieldName = deploymentFieldName,
             FieldPrefix = fieldPrefix,
             ElementPrefix = elementPrefix,
+            Title = title,
+            Description = description,
         };
 
         foreach (var descriptor in _capabilityService.GetRegisteredParameters())
@@ -66,34 +72,8 @@ public sealed class AIDeploymentParameterViewService
         }
 
         model.CapabilitiesJson = JsonSerializer.Serialize(await BuildCapabilityMapAsync(), ModelParameterCapabilityViewModel.SerializerOptions);
-        model.FeaturesJson = JsonSerializer.Serialize(await BuildFeatureMapAsync(), ModelParameterCapabilityViewModel.SerializerOptions);
 
         return model;
-    }
-
-    private async Task<Dictionary<string, string[]>> BuildFeatureMapAsync()
-    {
-        var map = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
-        var deployments = await _deploymentCatalog.GetAllAsync();
-
-        foreach (var deployment in deployments)
-        {
-            if (string.IsNullOrWhiteSpace(deployment.Name))
-            {
-                continue;
-            }
-
-            var capabilities = _capabilityService.GetCapabilities(deployment);
-
-            if (capabilities.Features.Count == 0)
-            {
-                continue;
-            }
-
-            map[deployment.Name] = [.. capabilities.Features.Select(feature => feature.DisplayName?.Value ?? feature.Name)];
-        }
-
-        return map;
     }
 
     private async Task<Dictionary<string, Dictionary<string, ModelParameterCapabilityViewModel>>> BuildCapabilityMapAsync()

@@ -36,7 +36,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         ArgumentNullException.ThrowIfNull(entry);
 
         await DeletingAsync(entry);
-        var existing = await GetTrackedQuery().FirstOrDefaultAsync(x => x.ItemId == entry.ItemId, cancellationToken);
+        var existing = await FindTrackedRecordAsync(entry.ItemId, cancellationToken);
 
         if (existing is null)
         {
@@ -210,7 +210,7 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         }
 
         await SavingAsync(record);
-        var existing = await GetTrackedQuery().FirstOrDefaultAsync(x => x.ItemId == record.ItemId, cancellationToken);
+        var existing = await FindTrackedRecordAsync(record.ItemId, cancellationToken);
 
         if (existing is null)
         {
@@ -220,6 +220,39 @@ public class DocumentCatalog<T> : ICatalog<T> where T : CatalogItem
         {
             CatalogRecordFactory.Update(existing, record);
         }
+    }
+
+    /// <summary>
+    /// Finds a tracked or persisted catalogue record for the supplied item id, preferring an entity that is
+    /// already tracked locally over a database round-trip.
+    /// </summary>
+    /// <remarks>
+    /// A record created earlier in the same unit of work is tracked locally in the <see cref="EntityState.Added"/>
+    /// state but has not yet been written to the database, so a database query would not see it. Consulting the
+    /// local set first ensures a create-then-update (or create-then-delete) sequence within a single uncommitted
+    /// scope — as happens for a realtime voice turn, where the whole conversation shares one DbContext that is only
+    /// committed between turns — updates the pending row instead of inserting a duplicate that would violate the
+    /// unique <c>(EntityType, ItemId)</c> index on commit.
+    /// </remarks>
+    /// <param name="itemId">The item id.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    private async ValueTask<CatalogRecord> FindTrackedRecordAsync(string itemId, CancellationToken cancellationToken)
+    {
+        var entityType = CatalogRecordFactory.GetEntityType<T>();
+        var local = DbContext.CatalogRecords.Local
+            .FirstOrDefault(x => x.EntityType == entityType && x.ItemId == itemId);
+
+        if (local is not null)
+        {
+            if (local.Document is null && local.DocumentId != 0)
+            {
+                await DbContext.Entry(local).Reference(x => x.Document).LoadAsync(cancellationToken);
+            }
+
+            return local;
+        }
+
+        return await GetTrackedQuery().FirstOrDefaultAsync(x => x.ItemId == itemId, cancellationToken);
     }
 
     /// <summary>
