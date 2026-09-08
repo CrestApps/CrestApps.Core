@@ -55,6 +55,7 @@ internal sealed class GroundedTurnCoordinator : IAsyncDisposable
     private TaskCompletionSource? _acknowledgementCompletion;
     private bool _expectAcknowledgementResponse;
     private string? _acknowledgementResponseId;
+    private bool _answerFollowsAcknowledgement;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GroundedTurnCoordinator"/> class.
@@ -190,6 +191,9 @@ internal sealed class GroundedTurnCoordinator : IAsyncDisposable
         {
             cancellation = _turnCancellation;
             _turnCancellation = null;
+
+            // The answer this acknowledgement was covering for is not coming; the next response is a fresh turn.
+            _answerFollowsAcknowledgement = false;
         }
 
         if (cancellation is null || cancellation.IsCancellationRequested)
@@ -206,6 +210,23 @@ internal sealed class GroundedTurnCoordinator : IAsyncDisposable
     }
 
     /// <summary>
+    /// Gets whether the response about to start is the answer a spoken acknowledgement was covering for. The
+    /// runner drops still-queued audio when a new response starts with barge-in off, because that audio is a stale
+    /// reply the user has moved past; the acknowledgement is not stale, and cutting it off mid-word is exactly the
+    /// abrupt sound the acknowledgement exists to prevent.
+    /// </summary>
+    public bool AnswerFollowsAcknowledgement
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _answerFollowsAcknowledgement;
+            }
+        }
+    }
+
+    /// <summary>
     /// Records a response the provider has started, so an acknowledgement can be told apart from an answer.
     /// </summary>
     /// <param name="responseId">The provider's response id, when it supplies one.</param>
@@ -213,6 +234,9 @@ internal sealed class GroundedTurnCoordinator : IAsyncDisposable
     {
         lock (_gate)
         {
+            // Whatever is starting now is the response that followed the acknowledgement, if one did.
+            _answerFollowsAcknowledgement = false;
+
             if (!_expectAcknowledgementResponse)
             {
                 return;
@@ -254,6 +278,7 @@ internal sealed class GroundedTurnCoordinator : IAsyncDisposable
             _acknowledgementResponseId = null;
             completion = _acknowledgementCompletion;
             _acknowledgementCompletion = null;
+            _answerFollowsAcknowledgement = true;
         }
 
         completion?.TrySetResult();

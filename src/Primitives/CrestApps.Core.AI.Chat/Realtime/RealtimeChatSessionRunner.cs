@@ -546,7 +546,10 @@ public sealed class RealtimeChatSessionRunner
                     // its paced audio is still draining. When that follow-up's response starts, drop the old audio so
                     // the newest reply plays instead of the stale one finishing first. (No-op for the first response
                     // of a turn and when nothing is buffered.)
-                    if (!context.AllowInterruption)
+                    // The one response that is not stale when the next one starts is the spoken acknowledgement:
+                    // the answer it covered for is what is starting, and its last words are still draining. Cutting
+                    // them off mid-word is exactly the abrupt sound the acknowledgement exists to prevent.
+                    if (!context.AllowInterruption && grounding?.AnswerFollowsAcknowledgement != true)
                     {
                         await sink.FlushPlaybackAsync(sessionId, cancellationToken);
                     }

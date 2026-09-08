@@ -55,6 +55,46 @@ public sealed class GroundedTurnCoordinatorTests
     }
 
     [Fact]
+    public async Task AnswerFollowsAcknowledgement_IsTrueOnlyBetweenTheAcknowledgementEndingAndTheAnswerStarting()
+    {
+        // The runner drops queued audio when a new response starts with barge-in off. The answer that follows an
+        // acknowledgement must not do that: the acknowledgement's last words are still draining and are not stale.
+        var conversation = new ControllableConversation { RetrievalGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously) };
+        await using var coordinator = CreateCoordinator(conversation, acknowledgementDelay: TimeSpan.FromMilliseconds(20));
+
+        coordinator.BeginTurn("item-1", "what is the refund policy", CancellationToken.None);
+        await WaitForAsync(() => conversation.Acknowledgements.Count == 1);
+
+        coordinator.ResponseStarted("ack-1");
+        Assert.False(coordinator.AnswerFollowsAcknowledgement);
+
+        conversation.RetrievalGate!.SetResult(true);
+        coordinator.ResponseCompleted("ack-1");
+        Assert.True(coordinator.AnswerFollowsAcknowledgement);
+
+        await WaitForAsync(() => conversation.ResponseRequests == 1);
+
+        // The answer starts: from here on, a new response is a fresh turn and stale audio may be dropped again.
+        coordinator.ResponseStarted("answer-1");
+        Assert.False(coordinator.AnswerFollowsAcknowledgement);
+    }
+
+    [Fact]
+    public async Task AnswerFollowsAcknowledgement_IsFalseForAnOrdinaryTurn()
+    {
+        var conversation = new ControllableConversation();
+        await using var coordinator = CreateCoordinator(conversation);
+
+        coordinator.BeginTurn("item-1", "hello", CancellationToken.None);
+        await WaitForAsync(() => conversation.ResponseRequests == 1);
+
+        coordinator.ResponseStarted("answer-1");
+        coordinator.ResponseCompleted("answer-1");
+
+        Assert.False(coordinator.AnswerFollowsAcknowledgement);
+    }
+
+    [Fact]
     public async Task BeginTurn_WhenRetrievalThrows_StillAnswers()
     {
         var conversation = new ControllableConversation { RetrievalFailure = new InvalidOperationException("index down") };
