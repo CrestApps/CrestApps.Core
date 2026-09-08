@@ -264,6 +264,12 @@ after `IdleTimeoutMinutes` without user speech (10 by default; set it to `0` to 
 
 ## User controls
 
+A realtime session is audio-only, so the controller hides the host's message box, send button, and
+speech-to-text microphone button while one is running, leaving **Start speaking** as the only way in. It hides
+whatever the host hands it: pass `input`, `sendButton`, and `micButton` in `selectors` alongside
+`realtimeButton`, and a host that renders its own realtime surface can hide them server-side too, which avoids
+showing them for the instant before the page's script runs.
+
 The settings popover is deliberately short. A user should be able to press **Start speaking** and talk, in any
 room, without first understanding acoustics; everything that used to be a knob (echo margins, gate modes,
 turn-detection timing, audio-setup presets, an echo self-test) is measured or decided automatically now. What
