@@ -37,7 +37,7 @@ else
                     <th>Title</th>
                     <th>Technical Name</th>
                     <th style="width: 110px;">Type</th>
-                    <th style="width: 430px;">Actions</th>
+                    <th style="width: 470px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -52,7 +52,7 @@ else
                             </span>
                         </td>
                         <td>
-                            <div class="d-flex flex-nowrap gap-2">
+                            <div class="d-flex flex-nowrap gap-2 text-nowrap">
                             @if (profile.Type == AIProfileType.Chat)
                             {
                                 <button type="button" class="btn btn-sm btn-outline-success" title="Start a new chat session" @onclick="() => StartNewChatAsync(profile)">

@@ -25,7 +25,7 @@ else
                     <th>Title</th>
                     <th>Technical Name</th>
                     <th>Type</th>
-                    <th style="width: 380px;">Actions</th>
+                    <th style="width: 470px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -40,6 +40,7 @@ else
                             </span>
                         </td>
                         <td>
+                            <div class="d-flex flex-nowrap gap-2 text-nowrap">
                             @if (profile.Type == CrestApps.Core.AI.Models.AIProfileType.Chat)
                             {
                                 <form asp-area="AIChat" asp-controller="AIChat" asp-action="CreateSession" method="post" class="d-inline">
@@ -66,6 +67,7 @@ else
                                     <i class="fa-solid fa-trash"></i> Delete
                                 </button>
                             </form>
+                            </div>
                         </td>
                     </tr>
                 }

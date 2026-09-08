@@ -331,7 +331,7 @@
                                     var title = option?.Title ?? selection.TemplateId ?? "Prompt template";
                                     var category = option?.Category ?? "Unavailable";
                                     var description = option?.Description;
-                                    var parameters = option?.Parameters ?? [];
+                                    var parameters = option?.Parameters;
 
                                     <div class="card mb-1 prompt-template-card" data-template-id="@selection.TemplateId">
                                         <div class="card-header d-flex justify-content-between align-items-center py-2">
@@ -358,7 +358,7 @@
                                                 {
                                                     <div class="text-muted small mb-3">@description</div>
                                                 }
-                                                @if (parameters.Count > 0)
+                                                @if (parameters != null && parameters.Count > 0)
                                                 {
                                                     <div class="mb-3">
                                                         <small class="text-muted d-block mb-1">Expected parameters:</small>
