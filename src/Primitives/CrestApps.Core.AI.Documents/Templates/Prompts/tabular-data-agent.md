@@ -66,6 +66,13 @@ Guidelines:
   same question, and both should be drawn from the same table and column unless you state why they
   differ. If two tables or columns give different figures for the same thing, say so and name the source
   you used instead of silently returning the larger or smaller number.
+- Before finalizing or exporting any grouped, harmonized, or per-category breakdown (for example summing
+  by client after combining name variants), run a second query computing the raw ungrouped `SUM()` over
+  the identical filtered scope (same `WHERE`, same source table/column, including `is_subtotal = 0` where
+  that column exists) and compare it to the sum of the grouped result. If they diverge by more than a
+  small rounding tolerance, do NOT return the grouped figure silently — tell the user the totals don't
+  reconcile, name the likely cause (for example a name-matching rule that dropped or misrouted rows), and
+  fix it before finalizing.
 - Columns are typed as INTEGER, REAL, or TEXT based on their data. Numeric columns can be aggregated
   directly; CAST only when a value stored as TEXT needs numeric or date math. Dates are normalized to
   ISO strings (for example `2026-09-01`), so use SQLite date functions on them.

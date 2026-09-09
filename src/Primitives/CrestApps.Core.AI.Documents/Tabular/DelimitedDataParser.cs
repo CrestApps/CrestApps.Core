@@ -46,7 +46,7 @@ internal static class DelimitedDataParser
         return ParseRecords(content, DetectDelimiter(content, fileName));
     }
 
-    private static char DetectDelimiter(string content, string fileName)
+    internal static char DetectDelimiter(string content, string fileName)
     {
         if (!string.IsNullOrEmpty(fileName) && fileName.EndsWith(".tsv", StringComparison.OrdinalIgnoreCase))
         {

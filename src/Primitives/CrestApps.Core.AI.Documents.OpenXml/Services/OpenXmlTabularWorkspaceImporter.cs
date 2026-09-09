@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using CrestApps.Core.AI.Documents.Tabular;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
@@ -12,6 +13,9 @@ namespace CrestApps.Core.AI.Documents.OpenXml.Services;
 /// </summary>
 public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
 {
+    // Bounds memory; above the largest real padding run seen in practice (~13,600 rows).
+    private const int MaxPendingBlankRows = 25_000;
+
     private readonly ILogger<OpenXmlTabularWorkspaceImporter> _logger;
 
     /// <summary>
@@ -95,12 +99,60 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
         var rowCount = 0;
         var insertCommandCount = 0;
 
+        // Withheld until a following row proves the run isn't trailing formula-fill padding (e.g. "0" cells past the real data).
+        List<int> textColumnIndexes = null;
+        var pendingBlankRows = new List<List<string>>();
+
         void InsertDataRow(List<string> row)
         {
             BindDataRow(insertCommand, row, dataColumns, hasSubtotalColumn);
             insertCommand.ExecuteNonQuery();
             rowCount++;
             insertCommandCount++;
+        }
+
+        bool IsStructurallyBlank(List<string> row)
+        {
+            if (textColumnIndexes.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (var columnIndex in textColumnIndexes)
+            {
+                var value = columnIndex < row.Count ? row[columnIndex] : null;
+
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                if (TabularWorkspaceSqliteHelpers.TryNormalizeNumeric(value, out var normalized, out _) &&
+                    double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out var numeric) &&
+                    numeric == 0)
+                {
+                    continue;
+                }
+
+                return false;
+            }
+
+            return true;
+        }
+
+        void FlushPendingBlankRows()
+        {
+            if (pendingBlankRows.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var blankRow in pendingBlankRows)
+            {
+                InsertDataRow(blankRow);
+            }
+
+            pendingBlankRows.Clear();
         }
 
         // The table cannot be created until the header row has been located and enough data rows sampled
@@ -113,6 +165,7 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
             var expandedHeader = TabularWorksheetShaper.ExpandHeader(header, dataRows);
 
             dataColumns = TabularWorkspaceSqliteHelpers.BuildColumns(expandedHeader, dataRows);
+            textColumnIndexes = [.. Enumerable.Range(0, dataColumns.Count).Where(index => string.Equals(dataColumns[index].DeclaredType, "TEXT", StringComparison.Ordinal))];
             hasSubtotalColumn = dataRows.Any(TabularWorksheetShaper.IsSubtotalRow);
             allColumns = hasSubtotalColumn
                 ? [.. dataColumns, new TabularColumnInfo(TabularWorksheetShaper.SubtotalColumnName, "INTEGER")]
@@ -151,6 +204,8 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
                     transaction = null;
                     rowCount = 0;
                     insertCommandCount = 0;
+                    textColumnIndexes = null;
+                    pendingBlankRows.Clear();
                 },
                 row =>
                 {
@@ -166,6 +221,20 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
                         return;
                     }
 
+                    if (IsStructurallyBlank(row))
+                    {
+                        pendingBlankRows.Add(row);
+
+                        // Cap exceeded: too long to plausibly be padding, so keep it as real data.
+                        if (pendingBlankRows.Count > MaxPendingBlankRows)
+                        {
+                            FlushPendingBlankRows();
+                        }
+
+                        return;
+                    }
+
+                    FlushPendingBlankRows();
                     InsertDataRow(row);
                 },
                 () =>
@@ -179,6 +248,21 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
                         }
 
                         FinalizeTable();
+                    }
+
+                    // Never followed by real data, so it's padding — discard instead of inserting.
+                    if (pendingBlankRows.Count > 0)
+                    {
+                        if (_logger.IsEnabled(LogLevel.Debug))
+                        {
+                            _logger.LogDebug(
+                                "OpenXml tabular reader discarded {DiscardedRowCount} trailing structurally-blank row(s) from worksheet '{WorksheetName}' for '{FileName}'.",
+                                pendingBlankRows.Count,
+                                worksheetName,
+                                fileName);
+                        }
+
+                        pendingBlankRows.Clear();
                     }
 
                     transaction.Commit();

@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Templates.Services;
 
 namespace CrestApps.Core.AI.Documents.Services;
@@ -81,6 +82,7 @@ internal sealed class TabularDataAgentProvider : IAIProfileProvider
         {
             Names =
             [
+                SystemToolNames.GetDocumentMetadata,
                 TabularToolNames.ListTabularData,
                 TabularToolNames.QueryTabularData,
                 TabularToolNames.ExecuteTabularCommand,

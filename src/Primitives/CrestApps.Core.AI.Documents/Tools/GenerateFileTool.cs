@@ -242,8 +242,10 @@ public sealed class GenerateFileTool : AIFunction
 
             if (header.Count > 0)
             {
+                var delimiter = DelimitedDataParser.DetectDelimiter(content, fileName);
+
                 fileContent.Header = header;
-                fileContent.Rows = ReflowOverflowRows(header, rows);
+                fileContent.Rows = ReflowOverflowRows(header, rows, delimiter);
             }
         }
 
@@ -251,19 +253,12 @@ public sealed class GenerateFileTool : AIFunction
     }
 
     /// <summary>
-    /// subtotal rows with a missing/blank total value.But it's a real, reproducible gap either way.
-    /// Repairs rows that split into extra fields because the model hand-authored the CSV/TSV text
-    /// itself (see this tool's JSON schema, which asks for raw delimited text rather than structured
-    /// rows) and left a delimiter character embedded in a field unquoted -- for example a client name
-    /// like "Acme, Inc." typed without surrounding quotes. A row with more fields than the header is
-    /// assumed to have overflowed in its leading field(s), since the AI-authored text most commonly puts
-    /// a free-text label first and numeric columns after, so those leading fields are rejoined into one
-    /// so the row realigns under the header instead of writing a misaligned/corrupted row to the file.
-    /// Rows that already match (or are short of) the header's column count are left untouched.
+    /// Rejoins overflow fields when the model left an unquoted delimiter in a value (e.g. "Acme, Inc.").
+    /// Assumes the overflow is in the leading field(s), since free-text labels come first.
     /// </summary>
     private static IReadOnlyList<IReadOnlyList<string>> ReflowOverflowRows(
         IReadOnlyList<string> header,
-        IReadOnlyList<IReadOnlyList<string>> rows)
+        IReadOnlyList<IReadOnlyList<string>> rows, char delimiter)
     {
         var expectedCount = header.Count;
         List<IReadOnlyList<string>> repaired = null;
@@ -284,7 +279,7 @@ public sealed class GenerateFileTool : AIFunction
             var overflow = row.Count - expectedCount;
             var fixedRow = new List<string>(expectedCount)
             {
-                string.Join(",", row.Take(overflow + 1)),
+                string.Join(delimiter, row.Take(overflow + 1)),
             };
             fixedRow.AddRange(row.Skip(overflow + 1));
 
