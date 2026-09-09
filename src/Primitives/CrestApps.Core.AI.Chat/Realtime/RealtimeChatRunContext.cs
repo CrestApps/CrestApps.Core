@@ -51,6 +51,12 @@ public sealed class RealtimeChatRunContext
     public string? SpeechLanguage { get; init; }
 
     /// <summary>
+    /// Gets the language the model should reply in when the user has not chosen one — the browser locale the hub
+    /// resolved from the request. Never used for transcription.
+    /// </summary>
+    public string? ReplyLanguage { get; init; }
+
+    /// <summary>
     /// Gets an optional server voice-activity silence duration (milliseconds) before the model ends a turn.
     /// </summary>
     public int? SilenceDurationMs { get; set; }
@@ -78,6 +84,20 @@ public sealed class RealtimeChatRunContext
     /// let it run indefinitely.
     /// </summary>
     public TimeSpan? IdleTimeout { get; init; }
+
+    /// <summary>
+    /// Gets how long knowledge retrieval may run before the assistant covers the wait aloud, or
+    /// <see langword="null"/> to never speak one. Only applies to a grounded session, which is the only kind that
+    /// makes the user wait before it starts speaking.
+    /// </summary>
+    public TimeSpan? AcknowledgementDelay { get; init; }
+
+    /// <summary>
+    /// Gets how long a committed turn may go unanswered on a grounded session before a reply is requested
+    /// anyway, or <see langword="null"/> to disable the backstop. A grounded session speaks only when the server
+    /// asks it to, so without this a swallowed turn would leave the assistant mute for good.
+    /// </summary>
+    public TimeSpan? ResponseWatchdogTimeout { get; init; }
 
     /// <summary>
     /// Gets an optional hook invoked after each completed user utterance is persisted (e.g. title generation).

@@ -109,6 +109,7 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
             {
                 Type = RealtimeTurnDetectionTypes.SemanticVad,
                 Eagerness = string.IsNullOrWhiteSpace(eagerness) ? null : eagerness.Trim().ToLowerInvariant(),
+                CreateResponse = context.CreateResponseAutomatically,
             };
         }
 
@@ -117,23 +118,29 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
             Type = RealtimeTurnDetectionTypes.ServerVad,
             SilenceDurationMs = context.SilenceDurationMs ?? DefaultSilenceDurationMs,
             Threshold = context.VadThreshold,
+            CreateResponse = context.CreateResponseAutomatically,
         };
     }
 
     // Realtime models drift into other languages on their own, and the transcription SpeechLanguage hint alone
-    // does not pin the spoken reply language. Prepend a directive that locks the language while still letting the
+    // does not pin the spoken reply language. Prepend a directive that holds the language while still letting the
     // user switch it explicitly, so an unprompted switch never happens but "answer me in Spanish" still works.
+    //
+    // The language to pin is the one the user chose, else the reply language the host resolved from their locale.
+    // Only the chosen language also reaches transcription (see Configure): pinning transcription to the browser
+    // locale is what once broke bilingual users, whose English browser produced garbage transcripts of the Spanish
+    // they were speaking. Pinning the reply alone carries no such risk. With neither, the directive falls back to
+    // mirroring whatever language the user speaks, which still forbids the unprompted drift.
     private static string BuildInstructions(RealtimeSessionConfiguratorContext context)
     {
-        var language = LanguageDisplayName(context.SpeechLanguage);
+        var language = LanguageDisplayName(!string.IsNullOrWhiteSpace(context.SpeechLanguage) ? context.SpeechLanguage : context.ReplyLanguage);
 
-        if (string.IsNullOrWhiteSpace(language))
-        {
-            return context.Instructions;
-        }
-
-        var directive = $"Always speak and respond in {language}. Do not switch to another language on your own — " +
-            "only use a different language if the user explicitly asks you to speak that language.";
+        var directive = string.IsNullOrWhiteSpace(language)
+            ? "Always speak and respond in the same language the user is speaking to you in, for the whole " +
+              "conversation. Do not switch to another language on your own — only use a different language if the " +
+              "user explicitly asks you to speak that language."
+            : $"Always speak and respond in {language}. Do not switch to another language on your own — " +
+              "only use a different language if the user explicitly asks you to speak that language.";
 
         return string.IsNullOrWhiteSpace(context.Instructions)
             ? directive

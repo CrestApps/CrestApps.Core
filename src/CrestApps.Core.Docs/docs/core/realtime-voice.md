@@ -229,6 +229,153 @@ Both the algorithm and the semantic *eagerness* are configurable under `CrestApp
 drops, comfortably longer than any pause the detector is willing to wait through, because the gate emits digital
 silence when it closes and whichever of the two expires first is what actually ends the turn.
 
+## Voice profiles: choosing tools
+
+A voice agent is only as reliable as its tool list is short. Every tool a realtime session carries sits in the
+model's context on **every turn** of the conversation — not once per request, as in chat — and a model picks
+well from a handful of clearly distinct tools and poorly from a catalog. This is how every voice-agent platform
+works, and OpenAI's own realtime guidance says the same: curate a small, explicit tool set per agent. Nobody ships a
+catalog into a voice loop.
+
+**Pick the tools on the profile.** A customer-service voice profile with `validate_customer`, `lookup_account`,
+`update_customer_info` and the automatic knowledge base search is four to six tools. That is the common case,
+and it already works — select them on the profile's Tools tab and nothing more is needed.
+
+**Take tools from MCP connections individually.** An MCP server routinely exposes dozens of tools. Rather than
+attaching the whole connection, untick *Use all tools* under it and choose the few this profile needs. A profile
+saved before this existed — or with the switch left on — takes every tool the connection offers, exactly as
+before. An empty selection keeps the connection for its prompts and resources but contributes no tools.
+
+### What makes the tools reliable
+
+Tool count is rarely what breaks a customer-service voice agent in practice. These are:
+
+1. **Ordering enforced by the tool, not the prompt.** The model must not call `update_customer_info` before
+   `validate_customer` has succeeded. Instructions alone will not guarantee it — models skip steps under
+   conversational pressure. Have `validate_customer` record a verified flag in
+   `AIInvocationScope.Current.Items`, and have every mutating tool read it and refuse, with a short spoken-friendly
+   message, when it is absent. The scope lives for the whole session, so the flag does too.
+2. **Confirm before writes.** "I'll update your address to 12 Oak Street — is that right?" Misheard digits are the
+   dominant voice failure, and this is the standard defence. It belongs in the system prompt of any profile with
+   mutating tools.
+3. **Tool results written to be spoken.** The model reads results aloud. A tool that returns a JSON blob produces
+   a robotic answer or a stumble; one that returns `"Account found: Jane Doe, premium plan, last payment March 3."`
+   produces a sentence. Audit any tool a voice profile will use for output shaped for a chat window.
+4. **Distinct names and descriptions.** With a small set this is the whole selection problem. `lookup_account`,
+   `find_customer` and `get_customer_details` side by side is how the model picks the wrong one.
+
+### The safety net
+
+If a profile still resolves more tools than chat's own scoping threshold (`DefaultOrchestratorOptions.ScopingThreshold`,
+default 30), the realtime orchestrator trims the set at session open — by token relevance to the profile's
+instructions, the same lightweight scoring the chat orchestrator uses, capped at `InitialToolCount` (default 20)
+plus any tool that must be kept (the knowledge base search, and anything another tool depends on). It logs a
+**warning** naming the profile and the tools the model will not see:
+
+```
+warn: Realtime session for 'AIProfile' resolved 42 tool(s), above the 30 a session carries well.
+      Scoped to 21 by relevance to the profile's instructions; the model will not see: [...].
+      Curate the profile's tools — or select fewer tools from its MCP connections — so this cut is not needed.
+```
+
+Treat that line as a to-do, not a feature. Chat can re-scope on every request because it has the user's message;
+a voice session cannot without deferring every reply, so this one decision has to hold for the whole conversation.
+A curated profile never triggers it.
+
+### For breadth: hand off, don't grow the list
+
+When a business genuinely needs sixty tools across billing, shipping and returns, the answer is not a longer list.
+It is a small triage agent that hands off — "transfer to billing" is itself a tool, and calling it swaps the
+session's instructions and tools to the specialist's small set. Each specialist stays short and reliable. This is
+how OpenAI's own realtime agent examples are structured; the framework does not implement handoffs yet, but every
+piece above is designed so that it can.
+
+## Knowledge base grounding
+
+A text completion retrieves from the knowledge base **before** the model runs: the profile's data source is
+searched with the user's message and the matching chunks are placed in the system message, so the model cannot
+fail to see them. A realtime session has no such moment — it opens before anyone has spoken, so there is no
+query to search with.
+
+Retrieval therefore runs **once per spoken turn**. When a profile has a data source (or session documents)
+attached and preemptive RAG is enabled site-wide, the session is opened with `turn_detection.create_response =
+false`, and each turn goes:
+
+```
+user stops speaking → provider commits + transcribes the turn
+                    → host searches the knowledge base with that transcript
+                    → retrieved chunks are added as a system conversation item
+                    → host sends response.create → the model answers from them
+```
+
+This runs the same `IPreemptiveRagHandler` pipeline the text path uses — data source, documents, memory — so
+citations, `IsInScope` strictness, top-N and filters all behave identically, and a grounded answer carries its
+`[doc:n]` references into the transcript like any other. Extend it by registering an `IPreemptiveRagHandler`, or
+replace the whole policy with your own `IRealtimeTurnGrounding`.
+
+Three consequences worth knowing:
+
+- **A grounded turn is slower to start**, by one vector search. The provider no longer replies the instant it
+  stops hearing the user; it waits for the transcript and the search. Sessions without a knowledge base are
+  untouched and keep the provider's own immediate replies.
+- **Retrieval uses the utterance verbatim.** The text path first rewrites the message into focused queries with a
+  utility LLM call; that is skipped here, because it would add a second round-trip to every spoken turn and it
+  earns its cost by resolving follow-ups against conversation history, which a per-turn realtime context does not
+  carry.
+- **The search tool is still advertised, and every tool stays available on every turn.** The answer's
+  `response.create` carries no tool overrides, so the session's full toolset and `tool_choice: auto` apply exactly
+  as they do without grounding. Retrieval gives the model the knowledge up front; the tool lets it go looking for
+  more.
+
+### Covering the wait
+
+Silence between the user finishing and the assistant starting reads as a broken assistant long before it reads as
+a thoughtful one. So retrieval races a timer: if the search returns before
+`GroundingAcknowledgementDelayMs` (default 700 ms) the answer comes straight back with nothing in front of it. If
+it does not, the assistant says one short line — "let me look that up" — while the search finishes.
+
+That acknowledgement is requested **out of band** (`conversation: "none"`), with tools off and a small token cap.
+It is spoken, but never added to the conversation, never streamed as an assistant turn, and never persisted: the
+model does not later see itself having said it, and it does not appear in history. A fast index never pays for it;
+only a slow one does.
+
+### The muteness backstop
+
+A grounded session speaks only when the server asks it to, which means a swallowed turn — one that produces
+neither a transcript nor a transcription failure — would leave the assistant mute for the rest of the
+conversation. Every path therefore ends in a response request, including the failure paths, and
+`GroundingResponseWatchdogSeconds` (default 15) is the backstop for the paths that do not exist yet. An ungrounded
+answer is a poor answer; a silent assistant is a broken product, so the watchdog always prefers the former. It
+logs a warning when it fires — if you see that line, something upstream is dropping turns.
+
+### Switches
+
+| Setting | Default | Effect |
+| --- | --- | --- |
+| Admin → Settings → *Enable preemptive RAG* | on | Governs **both** text and voice. Off means the model decides when to search, everywhere. |
+| `CrestApps:AI:RealtimeTransport:EnableKnowledgeGrounding` | `true` | Voice only. Off leaves text grounded and returns voice to the search tool, which starts speaking sooner and grounds less reliably. |
+| `CrestApps:AI:RealtimeTransport:GroundingAcknowledgementDelayMs` | `700` | How long retrieval may run before the wait is covered aloud. `0` never speaks one. |
+| `CrestApps:AI:RealtimeTransport:GroundingResponseWatchdogSeconds` | `15` | How long a committed turn may go unanswered before a reply is requested anyway. `0` disables the backstop. |
+
+The knowledge base is only as reachable as the deployment that calls it. If the deployment behind the session —
+for a cascade, its **chat** leg — does not declare the `toolCalling` feature, the tools resolved for the session
+are stripped before the model sees them, and the orchestrator logs an error naming the deployment. Starting a
+session with tools but without an ambient `AIInvocationScope` now throws rather than letting every tool call
+return an error string the model would relay as "I don't have that information".
+
+### The vector store has to be configured
+
+Grounding is only as good as the index behind it. A data source resolves its content manager from **its index
+profile's provider**, so the connection for that provider must be configured in the host. An unconfigured one
+throws on every search, and the profile then answers as though its knowledge base were empty — which for an
+`IsInScope` profile means a confident "that information is not available in the current data sources" on every
+question, with nothing in the grounding log to suggest a misconfiguration.
+
+Locally the Aspire AppHost supplies this: it provisions `pgvector/pgvector:pg16` and injects
+`CrestApps__PostgreSQL__ConnectionString` into both sample hosts. Running a sample host **on its own does not**,
+so a profile whose index profile is PostgreSQL retrieves nothing until `CrestApps:PostgreSQL:ConnectionString` is
+set another way.
+
 ## Turn bookkeeping
 
 Two things about realtime turns are not obvious and shape how the transcript is built.
@@ -415,6 +562,49 @@ buffer overflows. The runner logs response start/completion and session end reas
 `CrestApps.Core.AI.Chat.Realtime.RealtimeChatSessionRunner` — including a warning when a session ran a whole
 conversation without the provider ever reporting user speech, which means that deployment's events are not
 recognised and barge-in cannot work for it.
+
+### Tracing knowledge grounding
+
+To confirm grounding is working, raise `CrestApps.Core.AI.Services.DefaultRealtimeTurnGrounding` and
+`CrestApps.Core.AI.Chat.Realtime` to `Debug`. One healthy grounded turn looks like this:
+
+```
+info: Realtime session abc123: knowledge grounding is active. Replies are requested by the server
+      after retrieval (acknowledgement after 700 ms, watchdog 15s).
+dbug: Realtime knowledge grounding availability: True (dataSource=True, documents=False, handlers=True).
+dbug: Realtime retrieval starting for utterance (31 chars) across 1 handler(s): DataSourcePreemptiveRagHandler.
+dbug: Realtime retrieval returned 2841 chars and 3 citation(s) in 214 ms.
+dbug: Realtime session abc123: retrieval finished in 219 ms and added context to the conversation.
+dbug: Realtime session abc123: answer requested 221 ms after the transcript arrived.
+```
+
+What each line tells you:
+
+- **No "knowledge grounding is active" line** — the session is not grounded. The availability line says why:
+  `dataSource=False, documents=False` means nothing is attached to the profile; the two "grounding is off" lines
+  name the switch that disabled it.
+- **"added nothing"** — retrieval ran and the index returned nothing relevant for that utterance. The model still
+  answers, and the search tool remains available to it.
+- **"found no relevant content" on _every_ turn** — check the index provider's own logger before concluding the
+  corpus is thin. A store that cannot be reached fails inside its content manager, which logs the failure under
+  its own name (`PostgreSQLDataSourceContentManager`, and its peers) and hands back an empty result. Grounding
+  cannot tell that apart from a genuine miss, so it reports an ordinary empty turn while every knowledge question
+  goes unanswered. `PostgreSQL is not configured. A connection string is required.` is the usual culprit; see
+  [The vector store has to be configured](#the-vector-store-has-to-be-configured).
+- **"still running after 700 ms, so the wait is covered"** (Information) — the index is slower than the
+  acknowledgement deadline. This is the line that explains why some turns say "let me look that up" and others
+  do not.
+- **"a committed turn produced no transcript within 15s"** (Warning) — the backstop fired. The session recovered,
+  but something upstream dropped a turn and it will keep happening.
+- **"does not declare the 'toolCalling' feature"** (Error) — the deployment that would call the tools, or a
+  cascade's **chat** leg, has them stripped before the model sees them. Fix the model's capability metadata.
+- **"resolved N tool(s), above the 30 a session carries well"** (Warning) — the profile brings more tools than a
+  voice session should carry, and the set was trimmed at session open. The line lists what the model will not see;
+  curate the profile or select fewer tools from its MCP connections.
+- **"MCP connection '…': 3 of 40 tool(s) selected for this profile"** (Debug, `CrestApps.Core.AI.Mcp`) — per-tool
+  selection is in effect for that connection.
+
+The orchestrator's own debug line reports the tool count and whether per-turn retrieval is on for the session.
 
 In the browser, `CoreAIRealtime`'s controller exposes `getState()` and `getGateLevel()` — the latter returns the
 gate's most recent measurement (level, tracked noise floor, whether it is open, whether the assistant is audible),

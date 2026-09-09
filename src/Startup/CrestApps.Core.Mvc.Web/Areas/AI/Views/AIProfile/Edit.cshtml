@@ -331,7 +331,7 @@
                                     var title = option?.Title ?? selection.TemplateId ?? "Prompt template";
                                     var category = option?.Category ?? "Unavailable";
                                     var description = option?.Description;
-                                    var parameters = option?.Parameters ?? [];
+                                    var parameters = option?.Parameters;
 
                                     <div class="card mb-1 prompt-template-card" data-template-id="@selection.TemplateId">
                                         <div class="card-header d-flex justify-content-between align-items-center py-2">
@@ -358,7 +358,7 @@
                                                 {
                                                     <div class="text-muted small mb-3">@description</div>
                                                 }
-                                                @if (parameters.Count > 0)
+                                                @if (parameters != null && parameters.Count > 0)
                                                 {
                                                     <div class="mb-3">
                                                         <small class="text-muted d-block mb-1">Expected parameters:</small>
@@ -533,6 +533,44 @@
                                         <small class="text-muted">@connection.Source</small>
                                     }
                                 </label>
+                                @if (connection.IsSelected)
+                                {
+                                    <div class="ms-4 mt-2 mb-3 border-start ps-3">
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" name="McpConnectionsUsingAllTools" value="@connection.ItemId" id="mcp_all_@connection.ItemId" @(connection.UseAllTools ? "checked" : "") />
+                                            <label class="form-check-label" for="mcp_all_@connection.ItemId">Use all tools@(connection.ToolsLoaded ? $" ({connection.Tools.Count})" : "")</label>
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(connection.ToolsError))
+                                        {
+                                            <div class="form-text text-danger">@connection.ToolsError</div>
+                                        }
+                                        else if (connection.ToolsLoaded && connection.Tools.Count > 0)
+                                        {
+                                            @* Always posted, so "none of them" is distinguishable from "no list was shown". *@
+                                            <input type="hidden" name="SelectedMcpToolNames[@connection.ItemId]" value="" />
+                                            @foreach (var tool in connection.Tools)
+                                            {
+                                                <div class="form-check mb-1">
+                                                    <input class="form-check-input" type="checkbox" name="SelectedMcpToolNames[@connection.ItemId]" value="@tool.Name" id="mcp_@(connection.ItemId)_@tool.Name" @(tool.IsSelected ? "checked" : "") />
+                                                    <label class="form-check-label" for="mcp_@(connection.ItemId)_@tool.Name">
+                                                        <code>@tool.Name</code>
+                                                        @if (!string.IsNullOrEmpty(tool.Description))
+                                                        {
+                                                            <br />
+
+                                                            <small class="text-muted">@tool.Description</small>
+                                                        }
+                                                    </label>
+                                                </div>
+                                            }
+                                        }
+                                        else if (connection.ToolsLoaded)
+                                        {
+                                            <div class="form-text">This connection exposes no tools.</div>
+                                        }
+                                        <div class="form-text">Untick <em>Use all tools</em> to take only the tools this profile needs. A model picks well from a short list and poorly from a long one, and in a voice session every tool rides along on every turn.</div>
+                                    </div>
+                                }
                             </div>
                         }
                     }

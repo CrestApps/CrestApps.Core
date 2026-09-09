@@ -97,6 +97,49 @@ public sealed class AzureRealtimeTests
     }
 
     [Fact]
+    public void WriteClientMessage_SessionUpdate_DeferredResponses_WritesCreateResponseFalse()
+    {
+        // A grounded session retrieves knowledge from the transcript before it answers, so the provider must not
+        // start replying the instant it stops hearing the user.
+        var options = new RealtimeSessionOptions
+        {
+            VoiceActivityDetection = new VoiceActivityDetectionOptions { Enabled = true, AllowInterruption = true },
+            RawRepresentationFactory = () => new CrestApps.Core.AI.Realtime.RealtimeTurnDetectionOverrides
+            {
+                Type = CrestApps.Core.AI.Realtime.RealtimeTurnDetectionTypes.SemanticVad,
+                CreateResponse = false,
+            },
+        };
+
+        var json = WriteToJson(new SessionUpdateRealtimeClientMessage(options));
+
+        var turnDetection = json.GetProperty("session").GetProperty("audio").GetProperty("input").GetProperty("turn_detection");
+        Assert.False(turnDetection.GetProperty("create_response").GetBoolean());
+
+        // The turn is still ended, committed and transcribed exactly as before.
+        Assert.Equal("semantic_vad", turnDetection.GetProperty("type").GetString());
+        Assert.True(turnDetection.GetProperty("interrupt_response").GetBoolean());
+    }
+
+    [Fact]
+    public void WriteClientMessage_SessionUpdate_ByDefault_WritesCreateResponseTrue()
+    {
+        var options = new RealtimeSessionOptions
+        {
+            VoiceActivityDetection = new VoiceActivityDetectionOptions { Enabled = true, AllowInterruption = true },
+            RawRepresentationFactory = () => new CrestApps.Core.AI.Realtime.RealtimeTurnDetectionOverrides
+            {
+                Type = CrestApps.Core.AI.Realtime.RealtimeTurnDetectionTypes.ServerVad,
+            },
+        };
+
+        var json = WriteToJson(new SessionUpdateRealtimeClientMessage(options));
+
+        var turnDetection = json.GetProperty("session").GetProperty("audio").GetProperty("input").GetProperty("turn_detection");
+        Assert.True(turnDetection.GetProperty("create_response").GetBoolean());
+    }
+
+    [Fact]
     public void WriteClientMessage_SessionUpdate_DisabledVad_WritesNullTurnDetection()
     {
         var options = new RealtimeSessionOptions

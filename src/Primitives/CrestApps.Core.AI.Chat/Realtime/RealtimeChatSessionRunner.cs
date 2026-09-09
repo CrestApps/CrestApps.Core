@@ -2,6 +2,7 @@
 #nullable enable
 using System.Buffers;
 using System.Diagnostics;
+using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Realtime;
@@ -57,18 +58,29 @@ public sealed class RealtimeChatSessionRunner
     private readonly IRealtimeOrchestrator _orchestrator;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<RealtimeChatSessionRunner> _logger;
+    private readonly CitationReferenceCollector? _citationCollector;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RealtimeChatSessionRunner"/> class.
     /// </summary>
+    /// <param name="orchestrator">The realtime orchestrator.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="citationCollector">
+    /// Resolves the links on citations before they reach the transcript, exactly as the text hubs do. Optional,
+    /// because it is registered by the chat-interactions feature while this runner belongs to session processing:
+    /// a host with one but not the other still gets citations, just without links.
+    /// </param>
     public RealtimeChatSessionRunner(
         IRealtimeOrchestrator orchestrator,
         TimeProvider timeProvider,
-        ILogger<RealtimeChatSessionRunner> logger)
+        ILogger<RealtimeChatSessionRunner> logger,
+        CitationReferenceCollector? citationCollector = null)
     {
         _orchestrator = orchestrator;
         _timeProvider = timeProvider;
         _logger = logger;
+        _citationCollector = citationCollector;
     }
 
     /// <summary>
@@ -113,6 +125,7 @@ public sealed class RealtimeChatSessionRunner
                     Interaction = context.Interaction,
                     Voice = context.Voice,
                     SpeechLanguage = context.SpeechLanguage,
+                    ReplyLanguage = context.ReplyLanguage,
                     SilenceDurationMs = context.SilenceDurationMs,
                     AllowInterruption = context.AllowInterruption,
                     VadThreshold = context.VadThreshold,
@@ -328,6 +341,22 @@ public sealed class RealtimeChatSessionRunner
     {
         var turn = new AssistantTurn();
 
+        // Only a grounded session needs one: it is the thing that asks the model to answer, which the provider
+        // otherwise does for itself.
+        await using var grounding = conversation.RespondsAutomatically
+            ? null
+            : new GroundedTurnCoordinator(
+                conversation, sessionId, context.AcknowledgementDelay, context.ResponseWatchdogTimeout, _logger);
+
+        if (grounding is not null && _logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation(
+                "Realtime session {SessionId}: knowledge grounding is active. Replies are requested by the server after retrieval (acknowledgement after {AcknowledgementMs} ms, watchdog {WatchdogSeconds}s).",
+                sessionId,
+                context.AcknowledgementDelay?.TotalMilliseconds ?? 0,
+                context.ResponseWatchdogTimeout?.TotalSeconds ?? 0);
+        }
+
         // User utterances that have been committed by the provider but not yet transcribed. Keyed by the
         // provider's item id, which is the only thing that reliably pairs an utterance with its transcript:
         // transcription lags the spoken reply, can fail outright, and (with barge-in off) some utterances are
@@ -371,6 +400,10 @@ public sealed class RealtimeChatSessionRunner
                         // with the prompt underneath its own reply.
                         await turnStore.CreateUserTurnAsync(sessionId, committed, string.Empty, _timeProvider.GetUtcNow().UtcDateTime, cancellationToken);
                         await sink.UserTurnPendingAsync(sessionId, committed, cancellationToken);
+
+                        // A grounded session speaks only when asked, so from here on this turn owes the user a
+                        // response request. The watchdog guarantees one even if the transcript never arrives.
+                        grounding?.TurnCommitted(evt.ItemId, cancellationToken);
                     }
 
                     break;
@@ -390,6 +423,18 @@ public sealed class RealtimeChatSessionRunner
                             _logger.LogDebug(
                                 "Input-audio transcription failed for session {SessionId}: {Message}", sessionId, evt.ErrorMessage ?? "(no detail)");
                         }
+
+                        // A grounded session holds its reply until the host asks for it. There is no transcript to
+                        // retrieve against, but the model still heard the audio — so let it answer ungrounded
+                        // rather than leaving the user in silence waiting for a reply that never comes.
+                        if (failed is { Ignored: true })
+                        {
+                            grounding?.TurnIgnored(evt.ItemId);
+                        }
+                        else
+                        {
+                            grounding?.TurnTranscriptionFailed(evt.ItemId, cancellationToken);
+                        }
                     }
 
                     break;
@@ -404,6 +449,7 @@ public sealed class RealtimeChatSessionRunner
                         {
                             await turnStore.DeleteUserTurnAsync(sessionId, resolved.TurnId, cancellationToken);
                             await sink.UserTurnDroppedAsync(sessionId, resolved.TurnId, cancellationToken);
+                            grounding?.TurnIgnored(evt.ItemId);
 
                             break;
                         }
@@ -427,11 +473,25 @@ public sealed class RealtimeChatSessionRunner
 
                         await sink.UserTranscriptAsync(sessionId, turnId, evt.Text, cancellationToken);
                         await NotifyUserUtteranceAsync(context, evt.Text, cancellationToken);
+
+                        // Retrieve the knowledge for what was just asked and hand it to the model before it
+                        // answers. This is the realtime equivalent of the text path's preemptive RAG: the session
+                        // opened before anyone had spoken, so retrieval could not happen at PREPARE time. It runs
+                        // off this pump, which has to keep draining while the search is in flight.
+                        grounding?.BeginTurn(evt.ItemId, evt.Text, cancellationToken);
                     }
 
                     break;
 
                 case RealtimeConversationEventType.AssistantTranscriptDelta:
+                    // "Let me look that up" is audio that covers a wait, not something the assistant said in the
+                    // conversation — the provider is not told about it either. Its audio plays; its words stay out
+                    // of the transcript and out of history.
+                    if (grounding?.IsAcknowledgement(evt.ResponseId) == true)
+                    {
+                        break;
+                    }
+
                     turn.MessageId ??= UniqueId.GenerateId();
                     turn.Builder.Append(evt.Text);
                     turn.HasContent = true;
@@ -440,6 +500,11 @@ public sealed class RealtimeChatSessionRunner
                     break;
 
                 case RealtimeConversationEventType.AssistantTranscriptDone:
+                    if (grounding?.IsAcknowledgement(evt.ResponseId) == true)
+                    {
+                        break;
+                    }
+
                     playback.Reset();
                     await FlushAssistantTurnAsync(context, turnStore, sink, sessionId, turn, finalText: evt.Text, cancellationToken);
                     break;
@@ -456,6 +521,10 @@ public sealed class RealtimeChatSessionRunner
 
                     if (context.AllowInterruption)
                     {
+                        // Whatever the user is saying now commits its own turn. Answering the one they talked over
+                        // would arrive late and address the wrong question.
+                        grounding?.AbandonTurn();
+
                         if (responseState.Active && _logger.IsEnabled(LogLevel.Information))
                         {
                             // Support diagnostic: a reply that "stumbles and then continues" is one that was cut
@@ -478,7 +547,10 @@ public sealed class RealtimeChatSessionRunner
                     // its paced audio is still draining. When that follow-up's response starts, drop the old audio so
                     // the newest reply plays instead of the stale one finishing first. (No-op for the first response
                     // of a turn and when nothing is buffered.)
-                    if (!context.AllowInterruption)
+                    // The one response that is not stale when the next one starts is the spoken acknowledgement:
+                    // the answer it covered for is what is starting, and its last words are still draining. Cutting
+                    // them off mid-word is exactly the abrupt sound the acknowledgement exists to prevent.
+                    if (!context.AllowInterruption && grounding?.AnswerFollowsAcknowledgement != true)
                     {
                         await sink.FlushPlaybackAsync(sessionId, cancellationToken);
                     }
@@ -486,6 +558,7 @@ public sealed class RealtimeChatSessionRunner
                     responseState.Activate();
                     sawAnyResponse = true;
                     playback.Reset();
+                    grounding?.ResponseStarted(evt.ResponseId);
                     if (_logger.IsEnabled(LogLevel.Debug))
                     {
                         _logger.LogDebug("Realtime response started for session {SessionId} (response {ResponseId}).", sessionId, evt.ResponseId ?? "(none)");
@@ -498,6 +571,10 @@ public sealed class RealtimeChatSessionRunner
                     {
                         _logger.LogDebug("Realtime response completed for session {SessionId} (status={Status}).", sessionId, evt.ResponseStatus ?? "(none)");
                     }
+
+                    // Releases a turn waiting for its spoken acknowledgement to finish: the provider rejects a
+                    // second response while one is still active.
+                    grounding?.ResponseCompleted(evt.ResponseId);
 
                     // "Done" from the provider means it stopped generating, not that the user has heard the reply:
                     // on a paced transport seconds of audio can still be queued. Reopening the half-duplex mic gate
@@ -754,8 +831,22 @@ public sealed class RealtimeChatSessionRunner
         }
     }
 
-    private static Dictionary<string, AICompletionReference>? SnapshotReferences()
+    private Dictionary<string, AICompletionReference>? SnapshotReferences()
     {
+        if (_citationCollector is not null)
+        {
+            // The same collection the text hubs run after a reply: it copies the citations gathered on the scope
+            // and resolves each one's link. Without it a citation reaches the client with no link and renders as
+            // plain text — the client only makes a citation clickable when a link is present.
+            var resolved = new Dictionary<string, AICompletionReference>(StringComparer.OrdinalIgnoreCase);
+
+            // Article ids feed hosts that do follow-up lookups after a text reply; a spoken turn has no such
+            // consumer, so they are collected and discarded.
+            _citationCollector.CollectToolReferences(resolved, []);
+
+            return resolved.Count == 0 ? null : resolved;
+        }
+
         var references = AIInvocationScope.Current?.ToolReferences;
 
         if (references is null || references.Count == 0)

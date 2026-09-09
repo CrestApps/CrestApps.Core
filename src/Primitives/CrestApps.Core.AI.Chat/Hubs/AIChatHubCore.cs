@@ -1086,10 +1086,13 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     VadThreshold = vadThreshold,
                     AllowInterruption = allowInterruption,
                     IdleTimeout = RealtimeTransportSettings.GetIdleTimeout(services),
+                    AcknowledgementDelay = RealtimeTransportSettings.GetGroundingAcknowledgementDelay(services),
+                    ResponseWatchdogTimeout = RealtimeTransportSettings.GetGroundingResponseWatchdog(services),
                     PromptTitle = profile.PromptSubject,
                     ChatSession = chatSession,
                     Voice = effectiveVoice,
                     SpeechLanguage = language,
+                    ReplyLanguage = RealtimeReplyLanguage.Resolve(language, Context.GetHttpContext()),
                     OnUserUtteranceAsync = (text, _) =>
                     {
                         // Generate a session title from the first spoken utterance — off the audio pump. This is an
@@ -1292,10 +1295,13 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                         VadThreshold = vadThreshold,
                         AllowInterruption = allowInterruption,
                         IdleTimeout = RealtimeTransportSettings.GetIdleTimeout(services),
+                        AcknowledgementDelay = RealtimeTransportSettings.GetGroundingAcknowledgementDelay(services),
+                        ResponseWatchdogTimeout = RealtimeTransportSettings.GetGroundingResponseWatchdog(services),
                         PromptTitle = profile.PromptSubject,
                         ChatSession = chatSession,
                         Voice = effectiveVoice,
                         SpeechLanguage = language,
+                    ReplyLanguage = RealtimeReplyLanguage.Resolve(language, Context.GetHttpContext()),
                         OnUserUtteranceAsync = (text, _) =>
                         {
                             // Off the audio pump: see the WebSocket transport above for why this must not be awaited

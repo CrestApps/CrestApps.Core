@@ -8,6 +8,7 @@ using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Models;
+using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -58,6 +59,7 @@ public sealed class AIProfileController : Controller
     private readonly IAIDataSourceStore _dataSourceStore;
     private readonly AIDeploymentParameterViewService _modelParameterViewService;
     private readonly IAIDeploymentCapabilityService _capabilityService;
+    private readonly IMcpServerMetadataCacheProvider _mcpMetadataProvider;
 
     public AIProfileController(
         IAIProfileManager profileManager,
@@ -81,7 +83,8 @@ public sealed class AIProfileController : Controller
         IAIToolAccessEvaluator toolAccessEvaluator,
         IAIDataSourceStore dataSourceStore,
         AIDeploymentParameterViewService modelParameterViewService,
-        IAIDeploymentCapabilityService capabilityService)
+        IAIDeploymentCapabilityService capabilityService,
+        IMcpServerMetadataCacheProvider mcpMetadataProvider)
     {
         _profileManager = profileManager;
         _deploymentCatalog = deploymentCatalog;
@@ -105,6 +108,7 @@ public sealed class AIProfileController : Controller
         _dataSourceStore = dataSourceStore;
         _modelParameterViewService = modelParameterViewService;
         _capabilityService = capabilityService;
+        _mcpMetadataProvider = mcpMetadataProvider;
     }
 
     public async Task<IActionResult> Index()
@@ -374,6 +378,7 @@ public sealed class AIProfileController : Controller
         var mcpConnections = await _mcpConnectionCatalog.GetAllAsync();
         var selectedMcpIds = new HashSet<string>(model.SelectedMcpConnectionIds ?? [], StringComparer.Ordinal);
         model.AvailableMcpConnections = mcpConnections.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase).Select(c => new McpConnectionSelectionItem { ItemId = c.ItemId, DisplayText = c.DisplayText, Source = c.Source, IsSelected = selectedMcpIds.Contains(c.ItemId), }).ToList();
+        await PopulateMcpToolSelectionsAsync(model, mcpConnections);
         var toolInstances = await _toolInstanceCatalog.GetAllAsync();
         var selectedToolInstanceNames = new HashSet<string>(model.SelectedToolInstanceNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableToolInstances = toolInstances.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase).Select(i => new AIToolInstanceSelectionItem { ItemId = i.ItemId, Name = i.Name, Description = i.Description, Source = i.Source, IsSelected = selectedToolInstanceNames.Contains(i.Name), }).ToList();
@@ -433,6 +438,48 @@ public sealed class AIProfileController : Controller
             .Where(id => !string.IsNullOrWhiteSpace(id) && allIds.Contains(id))
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+    }
+
+    /// <summary>
+    /// Lists each selected connection's tools so the form can offer them individually. Only selected connections
+    /// are asked, because it is a round-trip to the MCP server and there is no script on this page to defer it, so
+    /// a newly ticked connection shows its tools after the profile is saved and reopened.
+    /// </summary>
+    private async Task PopulateMcpToolSelectionsAsync(AIProfileViewModel model, IEnumerable<McpConnection> mcpConnections)
+    {
+        var connectionsById = mcpConnections.ToDictionary(c => c.ItemId, StringComparer.Ordinal);
+
+        foreach (var item in model.AvailableMcpConnections)
+        {
+            item.UseAllTools = !(model.SelectedMcpToolNames?.ContainsKey(item.ItemId) ?? false);
+
+            if (!item.IsSelected || !connectionsById.TryGetValue(item.ItemId, out var connection))
+            {
+                continue;
+            }
+
+            try
+            {
+                var capabilities = await _mcpMetadataProvider.GetCapabilitiesAsync(connection);
+                var selected = model.SelectedMcpToolNames is not null &&
+                    model.SelectedMcpToolNames.TryGetValue(item.ItemId, out var names) &&
+                    names is not null
+                        ? new HashSet<string>(names, StringComparer.Ordinal)
+                        : null;
+
+                item.Tools = (capabilities?.Tools ?? [])
+                    .Where(t => !string.IsNullOrWhiteSpace(t.Name))
+                    .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                    .Select(t => new McpToolSelectionItem { Name = t.Name, Description = t.Description, IsSelected = selected is null || selected.Contains(t.Name) })
+                    .ToList();
+                item.ToolsLoaded = true;
+            }
+            catch (Exception ex)
+            {
+                // A server that is down must not take the profile editor down with it.
+                item.ToolsError = $"Could not load this connection's tools: {ex.Message}";
+            }
+        }
     }
 
     private async Task<string[]> GetValidMcpConnectionIdsAsync(IEnumerable<string> selectedIds)
