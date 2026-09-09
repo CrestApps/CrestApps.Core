@@ -36,24 +36,6 @@
                 </select>
                 <div class="form-text">The connection this deployment belongs to.</div>
             </div>
-            <div class="mb-3">
-                <label class="form-label">Deployment purposes <span class="text-danger">*</span></label>
-                @foreach (var purpose in Model.Purposes)
-                {
-                    var isChecked = Model.SelectedPurposes?.Contains(purpose.Value, StringComparer.OrdinalIgnoreCase) ?? false;
-                    <div class="form-check">
-                        <input id="SelectedPurposes_@purpose.Value"
-                             name="SelectedPurposes"
-                               type="checkbox"
-                             value="@purpose.Value"
-                               class="form-check-input"
-                        @(isChecked ? "checked" : "") />
-                        <label class="form-check-label" for="SelectedPurposes_@purpose.Value">@purpose.Text</label>
-                    </div>
-                }
-                <span asp-validation-for="SelectedPurposes" class="text-danger"></span>
-                <div class="form-text">Select one or more purposes for this deployment.</div>
-            </div>
 
             <!-- Standalone deployment fields (Azure AI Services) -->
             <div id="standaloneFields" style="display: none;">

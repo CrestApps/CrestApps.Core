@@ -310,7 +310,7 @@ public sealed class CatalogEntryHandlerPopulationTests
             [nameof(AIDeployment.Name)] = "chat-main",
             ["ProviderName"] = "OpenAI",
             [nameof(AIDeployment.ConnectionName)] = "shared-connection",
-            [nameof(AIDeployment.Purpose)] = new JsonArray("Chat", "Utility"),
+            ["Purpose"] = new JsonArray("Chat", "Utility"),
             [nameof(AIDeployment.Properties)] = new JsonObject
             {
                 ["Region"] = "westus",
@@ -326,7 +326,9 @@ public sealed class CatalogEntryHandlerPopulationTests
         Assert.Equal("chat-main", deployment.ModelName);
         Assert.Equal("OpenAI", deployment.ClientName);
         Assert.Equal("shared-connection", deployment.ConnectionName);
-        Assert.Equal(AIDeploymentPurpose.Chat | AIDeploymentPurpose.Utility, deployment.Purpose);
+        // The legacy purpose is projected onto capabilities at read time rather than stored as a purpose.
+        Assert.True(deployment.TryGet<AIDeploymentMetadata>(out var metadata));
+        Assert.Equal([AIDeploymentFeatureNames.TextGeneration], metadata.Features);
         Assert.Equal("westus", JsonExtensions.FromObject(deployment.Properties)["Region"]?.GetValue<string>());
         Assert.Equal("user-1", deployment.OwnerId);
         Assert.Equal("alice", deployment.Author);

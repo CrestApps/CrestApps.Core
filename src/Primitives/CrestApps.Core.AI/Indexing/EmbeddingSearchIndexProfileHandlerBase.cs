@@ -66,7 +66,10 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
             return;
         }
 
-        if (!deployment.SupportsPurpose(AIDeploymentPurpose.Embedding))
+        // textEmbedding is opt-in, so a deployment that declares no capability metadata does not qualify —
+        // an embedding endpoint has to say so.
+        if (!deployment.TryGet<AIDeploymentMetadata>(out var metadata) ||
+            !metadata.SupportsFeature(AIDeploymentFeatureNames.TextEmbedding))
         {
             result.Fail(new ValidationResult("The selected deployment does not support embeddings.", [nameof(SearchIndexProfile.EmbeddingDeploymentName)]));
 

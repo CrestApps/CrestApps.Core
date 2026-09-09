@@ -1,6 +1,7 @@
 @using CrestApps.Core
 @using CrestApps.Core.AI
 @using CrestApps.Core.AI.Documents.Models
+@using CrestApps.Core.AI.Capabilities
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
 @using CrestApps.Core.Mvc.Web.Areas.AIChat.Models
@@ -38,24 +39,23 @@
         }
     }
 
-    // Realtime is available only when a realtime-capable chat deployment resolves (the profile's realtime
-    // deployment, or the site default), so the widget's realtime UI stays in sync with the hub's capability gate.
-    var realtimeDeploymentName = !string.IsNullOrWhiteSpace(selectedProfile?.RealtimeDeploymentName)
-        ? selectedProfile.RealtimeDeploymentName
-        : defaultDeploymentSettings.DefaultRealtimeDeploymentName;
-    var hasRealtimeDeployment = await CapabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName) is not null;
+    // The profile's own chat deployment decides whether this is a voice conversation, which keeps the
+    // widget's realtime UI in step with the hub's capability gate.
+    var realtimeEnabled = await CapabilityService.IsRealtimeDeploymentAsync(selectedProfile?.ChatDeploymentName);
 
     var speechToTextEnabled = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultSpeechToTextDeploymentName);
-    var effectiveChatMode = configuredChatMode switch
-    {
-        ChatMode.Realtime when hasRealtimeDeployment => ChatMode.Realtime,
-        // Realtime configured but no realtime deployment: fall back to STT/TTS conversation when possible.
-        ChatMode.Realtime when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
-        ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
-        ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
-        ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
-        _ => ChatMode.TextInput,
-    };
+
+    // The chat mode layers speech-to-text and text-to-speech over a text model, so it does not apply to a
+    // realtime deployment, which speaks natively.
+    var effectiveChatMode = realtimeEnabled
+        ? ChatMode.TextInput
+        : configuredChatMode switch
+        {
+            ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
+            ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
+            ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
+            _ => ChatMode.TextInput,
+        };
 
     var allowImageUploads = false;
     var allowSessionDocuments = false;
@@ -140,6 +140,7 @@
      data-coreai-chat-initial-prompt="@profile.initialPrompt"
      data-coreai-chat-metrics-enabled="@profile.enableSessionMetrics.ToString().ToLowerInvariant()"
      data-coreai-chat-mode="@profile.chatMode"
+     data-coreai-chat-realtime-enabled="@realtimeEnabled.ToString().ToLowerInvariant()"
      data-coreai-chat-realtime-webrtc-enabled="@((Context.RequestServices.GetService(typeof(CrestApps.Core.AI.Realtime.IWebRtcRealtimePeerFactory)) is not null).ToString().ToLowerInvariant())"
      data-coreai-chat-mic-button-element-selector="#widget-mic-btn"
      data-coreai-chat-conversation-button-element-selector="#widget-conversation-btn"
@@ -255,7 +256,7 @@
         <div id="widget-chat-document-bar" class="border-top bg-light d-none"></div>
 
         @{
-            var widgetIsRealtime = profile.chatMode == nameof(ChatMode.Realtime);
+            var widgetIsRealtime = realtimeEnabled;
         }
         <div class="ai-chat-widget-input">
             @* The input and send button stay in the DOM even for realtime (voice-only) because the client

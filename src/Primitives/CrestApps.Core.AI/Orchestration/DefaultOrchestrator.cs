@@ -442,8 +442,8 @@ public sealed class DefaultOrchestrator : IOrchestrator
     /// </summary>
     private async Task<AIDeployment> ResolveChatDeploymentAsync(OrchestrationContext context)
     {
-        return await _deploymentManager.ResolveOrDefaultAsync(
-            AIDeploymentPurpose.Chat,
+        return await _deploymentManager.ResolveSlotAsync(
+            AIDeploymentSlotNames.Chat,
             deploymentName: context.CompletionContext?.ChatDeploymentName)
             ?? throw new InvalidOperationException("Unable to resolve a chat deployment for the orchestration context.");
     }

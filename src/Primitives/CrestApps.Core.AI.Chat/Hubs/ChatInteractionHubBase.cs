@@ -452,6 +452,80 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
         interaction.McpConnectionIds = JsonHelper.GetStringArray(settings, "mcpConnectionIds");
         interaction.A2AConnectionIds = JsonHelper.GetStringArray(settings, "a2aConnectionIds");
+
+        ApplyModelParameters(interaction, settings);
+    }
+
+    /// <summary>
+    /// Applies the metadata-driven model parameters (for example reasoning effort) that the settings panel
+    /// posts alongside the fixed fields.
+    /// </summary>
+    /// <param name="interaction">The interaction being updated.</param>
+    /// <param name="settings">The settings payload.</param>
+    /// <remarks>
+    /// The panel's client collects every input by its <c>data-setting</c> key, so a parameter arrives as a
+    /// flat <c>modelParameters.&lt;name&gt;</c> or <c>utilityModelParameters.&lt;name&gt;</c> entry rather
+    /// than a nested object. Reading them by prefix keeps the client generic: a module that registers a new
+    /// parameter needs no change here.
+    /// </remarks>
+    private static void ApplyModelParameters(ChatInteraction interaction, JsonElement settings)
+    {
+        if (settings.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        const string ChatPrefix = "modelParameters.";
+        const string UtilityPrefix = "utilityModelParameters.";
+
+        var chatValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var utilityValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var sawAny = false;
+
+        foreach (var property in settings.EnumerateObject())
+        {
+            // Utility is checked first: its prefix ends with the chat prefix's own text, so testing the
+            // shorter one first would claim every utility parameter as a chat parameter.
+            var target = property.Name.StartsWith(UtilityPrefix, StringComparison.OrdinalIgnoreCase)
+                ? utilityValues
+                : property.Name.StartsWith(ChatPrefix, StringComparison.OrdinalIgnoreCase)
+                    ? chatValues
+                    : null;
+
+            if (target is null)
+            {
+                continue;
+            }
+
+            sawAny = true;
+
+            var prefixLength = ReferenceEquals(target, utilityValues) ? UtilityPrefix.Length : ChatPrefix.Length;
+            var name = property.Name[prefixLength..];
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            // An empty value means "use the deployment default", which is expressed by omitting the entry.
+            if (property.Value.ValueKind is JsonValueKind.String && property.Value.GetString() is { Length: > 0 } value)
+            {
+                target[name] = value;
+            }
+        }
+
+        // Only touch the stored metadata when the panel actually rendered parameter fields. A client that
+        // posts none must not be read as "the operator cleared them all".
+        if (!sawAny)
+        {
+            return;
+        }
+
+        interaction.Alter<AIDeploymentParametersMetadata>(metadata =>
+        {
+            metadata.Values = chatValues;
+            metadata.UtilityValues = utilityValues;
+        });
     }
 
     /// <summary>
@@ -1032,33 +1106,30 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
         var capabilityService = services.GetRequiredService<IAIDeploymentCapabilityService>();
 
-        // The interaction's own selected deployment takes precedence: when it is a realtime (speech-to-speech)
-        // model, it is used as the realtime deployment regardless of the site chat mode.
-        var selectedIsRealtime = !string.IsNullOrWhiteSpace(interaction.ChatDeploymentName)
-            && await capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, interaction.ChatDeploymentName, cancellationToken) is not null;
-
-        // Otherwise realtime voice must be enabled for the interaction via the site chat mode.
-        if (!selectedIsRealtime)
+        // The interaction's selected deployment is the only thing that decides this. Choosing a realtime
+        // (speech-to-speech) model is what makes the interaction a voice conversation; there is no separate
+        // site mode that could say otherwise.
+        if (!await capabilityService.IsRealtimeDeploymentAsync(interaction.ChatDeploymentName, cancellationToken))
         {
-            var chatMode = await GetChatModeAsync(services);
-            if (chatMode != ChatMode.Realtime)
-            {
-                await Clients.Caller.ReceiveError(GetConversationNotEnabledMessage());
+            await Clients.Caller.ReceiveError(GetConversationNotEnabledMessage());
 
-                return null;
-            }
+            return null;
         }
 
-        var defaultRealtimeDeploymentName = (await GetDeploymentSettingsAsync(services)).DefaultRealtimeDeploymentName;
+        var realtimeDeployment = await services.GetRequiredService<IAIDeploymentManager>()
+            .ResolveSlotAsync(
+                AIDeploymentSlotNames.Realtime,
+                interaction.ChatDeploymentName,
+                cancellationToken: cancellationToken);
 
-        // Prefer the interaction's own realtime deployment; fall back to the site default realtime deployment.
-        var realtimeDeploymentName = selectedIsRealtime ? interaction.ChatDeploymentName : defaultRealtimeDeploymentName;
-        if (await capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName, cancellationToken) is null)
+        if (realtimeDeployment is null)
         {
             await Clients.Caller.ReceiveError(GetNoRealtimeDeploymentMessage());
 
             return null;
         }
+
+        var realtimeDeploymentName = realtimeDeployment.Name;
 
         await Groups.AddToGroupAsync(Context.ConnectionId, GetInteractionGroupName(interaction.ItemId), cancellationToken);
 
@@ -1219,7 +1290,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
                 var deploymentSettings = await GetDeploymentSettingsAsync(services);
 
-                var speechToTextDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.SpeechToText);
+                var speechToTextDeployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.SpeechToText);
                 if (speechToTextDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoSttDeploymentMessage());
@@ -1227,7 +1298,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                     return;
                 }
 
-                var textToSpeechDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.TextToSpeech);
+                var textToSpeechDeployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.TextToSpeech);
                 if (textToSpeechDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoTtsDeploymentMessage());
@@ -1318,7 +1389,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                     return;
                 }
 
-                var speechToTextDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.SpeechToText);
+                var speechToTextDeployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.SpeechToText);
                 if (speechToTextDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoSttDeploymentMessage());
@@ -1408,7 +1479,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 }
 
                 var deploymentSettings = await GetDeploymentSettingsAsync(services);
-                var textToSpeechDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.TextToSpeech);
+                var textToSpeechDeployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.TextToSpeech);
                 if (textToSpeechDeployment is null)
                 {
                     await Clients.Caller.ReceiveError(GetNoTtsDeploymentMessage());

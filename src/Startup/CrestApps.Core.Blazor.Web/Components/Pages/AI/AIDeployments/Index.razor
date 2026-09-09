@@ -45,7 +45,7 @@ else
                             <tr>
                                 <th>Technical name</th>
                                 <th>Model name</th>
-                                <th>Purposes</th>
+                                <th>Capabilities</th>
                                 <th>Provider</th>
                                 <th>Connection</th>
                                 <th style="width: 180px;">Actions</th>
@@ -58,9 +58,13 @@ else
                                     <td><strong>@deployment.TechnicalName</strong></td>
                                     <td>@(string.IsNullOrWhiteSpace(deployment.ModelName) ? "—" : deployment.ModelName)</td>
                                     <td>
-                                        @foreach (var purpose in deployment.GetDeploymentPurpose().GetSupportedPurposes())
+                                        @if (deployment.SelectedFeatures is null || deployment.SelectedFeatures.Count == 0)
                                         {
-                                            <span class="badge bg-secondary me-1">@purpose</span>
+                                            <span class="text-muted">&mdash;</span>
+                                        }
+                                        @foreach (var feature in (deployment.SelectedFeatures ?? []).OrderBy(static name => name, StringComparer.OrdinalIgnoreCase))
+                                        {
+                                            <span class="badge bg-secondary me-1">@feature</span>
                                         }
                                     </td>
                                     <td>
@@ -99,7 +103,7 @@ else
                             <tr>
                                 <th>Technical name</th>
                                 <th>Model name</th>
-                                <th>Purposes</th>
+                                <th>Capabilities</th>
                                 <th>Provider</th>
                                 <th>Connection</th>
                             </tr>
@@ -111,9 +115,13 @@ else
                                     <td><strong>@deployment.TechnicalName</strong></td>
                                     <td>@(string.IsNullOrWhiteSpace(deployment.ModelName) ? "—" : deployment.ModelName)</td>
                                     <td>
-                                        @foreach (var purpose in deployment.GetDeploymentPurpose().GetSupportedPurposes())
+                                        @if (deployment.SelectedFeatures is null || deployment.SelectedFeatures.Count == 0)
                                         {
-                                            <span class="badge bg-secondary me-1">@purpose</span>
+                                            <span class="text-muted">&mdash;</span>
+                                        }
+                                        @foreach (var feature in (deployment.SelectedFeatures ?? []).OrderBy(static name => name, StringComparer.OrdinalIgnoreCase))
+                                        {
+                                            <span class="badge bg-secondary me-1">@feature</span>
                                         }
                                     </td>
                                     <td>

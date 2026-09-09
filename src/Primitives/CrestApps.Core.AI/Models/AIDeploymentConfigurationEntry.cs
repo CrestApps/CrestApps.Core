@@ -32,37 +32,15 @@ public sealed class AIDeploymentConfigurationEntry
     public string ConnectionName { get; set; }
 
     /// <summary>
-    /// Gets or sets the deployment purposes (Chat, Utility, Embedding, Image, SpeechToText, TextToSpeech, Vision).
+    /// Gets or sets the legacy purpose names this configuration entry declares, if any.
     /// </summary>
-    public AIDeploymentPurpose Purpose { get; set; }
-
-    /// <summary>
-    /// Gets or sets the legacy deployment type flags.
-    /// Use <see cref="Purpose"/> for new code.
-    /// </summary>
-#pragma warning disable CS0618 // Type or member is obsolete
-    [Obsolete("Use Purpose instead. Retained for backward compatibility.")]
-    [JsonIgnore]
-    public AIDeploymentType Type
-    {
-        get => Purpose.ToLegacyType();
-        set => Purpose = value.ToPurpose();
-    }
-
-    [JsonInclude]
-    [JsonPropertyName("Type")]
-    private AIDeploymentType LegacyType
-    {
-        set => Purpose = value.ToPurpose();
-    }
-
-    [JsonInclude]
-    [JsonPropertyName("Capability")]
-    private AIDeploymentPurpose CapabilityAlias
-    {
-        set => Purpose = value;
-    }
-#pragma warning restore CS0618 // Type or member is obsolete
+    /// <remarks>
+    /// A deployment declares capabilities, not a purpose. Configuration written before that change still
+    /// names one or more legacy purposes under <c>Purpose</c>, <c>Capability</c>, or <c>Type</c>, and
+    /// <see cref="AIDeploymentPurposeCompatibility"/> projects those names onto capabilities when the
+    /// deployment is materialized.
+    /// </remarks>
+    public string[] LegacyPurposes { get; set; }
 
     /// <summary>
     /// Gets or sets provider-specific properties for contained-connection deployments.

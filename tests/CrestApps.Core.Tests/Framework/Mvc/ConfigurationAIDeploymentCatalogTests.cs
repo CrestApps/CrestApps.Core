@@ -40,7 +40,6 @@ public sealed class ConfigurationAIDeploymentCatalogTests
                     ItemId = "ui-deployment",
                     Name = "ui-chat",
                     ClientName = "OpenAI",
-                    Purpose = AIDeploymentPurpose.Chat,
                 },
             ]);
 
@@ -51,7 +50,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         Assert.Contains(deployments, deployment => deployment.ItemId == "ui-deployment");
         var configuredDeployment = Assert.Single(deployments, deployment => deployment.Name == "whisper");
         Assert.Equal("AzureSpeech", configuredDeployment.ClientName);
-        Assert.Equal(AIDeploymentPurpose.SpeechToText, configuredDeployment.Purpose);
+        AssertDeclaresExactly(configuredDeployment, AIDeploymentFeatureNames.SpeechToText);
         Assert.NotNull(configuredDeployment.Properties);
         Assert.Equal("AzureSpeech", configuredDeployment.Properties["ClientName"]?.ToString());
         Assert.Equal("SpeechToText", configuredDeployment.Properties["Type"]?.ToString());
@@ -79,7 +78,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         // Assert
         Assert.NotNull(deployment);
         Assert.Equal("AzureSpeech", deployment.ClientName);
-        Assert.Equal(AIDeploymentPurpose.TextToSpeech, deployment.Purpose);
+        AssertDeclaresExactly(deployment, AIDeploymentFeatureNames.TextToSpeech);
     }
 
     [Fact]
@@ -102,7 +101,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         // Assert
         Assert.Equal("AzureSpeech", deployment.ClientName);
         Assert.Equal("grouped-whisper", deployment.Name);
-        Assert.Equal(AIDeploymentPurpose.SpeechToText, deployment.Purpose);
+        AssertDeclaresExactly(deployment, AIDeploymentFeatureNames.SpeechToText);
     }
 
     [Fact]
@@ -128,7 +127,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
 
         // Assert
         Assert.Equal(AzureOpenAIConstants.ClientName, deployment.ClientName);
-        Assert.Equal(AIDeploymentPurpose.Embedding, deployment.Purpose);
+        AssertDeclaresExactly(deployment, AIDeploymentFeatureNames.TextEmbedding);
     }
 
     [Fact]
@@ -156,7 +155,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         Assert.Equal("OpenAI", deployment.ClientName);
         Assert.Equal("gpt-4.1", deployment.Name);
         Assert.Equal("gpt-4.1", deployment.ModelName);
-        Assert.Equal(AIDeploymentPurpose.Chat, deployment.Purpose);
+        AssertDeclaresExactly(deployment, AIDeploymentFeatureNames.TextGeneration);
     }
 
     [Fact]
@@ -227,7 +226,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         Assert.Equal(AIConfigurationRecordIds.CreateDeploymentId("OpenAI", "shared-primary", "gpt-4.1"), sharedDeployment.ItemId);
         Assert.Equal("shared-primary", sharedDeployment.Properties["ConnectionName"]?.ToString());
         Assert.Null(containedDeployment.ConnectionName);
-        Assert.Equal(AIDeploymentPurpose.SpeechToText, containedDeployment.Purpose);
+        AssertDeclaresExactly(containedDeployment, AIDeploymentFeatureNames.SpeechToText);
     }
 
     [Fact]
@@ -253,7 +252,6 @@ public sealed class ConfigurationAIDeploymentCatalogTests
                     ItemId = "ui-deployment",
                     Name = "shared-name",
                     ClientName = "OpenAI",
-                    Purpose = AIDeploymentPurpose.Chat,
                 },
             ]);
 
@@ -289,13 +287,13 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1-mini");
         Assert.Equal(AzureOpenAIConstants.ClientName, chatDeployment.ClientName);
         Assert.Equal("test1", chatDeployment.ConnectionName);
-        Assert.Equal(AIDeploymentPurpose.Chat | AIDeploymentPurpose.Utility, chatDeployment.Purpose);
+        AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
         Assert.True(chatDeployment.IsReadOnly);
 
         var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-small");
         Assert.Equal(AzureOpenAIConstants.ClientName, embeddingDeployment.ClientName);
         Assert.Equal("test1", embeddingDeployment.ConnectionName);
-        Assert.Equal(AIDeploymentPurpose.Embedding, embeddingDeployment.Purpose);
+        AssertDeclaresExactly(embeddingDeployment, AIDeploymentFeatureNames.TextEmbedding);
         Assert.True(embeddingDeployment.IsReadOnly);
     }
 
@@ -322,13 +320,13 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1");
         Assert.Equal("OpenAI", chatDeployment.ClientName);
         Assert.Equal("my-openai", chatDeployment.ConnectionName);
-        Assert.Equal(AIDeploymentPurpose.Chat | AIDeploymentPurpose.Utility, chatDeployment.Purpose);
+        AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
         Assert.True(chatDeployment.IsReadOnly);
 
         var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-large");
         Assert.Equal("OpenAI", embeddingDeployment.ClientName);
         Assert.Equal("my-openai", embeddingDeployment.ConnectionName);
-        Assert.Equal(AIDeploymentPurpose.Embedding, embeddingDeployment.Purpose);
+        AssertDeclaresExactly(embeddingDeployment, AIDeploymentFeatureNames.TextEmbedding);
         Assert.True(embeddingDeployment.IsReadOnly);
     }
 
@@ -358,13 +356,13 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1-mini");
         Assert.Equal(AzureOpenAIConstants.ClientName, chatDeployment.ClientName);
         Assert.Equal("test1", chatDeployment.ConnectionName);
-        Assert.Equal(AIDeploymentPurpose.Chat | AIDeploymentPurpose.Utility, chatDeployment.Purpose);
+        AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
         Assert.True(chatDeployment.IsReadOnly);
 
         var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-small");
         Assert.Equal(AzureOpenAIConstants.ClientName, embeddingDeployment.ClientName);
         Assert.Equal("test1", embeddingDeployment.ConnectionName);
-        Assert.Equal(AIDeploymentPurpose.Embedding, embeddingDeployment.Purpose);
+        AssertDeclaresExactly(embeddingDeployment, AIDeploymentFeatureNames.TextEmbedding);
         Assert.True(embeddingDeployment.IsReadOnly);
     }
 
@@ -391,12 +389,55 @@ public sealed class ConfigurationAIDeploymentCatalogTests
 
         // Assert
         var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1-mini");
-        Assert.Equal(AIDeploymentPurpose.Chat, chatDeployment.Purpose);
+                AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
 
         var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-small");
-        Assert.Equal(AIDeploymentPurpose.Embedding, embeddingDeployment.Purpose);
+        AssertDeclaresExactly(embeddingDeployment, AIDeploymentFeatureNames.TextEmbedding);
     }
 
+
+    [Fact]
+    public async Task GetAllAsync_WhenConnectionDeclaresEveryDeploymentName_ShouldEmitTheMatchingCapabilities()
+    {
+        // Arrange. A connection-synthesized deployment is read-only in the UI, so an operator cannot declare
+        // its capabilities by hand — the source has to emit them. Text to speech is included because the
+        // source had no case for it at all.
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Connections:0:Name"] = "my-openai",
+            ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Connections:0:DefaultDeploymentName"] = "gpt-4.1",
+            ["CrestApps:AI:Connections:0:DefaultEmbeddingDeploymentName"] = "text-embedding-3-large",
+            ["CrestApps:AI:Connections:0:ImagesDeploymentName"] = "dall-e-3",
+            ["CrestApps:AI:Connections:0:SpeechToTextDeploymentName"] = "whisper-1",
+            ["CrestApps:AI:Connections:0:TextToSpeechDeploymentName"] = "tts-1",
+        }).Build();
+
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(configuration, aiOptions);
+
+        // Act
+        var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        AssertDeclaresExactly(deployments, "gpt-4.1", AIDeploymentFeatureNames.TextGeneration);
+        AssertDeclaresExactly(deployments, "text-embedding-3-large", AIDeploymentFeatureNames.TextEmbedding);
+        AssertDeclaresExactly(deployments, "dall-e-3", AIDeploymentFeatureNames.ImageOutput);
+        AssertDeclaresExactly(deployments, "whisper-1", AIDeploymentFeatureNames.SpeechToText);
+        AssertDeclaresExactly(deployments, "tts-1", AIDeploymentFeatureNames.TextToSpeech);
+    }
+
+    private static void AssertDeclaresExactly(IEnumerable<AIDeployment> deployments, string name, params string[] expectedFeatures)
+    {
+        AssertDeclaresExactly(Assert.Single(deployments, d => d.Name == name), expectedFeatures);
+    }
+
+    private static void AssertDeclaresExactly(AIDeployment deployment, params string[] expectedFeatures)
+    {
+        Assert.True(deployment.TryGet<AIDeploymentMetadata>(out var metadata), $"'{deployment.Name}' declares no capability metadata.");
+        Assert.Equal(expectedFeatures, metadata.Features);
+    }
     private static DefaultAIDeploymentStore CreateStore(
         IConfiguration configuration,
         AIOptions aiOptions,

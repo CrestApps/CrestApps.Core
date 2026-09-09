@@ -110,8 +110,8 @@ public sealed class DefaultImageAnalysisService : IImageAnalysisService
         CancellationToken cancellationToken)
     {
         // Prioritize the global vision deployment.
-        var visionDeployment = await _deploymentManager.ResolveOrDefaultAsync(
-            AIDeploymentPurpose.Vision,
+        var visionDeployment = await _deploymentManager.ResolveSlotAsync(
+            AIDeploymentSlotNames.Vision,
             cancellationToken: cancellationToken);
 
         if (visionDeployment != null)
@@ -119,15 +119,19 @@ public sealed class DefaultImageAnalysisService : IImageAnalysisService
             return visionDeployment;
         }
 
-        // Fall back to the specified chat deployment if it supports vision.
+        // Fall back to the specified chat deployment if it supports vision. Tested against the imageInput
+        // capability rather than a routing flag, so a genuinely vision-capable model is not rejected merely
+        // because nobody ticked the vision purpose for it.
         if (!string.IsNullOrWhiteSpace(chatDeploymentName))
         {
-            var chatDeployment = await _deploymentManager.ResolveOrDefaultAsync(
-                AIDeploymentPurpose.Chat,
+            var chatDeployment = await _deploymentManager.ResolveSlotAsync(
+                AIDeploymentSlotNames.Chat,
                 deploymentName: chatDeploymentName,
                 cancellationToken: cancellationToken);
 
-            if (chatDeployment?.Purpose.Supports(AIDeploymentPurpose.Vision) == true)
+            if (chatDeployment is not null &&
+                chatDeployment.TryGet<AIDeploymentMetadata>(out var metadata) &&
+                metadata.SupportsFeature(AIDeploymentFeatureNames.ImageInput))
             {
                 return chatDeployment;
             }

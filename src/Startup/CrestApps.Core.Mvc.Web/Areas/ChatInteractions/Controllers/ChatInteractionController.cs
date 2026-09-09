@@ -234,16 +234,12 @@ public sealed class ChatInteractionController : Controller
         var selectedDeploymentIsRealtime = !string.IsNullOrWhiteSpace(interaction.ChatDeploymentName)
             && realtimeDeploymentNames.Contains(interaction.ChatDeploymentName, StringComparer.OrdinalIgnoreCase);
 
-        // Realtime is otherwise available only when the default realtime deployment declares the realtime capability.
-        var hasRealtime = selectedDeploymentIsRealtime
-            || await _capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, deploymentDefaults.DefaultRealtimeDeploymentName) is not null;
+        // The chat mode layers speech-to-text and text-to-speech over a text model, so it does not apply to a
+        // realtime deployment, which speaks natively.
         var effectiveChatMode = selectedDeploymentIsRealtime
-            ? ChatMode.Realtime
+            ? ChatMode.TextInput
             : chatMode switch
             {
-                ChatMode.Realtime when hasRealtime => ChatMode.Realtime,
-                // Realtime configured but no realtime deployment: fall back to STT/TTS conversation when possible.
-                ChatMode.Realtime when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
                 ChatMode.Conversation when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
                 ChatMode.Conversation when hasSpeechToText => ChatMode.AudioInput,
                 ChatMode.AudioInput when hasSpeechToText => ChatMode.AudioInput,
@@ -255,6 +251,7 @@ public sealed class ChatInteractionController : Controller
             ItemId = interaction.ItemId,
             Title = interaction.Title,
             ChatDeploymentName = interaction.ChatDeploymentName,
+            UtilityDeploymentName = interaction.UtilityDeploymentName,
             OrchestratorName = interaction.OrchestratorName,
             SystemMessage = interaction.SystemMessage,
             Temperature = interaction.Temperature,
@@ -294,7 +291,7 @@ public sealed class ChatInteractionController : Controller
             ChatMode = effectiveChatMode,
             SpeechToTextEnabled = effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation,
             ConversationModeEnabled = effectiveChatMode == ChatMode.Conversation,
-            RealtimeEnabled = effectiveChatMode == ChatMode.Realtime,
+            RealtimeEnabled = selectedDeploymentIsRealtime,
             RealtimeWebRtcEnabled = CrestApps.Core.AI.Chat.Realtime.RealtimeTransportSettings.IsWebRtcEnabled(HttpContext.RequestServices),
             TextToSpeechEnabled = chatInteractionSettings.EnableTextToSpeechPlayback && hasTextToSpeech,
             TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
@@ -303,6 +300,22 @@ public sealed class ChatInteractionController : Controller
         };
 
         await PopulateChatDropdownsAsync(model);
+
+        // The interaction carries its own parameter values; the editor narrows them to what the selected
+        // deployment actually declares, so a reasoning model exposes reasoning effort and others do not.
+        interaction.TryGet<AIDeploymentParametersMetadata>(out var parameterMetadata);
+
+        model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(
+            parameterMetadata?.Values,
+            elementPrefix: "interactionModelParameters",
+            title: "Model parameters",
+            description: null);
+
+        model.UtilityModelParameterEditor = await _modelParameterViewService.BuildAsync(
+            parameterMetadata?.UtilityValues,
+            elementPrefix: "interactionUtilityModelParameters",
+            title: "Utility model parameters",
+            description: null);
 
         return View(model);
     }
@@ -339,17 +352,14 @@ public sealed class ChatInteractionController : Controller
             title: "Utility model parameters",
             description: "Applied to background completions such as title generation, data extraction, and post-session processing. Only the parameters declared by the selected utility deployment are shown.");
 
-        var deployments = await _deploymentCatalog.GetAllAsync();
-        model.Deployments = deployments
-            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat))
+        model.Deployments = (await _deploymentManager.GetConversationalDeploymentsAsync())
             .Select(d => new SelectListItem(
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
         ? d.Name
         : $"{d.Name} ({d.ModelName})",
         d.Name))
             .ToList();
-        model.UtilityDeployments = deployments
-            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat))
+        model.UtilityDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility))
             .Select(d => new SelectListItem(
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
         ? d.Name
@@ -358,7 +368,7 @@ public sealed class ChatInteractionController : Controller
             .ToList();
         var interactionDocSettings = _siteSettings.Get<InteractionDocumentSettings>();
         model.AllowImageUploads = interactionDocSettings.AllowImageUploads
-            && (await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision)) != null;
+            && (await _deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Vision)) != null;
         model.AllowDocumentUploads = interactionDocSettings.AllowDocumentUploads;
 
         // Orchestrators
@@ -501,9 +511,7 @@ public sealed class ChatInteractionController : Controller
 
     private async Task PopulateChatDropdownsAsync(ChatInteractionChatViewModel model)
     {
-        var deployments = await _deploymentCatalog.GetAllAsync();
-        model.Deployments = deployments
-            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat))
+        model.Deployments = (await _deploymentManager.GetConversationalDeploymentsAsync())
             .Select(d => new SelectListItem(
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
         ? d.Name
@@ -511,9 +519,19 @@ public sealed class ChatInteractionController : Controller
         : $"{d.Name} ({d.ModelName})",
         d.Name))
             .ToList();
+
+        // Background work is text-only, so the utility slot never offers a realtime deployment.
+        model.UtilityDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility))
+            .Select(d => new SelectListItem(
+                string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
+                    ? d.Name
+                    : $"{d.Name} ({d.ModelName})",
+                d.Name))
+            .ToList();
+
         var interactionDocSettings = _siteSettings.Get<InteractionDocumentSettings>();
         model.AllowImageUploads = interactionDocSettings.AllowImageUploads
-            && (await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision)) != null;
+            && (await _deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Vision)) != null;
         model.AllowDocumentUploads = interactionDocSettings.AllowDocumentUploads;
 
         // Orchestrators
@@ -947,7 +965,7 @@ public sealed class ChatInteractionController : Controller
 
     private async Task<Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>> CreateEmbeddingGeneratorAsync()
     {
-        var deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Embedding);
+        var deployment = await _deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Embedding);
 
         return deployment == null
             ? null
