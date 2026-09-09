@@ -18,6 +18,33 @@ namespace CrestApps.Core.AI.Chat.Realtime;
 public static class RealtimeReplyLanguage
 {
     /// <summary>
+    /// The culture names this runtime actually knows, matched case-insensitively.
+    /// </summary>
+    /// <remarks>
+    /// ICU — the default on Linux and macOS — fabricates a <see cref="CultureInfo"/> for any structurally
+    /// plausible tag rather than throwing, so catching <see cref="CultureNotFoundException"/> accepts junk like
+    /// <c>xx-invalid-zz</c> there while rejecting it on Windows. Matching against the known set is the same
+    /// answer on every platform. Under globalization-invariant mode this set is empty, so no locale is ever
+    /// resolved and the assistant falls back to mirroring the user, which is the safe default anyway.
+    /// </remarks>
+    private static readonly HashSet<string> KnownCultureNames = BuildKnownCultureNames();
+
+    private static HashSet<string> BuildKnownCultureNames()
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var culture in CultureInfo.GetCultures(CultureTypes.AllCultures))
+        {
+            if (!string.IsNullOrEmpty(culture.Name))
+            {
+                names.Add(culture.Name);
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>
     /// Picks the reply language: the explicitly chosen one when present, otherwise the most preferred valid
     /// culture in the request's <c>Accept-Language</c> header, otherwise <see langword="null"/> (mirror the user).
     /// </summary>
@@ -55,18 +82,17 @@ public static class RealtimeReplyLanguage
                 continue;
             }
 
-            try
+            // Not a culture the runtime knows; try the next preference.
+            if (!KnownCultureNames.Contains(tag))
             {
-                var culture = CultureInfo.GetCultureInfo(tag);
-
-                if (!string.IsNullOrEmpty(culture.Name))
-                {
-                    return culture.Name;
-                }
+                continue;
             }
-            catch (CultureNotFoundException)
+
+            var name = CultureInfo.GetCultureInfo(tag).Name;
+
+            if (!string.IsNullOrEmpty(name))
             {
-                // Not a culture the runtime knows; try the next preference.
+                return name;
             }
         }
 
