@@ -51,6 +51,12 @@ public sealed class RealtimeChatRunContext
     public string? SpeechLanguage { get; init; }
 
     /// <summary>
+    /// Gets the language the model should reply in when the user has not chosen one — the browser locale the hub
+    /// resolved from the request. Never used for transcription.
+    /// </summary>
+    public string? ReplyLanguage { get; init; }
+
+    /// <summary>
     /// Gets an optional server voice-activity silence duration (milliseconds) before the model ends a turn.
     /// </summary>
     public int? SilenceDurationMs { get; set; }

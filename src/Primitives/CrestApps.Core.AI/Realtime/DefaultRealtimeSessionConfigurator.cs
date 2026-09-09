@@ -126,12 +126,14 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
     // does not pin the spoken reply language. Prepend a directive that holds the language while still letting the
     // user switch it explicitly, so an unprompted switch never happens but "answer me in Spanish" still works.
     //
-    // With no language chosen ("Automatic" on the client) the directive mirrors whatever language the user speaks
-    // rather than pinning the browser locale: pinning broke bilingual users, whose English browser locked an
-    // assistant they were addressing in Spanish. Mirroring needs no locale and still forbids the unprompted drift.
+    // The language to pin is the one the user chose, else the reply language the host resolved from their locale.
+    // Only the chosen language also reaches transcription (see Configure): pinning transcription to the browser
+    // locale is what once broke bilingual users, whose English browser produced garbage transcripts of the Spanish
+    // they were speaking. Pinning the reply alone carries no such risk. With neither, the directive falls back to
+    // mirroring whatever language the user speaks, which still forbids the unprompted drift.
     private static string BuildInstructions(RealtimeSessionConfiguratorContext context)
     {
-        var language = LanguageDisplayName(context.SpeechLanguage);
+        var language = LanguageDisplayName(!string.IsNullOrWhiteSpace(context.SpeechLanguage) ? context.SpeechLanguage : context.ReplyLanguage);
 
         var directive = string.IsNullOrWhiteSpace(language)
             ? "Always speak and respond in the same language the user is speaking to you in, for the whole " +

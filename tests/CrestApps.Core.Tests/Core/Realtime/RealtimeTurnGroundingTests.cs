@@ -70,6 +70,55 @@ public sealed class RealtimeTurnGroundingTests
     }
 
     [Fact]
+    public void Configure_WithAReplyLanguageButNoChosenOne_PinsTheReplyAndLeavesTranscriptionAuto()
+    {
+        // The browser locale pins what the model says, not what it hears: a bilingual user with an English browser
+        // speaking Spanish is still transcribed correctly, and answered in English as their browser asks.
+        var options = new DefaultRealtimeSessionConfigurator().Configure(new RealtimeSessionConfiguratorContext
+        {
+            Model = "gpt-realtime",
+            Instructions = "You answer questions about the knowledge base.",
+            ReplyLanguage = "en-US",
+        });
+
+        Assert.StartsWith("Always speak and respond in English.", options.Instructions);
+        Assert.Null(options.TranscriptionOptions?.SpeechLanguage);
+    }
+
+    [Fact]
+    public void Configure_WithAChosenLanguage_ItWinsOverTheReplyLanguage()
+    {
+        var options = new DefaultRealtimeSessionConfigurator().Configure(new RealtimeSessionConfiguratorContext
+        {
+            Model = "gpt-realtime",
+            SpeechLanguage = "es",
+            ReplyLanguage = "en-US",
+        });
+
+        Assert.StartsWith("Always speak and respond in Spanish.", options.Instructions);
+        Assert.Equal("es", options.TranscriptionOptions?.SpeechLanguage);
+    }
+
+    [Theory]
+    [InlineData("en-US,en;q=0.9,vi;q=0.8", "en-US")]
+    [InlineData("fr", "fr")]
+    [InlineData("*", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    [InlineData("xx-invalid-zz,de;q=0.5", "de")]
+    public void ReplyLanguage_FromAcceptLanguage_TakesTheFirstRealCulture(string? header, string? expected)
+    {
+        Assert.Equal(expected, CrestApps.Core.AI.Chat.Realtime.RealtimeReplyLanguage.FromAcceptLanguage(header));
+    }
+
+    [Fact]
+    public void ReplyLanguage_Resolve_PrefersTheExplicitLanguage()
+    {
+        Assert.Equal("es", CrestApps.Core.AI.Chat.Realtime.RealtimeReplyLanguage.Resolve(" es ", httpContext: null));
+        Assert.Null(CrestApps.Core.AI.Chat.Realtime.RealtimeReplyLanguage.Resolve(null, httpContext: null));
+    }
+
+    [Fact]
     public void Configure_ByDefault_LeavesProviderResponseCreationOn()
     {
         var options = new DefaultRealtimeSessionConfigurator().Configure(new RealtimeSessionConfiguratorContext

@@ -38,6 +38,12 @@ public sealed class RealtimeOrchestrationRequest
     public string SpeechLanguage { get; init; }
 
     /// <summary>
+    /// Gets the language the model should reply in when <see cref="SpeechLanguage"/> is not set — typically the
+    /// user's browser locale. Never used for transcription.
+    /// </summary>
+    public string ReplyLanguage { get; init; }
+
+    /// <summary>
     /// Gets an optional server voice-activity silence duration (milliseconds) before the model ends a turn.
     /// </summary>
     public int? SilenceDurationMs { get; init; }

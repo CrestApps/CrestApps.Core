@@ -125,6 +125,7 @@ public sealed class RealtimeChatSessionRunner
                     Interaction = context.Interaction,
                     Voice = context.Voice,
                     SpeechLanguage = context.SpeechLanguage,
+                    ReplyLanguage = context.ReplyLanguage,
                     SilenceDurationMs = context.SilenceDurationMs,
                     AllowInterruption = context.AllowInterruption,
                     VadThreshold = context.VadThreshold,

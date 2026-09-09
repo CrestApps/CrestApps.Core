@@ -1100,6 +1100,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             ResponseWatchdogTimeout = RealtimeTransportSettings.GetGroundingResponseWatchdog(services),
             Voice = effectiveVoice,
             SpeechLanguage = language,
+            ReplyLanguage = RealtimeReplyLanguage.Resolve(language, Context.GetHttpContext()),
             OnUserUtteranceAsync = async (text, turnCancellationToken) =>
             {
                 if (!titleUpdated && string.IsNullOrEmpty(interaction.Title))

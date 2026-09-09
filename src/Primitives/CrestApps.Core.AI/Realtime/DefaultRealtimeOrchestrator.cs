@@ -142,6 +142,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             Tools = tools,
             MaxOutputTokens = context.CompletionContext?.MaxTokens,
             SpeechLanguage = request.SpeechLanguage,
+            ReplyLanguage = request.ReplyLanguage,
             SilenceDurationMs = request.SilenceDurationMs,
             VadThreshold = request.VadThreshold,
             AllowInterruption = request.AllowInterruption,
