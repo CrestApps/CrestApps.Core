@@ -46,7 +46,6 @@ public sealed class DocumentPreemptiveRagHandlerTests
                 ModelName = "embedding",
                 ClientName = "OpenAI",
                 ConnectionName = "Default",
-                Purpose = AIDeploymentPurpose.Embedding,
             });
         var vectorSearchService = new Mock<IVectorSearchService>();
         vectorSearchService.Setup(service => service
@@ -389,7 +388,6 @@ public sealed class DocumentPreemptiveRagHandlerTests
                 ModelName = "embedding",
                 ClientName = "OpenAI",
                 ConnectionName = "Default",
-                Purpose = AIDeploymentPurpose.Embedding,
             });
         var vectorSearchService = new Mock<IVectorSearchService>();
         vectorSearchService.Setup(service => service

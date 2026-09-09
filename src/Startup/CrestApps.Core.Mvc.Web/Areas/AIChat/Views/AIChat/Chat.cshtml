@@ -1,6 +1,7 @@
 @using System.Text.Json
 @using CrestApps.Core
 @using CrestApps.Core.AI.Documents.Models
+@using CrestApps.Core.AI.Capabilities
 @using CrestApps.Core.AI.Models
 @using Microsoft.Extensions.Options
 @model CrestApps.Core.AI.Models.AIProfile
@@ -45,26 +46,25 @@
     var configuredChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput;
     var speechToTextEnabled = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultSpeechToTextDeploymentName);
     var hasTtsDeployment = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultTextToSpeechDeploymentName);
-    var realtimeDeploymentName = !string.IsNullOrWhiteSpace(Model.RealtimeDeploymentName)
-        ? Model.RealtimeDeploymentName
-        : defaultDeploymentSettings.DefaultRealtimeDeploymentName;
-    // Realtime is available only when a realtime-capable chat deployment resolves. Checking the declared
-    // capability here (not just a configured name) keeps the client's realtime UI in sync with the hub's
-    // capability gate, so the mic button is only shown when a realtime session can actually start.
-    var hasRealtimeDeployment = await CapabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName) is not null;
+    // The profile's own chat deployment decides whether this is a voice conversation, which keeps the
+    // client's realtime UI in step with the hub's capability gate.
+    var realtimeEnabled = await CapabilityService.IsRealtimeDeploymentAsync(Model.ChatDeploymentName);
     var textToSpeechEnabled = (chatModeSettings?.EnableTextToSpeechPlayback ?? false) && hasTtsDeployment;
-    var chatMode = configuredChatMode switch
-    {
-        ChatMode.Realtime when hasRealtimeDeployment => ChatMode.Realtime,
-        // Realtime configured but no realtime deployment: fall back to STT/TTS conversation when possible.
-        ChatMode.Realtime when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
-        ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
-        ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
-        ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
-        _ => ChatMode.TextInput,
-    };
+
+    // The chat mode layers speech-to-text and text-to-speech over a text model, so it does not apply to a
+    // realtime deployment, which speaks natively.
+    var chatMode = realtimeEnabled
+        ? ChatMode.TextInput
+        : configuredChatMode switch
+        {
+            ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
+            ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
+            ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
+            _ => ChatMode.TextInput,
+        };
     var conversationModeEnabled = chatMode == ChatMode.Conversation;
-    var realtimeEnabled = chatMode == ChatMode.Realtime;
+    @* realtimeEnabled is resolved above from the deployment's own capability, which is the single
+       answer to this question now that ChatMode.Realtime is gone. *@
     var realtimeWebRtcEnabled = CrestApps.Core.AI.Chat.Realtime.RealtimeTransportSettings.IsWebRtcEnabled(Context.RequestServices);
     var ttsVoiceName = chatModeSettings?.VoiceName ?? defaultDeploymentSettings.DefaultTextToSpeechVoiceId;
     var realtimeVoiceName = chatModeSettings?.VoiceName ?? defaultDeploymentSettings.DefaultRealtimeVoiceId;

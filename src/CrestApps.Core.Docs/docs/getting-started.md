@@ -239,8 +239,8 @@ using var scope = app.Services.CreateScope();
 var deploymentManager = scope.ServiceProvider.GetRequiredService<IAIDeploymentManager>();
 var completionService = scope.ServiceProvider.GetRequiredService<IAICompletionService>();
 
-// Resolve the first chat deployment.
-var deployment = await deploymentManager.FindFirstByTypeAsync(AIDeploymentType.Chat);
+// Resolve the deployment that fills the chat slot.
+var deployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Chat);
 
 if (deployment is null)
 {

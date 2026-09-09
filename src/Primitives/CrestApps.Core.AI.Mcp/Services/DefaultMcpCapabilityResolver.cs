@@ -376,8 +376,8 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
             return null;
         }
 
-        var deployment = await _deploymentManager.ResolveOrDefaultAsync(
-            AIDeploymentPurpose.Embedding,
+        var deployment = await _deploymentManager.ResolveSlotAsync(
+            AIDeploymentSlotNames.Embedding,
             clientName: clientName);
 
         if (deployment is null)

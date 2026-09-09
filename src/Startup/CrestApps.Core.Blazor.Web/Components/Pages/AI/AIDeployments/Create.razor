@@ -72,24 +72,6 @@
                 </div>
             }
 
-            <div class="mb-3">
-                <label class="form-label">Deployment purposes <span class="text-danger">*</span></label>
-                @foreach (var purpose in _capabilities)
-                {
-                    var purposeName = purpose.Value;
-                    var isChecked = _model.SelectedPurposes?.Contains(purposeName, StringComparer.OrdinalIgnoreCase) ?? false;
-                    <div class="form-check">
-                        <input id="SelectedPurposes_@purposeName"
-                               type="checkbox"
-                               class="form-check-input"
-                               checked="@isChecked"
-                               @onchange="e => TogglePurpose(purposeName, (bool)e.Value)" />
-                        <label class="form-check-label" for="SelectedPurposes_@purposeName">@purpose.Key</label>
-                    </div>
-                }
-                <div class="form-text">Select one or more purposes for this deployment.</div>
-            </div>
-
             @if (_isStandalone)
             {
                 <div class="mb-3">
@@ -152,11 +134,6 @@
         new("Default Azure Credential", "Default"),
         new("Managed Identity", "ManagedIdentity"),
     ];
-
-    private static readonly List<KeyValuePair<string, string>> _capabilities = Enum.GetValues<AIDeploymentPurpose>()
-        .Where(static capability => capability != AIDeploymentPurpose.None)
-        .Select(static capability => new KeyValuePair<string, string>(capability.ToString(), capability.ToString()))
-        .ToList();
 
     private bool _isStandalone => _model.UsesStandaloneProvider();
 
@@ -227,22 +204,6 @@
             .ToList();
     }
 
-    private void TogglePurpose(string purposeName, bool isChecked)
-    {
-        var selected = new HashSet<string>(_model.SelectedPurposes ?? [], StringComparer.OrdinalIgnoreCase);
-
-        if (isChecked)
-        {
-            selected.Add(purposeName);
-        }
-        else
-        {
-            selected.Remove(purposeName);
-        }
-
-        _model.SelectedPurposes = [.. selected];
-    }
-
     private async Task HandleSubmitAsync()
     {
         _validationErrors.Clear();
@@ -257,9 +218,9 @@
             _validationErrors.Add("Technical name is required.");
         }
 
-        if (!_model.GetDeploymentPurpose().IsValidSelection())
+        if (_model.SelectedFeatures is null || _model.SelectedFeatures.Count == 0)
         {
-            _validationErrors.Add("At least one deployment purpose is required.");
+            _validationErrors.Add("At least one model capability is required.");
         }
 
         if (string.IsNullOrWhiteSpace(_model.ClientName))

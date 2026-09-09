@@ -234,12 +234,18 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         var contextBuilder = new FakeContextBuilder(context);
 
         var capabilityService = new Mock<IAIDeploymentCapabilityService>();
-        capabilityService
-            .Setup(c => c.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AIDeployment { Name = "rt", ModelName = "gpt-realtime", ClientName = "test" });
 
-        var deploymentSettings = new Mock<IOptionsMonitor<DefaultAIDeploymentSettings>>();
-        deploymentSettings.Setup(s => s.CurrentValue).Returns(new DefaultAIDeploymentSettings());
+        // The orchestrator resolves its deployment through the realtime slot rather than reading the site
+        // settings directly, so the whole chain lives in one place.
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        deploymentManager
+            .Setup(m => m.ResolveSlotAsync(
+                AIDeploymentSlotNames.Realtime,
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<IReadOnlyDictionary<string, string>?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AIDeployment { Name = "rt", ModelName = "gpt-realtime", ClientName = "test" });
 
         var clientFactory = new Mock<IAIClientFactory>();
         clientFactory
@@ -264,7 +270,7 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         return new DefaultRealtimeOrchestrator(
             contextBuilder,
             capabilityService.Object,
-            deploymentSettings.Object,
+            deploymentManager.Object,
             clientFactory.Object,
             toolRegistry.Object,
             materializer.Object,

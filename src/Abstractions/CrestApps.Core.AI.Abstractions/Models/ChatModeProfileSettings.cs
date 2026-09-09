@@ -10,6 +10,12 @@ public sealed class ChatModeProfileSettings
     /// Gets or sets the chat mode for this profile.
     /// Defaults to <see cref="ChatMode.TextInput"/>.
     /// </summary>
+    /// <remarks>
+    /// The chat mode covers the speech-to-text and text-to-speech features layered over a text model. It no
+    /// longer decides whether the profile is a speech-to-speech conversation -- that follows from the chat
+    /// deployment declaring the realtime capability.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonConverter(typeof(ChatModeJsonConverter))]
     public ChatMode ChatMode { get; set; }
 
     /// <summary>

@@ -251,7 +251,14 @@ public sealed class AITemplateViewModel
                 model.SystemMessage = metadata.SystemMessage;
                 model.ChatDeploymentName = metadata.ChatDeploymentName;
                 model.UtilityDeploymentName = metadata.UtilityDeploymentName;
-                model.RealtimeDeploymentName = metadata.RealtimeDeploymentName;
+                // A template written before realtime became a capability named its speech-to-speech model
+                // separately. That model is simply the chat deployment now.
+#pragma warning disable CS0618 // Type or member is obsolete
+                if (string.IsNullOrWhiteSpace(model.ChatDeploymentName))
+                {
+                    model.ChatDeploymentName = metadata.RealtimeDeploymentName;
+                }
+#pragma warning restore CS0618 // Type or member is obsolete
                 model.ChatMode = metadata.ChatMode;
                 model.VoiceName = metadata.VoiceName;
                 model.OrchestratorName = metadata.OrchestratorName;
@@ -433,7 +440,6 @@ public sealed class AITemplateViewModel
                 SystemMessage = SystemMessage,
                 ChatDeploymentName = ChatDeploymentName,
                 UtilityDeploymentName = UtilityDeploymentName,
-                RealtimeDeploymentName = RealtimeDeploymentName,
                 ChatMode = ChatMode,
                 VoiceName = VoiceName,
                 OrchestratorName = OrchestratorName,

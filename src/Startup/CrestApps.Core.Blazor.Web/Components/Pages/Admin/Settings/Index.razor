@@ -1014,13 +1014,13 @@ else
 
     private async Task PopulateDropdownsAsync()
     {
-        _model.ChatDeployments = await BuildDeploymentItemsAsync(AIDeploymentPurpose.Chat);
-        _model.UtilityDeployments = await BuildDeploymentItemsAsync(AIDeploymentPurpose.Utility);
-        _model.EmbeddingDeployments = await BuildDeploymentItemsAsync(AIDeploymentPurpose.Embedding);
-        _model.ImageDeployments = await BuildDeploymentItemsAsync(AIDeploymentPurpose.Image);
-        _model.VisionDeployments = await BuildDeploymentItemsAsync(AIDeploymentPurpose.Vision);
-        _model.SpeechToTextDeployments = await BuildDeploymentItemsAsync(AIDeploymentPurpose.SpeechToText);
-        _model.TextToSpeechDeployments = await BuildDeploymentItemsAsync(AIDeploymentPurpose.TextToSpeech);
+        _model.ChatDeployments = await BuildDeploymentItemsAsync(AIDeploymentSlotNames.Chat);
+        _model.UtilityDeployments = await BuildDeploymentItemsAsync(AIDeploymentSlotNames.Utility);
+        _model.EmbeddingDeployments = await BuildDeploymentItemsAsync(AIDeploymentSlotNames.Embedding);
+        _model.ImageDeployments = await BuildDeploymentItemsAsync(AIDeploymentSlotNames.Image);
+        _model.VisionDeployments = await BuildDeploymentItemsAsync(AIDeploymentSlotNames.Vision);
+        _model.SpeechToTextDeployments = await BuildDeploymentItemsAsync(AIDeploymentSlotNames.SpeechToText);
+        _model.TextToSpeechDeployments = await BuildDeploymentItemsAsync(AIDeploymentSlotNames.TextToSpeech);
 
         _model.ChatInteractionModes =
         [
@@ -1185,9 +1185,9 @@ else
             .Build(models, _model.AnthropicDefaultModel, claudeSettings.DefaultModel);
     }
 
-    private async Task<List<KeyValuePair<string, string>>> BuildDeploymentItemsAsync(AIDeploymentPurpose capability)
+    private async Task<List<KeyValuePair<string, string>>> BuildDeploymentItemsAsync(string slotName)
     {
-        var deployments = await DeploymentManager.GetByPurposeAsync(capability);
+        var deployments = await DeploymentManager.GetAllBySlotAsync(slotName);
 
         return deployments
             .OrderBy(d => d.ConnectionName, StringComparer.OrdinalIgnoreCase)

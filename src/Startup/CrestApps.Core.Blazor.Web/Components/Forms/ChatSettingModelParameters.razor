@@ -1,0 +1,172 @@
+@using System.Globalization
+@using CrestApps.Core.AI.Capabilities
+@using CrestApps.Core.AI.Models
+@inject IAIDeploymentCapabilityService CapabilityService
+
+@*
+    Renders the metadata-driven model parameters inside the chat interaction settings panel.
+
+    The panel saves through the generic "data-setting" collector rather than a form post, so each control is
+    emitted as a flat "<prefix>.<parameter>" key that the hub reads back by prefix.
+
+    Every registered parameter is rendered once and then shown or hidden as the selected deployment changes,
+    rather than being added and removed. The settings script attaches its auto-save listener to each input a
+    single time when the panel initializes, so an input created later would silently never save.
+
+    A parameter the deployment does not expose drops its "data-setting" key, which is what keeps the
+    collector from posting a stale value for a deployment that cannot use it.
+*@
+
+@if (_registeredParameters.Count > 0)
+{
+    <div class="mb-3 @(_hasVisibleParameter ? null : "d-none")">
+        @if (!string.IsNullOrWhiteSpace(Title))
+        {
+            <label class="form-label fw-semibold">@Title</label>
+        }
+        @foreach (var parameter in _registeredParameters)
+        {
+            var supported = _capabilities.GetParameter(parameter.Name);
+            var isSupported = supported is not null;
+            var effective = supported ?? parameter;
+            var elementId = $"{ElementIdPrefix}-{parameter.Name.Replace('.', '-')}";
+            var settingKey = isSupported ? $"{SettingPrefix}.{parameter.Name}" : null;
+            var value = GetValue(parameter.Name);
+
+            <div class="mb-2 @(isSupported ? null : "d-none")">
+                <label class="form-label" for="@elementId">@(parameter.DisplayName?.Value ?? parameter.Name)</label>
+                @if (parameter.Kind == AIDeploymentParameterKind.Choice)
+                {
+                    <select id="@elementId" class="form-select setting-input" data-setting="@settingKey" disabled="@(!isSupported)">
+                        <option value="">@BuildDefaultLabel(effective)</option>
+                        @foreach (var option in parameter.AllowedValues)
+                        {
+                            var optionSupported = IsOptionSupported(supported, option.Value);
+                            <option value="@option.Value"
+                                    hidden="@(!optionSupported)"
+                                    disabled="@(!optionSupported)"
+                                    selected="@(string.Equals(option.Value, value, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@(option.DisplayName?.Value ?? option.Value)</option>
+                        }
+                    </select>
+                }
+                else if (parameter.Kind == AIDeploymentParameterKind.Boolean)
+                {
+                    <select id="@elementId" class="form-select setting-input" data-setting="@settingKey" disabled="@(!isSupported)">
+                        <option value="">@BuildDefaultLabel(effective)</option>
+                        <option value="true" selected="@(string.Equals("true", value, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Enabled</option>
+                        <option value="false" selected="@(string.Equals("false", value, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Disabled</option>
+                    </select>
+                }
+                else if (parameter.Kind == AIDeploymentParameterKind.Number || parameter.Kind == AIDeploymentParameterKind.Integer)
+                {
+                    <input id="@elementId"
+                           type="number"
+                           class="form-control setting-input"
+                           data-setting="@settingKey"
+                           disabled="@(!isSupported)"
+                           min="@effective.Minimum"
+                           max="@effective.Maximum"
+                           step="@(effective.Step?.ToString(CultureInfo.InvariantCulture) ?? (parameter.Kind == AIDeploymentParameterKind.Integer ? "1" : "any"))"
+                           placeholder="@BuildDefaultLabel(effective)"
+                           value="@value" />
+                }
+                else
+                {
+                    <input id="@elementId" class="form-control setting-input" data-setting="@settingKey" disabled="@(!isSupported)"
+                           placeholder="@BuildDefaultLabel(effective)" value="@value" />
+                }
+                @if (parameter.Description is not null && !string.IsNullOrWhiteSpace(parameter.Description.Value))
+                {
+                    <div class="form-text">@parameter.Description.Value</div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<AIDeploymentParameterDescriptor> _registeredParameters = [];
+    private AIDeploymentCapabilities _capabilities = AIDeploymentCapabilities.Empty;
+    private string _loadedDeploymentName;
+    private bool _hasVisibleParameter;
+
+    /// <summary>
+    /// Gets or sets the technical name of the deployment whose parameters are rendered. An empty name shows
+    /// nothing, because the effective deployment is then resolved by the server at request time.
+    /// </summary>
+    [Parameter]
+    public string DeploymentName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the settings key prefix, either <c>modelParameters</c> or <c>utilityModelParameters</c>.
+    /// </summary>
+    [Parameter]
+    public string SettingPrefix { get; set; } = "modelParameters";
+
+    /// <summary>
+    /// Gets or sets the prefix applied to generated element identifiers so the panel can render more than
+    /// one editor without colliding.
+    /// </summary>
+    [Parameter]
+    public string ElementIdPrefix { get; set; } = "chat-setting-modelParameter";
+
+    /// <summary>
+    /// Gets or sets the heading rendered above the editor.
+    /// </summary>
+    [Parameter]
+    public string Title { get; set; }
+
+    /// <summary>
+    /// Gets or sets the values currently stored, keyed by the registered parameter technical name.
+    /// </summary>
+    [Parameter]
+    public IDictionary<string, string> Values { get; set; }
+
+    /// <inheritdoc />
+    protected override void OnInitialized()
+    {
+        _registeredParameters = CapabilityService.GetRegisteredParameters();
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedDeploymentName is not null
+            && string.Equals(_loadedDeploymentName, DeploymentName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _loadedDeploymentName = DeploymentName ?? string.Empty;
+        _capabilities = string.IsNullOrWhiteSpace(DeploymentName)
+            ? AIDeploymentCapabilities.Empty
+            : await CapabilityService.GetCapabilitiesAsync(DeploymentName);
+
+        _hasVisibleParameter = _registeredParameters.Any(parameter => _capabilities.GetParameter(parameter.Name) is not null);
+    }
+
+    private static bool IsOptionSupported(AIDeploymentParameterDescriptor supported, string value)
+    {
+        if (supported is null)
+        {
+            return false;
+        }
+
+        return supported.AllowedValues is not { Count: > 0 }
+            || supported.AllowedValues.Any(option => string.Equals(option.Value, value, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string GetValue(string parameterName)
+    {
+        return Values is not null && Values.TryGetValue(parameterName, out var value)
+            ? value
+            : string.Empty;
+    }
+
+    private static string BuildDefaultLabel(AIDeploymentParameterDescriptor parameter)
+    {
+        return string.IsNullOrWhiteSpace(parameter.DefaultValue)
+            ? "Use deployment default"
+            : $"Use deployment default ({parameter.DefaultValue})";
+    }
+}

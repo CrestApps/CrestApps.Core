@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
@@ -10,18 +11,42 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDeployment>, IAIDeploymentManager
 {
+    private readonly AIDeploymentSlotOptions _slotOptions;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AIDeploymentManagerBase"/> class using the deployment
+    /// slots that ship with the framework.
+    /// </summary>
+    /// <param name="deploymentStore">The deployment store.</param>
+    /// <param name="handlers">The handlers.</param>
+    /// <param name="logger">The logger.</param>
+    /// <remarks>
+    /// A manager constructed this way does not see slots that modules registered through
+    /// <c>AddAIDeploymentSlot</c>. Prefer the overload that takes the registered options.
+    /// </remarks>
+    public AIDeploymentManagerBase(
+        IAIDeploymentStore deploymentStore,
+        IEnumerable<ICatalogEntryHandler<AIDeployment>> handlers,
+        ILogger<AIDeploymentManagerBase> logger)
+        : this(deploymentStore, handlers, logger, slotOptions: null)
+    {
+    }
+
     /// <summary>
     /// Initializes a new instance of the <see cref="AIDeploymentManagerBase"/> class.
     /// </summary>
     /// <param name="deploymentStore">The deployment store.</param>
     /// <param name="handlers">The handlers.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="slotOptions">The registered deployment slots.</param>
     public AIDeploymentManagerBase(
         IAIDeploymentStore deploymentStore,
         IEnumerable<ICatalogEntryHandler<AIDeployment>> handlers,
-        ILogger<AIDeploymentManagerBase> logger)
+        ILogger<AIDeploymentManagerBase> logger,
+        IOptions<AIDeploymentSlotOptions> slotOptions)
         : base(deploymentStore, handlers, logger)
     {
+        _slotOptions = slotOptions?.Value ?? AIDeploymentSlotOptions.CreateDefault();
     }
 
     /// <summary>
@@ -42,98 +67,70 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         return deployments;
     }
 
-    /// <summary>
-    /// Gets by purpose.
-    /// </summary>
-    /// <param name="purpose">The purpose.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    public async ValueTask<IEnumerable<AIDeployment>> GetByPurposeAsync(AIDeploymentPurpose purpose, CancellationToken cancellationToken = default)
+    /// <inheritdoc/>
+    public async ValueTask<AIDeployment> ResolveSlotAsync(
+        string slotName,
+        string deploymentName = null,
+        string clientName = null,
+        IReadOnlyDictionary<string, string> fallbackDeploymentNames = null,
+        CancellationToken cancellationToken = default)
     {
-        var deployments = (await Catalog.GetAllAsync(cancellationToken))
-            .Where(x => x.SupportsPurpose(purpose));
+        var slot = _slotOptions.Find(slotName);
 
-        foreach (var deployment in deployments)
+        if (slot is null)
         {
-            await LoadAsync(deployment, cancellationToken);
+            return null;
         }
 
-        return deployments;
+        var settings = await GetDefaultAIDeploymentSettingsAsync();
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var current = slot;
+        var terminal = slot;
+
+        while (current is not null && visited.Add(current.Name))
+        {
+            terminal = current;
+
+            var explicitName = ReferenceEquals(current, slot)
+                ? deploymentName
+                : GetFallbackDeploymentName(fallbackDeploymentNames, current.Name);
+
+            var resolved = await FindQualifiedAsync(explicitName, current, cancellationToken);
+
+            if (resolved is not null)
+            {
+                return resolved;
+            }
+
+            resolved = await FindQualifiedAsync(current.GetDefaultDeploymentName?.Invoke(settings), current, cancellationToken);
+
+            if (resolved is not null)
+            {
+                return resolved;
+            }
+
+            current = _slotOptions.Find(current.FallbackSlotName);
+        }
+
+        // Evaluated exactly once, at the very end of the chain. Evaluating it per link would let the first
+        // slot in the chain answer with an arbitrary capable deployment and make every later link dead code.
+        return await GetFirstQualifiedDeploymentAsync(terminal, clientName, cancellationToken);
     }
 
-    /// <summary>
-    /// Gets by legacy type.
-    /// </summary>
-    /// <param name="type">The type.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    [Obsolete("Use GetByPurposeAsync instead.")]
-    public ValueTask<IEnumerable<AIDeployment>> GetByTypeAsync(AIDeploymentType type, CancellationToken cancellationToken = default)
+    /// <inheritdoc/>
+    public async ValueTask<IEnumerable<AIDeployment>> GetAllBySlotAsync(string slotName, string clientName = null, CancellationToken cancellationToken = default)
     {
-        return GetByPurposeAsync(type.ToPurpose(), cancellationToken);
-    }
+        var slot = _slotOptions.Find(slotName);
 
-    /// <summary>
-    /// Gets default.
-    /// </summary>
-    /// <param name="clientName">The client name.</param>
-    /// <param name="purpose">The purpose.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    public async ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentPurpose purpose, CancellationToken cancellationToken = default)
-    {
-        var deployments = await GetAllAsync(clientName, cancellationToken);
+        if (slot is null)
+        {
+            return [];
+        }
 
-        var candidates = deployments.Where(d => d.SupportsPurpose(purpose));
-
-        return candidates.FirstOrDefault();
-    }
-
-    /// <summary>
-    /// Gets default for a legacy type.
-    /// </summary>
-    /// <param name="clientName">The client name.</param>
-    /// <param name="type">The type.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    [Obsolete("Use the purpose overload instead.")]
-    public ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type, CancellationToken cancellationToken = default)
-    {
-        return GetDefaultAsync(clientName, type.ToPurpose(), cancellationToken);
-    }
-
-    /// <summary>
-    /// Resolves or default.
-    /// </summary>
-    /// <param name="purpose">The purpose.</param>
-    /// <param name="deploymentName">The deployment name.</param>
-    /// <param name="clientName">The client name.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    public ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentPurpose purpose, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default)
-    {
-        return ResolveByPurposeAsync(purpose, deploymentName, clientName, cancellationToken);
-    }
-
-    /// <summary>
-    /// Resolves or default for a legacy type.
-    /// </summary>
-    /// <param name="type">The type.</param>
-    /// <param name="deploymentName">The deployment name.</param>
-    /// <param name="clientName">The client name.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    [Obsolete("Use the purpose overload instead.")]
-    public ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default)
-    {
-        return ResolveOrDefaultAsync(type.ToPurpose(), deploymentName, clientName, cancellationToken);
-    }
-
-    /// <summary>
-    /// Gets all by purpose.
-    /// </summary>
-    /// <param name="purpose">The purpose.</param>
-    /// <param name="clientName">The client name.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    public async ValueTask<IEnumerable<AIDeployment>> GetAllByPurposeAsync(AIDeploymentPurpose purpose, string clientName = null, CancellationToken cancellationToken = default)
-    {
         var allDeployments = await GetAllAsync(cancellationToken);
 
-        var filtered = allDeployments.Where(d => d.SupportsPurpose(purpose));
+        var filtered = allDeployments.Where(d => QualifiesForSlot(d, slot));
 
         if (!string.IsNullOrEmpty(clientName))
         {
@@ -144,63 +141,82 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
     }
 
     /// <summary>
-    /// Gets all by legacy type.
+    /// Determines whether a deployment declares the capability the slot requires.
     /// </summary>
-    /// <param name="type">The type.</param>
-    /// <param name="clientName">The client name.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    [Obsolete("Use GetAllByPurposeAsync instead.")]
-    public ValueTask<IEnumerable<AIDeployment>> GetAllByTypeAsync(AIDeploymentType type, string clientName = null, CancellationToken cancellationToken = default)
+    private static bool QualifiesForSlot(AIDeployment deployment, AIDeploymentSlotDescriptor slot)
     {
-        return GetAllByPurposeAsync(type.ToPurpose(), clientName, cancellationToken);
-    }
-
-    private async ValueTask<AIDeployment> ResolveByPurposeAsync(AIDeploymentPurpose purpose, string deploymentName, string clientName, CancellationToken cancellationToken)
-    {
-        if (!string.IsNullOrEmpty(deploymentName))
+        if (deployment is null)
         {
-            var deployment = await FindBySelectorAsync(deploymentName, cancellationToken);
-
-            if (deployment != null)
-            {
-                return deployment;
-            }
+            return false;
         }
 
-        var globalDefaultId = await GetGlobalDefaultSelectorAsync(purpose);
-
-        if (!string.IsNullOrEmpty(globalDefaultId))
+        if (string.IsNullOrWhiteSpace(slot.RequiredFeature) && string.IsNullOrWhiteSpace(slot.ExcludedFeature))
         {
-            var deployment = await FindBySelectorAsync(globalDefaultId, cancellationToken);
-
-            if (deployment != null)
-            {
-                return deployment;
-            }
+            return true;
         }
 
-        return await GetFirstMatchingDeploymentAsync(purpose, clientName, cancellationToken);
+        // A deployment that declares no capability metadata at all is unconstrained. That is what keeps
+        // textGeneration opt-out; every other feature has to be declared.
+        if (!deployment.TryGet<AIDeploymentMetadata>(out var metadata))
+        {
+            return slot.AllowUnconstrained;
+        }
+
+        // Checked before the required feature, because it overrules it: a deployment that declares both
+        // realtime and text generation still cannot serve a text completion.
+        if (!string.IsNullOrWhiteSpace(slot.ExcludedFeature) && metadata.SupportsFeature(slot.ExcludedFeature))
+        {
+            return false;
+        }
+
+        return string.IsNullOrWhiteSpace(slot.RequiredFeature) || metadata.SupportsFeature(slot.RequiredFeature);
     }
 
-    private async ValueTask<AIDeployment> GetFirstMatchingDeploymentAsync(AIDeploymentPurpose purpose, string clientName, CancellationToken cancellationToken)
+    private async ValueTask<AIDeployment> FindQualifiedAsync(string selector, AIDeploymentSlotDescriptor slot, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(selector))
+        {
+            return null;
+        }
+
+        var deployment = await FindBySelectorAsync(selector, cancellationToken);
+
+        if (deployment is null)
+        {
+            return null;
+        }
+
+        return QualifiesForSlot(deployment, slot)
+            ? deployment
+            : null;
+    }
+
+    private async ValueTask<AIDeployment> GetFirstQualifiedDeploymentAsync(AIDeploymentSlotDescriptor slot, string clientName, CancellationToken cancellationToken)
     {
         var deployments = await GetAllAsync(cancellationToken);
 
         return deployments.FirstOrDefault(deployment =>
-                {
-                    if (!deployment.SupportsPurpose(purpose))
-                    {
-                        return false;
-                    }
+        {
+            if (!QualifiesForSlot(deployment, slot))
+            {
+                return false;
+            }
 
-                    if (!string.IsNullOrEmpty(clientName) &&
-                        !string.Equals(deployment.ClientName, clientName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return false;
-                    }
+            if (!string.IsNullOrEmpty(clientName) &&
+                !string.Equals(deployment.ClientName, clientName, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
 
-                    return true;
-                });
+            return true;
+        });
+    }
+
+    private static string GetFallbackDeploymentName(IReadOnlyDictionary<string, string> fallbackDeploymentNames, string slotName)
+    {
+        return fallbackDeploymentNames is not null && fallbackDeploymentNames.TryGetValue(slotName, out var name)
+            ? name
+            : null;
     }
 
     private async ValueTask<AIDeployment> FindBySelectorAsync(string selector, CancellationToken cancellationToken)
@@ -213,23 +229,6 @@ public abstract class AIDeploymentManagerBase : NamedSourceCatalogManager<AIDepl
         }
 
         return await FindByNameAsync(selector, cancellationToken);
-    }
-
-    private async ValueTask<string> GetGlobalDefaultSelectorAsync(AIDeploymentPurpose purpose)
-    {
-        var settings = await GetDefaultAIDeploymentSettingsAsync();
-
-        return purpose switch
-        {
-            AIDeploymentPurpose.Chat => settings.DefaultChatDeploymentName,
-            AIDeploymentPurpose.Utility => settings.DefaultUtilityDeploymentName,
-            AIDeploymentPurpose.Embedding => settings.DefaultEmbeddingDeploymentName,
-            AIDeploymentPurpose.Image => settings.DefaultImageDeploymentName,
-            AIDeploymentPurpose.Vision => settings.DefaultVisionDeploymentName,
-            AIDeploymentPurpose.SpeechToText => settings.DefaultSpeechToTextDeploymentName,
-            AIDeploymentPurpose.TextToSpeech => settings.DefaultTextToSpeechDeploymentName,
-            _ => null,
-        };
     }
 
     /// <summary>

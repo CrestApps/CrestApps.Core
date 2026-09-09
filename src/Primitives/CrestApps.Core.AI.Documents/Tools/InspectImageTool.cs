@@ -167,8 +167,8 @@ public sealed class InspectImageTool : AIFunction
 
         var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
 
-        var deployment = await deploymentManager.ResolveOrDefaultAsync(
-            AIDeploymentPurpose.Vision,
+        var deployment = await deploymentManager.ResolveSlotAsync(
+            AIDeploymentSlotNames.Vision,
             cancellationToken: cancellationToken);
 
         if (deployment == null)

@@ -35,7 +35,7 @@ See [AI Profiles](./ai-profiles.md) for the full conceptual model and guidance.
 
 ### Deployment
 
-A **deployment** maps a logical name to a specific model on a specific provider connection. For example, deployment `"gpt-4o"` might map to the `gpt-4o` model on your OpenAI connection. Deployments now advertise one or more **purposes** through `AIDeploymentPurpose` (`Chat`, `Utility`, `Embedding`, `Image`, `SpeechToText`, `TextToSpeech`, `Vision`) so the runtime can resolve the best deployment for each task while preserving the older legacy type API for backward compatibility.
+A **deployment** maps a logical name to a specific model on a specific provider connection. For example, deployment `"gpt-4o"` might map to the `gpt-4o` model on your OpenAI connection. Deployments declare **model capabilities** (`textGeneration`, `textEmbedding`, `imageOutput`, `imageInput`, `speechToText`, `textToSpeech`, `realtime`, …), and the runtime resolves each task through a **deployment slot** that filters on the capability the job requires. See [Model Capabilities](ai-model-capabilities.md).
 
 The orchestrator resolves deployments at runtime using a fallback chain:
 

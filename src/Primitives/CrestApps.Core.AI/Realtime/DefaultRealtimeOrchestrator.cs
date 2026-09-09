@@ -3,13 +3,13 @@ using CrestApps.Core;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Realtime;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
@@ -24,7 +24,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
 {
     private readonly IOrchestrationContextBuilder _contextBuilder;
     private readonly IAIDeploymentCapabilityService _capabilityService;
-    private readonly IOptionsMonitor<DefaultAIDeploymentSettings> _deploymentSettings;
+    private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _clientFactory;
     private readonly IToolRegistry _toolRegistry;
     private readonly IToolMaterializer _toolMaterializer;
@@ -43,7 +43,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
     public DefaultRealtimeOrchestrator(
         IOrchestrationContextBuilder contextBuilder,
         IAIDeploymentCapabilityService capabilityService,
-        IOptionsMonitor<DefaultAIDeploymentSettings> deploymentSettings,
+        IAIDeploymentManager deploymentManager,
         IAIClientFactory clientFactory,
         IToolRegistry toolRegistry,
         IToolMaterializer toolMaterializer,
@@ -56,7 +56,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
     {
         _contextBuilder = contextBuilder;
         _capabilityService = capabilityService;
-        _deploymentSettings = deploymentSettings;
+        _deploymentManager = deploymentManager;
         _clientFactory = clientFactory;
         _toolRegistry = toolRegistry;
         _toolMaterializer = toolMaterializer;
@@ -104,11 +104,12 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
 
         var hasInvocationScope = PopulateInvocationScope(context, request);
 
-        var realtimeDeploymentName = string.IsNullOrWhiteSpace(request.RealtimeDeploymentName)
-            ? _deploymentSettings.CurrentValue.DefaultRealtimeDeploymentName
-            : request.RealtimeDeploymentName;
-
-        var deployment = await _capabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName, cancellationToken)
+        // Resolved through the realtime slot, so the request's own deployment name, the site default, and
+        // the "first realtime-capable" fallback all come from the same ordered chain every other slot uses.
+        var deployment = await _deploymentManager.ResolveSlotAsync(
+                AIDeploymentSlotNames.Realtime,
+                request.RealtimeDeploymentName,
+                cancellationToken: cancellationToken)
             ?? throw new InvalidOperationException(
                 "Unable to resolve a realtime deployment. Create a chat AI deployment whose model declares the 'realtime' capability.");
 

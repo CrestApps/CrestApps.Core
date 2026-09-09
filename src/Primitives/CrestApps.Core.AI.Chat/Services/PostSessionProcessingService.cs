@@ -1399,20 +1399,9 @@ public sealed class PostSessionProcessingService
             utilityDeploymentName: profile.UtilityDeploymentName,
             chatDeploymentName: profile.ChatDeploymentName);
 
-        // Post-session analytics run text chat completions. When the profile's chat deployment is a realtime
-        // (speech-to-speech) model — which cannot serve a text completion and answers HTTP 400 — fall back to a
-        // text-capable default so analytics still work, and never send the completion to a realtime model.
-        if (deployment != null && !deployment.CanServeTextCompletion())
-        {
-            deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility)
-                ?? await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat);
-
-            if (deployment != null && !deployment.CanServeTextCompletion())
-            {
-                deployment = null;
-            }
-        }
-
+        // Post-session analytics run text chat completions. The utility slot excludes realtime deployments —
+        // which answer a text completion with an HTTP 400 — so the resolved deployment is already text
+        // capable and the defensive re-resolve that used to live here is no longer needed.
         if (deployment != null && !string.IsNullOrEmpty(deployment.ConnectionName) && !string.IsNullOrEmpty(deployment.ModelName))
         {
             return await _clientFactory.CreateChatClientAsync(

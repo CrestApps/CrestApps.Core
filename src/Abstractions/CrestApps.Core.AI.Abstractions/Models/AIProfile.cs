@@ -8,8 +8,10 @@ namespace CrestApps.Core.AI.Models;
 /// Represents an AI profile that encapsulates chat, agent, or embedding configuration
 /// used to drive AI completion behavior across sessions and interactions.
 /// </summary>
-public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTextAwareModel, IModifiedUtcAwareModel, ICloneable<AIProfile>
+public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTextAwareModel, IModifiedUtcAwareModel, ICloneable<AIProfile>, IJsonOnDeserialized
 {
+    private string _legacyRealtimeDeploymentName;
+
     /// <summary>
     /// Gets or sets the technical name of the profile.
     /// </summary>
@@ -50,13 +52,43 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
     /// </summary>
     public string UtilityDeploymentName { get; set; }
 
+    [JsonInclude]
+    [JsonPropertyName("RealtimeDeploymentName")]
+    private string LegacyRealtimeDeploymentName { set => _legacyRealtimeDeploymentName = value; }
+
     /// <summary>
-    /// Gets or sets the realtime deployment technical name for this profile.
-    /// Used by chat profiles whose chat mode is <see cref="ChatMode.Realtime"/> to select the deployment
-    /// that backs the speech-to-speech realtime session. When empty, the site default realtime deployment
-    /// is used.
+    /// Folds a profile written before realtime became a model capability onto
+    /// <see cref="ChatDeploymentName"/>.
     /// </summary>
-    public string RealtimeDeploymentName { get; set; }
+    /// <remarks>
+    /// <para>
+    /// Such a profile named its speech-to-speech model in a separate <c>RealtimeDeploymentName</c> and
+    /// declared a realtime chat mode. Both are gone: the chat deployment is the model the profile converses
+    /// with, and whether that is voice or text follows from the model's own capabilities.
+    /// </para>
+    /// <para>
+    /// The old chat deployment is not discarded. A realtime profile could never answer a typed message, so
+    /// its chat deployment was only ever reachable as the fallback for background work — summarization,
+    /// title generation, data extraction. It moves to the utility deployment when the profile has not named
+    /// one, so that background work keeps running on the model it always did.
+    /// </para>
+    /// </remarks>
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        if (string.IsNullOrWhiteSpace(_legacyRealtimeDeploymentName) ||
+            string.Equals(_legacyRealtimeDeploymentName, ChatDeploymentName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(UtilityDeploymentName))
+        {
+            UtilityDeploymentName = ChatDeploymentName;
+        }
+
+        ChatDeploymentName = _legacyRealtimeDeploymentName;
+        _legacyRealtimeDeploymentName = null;
+    }
 
     /// <summary>
     /// Gets or sets the legacy chat deployment identifier that maps to <see cref="ChatDeploymentName"/>.
@@ -195,7 +227,6 @@ public sealed class AIProfile : SourceCatalogEntry, INameAwareModel, IDisplayTex
 #pragma warning restore CS0618 // Type or member is obsolete
             ChatDeploymentName = ChatDeploymentName,
             UtilityDeploymentName = UtilityDeploymentName,
-            RealtimeDeploymentName = RealtimeDeploymentName,
             TitleType = TitleType,
             WelcomeMessage = WelcomeMessage,
             PromptSubject = PromptSubject,

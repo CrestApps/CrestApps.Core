@@ -224,24 +224,35 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         var speechToTextDeploymentName = connectionSection["SpeechToTextDeploymentName"]
             ?? connectionSection["DefaultSpeechToTextDeploymentName"];
 
+        var textToSpeechDeploymentName = connectionSection["TextToSpeechDeploymentName"]
+            ?? connectionSection["DefaultTextToSpeechDeploymentName"];
+
         var utilityDeploymentName = connectionSection["UtilityDeploymentName"]
             ?? connectionSection["DefaultUtilityDeploymentName"];
 
-        AddConnectionDeployment(deployments, names, clientName, connectionName, chatDeploymentName, AIDeploymentPurpose.Chat | AIDeploymentPurpose.Utility, sectionPath);
-        AddConnectionDeployment(deployments, names, clientName, connectionName, utilityDeploymentName, AIDeploymentPurpose.Utility, sectionPath);
-        AddConnectionDeployment(deployments, names, clientName, connectionName, embeddingDeploymentName, AIDeploymentPurpose.Embedding, sectionPath);
-        AddConnectionDeployment(deployments, names, clientName, connectionName, imagesDeploymentName, AIDeploymentPurpose.Image, sectionPath);
-        AddConnectionDeployment(deployments, names, clientName, connectionName, speechToTextDeploymentName, AIDeploymentPurpose.SpeechToText, sectionPath);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, chatDeploymentName, sectionPath, AIDeploymentFeatureNames.TextGeneration);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, utilityDeploymentName, sectionPath, AIDeploymentFeatureNames.TextGeneration);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, embeddingDeploymentName, sectionPath, AIDeploymentFeatureNames.TextEmbedding);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, imagesDeploymentName, sectionPath, AIDeploymentFeatureNames.ImageOutput);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, speechToTextDeploymentName, sectionPath, AIDeploymentFeatureNames.SpeechToText);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, textToSpeechDeploymentName, sectionPath, AIDeploymentFeatureNames.TextToSpeech);
     }
 
+    /// <summary>
+    /// Adds a deployment synthesized from a connection's well-known deployment-name settings.
+    /// </summary>
+    /// <remarks>
+    /// The capabilities are declared here rather than inferred later: a connection-synthesized deployment is
+    /// read-only in the UI, so an operator has no way to declare them by hand.
+    /// </remarks>
     private void AddConnectionDeployment(
         Dictionary<string, AIDeployment> deployments,
         Dictionary<string, string> names,
         string clientName,
         string connectionName,
         string deploymentName,
-        AIDeploymentPurpose purpose,
-        string sectionPath)
+        string sectionPath,
+        params string[] features)
     {
         if (string.IsNullOrWhiteSpace(deploymentName))
         {
@@ -255,10 +266,14 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
             ModelName = deploymentName,
             Source = clientName,
             ConnectionName = connectionName,
-            Purpose = purpose,
             IsReadOnly = true,
             CreatedUtc = _timeProvider.GetUtcNow().DateTime,
         };
+
+        deployment.Put(new AIDeploymentMetadata
+        {
+            Features = features,
+        });
 
         AddDeployment(deployments, names, deployment, sectionPath);
     }
@@ -329,9 +344,9 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
             Properties = BuildDeploymentProperties(deploymentObject),
         };
 
-        if (TryGetDeploymentCapability(deploymentObject["Purpose"] ?? deploymentObject["Capability"] ?? deploymentObject["Type"], out var deploymentPurpose))
+        if (TryGetLegacyPurposes(deploymentObject["Purpose"] ?? deploymentObject["Capability"] ?? deploymentObject["Type"], out var legacyPurposes))
         {
-            entry.Purpose = deploymentPurpose;
+            entry.LegacyPurposes = legacyPurposes;
         }
 
         return entry;
@@ -344,11 +359,11 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(
-                "Parsed AI deployment configuration entry. Provider: {ProviderName}. Name: {DeploymentName}. Model: {ModelName}. Purpose: {DeploymentPurpose}. Property count: {PropertyCount}.",
+                "Parsed AI deployment configuration entry. Provider: {ProviderName}. Name: {DeploymentName}. Model: {ModelName}. Legacy purposes: {LegacyPurposes}. Property count: {PropertyCount}.",
                 entry.ClientName,
                 entry.Name,
                 entry.ModelName,
-                entry.Purpose,
+                entry.LegacyPurposes is null ? "(none)" : string.Join(", ", entry.LegacyPurposes),
                 entry.Properties?.Count ?? 0);
         }
 
@@ -376,25 +391,34 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
             return null;
         }
 
-        if (!entry.Purpose.IsValidSelection())
-        {
-            _logger.LogWarning("Deployment entry '{Name}' for provider '{ProviderName}' has an invalid Purpose. Skipping.", entry.Name, entry.ClientName);
-
-            return null;
-        }
-
-        return new AIDeployment
+        var deployment = new AIDeployment
         {
             ItemId = AIConfigurationRecordIds.CreateDeploymentId(entry.ClientName, entry.ConnectionName, entry.Name),
             Name = entry.Name,
             ModelName = entry.ModelName,
             Source = entry.ClientName,
             ConnectionName = entry.ConnectionName,
-            Purpose = entry.Purpose,
             IsReadOnly = true,
             CreatedUtc = _timeProvider.GetUtcNow().DateTime,
             Properties = entry.Properties?.Count > 0 ? JsonSerializer.Deserialize<Dictionary<string, object>>(entry.Properties.DeepClone()) : null,
         };
+
+        // Configured deployments are materialized here rather than through the catalog handler, so they do
+        // not pass through its read-time normalization. Project any legacy purpose the configuration still
+        // names, additively over whatever capability metadata it declared.
+        AIDeploymentPurposeCompatibility.Normalize(deployment, entry.LegacyPurposes);
+
+        if (!deployment.TryGet<AIDeploymentMetadata>(out var metadata) || metadata.Features is not { Length: > 0 })
+        {
+            _logger.LogWarning(
+                "Deployment entry '{Name}' for provider '{ProviderName}' declares no model capabilities. Skipping.",
+                entry.Name,
+                entry.ClientName);
+
+            return null;
+        }
+
+        return deployment;
     }
 
     private void AddDeployment(
@@ -501,35 +525,39 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         return value;
     }
 
-    private static bool TryGetDeploymentCapability(JsonNode capabilityNode, out AIDeploymentPurpose capability)
+    /// <summary>
+    /// Reads the legacy purpose names a configured deployment declares, in either the single-value or the
+    /// array shape. The names themselves are validated by
+    /// <see cref="AIDeploymentPurposeCompatibility"/>, which ignores any it does not recognize.
+    /// </summary>
+    private static bool TryGetLegacyPurposes(JsonNode purposeNode, out string[] legacyPurposes)
     {
-        capability = AIDeploymentPurpose.None;
-        if (capabilityNode is null)
+        legacyPurposes = null;
+
+        if (purposeNode is null)
         {
             return false;
         }
 
-        if (capabilityNode is JsonArray array)
+        if (purposeNode is JsonArray array)
         {
-            foreach (var item in array)
-            {
-                var capabilityName = item.GetStringValue();
-                if (string.IsNullOrWhiteSpace(capabilityName) || !Enum.TryParse<AIDeploymentPurpose>(capabilityName, ignoreCase: true, out var parsedCapability) || parsedCapability == AIDeploymentPurpose.None)
-                {
-                    capability = AIDeploymentPurpose.None;
+            legacyPurposes = [.. array
+                .Select(static item => item.GetStringValue())
+                .Where(static name => !string.IsNullOrWhiteSpace(name))];
 
-                    return false;
-                }
-
-                capability |= parsedCapability;
-            }
-
-            return capability.IsValidSelection();
+            return legacyPurposes.Length > 0;
         }
 
-        var singleCapabilityName = capabilityNode.GetStringValue();
+        var singleName = purposeNode.GetStringValue();
 
-        return !string.IsNullOrWhiteSpace(singleCapabilityName) && Enum.TryParse(singleCapabilityName, ignoreCase: true, out capability) && capability.IsValidSelection();
+        if (string.IsNullOrWhiteSpace(singleName))
+        {
+            return false;
+        }
+
+        legacyPurposes = [singleName];
+
+        return true;
     }
 
     private static JsonObject BuildDeploymentProperties(JsonObject deploymentObject)

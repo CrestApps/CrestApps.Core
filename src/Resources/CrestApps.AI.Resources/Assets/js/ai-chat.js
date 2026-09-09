@@ -708,7 +708,7 @@
                     ttsInstanceId: 'ai-chat-' + Math.random().toString(36).slice(2),
                     singleResponseMode: !!config.singleResponseMode,
                     conversationModeEnabled: config.chatMode === 'Conversation',
-                    realtimeEnabled: config.chatMode === 'Realtime' || !!config.realtimeEnabled,
+                    realtimeEnabled: !!config.realtimeEnabled,
                     // Server-relay WebRTC transport: primary when advertised and supported; the client falls back
                     // to the WebSocket path below if the peer cannot connect.
                     realtimeWebRtcEnabled: config.realtimeWebRtcEnabled === true && typeof window.RTCPeerConnection === 'function',

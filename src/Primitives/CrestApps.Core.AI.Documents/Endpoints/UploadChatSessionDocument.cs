@@ -148,11 +148,11 @@ public static class UploadChatSessionDocument
             }
 
             var deployment = await ResolveSessionDeploymentAsync(profile, deploymentManager);
-            var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Embedding, clientName: deployment?.ClientName);
+            var embeddingDeployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Embedding, clientName: deployment?.ClientName);
             var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
 
             profile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMetadata);
-            var visionDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision);
+            var visionDeployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Vision);
             var allowVisionImages = sessionDocMetadata?.AllowSessionImageUploads == true && visionDeployment != null;
             var logger = loggerFactory.CreateLogger("AIChatDocumentEndpoints");
             var S = localizerFactory.Create(typeof(AIChatDocumentEndpointBase));

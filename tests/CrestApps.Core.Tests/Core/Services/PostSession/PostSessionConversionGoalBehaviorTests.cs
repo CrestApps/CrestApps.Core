@@ -833,18 +833,22 @@ public sealed class PostSessionConversionGoalBehaviorTests
 
         if (configureChatClient)
         {
-            deploymentManager.Setup(manager => manager.ResolveOrDefaultAsync(
-                It.IsAny<AIDeploymentPurpose>(),
+            var deployment = new AIDeployment
+            {
+                ItemId = "test-deployment-id",
+                Name = TestDeploymentName,
+                ClientName = TestProviderName,
+                ConnectionName = TestConnectionName,
+            };
+
+            // Post-session work resolves the utility slot, which walks the slot chain instead of the purpose overload.
+            deploymentManager.Setup(manager => manager.ResolveSlotAsync(
                 It.IsAny<string>(),
-                It.IsAny<string>()))
-                .ReturnsAsync(new AIDeployment
-                {
-                    ItemId = "test-deployment-id",
-                    Name = TestDeploymentName,
-                    ClientName = TestProviderName,
-                    ConnectionName = TestConnectionName,
-                    Purpose = AIDeploymentPurpose.Chat,
-                });
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                It.IsAny<CancellationToken>()))
+                .ReturnsAsync(deployment);
             clientFactory.Setup(factory => factory.CreateChatClientAsync(
                 It.IsAny<AIDeployment>(),
                 It.IsAny<Action<ChatClientBuilder>>()))
