@@ -1447,6 +1447,11 @@
         startRealtimeWebRtcConversation();
         return;
       }
+
+      // Starting on WebSocket without even attempting WebRTC is a deployment fact worth stating once. The
+      // console is otherwise indistinguishable from a healthy WebRTC session, so "no warning" gets read as
+      // "WebRTC is working" when it can equally mean the server never offered the transport at all.
+      logWebSocketTransportReason(webRtcEnabled ? 'a WebRTC attempt already failed earlier in this browser session' : 'the server did not advertise the WebRTC transport');
       startRealtimeWebSocketConversation();
     }
     function startRealtimeWebSocketConversation() {
@@ -1944,6 +1949,14 @@
       ensurePlayback(el, function () {
         setRealtimeState('playback-blocked');
       });
+    }
+
+    // Says why a realtime session is running on the WebSocket transport when it never attempted WebRTC.
+    // The connect-time fallback reports its own reason instead (see fallbackToWebSocket).
+    function logWebSocketTransportReason(reason) {
+      if (window.console && console.warn) {
+        console.warn('Realtime is using the WebSocket transport (' + reason + '); acoustic echo cancellation is weaker than on WebRTC.');
+      }
     }
 
     // Connect-time only: tear down the failed WebRTC attempt and restart on the known-good WebSocket path.
