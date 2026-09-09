@@ -187,6 +187,11 @@ builder.Services
      )
  );
 
+// AIChatHub needs the same hub options ChatInteractionHub gets above. HubOptions<THub> is per concrete hub
+// type, so a hub that is mapped without this call silently runs on SignalR's defaults -- including one parallel
+// invocation per client, which starves the trickled ICE candidates a realtime WebRTC session depends on.
+builder.Services.ConfigureCrestAppsChatHubOptions<AIChatHub>();
+
 // Opt into the strategy-based web crawlers feature and its EntityCore stores. Web crawlers scrape sites
 // (starting with sitemap discovery) into any "Web" AI data source.
 builder.Services.AddCoreWebCrawlers();
