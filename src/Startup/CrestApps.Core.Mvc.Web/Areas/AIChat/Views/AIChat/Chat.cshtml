@@ -63,7 +63,9 @@
             _ => ChatMode.TextInput,
         };
     var conversationModeEnabled = chatMode == ChatMode.Conversation;
-    var realtimeWebRtcEnabled = Context.RequestServices.GetService(typeof(CrestApps.Core.AI.Realtime.IWebRtcRealtimePeerFactory)) is not null;
+    @* realtimeEnabled is resolved above from the deployment's own capability, which is the single
+       answer to this question now that ChatMode.Realtime is gone. *@
+    var realtimeWebRtcEnabled = CrestApps.Core.AI.Chat.Realtime.RealtimeTransportSettings.IsWebRtcEnabled(Context.RequestServices);
     var ttsVoiceName = chatModeSettings?.VoiceName ?? defaultDeploymentSettings.DefaultTextToSpeechVoiceId;
     var realtimeVoiceName = chatModeSettings?.VoiceName ?? defaultDeploymentSettings.DefaultRealtimeVoiceId;
 }
