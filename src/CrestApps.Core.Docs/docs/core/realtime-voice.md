@@ -356,6 +356,19 @@ are stripped before the model sees them, and the orchestrator logs an error nami
 session with tools but without an ambient `AIInvocationScope` now throws rather than letting every tool call
 return an error string the model would relay as "I don't have that information".
 
+### The vector store has to be configured
+
+Grounding is only as good as the index behind it. A data source resolves its content manager from **its index
+profile's provider**, so the connection for that provider must be configured in the host. An unconfigured one
+throws on every search, and the profile then answers as though its knowledge base were empty — which for an
+`IsInScope` profile means a confident "that information is not available in the current data sources" on every
+question, with nothing in the grounding log to suggest a misconfiguration.
+
+Locally the Aspire AppHost supplies this: it provisions `pgvector/pgvector:pg16` and injects
+`CrestApps__PostgreSQL__ConnectionString` into both sample hosts. Running a sample host **on its own does not**,
+so a profile whose index profile is PostgreSQL retrieves nothing until `CrestApps:PostgreSQL:ConnectionString` is
+set another way.
+
 ## Turn bookkeeping
 
 Two things about realtime turns are not obvious and shape how the transcript is built.
@@ -559,6 +572,12 @@ What each line tells you:
   name the switch that disabled it.
 - **"added nothing"** — retrieval ran and the index returned nothing relevant for that utterance. The model still
   answers, and the search tool remains available to it.
+- **"found no relevant content" on _every_ turn** — check the index provider's own logger before concluding the
+  corpus is thin. A store that cannot be reached fails inside its content manager, which logs the failure under
+  its own name (`PostgreSQLDataSourceContentManager`, and its peers) and hands back an empty result. Grounding
+  cannot tell that apart from a genuine miss, so it reports an ordinary empty turn while every knowledge question
+  goes unanswered. `PostgreSQL is not configured. A connection string is required.` is the usual culprit; see
+  [The vector store has to be configured](#the-vector-store-has-to-be-configured).
 - **"still running after 700 ms, so the wait is covered"** (Information) — the index is slower than the
   acknowledgement deadline. This is the line that explains why some turns say "let me look that up" and others
   do not.
