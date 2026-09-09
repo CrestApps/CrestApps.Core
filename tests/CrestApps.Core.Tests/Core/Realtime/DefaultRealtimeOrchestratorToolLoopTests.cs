@@ -2,6 +2,7 @@
 #nullable enable
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
@@ -74,11 +75,152 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         Assert.Contains("TOOL_RESULT", result!.Result?.ToString());
     }
 
+    [Fact]
+    public async Task StartAsync_WithToolsButNoInvocationScope_Throws()
+    {
+        // Every tool call would come back as "requires an active AI execution context" in plain text, and the
+        // model would relay that to the user as not knowing the answer. Fail where the cause is visible.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var fakeClient = new FakeRealtimeClient(new FakeRealtimeSession([]));
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(profile, new EchoTool(), fakeClient, requestServices);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => orchestrator.StartAsync(
+            new RealtimeOrchestrationRequest { Resource = profile },
+            TestContext.Current.CancellationToken));
+
+        Assert.Contains("AIInvocationScope", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StartAsync_WhenGroundingIsAvailable_DefersResponseCreationToTheHost()
+    {
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new FakeRealtimeSession([]);
+        var grounding = new FakeRealtimeTurnGrounding(available: true);
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(profile, new EchoTool(), new FakeRealtimeClient(session), requestServices, grounding);
+
+        using var scope = AIInvocationScope.Begin();
+
+        await using var conversation = await orchestrator.StartAsync(
+            new RealtimeOrchestrationRequest { Resource = profile },
+            TestContext.Current.CancellationToken);
+
+        // The provider must not answer on its own; the host answers once it has retrieved for the turn.
+        var turnDetection = Assert.IsType<RealtimeTurnDetectionOverrides>(session.Options!.RawRepresentationFactory!());
+        Assert.False(turnDetection.CreateResponse);
+        Assert.False(conversation.RespondsAutomatically);
+
+        Assert.True(await conversation.GroundTurnAsync("what is the refund policy", TestContext.Current.CancellationToken));
+        Assert.Equal("what is the refund policy", Assert.Single(grounding.Utterances));
+    }
+
+    [Fact]
+    public async Task StartAsync_WhenGroundingIsUnavailable_LeavesTheProviderAnswering()
+    {
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new FakeRealtimeSession([]);
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(profile, new EchoTool(), new FakeRealtimeClient(session), requestServices);
+
+        using var scope = AIInvocationScope.Begin();
+
+        await using var conversation = await orchestrator.StartAsync(
+            new RealtimeOrchestrationRequest { Resource = profile },
+            TestContext.Current.CancellationToken);
+
+        var turnDetection = Assert.IsType<RealtimeTurnDetectionOverrides>(session.Options!.RawRepresentationFactory!());
+        Assert.True(turnDetection.CreateResponse);
+        Assert.True(conversation.RespondsAutomatically);
+    }
+
+    [Fact]
+    public async Task StartAsync_WithMoreToolsThanTheThreshold_ScopesThemAndKeepsTheKnowledgeSearch()
+    {
+        // Every tool sits in the model's context on every turn of a voice session, and selection accuracy falls
+        // off as the list grows. Past chat's own threshold the set is trimmed — but never the knowledge search,
+        // which the data-source handler marks as must-include.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var search = new EchoTool();
+        var session = new FakeRealtimeSession([]);
+        var options = new DefaultOrchestratorOptions();
+
+        var entries = Enumerable.Range(1, options.ScopingThreshold + 10)
+            .Select(i => new ToolRegistryEntry { Id = $"mcp:conn:tool_{i}", Name = $"tool_{i}", Description = $"Unrelated capability {i}", Source = ToolRegistryEntrySource.McpServer })
+            .Append(new ToolRegistryEntry { Id = search.Name, Name = search.Name, Source = ToolRegistryEntrySource.System })
+            .ToList();
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(profile, search, new FakeRealtimeClient(session), requestServices, registryEntries: entries);
+
+        using var scope = AIInvocationScope.Begin();
+
+        await using var conversation = await orchestrator.StartAsync(
+            new RealtimeOrchestrationRequest
+            {
+                Resource = profile,
+                ConfigureContext = ctx => ctx.MustIncludeTools.Add(search.Name),
+            },
+            TestContext.Current.CancellationToken);
+
+        var sessionTools = session.Options!.Tools!.OfType<AIFunction>().Select(f => f.Name).ToList();
+
+        Assert.True(sessionTools.Count <= options.InitialToolCount + 1, $"Expected at most {options.InitialToolCount + 1} tools, got {sessionTools.Count}.");
+        Assert.True(sessionTools.Count < entries.Count, "The set was not trimmed.");
+        Assert.Contains(search.Name, sessionTools);
+    }
+
+    [Fact]
+    public async Task StartAsync_WithinTheThreshold_PassesEveryToolThrough()
+    {
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var tool = new EchoTool();
+        var session = new FakeRealtimeSession([]);
+        var options = new DefaultOrchestratorOptions();
+
+        var entries = Enumerable.Range(1, options.ScopingThreshold - 1)
+            .Select(i => new ToolRegistryEntry { Id = $"t{i}", Name = $"tool_{i}", Source = ToolRegistryEntrySource.Local })
+            .Append(new ToolRegistryEntry { Id = tool.Name, Name = tool.Name, Source = ToolRegistryEntrySource.System })
+            .ToList();
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(profile, tool, new FakeRealtimeClient(session), requestServices, registryEntries: entries);
+
+        using var scope = AIInvocationScope.Begin();
+
+        await using var conversation = await orchestrator.StartAsync(
+            new RealtimeOrchestrationRequest { Resource = profile },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(entries.Count, session.Options!.Tools!.Count);
+    }
+
+    /// <summary>
+    /// A function that exists only to be counted.
+    /// </summary>
+    private sealed class StubFunction : AIFunction
+    {
+        public StubFunction(string name) => Name = name;
+
+        public override string Name { get; }
+
+        public override string Description => "stub";
+
+        protected override ValueTask<object?> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
+            => new("ok");
+    }
+
     private static DefaultRealtimeOrchestrator CreateOrchestrator(
         AIProfile profile,
         AIFunction tool,
         IRealtimeClient client,
-        IServiceProvider requestServices)
+        IServiceProvider requestServices,
+        IRealtimeTurnGrounding? grounding = null,
+        IReadOnlyList<ToolRegistryEntry>? registryEntries = null)
     {
         var context = new OrchestrationContext
         {
@@ -107,12 +249,17 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         var toolRegistry = new Mock<IToolRegistry>();
         toolRegistry
             .Setup(r => r.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([new ToolRegistryEntry { Id = tool.Name, Name = tool.Name, Source = ToolRegistryEntrySource.System }]);
+            .ReturnsAsync(registryEntries ?? [new ToolRegistryEntry { Id = tool.Name, Name = tool.Name, Source = ToolRegistryEntrySource.System }]);
 
+        // Materialize one stub function per entry so the session's tool count mirrors what scoping let through.
         var materializer = new Mock<IToolMaterializer>();
         materializer
             .Setup(m => m.MaterializeAsync(It.IsAny<IReadOnlyList<ToolRegistryEntry>>(), It.IsAny<ToolMaterializationOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ToolMaterializationResult { Tools = [tool] });
+            .ReturnsAsync((IReadOnlyList<ToolRegistryEntry> entries, ToolMaterializationOptions _, CancellationToken _) =>
+                new ToolMaterializationResult
+                {
+                    Tools = entries.Select(entry => entry.Name == tool.Name ? tool : (AITool)new StubFunction(entry.Name)).ToList(),
+                });
 
         return new DefaultRealtimeOrchestrator(
             contextBuilder,
@@ -122,6 +269,8 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
             toolRegistry.Object,
             materializer.Object,
             new DefaultRealtimeSessionConfigurator(),
+            grounding ?? UngroundedTurnGrounding.Instance,
+            new ToolRelevanceScoper(new LuceneTextTokenizer(), new DefaultOrchestratorOptions()),
             requestServices,
             NullLoggerFactory.Instance,
             NullLogger<DefaultRealtimeOrchestrator>.Instance);

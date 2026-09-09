@@ -2,6 +2,7 @@ using CrestApps.Core.AI;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Realtime;
 using CrestApps.Core.Templates.Services;
 
 namespace CrestApps.Core.Tests.Core.Realtime;
@@ -70,11 +71,30 @@ public sealed class RealtimeRagGuidanceHandlerTests
         Assert.Equal(0, context.OrchestrationContext.SystemMessageBuilder.Length);
     }
 
+    [Fact]
+    public async Task BuiltAsync_Realtime_WhenTheSessionIsGrounded_InjectsResponseGuidelinesInsteadOfSearchGuidance()
+    {
+        // The session retrieves for every turn and hands the model the knowledge before it answers. Telling it to
+        // go and search anyway is untrue, and costs a tool round-trip per spoken turn on top of the search that
+        // already ran. This matches the text path, which only asks for a search when nothing was retrieved.
+        var profile = new AIProfile();
+        profile.Put(new AIDataSourceRagMetadata { IsInScope = true });
+
+        var context = BuiltContext(profile, ExecutionMode: OrchestrationExecutionMode.Realtime, dataSourceId: "ds-1", grounded: true);
+        var template = new RecordingTemplateService();
+
+        await new RealtimeRagGuidanceHandler(template).BuiltAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.Equal(AITemplateIds.RagResponseGuidelines, template.LastId);
+        Assert.Contains("GUIDANCE:" + AITemplateIds.RagResponseGuidelines, context.OrchestrationContext.SystemMessageBuilder.ToString());
+    }
+
     private static OrchestrationContextBuiltContext BuiltContext(
         AIProfile profile,
         OrchestrationExecutionMode ExecutionMode,
         string dataSourceId,
-        bool disableTools = false)
+        bool disableTools = false,
+        bool grounded = false)
     {
         var context = new OrchestrationContext
         {
@@ -86,6 +106,8 @@ public sealed class RealtimeRagGuidanceHandlerTests
                 DisableTools = disableTools,
             },
         };
+
+        context.Properties[RealtimeOrchestrationContextKeys.GroundingEnabled] = grounded;
 
         return new OrchestrationContextBuiltContext(profile, context);
     }

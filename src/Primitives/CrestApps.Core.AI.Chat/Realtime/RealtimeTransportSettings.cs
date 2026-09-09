@@ -43,4 +43,34 @@ public static class RealtimeTransportSettings
 
         return minutes > 0 ? TimeSpan.FromMinutes(minutes) : null;
     }
+
+    /// <summary>
+    /// Gets how long knowledge retrieval may run on a grounded session before the assistant covers the wait with
+    /// a spoken acknowledgement, or <see langword="null"/> when it should never speak one.
+    /// </summary>
+    /// <param name="services">The service provider to resolve the transport options from.</param>
+    public static TimeSpan? GetGroundingAcknowledgementDelay(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        var milliseconds = services.GetService<IOptions<RealtimeTransportOptions>>()?.Value.GroundingAcknowledgementDelayMs
+            ?? new RealtimeTransportOptions().GroundingAcknowledgementDelayMs;
+
+        return milliseconds > 0 ? TimeSpan.FromMilliseconds(milliseconds) : null;
+    }
+
+    /// <summary>
+    /// Gets how long a committed turn may go unanswered on a grounded session before a reply is requested
+    /// anyway, or <see langword="null"/> when the backstop is disabled.
+    /// </summary>
+    /// <param name="services">The service provider to resolve the transport options from.</param>
+    public static TimeSpan? GetGroundingResponseWatchdog(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        var seconds = services.GetService<IOptions<RealtimeTransportOptions>>()?.Value.GroundingResponseWatchdogSeconds
+            ?? new RealtimeTransportOptions().GroundingResponseWatchdogSeconds;
+
+        return seconds > 0 ? TimeSpan.FromSeconds(seconds) : null;
+    }
 }

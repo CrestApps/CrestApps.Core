@@ -10,6 +10,7 @@
 @using CrestApps.Core.AI.DataSources
 @using CrestApps.Core.AI.Documents
 @using CrestApps.Core.AI.Documents.Models
+@using CrestApps.Core.AI.Mcp
 @using CrestApps.Core.AI.Mcp.Models
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Orchestration
@@ -31,6 +32,7 @@
 @inject ICatalog<AIDeployment> DeploymentCatalog
 @inject ICatalog<A2AConnection> A2ACatalog
 @inject ICatalog<McpConnection> McpCatalog
+@inject IMcpServerMetadataCacheProvider McpMetadata
 @inject ISourceCatalog<AIToolInstance> ToolInstanceCatalog
 @inject IAIDataSourceStore DataSourceStore
 @inject IAIDocumentStore DocumentStore
@@ -646,6 +648,52 @@ else if (_model != null)
                                             <br /><small class="text-muted">@c.Source</small>
                                         }
                                     </label>
+                                    @if (c.IsSelected)
+                                    {
+                                        <div class="ms-4 mt-2 mb-3 border-start ps-3">
+                                            <div class="form-check form-switch mb-2">
+                                                <input class="form-check-input" type="checkbox" checked="@c.UseAllTools" @onchange="e => SetMcpUseAllTools(c.ItemId, (bool)e.Value)" id="mcp_all_@c.ItemId" />
+                                                <label class="form-check-label" for="mcp_all_@c.ItemId">Use all tools@(c.ToolsLoaded ? $" ({c.Tools.Count})" : string.Empty)</label>
+                                            </div>
+                                            @if (!c.UseAllTools)
+                                            {
+                                                @if (!string.IsNullOrEmpty(c.ToolsError))
+                                                {
+                                                    <div class="form-text text-danger">@c.ToolsError</div>
+                                                }
+                                                else if (!c.ToolsLoaded)
+                                                {
+                                                    <div class="form-text"><i class="fa-solid fa-spinner fa-spin"></i> Loading tools...</div>
+                                                }
+                                                else if (c.Tools.Count == 0)
+                                                {
+                                                    <div class="form-text">This connection exposes no tools.</div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="mb-2 small">
+                                                        <button type="button" class="btn btn-link btn-sm p-0" @onclick="() => SetAllMcpTools(c.ItemId, true)">Select all</button>
+                                                        <span class="text-muted mx-1">|</span>
+                                                        <button type="button" class="btn btn-link btn-sm p-0" @onclick="() => SetAllMcpTools(c.ItemId, false)">Deselect all</button>
+                                                    </div>
+                                                    @foreach (var tool in c.Tools)
+                                                    {
+                                                        <div class="form-check mb-1">
+                                                            <input class="form-check-input" type="checkbox" checked="@tool.IsSelected" @onchange="e => ToggleMcpTool(c.ItemId, tool.Name, (bool)e.Value)" id="mcp_@(c.ItemId)_@tool.Name" />
+                                                            <label class="form-check-label" for="mcp_@(c.ItemId)_@tool.Name">
+                                                                <code>@tool.Name</code>
+                                                                @if (!string.IsNullOrEmpty(tool.Description))
+                                                                {
+                                                                    <br /><small class="text-muted">@tool.Description</small>
+                                                                }
+                                                            </label>
+                                                        </div>
+                                                    }
+                                                }
+                                            }
+                                            <div class="form-text">Take the few tools this profile needs rather than the whole server. A model picks well from a short list and poorly from a long one, and in a voice session every tool rides along on every turn.</div>
+                                        </div>
+                                    }
                                 </div>
                             }
                         }
@@ -1267,13 +1315,89 @@ else if (_model != null)
         _model.SelectedAgentNames = _model.AvailableAgents.Where(a => a.IsSelected).Select(a => a.Name).ToArray();
         _model.SelectedA2AConnectionIds = _model.AvailableA2AConnections.Where(c => c.IsSelected).Select(c => c.ItemId).ToArray();
         _model.SelectedMcpConnectionIds = _model.AvailableMcpConnections.Where(c => c.IsSelected).Select(c => c.ItemId).ToArray();
+        _model.SelectedMcpToolNames = BuildMcpToolSelections();
         _model.SelectedToolInstanceNames = _model.AvailableToolInstances.Where(i => i.IsSelected).Select(i => i.Name).ToArray();
     }
 
     private void ToggleTool(string name, bool v) { var t = _model.AvailableTools.FirstOrDefault(x => x.Name == name); if (t != null) t.IsSelected = v; }
     private void ToggleAgent(string name, bool v) { var a = _model.AvailableAgents.FirstOrDefault(x => x.Name == name); if (a != null) a.IsSelected = v; }
     private void ToggleA2A(string id, bool v) { var c = _model.AvailableA2AConnections.FirstOrDefault(x => x.ItemId == id); if (c != null) c.IsSelected = v; }
-    private void ToggleMcp(string id, bool v) { var c = _model.AvailableMcpConnections.FirstOrDefault(x => x.ItemId == id); if (c != null) c.IsSelected = v; }
+    private async Task ToggleMcp(string id, bool v)
+    {
+        var c = _model.AvailableMcpConnections.FirstOrDefault(x => x.ItemId == id);
+        if (c == null) return;
+        c.IsSelected = v;
+        if (v && !c.UseAllTools) await LoadMcpToolsAsync(c);
+    }
+
+    private async Task SetMcpUseAllTools(string id, bool useAll)
+    {
+        var c = _model.AvailableMcpConnections.FirstOrDefault(x => x.ItemId == id);
+        if (c == null) return;
+        c.UseAllTools = useAll;
+        if (!useAll) await LoadMcpToolsAsync(c);
+    }
+
+    private void ToggleMcpTool(string connectionId, string toolName, bool v)
+    {
+        var tool = _model.AvailableMcpConnections.FirstOrDefault(x => x.ItemId == connectionId)?.Tools.FirstOrDefault(t => t.Name == toolName);
+        if (tool != null) tool.IsSelected = v;
+    }
+
+    private void SetAllMcpTools(string connectionId, bool v)
+    {
+        var c = _model.AvailableMcpConnections.FirstOrDefault(x => x.ItemId == connectionId);
+        if (c == null) return;
+        foreach (var tool in c.Tools) tool.IsSelected = v;
+    }
+
+    // Loads a connection's tools only when someone is choosing among them: it is a round-trip to the MCP server,
+    // and a connection that takes every tool never needs the list.
+    private async Task LoadMcpToolsAsync(McpConnectionSelectionItem item)
+    {
+        if (item.ToolsLoaded || !string.IsNullOrEmpty(item.ToolsError)) return;
+
+        try
+        {
+            var connection = await McpCatalog.FindByIdAsync(item.ItemId);
+            var capabilities = connection is null ? null : await McpMetadata.GetCapabilitiesAsync(connection);
+            var selected = _model.SelectedMcpToolNames.TryGetValue(item.ItemId, out var names) && names is not null
+                ? new HashSet<string>(names, StringComparer.Ordinal)
+                : null;
+
+            item.Tools = (capabilities?.Tools ?? [])
+                .Where(t => !string.IsNullOrWhiteSpace(t.Name))
+                .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(t => new McpToolSelectionItem { Name = t.Name, Description = t.Description, IsSelected = selected is null || selected.Contains(t.Name) })
+                .ToList();
+            item.ToolsLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            item.ToolsError = $"Could not load this connection's tools: {ex.Message}";
+        }
+    }
+
+    // A connection whose tools could not be loaded keeps whatever subset was saved before, rather than silently
+    // widening back to every tool because a server happened to be down while the profile was edited.
+    private Dictionary<string, string[]> BuildMcpToolSelections()
+    {
+        var selections = new Dictionary<string, string[]>(StringComparer.Ordinal);
+
+        foreach (var c in _model.AvailableMcpConnections.Where(c => c.IsSelected && !c.UseAllTools))
+        {
+            if (c.ToolsLoaded)
+            {
+                selections[c.ItemId] = c.Tools.Where(t => t.IsSelected).Select(t => t.Name).ToArray();
+            }
+            else if (_model.SelectedMcpToolNames.TryGetValue(c.ItemId, out var existing) && existing is not null)
+            {
+                selections[c.ItemId] = existing;
+            }
+        }
+
+        return selections;
+    }
     private void ToggleToolInstance(string id, bool v) { var i = _model.AvailableToolInstances.FirstOrDefault(x => x.ItemId == id); if (i != null) i.IsSelected = v; }
     private void SelectAllTools() { foreach (var t in _model.AvailableTools) t.IsSelected = true; }
     private void DeselectAllTools() { foreach (var t in _model.AvailableTools) t.IsSelected = false; }
@@ -1450,6 +1574,17 @@ else if (_model != null)
         var selectedMcpIds = new HashSet<string>(_model.SelectedMcpConnectionIds ?? [], StringComparer.Ordinal);
         _model.AvailableMcpConnections = mcpConnections.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase)
             .Select(c => new McpConnectionSelectionItem { ItemId = c.ItemId, DisplayText = c.DisplayText, Source = c.Source, IsSelected = selectedMcpIds.Contains(c.ItemId) }).ToList();
+
+        foreach (var c in _model.AvailableMcpConnections)
+        {
+            c.UseAllTools = !_model.SelectedMcpToolNames.ContainsKey(c.ItemId);
+
+            // A saved subset needs its list on screen straight away; an all-tools connection can wait until asked.
+            if (c.IsSelected && !c.UseAllTools)
+            {
+                await LoadMcpToolsAsync(c);
+            }
+        }
 
         var toolInstances = await ToolInstanceCatalog.GetAllAsync();
         var selectedToolInstanceNames = new HashSet<string>(_model.SelectedToolInstanceNames ?? [], StringComparer.OrdinalIgnoreCase);

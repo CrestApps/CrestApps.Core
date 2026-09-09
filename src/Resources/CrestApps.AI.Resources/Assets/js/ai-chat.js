@@ -1,4 +1,4 @@
-window.coreAIChatManager = function () {
+﻿window.coreAIChatManager = function () {
 
     // Defaults (can be overridden by instanceConfig)
     var defaultConfig = {
@@ -2198,8 +2198,19 @@ window.coreAIChatManager = function () {
                         getVoiceName: function () { return self.realtimeVoiceName || ''; },
                         realtimeEnabled: true,
                         // The conversation button doubles as the realtime button on this host; the module owns its
-                        // click, label and state from here on.
-                        selectors: { realtimeButton: config.conversationButtonElementSelector },
+                        // click, label and state from here on. The text controls are handed over too so the module
+                        // hides them: realtime is audio-only, and a message box that plays no part in a spoken
+                        // conversation only invites the user to type into it.
+                        //
+                        // conversationButton is deliberately not passed. It is the same element as the realtime
+                        // button here, and the module hides the conversation button before showing the realtime
+                        // one -- naming it twice would ask it to hide the control it then has to show.
+                        selectors: {
+                            realtimeButton: config.conversationButtonElementSelector,
+                            input: config.inputElementSelector,
+                            sendButton: config.sendButtonElementSelector,
+                            micButton: config.micButtonElementSelector
+                        },
                         onActivate: function () {
                             self.isConversationMode = true;
                             self._conversationAssistantMessage = null;

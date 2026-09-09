@@ -9,11 +9,51 @@ namespace CrestApps.Core.AI.Realtime;
 public interface IRealtimeConversation : IAsyncDisposable
 {
     /// <summary>
+    /// Gets a value indicating whether the provider creates a response on its own as soon as it decides the user
+    /// has finished speaking. When <see langword="false"/> the session was opened with response creation deferred
+    /// to the host, which must call <see cref="RequestResponseAsync"/> once it has finished preparing the turn —
+    /// otherwise the model never answers.
+    /// </summary>
+    bool RespondsAutomatically { get; }
+
+    /// <summary>
     /// Appends a chunk of the user's input audio (PCM16) to the session's input buffer.
     /// </summary>
     /// <param name="audio">The PCM16 audio bytes.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     Task SendAudioAsync(ReadOnlyMemory<byte> audio, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves knowledge relevant to what the user just said and adds it to the conversation, so the model
+    /// answers from the knowledge base instead of from whatever it happens to remember. Does nothing when the
+    /// session was not opened with grounding (see <see cref="RespondsAutomatically"/>).
+    /// </summary>
+    /// <param name="utterance">The transcript of the user's utterance.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns><see langword="true"/> when retrieved context was added to the conversation; otherwise <see langword="false"/>.</returns>
+    Task<bool> GroundTurnAsync(string utterance, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Asks the model to answer now. Only needed when <see cref="RespondsAutomatically"/> is
+    /// <see langword="false"/>; calling it on a session that responds automatically would produce a second,
+    /// duplicate reply, so it is a no-op there.
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    Task RequestResponseAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Asks the model to speak a short acknowledgement — "let me look that up" — to cover a wait the user would
+    /// otherwise hear as silence.
+    /// </summary>
+    /// <remarks>
+    /// The response is requested out-of-band: it is spoken but never added to the conversation, so the model does
+    /// not later see itself having said it, and it cannot call tools or run long. Like
+    /// <see cref="RequestResponseAsync"/> it is a no-op on a session that responds automatically, which never has
+    /// a wait to cover.
+    /// </remarks>
+    /// <param name="instructions">What the model should say.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    Task RequestAcknowledgementAsync(string instructions, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Streams conversation events (assistant audio, transcripts, turn and error signals) until the

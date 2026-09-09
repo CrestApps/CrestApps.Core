@@ -34,9 +34,20 @@ public sealed class RealtimeTurnDetectionOverrides
     public float? Threshold { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether the provider generates a reply as soon as it ends the user's turn.
+    /// Defaults to <see langword="true"/>, which is what makes a session feel live.
+    /// <para>
+    /// Set to <see langword="false"/> when the host has work to do between hearing the user and answering them —
+    /// notably preemptive knowledge retrieval, which needs the transcript, and so cannot run before a reply the
+    /// provider has already started generating.
+    /// </para>
+    /// </summary>
+    public bool CreateResponse { get; init; } = true;
+
+    /// <summary>
     /// Gets a value indicating whether any override carries a value.
     /// </summary>
-    public bool HasValues => !string.IsNullOrWhiteSpace(Type) || !string.IsNullOrWhiteSpace(Eagerness) || SilenceDurationMs.HasValue || Threshold.HasValue;
+    public bool HasValues => !string.IsNullOrWhiteSpace(Type) || !string.IsNullOrWhiteSpace(Eagerness) || SilenceDurationMs.HasValue || Threshold.HasValue || !CreateResponse;
 }
 
 /// <summary>

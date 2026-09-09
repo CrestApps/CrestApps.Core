@@ -56,9 +56,18 @@ public sealed class RealtimeSessionConfiguratorContext
     public string InputTranscriptionModel { get; init; } = "whisper-1";
 
     /// <summary>
-    /// Gets an optional BCP-47 language hint for input transcription (e.g. "en").
+    /// Gets an optional BCP-47 language hint for input transcription (e.g. "en"). When set it also pins the
+    /// language the model replies in.
     /// </summary>
     public string SpeechLanguage { get; init; }
+
+    /// <summary>
+    /// Gets the language the model should reply in when the user has not chosen one — typically the user's
+    /// browser locale. Unlike <see cref="SpeechLanguage"/> it never reaches transcription, which keeps
+    /// auto-detecting, so a user whose browser is in one language and who speaks another is still transcribed
+    /// correctly. <see langword="null"/> falls back to mirroring whatever language the user speaks.
+    /// </summary>
+    public string ReplyLanguage { get; init; }
 
     /// <summary>
     /// Gets an optional server voice-activity silence duration (milliseconds) — how long a pause the model
@@ -83,4 +92,12 @@ public sealed class RealtimeSessionConfiguratorContext
     /// <see langword="null"/> to use the configured default.
     /// </summary>
     public string TurnDetectionEagerness { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the provider answers the moment it ends the user's turn. Defaults to
+    /// <see langword="true"/>. Set to <see langword="false"/> when the host grounds each turn against a knowledge
+    /// base first: retrieval needs the transcript, which arrives after the turn ends, so the reply has to wait
+    /// for the host to ask for it.
+    /// </summary>
+    public bool CreateResponseAutomatically { get; init; } = true;
 }

@@ -15,6 +15,7 @@ internal sealed class McpAICompletionContextBuilderHandler : IAICompletionContex
         if (context.Resource is AIProfile profile && profile.TryGet<AIProfileMcpMetadata>(out var mcpMetadata))
         {
             context.Context.McpConnectionIds = mcpMetadata.ConnectionIds;
+            context.Context.McpToolNames = mcpMetadata.ToolNames;
         }
 
         return Task.CompletedTask;

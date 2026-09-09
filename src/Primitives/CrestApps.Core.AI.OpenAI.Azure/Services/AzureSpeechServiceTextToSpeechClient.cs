@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Azure.Core;
 using Azure.Identity;
@@ -19,6 +19,30 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
 {
     private const string CognitiveServicesScope = "https://cognitiveservices.azure.com/.default";
     private const string DefaultContentType = "audio/mp3";
+
+    // Raw PCM carries no container to describe itself, so callers that decode it — the realtime pipeline,
+    // for one — rely on this media type to know what the bytes are.
+    private const string PcmContentType = "audio/L16";
+
+    private static readonly SpeechSynthesisOutputFormat _defaultOutputFormat = SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
+
+    // The formats a caller can ask for by name. Raw PCM is what an audio pipeline wants; MP3 is what a
+    // browser plays directly, and stays the default.
+    private static readonly Dictionary<string, SpeechSynthesisOutputFormat> _outputFormats = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["pcm8000"] = SpeechSynthesisOutputFormat.Raw8Khz16BitMonoPcm,
+        ["pcm16000"] = SpeechSynthesisOutputFormat.Raw16Khz16BitMonoPcm,
+        ["pcm24000"] = SpeechSynthesisOutputFormat.Raw24Khz16BitMonoPcm,
+        ["pcm48000"] = SpeechSynthesisOutputFormat.Raw48Khz16BitMonoPcm,
+        ["riff8000"] = SpeechSynthesisOutputFormat.Riff8Khz16BitMonoPcm,
+        ["riff16000"] = SpeechSynthesisOutputFormat.Riff16Khz16BitMonoPcm,
+        ["riff24000"] = SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm,
+        ["riff48000"] = SpeechSynthesisOutputFormat.Riff48Khz16BitMonoPcm,
+        ["mp3"] = SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3,
+        ["mp3_16000"] = SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3,
+        ["mp3_24000"] = SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3,
+        ["mp3_48000"] = SpeechSynthesisOutputFormat.Audio48Khz96KBitRateMonoMp3,
+    };
 
     private static readonly string[] _regionSuffixes =
     [
@@ -102,7 +126,7 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
 
             return new TextToSpeechResponse(new List<AIContent>
             {
-                new DataContent(result.AudioData, DefaultContentType),
+                new DataContent(result.AudioData, ResolveContentType(options?.AudioFormat)),
             });
         }
 
@@ -141,6 +165,7 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
         }
 
         var speechConfig = await CreateSpeechConfigAsync(options, cancellationToken);
+        var contentType = ResolveContentType(options?.AudioFormat);
 
         // Use null audio config to get in-memory audio.
         using var synthesizer = new SpeechSynthesizer(speechConfig, null);
@@ -162,7 +187,7 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
 
                 channel.Writer.TryWrite(new TextToSpeechResponseUpdate(new List<AIContent>
                 {
-                    new DataContent(e.Result.AudioData, DefaultContentType),
+                    new DataContent(e.Result.AudioData, contentType),
                 })
                 {
                     Kind = TextToSpeechResponseUpdateKind.AudioUpdating,
@@ -335,10 +360,101 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
             config.SpeechSynthesisLanguage = options.Language;
         }
 
-        // Default to MP3 output for browser compatibility.
-        config.SetSpeechSynthesisOutputFormat(SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3);
+        // MP3 stays the default, for browser compatibility. A caller that needs raw PCM — an audio
+        // pipeline that mixes or resamples the result rather than handing it to an <audio> element — asks
+        // for it by name through the options.
+        config.SetSpeechSynthesisOutputFormat(ResolveOutputFormat(options?.AudioFormat));
 
         return config;
+    }
+
+    /// <summary>
+    /// Resolves the synthesis output format a caller asked for by name, falling back to the MP3 default
+    /// when the name is missing or is not one this client offers.
+    /// </summary>
+    /// <param name="audioFormat">The requested format name, such as <c>Pcm24000</c>.</param>
+    private static SpeechSynthesisOutputFormat ResolveOutputFormat(string audioFormat)
+    {
+        if (string.IsNullOrWhiteSpace(audioFormat))
+        {
+            return _defaultOutputFormat;
+        }
+
+        // Names arrive in whatever shape the caller uses - "Pcm24000", "pcm_24000", "PCM-24000" - so they
+        // are compared with the separators removed.
+        var normalized = Normalize(audioFormat);
+
+        if (_outputFormats.TryGetValue(normalized, out var outputFormat))
+        {
+            return outputFormat;
+        }
+
+        // The Speech SDK's own enum names are accepted too, so a caller that knows this is Azure can ask
+        // for a format this client does not list.
+        if (Enum.TryParse<SpeechSynthesisOutputFormat>(audioFormat, ignoreCase: true, out var parsed))
+        {
+            return parsed;
+        }
+
+        return _defaultOutputFormat;
+    }
+
+    /// <summary>
+    /// Gets the media type describing the audio the requested format produces.
+    /// </summary>
+    /// <param name="audioFormat">The requested format name, such as <c>Pcm24000</c>.</param>
+    private static string ResolveContentType(string audioFormat)
+    {
+        return ToContentType(ResolveOutputFormat(audioFormat));
+    }
+
+    /// <summary>
+    /// Gets the media type describing the audio a synthesis output format produces.
+    /// </summary>
+    /// <param name="outputFormat">The synthesis output format.</param>
+    private static string ToContentType(SpeechSynthesisOutputFormat outputFormat)
+    {
+        var name = outputFormat.ToString();
+
+        if (name.EndsWith("MonoPcm", StringComparison.Ordinal))
+        {
+            // A RIFF format is PCM wrapped in a WAV container, which callers have to be told apart from the
+            // raw stream because the header is not audio.
+            return name.StartsWith("Riff", StringComparison.Ordinal)
+                ? "audio/wav"
+                : PcmContentType;
+        }
+
+        if (name.Contains("Mp3", StringComparison.Ordinal))
+        {
+            return DefaultContentType;
+        }
+
+        if (name.Contains("Opus", StringComparison.Ordinal))
+        {
+            return "audio/opus";
+        }
+
+        if (name.Contains("Webm", StringComparison.Ordinal))
+        {
+            return "audio/webm";
+        }
+
+        if (name.Contains("MULaw", StringComparison.Ordinal))
+        {
+            return "audio/basic";
+        }
+
+        return DefaultContentType;
+    }
+
+    /// <summary>
+    /// Removes the separators a format name may be written with so names compare regardless of style.
+    /// </summary>
+    /// <param name="value">The format name.</param>
+    private static string Normalize(string value)
+    {
+        return new string([.. value.Where(char.IsLetterOrDigit)]);
     }
 
     private async Task<SpeechConfig> CreateRegionBasedConfigAsync(string region, CancellationToken cancellationToken)
