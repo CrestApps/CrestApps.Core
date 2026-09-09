@@ -181,6 +181,11 @@
                                         }
                                     </InputSelect>
                                 </div>
+                                @* Directly under the picker it belongs to: the parameters a deployment exposes
+                                   are part of choosing it, so they appear where the choice is made. *@
+                                <ModelParametersEditor DeploymentName="@_model.ChatDeploymentName"
+                                                       Values="_model.ModelParameters"
+                                                       />
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
@@ -193,6 +198,10 @@
                                         }
                                     </InputSelect>
                                 </div>
+                                <ModelParametersEditor DeploymentName="@_model.UtilityDeploymentName"
+                                                       Values="_model.UtilityModelParameters"
+                                                       ElementIdPrefix="utilityModelParameter"
+                                                       />
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
@@ -433,15 +442,6 @@
                         </div>
                         <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.UseCaching" /><label class="form-check-label">Enable response caching</label></div></div>
 
-                    <ModelParametersEditor DeploymentName="@_model.ChatDeploymentName"
-                                           Values="_model.ModelParameters"
-                                           Description="Only the parameters declared by the selected chat deployment are shown." />
-
-                    <ModelParametersEditor DeploymentName="@_model.UtilityDeploymentName"
-                                           Values="_model.UtilityModelParameters"
-                                           ElementIdPrefix="utilityModelParameter"
-                                           Title="Utility model parameters"
-                                           Description="Applied to background completions such as title generation, data extraction, and post-session processing. Only the parameters declared by the selected utility deployment are shown." />
                     </div>
 
                     <!-- Capabilities -->

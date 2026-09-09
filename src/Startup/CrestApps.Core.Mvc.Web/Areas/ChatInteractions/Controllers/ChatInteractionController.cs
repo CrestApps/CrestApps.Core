@@ -308,14 +308,12 @@ public sealed class ChatInteractionController : Controller
         model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(
             parameterMetadata?.Values,
             elementPrefix: "interactionModelParameters",
-            title: "Model parameters",
-            description: null);
+            title: "Model parameters");
 
         model.UtilityModelParameterEditor = await _modelParameterViewService.BuildAsync(
             parameterMetadata?.UtilityValues,
             elementPrefix: "interactionUtilityModelParameters",
-            title: "Utility model parameters",
-            description: null);
+            title: "Utility model parameters");
 
         return View(model);
     }
@@ -342,15 +340,13 @@ public sealed class ChatInteractionController : Controller
     private async Task PopulateDropdownsAsync(ChatInteractionViewModel model)
     {
         model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(
-            model.ModelParameters,
-            description: "Only the parameters declared by the selected deployment are shown.");
+            model.ModelParameters);
         model.UtilityModelParameterEditor = await _modelParameterViewService.BuildAsync(
             model.UtilityModelParameters,
             deploymentFieldName: nameof(ChatInteractionViewModel.UtilityDeploymentName),
             fieldPrefix: nameof(ChatInteractionViewModel.UtilityModelParameters),
             elementPrefix: "utilityModelParameters",
-            title: "Utility model parameters",
-            description: "Applied to background completions such as title generation, data extraction, and post-session processing. Only the parameters declared by the selected utility deployment are shown.");
+            title: "Utility model parameters");
 
         model.Deployments = (await _deploymentManager.GetConversationalDeploymentsAsync())
             .Select(d => new SelectListItem(

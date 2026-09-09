@@ -1,4 +1,4 @@
-? (profileChatDeploymentSelector && profileChatDeploymentSelector.value)@using CrestApps.Core.AI.Documents.Models
+@using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.Mvc.Web.Services
@@ -134,6 +134,9 @@
                                 </select>
                                 <div class="form-text">The model this profile converses with. A realtime model makes it a speech-to-speech profile.</div>
                             </div>
+                            @* Directly under the picker it belongs to: the parameters a deployment exposes
+                               are part of choosing it, so they appear where the choice is made. *@
+                            <partial name="_ModelParameters" model="Model.ModelParameterEditor" />
                         </div>
                         <div class="col-md-4 profile-type profile-type-chat@(Model.Type != CrestApps.Core.AI.Models.AIProfileType.Chat ? " d-none" : "")" id="profileVoiceSelectorGroup">
                             <div class="mb-3">
@@ -181,6 +184,7 @@
                                 </select>
                                 <div class="form-text">Optional deployment for utility tasks (planning, summarization).</div>
                             </div>
+                            <partial name="_ModelParameters" model="Model.UtilityModelParameterEditor" />
                         </div>
                         <div class="col-md-6" id="profileOrchestratorCol">
                             <div class="mb-3">
@@ -422,8 +426,6 @@
                         </div>
                         <div class="form-text">Cache responses to improve performance for repeated queries.</div>
                     </div>
-                    <partial name="_ModelParameters" model="Model.ModelParameterEditor" />
-                    <partial name="_ModelParameters" model="Model.UtilityModelParameterEditor" />
                 </div>
 
                 <!-- Capabilities Tab (A2A, MCP, Tools) -->

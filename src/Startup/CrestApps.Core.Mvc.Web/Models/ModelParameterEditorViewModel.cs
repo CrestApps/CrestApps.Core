@@ -31,11 +31,6 @@ public sealed class ModelParameterEditorViewModel
     public string Title { get; set; } = "Model parameters";
 
     /// <summary>
-    /// Gets or sets the descriptive text rendered under the heading.
-    /// </summary>
-    public string Description { get; set; }
-
-    /// <summary>
     /// Gets or sets every registered model parameter along with the value currently selected.
     /// </summary>
     public List<ModelParameterFieldViewModel> Parameters { get; set; } = [];

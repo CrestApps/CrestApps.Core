@@ -126,6 +126,9 @@
                                     </select>
                                     <div class="form-text">The chat model deployment to use.</div>
                                 </div>
+                                @* Directly under the picker it belongs to: the parameters a deployment exposes
+                                   are part of choosing it, so they appear where the choice is made. *@
+                                <partial name="_ModelParameters" model="Model.ModelParameterEditor" />
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
@@ -135,6 +138,7 @@
                                     </select>
                                     <div class="form-text">Optional deployment for utility tasks.</div>
                                 </div>
+                                <partial name="_ModelParameters" model="Model.UtilityModelParameterEditor" />
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
@@ -277,7 +281,7 @@
                                     var title = option?.Title ?? selection.TemplateId ?? "Prompt template";
                                     var category = option?.Category ?? "Unavailable";
                                     var description = option?.Description;
-                                    var parameters = option?.Parameters ?? [];
+                                    var parameters = option?.Parameters ?? new List<PromptTemplateParameterItem>();
 
                                     <div class="card mb-1 prompt-template-card" data-template-id="@selection.TemplateId">
                                         <div class="card-header d-flex justify-content-between align-items-center py-2">
@@ -395,8 +399,6 @@
                             </div>
                             <div class="form-text">Cache responses to improve performance for repeated queries.</div>
                         </div>
-                        <partial name="_ModelParameters" model="Model.ModelParameterEditor" />
-                        <partial name="_ModelParameters" model="Model.UtilityModelParameterEditor" />
                     </div>
 
                     <!-- Capabilities Tab (Agents, A2A, MCP, Tools) -->

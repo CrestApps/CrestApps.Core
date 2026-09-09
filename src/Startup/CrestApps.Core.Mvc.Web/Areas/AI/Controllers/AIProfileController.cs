@@ -312,16 +312,13 @@ public sealed class AIProfileController : Controller
 
     private async Task PopulateDropdownsAsync(AIProfileViewModel model)
     {
-        model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(
-            model.ModelParameters,
-            description: "Only the parameters declared by the selected chat deployment are shown.");
+        model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(model.ModelParameters);
         model.UtilityModelParameterEditor = await _modelParameterViewService.BuildAsync(
             model.UtilityModelParameters,
             deploymentFieldName: nameof(AIProfileViewModel.UtilityDeploymentName),
             fieldPrefix: nameof(AIProfileViewModel.UtilityModelParameters),
             elementPrefix: "utilityModelParameters",
-            title: "Utility model parameters",
-            description: "Applied to background completions such as title generation, data extraction, and post-session processing. Only the parameters declared by the selected utility deployment are shown.");
+            title: "Utility model parameters");
 
         model.ChatDeployments = (await _deploymentManager.GetConversationalDeploymentsAsync()).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.UtilityDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();

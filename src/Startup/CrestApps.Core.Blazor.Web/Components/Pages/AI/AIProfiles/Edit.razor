@@ -163,6 +163,11 @@ else if (_model != null)
                                     </InputSelect>
                                     <div class="form-text">The model this profile converses with. A realtime model makes it a speech-to-speech profile.</div>
                                 </div>
+                                @* Directly under the picker it belongs to: the parameters a deployment exposes
+                                   are part of choosing it, so they appear where the choice is made. *@
+                                <ModelParametersEditor DeploymentName="@_model.ChatDeploymentName"
+                                                       Values="_model.ModelParameters"
+                                                       />
                             </div>
 
                             @if (_model.Type == AIProfileType.Chat)
@@ -244,6 +249,10 @@ else if (_model != null)
                                     </InputSelect>
                                     <div class="form-text">Optional deployment for utility tasks (planning, summarization).</div>
                                 </div>
+                                <ModelParametersEditor DeploymentName="@_model.UtilityDeploymentName"
+                                                       Values="_model.UtilityModelParameters"
+                                                       ElementIdPrefix="utilityModelParameter"
+                                                       />
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
@@ -579,16 +588,6 @@ else if (_model != null)
                             </div>
                             <div class="form-text">Cache responses to improve performance for repeated queries.</div>
                         </div>
-
-                        <ModelParametersEditor DeploymentName="@_model.ChatDeploymentName"
-                                               Values="_model.ModelParameters"
-                                               Description="Only the parameters declared by the selected chat deployment are shown." />
-
-                        <ModelParametersEditor DeploymentName="@_model.UtilityDeploymentName"
-                                               Values="_model.UtilityModelParameters"
-                                               ElementIdPrefix="utilityModelParameter"
-                                               Title="Utility model parameters"
-                                               Description="Applied to background completions such as title generation, data extraction, and post-session processing. Only the parameters declared by the selected utility deployment are shown." />
                     </div>
 
                     <!-- Capabilities Tab -->

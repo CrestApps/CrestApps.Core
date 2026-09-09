@@ -6,14 +6,8 @@
     <div class="model-parameters d-none" id="@(Model.ElementPrefix)-container"
          data-deployment-field="@Model.DeploymentFieldName"
          data-capabilities="@Model.CapabilitiesJson">
-        @if (!string.IsNullOrWhiteSpace(Model.Title))
-        {
-            <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-sliders"></i> @Model.Title</h6>
-        }
-        @if (!string.IsNullOrWhiteSpace(Model.Description))
-        {
-            <p class="text-muted small">@Model.Description</p>
-        }
+        @* No heading or description: the editor sits directly under the deployment picker it belongs to,
+           so each parameter's own label is all the context it needs. *@
         @foreach (var parameter in Model.Parameters)
         {
             var fieldId = $"{Model.ElementPrefix}-{parameter.ElementId}";
