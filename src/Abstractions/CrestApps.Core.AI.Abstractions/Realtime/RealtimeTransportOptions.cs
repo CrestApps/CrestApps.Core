@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Realtime;
+﻿namespace CrestApps.Core.AI.Realtime;
 
 /// <summary>
 /// Configuration for the realtime WebRTC transport's ICE (NAT traversal) servers. Bound from configuration
@@ -21,15 +21,30 @@ public sealed class RealtimeTransportOptions
     public bool EnableWebRtc { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets how long a realtime session may go without the user speaking before it is ended, in minutes.
-    /// Zero or negative disables the timeout. Defaults to 10 minutes.
+    /// Gets or sets how long a realtime session may go with neither the user nor the assistant speaking before it
+    /// is ended, in seconds. Zero or negative disables the timeout. Defaults to 30 seconds.
     /// </summary>
     /// <remarks>
     /// A realtime session bills for an open provider connection whether or not anyone is talking, and a forgotten
     /// browser tab will happily hold one until the provider's own session cap (typically an hour) closes it. The
-    /// client is told why the session ended and can offer to resume.
+    /// idle clock is reset by both sides of the conversation, so a long spoken answer never trips it; only genuine
+    /// silence does. The client is told why the session ended and offers to resume, so a short window costs a user
+    /// who stepped away one button press rather than an unnoticed bill.
     /// </remarks>
-    public int IdleTimeoutMinutes { get; set; } = 10;
+    public int IdleTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Gets or sets the longest a single realtime session may run, in seconds, however busy it is. Zero or
+    /// negative disables the cap. Defaults to 300 seconds (5 minutes).
+    /// </summary>
+    /// <remarks>
+    /// The idle timeout only catches a session nobody is using; it does nothing about one that is genuinely held
+    /// open for hours. This is the backstop that bounds the cost of any single session — a runaway page, a wedged
+    /// audio loop that keeps the idle clock warm, or simply a user who talks for a very long time. The session
+    /// ends with reason <c>max_duration</c> and the client offers to start a new one immediately, so this limits
+    /// how long one session runs rather than how long someone may talk.
+    /// </remarks>
+    public int MaxSessionDurationSeconds { get; set; } = 300;
 
     /// <summary>
     /// Gets or sets the provider turn-detection algorithm: <c>semantic_vad</c> (default) or <c>server_vad</c>.
@@ -120,4 +135,10 @@ public sealed class RealtimeTransportOptions
     /// Gets or sets a static TURN credential (password). Used only when <see cref="TurnSecret"/> is not set.
     /// </summary>
     public string TurnCredential { get; set; }
+
+    /// <summary>
+    /// Gets or sets which ICE candidates the server offers. Defaults to
+    /// <see cref="RealtimeIceTransportPolicy.All"/>.
+    /// </summary>
+    public RealtimeIceTransportPolicy IceTransportPolicy { get; set; } = RealtimeIceTransportPolicy.All;
 }
