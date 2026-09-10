@@ -237,8 +237,8 @@ When the primary model invokes an agent tool, the following sequence occurs insi
 var context = await contextBuilder.BuildAsync(agentProfile);
 context.DisableTools = true;
 
-var deployment = await deploymentManager.ResolveOrDefaultAsync(
-    AIDeploymentType.Chat, deploymentName: context.ChatDeploymentName);
+var deployment = await deploymentManager.ResolveSlotAsync(
+    AIDeploymentSlotNames.Chat, deploymentName: context.ChatDeploymentName);
 
 var messages = new List<ChatMessage>
 {

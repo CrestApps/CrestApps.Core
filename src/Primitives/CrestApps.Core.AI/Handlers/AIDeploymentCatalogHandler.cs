@@ -75,9 +75,13 @@ internal sealed class AIDeploymentCatalogHandler : CatalogEntryHandlerBase<AIDep
             context.Result.Fail(new ValidationResult(S["Model name is required."], [nameof(AIDeployment.ModelName)]));
         }
 
-        if (!context.Model.Purpose.IsValidSelection())
+        // Validated on capabilities rather than the legacy purpose. PopulateAsync has already projected any
+        // legacy purpose onto features, so a payload that only carries a purpose still satisfies this, while
+        // a realtime-only deployment — which deliberately declares no text generation — now passes where the
+        // purpose check used to be the only thing describing it.
+        if (!context.Model.TryGet<AIDeploymentMetadata>(out var metadata) || metadata.Features is not { Length: > 0 })
         {
-            context.Result.Fail(new ValidationResult(S["The deployment purpose '{0}' is not valid.", context.Model.Purpose], [nameof(AIDeployment.Purpose)]));
+            context.Result.Fail(new ValidationResult(S["At least one model capability is required."], [nameof(AIDeployment.Properties)]));
         }
 
         if (!string.IsNullOrWhiteSpace(context.Model.ClientName) && !_aiOptions.Deployments.ContainsKey(context.Model.ClientName))
@@ -177,63 +181,56 @@ internal sealed class AIDeploymentCatalogHandler : CatalogEntryHandlerBase<AIDep
             deployment.CreatedUtc = createdUtc;
         }
 
-        if (TryGetDeploymentCapability(json, out var purpose))
-        {
-            deployment.Purpose = purpose;
-        }
+        TryGetLegacyPurposes(json, out var legacyPurposes);
 
         MergeProperties(deployment, json);
+
+        // Runs after MergeProperties so the already-declared features are visible to the rule. This is the
+        // recipe, configuration, and API half of the read-time normalization; the store deserialization half
+        // is AIDeployment.OnDeserialized.
+        AIDeploymentPurposeCompatibility.Normalize(deployment, legacyPurposes);
 
         return Task.CompletedTask;
     }
 
-    private static bool TryGetDeploymentCapability(JsonObject json, out AIDeploymentPurpose capability)
+    /// <summary>
+    /// Reads the legacy purpose names a payload may still carry, under any of the three field names this
+    /// field has had. The names themselves are interpreted by
+    /// <see cref="AIDeploymentPurposeCompatibility"/>, which ignores any it does not recognize.
+    /// </summary>
+    private static bool TryGetLegacyPurposes(JsonObject json, out string[] legacyPurposes)
     {
-        capability = AIDeploymentPurpose.None;
+        legacyPurposes = null;
 
         if (json is null)
         {
             return false;
         }
 
-        JsonNode purposeNode = null;
-
-        if (!json.TryGetPropertyValue(nameof(AIDeployment.Purpose), out purposeNode) || purposeNode is null)
+        if ((!json.TryGetPropertyValue("Purpose", out var purposeNode) || purposeNode is null) &&
+            (!json.TryGetPropertyValue("Capability", out purposeNode) || purposeNode is null) &&
+            (!json.TryGetPropertyValue("Type", out purposeNode) || purposeNode is null))
         {
-            if (!json.TryGetPropertyValue("Capability", out purposeNode) || purposeNode is null)
-            {
-#pragma warning disable CS0618 // Type or member is obsolete
-                if (!json.TryGetPropertyValue(nameof(AIDeployment.Type), out purposeNode) || purposeNode is null)
-#pragma warning restore CS0618 // Type or member is obsolete
-                {
-                    return false;
-                }
-            }
+            return false;
         }
 
         if (purposeNode is JsonArray array)
         {
-            foreach (var item in array)
-            {
-                if (item is null ||
-                    item.GetStringValue() is not { Length: > 0 } itemText ||
-                    !Enum.TryParse(itemText, true, out AIDeploymentPurpose parsedPurpose) ||
-                    parsedPurpose == AIDeploymentPurpose.None)
-                {
-                    capability = AIDeploymentPurpose.None;
+            legacyPurposes = [.. array
+                .Select(static item => item.GetStringValue())
+                .Where(static name => !string.IsNullOrWhiteSpace(name))];
 
-                    return false;
-                }
-
-                capability |= parsedPurpose;
-            }
-
-            return capability.IsValidSelection();
+            return legacyPurposes.Length > 0;
         }
 
-        return purposeNode.GetStringValue() is { Length: > 0 } purposeText &&
-            Enum.TryParse(purposeText, true, out capability) &&
-            capability.IsValidSelection();
+        if (purposeNode.GetStringValue() is not { Length: > 0 } purposeText)
+        {
+            return false;
+        }
+
+        legacyPurposes = [purposeText];
+
+        return true;
     }
 
     private static void MergeProperties(AIDeployment deployment, JsonObject json)

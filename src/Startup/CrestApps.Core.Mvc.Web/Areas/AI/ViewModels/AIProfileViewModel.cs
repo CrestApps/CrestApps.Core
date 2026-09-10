@@ -271,7 +271,6 @@ public sealed class AIProfileViewModel
             TitleType = profile.TitleType,
             ChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput,
             VoiceName = chatModeSettings?.VoiceName,
-            RealtimeDeploymentName = profile.RealtimeDeploymentName,
             EnableTextToSpeechPlayback = chatModeSettings?.EnableTextToSpeechPlayback ?? false,
             LockSystemMessage = settings.LockSystemMessage,
             IsListable = settings.IsListable,
@@ -488,7 +487,6 @@ public sealed class AIProfileViewModel
         profile.ChatDeploymentName = ChatDeploymentName;
         profile.UtilityDeploymentName = UtilityDeploymentName;
         profile.OrchestratorName = OrchestratorName;
-        profile.RealtimeDeploymentName = ChatMode == ChatMode.Realtime ? RealtimeDeploymentName : profile.RealtimeDeploymentName;
         profile.PromptTemplate = PromptTemplate;
         profile.PromptSubject = PromptSubject;
         profile.Description = Description;
@@ -526,7 +524,7 @@ public sealed class AIProfileViewModel
         profile.AlterSettings<ChatModeProfileSettings>(settings =>
         {
             settings.ChatMode = ChatMode;
-            settings.VoiceName = ChatMode is ChatMode.Conversation or ChatMode.Realtime
+            settings.VoiceName = ChatMode == ChatMode.Conversation || !string.IsNullOrWhiteSpace(VoiceName)
                 ? VoiceName?.Trim()
                 : null;
             settings.EnableTextToSpeechPlayback = EnableTextToSpeechPlayback;

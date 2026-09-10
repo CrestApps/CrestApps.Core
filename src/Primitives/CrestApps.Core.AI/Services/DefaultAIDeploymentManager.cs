@@ -19,13 +19,15 @@ public sealed class DefaultAIDeploymentManager : AIDeploymentManagerBase
     /// <param name="deploymentStore">The deployment store.</param>
     /// <param name="handlers">The handlers.</param>
     /// <param name="deploymentSettings">The deployment settings.</param>
+    /// <param name="slotOptions">The registered deployment slots.</param>
     /// <param name="logger">The logger.</param>
     public DefaultAIDeploymentManager(
         IAIDeploymentStore deploymentStore,
         IEnumerable<ICatalogEntryHandler<AIDeployment>> handlers,
         IOptionsMonitor<DefaultAIDeploymentSettings> deploymentSettings,
+        IOptions<AIDeploymentSlotOptions> slotOptions,
         ILogger<DefaultAIDeploymentManager> logger)
-        : base(deploymentStore, handlers, logger)
+        : base(deploymentStore, handlers, logger, slotOptions)
     {
         _deploymentSettings = deploymentSettings;
     }

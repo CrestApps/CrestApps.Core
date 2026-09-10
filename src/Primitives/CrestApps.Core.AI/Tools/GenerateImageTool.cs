@@ -95,7 +95,10 @@ public sealed class GenerateImageTool : AIFunction
             var clientName = executionContext.ClientName;
 
             var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
-            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Image, clientName, cancellationToken: cancellationToken);
+            // clientName scopes the fallback to the provider running this tool. It used to be passed
+            // positionally, which landed it in the deploymentName parameter and silently disabled that
+            // scoping, since no deployment is named after a client.
+            var deployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Image, clientName: clientName, cancellationToken: cancellationToken);
 
             if (deployment == null)
             {

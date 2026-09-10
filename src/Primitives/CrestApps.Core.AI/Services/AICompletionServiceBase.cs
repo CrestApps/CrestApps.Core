@@ -37,28 +37,23 @@ public abstract class AICompletionServiceBase
     /// <summary>
     /// Resolves a deployment using the <see cref="IAIDeploymentManager"/>.
     /// </summary>
-    /// <param name="purpose">The purpose.</param>
+    /// <param name="slotName">The technical name of the slot. See <see cref="AIDeploymentSlotNames"/>.</param>
     /// <param name="providerName">The provider name.</param>
     /// <param name="deploymentName">The deployment name.</param>
     protected virtual async ValueTask<AIDeployment> ResolveDeploymentAsync(
-        AIDeploymentPurpose purpose,
+        string slotName,
         string providerName,
         string deploymentName = null)
     {
-        if (DeploymentResolver != null)
+        if (DeploymentResolver is null)
         {
-            var deployment = await DeploymentResolver.ResolveOrDefaultAsync(
-                purpose,
-                deploymentName: deploymentName,
-                clientName: providerName);
-
-            if (deployment != null)
-            {
-                return deployment;
-            }
+            return null;
         }
 
-        return null;
+        return await DeploymentResolver.ResolveSlotAsync(
+            slotName,
+            deploymentName: deploymentName,
+            clientName: providerName);
     }
 
     /// <summary>
@@ -66,6 +61,12 @@ public abstract class AICompletionServiceBase
     /// background utility completion resolves the utility deployment first and falls back to the chat
     /// deployment when no utility deployment is configured.
     /// </summary>
+    /// <remarks>
+    /// The utility case runs a single ordered chain rather than resolving the utility slot and then falling
+    /// back on a null result. Both slots filter on the same text-generation capability, so an independent
+    /// utility resolve would answer with the first text-capable deployment it finds and the request's own
+    /// chat deployment name would never be consulted.
+    /// </remarks>
     /// <param name="context">The completion context of the current request.</param>
     /// <param name="providerName">The provider name.</param>
     protected virtual async ValueTask<AIDeployment> ResolveRequestDeploymentAsync(
@@ -74,17 +75,23 @@ public abstract class AICompletionServiceBase
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (context.IsUtilityCompletion)
+        if (DeploymentResolver is null)
         {
-            var utilityDeployment = await ResolveDeploymentAsync(AIDeploymentPurpose.Utility, providerName, context.UtilityDeploymentName);
-
-            if (utilityDeployment != null)
-            {
-                return utilityDeployment;
-            }
+            return null;
         }
 
-        return await ResolveDeploymentAsync(AIDeploymentPurpose.Chat, providerName, context.ChatDeploymentName);
+        if (context.IsUtilityCompletion)
+        {
+            return await DeploymentResolver.ResolveUtilityOrDefaultAsync(
+                utilityDeploymentName: context.UtilityDeploymentName,
+                chatDeploymentName: context.ChatDeploymentName,
+                clientName: providerName);
+        }
+
+        return await DeploymentResolver.ResolveSlotAsync(
+            AIDeploymentSlotNames.Chat,
+            deploymentName: context.ChatDeploymentName,
+            clientName: providerName);
     }
 
     /// <summary>

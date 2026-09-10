@@ -4,6 +4,9 @@ namespace CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Models;
 
 public sealed class ChatInteractionSettings
 {
+    // Realtime is no longer a chat mode; it follows from the selected deployment declaring the realtime
+    // capability. The converter keeps sites written before that change loadable.
+    [System.Text.Json.Serialization.JsonConverter(typeof(ChatModeJsonConverter))]
     public ChatMode ChatMode { get; set; } = ChatMode.TextInput;
 
     public bool EnableUserMemory { get; set; } = true;

@@ -91,9 +91,9 @@ public sealed class AIDeploymentController : Controller
             ModelState.AddModelError(nameof(model.ClientName), "Provider is required.");
         }
 
-        if (!model.GetDeploymentPurpose().IsValidSelection())
+        if (model.SelectedFeatures is null || model.SelectedFeatures.Length == 0)
         {
-            ModelState.AddModelError(nameof(model.SelectedPurposes), "At least one deployment purpose is required.");
+            ModelState.AddModelError(nameof(model.SelectedFeatures), "At least one model capability is required.");
         }
 
         if (!model.UsesStandaloneProvider() && string.IsNullOrWhiteSpace(model.ConnectionName))
@@ -173,9 +173,9 @@ public sealed class AIDeploymentController : Controller
             ModelState.AddModelError(nameof(model.ClientName), "Provider is required.");
         }
 
-        if (!model.GetDeploymentPurpose().IsValidSelection())
+        if (model.SelectedFeatures is null || model.SelectedFeatures.Length == 0)
         {
-            ModelState.AddModelError(nameof(model.SelectedPurposes), "At least one deployment purpose is required.");
+            ModelState.AddModelError(nameof(model.SelectedFeatures), "At least one model capability is required.");
         }
 
         if (!model.UsesStandaloneProvider() && string.IsNullOrWhiteSpace(model.ConnectionName))
@@ -269,10 +269,6 @@ public sealed class AIDeploymentController : Controller
             .ToList();
         model.Providers = _providers;
         model.AuthenticationTypes = _authTypes;
-        model.Purposes = Enum.GetValues<AIDeploymentPurpose>()
-            .Where(static purpose => purpose != AIDeploymentPurpose.None)
-            .Select(static purpose => new SelectListItem(purpose.ToString(), purpose.ToString()))
-            .ToList();
 
         model.MergeRegisteredCapabilities(_capabilityService.GetRegisteredFeatures(), _capabilityService.GetRegisteredParameters());
     }

@@ -22,81 +22,43 @@ public interface IAIDeploymentManager : INamedSourceCatalogManager<AIDeployment>
     ValueTask<IEnumerable<AIDeployment>> GetAllAsync(string clientName, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Asynchronously retrieves all deployments supporting the specified purpose.
+    /// Resolves the deployment that fills a named slot, walking a single ordered chain.
     /// </summary>
-    /// <param name="purpose">The deployment purpose to filter by.</param>
+    /// <remarks>
+    /// <para>
+    /// The chain is, for the slot and then for each of its fallback slots in turn: the explicitly requested
+    /// deployment name, then the slot's site-wide default deployment name. Only once every link is
+    /// exhausted does it fall back to the first deployment capable of the terminal slot's required feature.
+    /// </para>
+    /// <para>
+    /// The single chain matters. Resolving the utility slot and the chat slot independently and joining them
+    /// with <c>??</c> lets the utility resolve's own "first capable" tail answer first, which silently routes
+    /// background work such as summarization, data extraction, and query rewriting to an arbitrary model
+    /// instead of the profile's configured chat deployment.
+    /// </para>
+    /// </remarks>
+    /// <param name="slotName">The technical name of the slot. See <see cref="Models.AIDeploymentSlotNames"/>.</param>
+    /// <param name="deploymentName">The optional deployment name explicitly requested for this slot.</param>
+    /// <param name="clientName">The optional client name used to scope the "first capable" fallback.</param>
+    /// <param name="fallbackDeploymentNames">
+    /// The optional deployment names explicitly requested for the fallback slots, keyed by slot name. For
+    /// the utility slot this carries the caller's chat deployment name.
+    /// </param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    /// <returns>
-    /// A ValueTask that represents the asynchronous operation. The result is an <see cref="IEnumerable{AIDeployment}"/>
-    /// containing all deployments matching the specified purpose.
-    /// </returns>
-    ValueTask<IEnumerable<AIDeployment>> GetByPurposeAsync(AIDeploymentPurpose purpose, CancellationToken cancellationToken = default);
+    ValueTask<AIDeployment> ResolveSlotAsync(
+        string slotName,
+        string deploymentName = null,
+        string clientName = null,
+        IReadOnlyDictionary<string, string> fallbackDeploymentNames = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Asynchronously retrieves all deployments supporting the specified legacy type.
+    /// Gets all deployments that qualify for a named slot, optionally filtered by client.
+    /// Results are suitable for dropdown population.
     /// </summary>
-    /// <param name="type">The deployment type to filter by.</param>
-    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    [Obsolete("Use GetByPurposeAsync instead.")]
-    ValueTask<IEnumerable<AIDeployment>> GetByTypeAsync(AIDeploymentType type, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Resolves the default deployment of a given purpose for a specific client.
-    /// Returns the deployment marked as IsDefault for that type on the client,
-    /// or the first deployment supporting that type on the client if none is marked as default.
-    /// </summary>
-    /// <param name="clientName">The name of the client to resolve the default deployment for.</param>
-    /// <param name="purpose">The deployment purpose to filter by.</param>
-    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentPurpose purpose, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Resolves the default deployment of a given legacy type for a specific client.
-    /// </summary>
-    /// <param name="clientName">The name of the client to resolve the default deployment for.</param>
-    /// <param name="type">The deployment type to filter by.</param>
-    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    [Obsolete("Use the purpose overload instead.")]
-    ValueTask<AIDeployment> GetDefaultAsync(string clientName, AIDeploymentType type, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Resolves a deployment using the full fallback chain:
-    /// 1. If deploymentId is provided, returns that specific deployment.
-    /// 2. Falls back to the global default deployment for the given purpose (from DefaultAIDeploymentSettings).
-    /// 3. Falls back to the first deployment supporting the requested purpose within the current scope.
-    /// Returns <see langword="null"/> if no deployment can be resolved.
-    /// </summary>
-    /// <param name="purpose">The deployment purpose to resolve.</param>
-    /// <param name="deploymentName">The optional deployment name to look up directly.</param>
-    /// <param name="clientName">The optional client name to scope the resolution.</param>
-    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentPurpose purpose, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Resolves a deployment using the full fallback chain for a legacy type.
-    /// </summary>
-    /// <param name="type">The deployment type to resolve.</param>
-    /// <param name="deploymentName">The optional deployment name to look up directly.</param>
-    /// <param name="clientName">The optional client name to scope the resolution.</param>
-    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    [Obsolete("Use the purpose overload instead.")]
-    ValueTask<AIDeployment> ResolveOrDefaultAsync(AIDeploymentType type, string deploymentName = null, string clientName = null, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets all deployments of a given purpose, optionally filtered by client.
-    /// Results are suitable for dropdown population, grouped by connection.
-    /// </summary>
-    /// <param name="purpose">The deployment purpose to filter by.</param>
+    /// <param name="slotName">The technical name of the slot. See <see cref="Models.AIDeploymentSlotNames"/>.</param>
     /// <param name="clientName">The optional client name to further filter results.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    ValueTask<IEnumerable<AIDeployment>> GetAllByPurposeAsync(AIDeploymentPurpose purpose, string clientName = null, CancellationToken cancellationToken = default);
+    ValueTask<IEnumerable<AIDeployment>> GetAllBySlotAsync(string slotName, string clientName = null, CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Gets all deployments of a given legacy type, optionally filtered by client.
-    /// </summary>
-    /// <param name="type">The deployment type to filter by.</param>
-    /// <param name="clientName">The optional client name to further filter results.</param>
-    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    [Obsolete("Use GetAllByPurposeAsync instead.")]
-    ValueTask<IEnumerable<AIDeployment>> GetAllByTypeAsync(AIDeploymentType type, string clientName = null, CancellationToken cancellationToken = default);
 }

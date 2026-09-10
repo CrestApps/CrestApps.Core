@@ -366,17 +366,24 @@ public sealed class AIChatSessionPostCloseProcessorTests
                 It.IsAny<Action<ChatClientBuilder>>()))
             .ReturnsAsync(mockChatClient.Object);
 
+        var deployment = new AIDeployment
+        {
+            ItemId = "deployment-1",
+            Name = TestDeploymentName,
+            ClientName = TestProviderName,
+            ConnectionName = TestConnectionName,
+        };
+
         var mockDeploymentManager = new Mock<IAIDeploymentManager>();
+        // Post-session work resolves the utility slot, which walks the slot chain instead of the purpose overload.
         mockDeploymentManager.Setup(manager => manager
-            .ResolveOrDefaultAsync(It.IsAny<AIDeploymentPurpose>(), It.IsAny<string>(), It.IsAny<string>()))
-            .ReturnsAsync(new AIDeployment
-            {
-                ItemId = "deployment-1",
-                Name = TestDeploymentName,
-                ClientName = TestProviderName,
-                ConnectionName = TestConnectionName,
-                Purpose = AIDeploymentPurpose.Chat,
-            });
+            .ResolveSlotAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(deployment);
 
         var mockTemplateService = new Mock<ITemplateService>();
         mockTemplateService.Setup(service => service

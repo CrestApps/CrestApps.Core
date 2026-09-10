@@ -441,20 +441,9 @@ public sealed class DataExtractionService
             utilityDeploymentName: profile.UtilityDeploymentName,
             chatDeploymentName: profile.ChatDeploymentName);
 
-        // Data extraction runs a text chat completion. When the profile's chat deployment is a realtime
-        // (speech-to-speech) model — which rejects text completions with HTTP 400 — fall back to a text-capable
-        // default so extraction still works, and never send the completion to a realtime model.
-        if (deployment != null && !deployment.CanServeTextCompletion())
-        {
-            deployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility)
-                ?? await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat);
-
-            if (deployment != null && !deployment.CanServeTextCompletion())
-            {
-                deployment = null;
-            }
-        }
-
+        // Data extraction runs a text chat completion. The utility slot excludes realtime deployments — which
+        // reject text completions with an HTTP 400 — so the resolved deployment is already text capable and
+        // the defensive re-resolve that used to live here is no longer needed.
         if (deployment != null && !string.IsNullOrEmpty(deployment.ConnectionName) && !string.IsNullOrEmpty(deployment.ModelName))
         {
             return await _clientFactory.CreateChatClientAsync(

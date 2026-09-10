@@ -225,6 +225,28 @@
                         <div class="form-text">Voice for realtime (speech-to-speech), from the selected realtime model.</div>
                     </div>
 
+                    <partial name="_ChatInteractionModelParameters" model="Model.ModelParameterEditor" view-data='new ViewDataDictionary(ViewData) {
+                        { "DeploymentSelector", "#setting-deployment" },
+                        { "SettingPrefix", "modelParameters" },
+                    }' />
+
+                    <div class="mb-2">
+                        <label class="form-label">Utility deployment</label>
+                        <select class="form-select setting-input" id="setting-utilityDeploymentName" data-setting="utilityDeploymentName">
+                            <option value="">Use default utility deployment</option>
+                            @foreach (var d in Model.UtilityDeployments)
+                            {
+                                <option value="@d.Value" selected="@(d.Value == Model.UtilityDeploymentName ? "selected" : null)">@d.Text</option>
+                            }
+                        </select>
+                        <div class="form-text">Background work such as title generation and data extraction. Always a text model.</div>
+                    </div>
+
+                    <partial name="_ChatInteractionModelParameters" model="Model.UtilityModelParameterEditor" view-data='new ViewDataDictionary(ViewData) {
+                        { "DeploymentSelector", "#setting-utilityDeploymentName" },
+                        { "SettingPrefix", "utilityModelParameters" },
+                    }' />
+
                     <div class="mb-2">
                         <label class="form-label">Orchestrator</label>
                         <select class="form-select setting-input" id="setting-orchestratorName" name="OrchestratorName" data-setting="orchestratorName">

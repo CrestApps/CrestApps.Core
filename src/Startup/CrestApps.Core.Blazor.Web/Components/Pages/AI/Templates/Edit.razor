@@ -11,6 +11,8 @@
 @using CrestApps.Core.AI.DataSources
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Mcp.Models
+@using CrestApps.Core.AI.Capabilities
+@using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Orchestration
 @using CrestApps.Core.AI.Profiles
@@ -25,6 +27,7 @@
 @inject IAIProfileTemplateManager TemplateManager
 @inject IAIProfileManager ProfileManager
 @inject ICatalog<AIDeployment> DeploymentCatalog
+@inject CrestApps.Core.AI.Deployments.IAIDeploymentManager DeploymentManager
 @inject CrestApps.Core.AI.Capabilities.IAIDeploymentCapabilityService CapabilityService
 @inject CrestApps.Core.AI.Speech.IRealtimeVoiceResolver RealtimeVoiceResolver
 @inject SiteSettingsStore SiteSettingsStore
@@ -170,7 +173,7 @@
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">Chat deployment</label>
-                                    <InputSelect class="form-select" @bind-Value="_model.ChatDeploymentName">
+                                    <InputSelect class="form-select" @bind-Value="_model.ChatDeploymentName" @bind-Value:after="OnChatDeploymentChangedAsync">
                                         <option value="">Use default chat deployment</option>
                                         @foreach (var d in _model.ChatDeployments)
                                         {
@@ -179,6 +182,11 @@
                                     </InputSelect>
                                     <div class="form-text">The chat model deployment to use.</div>
                                 </div>
+                                @* Directly under the picker it belongs to: the parameters a deployment exposes
+                                   are part of choosing it, so they appear where the choice is made. *@
+                                <ModelParametersEditor DeploymentName="@_model.ChatDeploymentName"
+                                                       Values="_model.ModelParameters"
+                                                       />
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
@@ -192,6 +200,10 @@
                                     </InputSelect>
                                     <div class="form-text">Optional deployment for utility tasks.</div>
                                 </div>
+                                <ModelParametersEditor DeploymentName="@_model.UtilityDeploymentName"
+                                                       Values="_model.UtilityModelParameters"
+                                                       ElementIdPrefix="utilityModelParameter"
+                                                       />
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
@@ -209,6 +221,10 @@
                         </div>
 
                         <div class="row">
+                            @* The chat mode layers speech-to-text and text-to-speech over a text model, so it only
+                               applies when the chat deployment is not already a speech-to-speech one. *@
+                            @if (!_chatDeploymentIsRealtime)
+                            {
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">Chat mode</label>
@@ -219,23 +235,12 @@
                                             <option value="@mode">@mode</option>
                                         }
                                     </InputSelect>
-                                    <div class="form-text">Select <strong>Realtime</strong> to seed a speech-to-speech voice profile.</div>
+                                    <div class="form-text">Layers speech-to-text and text-to-speech over a text model. A realtime chat deployment speaks natively and ignores this.</div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label class="form-label">Realtime deployment</label>
-                                    <InputSelect class="form-select" @bind-Value="_model.RealtimeDeploymentName" @bind-Value:after="LoadRealtimeVoicesAsync">
-                                        <option value="">Use default realtime deployment</option>
-                                        @foreach (var d in _model.RealtimeDeployments)
-                                        {
-                                            <option value="@d.Value">@d.Key</option>
-                                        }
-                                    </InputSelect>
-                                    <div class="form-text">The speech-to-speech deployment for the Realtime chat mode.</div>
-                                </div>
-                            </div>
-                            @if (_model.ChatMode == ChatMode.Realtime)
+                            }
+                            @* A realtime chat deployment speaks natively and offers its own voices. *@
+                            @if (_chatDeploymentIsRealtime)
                             {
                                 <div class="col-md-4">
                                     <div class="mb-3">
@@ -454,15 +459,6 @@
                         </div>
                         <div class="mb-3"><div class="form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="_model.UseCaching" /><label class="form-check-label">Enable response caching</label></div><div class="form-text">Cache responses to improve performance for repeated queries.</div></div>
 
-                    <ModelParametersEditor DeploymentName="@_model.ChatDeploymentName"
-                                           Values="_model.ModelParameters"
-                                           Description="Only the parameters declared by the selected chat deployment are shown." />
-
-                    <ModelParametersEditor DeploymentName="@_model.UtilityDeploymentName"
-                                           Values="_model.UtilityModelParameters"
-                                           ElementIdPrefix="utilityModelParameter"
-                                           Title="Utility model parameters"
-                                           Description="Applied to background completions such as title generation, data extraction, and post-session processing. Only the parameters declared by the selected utility deployment are shown." />
                     </div>
 
                     <!-- Capabilities -->
@@ -675,6 +671,9 @@
     private string _promptTemplateSearchTerm;
     private IReadOnlyList<CrestApps.Core.AI.Models.SpeechVoice> _realtimeVoices = [];
 
+    // Whether the selected chat deployment is a realtime (speech-to-speech) model.
+    private bool _chatDeploymentIsRealtime;
+
     protected override async Task OnInitializedAsync()
     {
         _existing = await Catalog.FindByIdAsync(Id);
@@ -687,10 +686,7 @@
         _model = AITemplateViewModel.FromTemplate(_existing);
         await PopulateDropdownsAsync();
 
-        if (_model.ChatMode == ChatMode.Realtime)
-        {
-            await LoadRealtimeVoicesAsync();
-        }
+        await OnChatDeploymentChangedAsync();
     }
 
     // Resolves the realtime voices for the selected realtime deployment (or the site default) via
@@ -699,10 +695,7 @@
     {
         _realtimeVoices = [];
 
-        var deploymentDefaults = SiteSettingsStore.Get<DefaultAIDeploymentSettings>();
-        var deploymentName = !string.IsNullOrWhiteSpace(_model.RealtimeDeploymentName)
-            ? _model.RealtimeDeploymentName
-            : deploymentDefaults.DefaultRealtimeDeploymentName;
+        var deploymentName = _model.ChatDeploymentName;
 
         if (string.IsNullOrWhiteSpace(deploymentName))
         {
@@ -722,9 +715,18 @@
             .ToList();
     }
 
-    private async Task OnChatModeChangedAsync()
+    private Task OnChatModeChangedAsync()
     {
-        if (_model.ChatMode == ChatMode.Realtime)
+        return Task.CompletedTask;
+    }
+
+    // Recomputes whether the selected chat deployment is a realtime model. That single answer decides
+    // whether the chat mode applies at all, and which voices the template offers.
+    private async Task OnChatDeploymentChangedAsync()
+    {
+        _chatDeploymentIsRealtime = await CapabilityService.IsRealtimeDeploymentAsync(_model.ChatDeploymentName);
+
+        if (_chatDeploymentIsRealtime)
         {
             await LoadRealtimeVoicesAsync();
         }
@@ -793,9 +795,8 @@
     private async Task PopulateDropdownsAsync()
     {
         var allDeployments = await DeploymentCatalog.GetAllAsync();
-        _model.ChatDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
-        _model.UtilityDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
-        _model.RealtimeDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat) && CapabilityService.GetCapabilities(d).SupportsFeature(AIDeploymentFeatureNames.Realtime)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
+        _model.ChatDeployments = (await DeploymentManager.GetConversationalDeploymentsAsync()).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
+        _model.UtilityDeployments = (await DeploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
         _model.Orchestrators = OrchestratorOpts.Value.GetOrchestratorDescriptors().Select(o => new KeyValuePair<string, string>(o.Value.Title ?? o.Key, o.Key)).ToList();
 
         var hasAnthropicOptions = ClaudeOpts.TryGetValidValue(out ClaudeOptions anthropicOptions);

@@ -40,7 +40,12 @@ public sealed class ProviderAICompletionClientTests
 
         var deploymentManager = new Mock<IAIDeploymentManager>(MockBehavior.Strict);
         deploymentManager
-            .Setup(manager => manager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, It.IsAny<string>(), TestProviderMarker.ClientName, It.IsAny<CancellationToken>()))
+            .Setup(manager => manager.ResolveSlotAsync(
+                AIDeploymentSlotNames.Chat,
+                It.IsAny<string>(),
+                TestProviderMarker.ClientName,
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(deployment);
 
         var completionClient = new ProviderAICompletionClient<TestProviderMarker>(

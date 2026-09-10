@@ -773,14 +773,14 @@ public sealed class AzureOpenAICompletionClientPromptTests
             ClientName = AzureOpenAIConstants.ClientName,
             ConnectionName = ConnectionName,
             ModelName = ModelName,
-            Purpose = AIDeploymentPurpose.Chat,
         };
         var deploymentManager = new Mock<IAIDeploymentManager>(MockBehavior.Strict);
         deploymentManager
-            .Setup(manager => manager.ResolveOrDefaultAsync(
-                AIDeploymentPurpose.Chat,
+            .Setup(manager => manager.ResolveSlotAsync(
+                AIDeploymentSlotNames.Chat,
                 It.IsAny<string>(),
                 AzureOpenAIConstants.ClientName,
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(deployment);
 

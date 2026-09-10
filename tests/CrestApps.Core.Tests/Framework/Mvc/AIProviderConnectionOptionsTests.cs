@@ -362,7 +362,7 @@ public sealed class AIProviderConnectionConfigurationTests
         {
             TechnicalName = "chat-main",
             ModelName = "gpt-4o-mini",
-            SelectedPurposes = [AIDeploymentPurpose.Chat.ToString()],
+            SelectedFeatures = [AIDeploymentFeatureNames.TextGeneration],
         });
 
         var viewResult = Assert.IsType<ViewResult>(result);
@@ -487,7 +487,6 @@ public sealed class AIProviderConnectionConfigurationTests
                 Name = "whisper",
                 ModelName = "whisper",
                 ClientName = "AzureSpeech",
-                Purpose = AIDeploymentPurpose.SpeechToText,
                 IsReadOnly = true,
             },
         ]);

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
@@ -8,10 +9,11 @@ namespace CrestApps.Core.AI.Models;
 /// Represents a configured AI deployment that maps a technical name and deployment purpose
 /// to a specific AI model via a registered client and optional provider connection.
 /// </summary>
-public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareModel, IModifiedUtcAwareModel, ICloneable<AIDeployment>
+public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceAwareModel, IModifiedUtcAwareModel, ICloneable<AIDeployment>, IJsonOnDeserialized
 {
     private string _modelName;
-    private AIDeploymentPurpose _purpose;
+    private string[] _legacyPurposes;
+    private int _legacyPurposeRank;
 
     /// <summary>
     /// Gets or sets the technical name of the AI client implementation to use for this deployment.
@@ -58,42 +60,89 @@ public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceA
     public string ConnectionName { get; set; }
 
     /// <summary>
-    /// Gets or sets the purposes of this deployment (Chat, Utility, Embedding, Image, SpeechToText, TextToSpeech, Vision).
-    /// A deployment can support one or more purposes.
+    /// Gets the legacy purpose names captured while this record was deserialized, if it carried any.
     /// </summary>
-    public AIDeploymentPurpose Purpose
-    {
-        get => _purpose;
-        set => _purpose = value;
-    }
+    /// <remarks>
+    /// A deployment no longer has a purpose — it declares capabilities. Records written before that change
+    /// still carry a <c>Purpose</c>, <c>Capability</c>, or <c>Type</c> field, and the value is captured here
+    /// so <see cref="AIDeploymentPurposeCompatibility"/> can project it onto capabilities. This is the
+    /// upgrade path for stored data and is deliberately not part of the public surface.
+    /// </remarks>
+    [JsonIgnore]
+    internal IReadOnlyList<string> LegacyPurposes => _legacyPurposes;
 
     /// <summary>
-    /// Gets or sets the legacy deployment type flags.
-    /// Use <see cref="Purpose"/> for new code.
+    /// Forgets the captured legacy purpose, once it has been projected onto capabilities.
     /// </summary>
-#pragma warning disable CS0618 // Type or member is obsolete
-    [Obsolete("Use Purpose instead. Retained for backward compatibility.")]
-    [JsonIgnore]
-    public AIDeploymentType Type
+    /// <remarks>
+    /// The projection is a one-time translation of a record written before capabilities existed, not a
+    /// standing rule. Holding on to the purpose after it has been applied would let it re-apply on a later
+    /// update and restore a capability the operator had just removed.
+    /// </remarks>
+    internal void ClearLegacyPurposes()
     {
-        get => Purpose.ToLegacyType();
-        set => Purpose = value.ToPurpose();
+        _legacyPurposes = null;
+        _legacyPurposeRank = 0;
     }
 
     [JsonInclude]
-    [JsonPropertyName("Type")]
-    private AIDeploymentType LegacyType
-    {
-        set => Purpose = value.ToPurpose();
-    }
+    [JsonPropertyName("Purpose")]
+    private JsonElement LegacyPurpose { set => CaptureLegacyPurpose(value, rank: 1); }
 
     [JsonInclude]
     [JsonPropertyName("Capability")]
-    private AIDeploymentPurpose CapabilityAlias
+    private JsonElement LegacyCapability { set => CaptureLegacyPurpose(value, rank: 2); }
+
+    [JsonInclude]
+    [JsonPropertyName("Type")]
+    private JsonElement LegacyType { set => CaptureLegacyPurpose(value, rank: 3); }
+
+    /// <summary>
+    /// Records a legacy purpose value, keeping the highest-precedence field when a record carries more than
+    /// one of them. JSON property order is not guaranteed, so precedence is applied by rank rather than by
+    /// arrival: <c>Purpose</c> outranks <c>Capability</c>, which outranks the oldest name, <c>Type</c>.
+    /// </summary>
+    private void CaptureLegacyPurpose(JsonElement value, int rank)
     {
-        set => Purpose = value;
+        if (_legacyPurposes is not null && rank >= _legacyPurposeRank)
+        {
+            return;
+        }
+
+        string[] names = value.ValueKind switch
+        {
+            JsonValueKind.String => [value.GetString()],
+            JsonValueKind.Number => [value.ToString()],
+            JsonValueKind.Array => [.. value.EnumerateArray()
+                .Select(static item => item.ValueKind == JsonValueKind.String ? item.GetString() : item.ToString())
+                .Where(static item => !string.IsNullOrWhiteSpace(item))],
+            _ => null,
+        };
+
+        if (names is not { Length: > 0 })
+        {
+            return;
+        }
+
+        _legacyPurposes = names;
+        _legacyPurposeRank = rank;
     }
-#pragma warning restore CS0618 // Type or member is obsolete
+
+    /// <summary>
+    /// Projects any legacy purpose this record carried onto the model capability features, after the record
+    /// has been read from the store.
+    /// </summary>
+    /// <remarks>
+    /// This is the store deserialization half of the read-time normalization described on
+    /// <see cref="AIDeploymentPurposeCompatibility"/>; the JSON-node half lives in the deployment catalog
+    /// handler. It runs from <see cref="IJsonOnDeserialized"/> rather than from a property setter because the
+    /// rule needs both the legacy purpose and the already-declared features, and JSON property order is not
+    /// guaranteed.
+    /// </remarks>
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        AIDeploymentPurposeCompatibility.Normalize(this);
+    }
 
     /// <summary>
     /// Gets or sets the UTC timestamp when this deployment was created.
@@ -122,45 +171,6 @@ public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceA
     public bool IsReadOnly { get; set; }
 
     /// <summary>
-    /// Determines whether the deployment supports the specified legacy type.
-    /// </summary>
-    /// <param name="type">The type.</param>
-#pragma warning disable CS0618 // Type or member is obsolete
-    public bool SupportsType(AIDeploymentType type)
-    {
-        return Purpose.Supports(type.ToPurpose());
-    }
-#pragma warning restore CS0618 // Type or member is obsolete
-
-    /// <summary>
-    /// Determines whether the deployment supports the specified purpose.
-    /// </summary>
-    /// <param name="purpose">The purpose.</param>
-    public bool SupportsPurpose(AIDeploymentPurpose purpose)
-    {
-        return Purpose.Supports(purpose);
-    }
-
-    /// <summary>
-    /// Determines whether this deployment can serve text chat completions. A realtime (speech-to-speech)
-    /// deployment serves only the realtime WebSocket API and rejects a text chat completion with an HTTP 400 —
-    /// even when it is also tagged with the text-generation feature — so any deployment that declares the
-    /// realtime feature cannot serve text completions. Deployments without capability metadata are treated as
-    /// capable, for backward compatibility.
-    /// </summary>
-    public bool CanServeTextCompletion()
-    {
-        if (!this.TryGet<AIDeploymentMetadata>(out var metadata) || metadata.Features is not { Length: > 0 })
-        {
-            return true;
-        }
-
-        var features = new HashSet<string>(metadata.Features, StringComparer.OrdinalIgnoreCase);
-
-        return !features.Contains(AIDeploymentFeatureNames.Realtime);
-    }
-
-    /// <summary>
     /// Clones the operation.
     /// </summary>
     public AIDeployment Clone()
@@ -172,7 +182,8 @@ public sealed class AIDeployment : SourceCatalogEntry, INameAwareModel, ISourceA
             ModelName = _modelName,
             Source = Source,
             ConnectionName = ConnectionName,
-            Purpose = Purpose,
+            _legacyPurposes = _legacyPurposes,
+            _legacyPurposeRank = _legacyPurposeRank,
             IsReadOnly = IsReadOnly,
             CreatedUtc = CreatedUtc,
             ModifiedUtc = ModifiedUtc,

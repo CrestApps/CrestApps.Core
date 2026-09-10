@@ -171,7 +171,7 @@ public sealed class AIChatController : Controller
             return false;
         }
 
-        var visionDeployment = await _deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision);
+        var visionDeployment = await _deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Vision);
 
         return visionDeployment != null;
     }

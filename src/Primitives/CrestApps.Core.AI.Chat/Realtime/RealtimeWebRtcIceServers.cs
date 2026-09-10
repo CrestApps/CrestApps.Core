@@ -22,15 +22,17 @@ internal static class RealtimeWebRtcIceServers
     {
         var options = services.GetService<IOptions<RealtimeTransportOptions>>()?.Value ?? new RealtimeTransportOptions();
 
+        var stunUrls = Distinct(options.StunUrls);
+
         var servers = new List<WebRtcIceServer>
         {
             new()
             {
-                Urls = (options.StunUrls is { Length: > 0 }) ? options.StunUrls : [DefaultStunUrl],
+                Urls = stunUrls.Length > 0 ? stunUrls : [DefaultStunUrl],
             },
         };
 
-        if (options.TurnUrls is { Length: > 0 } turnUrls)
+        if (Distinct(options.TurnUrls) is { Length: > 0 } turnUrls)
         {
             if (!string.IsNullOrWhiteSpace(options.TurnSecret))
             {
@@ -49,6 +51,14 @@ internal static class RealtimeWebRtcIceServers
 
         return servers;
     }
+
+    // A URL offered twice makes the browser allocate two relays for one session — billed twice on metered TURN —
+    // and report a duplicate ICE candidate error for each. Configuration is the usual source: the binder appends
+    // to array properties, so a section bound more than once repeats every entry.
+    private static string[] Distinct(string[] urls)
+        => urls is { Length: > 0 }
+            ? urls.Where(url => !string.IsNullOrWhiteSpace(url)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+            : [];
 
     // coturn "use-auth-secret" (TURN REST API) ephemeral credentials: the username is a UNIX expiry timestamp and
     // the credential is Base64(HMAC-SHA1(secret, username)). coturn is configured with the same shared secret and

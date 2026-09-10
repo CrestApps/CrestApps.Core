@@ -16,8 +16,6 @@ public sealed class AIDeploymentViewModel
 
     public string TechnicalName { get; set; }
 
-    public string[] SelectedPurposes { get; set; } = [];
-
     public string ConnectionName { get; set; }
 
     public string ClientName { get; set; }
@@ -36,8 +34,6 @@ public sealed class AIDeploymentViewModel
     public List<KeyValuePair<string, string>> Providers { get; set; } = [];
 
     public List<KeyValuePair<string, string>> AuthenticationTypes { get; set; } = [];
-
-    public List<KeyValuePair<string, string>> Purposes { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the technical names of the registered model features exposed by this deployment.
@@ -61,9 +57,6 @@ public sealed class AIDeploymentViewModel
             ItemId = deployment.ItemId,
             ModelName = deployment.ModelName,
             TechnicalName = deployment.Name,
-            SelectedPurposes = deployment.Purpose.GetSupportedPurposes()
-                .Select(static purpose => purpose.ToString())
-            .ToArray(),
             ConnectionName = deployment.ConnectionName,
             ClientName = AIProviderNameNormalizer.Normalize(deployment.ClientName),
             IsReadOnly = deployment.IsReadOnly,
@@ -102,7 +95,6 @@ public sealed class AIDeploymentViewModel
     {
         deployment.Name = TechnicalName;
         deployment.ModelName = ModelName;
-        deployment.Purpose = GetDeploymentPurpose();
         deployment.ConnectionName = ConnectionName;
         deployment.ClientName = AIProviderNameNormalizer.Normalize(ClientName);
 
@@ -301,26 +293,6 @@ public sealed class AIDeploymentViewModel
         deployment.Put(metadata);
     }
 
-    public AIDeploymentPurpose GetDeploymentPurpose()
-    {
-        var deploymentPurpose = AIDeploymentPurpose.None;
-
-        if (SelectedPurposes is null)
-        {
-            return deploymentPurpose;
-        }
-
-        foreach (var purposeName in SelectedPurposes.Where(static value => !string.IsNullOrWhiteSpace(value)))
-        {
-            if (Enum.TryParse<AIDeploymentPurpose>(purposeName, ignoreCase: true, out var parsedPurpose)
-                && parsedPurpose != AIDeploymentPurpose.None)
-            {
-                deploymentPurpose |= parsedPurpose;
-            }
-        }
-
-        return deploymentPurpose;
-    }
 
     public bool UsesStandaloneProvider()
     {

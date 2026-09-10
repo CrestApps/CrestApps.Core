@@ -378,7 +378,7 @@ public sealed class IndexProfileController : Controller
             .Select(source => new SelectListItem(source.DisplayName, source.Type))
             .ToList();
 
-        model.EmbeddingDeployments = (await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Embedding))
+        model.EmbeddingDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Embedding))
             .OrderBy(d => d.ConnectionName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
             .Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name))

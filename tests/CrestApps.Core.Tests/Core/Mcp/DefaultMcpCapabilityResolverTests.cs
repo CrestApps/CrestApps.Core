@@ -970,10 +970,11 @@ public sealed class DefaultMcpCapabilityResolverTests
 
         var deploymentManager = new Mock<IAIDeploymentManager>();
         deploymentManager
-            .Setup(instance => instance.ResolveOrDefaultAsync(
-                AIDeploymentPurpose.Embedding,
+            .Setup(instance => instance.ResolveSlotAsync(
+                AIDeploymentSlotNames.Embedding,
                 It.IsAny<string>(),
                 It.IsAny<string>(),
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(embeddingDeploymentAvailable
                 ? new AIDeployment
@@ -981,7 +982,6 @@ public sealed class DefaultMcpCapabilityResolverTests
                     ItemId = "embedding",
                     Name = "embedding",
                     ClientName = "client",
-                    Purpose = AIDeploymentPurpose.Embedding,
                 }
                 : null);
 

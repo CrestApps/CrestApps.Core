@@ -54,20 +54,19 @@ public enum AIProviderCapability
 
 A `[Flags]` enum lets a provider declare its full surface in one expression and lets call-sites do `provider.Capabilities.HasFlag(AIProviderCapability.Embeddings)`.
 
-#### Mapping to `AIDeploymentType`
+#### Mapping to model capabilities
 
-`AIDeployment.Type` already encodes the deployment surface (`Chat`, `Utility`, `Embedding`, `Image`, `SpeechToText`, `TextToSpeech`). The provider capability flag is the **provider-level** statement; deployment type is the **deployment-level** statement. The factory must validate both. The mapping is fixed:
+A deployment declares what its model can do through its [model capabilities](../core/ai-model-capabilities.md). The provider capability flag is the **provider-level** statement; the declared capability is the **deployment-level** statement. The factory must validate both. The mapping is fixed:
 
-| `AIDeploymentType` | Required `AIProviderCapability` |
+| Deployment capability | Required `AIProviderCapability` |
 |---|---|
-| `Chat` | `Chat` |
-| `Utility` | `Chat` *(utility deployments are chat models with relaxed defaults; no separate provider capability)* |
-| `Embedding` | `Embeddings` |
-| `Image` | `Images` |
-| `SpeechToText` | `SpeechToText` |
-| `TextToSpeech` | `TextToSpeech` |
+| `textGeneration` | `Chat` |
+| `textEmbedding` | `Embeddings` |
+| `imageOutput` | `Images` |
+| `speechToText` | `SpeechToText` |
+| `textToSpeech` | `TextToSpeech` |
 
-`DefaultAIClientFactory` enforces this on every `Create*Async` call: it asserts both `provider.Supports(capability)` and `deployment.Type` matches the requested capability before invoking the provider. This makes mismatches surface as a deterministic exception at the factory boundary, not as an SDK-side `BadRequest` deep inside a stream.
+`DefaultAIClientFactory` enforces this on every `Create*Async` call: it asserts both `provider.Supports(capability)` and that the deployment declares the matching capability before invoking the provider. This makes mismatches surface as a deterministic exception at the factory boundary, not as an SDK-side `BadRequest` deep inside a stream.
 
 ### 2. `IAIProvider`
 

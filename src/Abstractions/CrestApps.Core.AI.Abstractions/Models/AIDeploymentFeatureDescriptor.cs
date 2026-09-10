@@ -9,7 +9,7 @@ namespace CrestApps.Core.AI.Models;
 /// <remarks>
 /// Features are registered by modules through <see cref="AIDeploymentCapabilityOptions"/> so that
 /// providers can contribute new capabilities without changing the core framework.
-/// Unlike <see cref="AIDeploymentPurpose"/>, which drives deployment routing, features describe
+/// Unlike a deployment slot, which says where a deployment is used, features describe
 /// what the underlying model is able to do.
 /// </remarks>
 public sealed class AIDeploymentFeatureDescriptor

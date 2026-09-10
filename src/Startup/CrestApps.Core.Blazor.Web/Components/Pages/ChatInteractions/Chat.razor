@@ -96,7 +96,8 @@ else
 
                                 <div class="mb-3">
                                     <label class="form-label" for="chat-setting-deployment">Deployment</label>
-                                    <select id="chat-setting-deployment" class="form-select setting-input" data-setting="deploymentName">
+                                    <select id="chat-setting-deployment" class="form-select setting-input" data-setting="deploymentName"
+                                            @onchange="args => _selectedChatDeploymentName = args.Value?.ToString()">
                                         <option value="">Default</option>
                                         @foreach (var deployment in _model.Deployments)
                                         {
@@ -107,6 +108,12 @@ else
                                     </select>
                                 </div>
 
+                                <ChatSettingModelParameters DeploymentName="@_selectedChatDeploymentName"
+                                                            SettingPrefix="modelParameters"
+                                                            ElementIdPrefix="chat-setting-modelParameter"
+                                                            Title="Model parameters"
+                                                            Values="_modelParameterValues" />
+
                                 <div class="mb-3 d-none" id="chat-setting-realtimeVoice-group">
                                     <label class="form-label" for="chat-setting-realtimeVoice">Voice</label>
                                     <select id="chat-setting-realtimeVoice" class="form-select setting-input" data-setting="realtimeVoiceName">
@@ -114,6 +121,27 @@ else
                                     </select>
                                     <div class="form-text">Voice for realtime (speech-to-speech), from the selected realtime model.</div>
                                 </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="chat-setting-utility-deployment">Utility deployment</label>
+                                    <select id="chat-setting-utility-deployment" class="form-select setting-input" data-setting="utilityDeploymentName"
+                                            @onchange="args => _selectedUtilityDeploymentName = args.Value?.ToString()">
+                                        <option value="">Use default utility deployment</option>
+                                        @foreach (var deployment in _model.UtilityDeployments)
+                                        {
+                                            <option value="@deployment.Value" selected="@(string.Equals(_model.UtilityDeploymentName, deployment.Value, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">
+                                                @deployment.Text
+                                            </option>
+                                        }
+                                    </select>
+                                    <div class="form-text">Background work such as title generation and data extraction. Always a text model.</div>
+                                </div>
+
+                                <ChatSettingModelParameters DeploymentName="@_selectedUtilityDeploymentName"
+                                                            SettingPrefix="utilityModelParameters"
+                                                            ElementIdPrefix="chat-setting-utilityModelParameter"
+                                                            Title="Utility model parameters"
+                                                            Values="_utilityModelParameterValues" />
 
                                 <div class="mb-3">
                                     <label class="form-label" for="chat-setting-orchestrator">Orchestrator</label>
@@ -577,6 +605,15 @@ else
     private string _chatInteractionConfigJson;
     private string _chatInteractionDocumentManagerConfigJson;
     private string _chatInteractionSettingsConfigJson;
+
+    // The settings panel saves through the JavaScript collector rather than a Blazor form, so the two
+    // deployment selects are plain inputs. Tracking their value here is what lets the parameter editors
+    // re-render for the newly selected deployment without a round trip through the collector.
+    private string _selectedChatDeploymentName;
+    private string _selectedUtilityDeploymentName;
+    private IDictionary<string, string> _modelParameterValues;
+    private IDictionary<string, string> _utilityModelParameterValues;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadChatAsync();
@@ -598,6 +635,12 @@ else
         interaction.TryGet<PromptTemplateMetadata>(out var promptTemplateMetadata);
         interaction.TryGet<DocumentsMetadata>(out var documentMetadata);
         interaction.TryGet<AIToolInstanceMetadata>(out var toolInstanceMetadata);
+        interaction.TryGet<AIDeploymentParametersMetadata>(out var parameterMetadata);
+
+        _selectedChatDeploymentName = interaction.ChatDeploymentName;
+        _selectedUtilityDeploymentName = interaction.UtilityDeploymentName;
+        _modelParameterValues = parameterMetadata?.Values;
+        _utilityModelParameterValues = parameterMetadata?.UtilityValues;
 
         var hasSpeechToText = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultSpeechToTextDeploymentName);
         var hasTextToSpeech = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
@@ -615,11 +658,12 @@ else
         var selectedDeploymentIsRealtime = !string.IsNullOrWhiteSpace(interaction.ChatDeploymentName)
             && realtimeDeploymentNames.Contains(interaction.ChatDeploymentName, StringComparer.OrdinalIgnoreCase);
 
+        // The chat mode layers speech-to-text and text-to-speech over a text model, so it does not apply to a
+        // realtime deployment, which speaks natively.
         var effectiveChatMode = selectedDeploymentIsRealtime
-            ? ChatMode.Realtime
+            ? ChatMode.TextInput
             : settings.ChatMode switch
             {
-                ChatMode.Realtime when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
                 ChatMode.Conversation when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
                 ChatMode.Conversation when hasSpeechToText => ChatMode.AudioInput,
                 ChatMode.AudioInput when hasSpeechToText => ChatMode.AudioInput,
@@ -646,6 +690,7 @@ else
             Title = interaction.Title,
             SystemMessage = interaction.SystemMessage,
             ChatDeploymentName = interaction.ChatDeploymentName,
+            UtilityDeploymentName = interaction.UtilityDeploymentName,
             OrchestratorName = string.Equals(interaction.OrchestratorName, OrchestratorOptionsAccessor.Value.DefaultOrchestratorName, StringComparison.OrdinalIgnoreCase)
                 ? string.Empty
                 : interaction.OrchestratorName,
@@ -677,7 +722,7 @@ else
             ChatMode = effectiveChatMode,
             SpeechToTextEnabled = effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation,
             ConversationModeEnabled = effectiveChatMode == ChatMode.Conversation,
-            RealtimeEnabled = effectiveChatMode == ChatMode.Realtime,
+            RealtimeEnabled = selectedDeploymentIsRealtime,
             RealtimeWebRtcEnabled = CrestApps.Core.AI.Chat.Realtime.RealtimeTransportSettings.IsWebRtcEnabled(ServiceProvider),
             TextToSpeechEnabled = settings.EnableTextToSpeechPlayback && hasTextToSpeech,
             TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
@@ -762,15 +807,24 @@ else
 
     private async Task PopulateChatDropdownsAsync(ChatInteractionChatViewModel model, ChatInteractionSettings settings)
     {
-        var deployments = await DeploymentCatalog.GetAllAsync();
-        model.Deployments = deployments
+        // Only deployments this interaction could actually converse with — text-capable or realtime.
+        model.Deployments = (await DeploymentManager.GetConversationalDeploymentsAsync())
             .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
             .Select(d => new SelectOption(
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})",
                 d.Name))
             .ToList();
+
+        // Background work is text-only, so the utility slot never offers a realtime deployment.
+        model.UtilityDeployments = (await DeploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility))
+            .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(d => new SelectOption(
+                string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})",
+                d.Name))
+            .ToList();
+
         var interactionDocSettings = SiteSettingsStore.Get<InteractionDocumentSettings>();
-        var visionDeployment = await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision);
+        var visionDeployment = await DeploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Vision);
         model.AllowImageUploads = interactionDocSettings.AllowImageUploads && visionDeployment != null;
         model.AllowDocumentUploads = interactionDocSettings.AllowDocumentUploads;
 

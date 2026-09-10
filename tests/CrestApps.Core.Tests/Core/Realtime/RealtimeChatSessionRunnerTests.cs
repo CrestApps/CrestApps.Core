@@ -25,7 +25,7 @@ public sealed class RealtimeChatSessionRunnerTests
     [Fact]
     public async Task RunAsync_PersistsUserAndAssistantTurnsAndForwardsToSink()
     {
-        var profile = new AIProfile { Type = AIProfileType.Chat, RealtimeDeploymentName = "rt-deploy" };
+        var profile = new AIProfile { Type = AIProfileType.Chat, ChatDeploymentName = "rt-deploy" };
         var session = new AIChatSession { SessionId = "session-1" };
 
         var conversation = new FakeConversation(
@@ -51,7 +51,7 @@ public sealed class RealtimeChatSessionRunnerTests
             {
                 Resource = profile,
                 SessionId = session.SessionId,
-                RealtimeDeploymentName = profile.RealtimeDeploymentName,
+                RealtimeDeploymentName = profile.ChatDeploymentName,
                 PromptTitle = profile.PromptSubject,
                 ChatSession = session,
                 Voice = "cedar",

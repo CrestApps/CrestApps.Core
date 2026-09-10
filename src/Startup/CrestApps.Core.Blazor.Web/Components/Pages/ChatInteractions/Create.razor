@@ -519,21 +519,18 @@
 
     private async Task PopulateDropdownsAsync()
     {
-        var deployments = await DeploymentCatalog.GetAllAsync();
-        _model.Deployments = deployments
-            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat))
+        _model.Deployments = (await DeploymentManager.GetConversationalDeploymentsAsync())
             .Select(d => new SelectOption(
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})",
                 d.Name))
             .ToList();
-        _model.UtilityDeployments = deployments
-            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat))
+        _model.UtilityDeployments = (await DeploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility))
             .Select(d => new SelectOption(
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})",
                 d.Name))
             .ToList();
         var interactionDocSettings = SiteSettingsStore.Get<InteractionDocumentSettings>();
-        var visionDeployment = await DeploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision);
+        var visionDeployment = await DeploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Vision);
         _model.AllowImageUploads = interactionDocSettings.AllowImageUploads && visionDeployment != null;
         _model.AllowDocumentUploads = interactionDocSettings.AllowDocumentUploads;
 
