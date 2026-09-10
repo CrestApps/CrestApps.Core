@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Realtime;
+﻿namespace CrestApps.Core.AI.Realtime;
 
 /// <summary>
 /// Configuration for the realtime WebRTC transport's ICE (NAT traversal) servers. Bound from configuration
@@ -120,4 +120,19 @@ public sealed class RealtimeTransportOptions
     /// Gets or sets a static TURN credential (password). Used only when <see cref="TurnSecret"/> is not set.
     /// </summary>
     public string TurnCredential { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the server offers only TURN relay candidates. Defaults to
+    /// <see langword="false"/>. Intended for diagnosing relay problems, not for production.
+    /// </summary>
+    /// <remarks>
+    /// A server that also offers host and server-reflexive candidates can pair directly with a browser on the
+    /// same machine or LAN, and a direct pair additionally lets ICE paper over remote candidates that never
+    /// arrived, by promoting the source of an inbound connectivity check to a peer-reflexive candidate. Locally
+    /// that turns a broken relay path into a working call, which is why a failure that reproduces every time in a
+    /// deployment where inbound UDP is blocked can be impossible to reproduce on a developer machine. Enabling
+    /// this removes both shortcuts so the relay path is the only path, and the deployed behaviour is what runs
+    /// locally. It costs a TURN allocation for every session, so leave it off outside diagnosis.
+    /// </remarks>
+    public bool ForceRelayOnly { get; set; }
 }

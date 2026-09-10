@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Threading.Channels;
@@ -127,17 +127,58 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     private ushort? _lastInboundSequence;
     private short _recentPeak;
     private int _queuedFrames;
+    private readonly object _localCandidateGate = new();
+    private readonly List<WebRtcIceCandidate> _pendingLocalCandidates = [];
+    private Action<WebRtcIceCandidate> _iceCandidateGenerated;
 
     public string AnswerSdp { get; private set; }
 
     /// <inheritdoc />
     public int QueuedPlaybackMs => Volatile.Read(ref _queuedFrames) * FrameDurationMs;
 
-    public event Action<WebRtcIceCandidate> IceCandidateGenerated;
+    /// <summary>Raised for each ICE candidate this peer gathers.</summary>
+    /// <remarks>
+    /// Candidates gathered before a handler subscribes are replayed to it on subscription. Gathering starts
+    /// inside <c>setLocalDescription</c>, which runs while the peer is still being constructed, so the host
+    /// candidate is raised before the caller has had any opportunity to subscribe. Dropping it left the browser
+    /// with an incomplete view of the server's candidates.
+    /// </remarks>
+    public event Action<WebRtcIceCandidate> IceCandidateGenerated
+    {
+        add
+        {
+            if (value is null)
+            {
+                return;
+            }
+
+            List<WebRtcIceCandidate> replay;
+
+            lock (_localCandidateGate)
+            {
+                _iceCandidateGenerated += value;
+                replay = [.. _pendingLocalCandidates];
+                _pendingLocalCandidates.Clear();
+            }
+
+            foreach (var pending in replay)
+            {
+                value(pending);
+            }
+        }
+        remove
+        {
+            lock (_localCandidateGate)
+            {
+                _iceCandidateGenerated -= value;
+            }
+        }
+    }
+
     public event Action Connected;
     public event Action Closed;
 
-    public SipSorceryWebRtcRealtimePeer(IReadOnlyList<WebRtcIceServer> iceServers, ILogger logger)
+    public SipSorceryWebRtcRealtimePeer(IReadOnlyList<WebRtcIceServer> iceServers, ILogger logger, bool relayOnly = false)
     {
         _logger = logger;
         _incoming = Channel.CreateBounded<ReadOnlyMemory<byte>>(new BoundedChannelOptions(MaxBufferedInboundFrames)
@@ -183,6 +224,18 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         {
             iceServers = [.. iceServers.Select(ToRtcIceServer)],
         };
+
+        if (relayOnly)
+        {
+            // A diagnostics aid, off by default. Host and server-reflexive candidates let two peers on the same
+            // machine or LAN pair directly, and a direct pair also lets ICE recover from remote candidates that
+            // never arrived by promoting the source of an inbound binding request to a peer-reflexive candidate.
+            // Both mask relay-path faults on a developer machine, which is why a server-relay failure that is
+            // obvious in a real deployment can be invisible locally. Relay only forces every packet through TURN.
+            config.iceTransportPolicy = RTCIceTransportPolicy.relay;
+
+            _logger.LogWarning("WebRTC realtime: ICE transport policy forced to relay only. This is a diagnostics setting and should not be enabled in production.");
+        }
 
         _pc = new RTCPeerConnection(config);
 
@@ -239,12 +292,35 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             return;
         }
 
-        _pc.addIceCandidate(new RTCIceCandidateInit
+        var init = new RTCIceCandidateInit
         {
             candidate = candidate.Candidate,
             sdpMid = candidate.SdpMid,
             sdpMLineIndex = (ushort)Math.Max(0, candidate.SdpMLineIndex),
-        });
+        };
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            // SIPSorcery discards a remote candidate it cannot use without logging anything: a component it has
+            // no session for, a transport it does not support, or an address it cannot resolve. The session then
+            // fails sixteen seconds later with "no checklist entries became available", which says nothing about
+            // which candidate was refused or why. Parse it here the same way SIPSorcery does and record what the
+            // fields came out as, so a candidate lost on the way in is visible at the boundary.
+            try
+            {
+                var parsed = new RTCIceCandidate(init);
+
+                _logger.LogDebug(
+                    "WebRTC realtime: remote ICE candidate handed to the peer. Foundation: {Foundation}. Component: {Component}. Protocol: {Protocol}. Address: {Address}. Port: {Port}. Type: {Type}. SdpMid: {SdpMid}. SdpMLineIndex: {SdpMLineIndex}.",
+                    parsed.foundation, parsed.component, parsed.protocol, parsed.address, parsed.port, parsed.type, init.sdpMid, init.sdpMLineIndex);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "WebRTC realtime: remote ICE candidate could not be parsed: {Candidate}.", candidate.Candidate);
+            }
+        }
+
+        _pc.addIceCandidate(init);
     }
 
     public IAsyncEnumerable<ReadOnlyMemory<byte>> ReadAudioAsync(CancellationToken cancellationToken = default)
@@ -756,12 +832,28 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             _logger.LogDebug("WebRTC realtime: local ICE candidate {Candidate}.", candidate.candidate);
         }
 
-        IceCandidateGenerated?.Invoke(new WebRtcIceCandidate
+        var generated = new WebRtcIceCandidate
         {
             Candidate = candidate.candidate,
             SdpMid = candidate.sdpMid,
             SdpMLineIndex = candidate.sdpMLineIndex,
-        });
+        };
+
+        Action<WebRtcIceCandidate> handler;
+
+        lock (_localCandidateGate)
+        {
+            handler = _iceCandidateGenerated;
+
+            if (handler is null)
+            {
+                _pendingLocalCandidates.Add(generated);
+
+                return;
+            }
+        }
+
+        handler(generated);
     }
 
     private void OnConnectionStateChanged(RTCPeerConnectionState state)

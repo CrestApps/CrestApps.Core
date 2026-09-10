@@ -1,4 +1,6 @@
+﻿using CrestApps.Core.AI.Realtime;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Realtime.WebRtc;
 
@@ -8,10 +10,15 @@ namespace CrestApps.Core.AI.Realtime.WebRtc;
 internal sealed class SipSorceryWebRtcRealtimePeerFactory : IWebRtcRealtimePeerFactory
 {
     private readonly ILogger<SipSorceryWebRtcRealtimePeer> _logger;
+    private readonly IOptionsMonitor<RealtimeTransportOptions> _options;
 
-    public SipSorceryWebRtcRealtimePeerFactory(ILogger<SipSorceryWebRtcRealtimePeer> logger, ILoggerFactory loggerFactory)
+    public SipSorceryWebRtcRealtimePeerFactory(
+        ILogger<SipSorceryWebRtcRealtimePeer> logger,
+        ILoggerFactory loggerFactory,
+        IOptionsMonitor<RealtimeTransportOptions> options)
     {
         _logger = logger;
+        _options = options;
 
         // SIPSorcery logs to its own static factory, which defaults to a null logger. Without this, everything it
         // knows about ICE stays invisible: the TURN Allocate exchange, the CreatePermission it installs for each
@@ -25,7 +32,7 @@ internal sealed class SipSorceryWebRtcRealtimePeerFactory : IWebRtcRealtimePeerF
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(offerSdp);
 
-        var peer = new SipSorceryWebRtcRealtimePeer(iceServers ?? [], _logger);
+        var peer = new SipSorceryWebRtcRealtimePeer(iceServers ?? [], _logger, _options.CurrentValue.ForceRelayOnly);
 
         try
         {
