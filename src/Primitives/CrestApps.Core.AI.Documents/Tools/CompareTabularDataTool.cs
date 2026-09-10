@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Extensions;
+using CrestApps.Core.Support;
 using Cysharp.Text;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
@@ -92,11 +93,6 @@ public sealed class CompareTabularDataTool : AIFunction
     {
         var logger = arguments.Services.GetRequiredService<ILogger<CompareTabularDataTool>>();
 
-        if (logger.IsEnabled(LogLevel.Debug))
-        {
-            logger.LogDebug("AI tool '{ToolName}' invoked.", Name);
-        }
-
         if (!arguments.TryGetFirstString("left_sql", out var leftSql) || string.IsNullOrWhiteSpace(leftSql))
         {
             return "A 'left_sql' query is required. It must return exactly two columns: the key to match on and the numeric measure to compare.";
@@ -105,6 +101,15 @@ public sealed class CompareTabularDataTool : AIFunction
         if (!arguments.TryGetFirstString("right_sql", out var rightSql) || string.IsNullOrWhiteSpace(rightSql))
         {
             return "A 'right_sql' query is required. It must return exactly two columns: the key to match on and the numeric measure to compare.";
+        }
+
+        if (logger.IsEnabled(LogLevel.Debug))
+        {
+            logger.LogDebug(
+                "AI tool '{ToolName}' invoked. left_sql: {LeftSql} | right_sql: {RightSql}",
+                Name,
+                leftSql.SanitizeForLog(),
+                rightSql.SanitizeForLog());
         }
 
         var preparation = await TabularToolRunner.PrepareAsync(arguments.Services, cancellationToken);
@@ -127,7 +132,13 @@ public sealed class CompareTabularDataTool : AIFunction
 
             if (logger.IsEnabled(LogLevel.Debug))
             {
-                logger.LogDebug("AI tool '{ToolName}' completed.", Name);
+                logger.LogDebug(
+                    "AI tool '{ToolName}' completed. left returned {LeftRowCount} row(s) and {LeftColumnCount} column(s); right returned {RightRowCount} row(s) and {RightColumnCount} column(s).",
+                    Name,
+                    left.Rows.Count,
+                    left.Columns.Count,
+                    right.Rows.Count,
+                    right.Columns.Count);
             }
 
             return BuildComparison(left, right, leftLabel, rightLabel, allowUnmatched);
@@ -209,11 +220,11 @@ public sealed class CompareTabularDataTool : AIFunction
             {
                 builder.Append(row.Display);
                 builder.Append(" | ");
-                builder.Append(FormatNumber(row.Left));
+                builder.Append(TabularResultAnalyzer.FormatNumber(row.Left));
                 builder.Append(" | ");
-                builder.Append(FormatNumber(row.Right));
+                builder.Append(TabularResultAnalyzer.FormatNumber(row.Right));
                 builder.Append(" | ");
-                builder.AppendLine(FormatNumber(row.Difference));
+                builder.AppendLine(TabularResultAnalyzer.FormatNumber(row.Difference));
             }
 
             if (rows.Count > MaxComparedRows)
@@ -248,13 +259,13 @@ public sealed class CompareTabularDataTool : AIFunction
         builder.Append("Totals across all rows — ");
         builder.Append(leftName);
         builder.Append(": ");
-        builder.Append(FormatNumber(leftTotal));
+        builder.Append(TabularResultAnalyzer.FormatNumber(leftTotal));
         builder.Append(" | ");
         builder.Append(rightName);
         builder.Append(": ");
-        builder.Append(FormatNumber(rightTotal));
+        builder.Append(TabularResultAnalyzer.FormatNumber(rightTotal));
         builder.Append(" | difference: ");
-        builder.AppendLine(FormatNumber(leftTotal - rightTotal));
+        builder.AppendLine(TabularResultAnalyzer.FormatNumber(leftTotal - rightTotal));
 
         return builder.ToString();
     }
@@ -341,7 +352,7 @@ public sealed class CompareTabularDataTool : AIFunction
                 continue;
             }
 
-            if (!TryGetNumber(row[1], out var value))
+            if (!TabularResultAnalyzer.TryGetNumber(row[1], out var value))
             {
                 error = $"The '{argumentName}' query returned the non-numeric value '{row[1]}' in its second column ({result.Columns[1]}). The second column must be the numeric measure to compare.";
 
@@ -369,60 +380,6 @@ public sealed class CompareTabularDataTool : AIFunction
         return true;
     }
 
-    private static bool TryGetNumber(object value, out double number)
-    {
-        switch (value)
-        {
-            case null:
-                number = 0;
-
-                return true;
-
-            case double doubleValue:
-                number = doubleValue;
-
-                return true;
-
-            case long longValue:
-                number = longValue;
-
-                return true;
-
-            case decimal decimalValue:
-                number = (double)decimalValue;
-
-                return true;
-
-            case string text:
-                if (string.IsNullOrWhiteSpace(text))
-                {
-                    number = 0;
-
-                    return true;
-                }
-
-                return double.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out number);
-            case IConvertible convertible:
-                try
-                {
-                    number = convertible.ToDouble(CultureInfo.InvariantCulture);
-
-                    return true;
-                }
-                catch (Exception exception) when (exception is FormatException or InvalidCastException or OverflowException)
-                {
-                    number = 0;
-
-                    return false;
-                }
-
-            default:
-                number = 0;
-
-                return false;
-        }
-    }
-
     private static string FormatKey(object value)
     {
         return value switch
@@ -432,11 +389,6 @@ public sealed class CompareTabularDataTool : AIFunction
             IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture).Trim(),
             _ => value.ToString().Trim(),
         };
-    }
-
-    private static string FormatNumber(double value)
-    {
-        return value.ToString("0.##", CultureInfo.InvariantCulture);
     }
 
     private static string NormalizeKey(string value)

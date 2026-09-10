@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Extensions;
+using CrestApps.Core.Support;
 using Cysharp.Text;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
@@ -72,14 +73,14 @@ public sealed class QueryTabularDataTool : AIFunction
     {
         var logger = arguments.Services.GetRequiredService<ILogger<QueryTabularDataTool>>();
 
-        if (logger.IsEnabled(LogLevel.Debug))
-        {
-            logger.LogDebug("AI tool '{ToolName}' invoked.", Name);
-        }
-
         if (!arguments.TryGetFirstString("sql", out var sql) || string.IsNullOrWhiteSpace(sql))
         {
             return "A 'sql' query is required.";
+        }
+
+        if (logger.IsEnabled(LogLevel.Debug))
+        {
+            logger.LogDebug("AI tool '{ToolName}' invoked with SQL: {Sql}", Name, sql.SanitizeForLog());
         }
 
         var preparation = await TabularToolRunner.PrepareAsync(arguments.Services, cancellationToken);
@@ -98,10 +99,28 @@ public sealed class QueryTabularDataTool : AIFunction
 
             if (logger.IsEnabled(LogLevel.Debug))
             {
-                logger.LogDebug("AI tool '{ToolName}' completed.", Name);
+                logger.LogDebug(
+                    "AI tool '{ToolName}' completed. Returned {RowCount} row(s) and {ColumnCount} column(s): {Columns}",
+                    Name,
+                    result.Rows.Count,
+                    result.Columns.Count,
+                    string.Join(", ", result.Columns));
             }
 
-            return FormatResult(result);
+            var formatted = FormatResult(result);
+            var crossFileMergeGuidance = TabularCrossFileMergeDetector.Track(result, sql, preparation.Tables);
+
+            if (crossFileMergeGuidance is null)
+            {
+                return formatted;
+            }
+
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+                logger.LogDebug("AI tool '{ToolName}' detected a possible cross-file merge and suggested '{SuggestedTool}'.", Name, TabularToolNames.CompareTabularData);
+            }
+
+            return string.Concat(formatted, Environment.NewLine, crossFileMergeGuidance);
         }
         catch (TabularSqlException ex)
         {
@@ -179,6 +198,14 @@ public sealed class QueryTabularDataTool : AIFunction
             }
 
             builder.AppendLine();
+        }
+
+        var totals = TabularResultAnalyzer.FormatColumnTotals(result);
+
+        if (totals is not null)
+        {
+            builder.AppendLine();
+            builder.AppendLine(totals);
         }
 
         return builder.ToString();
