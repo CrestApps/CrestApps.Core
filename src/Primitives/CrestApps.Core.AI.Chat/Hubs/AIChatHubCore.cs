@@ -1438,7 +1438,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         return RunInScopeAsync(services =>
         {
             var registry = services.GetRequiredService<WebRtcRealtimePeerRegistry>();
-            registry.Get(connectionId)?.AddIceCandidate(new WebRtcIceCandidate
+            registry.AddIceCandidate(connectionId, new WebRtcIceCandidate
             {
                 Candidate = candidate,
                 SdpMid = sdpMid,
