@@ -65,7 +65,7 @@
     };
     var conversationModeEnabled = chatMode == ChatMode.Conversation;
     var realtimeEnabled = chatMode == ChatMode.Realtime;
-    var realtimeWebRtcEnabled = Context.RequestServices.GetService(typeof(CrestApps.Core.AI.Realtime.IWebRtcRealtimePeerFactory)) is not null;
+    var realtimeWebRtcEnabled = CrestApps.Core.AI.Chat.Realtime.RealtimeTransportSettings.IsWebRtcEnabled(Context.RequestServices);
     var ttsVoiceName = chatModeSettings?.VoiceName ?? defaultDeploymentSettings.DefaultTextToSpeechVoiceId;
     var realtimeVoiceName = chatModeSettings?.VoiceName ?? defaultDeploymentSettings.DefaultRealtimeVoiceId;
 }

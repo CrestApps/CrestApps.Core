@@ -85,7 +85,7 @@ else
          data-coreai-chat-session-url-template="/ai-chat/chat/{sessionId}"
          data-coreai-chat-metrics-enabled="@_metricsEnabled.ToString().ToLowerInvariant()"
          data-coreai-chat-mode="@_chatMode"
-         data-coreai-chat-realtime-webrtc-enabled="@((ServiceProvider.GetService(typeof(CrestApps.Core.AI.Realtime.IWebRtcRealtimePeerFactory)) is not null).ToString().ToLowerInvariant())"
+         data-coreai-chat-realtime-webrtc-enabled="@(CrestApps.Core.AI.Chat.Realtime.RealtimeTransportSettings.IsWebRtcEnabled(ServiceProvider).ToString().ToLowerInvariant())"
          data-coreai-chat-mic-button-element-selector="#chat-mic-btn"
          data-coreai-chat-conversation-button-element-selector="#chat-conversation-btn"
          data-coreai-chat-tts-voice-name="@_ttsVoiceName"

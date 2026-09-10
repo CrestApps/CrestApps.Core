@@ -50,7 +50,13 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.Configure<HubOptions<THub>>(options =>
+        // AddHubOptions, not services.Configure<HubOptions<THub>>. SignalR reads the typed options only when
+        // they were configured through this API, which sets an internal UserHasSetValues flag. Configured the
+        // other way the values are assigned and then ignored: HubConnectionHandler falls back to the global
+        // HubOptions, so everything below silently had no effect. Measured by resolving the handler and reading
+        // its private state -- with services.Configure<HubOptions<T>> it reports _maxParallelInvokes = 1 and
+        // _maximumMessageSize = 32768 no matter what is set here.
+        services.AddSignalR().AddHubOptions<THub>(options =>
         {
             // Allow long-running operations (e.g., multi-step MCP tool calls)
             // without the server dropping the connection prematurely.
