@@ -127,6 +127,8 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     private ushort? _lastInboundSequence;
     private short _recentPeak;
     private int _queuedFrames;
+    private const string CandidateAttributePrefix = "candidate:";
+
     private readonly object _localCandidateGate = new();
     private readonly List<WebRtcIceCandidate> _pendingLocalCandidates = [];
     private Action<WebRtcIceCandidate> _iceCandidateGenerated;
@@ -832,9 +834,22 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             _logger.LogDebug("WebRTC realtime: local ICE candidate {Candidate}.", candidate.candidate);
         }
 
+        // SIPSorcery renders a candidate as the bare attribute value, without the "candidate:" prefix that the
+        // SDP a=candidate line carries. RTCIceCandidateInit.candidate is defined as the candidate-attribute
+        // itself, prefix included, and Chromium enforces that: it rejects the unprefixed form outright with
+        // "Error processing ICE candidate", so a browser silently ends up with no remote candidates at all and
+        // sits in "checking" until it times out. Measured directly — the identical candidate is refused without
+        // the prefix and accepted with it, after which ICE connects in about 250 ms.
+        var candidateText = candidate.candidate;
+
+        if (!string.IsNullOrEmpty(candidateText) && !candidateText.StartsWith(CandidateAttributePrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            candidateText = CandidateAttributePrefix + candidateText;
+        }
+
         var generated = new WebRtcIceCandidate
         {
-            Candidate = candidate.candidate,
+            Candidate = candidateText,
             SdpMid = candidate.sdpMid,
             SdpMLineIndex = candidate.sdpMLineIndex,
         };
