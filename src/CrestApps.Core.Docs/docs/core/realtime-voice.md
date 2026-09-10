@@ -403,11 +403,25 @@ How much was heard is known exactly on WebRTC, where the peer reports the audio 
 WebSocket transport the server only knows what it sent, so the truncation is an over-estimate that trims nothing —
 no worse than not truncating at all.
 
-## Idle sessions
+## Session limits
 
-A realtime session holds an open (billed) provider connection whether or not anyone is talking. Sessions end
-after `IdleTimeoutMinutes` without user speech (10 by default; set it to `0` to disable), reporting
-`session_ended` with reason `idle`. The client says so and offers to resume.
+A realtime session holds an open (billed) provider connection whether or not anyone is talking, so two guard
+rails bound what a single session can cost. Both are on by default and both are configurable.
+
+**Idle timeout.** A session ends after `IdleTimeoutSeconds` in which neither the user nor the assistant said
+anything (30 by default; `0` disables it), reporting `session_ended` with reason `idle`. The clock is reset by
+both sides of the conversation — user speech, a response starting, each chunk of assistant audio, a response
+finishing — so a spoken answer longer than the window never trips it; only real silence does. That is what makes
+a window as short as 30 seconds safe: a forgotten tab is closed in half a minute rather than ten.
+
+**Maximum duration.** A session ends after `MaxSessionDurationSeconds` however busy it has been (300 — five
+minutes — by default; `0` disables it), reporting `session_ended` with reason `max_duration`. The idle timeout
+only catches a session nobody is using; this is the backstop for one that is genuinely held open, including a
+runaway page whose audio keeps the idle clock warm. It bounds how long one session runs, not how long someone may
+talk: the client says the limit was reached and offers to start another immediately.
+
+Both reasons are reported to the browser, which releases the microphone, explains what happened, and shows a
+**Resume** button.
 
 ## User controls
 
@@ -506,7 +520,8 @@ If `TurnUrls` is set but neither a secret nor static credentials are provided, n
 | `EnableWebRtc` | Whether WebRTC is offered to browsers. Defaults to `true`. Turn it off on hosts with no inbound UDP and no reachable TURN relay — otherwise every session waits out the connect timeout before falling back. |
 | `TurnDetectionType` | `semantic_vad` (default) lets the model decide when the user has finished; `server_vad` ends the turn after a fixed silence. A deployment that rejects semantic detection is switched to server VAD automatically. |
 | `TurnDetectionEagerness` | For `semantic_vad`: `low`, `medium`, `high` or `auto` (default). Lower waits longer for the user to continue. |
-| `IdleTimeoutMinutes` | How long a session may go without user speech before it ends. Defaults to `10`; `0` disables it. |
+| `IdleTimeoutSeconds` | How long a session may go with neither side speaking before it ends. Defaults to `30`; `0` disables it. |
+| `MaxSessionDurationSeconds` | The longest a single session may run, however busy. Defaults to `300`; `0` disables it. |
 | `StunUrls` | STUN server URLs. Defaults to a public server when empty. |
 | `TurnUrls` | TURN server URLs (`turn:`/`turns:`). Empty means no relay. |
 | `TurnSecret` | coturn `use-auth-secret` shared secret; enables ephemeral credentials. |

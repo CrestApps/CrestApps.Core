@@ -22,8 +22,15 @@ public static class RealtimeSessionEndReasons
     public const string Error = "error";
 
     /// <summary>
-    /// The session was closed because nobody spoke for long enough. A realtime session bills for an open provider
-    /// connection whether or not anyone is talking, so a forgotten tab is ended rather than left running.
+    /// The session was closed because neither the user nor the assistant spoke for long enough. A realtime session
+    /// bills for an open provider connection whether or not anyone is talking, so a forgotten tab is ended rather
+    /// than left running.
     /// </summary>
     public const string Idle = "idle";
+
+    /// <summary>
+    /// The session hit the configured maximum duration. The conversation was active, but a single session is not
+    /// allowed to run unbounded; the user can immediately start another.
+    /// </summary>
+    public const string MaxDuration = "max_duration";
 }

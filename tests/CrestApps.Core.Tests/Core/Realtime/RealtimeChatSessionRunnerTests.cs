@@ -692,6 +692,118 @@ public sealed class RealtimeChatSessionRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_WhileTheAssistantIsSpeaking_DoesNotTimeOutAsIdle()
+    {
+        // Idle means nobody is talking — and the assistant is somebody. An idle window shorter than a spoken
+        // answer must not cut the assistant off mid-sentence, which is exactly what a watchdog that only watched
+        // for user speech would do once the window was measured in seconds rather than minutes.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-16" };
+
+        // Ten chunks of assistant audio spread over ~500 ms: longer than the 400 ms idle window, and the user
+        // never says a word throughout.
+        var conversation = new FakeConversation(
+            [.. Enumerable.Repeat(Evt(RealtimeConversationEventType.AssistantAudioDelta, audio: [1, 2, 3]), 10)])
+        {
+            EventDelay = TimeSpan.FromMilliseconds(50),
+        };
+
+        var (store, _) = CreateStore();
+        var sink = new RecordingSink();
+
+        using var scope = AIInvocationScope.Begin();
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext
+            {
+                Resource = profile,
+                SessionId = session.SessionId,
+                ChatSession = session,
+                IdleTimeout = TimeSpan.FromMilliseconds(400),
+            },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        // The stream ran to its end and closed itself, rather than being cut short by the watchdog.
+        Assert.Equal([RealtimeSessionEndReasons.Completed], sink.SessionEnded);
+        Assert.Equal(10, sink.AudioChunks.Count);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenTheSessionReachesItsMaximumDuration_EndsIt()
+    {
+        // The idle watchdog only catches a session nobody is using. This is the backstop that bounds the cost of
+        // one that is genuinely busy — here, an assistant that never stops talking, which keeps the idle clock
+        // warm forever.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-17" };
+
+        var conversation = new FakeConversation(
+            [.. Enumerable.Repeat(Evt(RealtimeConversationEventType.AssistantAudioDelta, audio: [1, 2, 3]), 200)])
+        {
+            EventDelay = TimeSpan.FromMilliseconds(10),
+            HoldOpen = true,
+        };
+
+        var (store, _) = CreateStore();
+        var sink = new RecordingSink();
+
+        using var scope = AIInvocationScope.Begin();
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext
+            {
+                Resource = profile,
+                SessionId = session.SessionId,
+                ChatSession = session,
+                IdleTimeout = TimeSpan.FromMilliseconds(400),
+                MaxSessionDuration = TimeSpan.FromMilliseconds(250),
+            },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        // Busy the whole time, so the idle watchdog never fired: the cap is what stopped it.
+        Assert.Equal([RealtimeSessionEndReasons.MaxDuration], sink.SessionEnded);
+    }
+
+    [Fact]
+    public async Task RunAsync_WithNoMaximumDuration_LetsTheSessionRun()
+    {
+        // Zero/absent means no cap: a host that has its own controls must be able to turn the guard rail off
+        // without the session ending the moment it starts.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-18" };
+
+        var conversation = new FakeConversation([Evt(RealtimeConversationEventType.AssistantTranscriptDone, text: "Hello.")]);
+        var (store, _) = CreateStore();
+        var sink = new RecordingSink();
+
+        using var scope = AIInvocationScope.Begin();
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext
+            {
+                Resource = profile,
+                SessionId = session.SessionId,
+                ChatSession = session,
+                MaxSessionDuration = null,
+            },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal([RealtimeSessionEndReasons.Completed], sink.SessionEnded);
+    }
+
+    [Fact]
     public async Task RunAsync_OnADeferredSession_GroundsTheUtteranceThenAsksForTheAnswer()
     {
         // The realtime equivalent of preemptive RAG: the session opened before anyone spoke, so retrieval runs
@@ -1023,11 +1135,22 @@ public sealed class RealtimeChatSessionRunnerTests
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Spaces the scripted events out in wall-clock time, so a test can model an assistant that is speaking
+        /// for longer than a watchdog window rather than emitting a whole reply in one tick.
+        /// </summary>
+        public TimeSpan EventDelay { get; init; }
+
         public async IAsyncEnumerable<RealtimeConversationEvent> GetEventsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             foreach (var evt in _events)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+
+                if (EventDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(EventDelay, cancellationToken);
+                }
 
                 yield return evt;
 

@@ -31,7 +31,7 @@ public static class RealtimeTransportSettings
     }
 
     /// <summary>
-    /// Gets how long a realtime session may go without the user speaking before it is ended, or
+    /// Gets how long a realtime session may go with neither side speaking before it is ended, or
     /// <see langword="null"/> when the timeout is disabled.
     /// </summary>
     /// <param name="services">The service provider to resolve the transport options from.</param>
@@ -39,9 +39,25 @@ public static class RealtimeTransportSettings
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        var minutes = services.GetService<IOptions<RealtimeTransportOptions>>()?.Value.IdleTimeoutMinutes ?? 0;
+        var seconds = services.GetService<IOptions<RealtimeTransportOptions>>()?.Value.IdleTimeoutSeconds
+            ?? new RealtimeTransportOptions().IdleTimeoutSeconds;
 
-        return minutes > 0 ? TimeSpan.FromMinutes(minutes) : null;
+        return seconds > 0 ? TimeSpan.FromSeconds(seconds) : null;
+    }
+
+    /// <summary>
+    /// Gets the longest a single realtime session may run however busy it is, or <see langword="null"/> when the
+    /// cap is disabled.
+    /// </summary>
+    /// <param name="services">The service provider to resolve the transport options from.</param>
+    public static TimeSpan? GetMaxSessionDuration(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        var seconds = services.GetService<IOptions<RealtimeTransportOptions>>()?.Value.MaxSessionDurationSeconds
+            ?? new RealtimeTransportOptions().MaxSessionDurationSeconds;
+
+        return seconds > 0 ? TimeSpan.FromSeconds(seconds) : null;
     }
 
     /// <summary>

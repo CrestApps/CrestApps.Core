@@ -80,10 +80,16 @@ public sealed class RealtimeChatRunContext
     public Action<RealtimeSessionControl>? OnSessionStarted { get; init; }
 
     /// <summary>
-    /// Gets how long the session may go without the user speaking before it ends, or <see langword="null"/> to
-    /// let it run indefinitely.
+    /// Gets how long the session may go with neither the user nor the assistant speaking before it ends, or
+    /// <see langword="null"/> to let it run indefinitely.
     /// </summary>
     public TimeSpan? IdleTimeout { get; init; }
+
+    /// <summary>
+    /// Gets the longest the session may run however busy it is, or <see langword="null"/> for no cap. Unlike
+    /// <see cref="IdleTimeout"/> this is not reset by anything: it bounds the cost of a single session outright.
+    /// </summary>
+    public TimeSpan? MaxSessionDuration { get; init; }
 
     /// <summary>
     /// Gets how long knowledge retrieval may run before the assistant covers the wait aloud, or
