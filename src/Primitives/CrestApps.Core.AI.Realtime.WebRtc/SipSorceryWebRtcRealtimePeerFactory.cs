@@ -32,7 +32,7 @@ internal sealed class SipSorceryWebRtcRealtimePeerFactory : IWebRtcRealtimePeerF
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(offerSdp);
 
-        var peer = new SipSorceryWebRtcRealtimePeer(iceServers ?? [], _logger, _options.CurrentValue.ForceRelayOnly);
+        var peer = new SipSorceryWebRtcRealtimePeer(iceServers ?? [], _logger, _options.CurrentValue.IceTransportPolicy);
 
         try
         {

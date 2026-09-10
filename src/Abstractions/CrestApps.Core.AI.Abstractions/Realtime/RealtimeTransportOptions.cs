@@ -122,17 +122,8 @@ public sealed class RealtimeTransportOptions
     public string TurnCredential { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the server offers only TURN relay candidates. Defaults to
-    /// <see langword="false"/>. Intended for diagnosing relay problems, not for production.
+    /// Gets or sets which ICE candidates the server offers. Defaults to
+    /// <see cref="RealtimeIceTransportPolicy.All"/>.
     /// </summary>
-    /// <remarks>
-    /// A server that also offers host and server-reflexive candidates can pair directly with a browser on the
-    /// same machine or LAN, and a direct pair additionally lets ICE paper over remote candidates that never
-    /// arrived, by promoting the source of an inbound connectivity check to a peer-reflexive candidate. Locally
-    /// that turns a broken relay path into a working call, which is why a failure that reproduces every time in a
-    /// deployment where inbound UDP is blocked can be impossible to reproduce on a developer machine. Enabling
-    /// this removes both shortcuts so the relay path is the only path, and the deployed behaviour is what runs
-    /// locally. It costs a TURN allocation for every session, so leave it off outside diagnosis.
-    /// </remarks>
-    public bool ForceRelayOnly { get; set; }
+    public RealtimeIceTransportPolicy IceTransportPolicy { get; set; } = RealtimeIceTransportPolicy.All;
 }

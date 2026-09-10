@@ -180,7 +180,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     public event Action Connected;
     public event Action Closed;
 
-    public SipSorceryWebRtcRealtimePeer(IReadOnlyList<WebRtcIceServer> iceServers, ILogger logger, bool relayOnly = false)
+    public SipSorceryWebRtcRealtimePeer(IReadOnlyList<WebRtcIceServer> iceServers, ILogger logger, RealtimeIceTransportPolicy iceTransportPolicy = RealtimeIceTransportPolicy.All)
     {
         _logger = logger;
         _incoming = Channel.CreateBounded<ReadOnlyMemory<byte>>(new BoundedChannelOptions(MaxBufferedInboundFrames)
@@ -227,16 +227,11 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             iceServers = [.. iceServers.Select(ToRtcIceServer)],
         };
 
-        if (relayOnly)
+        if (iceTransportPolicy == RealtimeIceTransportPolicy.Relay)
         {
-            // A diagnostics aid, off by default. Host and server-reflexive candidates let two peers on the same
-            // machine or LAN pair directly, and a direct pair also lets ICE recover from remote candidates that
-            // never arrived by promoting the source of an inbound binding request to a peer-reflexive candidate.
-            // Both mask relay-path faults on a developer machine, which is why a server-relay failure that is
-            // obvious in a real deployment can be invisible locally. Relay only forces every packet through TURN.
             config.iceTransportPolicy = RTCIceTransportPolicy.relay;
 
-            _logger.LogWarning("WebRTC realtime: ICE transport policy forced to relay only. This is a diagnostics setting and should not be enabled in production.");
+            _logger.LogInformation("WebRTC realtime: offering relay candidates only. All media will travel through the configured TURN server.");
         }
 
         _pc = new RTCPeerConnection(config);
