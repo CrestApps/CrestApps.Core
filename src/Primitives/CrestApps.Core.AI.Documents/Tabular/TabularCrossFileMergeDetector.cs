@@ -63,6 +63,7 @@ internal static class TabularCrossFileMergeDetector
         // Only a document that was not already aggregated this turn signals a pending merge; re-running
         // one side to harmonize its key names is a normal step and must not be interrupted.
         var isNewDocument = documentIds.Any(documentId => !tracked.Contains(documentId));
+
         var hasEarlierDocument = tracked.Count > 0;
 
         foreach (var documentId in documentIds)

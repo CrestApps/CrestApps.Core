@@ -425,6 +425,14 @@ public sealed class GetDocumentMetadataTool : AIFunction
                 builder.Append(inferredTypes[i]);
                 builder.AppendLine();
             }
+
+            var ambiguousTotals = TabularColumnAmbiguityDetector.DescribeAmbiguousTotals(
+                columns.Select((column, index) => (column.Name, IsNumeric: inferredTypes[index] is "integer" or "decimal")).ToList());
+
+            if (ambiguousTotals is not null)
+            {
+                builder.AppendLine(ambiguousTotals);
+            }
         }
 
         return builder.ToString();

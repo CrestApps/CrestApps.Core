@@ -123,12 +123,15 @@ internal static class TabularResultAnalyzer
         }
 
         var totals = new double[result.Columns.Count];
+
         var summable = new bool[result.Columns.Count];
 
         for (var column = 0; column < result.Columns.Count; column++)
         {
             var total = 0d;
+
             var sawNumber = false;
+
             var numeric = true;
 
             foreach (var row in result.Rows)
@@ -153,6 +156,7 @@ internal static class TabularResultAnalyzer
 
             // A column of blanks parses as numeric but has nothing worth totalling.
             summable[column] = numeric && sawNumber;
+
             totals[column] = total;
         }
 
@@ -232,7 +236,9 @@ internal static class TabularResultAnalyzer
         while (index >= 0)
         {
             var beforeIsBoundary = index == 0 || !IsIdentifierCharacter(text[index - 1]);
+
             var afterIndex = index + word.Length;
+
             var afterIsBoundary = afterIndex >= text.Length || !IsIdentifierCharacter(text[afterIndex]);
 
             if (beforeIsBoundary && afterIsBoundary)

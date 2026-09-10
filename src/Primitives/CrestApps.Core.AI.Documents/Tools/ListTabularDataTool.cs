@@ -113,6 +113,21 @@ public sealed class ListTabularDataTool : AIFunction
 
             builder.Append("  Columns: ");
             builder.AppendLine(string.Join(", ", table.Columns.Select(FormatColumn)));
+
+            var ambiguousTotals = TabularColumnAmbiguityDetector.DescribeAmbiguousTotals(
+                table.Columns.Select(column => (column.Name, IsNumeric: column.DeclaredType is "INTEGER" or "REAL")).ToList());
+
+            if (ambiguousTotals is not null)
+            {
+                builder.AppendLine(ambiguousTotals);
+            }
+
+            if (table.Columns.Any(column => column.Name == TabularWorksheetShaper.SubtotalColumnName))
+            {
+                builder.Append("  NOTE: this table has rollup rows; aggregate with WHERE ");
+                builder.Append(TabularWorksheetShaper.SubtotalColumnName);
+                builder.AppendLine(" = 0 to avoid double-counting them.");
+            }
         }
 
         builder.AppendLine();

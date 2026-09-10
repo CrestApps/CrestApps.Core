@@ -206,7 +206,7 @@ public sealed class CompareTabularDataTool : AIFunction
                     Left: leftSide[key].Value,
                     Right: rightSide[key].Value,
                     Difference: leftSide[key].Value - rightSide[key].Value))
-                .OrderByDescending(row => row.Difference)
+                .OrderByDescending(row => Math.Abs(row.Difference))
                 .ToList();
 
             builder.AppendLine();
