@@ -253,6 +253,69 @@ public sealed class GetDocumentMetadataToolTests
     }
 
     /// <summary>
+    /// The columns scope builds its column list from <c>BuildColumns(worksheet.Header)</c> (always typed
+    /// TEXT, since no sample rows are given) and its numeric-ness signal from a separately computed
+    /// <c>inferredTypes</c> array, zipped together by index. This proves that wiring actually lines up:
+    /// with a real ambiguous Revenue group (Projected/Ancillary/AI Bot/Total), the note must both fire
+    /// and name Total Revenue specifically — if the two arrays were misaligned by even one column, the
+    /// numeric flag checked would belong to the wrong column and this would either miss the group
+    /// entirely or flag the wrong member as the total.
+    /// </summary>
+    [Fact]
+    public async Task InvokeAsync_ColumnsScope_FlagsTheAmbiguousTotalColumnFromRealNumericSamples()
+    {
+        var storedDocument = new AIDocument
+        {
+            ItemId = "uploaded-1",
+            ReferenceId = "interaction-1",
+            ReferenceType = AIReferenceTypes.Document.ChatInteraction,
+            FileName = "revenue.xlsx",
+            ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            FileSize = 128,
+        };
+
+        var documentStore = new Mock<IAIDocumentStore>();
+        documentStore
+            .Setup(store => store.GetDocumentsAsync("interaction-1", AIReferenceTypes.Document.ChatInteraction))
+            .ReturnsAsync([storedDocument]);
+
+        var artifactStore = new Mock<ITabularDocumentArtifactStore>();
+        artifactStore
+            .Setup(store => store.GetAsync("uploaded-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TabularDocumentArtifact
+            {
+                Header = ["Campaign", "Projected Revenue", "Ancillary Revenue", "AI Bot Revenue", "Total Revenue"],
+                Rows =
+                [
+                    ["Eli Lilly", "342465.87", "0", "0", "342465.87"],
+                    ["LendKey", "85047.53", "0", "0", "85047.53"],
+                ],
+            });
+
+        var services = BuildServices(documentStore.Object, artifactStore.Object);
+
+        using var scope = AIInvocationScope.Begin();
+        scope.Context.ToolExecutionContext = new AIToolExecutionContext(new ChatInteraction
+        {
+            ItemId = "interaction-1",
+        });
+
+        var tool = new GetDocumentMetadataTool();
+        var arguments = CreateArguments(services, new Dictionary<string, object>
+        {
+            ["scope"] = "columns",
+        });
+
+        var result = await tool.InvokeAsync(arguments, TestContext.Current.CancellationToken);
+        var text = result.ToString();
+
+        Assert.Contains("Total_Revenue", text);
+        Assert.Contains("Projected_Revenue", text);
+        Assert.Contains("Ancillary_Revenue", text);
+        Assert.Contains("AI_Bot_Revenue", text);
+    }
+
+    /// <summary>
     /// Verifies exact type promotion for ragged rows, nulls, whitespace, and every supported inferred type.
     /// </summary>
     [Fact]
