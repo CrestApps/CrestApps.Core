@@ -61,27 +61,6 @@ public static partial class TabularWorksheetShaper
         return bestScore <= 0 ? 0 : bestIndex;
     }
 
-    /// <summary>
-    /// Qualifies a header row using the sparse "group band" row above it, so repeated labels under a
-    /// spanning band stay distinguishable. A workbook that groups columns under a banner (for example a
-    /// month, region, or scenario spanning several columns, with the same measure labels repeated under
-    /// each) otherwise collapses into indistinguishable duplicates that <see cref="TabularWorkspaceSqliteHelpers.BuildColumns(IReadOnlyList{string}, IEnumerable{IReadOnlyList{string}})"/>
-    /// can only separate positionally (<c>Amount</c>, <c>Amount_2</c>, <c>Amount_3</c>), leaving nothing
-    /// in the schema to say which band each one belongs to.
-    /// </summary>
-    /// <remarks>
-    /// The band row is forward-filled rather than read from the file's merged-cell ranges: a merged span
-    /// stores its value only in the top-left cell, so filling left-to-right reproduces the span exactly,
-    /// and it equally handles authors who left the repeated cells blank instead of merging them.
-    /// <para>
-    /// This only engages when the header actually contains duplicate labels. Duplicates are the signal
-    /// that something above is doing the disambiguating, so a worksheet with an ordinary unique header is
-    /// returned untouched.
-    /// </para>
-    /// </remarks>
-    /// <param name="leadingRows">The first non-empty rows of the worksheet, in order.</param>
-    /// <param name="headerRowIndex">The header row index chosen by <see cref="DetectHeaderRowIndex"/>.</param>
-    /// <returns>The header row, with duplicated labels qualified by their band value when one applies.</returns>
     public static List<string> FixDuplicateColumnNames(IReadOnlyList<IReadOnlyList<string>> leadingRows, int headerRowIndex)
     {
         if (leadingRows is null || headerRowIndex < 0 || headerRowIndex >= leadingRows.Count)
@@ -90,6 +69,7 @@ public static partial class TabularWorksheetShaper
         }
 
         var header = leadingRows[headerRowIndex];
+
         var result = header is null ? [] : new List<string>(header);
 
         // The header is the first row, so there is no band above it to borrow from.
@@ -122,9 +102,6 @@ public static partial class TabularWorksheetShaper
             return result;
         }
 
-        // A band spans several header columns, so it must be sparser than the header. Requiring at least
-        // two values also rejects a single-cell title banner, which would otherwise be forward-filled
-        // across every column and qualify nothing meaningfully.
         var bandPopulated = CountPopulatedCells(bandRow);
 
         if (bandPopulated < 2 || bandPopulated >= CountPopulatedCells(result))
