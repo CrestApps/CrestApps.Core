@@ -112,7 +112,10 @@ public sealed class RealtimeChatSessionRunner
         }
 
         var endReason = RealtimeSessionEndReasons.Completed;
-        var idleTimedOut = false;
+
+        // Set when a guard rail — not the user, the provider or a failure — is what stopped the session, so the
+        // finally block can report that instead of the cancellation it is implemented with.
+        string? guardRailReason = null;
 
         try
         {
@@ -146,23 +149,38 @@ public sealed class RealtimeChatSessionRunner
             // spoken over the assistant never reaches the provider (and so is never processed or answered).
             var responseState = new ResponseActivity();
 
-            // Reset by every user utterance; the idle watchdog reads it to decide whether anyone is still here.
-            var activity = new SessionActivity(_timeProvider.GetUtcNow());
+            // Reset by anything either side says; the idle watchdog reads it to decide whether the conversation is
+            // still happening.
+            var startedUtc = _timeProvider.GetUtcNow();
+            var activity = new SessionActivity(startedUtc);
 
             var inbound = PumpInputAsync(conversation, audioInput, context, responseState, linkedCts.Token);
             var outbound = PumpOutputAsync(context, turnStore, conversation, sink, context.SessionId, responseState, activity, linkedCts.Token);
             var idle = WatchForIdleAsync(context, activity, linkedCts.Token);
+            var expired = WatchForMaxDurationAsync(context, startedUtc, linkedCts.Token);
 
-            var finished = await Task.WhenAny(inbound, outbound, idle);
+            var finished = await Task.WhenAny(inbound, outbound, idle, expired);
 
             if (finished == idle && idle.IsCompletedSuccessfully && idle.Result)
             {
-                idleTimedOut = true;
+                guardRailReason = RealtimeSessionEndReasons.Idle;
+
                 if (_logger.IsEnabled(LogLevel.Information))
                 {
                     _logger.LogInformation(
-                        "Realtime session {SessionId} ended after {Minutes:0.#} minutes without user speech.",
-                        context.SessionId, context.IdleTimeout!.Value.TotalMinutes);
+                        "Realtime session {SessionId} ended after {Seconds:0.#} seconds of silence.",
+                        context.SessionId, context.IdleTimeout!.Value.TotalSeconds);
+                }
+            }
+            else if (finished == expired && expired.IsCompletedSuccessfully && expired.Result)
+            {
+                guardRailReason = RealtimeSessionEndReasons.MaxDuration;
+
+                if (_logger.IsEnabled(LogLevel.Information))
+                {
+                    _logger.LogInformation(
+                        "Realtime session {SessionId} reached its {Seconds:0.#} second maximum duration and was ended.",
+                        context.SessionId, context.MaxSessionDuration!.Value.TotalSeconds);
                 }
             }
 
@@ -188,11 +206,11 @@ public sealed class RealtimeChatSessionRunner
         }
         finally
         {
-            if (idleTimedOut)
+            if (guardRailReason is not null)
             {
-                // An idle close is deliberate, so say so rather than reporting the cancellation it is implemented
-                // with — the client offers to resume instead of showing a failure.
-                endReason = RealtimeSessionEndReasons.Idle;
+                // An idle or duration close is deliberate, so say so rather than reporting the cancellation it is
+                // implemented with — the client offers to resume instead of showing a failure.
+                endReason = guardRailReason;
             }
             else if (cancellationToken.IsCancellationRequested)
             {
@@ -381,6 +399,9 @@ public sealed class RealtimeChatSessionRunner
             switch (evt.Type)
             {
                 case RealtimeConversationEventType.AssistantAudioDelta:
+                    // The assistant speaking is the conversation being alive just as much as the user speaking is,
+                    // so it holds the idle watchdog off too.
+                    activity.Touch(_timeProvider.GetUtcNow());
                     playback.Append(evt.ItemId, evt.Audio.Length);
                     await sink.AssistantAudioAsync(sessionId, evt.Audio, cancellationToken);
                     break;
@@ -555,6 +576,10 @@ public sealed class RealtimeChatSessionRunner
                         await sink.FlushPlaybackAsync(sessionId, cancellationToken);
                     }
 
+                    // A grounded turn can spend seconds retrieving before the first audio byte, and the reply is
+                    // then paced out after the provider says it is done. Both ends of that are the session working,
+                    // not sitting idle.
+                    activity.Touch(_timeProvider.GetUtcNow());
                     responseState.Activate();
                     sawAnyResponse = true;
                     playback.Reset();
@@ -567,6 +592,10 @@ public sealed class RealtimeChatSessionRunner
                     break;
 
                 case RealtimeConversationEventType.ResponseCompleted:
+                    // "Done" means the provider stopped generating; the idle window should start from here rather
+                    // than from the first audio chunk of a long answer.
+                    activity.Touch(_timeProvider.GetUtcNow());
+
                     if (_logger.IsEnabled(LogLevel.Debug))
                     {
                         _logger.LogDebug("Realtime response completed for session {SessionId} (status={Status}).", sessionId, evt.ResponseStatus ?? "(none)");
@@ -660,8 +689,8 @@ public sealed class RealtimeChatSessionRunner
         await FlushAssistantTurnAsync(context, turnStore, sink, sessionId, turn, finalText: null, cancellationToken);
     }
 
-    // Ends the session when nobody has spoken for the configured idle window. Returns true when it fired, false
-    // when the session ended for another reason first. A realtime session holds an open (billed) provider
+    // Ends the session when neither side has spoken for the configured idle window. Returns true when it fired,
+    // false when the session ended for another reason first. A realtime session holds an open (billed) provider
     // connection whether or not anyone is talking, so a forgotten tab should not keep one alive until the
     // provider's own hour-long cap closes it.
     private async Task<bool> WatchForIdleAsync(
@@ -671,26 +700,80 @@ public sealed class RealtimeChatSessionRunner
     {
         if (context.IdleTimeout is not { } timeout || timeout <= TimeSpan.Zero)
         {
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            await WaitForCancellationAsync(cancellationToken);
 
             return false;
         }
 
-        while (!cancellationToken.IsCancellationRequested)
+        try
         {
-            var idleFor = _timeProvider.GetUtcNow() - activity.LastUserSpeechUtc;
-            var remaining = timeout - idleFor;
-
-            if (remaining <= TimeSpan.Zero)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                return true;
-            }
+                var idleFor = _timeProvider.GetUtcNow() - activity.LastActivityUtc;
+                var remaining = timeout - idleFor;
 
-            // Wake when the current window would expire; a later utterance simply pushes the deadline out.
-            await Task.Delay(remaining, _timeProvider, cancellationToken);
+                if (remaining <= TimeSpan.Zero)
+                {
+                    return true;
+                }
+
+                // Wake when the current window would expire; anything either side says simply pushes the deadline
+                // out, so a long spoken answer never trips a window shorter than the answer.
+                await Task.Delay(remaining, _timeProvider, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The session ended for another reason and the watchdog was torn down with it.
         }
 
         return false;
+    }
+
+    // Ends the session once it has run for the configured maximum, however busy it has been. Returns true when it
+    // fired, false when the session ended for another reason first. The idle watchdog only catches a session
+    // nobody is using; this is what bounds the cost of one that is genuinely held open — a runaway page, an audio
+    // loop that keeps resetting the idle clock, or simply a very long conversation. The user can start again.
+    private async Task<bool> WatchForMaxDurationAsync(
+        RealtimeChatRunContext context,
+        DateTimeOffset startedUtc,
+        CancellationToken cancellationToken)
+    {
+        if (context.MaxSessionDuration is not { } limit || limit <= TimeSpan.Zero)
+        {
+            await WaitForCancellationAsync(cancellationToken);
+
+            return false;
+        }
+
+        var remaining = limit - (_timeProvider.GetUtcNow() - startedUtc);
+
+        if (remaining > TimeSpan.Zero)
+        {
+            try
+            {
+                await Task.Delay(remaining, _timeProvider, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+        }
+
+        return !cancellationToken.IsCancellationRequested;
+    }
+
+    // Parks a watchdog that has nothing to enforce until the session ends, without leaving the cancellation to
+    // surface as a faulted task nobody awaits.
+    private static async Task WaitForCancellationAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     // Marks the response finished for half-duplex purposes. When the transport still holds paced audio the user has
@@ -925,20 +1008,22 @@ public sealed class RealtimeChatSessionRunner
 
     private sealed record PendingTurn(string TurnId, bool Ignored);
 
-    // When the user was last heard, shared between the output pump and the idle watchdog.
+    // When the conversation was last heard from — either side — shared between the output pump and the idle
+    // watchdog. Assistant activity counts: a session where the model is mid-answer is not idle, and an idle window
+    // shorter than an answer would otherwise cut the assistant off in the middle of speaking.
     private sealed class SessionActivity
     {
-        private long _lastUserSpeechTicks;
+        private long _lastActivityTicks;
 
         public SessionActivity(DateTimeOffset startedUtc)
         {
-            _lastUserSpeechTicks = startedUtc.UtcTicks;
+            _lastActivityTicks = startedUtc.UtcTicks;
         }
 
-        public DateTimeOffset LastUserSpeechUtc => new(Volatile.Read(ref _lastUserSpeechTicks), TimeSpan.Zero);
+        public DateTimeOffset LastActivityUtc => new(Volatile.Read(ref _lastActivityTicks), TimeSpan.Zero);
 
         public void Touch(DateTimeOffset nowUtc)
-            => Volatile.Write(ref _lastUserSpeechTicks, nowUtc.UtcTicks);
+            => Volatile.Write(ref _lastActivityTicks, nowUtc.UtcTicks);
     }
 
     // Counts the assistant audio handed to the transport for the item currently being spoken.

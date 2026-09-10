@@ -692,6 +692,219 @@ public sealed class RealtimeChatSessionRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_WhileTheAssistantIsSpeaking_DoesNotTimeOutAsIdle()
+    {
+        // Idle means nobody is talking - and the assistant is somebody. A watchdog that only watched for user
+        // speech was survivable at ten minutes; at thirty seconds it would cut the assistant off mid-answer.
+        //
+        // Time is virtual and driven in lock step by the pump: forwarding a chunk of assistant audio advances the
+        // clock 20 seconds and then waits for the idle watchdog to recompute its deadline, so ten chunks span
+        // more than three minutes that the watchdog genuinely evaluates and must not call idle. Nothing waits on
+        // a real timer, so a loaded CI machine cannot change the outcome.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-16" };
+
+        const int chunks = 10;
+
+        var time = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        Task? run = null;
+
+        var sink = new RecordingSink
+        {
+            OnAssistantAudio = async () =>
+            {
+                time.Advance(TimeSpan.FromSeconds(20));
+
+                // Only the idle watchdog arms a timer here (no cap is configured), so waiting for one to be armed
+                // waits for exactly the decision under test.
+                await WaitForArmedTimersAsync(time, 1, run);
+            },
+        };
+
+        // Held open so the stream itself never ends the session - the watchdog is the only thing that can.
+        var conversation = new FakeConversation(
+            [.. Enumerable.Repeat(Evt(RealtimeConversationEventType.AssistantAudioDelta, audio: [1, 2, 3]), chunks)])
+        {
+            HoldOpen = true,
+        };
+
+        var (store, _) = CreateStore();
+
+        using var scope = AIInvocationScope.Begin();
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), time, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        run = runner.RunAsync(
+            new RealtimeChatRunContext
+            {
+                Resource = profile,
+                SessionId = session.SessionId,
+                ChatSession = session,
+                IdleTimeout = TimeSpan.FromSeconds(60),
+            },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        // Wait for the reply to finish before touching the clock, so the pump and this thread are never both
+        // driving it. If the run ends first, the watchdog fired mid-answer - which the assertions below report.
+        await Task.WhenAny(conversation.EventsDrained.Task, run);
+
+        // Now let real silence fall.
+        await AdvanceUntilAsync(time, run, TimeSpan.FromSeconds(10));
+
+        await run;
+
+        // The whole reply was spoken before anything timed out. Were assistant audio not resetting the clock, the
+        // session would have been cut off around the third chunk.
+        Assert.Equal(chunks, sink.AudioChunks.Count);
+
+        // And once it did stop speaking, the watchdog still did its job.
+        Assert.Equal([RealtimeSessionEndReasons.Idle], sink.SessionEnded);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenTheSessionReachesItsMaximumDuration_EndsIt()
+    {
+        // The idle watchdog only catches a session nobody is using. This is the backstop that bounds one that is
+        // genuinely busy - here an assistant that never stops talking, which keeps the idle clock warm forever.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-17" };
+
+        var time = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        Task? run = null;
+
+        var sink = new RecordingSink
+        {
+            OnAssistantAudio = async () =>
+            {
+                // Every chunk lands 20 seconds after the last, comfortably inside the 60 second idle window, so
+                // idle never fires; together they run past the two minute cap, which must.
+                time.Advance(TimeSpan.FromSeconds(20));
+
+                // Both watchdogs arm a timer here. Once the cap fires it is gone for good, so this stops waiting
+                // as soon as the session ends rather than expecting two again.
+                await WaitForArmedTimersAsync(time, 2, run);
+            },
+        };
+
+        var conversation = new FakeConversation(
+            [.. Enumerable.Repeat(Evt(RealtimeConversationEventType.AssistantAudioDelta, audio: [1, 2, 3]), 100)])
+        {
+            HoldOpen = true,
+        };
+
+        var (store, _) = CreateStore();
+
+        using var scope = AIInvocationScope.Begin();
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), time, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        run = runner.RunAsync(
+            new RealtimeChatRunContext
+            {
+                Resource = profile,
+                SessionId = session.SessionId,
+                ChatSession = session,
+                IdleTimeout = TimeSpan.FromSeconds(60),
+                MaxSessionDuration = TimeSpan.FromMinutes(2),
+            },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        await Task.WhenAny(conversation.EventsDrained.Task, run);
+        await AdvanceUntilAsync(time, run, TimeSpan.FromSeconds(10));
+
+        await run;
+
+        // Busy throughout, so idle never fired: the cap is what stopped it.
+        Assert.Equal([RealtimeSessionEndReasons.MaxDuration], sink.SessionEnded);
+
+        // And it was cut off part-way through the reply rather than being allowed to finish it.
+        Assert.True(sink.AudioChunks.Count < 100, "Expected the cap to interrupt the reply, but every chunk was spoken.");
+    }
+
+    // Waits for the session watchdogs to have recomputed their deadlines after the clock moved, so the next step
+    // is judged against a deadline they actually saw. Without this the pump can run the whole reply through
+    // before a watchdog wakes even once, which both hides a regression and - because the watchdog then measures
+    // against a clock that has jumped far ahead - can end a busy session as idle.
+    private static async Task WaitForArmedTimersAsync(ManualTimeProvider time, int expected, Task? run)
+    {
+        // Bounded so a watchdog that never re-arms (it decided to fire, or a genuine bug) fails an assertion
+        // instead of hanging the test run.
+        for (var i = 0; i < 1_000 && time.ArmedTimerCount < expected; i++)
+        {
+            if (run?.IsCompleted == true)
+            {
+                return;
+            }
+
+            await YieldToWatchdogAsync(i);
+        }
+    }
+
+    // Nudges a virtual clock forward until a session ends. The watchdogs re-arm asynchronously, so a single large
+    // jump can land while nothing is armed and leave the session waiting on a clock that has stopped; stepping
+    // repeatedly cannot. The iteration cap turns a genuine hang into a failed assertion rather than a test run
+    // that never finishes.
+    private static async Task AdvanceUntilAsync(ManualTimeProvider time, Task run, TimeSpan step)
+    {
+        for (var i = 0; i < 1_000 && !run.IsCompleted; i++)
+        {
+            time.Advance(step);
+
+            await YieldToWatchdogAsync(i);
+        }
+    }
+
+    // Hands the watchdogs a chance to run. A plain yield is enough and keeps these tests instant, but a busy
+    // machine can leave the continuation queued behind other work; falling back to a real one millisecond wait
+    // guarantees forward progress, so contention costs a moment rather than the right answer.
+    private static async Task YieldToWatchdogAsync(int attempt)
+    {
+        if (attempt < 50)
+        {
+            await Task.Yield();
+        }
+        else
+        {
+            await Task.Delay(1);
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_WithNoMaximumDuration_LetsTheSessionRun()
+    {
+        // Zero/absent means no cap: a host that has its own controls must be able to turn the guard rail off
+        // without the session ending the moment it starts.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-18" };
+
+        var conversation = new FakeConversation([Evt(RealtimeConversationEventType.AssistantTranscriptDone, text: "Hello.")]);
+        var (store, _) = CreateStore();
+        var sink = new RecordingSink();
+
+        using var scope = AIInvocationScope.Begin();
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext
+            {
+                Resource = profile,
+                SessionId = session.SessionId,
+                ChatSession = session,
+                MaxSessionDuration = null,
+            },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal([RealtimeSessionEndReasons.Completed], sink.SessionEnded);
+    }
+
+    [Fact]
     public async Task RunAsync_OnADeferredSession_GroundsTheUtteranceThenAsksForTheAnswer()
     {
         // The realtime equivalent of preemptive RAG: the session opened before anyone spoke, so retrieval runs
@@ -1045,6 +1258,175 @@ public sealed class RealtimeChatSessionRunnerTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    /// A <see cref="TimeProvider"/> whose clock only moves when a test says so, timers included.
+    /// </summary>
+    /// <remarks>
+    /// The session watchdogs sleep with <c>Task.Delay(remaining, timeProvider, ...)</c>, so a fake that overrides
+    /// only <see cref="GetUtcNow"/> would leave them waiting on the real clock — which is exactly the flakiness
+    /// this replaces: paced by wall time, a watchdog window of a few hundred milliseconds is one scheduling hiccup
+    /// away from firing early on a loaded machine. Overriding <see cref="CreateTimer"/> too lets a test express
+    /// windows in minutes and run them instantly, with the outcome fixed by ordering rather than by timing.
+    /// </remarks>
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        private readonly Lock _gate = new();
+        private readonly List<ManualTimer> _timers = [];
+        private DateTimeOffset _utcNow;
+
+        public ManualTimeProvider(DateTimeOffset startUtc)
+        {
+            _utcNow = startUtc;
+        }
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            lock (_gate)
+            {
+                return _utcNow;
+            }
+        }
+
+        /// <summary>
+        /// Moves the clock forward, firing every timer that comes due on the way — each at its own due time, in
+        /// order, so a callback that schedules another timer sees a consistent clock.
+        /// </summary>
+        public void Advance(TimeSpan amount)
+        {
+            var target = GetUtcNow() + amount;
+
+            while (true)
+            {
+                ManualTimer? next = null;
+
+                lock (_gate)
+                {
+                    foreach (var timer in _timers)
+                    {
+                        if (timer.DueUtc <= target && (next is null || timer.DueUtc < next.DueUtc))
+                        {
+                            next = timer;
+                        }
+                    }
+
+                    if (next is null)
+                    {
+                        _utcNow = target;
+
+                        return;
+                    }
+
+                    _utcNow = next.DueUtc;
+                }
+
+                // Outside the lock: the callback resumes whatever was sleeping, which commonly schedules or
+                // disposes a timer and would deadlock against a lock still held here.
+                next.Fire();
+            }
+        }
+
+        /// <summary>
+        /// How many timers are currently armed. A watchdog that has woken, recomputed its deadline and gone back
+        /// to sleep is armed again; one that has decided to fire is not. That is the only signal a test needs to
+        /// stay in step with them.
+        /// </summary>
+        public int ArmedTimerCount
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _timers.Count;
+                }
+            }
+        }
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = new ManualTimer(this, callback, state);
+
+            timer.Change(dueTime, period);
+
+            return timer;
+        }
+
+        private void Register(ManualTimer timer)
+        {
+            lock (_gate)
+            {
+                if (!_timers.Contains(timer))
+                {
+                    _timers.Add(timer);
+                }
+            }
+        }
+
+        private void Unregister(ManualTimer timer)
+        {
+            lock (_gate)
+            {
+                _timers.Remove(timer);
+            }
+        }
+
+        private sealed class ManualTimer : ITimer
+        {
+            private readonly ManualTimeProvider _owner;
+            private readonly TimerCallback _callback;
+            private readonly object? _state;
+            private TimeSpan _period;
+
+            public ManualTimer(ManualTimeProvider owner, TimerCallback callback, object? state)
+            {
+                _owner = owner;
+                _callback = callback;
+                _state = state;
+            }
+
+            public DateTimeOffset DueUtc { get; private set; }
+
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                _period = period;
+
+                if (dueTime == Timeout.InfiniteTimeSpan)
+                {
+                    _owner.Unregister(this);
+
+                    return true;
+                }
+
+                DueUtc = _owner.GetUtcNow() + dueTime;
+                _owner.Register(this);
+
+                return true;
+            }
+
+            public void Fire()
+            {
+                if (_period == Timeout.InfiniteTimeSpan || _period <= TimeSpan.Zero)
+                {
+                    _owner.Unregister(this);
+                }
+                else
+                {
+                    DueUtc += _period;
+                }
+
+                _callback(_state);
+            }
+
+            public void Dispose() => _owner.Unregister(this);
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+
+                return ValueTask.CompletedTask;
+            }
+        }
+    }
+
     private sealed class RecordingSink : IRealtimeConversationSink
     {
         public List<string> UserTranscripts { get; } = [];
@@ -1071,11 +1453,22 @@ public sealed class RealtimeChatSessionRunnerTests
 
         public List<string> Errors { get; } = [];
 
-        public Task AssistantAudioAsync(string identifier, ReadOnlyMemory<byte> audio, CancellationToken cancellationToken)
+        /// <summary>
+        /// Invoked as each chunk of assistant audio is forwarded. Lets a test drive a virtual clock from the
+        /// output pump itself, so "the assistant is speaking" can be modelled without depending on how promptly
+        /// a loaded machine happens to schedule a real timer. Awaited, so the test can also let the watchdogs
+        /// react to the time it just moved before the next chunk goes out.
+        /// </summary>
+        public Func<Task>? OnAssistantAudio { get; init; }
+
+        public async Task AssistantAudioAsync(string identifier, ReadOnlyMemory<byte> audio, CancellationToken cancellationToken)
         {
             AudioChunks.Add(audio);
 
-            return Task.CompletedTask;
+            if (OnAssistantAudio is not null)
+            {
+                await OnAssistantAudio();
+            }
         }
 
         public Task UserTranscriptAsync(string identifier, string turnId, string text, CancellationToken cancellationToken)
