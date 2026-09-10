@@ -1068,7 +1068,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         return RunInScopeAsync(services =>
         {
             var registry = services.GetRequiredService<WebRtcRealtimePeerRegistry>();
-            registry.Get(connectionId)?.AddIceCandidate(new WebRtcIceCandidate
+            registry.AddIceCandidate(connectionId, new WebRtcIceCandidate
             {
                 Candidate = candidate,
                 SdpMid = sdpMid,
