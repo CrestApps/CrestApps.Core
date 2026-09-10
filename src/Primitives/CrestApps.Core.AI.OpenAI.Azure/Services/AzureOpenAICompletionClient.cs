@@ -535,7 +535,7 @@ omit optional fields, or split the operation into multiple smaller calls.
 
         chatOptions.ReasoningEffortLevel = effort.Value switch
         {
-            Microsoft.Extensions.AI.ReasoningEffort.None => ChatReasoningEffortLevel.Minimal,
+            Microsoft.Extensions.AI.ReasoningEffort.None => ChatReasoningEffortLevel.None,
             Microsoft.Extensions.AI.ReasoningEffort.Low => ChatReasoningEffortLevel.Low,
             Microsoft.Extensions.AI.ReasoningEffort.Medium => ChatReasoningEffortLevel.Medium,
             Microsoft.Extensions.AI.ReasoningEffort.High => ChatReasoningEffortLevel.High,

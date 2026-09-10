@@ -31,4 +31,9 @@ public static class TabularToolNames
     /// The tool that exports a read-only query result from the tabular workspace as a downloadable CSV file.
     /// </summary>
     public const string ExportTabularData = "export_tabular_data";
+
+    /// <summary>
+    /// The tool that compares a measure between two tabular queries by joining them on a shared key.
+    /// </summary>
+    public const string CompareTabularData = "compare_tabular_data";
 }

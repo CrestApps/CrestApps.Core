@@ -114,7 +114,7 @@ public sealed class QueryTabularDataTool : AIFunction
                 logger.LogDebug(ex, "Tabular query failed for tool '{ToolName}'.", Name);
             }
 
-            return $"The query could not be executed: {ex.Message}";
+            return TabularSqlErrorFormatter.Format("The query could not be executed", ex, preparation.Tables);
         }
     }
 

@@ -88,6 +88,7 @@ internal sealed class TabularDataAgentProvider : IAIProfileProvider
                 TabularToolNames.ExecuteTabularCommand,
                 TabularToolNames.FillEmptyTabularCells,
                 TabularToolNames.ExportTabularData,
+                TabularToolNames.CompareTabularData,
             ],
         });
 
