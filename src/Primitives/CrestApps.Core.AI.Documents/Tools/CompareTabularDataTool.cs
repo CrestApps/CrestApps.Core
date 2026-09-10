@@ -154,7 +154,7 @@ public sealed class CompareTabularDataTool : AIFunction
                 logger.LogDebug(ex, "Tabular comparison failed for tool '{ToolName}'.", Name);
             }
 
-            return TabularSqlErrorFormatter.Format("The comparison could not be executed", ex, preparation.Tables);
+            return TabularSqlErrorFormatter.Format("The comparison could not be executed", ex, preparation.Tables, $"{leftSql} {rightSql}");
         }
     }
 

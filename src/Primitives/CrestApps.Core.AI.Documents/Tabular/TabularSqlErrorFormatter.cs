@@ -12,13 +12,19 @@ internal static class TabularSqlErrorFormatter
 {
     /// <summary>
     /// Builds the error text returned to the model for a failed query, appending the available schema
-    /// when the failure looks like a wrong table or column name.
+    /// when the failure looks like a wrong table or column name. When <paramref name="sql"/> is given
+    /// and names at least one real table, only that table's columns are listed — a column-name mismatch
+    /// almost always means the table itself was right, so dumping every other loaded table's columns
+    /// alongside it is noise that buries the one correction that matters. A query that named no real
+    /// table at all (for example a guessed table name) falls back to listing everything, since in that
+    /// case the model needs to see the real table names, not just one guessed column's siblings.
     /// </summary>
     /// <param name="prefix">A short phrase describing what failed, for example "The query could not be executed".</param>
     /// <param name="exception">The SQLite exception raised while running the query.</param>
     /// <param name="tables">The tables loaded in the workspace at the time of the failure.</param>
+    /// <param name="sql">The SQL that failed, used to narrow the schema dump to the table(s) it names.</param>
     /// <returns>The error text to return from the tool.</returns>
-    public static string Format(string prefix, SqliteException exception, IReadOnlyList<TabularTableInfo> tables)
+    public static string Format(string prefix, SqliteException exception, IReadOnlyList<TabularTableInfo> tables, string sql = null)
     {
         var message = $"{prefix}: {exception.Message}";
 
@@ -27,13 +33,16 @@ internal static class TabularSqlErrorFormatter
             return message;
         }
 
+        var referencedTables = string.IsNullOrWhiteSpace(sql) ? [] : TabularResultAnalyzer.FindReferencedTables(sql, tables);
+        var tablesToShow = referencedTables.Count > 0 ? referencedTables : tables;
+
         using var builder = ZString.CreateStringBuilder();
 
         builder.AppendLine(message);
         builder.AppendLine();
         builder.AppendLine("Available tables and columns:");
 
-        foreach (var table in tables)
+        foreach (var table in tablesToShow)
         {
             builder.Append("Table \"");
             builder.Append(table.TableName);
