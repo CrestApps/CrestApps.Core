@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Realtime;
+﻿namespace CrestApps.Core.AI.Realtime;
 
 /// <summary>
 /// Configuration for the realtime WebRTC transport's ICE (NAT traversal) servers. Bound from configuration
@@ -135,4 +135,10 @@ public sealed class RealtimeTransportOptions
     /// Gets or sets a static TURN credential (password). Used only when <see cref="TurnSecret"/> is not set.
     /// </summary>
     public string TurnCredential { get; set; }
+
+    /// <summary>
+    /// Gets or sets which ICE candidates the server offers. Defaults to
+    /// <see cref="RealtimeIceTransportPolicy.All"/>.
+    /// </summary>
+    public RealtimeIceTransportPolicy IceTransportPolicy { get; set; } = RealtimeIceTransportPolicy.All;
 }
