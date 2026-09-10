@@ -160,7 +160,7 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
         void FinalizeTable()
         {
             var headerIndex = TabularWorksheetShaper.DetectHeaderRowIndex(leadingRows);
-            var header = leadingRows[headerIndex];
+            var header = TabularWorksheetShaper.FixDuplicateColumnNames(leadingRows, headerIndex);
             var dataRows = leadingRows.GetRange(headerIndex + 1, leadingRows.Count - headerIndex - 1);
             var expandedHeader = TabularWorksheetShaper.ExpandHeader(header, dataRows);
 

@@ -62,6 +62,100 @@ public static partial class TabularWorksheetShaper
     }
 
     /// <summary>
+    /// Qualifies a header row using the sparse "group band" row above it, so repeated labels under a
+    /// spanning band stay distinguishable. A workbook that groups columns under a banner (for example a
+    /// month, region, or scenario spanning several columns, with the same measure labels repeated under
+    /// each) otherwise collapses into indistinguishable duplicates that <see cref="TabularWorkspaceSqliteHelpers.BuildColumns(IReadOnlyList{string}, IEnumerable{IReadOnlyList{string}})"/>
+    /// can only separate positionally (<c>Amount</c>, <c>Amount_2</c>, <c>Amount_3</c>), leaving nothing
+    /// in the schema to say which band each one belongs to.
+    /// </summary>
+    /// <remarks>
+    /// The band row is forward-filled rather than read from the file's merged-cell ranges: a merged span
+    /// stores its value only in the top-left cell, so filling left-to-right reproduces the span exactly,
+    /// and it equally handles authors who left the repeated cells blank instead of merging them.
+    /// <para>
+    /// This only engages when the header actually contains duplicate labels. Duplicates are the signal
+    /// that something above is doing the disambiguating, so a worksheet with an ordinary unique header is
+    /// returned untouched.
+    /// </para>
+    /// </remarks>
+    /// <param name="leadingRows">The first non-empty rows of the worksheet, in order.</param>
+    /// <param name="headerRowIndex">The header row index chosen by <see cref="DetectHeaderRowIndex"/>.</param>
+    /// <returns>The header row, with duplicated labels qualified by their band value when one applies.</returns>
+    public static List<string> FixDuplicateColumnNames(IReadOnlyList<IReadOnlyList<string>> leadingRows, int headerRowIndex)
+    {
+        if (leadingRows is null || headerRowIndex < 0 || headerRowIndex >= leadingRows.Count)
+        {
+            return [];
+        }
+
+        var header = leadingRows[headerRowIndex];
+        var result = header is null ? [] : new List<string>(header);
+
+        // The header is the first row, so there is no band above it to borrow from.
+        if (headerRowIndex == 0)
+        {
+            return result;
+        }
+
+        var duplicates = GetDuplicateLabels(result);
+
+        if (duplicates.Count == 0)
+        {
+            return result;
+        }
+
+        IReadOnlyList<string> bandRow = null;
+
+        for (var i = headerRowIndex - 1; i >= 0; i--)
+        {
+            if (CountPopulatedCells(leadingRows[i]) > 0)
+            {
+                bandRow = leadingRows[i];
+
+                break;
+            }
+        }
+
+        if (bandRow is null)
+        {
+            return result;
+        }
+
+        // A band spans several header columns, so it must be sparser than the header. Requiring at least
+        // two values also rejects a single-cell title banner, which would otherwise be forward-filled
+        // across every column and qualify nothing meaningfully.
+        var bandPopulated = CountPopulatedCells(bandRow);
+
+        if (bandPopulated < 2 || bandPopulated >= CountPopulatedCells(result))
+        {
+            return result;
+        }
+
+        var band = ForwardFill(bandRow, result.Count);
+
+        for (var i = 0; i < result.Count; i++)
+        {
+            var label = result[i];
+
+            // Unique labels keep the name they already have, so only the ambiguous ones change.
+            if (string.IsNullOrWhiteSpace(label) || !duplicates.Contains(label.Trim()))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(band[i]))
+            {
+                continue;
+            }
+
+            result[i] = $"{label.Trim()} {band[i]}";
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Widens <paramref name="header"/> so it covers the widest data row, padding with empty entries.
     /// Populated cells that extend past the last header therefore become real (auto-named) columns
     /// instead of being silently dropped. Column naming is left to <see cref="TabularWorkspaceSqliteHelpers.BuildColumns(IReadOnlyList{string})"/>,
@@ -138,6 +232,69 @@ public static partial class TabularWorksheetShaper
         }
 
         return hasTotalLabel && hasNumeric;
+    }
+
+    // Labels that appear more than once in the header, compared case-insensitively after trimming.
+    private static HashSet<string> GetDuplicateLabels(IReadOnlyList<string> header)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var duplicates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var cell in header)
+        {
+            if (string.IsNullOrWhiteSpace(cell))
+            {
+                continue;
+            }
+
+            if (!seen.Add(cell.Trim()))
+            {
+                duplicates.Add(cell.Trim());
+            }
+        }
+
+        return duplicates;
+    }
+
+    private static int CountPopulatedCells(IReadOnlyList<string> row)
+    {
+        if (row is null)
+        {
+            return 0;
+        }
+
+        var count = 0;
+
+        foreach (var cell in row)
+        {
+            if (!string.IsNullOrWhiteSpace(cell))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    // Carries each value rightward until the next one, reproducing the span of a merged banner cell.
+    private static List<string> ForwardFill(IReadOnlyList<string> row, int width)
+    {
+        var filled = new List<string>(width);
+        string current = null;
+
+        for (var i = 0; i < width; i++)
+        {
+            var value = i < row.Count ? row[i] : null;
+
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                current = value.Trim();
+            }
+
+            filled.Add(current);
+        }
+
+        return filled;
     }
 
     private static int CountLabelCells(IReadOnlyList<string> row)

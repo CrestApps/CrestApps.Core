@@ -82,7 +82,7 @@ public sealed class OpenXmlTabularDocumentArtifactBuilder : ITabularDocumentArti
                 if (current.Rows.Count > 0)
                 {
                     var headerIndex = TabularWorksheetShaper.DetectHeaderRowIndex(current.Rows);
-                    var header = current.Rows[headerIndex];
+                    var header = TabularWorksheetShaper.FixDuplicateColumnNames(current.Rows, headerIndex);
                     var dataRows = current.Rows.GetRange(headerIndex + 1, current.Rows.Count - headerIndex - 1);
 
                     current.Header = TabularWorksheetShaper.ExpandHeader(header, dataRows);
