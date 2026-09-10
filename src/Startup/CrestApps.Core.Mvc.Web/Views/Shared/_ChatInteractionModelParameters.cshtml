@@ -1,0 +1,153 @@
+@using CrestApps.Core.AI.Models
+@model CrestApps.Core.Mvc.Web.Models.ModelParameterEditorViewModel
+@*
+    The interaction settings panel saves through the generic data-setting collector rather than a form post,
+    so parameters are emitted as flat "modelParameters.<name>" keys instead of the indexed form-field names
+    used by _ModelParameters. The server reads them back by that prefix.
+
+    ViewData:
+      DeploymentSelector - CSS selector for the select that chooses the deployment these parameters belong to.
+      SettingPrefix      - "modelParameters" or "utilityModelParameters".
+*@
+@{
+    var deploymentSelector = ViewData["DeploymentSelector"] as string ?? "#setting-deployment";
+    var settingPrefix = ViewData["SettingPrefix"] as string ?? "modelParameters";
+}
+
+@if (Model is not null && Model.HasParameters)
+{
+    <div class="model-parameters d-none" id="@(Model.ElementPrefix)-settings-container"
+         data-deployment-selector="@deploymentSelector"
+         data-capabilities="@Model.CapabilitiesJson">
+        @if (!string.IsNullOrWhiteSpace(Model.Title))
+        {
+            <label class="form-label fw-semibold">@Model.Title</label>
+        }
+        @foreach (var parameter in Model.Parameters)
+        {
+            var fieldId = $"{Model.ElementPrefix}-setting-{parameter.ElementId}";
+            <div class="mb-2 d-none" data-model-parameter="@parameter.Name" id="@(fieldId)-wrapper">
+                <label class="form-label" for="@fieldId">@parameter.DisplayName</label>
+                @switch (parameter.Kind)
+                {
+                    case AIDeploymentParameterKind.Choice:
+                        <select class="form-select setting-input" id="@fieldId" data-setting="@(settingPrefix).@(parameter.Name)" disabled>
+                            <option value="" data-default-option>Use deployment default</option>
+                            @foreach (var option in parameter.AllowedValues)
+                            {
+                                <option value="@option.Value" selected="@(string.Equals(option.Value, parameter.Value, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@option.DisplayName</option>
+                            }
+                        </select>
+                        break;
+                    case AIDeploymentParameterKind.Boolean:
+                        <select class="form-select setting-input" id="@fieldId" data-setting="@(settingPrefix).@(parameter.Name)" disabled>
+                            <option value="" data-default-option>Use deployment default</option>
+                            <option value="true" selected="@(string.Equals(parameter.Value, "true", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Enabled</option>
+                            <option value="false" selected="@(string.Equals(parameter.Value, "false", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Disabled</option>
+                        </select>
+                        break;
+                    default:
+                        <input type="text" class="form-control setting-input" id="@fieldId" data-setting="@(settingPrefix).@(parameter.Name)"
+                               value="@parameter.Value" placeholder="Use deployment default" disabled />
+                        break;
+                }
+                @if (!string.IsNullOrWhiteSpace(parameter.Description))
+                {
+                    <div class="form-text">@parameter.Description</div>
+                }
+            </div>
+        }
+    </div>
+
+    <script>
+        (function () {
+            var container = document.getElementById('@(Model.ElementPrefix)-settings-container');
+
+            if (!container || container.dataset.initialized === 'true') {
+                return;
+            }
+
+            container.dataset.initialized = 'true';
+
+            var capabilities = {};
+
+            try {
+                capabilities = JSON.parse(container.dataset.capabilities || '{}');
+            } catch (e) {
+                capabilities = {};
+            }
+
+            var deploymentSelect = document.querySelector(container.dataset.deploymentSelector);
+
+            function lookup(name) {
+                if (!name) {
+                    return null;
+                }
+
+                var keys = Object.keys(capabilities);
+
+                for (var i = 0; i < keys.length; i++) {
+                    if (keys[i].toLowerCase() === name.toLowerCase()) {
+                        return capabilities[keys[i]];
+                    }
+                }
+
+                return null;
+            }
+
+            function apply() {
+                var supported = lookup(deploymentSelect ? deploymentSelect.value : null) || {};
+                var anyVisible = false;
+
+                container.querySelectorAll('[data-model-parameter]').forEach(function (wrapper) {
+                    var metadata = supported[wrapper.dataset.modelParameter];
+                    var input = wrapper.querySelector('.setting-input');
+                    var isSupported = !!metadata;
+
+                    wrapper.classList.toggle('d-none', !isSupported);
+
+                    if (input) {
+                        input.disabled = !isSupported;
+
+                        // The settings collector keys off "data-setting" and does not look at the disabled
+                        // flag, so the key itself is parked while the parameter is unsupported. Without this
+                        // the select's stale value would still be posted for a deployment that cannot use it.
+                        if (isSupported) {
+                            if (input.dataset.settingKey) {
+                                input.dataset.setting = input.dataset.settingKey;
+                                delete input.dataset.settingKey;
+                            }
+                        } else if (input.dataset.setting) {
+                            input.dataset.settingKey = input.dataset.setting;
+                            delete input.dataset.setting;
+                        }
+                    }
+
+                    if (isSupported && input && input.tagName === 'SELECT' && metadata.allowedValues) {
+                        var allowed = metadata.allowedValues.map(function (v) { return String(v).toLowerCase(); });
+
+                        Array.prototype.forEach.call(input.options, function (option) {
+                            if (!option.value) {
+                                return;
+                            }
+
+                            var ok = allowed.indexOf(option.value.toLowerCase()) >= 0;
+                            option.hidden = !ok;
+                            option.disabled = !ok;
+                        });
+                    }
+
+                    anyVisible = anyVisible || isSupported;
+                });
+
+                container.classList.toggle('d-none', !anyVisible);
+            }
+
+            if (deploymentSelect) {
+                deploymentSelect.addEventListener('change', apply);
+            }
+
+            apply();
+        })();
+    </script>
+}

@@ -60,15 +60,22 @@ public sealed class EmbeddingSearchIndexProfileHandlerTests
 
     private static AIDeployment CreateEmbeddingDeployment()
     {
-        return new AIDeployment
+        var deployment = new AIDeployment
         {
             ItemId = "deployment-id",
             Name = "embedding-deployment",
             ClientName = "openai",
             ConnectionName = "default",
             ModelName = "text-embedding-3-small",
-            Purpose = AIDeploymentPurpose.Embedding,
         };
+
+        // textEmbedding is opt-in: an embedding endpoint has to declare it to qualify.
+        deployment.Put(new AIDeploymentMetadata
+        {
+            Features = [AIDeploymentFeatureNames.TextEmbedding],
+        });
+
+        return deployment;
     }
 
     private sealed class FakeDeploymentStore : IAIDeploymentStore

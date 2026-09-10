@@ -67,10 +67,21 @@ public static class AIProfileTemplateParser
             profileMetadata.UtilityDeploymentName = utilityDeploymentName;
         }
 
-        if (props.TryGetValue(nameof(ProfileTemplateMetadata.RealtimeDeploymentName), out var realtimeDeploymentName))
+        // A template written before realtime became a model capability named its speech-to-speech model
+        // separately. That model is simply the chat deployment now, so the legacy value supplies it when the
+        // template does not name one of its own.
+#pragma warning disable CS0618 // Type or member is obsolete
+        if (props.TryGetValue(nameof(ProfileTemplateMetadata.RealtimeDeploymentName), out var realtimeDeploymentName) &&
+            !string.IsNullOrWhiteSpace(realtimeDeploymentName))
         {
             profileMetadata.RealtimeDeploymentName = realtimeDeploymentName;
+
+            if (string.IsNullOrWhiteSpace(profileMetadata.ChatDeploymentName))
+            {
+                profileMetadata.ChatDeploymentName = realtimeDeploymentName;
+            }
         }
+#pragma warning restore CS0618 // Type or member is obsolete
 
         if (props.TryGetValue(nameof(ProfileTemplateMetadata.ChatMode), out var chatModeStr) &&
             Enum.TryParse<ChatMode>(chatModeStr, true, out var chatMode))

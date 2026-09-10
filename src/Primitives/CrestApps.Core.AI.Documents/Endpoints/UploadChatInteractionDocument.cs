@@ -116,20 +116,20 @@ public static class UploadChatInteractionDocument
                 logger.LogInformation("Chat interaction document upload authorized for interaction '{InteractionId}'.", interaction.ItemId);
             }
 
-            var deployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: interaction.ChatDeploymentName);
+            var deployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Chat, deploymentName: interaction.ChatDeploymentName);
             if (logger.IsEnabled(LogLevel.Information))
             {
                 logger.LogInformation("Resolved chat deployment '{DeploymentName}' for interaction '{InteractionId}'.", deployment?.Name, interaction.ItemId);
             }
 
-            var embeddingDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Embedding, clientName: deployment?.ClientName);
+            var embeddingDeployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Embedding, clientName: deployment?.ClientName);
             if (logger.IsEnabled(LogLevel.Information))
             {
                 logger.LogInformation("Resolved embedding deployment '{DeploymentName}' for interaction '{InteractionId}'.", embeddingDeployment?.Name, interaction.ItemId);
             }
 
             var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
-            var visionDeployment = await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Vision);
+            var visionDeployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Vision);
             var interactionDocOptions = interactionDocumentOptions.Value;
             var allowVisionImages = interactionDocOptions.AllowImageUploads && visionDeployment != null;
             var allowDocumentUploads = interactionDocOptions.AllowDocumentUploads;

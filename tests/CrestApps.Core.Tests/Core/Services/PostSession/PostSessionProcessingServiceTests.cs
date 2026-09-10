@@ -761,10 +761,15 @@ public sealed class PostSessionProcessingServiceTests
                 Name = TestDeploymentName,
                 ClientName = TestProviderName,
                 ConnectionName = TestConnectionName,
-                Purpose = AIDeploymentPurpose.Chat,
             };
+            // Post-session work resolves the utility slot, which walks the slot chain instead of the purpose overload.
             mockDeploymentManager.Setup(d => d
-                .ResolveOrDefaultAsync(It.IsAny<AIDeploymentPurpose>(), It.IsAny<string>(), It.IsAny<string>()))
+                .ResolveSlotAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<IReadOnlyDictionary<string, string>>(),
+                    It.IsAny<CancellationToken>()))
                 .ReturnsAsync(deployment);
         }
 

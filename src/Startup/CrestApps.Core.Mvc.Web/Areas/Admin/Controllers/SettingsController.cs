@@ -481,35 +481,34 @@ public sealed class SettingsController : Controller
     private async Task PopulateDeploymentDropdownsAsync(SettingsViewModel model)
     {
         model.ChatDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Chat));
+            await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Chat));
 
         model.UtilityDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Utility));
+            await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility));
 
         model.EmbeddingDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Embedding));
+            await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Embedding));
 
         model.ImageDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Image));
+            await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Image));
 
         model.VisionDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.Vision));
+            await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Vision));
 
         model.SpeechToTextDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.SpeechToText));
+            await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.SpeechToText));
 
         model.TextToSpeechDeployments = BuildGroupedDeploymentItems(
-            await _deploymentManager.GetByPurposeAsync(AIDeploymentPurpose.TextToSpeech));
+            await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.TextToSpeech));
 
         model.RealtimeDeployments = BuildGroupedDeploymentItems(
-            await _capabilityService.GetDeploymentsWithFeatureAsync(AIDeploymentFeatureNames.Realtime));
+            await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Realtime));
 
         model.ChatInteractionModes =
         [
             new SelectListItem("Text input", nameof(ChatMode.TextInput)),
             new SelectListItem("Audio input", nameof(ChatMode.AudioInput)),
             new SelectListItem("Conversation", nameof(ChatMode.Conversation)),
-            new SelectListItem("Realtime (speech-to-speech)", nameof(ChatMode.Realtime)),
         ];
 
         model.DocumentIndexProfiles = (await _indexProfileStore.GetByTypeAsync(IndexProfileTypes.AIDocuments))

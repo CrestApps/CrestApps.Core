@@ -184,9 +184,9 @@ public sealed class PreemptiveSearchQueryProvider
         var deployment = await _deploymentManager.ResolveUtilityOrDefaultAsync(
             clientName: providerName);
 
-        // A realtime-only deployment cannot serve the text completion used to rewrite the search query;
-        // returning null lets the caller fall back to the raw user message instead of a failing request.
-        if (deployment == null || !deployment.CanServeTextCompletion())
+        // The utility slot excludes realtime deployments, which cannot serve the text completion used to
+        // rewrite the search query. Returning null lets the caller fall back to the raw user message.
+        if (deployment == null)
         {
             return null;
         }

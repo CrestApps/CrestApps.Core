@@ -208,6 +208,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddOptions<AIDeploymentCapabilityOptions>();
+        services.AddCoreAIDeploymentSlots();
         services.TryAddScoped<IAIDeploymentCapabilityService, DefaultAIDeploymentCapabilityService>();
         services.TryAddScoped<IAIDeploymentParameterApplier, DefaultAIDeploymentParameterApplier>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionServiceHandler, ModelParametersAICompletionServiceHandler>());
@@ -276,6 +277,21 @@ public static class ServiceCollectionExtensions
             {
                 feature.Description = new LocalizedString(AIDeploymentFeatureNames.Realtime, "The model supports real-time, bidirectional speech-to-speech sessions.");
                 feature.Order = 110;
+            })
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.TextEmbedding, new LocalizedString(AIDeploymentFeatureNames.TextEmbedding, "Text embedding"), feature =>
+            {
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.TextEmbedding, "The model generates text embedding vectors. Enable this only for a dedicated embedding model, not for a chat model.");
+                feature.Order = 120;
+            })
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.SpeechToText, new LocalizedString(AIDeploymentFeatureNames.SpeechToText, "Speech to text (transcription)"), feature =>
+            {
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.SpeechToText, "The model transcribes audio into text. Enable this for a dedicated transcription model such as Whisper, not for a chat model that merely accepts audio input.");
+                feature.Order = 130;
+            })
+            .AddAIDeploymentFeature(AIDeploymentFeatureNames.TextToSpeech, new LocalizedString(AIDeploymentFeatureNames.TextToSpeech, "Text to speech (synthesis)"), feature =>
+            {
+                feature.Description = new LocalizedString(AIDeploymentFeatureNames.TextToSpeech, "The model synthesizes speech from text. Enable this for a dedicated synthesis model, not for a chat model that merely emits audio output.");
+                feature.Order = 140;
             });
 
         services.AddAIDeploymentParameter(AIDeploymentParameterNames.ReasoningEffort, new LocalizedString(AIDeploymentParameterNames.ReasoningEffort, "Reasoning effort"), parameter =>
@@ -316,6 +332,60 @@ public static class ServiceCollectionExtensions
         });
 
         return services;
+    }
+
+    /// <summary>
+    /// Adds the deployment slots that ship with the framework.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <remarks>
+    /// A slot is a named role this installation uses a deployment for — chat, utility, embedding, image,
+    /// vision, speech to text, text to speech, realtime. It pairs the capability a deployment must declare
+    /// with the site-wide default that fills it, and replaces the fixed purpose switch that used to drive
+    /// deployment resolution.
+    /// </remarks>
+    public static IServiceCollection AddCoreAIDeploymentSlots(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddOptions<AIDeploymentSlotOptions>();
+
+        var defaults = AIDeploymentSlotOptions.CreateDefault();
+
+        return services.Configure<AIDeploymentSlotOptions>(options =>
+        {
+            foreach (var slot in defaults.Slots.Values)
+            {
+                options.AddSlot(slot.Name, slot.DisplayName, descriptor =>
+                {
+                    descriptor.RequiredFeature = slot.RequiredFeature;
+                    descriptor.ExcludedFeature = slot.ExcludedFeature;
+                    descriptor.GetDefaultDeploymentName = slot.GetDefaultDeploymentName;
+                    descriptor.FallbackSlotName = slot.FallbackSlotName;
+                    descriptor.AllowUnconstrained = slot.AllowUnconstrained;
+                    descriptor.Order = slot.Order;
+                });
+            }
+        });
+    }
+
+    /// <summary>
+    /// Registers a deployment slot that deployments can be resolved for.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="name">The technical name of the slot.</param>
+    /// <param name="displayName">The display text shown to operators.</param>
+    /// <param name="configure">An optional delegate used to further configure the descriptor.</param>
+    public static IServiceCollection AddAIDeploymentSlot(
+        this IServiceCollection services,
+        string name,
+        LocalizedString displayName,
+        Action<AIDeploymentSlotDescriptor> configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        return services.Configure<AIDeploymentSlotOptions>(options => options.AddSlot(name, displayName, configure));
     }
 
     /// <summary>

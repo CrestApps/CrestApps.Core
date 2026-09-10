@@ -412,15 +412,23 @@ public sealed class DefaultOrchestratorTests
         FakeToolRegistry toolRegistry = null,
         IAIClientFactory aiClientFactory = null)
     {
+        var deployment = new AIDeployment
+        {
+            ItemId = "test-dep",
+            Name = "test-model",
+            ClientName = "test-client",
+        };
+
         var deploymentManager = new Mock<IAIDeploymentManager>();
+        // Deployment resolution runs through the slot chain, so the utility and chat paths land here.
         deploymentManager.Setup(d => d
-            .ResolveOrDefaultAsync(It.IsAny<AIDeploymentPurpose>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AIDeployment
-            {
-                ItemId = "test-dep",
-                Name = "test-model",
-                ClientName = "test-client",
-            });
+            .ResolveSlotAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(deployment);
 
         return new DefaultOrchestrator(
             completionService ?? new FakeCompletionService("default response"),

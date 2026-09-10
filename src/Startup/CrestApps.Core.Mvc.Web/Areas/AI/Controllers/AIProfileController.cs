@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.DataSources;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp;
@@ -39,6 +40,7 @@ public sealed class AIProfileController : Controller
 {
     private readonly IAIProfileManager _profileManager;
     private readonly ICatalog<AIDeployment> _deploymentCatalog;
+    private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIProfileTemplateManager _templateManager;
     private readonly ICatalog<A2AConnection> _a2aConnectionCatalog;
     private readonly ICatalog<McpConnection> _mcpConnectionCatalog;
@@ -64,6 +66,7 @@ public sealed class AIProfileController : Controller
     public AIProfileController(
         IAIProfileManager profileManager,
         ICatalog<AIDeployment> deploymentCatalog,
+        IAIDeploymentManager deploymentManager,
         IAIProfileTemplateManager templateManager,
         ICatalog<A2AConnection> a2aConnectionCatalog,
         ICatalog<McpConnection> mcpConnectionCatalog,
@@ -88,6 +91,7 @@ public sealed class AIProfileController : Controller
     {
         _profileManager = profileManager;
         _deploymentCatalog = deploymentCatalog;
+        _deploymentManager = deploymentManager;
         _templateManager = templateManager;
         _a2aConnectionCatalog = a2aConnectionCatalog;
         _mcpConnectionCatalog = mcpConnectionCatalog;
@@ -281,56 +285,43 @@ public sealed class AIProfileController : Controller
     /// </summary>
     private async Task ValidateDeploymentCapabilitiesAsync(AIProfileViewModel model)
     {
-        // The chat deployment drives text turns in every non-realtime mode (realtime is voice-only), so it
-        // must be able to hold a text conversation. A realtime profile's realtime deployment must declare
-        // the realtime capability.
-        var validateChatText = model.ChatMode != ChatMode.Realtime && !string.IsNullOrWhiteSpace(model.ChatDeploymentName);
-        var validateRealtime = model.ChatMode == ChatMode.Realtime && !string.IsNullOrWhiteSpace(model.RealtimeDeploymentName);
-
-        if (!validateChatText && !validateRealtime)
+        // The chat deployment is the model this profile converses with, in text or in voice. Both are valid,
+        // and the picker only offers deployments that can do one or the other, so the only thing worth
+        // rejecting is a stored name that can do neither.
+        if (string.IsNullOrWhiteSpace(model.ChatDeploymentName))
         {
             return;
         }
 
         var deployments = await _deploymentCatalog.GetAllAsync();
+        var chatDeployment = deployments.FirstOrDefault(deployment => string.Equals(deployment.Name, model.ChatDeploymentName, StringComparison.OrdinalIgnoreCase));
 
-        if (validateChatText)
+        if (chatDeployment is null)
         {
-            var chatDeployment = deployments.FirstOrDefault(deployment => string.Equals(deployment.Name, model.ChatDeploymentName, StringComparison.OrdinalIgnoreCase));
-
-            if (chatDeployment is not null && !_capabilityService.SupportsFeatureOrUnconstrained(chatDeployment, AIDeploymentFeatureNames.TextGeneration))
-            {
-                ModelState.AddModelError(nameof(model.ChatDeploymentName), "The selected chat deployment is a speech-to-speech-only model and cannot hold a text conversation. Choose a text-capable chat deployment; set the realtime model in the Realtime deployment field instead.");
-            }
+            return;
         }
 
-        if (validateRealtime)
-        {
-            var realtimeDeployment = deployments.FirstOrDefault(deployment => string.Equals(deployment.Name, model.RealtimeDeploymentName, StringComparison.OrdinalIgnoreCase));
+        var isTextCapable = _capabilityService.SupportsFeatureOrUnconstrained(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
+        var isRealtimeCapable = _capabilityService.GetCapabilities(chatDeployment).SupportsFeature(AIDeploymentFeatureNames.Realtime);
 
-            if (realtimeDeployment is not null && !_capabilityService.GetCapabilities(realtimeDeployment).SupportsFeature(AIDeploymentFeatureNames.Realtime))
-            {
-                ModelState.AddModelError(nameof(model.RealtimeDeploymentName), "The selected realtime deployment does not declare the 'Realtime' capability. Enable it on the deployment's capabilities, or choose a realtime-capable deployment.");
-            }
+        if (!isTextCapable && !isRealtimeCapable)
+        {
+            ModelState.AddModelError(nameof(model.ChatDeploymentName), "The selected chat deployment can neither hold a text conversation nor run a realtime voice session. Choose a deployment whose model declares text generation or the realtime capability.");
         }
     }
 
     private async Task PopulateDropdownsAsync(AIProfileViewModel model)
     {
-        model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(
-            model.ModelParameters,
-            description: "Only the parameters declared by the selected chat deployment are shown.");
+        model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(model.ModelParameters);
         model.UtilityModelParameterEditor = await _modelParameterViewService.BuildAsync(
             model.UtilityModelParameters,
             deploymentFieldName: nameof(AIProfileViewModel.UtilityDeploymentName),
             fieldPrefix: nameof(AIProfileViewModel.UtilityModelParameters),
             elementPrefix: "utilityModelParameters",
-            title: "Utility model parameters",
-            description: "Applied to background completions such as title generation, data extraction, and post-session processing. Only the parameters declared by the selected utility deployment are shown.");
+            title: "Utility model parameters");
 
-        var allDeployments = await _deploymentCatalog.GetAllAsync();
-        model.ChatDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
-        model.UtilityDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        model.ChatDeployments = (await _deploymentManager.GetConversationalDeploymentsAsync()).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        model.UtilityDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.RealtimeDeployments = (await _capabilityService.GetDeploymentsWithFeatureAsync(AIDeploymentFeatureNames.Realtime)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
         var hasAnthropicOptions = _anthropicOptions.TryGetValidValue(out var anthropicOptions);
@@ -576,10 +567,14 @@ public sealed class AIProfileController : Controller
             profile.UtilityDeploymentName = metadata.UtilityDeploymentName;
         }
 
-        if (!string.IsNullOrWhiteSpace(metadata.RealtimeDeploymentName))
+        // A template written before realtime became a model capability named its speech-to-speech model
+        // separately. That model is simply the chat deployment now.
+#pragma warning disable CS0618 // Type or member is obsolete
+        if (string.IsNullOrWhiteSpace(profile.ChatDeploymentName) && !string.IsNullOrWhiteSpace(metadata.RealtimeDeploymentName))
         {
-            profile.RealtimeDeploymentName = metadata.RealtimeDeploymentName;
+            profile.ChatDeploymentName = metadata.RealtimeDeploymentName;
         }
+#pragma warning restore CS0618 // Type or member is obsolete
 
         // Carry the chat mode (and its voice/TTS options) so a template can seed a realtime voice profile.
         if (metadata.ChatMode.HasValue || !string.IsNullOrWhiteSpace(metadata.VoiceName) || metadata.EnableTextToSpeechPlayback.HasValue)

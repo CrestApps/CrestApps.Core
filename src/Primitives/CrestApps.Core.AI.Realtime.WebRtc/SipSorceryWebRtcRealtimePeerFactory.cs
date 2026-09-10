@@ -9,9 +9,16 @@ internal sealed class SipSorceryWebRtcRealtimePeerFactory : IWebRtcRealtimePeerF
 {
     private readonly ILogger<SipSorceryWebRtcRealtimePeer> _logger;
 
-    public SipSorceryWebRtcRealtimePeerFactory(ILogger<SipSorceryWebRtcRealtimePeer> logger)
+    public SipSorceryWebRtcRealtimePeerFactory(ILogger<SipSorceryWebRtcRealtimePeer> logger, ILoggerFactory loggerFactory)
     {
         _logger = logger;
+
+        // SIPSorcery logs to its own static factory, which defaults to a null logger. Without this, everything it
+        // knows about ICE stays invisible: the TURN Allocate exchange, the CreatePermission it installs for each
+        // remote candidate, and every connectivity check it sends or answers. Those are the only records of why a
+        // relay candidate that was gathered successfully never carries traffic, and no amount of logging on our
+        // own side can substitute for them. Raise the "SIPSorcery" category to Debug to read them.
+        SIPSorcery.LogFactory.Set(loggerFactory);
     }
 
     public async Task<IWebRtcRealtimePeer> CreateAsync(string offerSdp, IReadOnlyList<WebRtcIceServer> iceServers, CancellationToken cancellationToken = default)

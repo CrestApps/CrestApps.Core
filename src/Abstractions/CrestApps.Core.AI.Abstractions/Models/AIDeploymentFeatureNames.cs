@@ -19,6 +19,26 @@ public static class AIDeploymentFeatureNames
     public const string ToolCalling = "toolCalling";
 
     /// <summary>
+    /// The model generates text embedding vectors. This is a dedicated embedding endpoint, not a chat
+    /// model, so it is opt-in and independent of <see cref="TextGeneration"/>.
+    /// </summary>
+    public const string TextEmbedding = "textEmbedding";
+
+    /// <summary>
+    /// The model transcribes audio into text (a dedicated speech-to-text endpoint such as Whisper).
+    /// This is deliberately distinct from <see cref="AudioInput"/>, which means "this chat model accepts
+    /// audio inline" rather than "this is a transcription endpoint".
+    /// </summary>
+    public const string SpeechToText = "speechToText";
+
+    /// <summary>
+    /// The model synthesizes speech from text (a dedicated text-to-speech endpoint). This is deliberately
+    /// distinct from <see cref="AudioOutput"/>, which means "this chat model emits audio inline" rather
+    /// than "this is a synthesis endpoint".
+    /// </summary>
+    public const string TextToSpeech = "textToSpeech";
+
+    /// <summary>
     /// The model can return responses that conform to a supplied JSON schema.
     /// </summary>
     public const string StructuredOutputs = "structuredOutputs";
@@ -65,7 +85,7 @@ public static class AIDeploymentFeatureNames
 
     /// <summary>
     /// The model supports real-time, bidirectional speech-to-speech sessions. A deployment that declares
-    /// this feature on a <see cref="AIDeploymentPurpose.Chat"/> model is eligible to run realtime sessions.
+    /// this feature is eligible to fill the realtime slot.
     /// </summary>
     public const string Realtime = "realtime";
 }

@@ -127,6 +127,9 @@
                                     </select>
                                     <div class="form-text">The chat model deployment to use.</div>
                                 </div>
+                                @* Directly under the picker it belongs to: the parameters a deployment exposes
+                                   are part of choosing it, so they appear where the choice is made. *@
+                                <partial name="_ModelParameters" model="Model.ModelParameterEditor" />
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
@@ -136,6 +139,7 @@
                                     </select>
                                     <div class="form-text">Optional deployment for utility tasks.</div>
                                 </div>
+                                <partial name="_ModelParameters" model="Model.UtilityModelParameterEditor" />
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
@@ -148,22 +152,13 @@
                             </div>
                         </div>
                         <div class="row">
-                            <div class="col-md-4">
+                            <div class="col-md-4" id="templateChatModeCol">
                                 <div class="mb-3">
                                     <label asp-for="ChatMode" class="form-label">Chat mode</label>
                                     <select asp-for="ChatMode" class="form-select" asp-items="Html.GetEnumSelectList<ChatMode>()">
                                         <option value="">Use default chat mode</option>
                                     </select>
-                                    <div class="form-text">Select <strong>Realtime</strong> to seed a speech-to-speech voice profile.</div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label asp-for="RealtimeDeploymentName" class="form-label">Realtime deployment</label>
-                                    <select asp-for="RealtimeDeploymentName" class="form-select" asp-items="Model.RealtimeDeployments">
-                                        <option value="">Use default realtime deployment</option>
-                                    </select>
-                                    <div class="form-text">The speech-to-speech deployment for the Realtime chat mode.</div>
+                                    <div class="form-text">Layers speech-to-text and text-to-speech over a text model. A realtime chat deployment speaks natively and ignores this.</div>
                                 </div>
                             </div>
                             <div class="col-md-4" id="templateVoiceGroup">
@@ -296,7 +291,7 @@
                                     var title = option?.Title ?? selection.TemplateId ?? "Prompt template";
                                     var category = option?.Category ?? "Unavailable";
                                     var description = option?.Description;
-                                    var parameters = option?.Parameters ?? [];
+                                    var parameters = option?.Parameters ?? new List<PromptTemplateParameterItem>();
 
                                     <div class="card mb-1 prompt-template-card" data-template-id="@selection.TemplateId">
                                         <div class="card-header d-flex justify-content-between align-items-center py-2">
@@ -413,8 +408,6 @@
                             </div>
                             <div class="form-text">Cache responses to improve performance for repeated queries.</div>
                         </div>
-                        <partial name="_ModelParameters" model="Model.ModelParameterEditor" />
-                        <partial name="_ModelParameters" model="Model.UtilityModelParameterEditor" />
                     </div>
 
                     <!-- Capabilities Tab (Agents, A2A, MCP, Tools) -->
@@ -895,19 +888,29 @@
 
         // --- Realtime voice loading (based on the selected realtime deployment) ---
         var templateChatModeSelector = document.getElementById('@Html.IdFor(m => m.ChatMode)');
-        var templateRealtimeDeploymentSelector = document.getElementById('@Html.IdFor(m => m.RealtimeDeploymentName)');
+        var templateChatModeCol = document.getElementById('templateChatModeCol');
         var templateVoiceSelector = document.getElementById('@Html.IdFor(m => m.VoiceName)');
         var templateVoiceGroup = document.getElementById('templateVoiceGroup');
         var templateRealtimeVoicesUrl = '@Url.Action("GetRealtimeVoices", "Settings", new { area = "Admin" })';
         var templateSelectedVoiceId = '@(Model.VoiceName ?? string.Empty)';
         var templateDefaultRealtimeDeploymentName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(defaultRealtimeDeploymentName));
+        var templateChatDeploymentSelector = document.getElementById('@Html.IdFor(m => m.ChatDeploymentName)');
+        var templateRealtimeDeploymentNames = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RealtimeDeployments.Select(d => d.Value)));
 
         function isTemplateRealtimeMode() {
-            return templateChatModeSelector && templateChatModeSelector.value === '@nameof(ChatMode.Realtime)';
+            // Realtime is a property of the selected chat deployment, not a separate mode.
+            return templateChatDeploymentSelector && templateRealtimeDeploymentNames.indexOf(templateChatDeploymentSelector.value) >= 0;
         }
 
         function toggleTemplateVoiceField() {
             var realtime = isTemplateRealtimeMode();
+            
+            // The chat mode layers speech-to-text and text-to-speech over a text model, so it applies only
+            // when the selected chat deployment is not already a speech-to-speech one.
+            if (templateChatModeCol) {
+                templateChatModeCol.classList.toggle("d-none", realtime);
+            }
+
             if (templateVoiceGroup) {
                 templateVoiceGroup.classList.toggle('d-none', !realtime);
             }
@@ -923,7 +926,7 @@
 
             templateVoiceSelector.innerHTML = '<option value="">Default voice</option>';
 
-            var deploymentName = (templateRealtimeDeploymentSelector && templateRealtimeDeploymentSelector.value) || templateDefaultRealtimeDeploymentName;
+            var deploymentName = (templateChatDeploymentSelector && templateChatDeploymentSelector.value) || templateDefaultRealtimeDeploymentName;
             if (!deploymentName) {
                 return;
             }
@@ -964,8 +967,8 @@
         if (templateChatModeSelector) {
             templateChatModeSelector.addEventListener('change', toggleTemplateVoiceField);
         }
-        if (templateRealtimeDeploymentSelector) {
-            templateRealtimeDeploymentSelector.addEventListener('change', function () {
+        if (templateChatDeploymentSelector) {
+            templateChatDeploymentSelector.addEventListener('change', function () {
                 if (isTemplateRealtimeMode()) {
                     loadTemplateVoiceOptions();
                 }

@@ -4,6 +4,7 @@ using CrestApps.Core.Mvc.Web.Areas.A2A.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Mcp.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels;
+using CrestApps.Core.Mvc.Web.Models;
 using CrestApps.Core.Templates.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -17,6 +18,8 @@ internal sealed class ChatInteractionChatViewModel
     public string Title { get; set; }
 
     public string ChatDeploymentName { get; set; }
+
+    public string UtilityDeploymentName { get; set; }
 
     public string OrchestratorName { get; set; }
 
@@ -138,6 +141,15 @@ internal sealed class ChatInteractionChatViewModel
 
     [BindNever]
     public IEnumerable<SelectListItem> Deployments { get; set; } = [];
+
+    [BindNever]
+    public IEnumerable<SelectListItem> UtilityDeployments { get; set; } = [];
+
+    [BindNever]
+    public ModelParameterEditorViewModel ModelParameterEditor { get; set; }
+
+    [BindNever]
+    public ModelParameterEditorViewModel UtilityModelParameterEditor { get; set; }
 
     [BindNever]
     public IEnumerable<SelectListItem> Orchestrators { get; set; } = [];

@@ -85,6 +85,7 @@ else
          data-coreai-chat-session-url-template="/ai-chat/chat/{sessionId}"
          data-coreai-chat-metrics-enabled="@_metricsEnabled.ToString().ToLowerInvariant()"
          data-coreai-chat-mode="@_chatMode"
+         data-coreai-chat-realtime-enabled="@_isRealtime.ToString().ToLowerInvariant()"
          data-coreai-chat-realtime-webrtc-enabled="@(CrestApps.Core.AI.Chat.Realtime.RealtimeTransportSettings.IsWebRtcEnabled(ServiceProvider).ToString().ToLowerInvariant())"
          data-coreai-chat-mic-button-element-selector="#chat-mic-btn"
          data-coreai-chat-conversation-button-element-selector="#chat-conversation-btn"
@@ -125,28 +126,28 @@ else
                         @* The input and send button stay in the DOM even for realtime (voice-only) because the
                            client reads the profile/session ids from the input; they are only hidden visually. *@
                         <textarea id="chat-input"
-                                  class="form-control@(_chatMode == ChatMode.Realtime ? " d-none" : "")"
+                                  class="form-control@(_isRealtime ? " d-none" : "")"
                                   rows="1"
                                   placeholder="Type a message..."
                                   data-session-id="@_sessionId"
                                   data-profile-id="@_profile.ItemId"></textarea>
-                        @if (_chatMode != ChatMode.Realtime)
+                        @if (!_isRealtime)
                         {
                             <button type="button" id="chat-mic-btn" class="btn btn-outline-secondary" title="Voice input" style="display: none;">
                                 <i class="fa-solid fa-microphone"></i>
                             </button>
                         }
-                        @if (_chatMode == ChatMode.Conversation || _chatMode == ChatMode.Realtime)
+                        @if (_chatMode == ChatMode.Conversation || _isRealtime)
                         {
                             <button type="button"
                                     id="chat-conversation-btn"
-                                    class="btn btn-outline-dark@(_chatMode == ChatMode.Realtime ? " flex-grow-1" : "")"
-                                    title="@(_chatMode == ChatMode.Realtime ? "Start speaking" : "Start Conversation")"
-                                    data-start-title="@(_chatMode == ChatMode.Realtime ? "Start speaking" : "Start Conversation")"
+                                    class="btn btn-outline-dark@(_isRealtime ? " flex-grow-1" : "")"
+                                    title="@(_isRealtime ? "Start speaking" : "Start Conversation")"
+                                    data-start-title="@(_isRealtime ? "Start speaking" : "Start Conversation")"
                                     data-end-title="End Conversation"
-                                    data-start-html="@(_chatMode == ChatMode.Realtime ? "<i class='fa-solid fa-wave-square me-1'></i> Start speaking" : "<i class='fa-solid fa-wave-square'></i>")"
+                                    data-start-html="@(_isRealtime ? "<i class='fa-solid fa-wave-square me-1'></i> Start speaking" : "<i class='fa-solid fa-wave-square'></i>")"
                                     data-end-html="<i class='fa-solid fa-stop me-1'></i> End Conversation">
-                                @if (_chatMode == ChatMode.Realtime)
+                                @if (_isRealtime)
                                 {
                                     <i class="fa-solid fa-wave-square me-1"></i>
                                     <span>Start speaking</span>
@@ -157,11 +158,11 @@ else
                                 }
                             </button>
                         }
-                        <button type="button" id="send-btn" class="btn btn-primary@(_chatMode == ChatMode.Realtime ? " d-none" : "")" data-start-icon="<i class='fa-solid fa-paper-plane'></i>" data-stop-icon="<i class='fa-solid fa-stop'></i>">
+                        <button type="button" id="send-btn" class="btn btn-primary@(_isRealtime ? " d-none" : "")" data-start-icon="<i class='fa-solid fa-paper-plane'></i>" data-stop-icon="<i class='fa-solid fa-stop'></i>">
                             <i class="fa-solid fa-paper-plane"></i>
                         </button>
                     </div>
-                    @if (_chatMode == ChatMode.Realtime)
+                    @if (_isRealtime)
                     {
                         <div class="form-text mt-2 text-center">
                             <i class="fa-solid fa-circle-info"></i> This is a realtime voice profile. Click <strong>Start speaking</strong>, allow microphone access, and talk. Use headphones to avoid echo.
@@ -191,6 +192,10 @@ else
     private string _ttsVoiceName;
     private string _realtimeVoiceName;
     private ChatMode _chatMode;
+
+    // Whether the profile's chat deployment is a realtime (speech-to-speech) model. This replaced a stored
+    // chat mode so the UI and the hub read one source of truth.
+    private bool _isRealtime;
     private string _supportedExtensionsAccept;
     private string _supportedExtensionsDisplay;
     private IReadOnlyList<ChatDocumentInfo> _existingDocuments = Array.Empty<ChatDocumentInfo>();
@@ -253,23 +258,21 @@ else
         _ttsVoiceName = chatModeSettings?.VoiceName ?? deploymentDefaults.DefaultTextToSpeechVoiceId;
         _realtimeVoiceName = chatModeSettings?.VoiceName ?? deploymentDefaults.DefaultRealtimeVoiceId;
 
-        // Realtime is available only when a realtime-capable chat deployment resolves (the profile's realtime
-        // deployment, or the site default), so the client's realtime UI stays in sync with the hub's capability gate.
-        var realtimeDeploymentName = !string.IsNullOrWhiteSpace(_profile.RealtimeDeploymentName)
-            ? _profile.RealtimeDeploymentName
-            : deploymentDefaults.DefaultRealtimeDeploymentName;
-        var hasRealtimeDeployment = await CapabilityService.ResolveDeploymentWithFeatureAsync(AIDeploymentFeatureNames.Realtime, realtimeDeploymentName) is not null;
+        // The profile's own chat deployment decides whether this is a voice conversation, which keeps the
+        // client's realtime UI in step with the hub's capability gate.
+        _isRealtime = await CapabilityService.IsRealtimeDeploymentAsync(_profile.ChatDeploymentName);
 
-        _chatMode = configuredChatMode switch
-        {
-            ChatMode.Realtime when hasRealtimeDeployment => ChatMode.Realtime,
-            // Realtime configured but no realtime deployment: fall back to STT/TTS conversation when possible.
-            ChatMode.Realtime when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
-            ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
-            ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
-            ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
-            _ => ChatMode.TextInput,
-        };
+        // The chat mode layers speech-to-text and text-to-speech over a text model, so it does not apply to
+        // a realtime deployment, which speaks natively.
+        _chatMode = _isRealtime
+            ? ChatMode.TextInput
+            : configuredChatMode switch
+            {
+                ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
+                ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
+                ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
+                _ => ChatMode.TextInput,
+            };
 
         _allowImageUploads = sessionDocMeta?.AllowSessionImageUploads == true
             && !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultVisionDeploymentName);

@@ -146,8 +146,9 @@ await using var session = await client.CreateSessionAsync(new RealtimeSessionOpt
   `NotSupportedException`.
 - **OpenAI** and **Azure OpenAI** support realtime (both use the OpenAI `gpt-realtime` models). Ollama and Azure AI
   Inference do not.
-- Mark a deployment with **`AIDeploymentPurpose.Realtime`**, and classify an audio-only profile with the
-  **`AIProfileType.RealtimeChat`** profile type (which selects its deployment via `AIProfile.RealtimeDeploymentName`).
+- Declare the **`realtime`** model capability on the deployment; it then fills the **`realtime`** deployment
+  slot. A chat profile or interaction becomes a voice conversation simply by selecting that deployment as its
+  chat deployment; there is no separate realtime mode or field.
 
 ### Realtime voices
 

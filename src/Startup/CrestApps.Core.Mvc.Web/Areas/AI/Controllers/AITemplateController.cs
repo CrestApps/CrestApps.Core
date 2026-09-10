@@ -7,6 +7,7 @@ using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.DataSources;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
@@ -36,6 +37,7 @@ public sealed class AITemplateController : Controller
 {
     private readonly ICatalog<AIProfileTemplate> _catalog;
     private readonly ICatalog<AIDeployment> _deploymentCatalog;
+    private readonly IAIDeploymentManager _deploymentManager;
     private readonly ICatalog<A2AConnection> _a2aConnectionCatalog;
     private readonly ICatalog<McpConnection> _mcpConnectionCatalog;
     private readonly IAIDataSourceStore _dataSourceStore;
@@ -57,6 +59,7 @@ public sealed class AITemplateController : Controller
     public AITemplateController(
         ICatalog<AIProfileTemplate> catalog,
         ICatalog<AIDeployment> deploymentCatalog,
+        IAIDeploymentManager deploymentManager,
         ICatalog<A2AConnection> a2aConnectionCatalog,
         ICatalog<McpConnection> mcpConnectionCatalog,
         IAIDataSourceStore dataSourceStore,
@@ -77,6 +80,7 @@ public sealed class AITemplateController : Controller
     {
         _catalog = catalog;
         _deploymentCatalog = deploymentCatalog;
+        _deploymentManager = deploymentManager;
         _a2aConnectionCatalog = a2aConnectionCatalog;
         _mcpConnectionCatalog = mcpConnectionCatalog;
         _dataSourceStore = dataSourceStore;
@@ -239,22 +243,17 @@ public sealed class AITemplateController : Controller
     private async Task PopulateDropdownsAsync(AITemplateViewModel model)
     {
         model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(
-            model.ModelParameters,
-            description: "Only the parameters declared by the selected chat deployment are shown.");
+            model.ModelParameters);
         model.UtilityModelParameterEditor = await _modelParameterViewService.BuildAsync(
             model.UtilityModelParameters,
             deploymentFieldName: nameof(AITemplateViewModel.UtilityDeploymentName),
             fieldPrefix: nameof(AITemplateViewModel.UtilityModelParameters),
             elementPrefix: "utilityModelParameters",
-            title: "Utility model parameters",
-            description: "Applied to background completions such as title generation, data extraction, and post-session processing. Only the parameters declared by the selected utility deployment are shown.");
+            title: "Utility model parameters");
 
-        var allDeployments = await _deploymentCatalog.GetAllAsync();
-        model.ChatDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
-        model.UtilityDeployments = allDeployments.Where(d => d.Purpose.Supports(AIDeploymentPurpose.Utility) || d.Purpose.Supports(AIDeploymentPurpose.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
-        // Only realtime-capable chat deployments are eligible for the realtime slot.
-        model.RealtimeDeployments = allDeployments
-            .Where(d => d.Purpose.Supports(AIDeploymentPurpose.Chat) && _capabilityService.GetCapabilities(d).SupportsFeature(AIDeploymentFeatureNames.Realtime))
+        model.ChatDeployments = (await _deploymentManager.GetConversationalDeploymentsAsync()).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        model.UtilityDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        model.RealtimeDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Realtime))
             .Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name))
             .ToList();
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();

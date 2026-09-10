@@ -30,11 +30,14 @@ Profile Templates, and Chat Interactions store the selected values. At request t
 binds the selected values into the outgoing request.
 
 :::info
-Features are **not** the same as `AIDeploymentPurpose`. `Purpose` (`Chat`, `Utility`, `Embedding`,
-`Image`, …) drives *routing* — which deployment is picked for a given job. Features describe
-*capabilities within* a deployment and deliberately avoid duplicating routing concerns. This is why
-realtime (speech-to-speech) is a **feature on a `Chat` deployment**, not a separate purpose: a realtime
-model is still a chat model — it just speaks instead of typing.
+**Capabilities and slots are two different questions.** A *capability* says what the model can do, and
+lives on the deployment. A **slot** says what this installation uses a deployment *for* — `chat`,
+`utility`, `embedding`, `image`, `vision`, `speechToText`, `textToSpeech`, `realtime` — and pairs the
+capability a deployment must declare with the site-wide default that fills it.
+
+You declare capabilities; the framework derives routing from them. Nothing separate has to be tagged for
+a deployment to appear in the right picker: declaring `textEmbedding` is what puts a model in the
+embedding slot. See [Deployment slots](#deployment-slots).
 :::
 
 ## Quick Start
@@ -65,6 +68,16 @@ You rarely need to call this directly — `AddCoreAIServices()` chains it automa
 | `videoInput` | `AIDeploymentFeatureNames.VideoInput` | | The model can understand video inputs. |
 | `videoOutput` | `AIDeploymentFeatureNames.VideoOutput` | | The model can generate video. |
 | `realtime` | `AIDeploymentFeatureNames.Realtime` | | The model supports real-time, bidirectional **speech-to-speech** sessions. |
+| `textEmbedding` | `AIDeploymentFeatureNames.TextEmbedding` | | The model generates text embedding vectors. Declare this only for a **dedicated embedding model**, not for a chat model. |
+| `speechToText` | `AIDeploymentFeatureNames.SpeechToText` | | The model transcribes audio into text. Declare this for a **dedicated transcription model** such as Whisper — not for a chat model that merely accepts audio input. |
+| `textToSpeech` | `AIDeploymentFeatureNames.TextToSpeech` | | The model synthesizes speech from text. Declare this for a **dedicated synthesis model** — not for a chat model that merely emits audio output. |
+
+:::warning
+`speechToText` and `textToSpeech` are deliberately distinct from `audioInput` and `audioOutput`. The
+audio pair means "this *chat* model accepts or emits audio inline"; the other pair means "this is a
+transcription or synthesis endpoint". Conflating them would offer `gpt-4o-audio` in the Whisper slot and
+Whisper in the chat picker.
+:::
 
 These represent **trained capabilities** the underlying model was built with. Provider-hosted tools
 (such as a web-search tool the provider runs on your behalf, or a computer-use tool) are *not* modeled
@@ -387,28 +400,34 @@ effective mode on the server from the deployment the surface will actually use, 
 win:
 
 ```csharp
-// The selected deployment takes precedence: a realtime model forces audio-only, because it
-// cannot handle a text turn.
-var selectedIsRealtime = !string.IsNullOrWhiteSpace(deploymentName)
-    && await _capabilityService.ResolveDeploymentWithFeatureAsync(
-        AIDeploymentFeatureNames.Realtime, deploymentName) is not null;
+// The selected chat deployment answers this. A realtime model is a voice conversation; anything else is
+// a text profile.
+var isRealtime = await _capabilityService.IsRealtimeDeploymentAsync(deploymentName);
 
-var effectiveChatMode = selectedIsRealtime
-    ? ChatMode.Realtime
-    : /* fall back to your STT / conversation / text logic */ ChatMode.TextInput;
+// The chat mode layers speech-to-text and text-to-speech over a text model, so it does not apply to a
+// realtime deployment, which speaks natively.
+var effectiveChatMode = isRealtime
+    ? ChatMode.TextInput
+    : /* your STT / conversation / text logic */ ChatMode.TextInput;
 ```
 
-Where the deployment comes from depends on the surface:
+Every surface asks the same question of the same field:
 
-| Surface | Text deployment | Realtime deployment |
-| --- | --- | --- |
-| **AI Profile / AI Chat widget** | `AIProfile.ChatDeploymentName` | `AIProfile.RealtimeDeploymentName` (falls back to the site default) |
-| **Chat Interaction** | `ChatInteraction.ChatDeploymentName` | The **same** selected `ChatDeploymentName` when it declares `realtime`; otherwise the site default |
-| **Site default (fallback)** | — | `DefaultAIDeploymentSettings.DefaultRealtimeDeploymentName` |
+| Surface | Deployment it converses with |
+| --- | --- |
+| **AI Profile / AI Chat widget** | `AIProfile.ChatDeploymentName` |
+| **Chat Interaction** | `ChatInteraction.ChatDeploymentName` |
 
-Because a Chat Interaction has a single deployment picker, selecting a realtime model there *is* the
-realtime deployment. The AI Profile keeps text and voice as separate fields so a profile can use a text
-model for typed turns and a realtime model for voice.
+There is no separate realtime deployment field and no realtime chat mode. Selecting a realtime-capable
+model in the chat deployment picker *is* how a profile or interaction becomes a voice conversation — the
+picker offers text-capable and realtime-capable deployments together, and the capability decides the rest.
+`DefaultAIDeploymentSettings.DefaultRealtimeDeploymentName` still backs the `realtime` slot for callers
+that resolve it directly, such as the realtime orchestrator.
+
+:::note
+`ChatMode` still exists for the speech-to-text and text-to-speech features layered over a **text** model
+(`TextInput`, `AudioInput`, `Conversation`). It no longer has a `Realtime` member.
+:::
 
 ### Switching the input live
 
@@ -468,6 +487,62 @@ Even if a UI lets a bad combination through, the framework refuses to fail silen
 - **Runtime message** — if a text turn still reaches a realtime-only model, the chat surface returns a
   clear explanation ("the selected chat deployment may not support text conversation…") as the assistant
   response instead of an empty or failed turn.
+- **Slot filtering** — resolution itself refuses to hand back a deployment that cannot do the job. A
+  realtime deployment never fills the `chat` or `utility` slot, even when an operator also ticks
+  `textGeneration` for it, because those slots declare `realtime` as an **excluded** capability. This is
+  the rule that used to be re-checked by hand at every background-completion call site.
+
+## Deployment slots
+
+A slot is a named role this installation uses a deployment for. It pairs the capability a deployment must
+declare with the site-wide default that fills it, and — for `utility` — a fallback slot.
+
+| Slot | Required capability | Excluded | Falls back to |
+| --- | --- | --- | --- |
+| `chat` | `textGeneration` | `realtime` | |
+| `utility` | `textGeneration` | `realtime` | `chat` |
+| `embedding` | `textEmbedding` | | |
+| `image` | `imageOutput` | | |
+| `vision` | `imageInput` | | |
+| `speechToText` | `speechToText` | | |
+| `textToSpeech` | `textToSpeech` | | |
+| `realtime` | `realtime` | | |
+
+`textGeneration` is **opt-out**, so a deployment that declares no capability metadata at all still fills
+the `chat` and `utility` slots. Every other capability is opt-in and must be declared.
+
+Resolution walks **one ordered chain**, and evaluates "first capable" exactly once, at the very end:
+
+```text
+explicit name for the slot
+  -> the slot's site-wide default
+    -> explicit name for the fallback slot
+      -> the fallback slot's site-wide default
+        -> the first capable deployment
+```
+
+That ordering is why background work runs on the caller's own chat deployment when no utility deployment
+is configured, rather than on an arbitrary text model.
+
+```csharp
+// Resolve the deployment that fills a slot.
+var deployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Embedding);
+
+// List every deployment eligible for a slot — this is what the settings pickers use.
+var candidates = await deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Chat);
+```
+
+Modules can register their own slots:
+
+```csharp
+services.AddAIDeploymentSlot("moderation", new LocalizedString("moderation", "Moderation"), slot =>
+{
+    slot.RequiredFeature = AIDeploymentFeatureNames.TextGeneration;
+    slot.GetDefaultDeploymentName = static settings => settings.DefaultUtilityDeploymentName;
+    slot.FallbackSlotName = AIDeploymentSlotNames.Utility;
+    slot.AllowUnconstrained = true;
+});
+```
 
 ## Registering your own definitions
 

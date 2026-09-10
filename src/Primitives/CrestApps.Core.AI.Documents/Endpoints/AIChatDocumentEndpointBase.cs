@@ -185,8 +185,8 @@ public abstract class AIChatDocumentEndpointBase
     /// <param name="deploymentManager">The deployment manager.</param>
     protected static async Task<AIDeployment> ResolveSessionDeploymentAsync(AIProfile profile, IAIDeploymentManager deploymentManager)
     {
-        return await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Chat, deploymentName: profile.ChatDeploymentName)
-            ?? await deploymentManager.ResolveOrDefaultAsync(AIDeploymentPurpose.Utility, deploymentName: profile.UtilityDeploymentName);
+        return await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Chat, deploymentName: profile.ChatDeploymentName)
+            ?? await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Utility, deploymentName: profile.UtilityDeploymentName);
     }
 
     /// <summary>

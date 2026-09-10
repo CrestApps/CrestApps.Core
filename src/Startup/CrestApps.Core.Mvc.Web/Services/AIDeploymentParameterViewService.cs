@@ -35,15 +35,13 @@ public sealed class AIDeploymentParameterViewService
     /// <param name="deploymentFieldName">The name of the form field that holds the selected chat deployment.</param>
     /// <param name="fieldPrefix">The form field prefix used when posting the selected values.</param>
     /// <param name="elementPrefix">The prefix applied to generated element identifiers.</param>
-    /// <param name="title">The heading rendered above the editor.</param>
-    /// <param name="description">The descriptive text rendered under the heading.</param>
+    /// <param name="title">The heading rendered above the editor, where the host renders one.</param>
     public async Task<ModelParameterEditorViewModel> BuildAsync(
         IDictionary<string, string> values,
         string deploymentFieldName = "ChatDeploymentName",
         string fieldPrefix = "ModelParameters",
         string elementPrefix = "modelParameters",
-        string title = "Model parameters",
-        string description = null)
+        string title = "Model parameters")
     {
         var model = new ModelParameterEditorViewModel
         {
@@ -51,7 +49,6 @@ public sealed class AIDeploymentParameterViewService
             FieldPrefix = fieldPrefix,
             ElementPrefix = elementPrefix,
             Title = title,
-            Description = description,
         };
 
         foreach (var descriptor in _capabilityService.GetRegisteredParameters())

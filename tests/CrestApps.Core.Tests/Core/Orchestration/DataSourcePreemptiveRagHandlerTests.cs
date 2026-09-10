@@ -52,7 +52,6 @@ public sealed class DataSourcePreemptiveRagHandlerTests
                 ModelName = "embedding",
                 ClientName = "OpenAI",
                 ConnectionName = "Default",
-                Purpose = AIDeploymentPurpose.Embedding,
             });
 
         var textNormalizer = new Mock<IAITextNormalizer>();

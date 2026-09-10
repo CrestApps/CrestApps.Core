@@ -12,6 +12,8 @@ public sealed class ChatInteractionChatViewModel
 
     public string ChatDeploymentName { get; set; }
 
+    public string UtilityDeploymentName { get; set; }
+
     public string OrchestratorName { get; set; }
 
     public string SystemMessage { get; set; }
@@ -106,6 +108,8 @@ public sealed class ChatInteractionChatViewModel
 
     public List<SelectOption> DataSources { get; set; } = [];
     public List<SelectOption> Deployments { get; set; } = [];
+
+    public List<SelectOption> UtilityDeployments { get; set; } = [];
     public List<SelectOption> Orchestrators { get; set; } = [];
     public List<SelectOption> CopilotAvailableModels { get; set; } = [];
     public List<SelectOption> AnthropicAvailableModels { get; set; } = [];
