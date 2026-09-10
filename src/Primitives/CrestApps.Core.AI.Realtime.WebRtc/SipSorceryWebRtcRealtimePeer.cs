@@ -106,6 +106,17 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
     private readonly Thread _pacingThread;
     private readonly byte[] _silenceFrame;
 
+    // The server's own ICE candidates, tallied for diagnosis. A browser console shows only the browser's
+    // half of the handshake; these are the other half, and on a host that cannot accept inbound UDP -- App
+    // Service, most PaaS -- the 'host' candidates are unroutable private addresses, so whether anything
+    // reflexive or relayed was gathered is the entire difference between "needs a TURN server" and "cannot
+    // work here at all". Without this, a failed connection looks identical to a misconfigured one.
+    private readonly int _iceServerCount;
+    private readonly int _turnServerCount;
+    private int _localHostCandidates;
+    private int _localReflexiveCandidates;
+    private int _localRelayCandidates;
+
     private bool _closedRaised;
     private bool _connectedRaised;
     private long _midReplySilenceFrames;
@@ -162,6 +173,11 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         _encoder.Complexity = 10;
         _encoder.UseInbandFEC = false;
         _encoder.PacketLossPercent = 0;
+
+        _iceServerCount = iceServers.Count;
+        _turnServerCount = iceServers.Count(server => server.Urls is not null && server.Urls.Any(url =>
+            url is not null && (url.StartsWith("turn:", StringComparison.OrdinalIgnoreCase) ||
+                                url.StartsWith("turns:", StringComparison.OrdinalIgnoreCase))));
 
         var config = new RTCConfiguration
         {
@@ -721,6 +737,25 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
             return;
         }
 
+        if (candidate.candidate.Contains(" typ relay", StringComparison.OrdinalIgnoreCase))
+        {
+            Interlocked.Increment(ref _localRelayCandidates);
+        }
+        else if (candidate.candidate.Contains(" typ srflx", StringComparison.OrdinalIgnoreCase) ||
+                 candidate.candidate.Contains(" typ prflx", StringComparison.OrdinalIgnoreCase))
+        {
+            Interlocked.Increment(ref _localReflexiveCandidates);
+        }
+        else
+        {
+            Interlocked.Increment(ref _localHostCandidates);
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("WebRTC realtime: local ICE candidate {Candidate}.", candidate.candidate);
+        }
+
         IceCandidateGenerated?.Invoke(new WebRtcIceCandidate
         {
             Candidate = candidate.candidate,
@@ -749,6 +784,36 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         }
     }
 
+    /// <summary>
+    /// Reports which kinds of local candidate this host managed to gather, and what that implies. Emitted once,
+    /// when ICE gives up, because that is the moment the information is needed and nowhere else records it.
+    /// </summary>
+    private void LogIceFailureDiagnosis()
+    {
+        var host = Volatile.Read(ref _localHostCandidates);
+        var reflexive = Volatile.Read(ref _localReflexiveCandidates);
+        var relay = Volatile.Read(ref _localRelayCandidates);
+
+        // A relay candidate is the only kind that works when neither peer can accept inbound UDP, which is the
+        // situation on a host reachable only over TCP 80/443.
+        var diagnosis = relay > 0
+            ? "A relay candidate was gathered, so the TURN allocation succeeded and the failure is later than NAT traversal: check that the TURN server relays between both peers, and that the browser also received a relay candidate."
+            : _turnServerCount == 0
+                ? "No TURN server is configured, so no relay candidate could be gathered. A host that cannot accept inbound UDP needs one: set CrestApps:AI:RealtimeTransport:TurnUrls with credentials."
+                : reflexive > 0
+                    ? "TURN is configured and outbound UDP reaches a STUN server, but no relay candidate was gathered -- the TURN allocation itself failed. Check the TURN credentials, the realm, and that the relay's ports are reachable."
+                    : "Neither a reflexive nor a relay candidate was gathered, so this host produced only unroutable local addresses. Outbound UDP is most likely blocked, and no TURN server can help until it is not.";
+
+        _logger.LogWarning(
+            "WebRTC realtime: ICE failed with {Host} host, {Reflexive} reflexive and {Relay} relay local candidate(s) from {IceServerCount} configured ICE server(s) ({TurnServerCount} TURN). {Diagnosis}",
+            host,
+            reflexive,
+            relay,
+            _iceServerCount,
+            _turnServerCount,
+            diagnosis);
+    }
+
     private void OnIceConnectionStateChanged(RTCIceConnectionState state)
     {
         if (_logger.IsEnabled(LogLevel.Information))
@@ -764,6 +829,11 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         }
         else if (state is RTCIceConnectionState.failed or RTCIceConnectionState.closed)
         {
+            if (state is RTCIceConnectionState.failed)
+            {
+                LogIceFailureDiagnosis();
+            }
+
             RaiseClosedOnce();
         }
     }
