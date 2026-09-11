@@ -498,4 +498,29 @@ public sealed class CloudflareRealtimeIceServerProviderTests
             request.Url);
         Assert.Equal("Bearer token-1", request.Authorization);
     }
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", "")]
+    [InlineData("   ", "   ")]
+    [InlineData("token-id-1", null)]
+    [InlineData(null, "token-1")]
+    public async Task GetIceServersAsync_WithMissingOrBlankCredentials_FallsBackWithoutThrowing(string tokenId, string apiToken)
+    {
+        // Arrange
+        // IsConfigured is the single answer to whether the credentials are usable, and the fetch path relies
+        // on it having rejected null and whitespace. A value that is only whitespace must count as missing
+        // rather than reach the request as an empty path segment.
+        var handler = new RecordingHandler(ValidResponse);
+        var options = new CloudflareTurnOptions { TokenId = tokenId, ApiToken = apiToken };
+        var provider = CreateProvider(handler, options, out _);
+
+        // Act
+        var servers = await provider.GetIceServersAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(options.IsConfigured);
+        Assert.Empty(handler.Requests);
+        var server = Assert.Single(servers);
+        Assert.Equal(["stun:fallback.example.com:3478"], server.Urls);
+    }
 }
