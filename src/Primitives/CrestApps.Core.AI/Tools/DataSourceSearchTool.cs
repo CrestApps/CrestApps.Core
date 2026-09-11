@@ -1,20 +1,12 @@
 using System.Text.Json;
-using CrestApps.Core.AI.Clients;
-using CrestApps.Core.AI.DataSources;
-using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
-using CrestApps.Core.Infrastructure.Indexing;
-using CrestApps.Core.Infrastructure.Indexing.DataSources;
-using CrestApps.Core.Support;
-using Cysharp.Text;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Tools;
 
@@ -83,7 +75,6 @@ public sealed class DataSourceSearchTool : AIFunction
         try
         {
             var invocationContext = AIInvocationScope.Current;
-            var textNormalizer = arguments.Services.GetRequiredService<IAITextNormalizer>();
             var executionContext = invocationContext?.ToolExecutionContext;
 
             if (executionContext == null)
@@ -102,200 +93,22 @@ public sealed class DataSourceSearchTool : AIFunction
                 return "No data source is configured for this profile.";
             }
 
-            var dataSourceStore = arguments.Services.GetRequiredService<IAIDataSourceStore>();
-            var dataSource = await dataSourceStore.FindByIdAsync(dataSourceId, cancellationToken);
-
-            if (dataSource == null)
-            {
-                logger.LogWarning("AI tool '{ToolName}' failed: data source '{DataSourceId}' was not found.", Name, dataSourceId);
-
-                return $"Data source '{dataSourceId}' was not found.";
-            }
-
-            if (string.IsNullOrEmpty(dataSource.AIKnowledgeBaseIndexProfileName))
-            {
-                logger.LogWarning("AI tool '{ToolName}' failed: no knowledge base index configured for data source '{DataSourceId}'.", Name, dataSourceId);
-
-                return "No knowledge base index is configured for this data source. Please configure a knowledge base index in the data source settings.";
-            }
-
-            var indexProfileStore = arguments.Services.GetRequiredService<ISearchIndexProfileStore>();
-            var masterIndexProfile = await indexProfileStore.FindByNameAsync(dataSource.AIKnowledgeBaseIndexProfileName, cancellationToken);
-
-            if (masterIndexProfile == null)
-            {
-                logger.LogWarning("AI tool '{ToolName}' failed: knowledge base index '{IndexProfileName}' was not found.", Name, dataSource.AIKnowledgeBaseIndexProfileName);
-
-                return $"Knowledge base index '{dataSource.AIKnowledgeBaseIndexProfileName}' was not found.";
-            }
-
-            var contentManager = arguments.Services.GetKeyedService<IDataSourceContentManager>(masterIndexProfile.ProviderName);
-
-            if (contentManager == null)
-            {
-                logger.LogWarning("AI tool '{ToolName}' failed: no vector search service for provider '{ProviderName}'.", Name, masterIndexProfile.ProviderName);
-
-                return $"No vector search service is available for provider '{masterIndexProfile.ProviderName}'.";
-            }
-
-            var aiClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
-            var deploymentManager = arguments.Services.GetRequiredService<IAIDeploymentManager>();
-
-            // Resolve the query-embedding deployment exactly the way the indexing service does: it lives on
-            // the index profile itself (masterIndexProfile.EmbeddingDeploymentName) and is only optionally
-            // overridden by the data-source metadata. The metadata being absent must NOT fail search, or a
-            // profile that indexed fine using the top-level embedding deployment could never be queried.
-            masterIndexProfile.TryGet(out DataSourceIndexProfileMetadata profileMetadata);
-
-            var deploymentName = masterIndexProfile.EmbeddingDeploymentName;
-
-            if (profileMetadata != null && !string.IsNullOrEmpty(profileMetadata.EmbeddingDeploymentName))
-            {
-                deploymentName = profileMetadata.EmbeddingDeploymentName;
-            }
-
-            if (string.IsNullOrWhiteSpace(deploymentName))
-            {
-                logger.LogWarning("AI tool '{ToolName}' failed: embedding configuration is missing for the knowledge base index.", Name);
-
-                return "Embedding configuration is missing for the knowledge base index.";
-            }
-
-            var deployment = await deploymentManager.FindByNameAsync(deploymentName, cancellationToken);
-
-            var embeddingGenerator = deployment == null
-                ? null
-                : await aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
-
-            if (embeddingGenerator == null)
-            {
-                logger.LogWarning("AI tool '{ToolName}' failed: embedding configuration is missing for the knowledge base index.", Name);
-
-                return "Embedding configuration is missing for the knowledge base index.";
-            }
-
-            var embeddings = await embeddingGenerator.GenerateAsync([query], cancellationToken: cancellationToken);
-
-            if (embeddings == null || embeddings.Count == 0 || embeddings[0]?.Vector == null)
-            {
-                logger.LogWarning("AI tool '{ToolName}' failed: could not generate embedding for query.", Name);
-
-                return "Failed to generate embedding for the search query.";
-            }
-
             var ragMetadata = GetRagMetadata(executionContext);
-            var siteSettings = arguments.Services.GetRequiredService<IOptionsMonitor<AIDataSourceOptions>>().CurrentValue;
-            var topN = siteSettings.GetTopNDocuments(ragMetadata?.TopNDocuments);
 
-            string providerFilter = null;
-
-            if (!string.IsNullOrWhiteSpace(ragMetadata?.Filter))
-            {
-                var filterTranslator = arguments.Services.GetKeyedService<IODataFilterTranslator>(masterIndexProfile.ProviderName);
-
-                if (filterTranslator != null)
+            return await DataSourceRetrieval.SearchAsync(
+                arguments.Services,
+                new DataSourceRetrievalRequest
                 {
-                    providerFilter = filterTranslator.Translate(ragMetadata.Filter);
-                }
-                else
-                {
-                    logger.LogWarning("No OData filter translator available for provider '{ProviderName}'. Filter will be ignored.", masterIndexProfile.ProviderName);
-                }
-            }
-
-            var results = await contentManager.SearchAsync(
-                masterIndexProfile,
-                embeddings[0].Vector.ToArray(),
-                dataSourceId,
-                DataSourceSearchResultSelector.GetCandidateCount(topN),
-                providerFilter,
+                    DataSourceId = dataSourceId,
+                    Query = query,
+                    TopNDocuments = ragMetadata?.TopNDocuments,
+                    Strictness = ragMetadata?.Strictness,
+                    Filter = ragMetadata?.Filter,
+                    IsInScope = ragMetadata?.IsInScope == true,
+                },
+                Name,
+                logger,
                 cancellationToken);
-
-            if (results == null || !results.Any())
-            {
-                return ragMetadata?.IsInScope == true
-                    ? "No relevant content was found in the data source for this query. The answer is not available in the configured data source."
-                    : "No relevant content was found in the data source for this query. Answer using your general knowledge instead.";
-            }
-
-            var minimumScore = siteSettings.GetMinimumScore(ragMetadata?.Strictness);
-            results = DataSourceSearchResultSelector.SelectTopResults(results, topN, minimumScore);
-
-            if (!results.Any())
-            {
-                return ragMetadata?.IsInScope == true
-                    ? "No results met the strictness and quality thresholds. The answer is not available in the configured data source."
-                    : "No results met the strictness and quality thresholds. Answer using your general knowledge instead.";
-            }
-
-            using var builder = ZString.CreateStringBuilder();
-            builder.AppendLine("Relevant content from data source:");
-
-            var seenReferences = new Dictionary<string, (int Index, string Title, string ReferenceType)>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var result in results)
-            {
-                if (string.IsNullOrWhiteSpace(result.Content))
-                {
-                    continue;
-                }
-
-                if (!string.IsNullOrEmpty(result.ReferenceId) && !seenReferences.ContainsKey(result.ReferenceId))
-                {
-                    seenReferences[result.ReferenceId] = (invocationContext.NextReferenceIndex(), ResolveReferenceTitle(textNormalizer, result.Title, result.ReferenceId), result.ReferenceType);
-                }
-
-                var refLabel = !string.IsNullOrEmpty(result.ReferenceId) && seenReferences.TryGetValue(result.ReferenceId, out var entry)
-                ? $"[doc:{entry.Index}]"
-                : $"[doc:{invocationContext.NextReferenceIndex()}]";
-
-                var displayTitle = !string.IsNullOrEmpty(result.ReferenceId) && seenReferences.TryGetValue(result.ReferenceId, out var titleEntry)
-                    ? titleEntry.Title
-                    : ResolveReferenceTitle(textNormalizer, result.Title, result.ReferenceId);
-
-                builder.AppendLine("---");
-
-                if (!string.IsNullOrWhiteSpace(displayTitle))
-                {
-                    builder.Append(refLabel);
-                    builder.Append(" Title: ");
-                    builder.AppendLine(displayTitle);
-                }
-
-                builder.Append(refLabel);
-                builder.Append(' ');
-                builder.AppendLine(result.Content);
-            }
-
-            if (seenReferences.Count > 0)
-            {
-                builder.AppendLine();
-                builder.AppendLine("References:");
-
-                foreach (var kvp in seenReferences)
-                {
-                    builder.Append("[doc:");
-
-                    builder.Append(kvp.Value.Index);
-                    builder.Append("] = ");
-                    builder.AppendLine(kvp.Key);
-                }
-
-                foreach (var kvp in seenReferences)
-                {
-                    var template = $"[doc:{kvp.Value.Index}]";
-                    invocationContext.ToolReferences.TryAdd(template, new AICompletionReference
-                    {
-                        Text = string.IsNullOrWhiteSpace(kvp.Value.Title) ? template : kvp.Value.Title,
-                        Title = kvp.Value.Title,
-                        Index = kvp.Value.Index,
-                        ReferenceId = kvp.Key,
-                        ReferenceType = kvp.Value.ReferenceType,
-                    });
-                }
-            }
-
-            return builder.ToString();
         }
         catch (Exception ex)
         {
@@ -303,25 +116,6 @@ public sealed class DataSourceSearchTool : AIFunction
 
             return "An error occurred while searching the data source.";
         }
-    }
-
-    /// <summary>
-    /// Resolves a citation title that never exposes a serialized source document.
-    /// </summary>
-    /// <param name="textNormalizer">The text normalizer.</param>
-    /// <param name="title">The indexed document title.</param>
-    /// <param name="referenceId">The document reference identifier used as the fallback title.</param>
-    /// <returns>The resolved citation title.</returns>
-    private static string ResolveReferenceTitle(IAITextNormalizer textNormalizer, string title, string referenceId)
-    {
-        var normalizedTitle = textNormalizer.NormalizeTitle(title);
-
-        if (string.IsNullOrWhiteSpace(normalizedTitle) || DocumentTitleResolver.LooksLikeSerializedDocument(normalizedTitle))
-        {
-            return referenceId;
-        }
-
-        return normalizedTitle;
     }
 
     private static AIDataSourceRagMetadata GetRagMetadata(AIToolExecutionContext executionContext)

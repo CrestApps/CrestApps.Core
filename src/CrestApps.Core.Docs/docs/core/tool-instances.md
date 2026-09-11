@@ -498,6 +498,40 @@ The defaults target the WordPress REST search endpoint, so a WordPress site need
 | `TitlePath` / `UrlPath` / `SnippetPath` | `title` / `url` / `_embedded.self[0].excerpt.rendered` | Dotted paths (supporting `[index]`) to each result's fields. Point `SnippetPath` at `_embedded.self[0].content.rendered` for the full body. |
 | `MaxResults` | global default | Caps the number of results returned. |
 
+## Built-In Data Source Search Tool
+
+A host that already curates **AI data sources** — an index profile synchronized into a knowledge base index of embedded chunks — can expose any one of them to the model as its own callable vector search function. Register the source with `AddDataSourceSearchSource()`:
+
+```csharp
+.AddToolInstances(toolInstances => toolInstances
+    .AddYesSqlStores()
+    .AddDataSourceSearchSource()
+)
+```
+
+Each instance binds **one** data source plus the retrieval parameters applied to every search it runs, so several instances can expose several knowledge bases side by side, each under its own function name and description. The model supplies only the search phrase.
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `DataSourceId` | *(required)* | The AI data source this instance searches. |
+| `RetrievalMode` | `Chunk` | `Chunk` returns only the matching chunks. `Hierarchical` collapses the matches onto their source documents and returns each document's complete text. |
+| `TopNDocuments` | site default | The number of top-scoring results to return, between `AIDataSourceOptions.MinTopNDocuments` and `MaxTopNDocuments`. |
+| `Strictness` | site default | How relevant a result must be to survive, between `AIDataSourceOptions.MinStrictness` and `MaxStrictness`. Higher values keep only closer matches. |
+| `Filter` | *(none)* | An OData filter expression translated to the index provider's own filter syntax before the search runs. |
+| `IsInScope` | `false` | When set, a search that finds nothing tells the model the answer is unavailable rather than inviting it to fall back to general knowledge. |
+
+The model's phrase is embedded with the **same embedding deployment the knowledge base index was indexed with** — resolved from `SearchIndexProfile.EmbeddingDeploymentName`, optionally overridden by `DataSourceIndexProfileMetadata` on that profile — so the query and the stored chunks live in the same vector space. This is the identical resolution the indexing service performs, which is what keeps a profile indexed under the top-level embedding deployment queryable.
+
+Results are returned with `[doc:N]` citations, one index per source document, and each citation is registered on the active invocation context so a host can render it as a link.
+
+:::note
+`Hierarchical` reads every matched document back through the data source's own source handler, so it returns far more context than `Chunk` — a handful of whole documents instead of a handful of paragraphs. If those documents cannot be read (a deleted source index, revoked credentials), the search degrades to the matching chunks rather than failing.
+:::
+
+:::tip
+This source and the profile-bound `DataSourceSearchTool` share one retrieval pipeline, so an instance honors exactly the same parameters, thresholds, and output format as the data source attached directly to an AI profile. The difference is where the parameters come from: the instance carries its own, instead of reading `AIDataSourceRagMetadata` off the profile or chat interaction.
+:::
+
 ## Creating Instances in the Sample Hosts
 
 In the sample hosts, open **AI Tool Instances**, then:

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Tooling.Instances;
 using CrestApps.Core.AI.Tooling.Parameters;
 using CrestApps.Core.Startup.Shared.ViewModels;
@@ -282,4 +283,40 @@ public sealed class AIToolInstanceViewModel
     /// Gets or sets the maximum number of results the website search source returns for a single search.
     /// </summary>
     public int? WebsiteSearchMaxResults { get; set; }
+
+    /// <summary>
+    /// Gets or sets the identifier of the AI data source searched by the data source search source.
+    /// </summary>
+    public string DataSourceId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the existing AI data sources shown in the data source dropdown.
+    /// </summary>
+    public IReadOnlyList<SelectListItem> DataSources { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the retrieval mode applied by the data source search source.
+    /// </summary>
+    public DataSourceRetrievalMode DataSourceRetrievalMode { get; set; } = DataSourceRetrievalMode.Chunk;
+
+    /// <summary>
+    /// Gets or sets the number of top-scoring documents the data source search source retrieves.
+    /// </summary>
+    public int? DataSourceTopNDocuments { get; set; }
+
+    /// <summary>
+    /// Gets or sets the strictness threshold applied by the data source search source.
+    /// </summary>
+    public int? DataSourceStrictness { get; set; }
+
+    /// <summary>
+    /// Gets or sets the OData filter expression applied by the data source search source.
+    /// </summary>
+    public string DataSourceFilter { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the data source search source instructs the model to answer
+    /// only from the retrieved content.
+    /// </summary>
+    public bool DataSourceIsInScope { get; set; }
 }
