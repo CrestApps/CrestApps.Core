@@ -25,7 +25,10 @@ public sealed class EntityCoreAIMemoryStore : DocumentCatalog<AIMemoryEntry>, IA
     /// <param name="userId">The user id.</param>
     public Task<int> CountByUserAsync(string userId)
     {
-        ArgumentException.ThrowIfNullOrEmpty(userId);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Task.FromResult(0);
+        }
 
         return GetReadQuery()
                     .Where(x => x.UserId == userId)
@@ -39,7 +42,11 @@ public sealed class EntityCoreAIMemoryStore : DocumentCatalog<AIMemoryEntry>, IA
     /// <param name="name">The name.</param>
     public async Task<AIMemoryEntry> FindByUserAndNameAsync(string userId, string name)
     {
-        ArgumentException.ThrowIfNullOrEmpty(userId);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return null;
+        }
+
         ArgumentException.ThrowIfNullOrEmpty(name);
 
         var record = await GetReadQuery()
@@ -55,7 +62,10 @@ public sealed class EntityCoreAIMemoryStore : DocumentCatalog<AIMemoryEntry>, IA
     /// <param name="limit">The limit.</param>
     public async Task<IReadOnlyCollection<AIMemoryEntry>> GetByUserAsync(string userId, int limit = 100)
     {
-        ArgumentException.ThrowIfNullOrEmpty(userId);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return [];
+        }
 
         var records = await GetReadQuery()
             .Where(x => x.UserId == userId)

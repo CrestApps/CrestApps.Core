@@ -67,6 +67,24 @@ public sealed class EntityCoreStoreTests
             .SingleAsync(cancellationToken));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task Memory_store_user_scoped_reads_return_empty_for_missing_user(string userId)
+    {
+        // The memory display driver renders the current user's memory count while building the editor,
+        // and does so even when there is no authenticated user. A null/empty user simply owns no
+        // memories, so the user-scoped reads must return empty results instead of throwing and taking
+        // down the whole editor render.
+        await using var harness = await EntityCoreTestHarness.CreateAsync();
+        using var scope = harness.Services.CreateScope();
+        var memoryStore = scope.ServiceProvider.GetRequiredService<IAIMemoryStore>();
+
+        Assert.Equal(0, await memoryStore.CountByUserAsync(userId));
+        Assert.Null(await memoryStore.FindByUserAndNameAsync(userId, "favorite-language"));
+        Assert.Empty(await memoryStore.GetByUserAsync(userId));
+    }
+
     [Fact]
     public async Task Document_catalog_create_then_update_in_same_uncommitted_scope_does_not_duplicate()
     {
