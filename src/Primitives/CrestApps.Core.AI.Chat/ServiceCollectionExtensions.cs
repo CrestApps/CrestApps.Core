@@ -244,7 +244,10 @@ public static class ServiceCollectionExtensions
 
         services.AddHttpClient(nameof(CloudflareRealtimeIceServerProvider));
         services.TryAddSingleton(TimeProvider.System);
-        services.AddOptions<CloudflareTurnOptions>();
+        // Bound from the same section the rest of the realtime transport reads, so the key can be supplied
+        // as configuration rather than in code. Without this the options would silently stay empty and the
+        // provider would quietly defer to the fallback, which looks exactly like nothing being configured.
+        services.AddOptions<CloudflareTurnOptions>().BindConfiguration("CrestApps:AI:RealtimeTransport:Cloudflare");
 
         if (configure is not null)
         {

@@ -2,6 +2,8 @@ using System.Net;
 using System.Text;
 using CrestApps.Core.AI.Chat.Realtime;
 using CrestApps.Core.AI.Realtime;
+using CrestApps.Core.AI.Chat;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -361,5 +363,46 @@ public sealed class CloudflareRealtimeIceServerProviderTests
 
             public void Dispose() => _dispose();
         }
+    }
+    [Fact]
+    public void AddCloudflareRealtimeTurn_BindsTheKeyFromConfiguration()
+    {
+        // Arrange
+        // The key is supplied as configuration in every real deployment, never in code. Without the binding
+        // the options stay empty and the provider quietly defers to the fallback -- indistinguishable from
+        // nothing having been configured at all, which is the worst way for this to fail.
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["CrestApps:AI:RealtimeTransport:Cloudflare:KeyId"] = "key-from-configuration",
+                ["CrestApps:AI:RealtimeTransport:Cloudflare:ApiToken"] = "token-from-configuration",
+                ["CrestApps:AI:RealtimeTransport:Cloudflare:TtlSeconds"] = "1200",
+            })
+            .Build();
+
+        // Act
+        using var services = new ServiceCollection()
+            .AddSingleton<IConfiguration>(configuration)
+            .AddCloudflareRealtimeTurn()
+            .BuildServiceProvider();
+
+        // Assert
+        var options = services.GetRequiredService<IOptionsMonitor<CloudflareTurnOptions>>().CurrentValue;
+        Assert.Equal("key-from-configuration", options.KeyId);
+        Assert.Equal("token-from-configuration", options.ApiToken);
+        Assert.Equal(1200, options.TtlSeconds);
+        Assert.True(options.IsConfigured);
+    }
+
+    [Fact]
+    public void AddCloudflareRealtimeTurn_WithNoConfiguration_LeavesTheProviderDormant()
+    {
+        // Registering it must be safe before a key exists.
+        using var services = new ServiceCollection()
+            .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build())
+            .AddCloudflareRealtimeTurn()
+            .BuildServiceProvider();
+
+        Assert.False(services.GetRequiredService<IOptionsMonitor<CloudflareTurnOptions>>().CurrentValue.IsConfigured);
     }
 }
