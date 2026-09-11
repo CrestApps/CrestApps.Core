@@ -242,32 +242,28 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // Safe to call more than once. Hosts enable several realtime surfaces and call the transport
-        // registrations per feature, and neither half of this method is naturally idempotent: a second
-        // BindConfiguration adds another IConfigureOptions, and a second provider registration would wrap
-        // the first as its own fallback -- a chain of caches in front of a chain of caches.
-        if (services.Any(descriptor => descriptor.ImplementationType == typeof(CloudflareTurnRegistrationMarker)))
+        // Applied before the guard: every call's configuration is honoured, only the registrations are once.
+        if (configure is not null)
         {
-            if (configure is not null)
-            {
-                services.Configure(configure);
-            }
+            services.Configure(configure);
+        }
 
+        // Safe to call more than once, as hosts enable several realtime surfaces and call the transport
+        // registrations per feature. Neither half below is naturally idempotent: a second BindConfiguration
+        // adds another IConfigureOptions, and a second provider would wrap the first as its own fallback.
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(CloudflareTurnRegistrationMarker)))
+        {
             return services;
         }
 
         services.AddSingleton<CloudflareTurnRegistrationMarker>();
         services.AddHttpClient(nameof(CloudflareRealtimeIceServerProvider));
         services.TryAddSingleton(TimeProvider.System);
-        // Bound from the same section the rest of the realtime transport reads, so the key can be supplied
+
+        // Bound from the same section the rest of the realtime transport reads, so the token can be supplied
         // as configuration rather than in code. Without this the options would silently stay empty and the
         // provider would quietly defer to the fallback, which looks exactly like nothing being configured.
         services.AddOptions<CloudflareTurnOptions>().BindConfiguration("CrestApps:AI:RealtimeTransport:Cloudflare");
-
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
 
         // Decorates rather than replaces: the provider already registered becomes the fallback used while
         // Cloudflare is not configured, and whenever an outage leaves no credentials to serve.

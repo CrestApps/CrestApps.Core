@@ -149,15 +149,27 @@ internal sealed class CloudflareRealtimeIceServerProvider : IRealtimeIceServerPr
     {
         var client = _httpClientFactory.CreateClient(nameof(CloudflareRealtimeIceServerProvider));
 
+        // Values pasted out of a dashboard routinely carry surrounding whitespace. A trailing newline in
+        // the API token makes the Authorization header throw outright, and a trailing space on the token id
+        // becomes %20 in the path and is answered with a 404. Both would surface only as a failure to obtain
+        // credentials and a quiet drop to STUN, so they are trimmed rather than diagnosed later.
+        var tokenId = options.TokenId.Trim();
+        var apiToken = options.ApiToken.Trim();
+
         // Cloudflare's route spells the token as a key; the value is the Token ID from the dashboard.
-        var url = $"{options.ApiBaseAddress.TrimEnd('/')}/v1/turn/keys/{options.TokenId}/credentials/generate-ice-servers";
+        //
+        // Escaped because it is interpolated into the path, where Uri gives several characters meaning that
+        // silently retargets the request rather than failing: '..' segments are collapsed, so a token id of
+        // "a/../../v1/other" drops the keys segment entirely, and '?' or '#' truncates the path into a query
+        // or fragment. A real token id is hexadecimal and escaping leaves it untouched.
+        var url = $"{options.ApiBaseAddress.TrimEnd('/')}/v1/turn/keys/{Uri.EscapeDataString(tokenId)}/credentials/generate-ice-servers";
 
         using var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = JsonContent.Create(new CloudflareCredentialRequest(options.TtlSeconds)),
         };
 
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiToken);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiToken);
 
         using var response = await client.SendAsync(request, cancellationToken);
 

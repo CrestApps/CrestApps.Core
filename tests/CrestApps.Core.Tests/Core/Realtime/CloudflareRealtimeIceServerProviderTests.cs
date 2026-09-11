@@ -450,4 +450,52 @@ public sealed class CloudflareRealtimeIceServerProviderTests
         Assert.Equal("second", options.ApiToken);
         Assert.True(options.IsConfigured);
     }
+    [Theory]
+    [InlineData("aaa/../../v1/other")]
+    [InlineData("aaa?evil=1")]
+    [InlineData("aaa#fragment")]
+    public async Task GetIceServersAsync_WithAMalformedTokenId_CannotRetargetTheRequest(string tokenId)
+    {
+        // Arrange
+        // The token id is interpolated into the path, where Uri gives several characters meaning: '..'
+        // segments are collapsed and '?' or '#' truncate the path. Unescaped, a token id of
+        // "aaa/../../v1/other" drops the keys segment and posts to a different endpoint entirely, which is
+        // a far more confusing failure than a 404.
+        var handler = new RecordingHandler(ValidResponse);
+        var provider = CreateProvider(handler, Configured(tokenId: tokenId), out _);
+
+        // Act
+        await provider.GetIceServersAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var request = Assert.Single(handler.Requests);
+        var uri = new Uri(request.Url);
+
+        Assert.StartsWith("/v1/turn/keys/", uri.AbsolutePath, StringComparison.Ordinal);
+        Assert.EndsWith("/credentials/generate-ice-servers", uri.AbsolutePath, StringComparison.Ordinal);
+        Assert.Empty(uri.Query);
+        Assert.Empty(uri.Fragment);
+    }
+
+    [Fact]
+    public async Task GetIceServersAsync_TrimsWhitespaceAroundTheCredentials()
+    {
+        // Arrange
+        // Values pasted out of a dashboard routinely carry surrounding whitespace. A trailing newline in the
+        // API token makes the Authorization header throw, and a trailing space on the token id becomes %20
+        // in the path; both would show up only as a failure to obtain credentials and a quiet drop to STUN.
+        var handler = new RecordingHandler(ValidResponse);
+        // (char)10 rather than an escape sequence, so the newline this test is about is unmistakable.
+        var provider = CreateProvider(handler, Configured(tokenId: "  token-id-1" + (char)10, apiToken: " token-1 "), out _);
+
+        // Act
+        await provider.GetIceServersAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(
+            "https://cloudflare.test/v1/turn/keys/token-id-1/credentials/generate-ice-servers",
+            request.Url);
+        Assert.Equal("Bearer token-1", request.Authorization);
+    }
 }
