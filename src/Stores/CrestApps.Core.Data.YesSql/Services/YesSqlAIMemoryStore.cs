@@ -26,7 +26,10 @@ public sealed class YesSqlAIMemoryStore : DocumentCatalog<AIMemoryEntry, AIMemor
     /// <param name="userId">The user id.</param>
     public async Task<int> CountByUserAsync(string userId)
     {
-        ArgumentException.ThrowIfNullOrEmpty(userId);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return 0;
+        }
 
         return await Session.Query<AIMemoryEntry, AIMemoryEntryIndex>(x => x.UserId == userId, collection: CollectionName)
                     .CountAsync();
@@ -39,7 +42,11 @@ public sealed class YesSqlAIMemoryStore : DocumentCatalog<AIMemoryEntry, AIMemor
     /// <param name="name">The name.</param>
     public async Task<AIMemoryEntry> FindByUserAndNameAsync(string userId, string name)
     {
-        ArgumentException.ThrowIfNullOrEmpty(userId);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return null;
+        }
+
         ArgumentException.ThrowIfNullOrEmpty(name);
 
         return await Session.Query<AIMemoryEntry, AIMemoryEntryIndex>(x =>
@@ -53,7 +60,10 @@ public sealed class YesSqlAIMemoryStore : DocumentCatalog<AIMemoryEntry, AIMemor
     /// <param name="limit">The limit.</param>
     public async Task<IReadOnlyCollection<AIMemoryEntry>> GetByUserAsync(string userId, int limit = 100)
     {
-        ArgumentException.ThrowIfNullOrEmpty(userId);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return [];
+        }
 
         var items = await Session.Query<AIMemoryEntry, AIMemoryEntryIndex>(x => x.UserId == userId, collection: CollectionName)
             .Take(limit)
