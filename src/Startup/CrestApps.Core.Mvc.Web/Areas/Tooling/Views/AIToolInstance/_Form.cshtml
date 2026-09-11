@@ -1,3 +1,4 @@
+@using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Tooling.Instances
 @using CrestApps.Core.Mvc.Web.Areas.Tooling.ViewModels
 @model AIToolInstanceViewModel
@@ -330,6 +331,54 @@
                     <label asp-for="WebsiteSearchMaxResults" class="form-label">Max results</label>
                     <input asp-for="WebsiteSearchMaxResults" class="form-control" type="number" min="1" max="50" placeholder="Default" />
                     <span asp-validation-for="WebsiteSearchMaxResults" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div class="source-fields" data-source="data-source-search">
+                <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-database"></i> Data source search (vector)</h5>
+                <p class="text-muted small">Searches one of the existing AI data sources. The model's search phrase is embedded with the same embedding deployment the data source's knowledge base index was built with, so it is matched against the stored chunks in the same vector space.</p>
+                <div class="mb-3">
+                    <label asp-for="DataSourceId" class="form-label">Data source <span class="text-danger">*</span></label>
+                    <select asp-for="DataSourceId" class="form-select" asp-items="Model.DataSources">
+                        <option value="">Select data source</option>
+                    </select>
+                    <span asp-validation-for="DataSourceId" class="text-danger"></span>
+                    <div class="form-text">The knowledge base this tool searches.</div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="DataSourceRetrievalMode" class="form-label">Retrieval model</label>
+                    <select asp-for="DataSourceRetrievalMode" class="form-select">
+                        @foreach (var retrievalMode in Enum.GetValues<DataSourceRetrievalMode>())
+                        {
+                            <option value="@retrievalMode">@retrievalMode</option>
+                        }
+                    </select>
+                    <div class="form-text"><strong>Chunk</strong> returns only the matching chunks. <strong>Hierarchical</strong> returns the full source documents those chunks belong to, which costs far more context.</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="DataSourceTopNDocuments" class="form-label">Retrieved documents</label>
+                        <input asp-for="DataSourceTopNDocuments" class="form-control" type="number" min="@AIDataSourceOptions.MinTopNDocuments" max="@AIDataSourceOptions.MaxTopNDocuments" placeholder="Default" />
+                        <span asp-validation-for="DataSourceTopNDocuments" class="text-danger"></span>
+                        <div class="form-text">Between @AIDataSourceOptions.MinTopNDocuments and @AIDataSourceOptions.MaxTopNDocuments. Leave empty to use the configured default.</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="DataSourceStrictness" class="form-label">Strictness</label>
+                        <input asp-for="DataSourceStrictness" class="form-control" type="number" min="@AIDataSourceOptions.MinStrictness" max="@AIDataSourceOptions.MaxStrictness" placeholder="Default" />
+                        <span asp-validation-for="DataSourceStrictness" class="text-danger"></span>
+                        <div class="form-text">Between @AIDataSourceOptions.MinStrictness and @AIDataSourceOptions.MaxStrictness. Higher values return only closer matches.</div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="DataSourceFilter" class="form-label">Filter</label>
+                    <input asp-for="DataSourceFilter" class="form-control font-monospace" placeholder="filters/status eq 'published'" />
+                    <span asp-validation-for="DataSourceFilter" class="text-danger"></span>
+                    <div class="form-text">Optional OData filter expression translated to the index provider's own syntax before the search runs.</div>
+                </div>
+                <div class="form-check mb-3">
+                    <input asp-for="DataSourceIsInScope" class="form-check-input" type="checkbox" />
+                    <label asp-for="DataSourceIsInScope" class="form-check-label">Limit answers to the retrieved content</label>
+                    <div class="form-text">When checked, the tool tells the model the answer is unavailable rather than letting it fall back to general knowledge.</div>
                 </div>
             </div>
 

@@ -1,6 +1,9 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.DataSources;
+using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Tooling.Instances.DataSources;
 using CrestApps.Core.AI.Tooling.Instances.Documentation;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.AI.Tooling.Instances;
@@ -31,6 +34,7 @@ public sealed class AIToolInstanceController : Controller
     };
 
     private readonly ISourceCatalog<AIToolInstance> _catalog;
+    private readonly IAIDataSourceStore _dataSourceStore;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly TimeProvider _timeProvider;
     private readonly AIOptions _aiOptions;
@@ -40,18 +44,21 @@ public sealed class AIToolInstanceController : Controller
     /// Initializes a new instance of the <see cref="AIToolInstanceController"/> class.
     /// </summary>
     /// <param name="catalog">The tool instance catalog.</param>
+    /// <param name="dataSourceStore">The store used to list the AI data sources an instance can search.</param>
     /// <param name="dataProtectionProvider">The data protection provider used to protect secrets.</param>
     /// <param name="timeProvider">The time provider used for timestamps.</param>
     /// <param name="aiOptions">The AI options used to enumerate registered tool instance sources.</param>
     /// <param name="contextResolvers">The resolvers whose keys are offered for context-filled parameters.</param>
     public AIToolInstanceController(
         ISourceCatalog<AIToolInstance> catalog,
+        IAIDataSourceStore dataSourceStore,
         IDataProtectionProvider dataProtectionProvider,
         TimeProvider timeProvider,
         IOptions<AIOptions> aiOptions,
         IEnumerable<IAIToolParameterContextResolver> contextResolvers)
     {
         _catalog = catalog;
+        _dataSourceStore = dataSourceStore;
         _dataProtectionProvider = dataProtectionProvider;
         _timeProvider = timeProvider;
         _aiOptions = aiOptions.Value;
@@ -73,7 +80,7 @@ public sealed class AIToolInstanceController : Controller
     /// <summary>
     /// Renders the create form.
     /// </summary>
-    public IActionResult Create()
+    public async Task<IActionResult> Create()
     {
         var sources = BuildSourceList();
 
@@ -85,6 +92,7 @@ public sealed class AIToolInstanceController : Controller
         };
 
         PopulateParameterMetadata(model);
+        await PopulateDataSourcesAsync(model);
 
         return View(model);
     }
@@ -103,6 +111,7 @@ public sealed class AIToolInstanceController : Controller
         {
             model.Sources = BuildSourceList();
             PopulateParameterMetadata(model);
+            await PopulateDataSourcesAsync(model);
 
             return View(model);
         }
@@ -134,7 +143,11 @@ public sealed class AIToolInstanceController : Controller
             return NotFound();
         }
 
-        return View(ToViewModel(instance));
+        var model = ToViewModel(instance);
+
+        await PopulateDataSourcesAsync(model);
+
+        return View(model);
     }
 
     /// <summary>
@@ -160,6 +173,7 @@ public sealed class AIToolInstanceController : Controller
         {
             model.Sources = BuildSourceList();
             PopulateParameterMetadata(model);
+            await PopulateDataSourcesAsync(model);
 
             return View(model);
         }
@@ -316,6 +330,13 @@ public sealed class AIToolInstanceController : Controller
         if (string.Equals(model.Source, DocumentationToolConstants.WebsiteSearchSourceName, StringComparison.OrdinalIgnoreCase))
         {
             ValidateWebsiteSearch(model);
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DataSourceSearchToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateDataSourceSearch(model);
 
             return;
         }
@@ -493,6 +514,30 @@ public sealed class AIToolInstanceController : Controller
         }
     }
 
+    private void ValidateDataSourceSearch(AIToolInstanceViewModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.DataSourceId))
+        {
+            ModelState.AddModelError(nameof(model.DataSourceId), "A data source is required.");
+        }
+
+        if (model.DataSourceTopNDocuments.HasValue &&
+            (model.DataSourceTopNDocuments < AIDataSourceOptions.MinTopNDocuments || model.DataSourceTopNDocuments > AIDataSourceOptions.MaxTopNDocuments))
+        {
+            ModelState.AddModelError(
+                nameof(model.DataSourceTopNDocuments),
+                $"Retrieved documents must be between {AIDataSourceOptions.MinTopNDocuments} and {AIDataSourceOptions.MaxTopNDocuments}.");
+        }
+
+        if (model.DataSourceStrictness.HasValue &&
+            (model.DataSourceStrictness < AIDataSourceOptions.MinStrictness || model.DataSourceStrictness > AIDataSourceOptions.MaxStrictness))
+        {
+            ModelState.AddModelError(
+                nameof(model.DataSourceStrictness),
+                $"Strictness must be between {AIDataSourceOptions.MinStrictness} and {AIDataSourceOptions.MaxStrictness}.");
+        }
+    }
+
     private void ValidateAbsoluteUrl(string value, string key, string label, bool required)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -582,6 +627,21 @@ public sealed class AIToolInstanceController : Controller
             return;
         }
 
+        if (string.Equals(model.Source, DataSourceSearchToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new DataSourceSearchToolSettings
+            {
+                DataSourceId = model.DataSourceId?.Trim(),
+                RetrievalMode = model.DataSourceRetrievalMode,
+                TopNDocuments = model.DataSourceTopNDocuments,
+                Strictness = model.DataSourceStrictness,
+                Filter = string.IsNullOrWhiteSpace(model.DataSourceFilter) ? null : model.DataSourceFilter.Trim(),
+                IsInScope = model.DataSourceIsInScope,
+            });
+
+            return;
+        }
+
         var protector = _dataProtectionProvider.CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose);
         var existing = instance.GetOrCreate<HttpApiRequestToolSettings>();
 
@@ -653,6 +713,18 @@ public sealed class AIToolInstanceController : Controller
         {
             return protector.Protect(existingValue);
         }
+    }
+
+    private async Task PopulateDataSourcesAsync(AIToolInstanceViewModel model)
+    {
+        model.DataSources = (await _dataSourceStore.GetAllAsync())
+            .OrderBy(dataSource => dataSource.DisplayText, StringComparer.OrdinalIgnoreCase)
+            .Select(dataSource => new SelectListItem
+            {
+                Value = dataSource.ItemId,
+                Text = dataSource.DisplayText,
+            })
+            .ToList();
     }
 
     private AIToolInstanceViewModel ToViewModel(AIToolInstance instance)
@@ -728,6 +800,16 @@ public sealed class AIToolInstanceController : Controller
             model.WebsiteSearchUrlPath = websiteSearchSettings.UrlPath;
             model.WebsiteSearchSnippetPath = websiteSearchSettings.SnippetPath;
             model.WebsiteSearchMaxResults = websiteSearchSettings.MaxResults;
+        }
+
+        if (instance.TryGet<DataSourceSearchToolSettings>(out var dataSourceSettings))
+        {
+            model.DataSourceId = dataSourceSettings.DataSourceId;
+            model.DataSourceRetrievalMode = dataSourceSettings.RetrievalMode;
+            model.DataSourceTopNDocuments = dataSourceSettings.TopNDocuments;
+            model.DataSourceStrictness = dataSourceSettings.Strictness;
+            model.DataSourceFilter = dataSourceSettings.Filter;
+            model.DataSourceIsInScope = dataSourceSettings.IsInScope;
         }
 
         return model;

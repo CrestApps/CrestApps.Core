@@ -4,6 +4,9 @@
 @using CrestApps.Core.AI
 @using CrestApps.Core.AI.Tooling
 @using CrestApps.Core.AI.Tooling.Instances
+@using CrestApps.Core.AI.DataSources
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Tooling.Instances.DataSources
 @using CrestApps.Core.AI.Tooling.Instances.Documentation
 @using CrestApps.Core.AI.Tooling.Parameters
 @using CrestApps.Core.Startup.Shared.ViewModels
@@ -16,6 +19,7 @@
 @inject NavigationManager Navigation
 @inject TimeProvider TimeProvider
 @inject IOptions<AIOptions> AIOptions
+@inject IAIDataSourceStore DataSourceStore
 
 <PageTitle>Edit Tool Instance</PageTitle>
 
@@ -376,6 +380,61 @@ else
                 </div>
             }
 
+            @if (string.Equals(_model.Source, DataSourceSearchToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
+            {
+                <h5 class="mt-4 border-bottom pb-2"><i class="fa-solid fa-database"></i> Data source search (vector)</h5>
+                <p class="text-muted small">Searches one of the existing AI data sources. The model's search phrase is embedded with the same embedding deployment the data source's knowledge base index was built with, so it is matched against the stored chunks in the same vector space.</p>
+
+                <div class="mb-3">
+                    <label class="form-label">Data source <span class="text-danger">*</span></label>
+                    <InputSelect class="form-select" @bind-Value="_model.DataSourceId">
+                        <option value="">Select data source</option>
+                        @foreach (var dataSource in _model.DataSources)
+                        {
+                            <option value="@dataSource.Value">@dataSource.Key</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">The knowledge base this tool searches.</div>
+                    <ValidationMessage For="() => _model.DataSourceId" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Retrieval model</label>
+                    <InputSelect class="form-select" @bind-Value="_model.DataSourceRetrievalMode">
+                        @foreach (var retrievalMode in Enum.GetValues<DataSourceRetrievalMode>())
+                        {
+                            <option value="@retrievalMode">@retrievalMode</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text"><strong>Chunk</strong> returns only the matching chunks. <strong>Hierarchical</strong> returns the full source documents those chunks belong to, which costs far more context.</div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Retrieved documents</label>
+                        <InputNumber @bind-Value="_model.DataSourceTopNDocuments" class="form-control" min="@AIDataSourceOptions.MinTopNDocuments" max="@AIDataSourceOptions.MaxTopNDocuments" placeholder="Default" />
+                        <div class="form-text">Between @AIDataSourceOptions.MinTopNDocuments and @AIDataSourceOptions.MaxTopNDocuments. Leave empty to use the configured default.</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Strictness</label>
+                        <InputNumber @bind-Value="_model.DataSourceStrictness" class="form-control" min="@AIDataSourceOptions.MinStrictness" max="@AIDataSourceOptions.MaxStrictness" placeholder="Default" />
+                        <div class="form-text">Between @AIDataSourceOptions.MinStrictness and @AIDataSourceOptions.MaxStrictness. Higher values return only closer matches.</div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Filter</label>
+                    <InputText @bind-Value="_model.DataSourceFilter" class="form-control font-monospace" placeholder="filters/status eq 'published'" />
+                    <div class="form-text">Optional OData filter expression translated to the index provider's own syntax before the search runs.</div>
+                </div>
+
+                <div class="form-check mb-3">
+                    <InputCheckbox @bind-Value="_model.DataSourceIsInScope" class="form-check-input" />
+                    <label class="form-check-label">Limit answers to the retrieved content</label>
+                    <div class="form-text">When checked, the tool tells the model the answer is unavailable rather than letting it fall back to general knowledge.</div>
+                </div>
+            }
+
             <ToolInstanceParameterEditor Source="@_model.Source"
                                          Parameters="_model.Parameters"
                                          HttpMethod="@_model.HttpMethod"
@@ -423,7 +482,18 @@ else
         }
 
         _model = ToViewModel(instance);
+
+        await LoadDataSourcesAsync();
     }
+
+    private async Task LoadDataSourcesAsync()
+    {
+        _model.DataSources = (await DataSourceStore.GetAllAsync())
+            .OrderBy(dataSource => dataSource.DisplayText, StringComparer.OrdinalIgnoreCase)
+            .Select(dataSource => new KeyValuePair<string, string>(dataSource.DisplayText, dataSource.ItemId))
+            .ToList();
+    }
+
 
     private async Task HandleSubmitAsync()
     {
@@ -520,6 +590,28 @@ else
             if (string.IsNullOrWhiteSpace(model.WebsiteSearchUrlPath))
             {
                 _errors.Add("URL field path is required.");
+            }
+
+            return;
+        }
+
+        if (string.Equals(model.Source, DataSourceSearchToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(model.DataSourceId))
+            {
+                _errors.Add("A data source is required.");
+            }
+
+            if (model.DataSourceTopNDocuments.HasValue &&
+                (model.DataSourceTopNDocuments < AIDataSourceOptions.MinTopNDocuments || model.DataSourceTopNDocuments > AIDataSourceOptions.MaxTopNDocuments))
+            {
+                _errors.Add($"Retrieved documents must be between {AIDataSourceOptions.MinTopNDocuments} and {AIDataSourceOptions.MaxTopNDocuments}.");
+            }
+
+            if (model.DataSourceStrictness.HasValue &&
+                (model.DataSourceStrictness < AIDataSourceOptions.MinStrictness || model.DataSourceStrictness > AIDataSourceOptions.MaxStrictness))
+            {
+                _errors.Add($"Strictness must be between {AIDataSourceOptions.MinStrictness} and {AIDataSourceOptions.MaxStrictness}.");
             }
 
             return;
@@ -719,6 +811,21 @@ else
             return;
         }
 
+        if (string.Equals(model.Source, DataSourceSearchToolConstants.SourceName, StringComparison.OrdinalIgnoreCase))
+        {
+            instance.Put(new DataSourceSearchToolSettings
+            {
+                DataSourceId = model.DataSourceId?.Trim(),
+                RetrievalMode = model.DataSourceRetrievalMode,
+                TopNDocuments = model.DataSourceTopNDocuments,
+                Strictness = model.DataSourceStrictness,
+                Filter = string.IsNullOrWhiteSpace(model.DataSourceFilter) ? null : model.DataSourceFilter.Trim(),
+                IsInScope = model.DataSourceIsInScope,
+            });
+
+            return;
+        }
+
         var protector = DataProtectionProvider.CreateProtector(HttpApiRequestToolConstants.DataProtectionPurpose);
         var existing = instance.TryGet<HttpApiRequestToolSettings>(out var stored) ? stored : new HttpApiRequestToolSettings();
 
@@ -839,6 +946,16 @@ else
             model.WebsiteSearchUrlPath = websiteSearchSettings.UrlPath;
             model.WebsiteSearchSnippetPath = websiteSearchSettings.SnippetPath;
             model.WebsiteSearchMaxResults = websiteSearchSettings.MaxResults;
+        }
+
+        if (instance.TryGet<DataSourceSearchToolSettings>(out var dataSourceSettings))
+        {
+            model.DataSourceId = dataSourceSettings.DataSourceId;
+            model.DataSourceRetrievalMode = dataSourceSettings.RetrievalMode;
+            model.DataSourceTopNDocuments = dataSourceSettings.TopNDocuments;
+            model.DataSourceStrictness = dataSourceSettings.Strictness;
+            model.DataSourceFilter = dataSourceSettings.Filter;
+            model.DataSourceIsInScope = dataSourceSettings.IsInScope;
         }
 
         return model;
