@@ -406,7 +406,7 @@ public sealed class CloudflareRealtimeIceServerProviderTests
         Assert.False(services.GetRequiredService<IOptionsMonitor<CloudflareTurnOptions>>().CurrentValue.IsConfigured);
     }
     [Fact]
-    public void AddCloudflareRealtimeTurn_CalledTwice_RegistersOneProviderAndOneBinding()
+    public void AddCloudflareRealtimeTurn_CalledTwice_LeavesExactlyOneProviderRegistered()
     {
         // Arrange
         // Hosts enable several realtime surfaces and call the transport registrations per feature. A second
@@ -428,7 +428,7 @@ public sealed class CloudflareRealtimeIceServerProviderTests
         services.AddCloudflareRealtimeTurn();
 
         // Assert
-        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IRealtimeIceServerProvider) && descriptor.ImplementationFactory is not null);
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IRealtimeIceServerProvider));
 
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptionsMonitor<CloudflareTurnOptions>>().CurrentValue;
@@ -436,7 +436,7 @@ public sealed class CloudflareRealtimeIceServerProviderTests
     }
 
     [Fact]
-    public void AddCloudflareRealtimeTurn_CalledTwiceWithConfigure_StillAppliesTheSecondCallback()
+    public void AddCloudflareRealtimeTurn_CalledTwiceWithConfigure_AppliesEveryCallback()
     {
         // The guard must skip the registrations, not the caller's configuration.
         using var services = new ServiceCollection()

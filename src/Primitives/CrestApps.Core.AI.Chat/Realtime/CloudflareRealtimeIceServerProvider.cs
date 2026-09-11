@@ -34,7 +34,7 @@ internal sealed class CloudflareRealtimeIceServerProvider : IRealtimeIceServerPr
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IOptionsMonitor<CloudflareTurnOptions> _optionsMonitor;
-    private readonly IRealtimeIceServerProvider _fallback;
+    private readonly OptionsRealtimeIceServerProvider _fallback;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<CloudflareRealtimeIceServerProvider> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -48,13 +48,13 @@ internal sealed class CloudflareRealtimeIceServerProvider : IRealtimeIceServerPr
     /// </summary>
     /// <param name="httpClientFactory">The HTTP client factory.</param>
     /// <param name="optionsMonitor">The Cloudflare TURN options, watched so a change takes effect at once.</param>
-    /// <param name="fallback">The provider used while Cloudflare is not configured.</param>
+    /// <param name="fallback">The configured-servers provider used while Cloudflare is not configured.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
     public CloudflareRealtimeIceServerProvider(
         IHttpClientFactory httpClientFactory,
         IOptionsMonitor<CloudflareTurnOptions> optionsMonitor,
-        IRealtimeIceServerProvider fallback,
+        OptionsRealtimeIceServerProvider fallback,
         TimeProvider timeProvider,
         ILogger<CloudflareRealtimeIceServerProvider> logger)
     {

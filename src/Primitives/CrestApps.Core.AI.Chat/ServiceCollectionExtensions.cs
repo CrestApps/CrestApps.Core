@@ -242,21 +242,6 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // Applied before the guard: every call's configuration is honoured, only the registrations are once.
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-
-        // Safe to call more than once, as hosts enable several realtime surfaces and call the transport
-        // registrations per feature. Neither half below is naturally idempotent: a second BindConfiguration
-        // adds another IConfigureOptions, and a second provider would wrap the first as its own fallback.
-        if (services.Any(descriptor => descriptor.ServiceType == typeof(CloudflareTurnRegistrationMarker)))
-        {
-            return services;
-        }
-
-        services.AddSingleton<CloudflareTurnRegistrationMarker>();
         services.AddHttpClient(nameof(CloudflareRealtimeIceServerProvider));
         services.TryAddSingleton(TimeProvider.System);
 
@@ -265,51 +250,22 @@ public static class ServiceCollectionExtensions
         // provider would quietly defer to the fallback, which looks exactly like nothing being configured.
         services.AddOptions<CloudflareTurnOptions>().BindConfiguration("CrestApps:AI:RealtimeTransport:Cloudflare");
 
-        // Decorates rather than replaces: the provider already registered becomes the fallback used while
-        // Cloudflare is not configured, and whenever an outage leaves no credentials to serve.
-        services.TryAddSingleton<IRealtimeIceServerProvider, OptionsRealtimeIceServerProvider>();
+        if (configure is not null)
+        {
+            services.Configure(configure);
+        }
 
-        var existing = services.Last(descriptor => descriptor.ServiceType == typeof(IRealtimeIceServerProvider));
+        // The fallback is named concretely rather than taken as whatever happened to be registered. It is
+        // not an arbitrary provider -- it is the configured-servers path used while Cloudflare is not set
+        // up, and whenever an outage leaves no credentials to serve. Naming it also keeps Replace below
+        // from handing the decorator itself as its own fallback.
+        services.TryAddSingleton<OptionsRealtimeIceServerProvider>();
 
-        services.Add(ServiceDescriptor.Singleton<IRealtimeIceServerProvider>(provider =>
-            new CloudflareRealtimeIceServerProvider(
-                provider.GetRequiredService<IHttpClientFactory>(),
-                provider.GetRequiredService<IOptionsMonitor<CloudflareTurnOptions>>(),
-                CreateFallback(provider, existing),
-                provider.GetRequiredService<TimeProvider>(),
-                provider.GetRequiredService<ILogger<CloudflareRealtimeIceServerProvider>>())));
+        // Replace, so calling this more than once -- which hosts do, enabling several realtime surfaces --
+        // leaves exactly one provider rather than a stack of decorators each wrapping the last.
+        services.Replace(ServiceDescriptor.Singleton<IRealtimeIceServerProvider, CloudflareRealtimeIceServerProvider>());
 
         return services;
     }
 
-    /// <summary>
-    /// Materializes the provider that was registered before Cloudflare decorated it.
-    /// </summary>
-    /// <remarks>
-    /// Resolving <see cref="IRealtimeIceServerProvider"/> from the container here would return the
-    /// Cloudflare provider itself, since the last registration wins, and the decorator would call into
-    /// itself forever. The captured descriptor is built directly instead.
-    /// </remarks>
-    private static IRealtimeIceServerProvider CreateFallback(IServiceProvider provider, ServiceDescriptor descriptor)
-    {
-        if (descriptor.ImplementationInstance is IRealtimeIceServerProvider instance)
-        {
-            return instance;
-        }
-
-        if (descriptor.ImplementationFactory is not null)
-        {
-            return (IRealtimeIceServerProvider)descriptor.ImplementationFactory(provider);
-        }
-
-        return (IRealtimeIceServerProvider)ActivatorUtilities.CreateInstance(provider, descriptor.ImplementationType);
-    }
-    /// <summary>
-    /// Records that <see cref="AddCloudflareRealtimeTurn"/> has already run against a service collection.
-    /// </summary>
-    /// <remarks>
-    /// A marker rather than a check for the provider itself, because the provider is registered as a
-    /// factory whose implementation type the container does not expose.
-    /// </remarks>
-    private sealed class CloudflareTurnRegistrationMarker;
 }
