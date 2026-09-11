@@ -1,7 +1,7 @@
 namespace CrestApps.Core.AI.Chat.Realtime;
 
 /// <summary>
-/// Identifies the Cloudflare Realtime TURN key used to mint short-lived TURN credentials.
+/// Identifies the Cloudflare Realtime TURN token used to mint short-lived TURN credentials.
 /// </summary>
 /// <remarks>
 /// Cloudflare does not expose a shared secret, so credentials cannot be signed locally the way coturn's
@@ -11,12 +11,16 @@ namespace CrestApps.Core.AI.Chat.Realtime;
 public sealed class CloudflareTurnOptions
 {
     /// <summary>
-    /// Gets or sets the TURN key identifier, shown as the TURN Token ID in the Cloudflare dashboard.
+    /// Gets or sets the TURN Token ID, named as it appears in the Cloudflare dashboard.
     /// </summary>
-    public string KeyId { get; set; }
+    /// <remarks>
+    /// Cloudflare's own API path spells the same value as a key -- <c>/v1/turn/keys/{id}</c> -- but the
+    /// dashboard an operator copies it from calls it a Token ID, so that is the name used here.
+    /// </remarks>
+    public string TokenId { get; set; }
 
     /// <summary>
-    /// Gets or sets the API token issued alongside the TURN key.
+    /// Gets or sets the API token issued alongside the TURN Token ID.
     /// </summary>
     public string ApiToken { get; set; }
 
@@ -43,5 +47,5 @@ public sealed class CloudflareTurnOptions
     /// Gets a value indicating whether both credentials needed to call the Cloudflare API are present.
     /// </summary>
     public bool IsConfigured
-        => !string.IsNullOrWhiteSpace(KeyId) && !string.IsNullOrWhiteSpace(ApiToken);
+        => !string.IsNullOrWhiteSpace(TokenId) && !string.IsNullOrWhiteSpace(ApiToken);
 }

@@ -224,10 +224,10 @@ public static class ServiceCollectionExtensions
     /// through an API rather than exposing a shared secret that could be signed locally.
     /// </summary>
     /// <param name="services">The service collection.</param>
-    /// <param name="configure">Configures the Cloudflare TURN key. Usually bound from configuration instead.</param>
+    /// <param name="configure">Configures the Cloudflare TURN token. Usually bound from configuration instead.</param>
     /// <remarks>
     /// <para>
-    /// Registering this is safe before the key exists: while <see cref="CloudflareTurnOptions.KeyId"/> and
+    /// Registering this is safe before the key exists: while <see cref="CloudflareTurnOptions.TokenId"/> and
     /// <see cref="CloudflareTurnOptions.ApiToken"/> are unset the previously registered provider answers,
     /// so a deployment running its own coturn is unaffected until it opts in.
     /// </para>

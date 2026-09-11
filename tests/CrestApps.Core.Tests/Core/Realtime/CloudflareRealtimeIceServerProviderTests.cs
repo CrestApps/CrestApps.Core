@@ -61,7 +61,7 @@ public sealed class CloudflareRealtimeIceServerProviderTests
         var request = Assert.Single(handler.Requests);
         Assert.Equal(HttpMethod.Post, request.Method);
         Assert.Equal(
-            "https://cloudflare.test/v1/turn/keys/key-1/credentials/generate-ice-servers",
+            "https://cloudflare.test/v1/turn/keys/token-id-1/credentials/generate-ice-servers",
             request.Url);
         Assert.Equal("Bearer token-1", request.Authorization);
         Assert.Contains("\"ttl\":600", request.Body);
@@ -184,15 +184,15 @@ public sealed class CloudflareRealtimeIceServerProviderTests
 
         await provider.GetIceServersAsync(TestContext.Current.CancellationToken);
 
-        monitor.Set(Configured(keyId: "key-2", apiToken: "token-2"));
+        monitor.Set(Configured(tokenId: "token-id-2", apiToken: "token-2"));
 
         // Act
         await provider.GetIceServersAsync(TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(2, handler.Requests.Count);
-        Assert.EndsWith("/keys/key-1/credentials/generate-ice-servers", handler.Requests[0].Url, StringComparison.Ordinal);
-        Assert.EndsWith("/keys/key-2/credentials/generate-ice-servers", handler.Requests[1].Url, StringComparison.Ordinal);
+        Assert.EndsWith("/keys/token-id-1/credentials/generate-ice-servers", handler.Requests[0].Url, StringComparison.Ordinal);
+        Assert.EndsWith("/keys/token-id-2/credentials/generate-ice-servers", handler.Requests[1].Url, StringComparison.Ordinal);
         Assert.Equal("Bearer token-2", handler.Requests[1].Authorization);
     }
 
@@ -214,12 +214,12 @@ public sealed class CloudflareRealtimeIceServerProviderTests
     }
 
     private static CloudflareTurnOptions Configured(
-        string keyId = "key-1",
+        string tokenId = "token-id-1",
         string apiToken = "token-1",
         int ttlSeconds = 600)
         => new()
         {
-            KeyId = keyId,
+            TokenId = tokenId,
             ApiToken = apiToken,
             TtlSeconds = ttlSeconds,
             ApiBaseAddress = "https://cloudflare.test",
@@ -374,7 +374,7 @@ public sealed class CloudflareRealtimeIceServerProviderTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string>
             {
-                ["CrestApps:AI:RealtimeTransport:Cloudflare:KeyId"] = "key-from-configuration",
+                ["CrestApps:AI:RealtimeTransport:Cloudflare:TokenId"] = "token-id-from-configuration",
                 ["CrestApps:AI:RealtimeTransport:Cloudflare:ApiToken"] = "token-from-configuration",
                 ["CrestApps:AI:RealtimeTransport:Cloudflare:TtlSeconds"] = "1200",
             })
@@ -388,7 +388,7 @@ public sealed class CloudflareRealtimeIceServerProviderTests
 
         // Assert
         var options = services.GetRequiredService<IOptionsMonitor<CloudflareTurnOptions>>().CurrentValue;
-        Assert.Equal("key-from-configuration", options.KeyId);
+        Assert.Equal("token-id-from-configuration", options.TokenId);
         Assert.Equal("token-from-configuration", options.ApiToken);
         Assert.Equal(1200, options.TtlSeconds);
         Assert.True(options.IsConfigured);

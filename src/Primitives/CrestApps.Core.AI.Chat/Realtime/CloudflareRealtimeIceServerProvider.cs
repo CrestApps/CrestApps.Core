@@ -149,7 +149,8 @@ internal sealed class CloudflareRealtimeIceServerProvider : IRealtimeIceServerPr
     {
         var client = _httpClientFactory.CreateClient(nameof(CloudflareRealtimeIceServerProvider));
 
-        var url = $"{options.ApiBaseAddress.TrimEnd('/')}/v1/turn/keys/{options.KeyId}/credentials/generate-ice-servers";
+        // Cloudflare's route spells the token as a key; the value is the Token ID from the dashboard.
+        var url = $"{options.ApiBaseAddress.TrimEnd('/')}/v1/turn/keys/{options.TokenId}/credentials/generate-ice-servers";
 
         using var request = new HttpRequestMessage(HttpMethod.Post, url)
         {

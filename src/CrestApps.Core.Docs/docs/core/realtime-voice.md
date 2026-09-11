@@ -521,7 +521,7 @@ NAT simply get no audio. Use the section below instead.
 ### TURN through Cloudflare Realtime
 
 Cloudflare does not expose a shared secret, so credentials cannot be signed locally the way coturn's
-`use-auth-secret` allows — they are issued by an API call. Register the provider and give it the TURN key:
+`use-auth-secret` allows — they are issued by an API call. Register the provider and give it the TURN token:
 
 ```csharp
 services.AddCloudflareRealtimeTurn();
@@ -533,7 +533,7 @@ services.AddCloudflareRealtimeTurn();
     "AI": {
       "RealtimeTransport": {
         "Cloudflare": {
-          "KeyId": "<TURN Token ID>",
+          "TokenId": "<TURN Token ID>",
           "ApiToken": "<API token>",
           "TtlSeconds": 86400
         }
@@ -554,12 +554,12 @@ offered to the browser as returned. Do not narrow the list to a single `turn:` U
 gets a caller out of a network that allows nothing else. `StunUrls` and `TurnUrls` are ignored while Cloudflare is
 configured, because credentials issued for one relay do not authenticate against another.
 
-Two behaviours are worth knowing. While `KeyId` and `ApiToken` are unset the provider does nothing and whatever
+Two behaviours are worth knowing. While `TokenId` and `ApiToken` are unset the provider does nothing and whatever
 was configured above still applies, so registering it before the key exists is safe. And if Cloudflare cannot be
 reached, the credentials already issued keep being served — they are good for about half their lifetime — rather
 than dropping every caller to STUN only; the failure is logged and retried within 30 seconds.
 
-Changing `KeyId` or `ApiToken` at runtime, from an administration screen or a rotating secret store, takes effect
+Changing `TokenId` or `ApiToken` at runtime, from an administration screen or a rotating secret store, takes effect
 on the next connection: the options are watched and the cached credentials dropped.
 
 ### Sourcing ICE servers from somewhere else
@@ -597,7 +597,7 @@ no I/O should return a completed `ValueTask`, which allocates nothing.
 | `TurnSecret` | coturn `use-auth-secret` shared secret; enables ephemeral credentials. |
 | `TurnCredentialTtlSeconds` | Lifetime of a minted ephemeral credential (default 3600). |
 | `TurnUsername` / `TurnCredential` | Static TURN credentials, used only when `TurnSecret` is unset. Not suitable for a hosted TURN service, whose credentials expire. |
-| `Cloudflare:KeyId` / `Cloudflare:ApiToken` | Cloudflare Realtime TURN key. When both are set, credentials are minted per lifetime and the STUN and TURN properties above are ignored. |
+| `Cloudflare:TokenId` / `Cloudflare:ApiToken` | Cloudflare Realtime TURN credentials, named as the dashboard shows them. When both are set, credentials are minted per lifetime and the STUN and TURN properties above are ignored. |
 | `Cloudflare:TtlSeconds` | Lifetime requested for each Cloudflare credential (default 86400). Refreshed at half this. |
 
 ## Verifying which transport a session used
