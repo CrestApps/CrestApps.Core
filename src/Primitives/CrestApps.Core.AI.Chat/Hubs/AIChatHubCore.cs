@@ -422,7 +422,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// <summary>
     /// Generates a title for a new session. The default implementation uses AI
     /// title generation when configured on the profile, falling back to a
-    /// truncated user prompt.
+    /// truncated user prompt. A failing title generation call degrades to that
+    /// fallback rather than propagating, because the callers create the session.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="profile">The profile.</param>
@@ -432,7 +433,23 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var titleUserPrompt = BuildTitleUserPrompt(profile, userPrompt);
         if (profile.TitleType == AISessionTitleType.Generated)
         {
-            var generated = await GetAIGeneratedTitleAsync(services, profile, titleUserPrompt);
+            string generated = null;
+
+            try
+            {
+                generated = await GetAIGeneratedTitleAsync(services, profile, titleUserPrompt);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // A title is cosmetic, but this runs inside GetOrCreateSessionAsync, so letting a
+                // utility-deployment failure escape aborts whatever asked for the session. On the
+                // realtime path that is the entire voice conversation: StartRealtimeWebRtc receives an
+                // empty session id on the first turn, so a misconfigured utility deployment ended the
+                // session before any audio flowed, while later turns - which already carry a session id
+                // and generate their title through GenerateRealtimeSessionTitleAsync - were unaffected.
+                Logger.LogWarning(ex, "Failed to generate a session title for profile {ProfileId}. Falling back to the user prompt.", profile.ItemId);
+            }
+
             if (!string.IsNullOrEmpty(generated))
             {
                 return generated;
