@@ -34,7 +34,7 @@ internal sealed class CloudflareRealtimeIceServerProvider : IRealtimeIceServerPr
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IOptionsMonitor<CloudflareTurnOptions> _optionsMonitor;
-    private readonly IRealtimeIceServerProvider _fallback;
+    private readonly OptionsRealtimeIceServerProvider _fallback;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<CloudflareRealtimeIceServerProvider> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -48,13 +48,13 @@ internal sealed class CloudflareRealtimeIceServerProvider : IRealtimeIceServerPr
     /// </summary>
     /// <param name="httpClientFactory">The HTTP client factory.</param>
     /// <param name="optionsMonitor">The Cloudflare TURN options, watched so a change takes effect at once.</param>
-    /// <param name="fallback">The provider used while Cloudflare is not configured.</param>
+    /// <param name="fallback">The configured-servers provider used while Cloudflare is not configured.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
     public CloudflareRealtimeIceServerProvider(
         IHttpClientFactory httpClientFactory,
         IOptionsMonitor<CloudflareTurnOptions> optionsMonitor,
-        IRealtimeIceServerProvider fallback,
+        OptionsRealtimeIceServerProvider fallback,
         TimeProvider timeProvider,
         ILogger<CloudflareRealtimeIceServerProvider> logger)
     {
@@ -149,7 +149,17 @@ internal sealed class CloudflareRealtimeIceServerProvider : IRealtimeIceServerPr
     {
         var client = _httpClientFactory.CreateClient(nameof(CloudflareRealtimeIceServerProvider));
 
-        var url = $"{options.ApiBaseAddress.TrimEnd('/')}/v1/turn/keys/{options.KeyId}/credentials/generate-ice-servers";
+        // Both credentials are non-null and trimmed by the time this runs: CloudflareTurnOptions trims on
+        // assignment, and the caller reached here only because IsConfigured rejected null and whitespace on
+        // this very instance.
+        //
+        // Cloudflare's route spells the token as a key; the value is the Token ID from the dashboard.
+        //
+        // Escaped because it is interpolated into the path, where Uri gives several characters meaning that
+        // silently retargets the request rather than failing: '..' segments are collapsed, so a token id of
+        // "a/../../v1/other" drops the keys segment entirely, and '?' or '#' truncates the path into a query
+        // or fragment. A real token id is hexadecimal and escaping leaves it untouched.
+        var url = $"{options.ApiBaseAddress.TrimEnd('/')}/v1/turn/keys/{Uri.EscapeDataString(options.TokenId)}/credentials/generate-ice-servers";
 
         using var request = new HttpRequestMessage(HttpMethod.Post, url)
         {

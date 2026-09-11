@@ -2,6 +2,8 @@ using System.Net;
 using System.Text;
 using CrestApps.Core.AI.Chat.Realtime;
 using CrestApps.Core.AI.Realtime;
+using CrestApps.Core.AI.Chat;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -59,7 +61,7 @@ public sealed class CloudflareRealtimeIceServerProviderTests
         var request = Assert.Single(handler.Requests);
         Assert.Equal(HttpMethod.Post, request.Method);
         Assert.Equal(
-            "https://cloudflare.test/v1/turn/keys/key-1/credentials/generate-ice-servers",
+            "https://cloudflare.test/v1/turn/keys/token-id-1/credentials/generate-ice-servers",
             request.Url);
         Assert.Equal("Bearer token-1", request.Authorization);
         Assert.Contains("\"ttl\":600", request.Body);
@@ -182,15 +184,15 @@ public sealed class CloudflareRealtimeIceServerProviderTests
 
         await provider.GetIceServersAsync(TestContext.Current.CancellationToken);
 
-        monitor.Set(Configured(keyId: "key-2", apiToken: "token-2"));
+        monitor.Set(Configured(tokenId: "token-id-2", apiToken: "token-2"));
 
         // Act
         await provider.GetIceServersAsync(TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(2, handler.Requests.Count);
-        Assert.EndsWith("/keys/key-1/credentials/generate-ice-servers", handler.Requests[0].Url, StringComparison.Ordinal);
-        Assert.EndsWith("/keys/key-2/credentials/generate-ice-servers", handler.Requests[1].Url, StringComparison.Ordinal);
+        Assert.EndsWith("/keys/token-id-1/credentials/generate-ice-servers", handler.Requests[0].Url, StringComparison.Ordinal);
+        Assert.EndsWith("/keys/token-id-2/credentials/generate-ice-servers", handler.Requests[1].Url, StringComparison.Ordinal);
         Assert.Equal("Bearer token-2", handler.Requests[1].Authorization);
     }
 
@@ -212,12 +214,12 @@ public sealed class CloudflareRealtimeIceServerProviderTests
     }
 
     private static CloudflareTurnOptions Configured(
-        string keyId = "key-1",
+        string tokenId = "token-id-1",
         string apiToken = "token-1",
         int ttlSeconds = 600)
         => new()
         {
-            KeyId = keyId,
+            TokenId = tokenId,
             ApiToken = apiToken,
             TtlSeconds = ttlSeconds,
             ApiBaseAddress = "https://cloudflare.test",
@@ -361,5 +363,164 @@ public sealed class CloudflareRealtimeIceServerProviderTests
 
             public void Dispose() => _dispose();
         }
+    }
+    [Fact]
+    public void AddCloudflareRealtimeTurn_BindsTheKeyFromConfiguration()
+    {
+        // Arrange
+        // The key is supplied as configuration in every real deployment, never in code. Without the binding
+        // the options stay empty and the provider quietly defers to the fallback -- indistinguishable from
+        // nothing having been configured at all, which is the worst way for this to fail.
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["CrestApps:AI:RealtimeTransport:Cloudflare:TokenId"] = "token-id-from-configuration",
+                ["CrestApps:AI:RealtimeTransport:Cloudflare:ApiToken"] = "token-from-configuration",
+                ["CrestApps:AI:RealtimeTransport:Cloudflare:TtlSeconds"] = "1200",
+            })
+            .Build();
+
+        // Act
+        using var services = new ServiceCollection()
+            .AddSingleton<IConfiguration>(configuration)
+            .AddCloudflareRealtimeTurn()
+            .BuildServiceProvider();
+
+        // Assert
+        var options = services.GetRequiredService<IOptionsMonitor<CloudflareTurnOptions>>().CurrentValue;
+        Assert.Equal("token-id-from-configuration", options.TokenId);
+        Assert.Equal("token-from-configuration", options.ApiToken);
+        Assert.Equal(1200, options.TtlSeconds);
+        Assert.True(options.IsConfigured);
+    }
+
+    [Fact]
+    public void AddCloudflareRealtimeTurn_WithNoConfiguration_LeavesTheProviderDormant()
+    {
+        // Registering it must be safe before a key exists.
+        using var services = new ServiceCollection()
+            .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build())
+            .AddCloudflareRealtimeTurn()
+            .BuildServiceProvider();
+
+        Assert.False(services.GetRequiredService<IOptionsMonitor<CloudflareTurnOptions>>().CurrentValue.IsConfigured);
+    }
+    [Fact]
+    public void AddCloudflareRealtimeTurn_CalledTwice_LeavesExactlyOneProviderRegistered()
+    {
+        // Arrange
+        // Hosts enable several realtime surfaces and call the transport registrations per feature. A second
+        // call must not wrap the provider around itself, nor bind the configuration twice -- the binder
+        // appends to collection properties rather than replacing them, which is how duplicate STUN and TURN
+        // URLs got offered to the browser once before.
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["CrestApps:AI:RealtimeTransport:Cloudflare:TokenId"] = "token-id-from-configuration",
+                ["CrestApps:AI:RealtimeTransport:Cloudflare:ApiToken"] = "token-from-configuration",
+            })
+            .Build();
+
+        var services = new ServiceCollection().AddSingleton<IConfiguration>(configuration);
+
+        // Act
+        services.AddCloudflareRealtimeTurn();
+        services.AddCloudflareRealtimeTurn();
+
+        // Assert
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IRealtimeIceServerProvider));
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptionsMonitor<CloudflareTurnOptions>>().CurrentValue;
+        Assert.Equal("token-id-from-configuration", options.TokenId);
+    }
+
+    [Fact]
+    public void AddCloudflareRealtimeTurn_CalledTwiceWithConfigure_AppliesEveryCallback()
+    {
+        // The guard must skip the registrations, not the caller's configuration.
+        using var services = new ServiceCollection()
+            .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build())
+            .AddCloudflareRealtimeTurn(options => options.TokenId = "first")
+            .AddCloudflareRealtimeTurn(options => options.ApiToken = "second")
+            .BuildServiceProvider();
+
+        var options = services.GetRequiredService<IOptionsMonitor<CloudflareTurnOptions>>().CurrentValue;
+        Assert.Equal("first", options.TokenId);
+        Assert.Equal("second", options.ApiToken);
+        Assert.True(options.IsConfigured);
+    }
+    [Theory]
+    [InlineData("aaa/../../v1/other")]
+    [InlineData("aaa?evil=1")]
+    [InlineData("aaa#fragment")]
+    public async Task GetIceServersAsync_WithAMalformedTokenId_CannotRetargetTheRequest(string tokenId)
+    {
+        // Arrange
+        // The token id is interpolated into the path, where Uri gives several characters meaning: '..'
+        // segments are collapsed and '?' or '#' truncate the path. Unescaped, a token id of
+        // "aaa/../../v1/other" drops the keys segment and posts to a different endpoint entirely, which is
+        // a far more confusing failure than a 404.
+        var handler = new RecordingHandler(ValidResponse);
+        var provider = CreateProvider(handler, Configured(tokenId: tokenId), out _);
+
+        // Act
+        await provider.GetIceServersAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var request = Assert.Single(handler.Requests);
+        var uri = new Uri(request.Url);
+
+        Assert.StartsWith("/v1/turn/keys/", uri.AbsolutePath, StringComparison.Ordinal);
+        Assert.EndsWith("/credentials/generate-ice-servers", uri.AbsolutePath, StringComparison.Ordinal);
+        Assert.Empty(uri.Query);
+        Assert.Empty(uri.Fragment);
+    }
+
+    [Fact]
+    public async Task GetIceServersAsync_TrimsWhitespaceAroundTheCredentials()
+    {
+        // Arrange
+        // Values pasted out of a dashboard routinely carry surrounding whitespace. A trailing newline in the
+        // API token makes the Authorization header throw, and a trailing space on the token id becomes %20
+        // in the path; both would show up only as a failure to obtain credentials and a quiet drop to STUN.
+        var handler = new RecordingHandler(ValidResponse);
+        // (char)10 rather than an escape sequence, so the newline this test is about is unmistakable.
+        var provider = CreateProvider(handler, Configured(tokenId: "  token-id-1" + (char)10, apiToken: " token-1 "), out _);
+
+        // Act
+        await provider.GetIceServersAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(
+            "https://cloudflare.test/v1/turn/keys/token-id-1/credentials/generate-ice-servers",
+            request.Url);
+        Assert.Equal("Bearer token-1", request.Authorization);
+    }
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", "")]
+    [InlineData("   ", "   ")]
+    [InlineData("token-id-1", null)]
+    [InlineData(null, "token-1")]
+    public async Task GetIceServersAsync_WithMissingOrBlankCredentials_FallsBackWithoutThrowing(string tokenId, string apiToken)
+    {
+        // Arrange
+        // IsConfigured is the single answer to whether the credentials are usable, and the fetch path relies
+        // on it having rejected null and whitespace. A value that is only whitespace must count as missing
+        // rather than reach the request as an empty path segment.
+        var handler = new RecordingHandler(ValidResponse);
+        var options = new CloudflareTurnOptions { TokenId = tokenId, ApiToken = apiToken };
+        var provider = CreateProvider(handler, options, out _);
+
+        // Act
+        var servers = await provider.GetIceServersAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(options.IsConfigured);
+        Assert.Empty(handler.Requests);
+        var server = Assert.Single(servers);
+        Assert.Equal(["stun:fallback.example.com:3478"], server.Urls);
     }
 }
