@@ -34,7 +34,7 @@ public sealed class CompareTabularDataTool : AIFunction
       "properties": {
         "left_sql": {
           "type": "string",
-          "description": "A read-only SQL query for the first side returning EXACTLY two columns: the key to match on (for example a client, product, or department name) and the numeric measure to compare. Aggregate it yourself, for example: SELECT \"Campaign\", SUM(\"Total_Revenue\") FROM \"Client_Breakdown\" WHERE is_subtotal = 0 GROUP BY \"Campaign\". Use a CASE expression on the key column when variants of the same name should be combined."
+          "description": "A read-only SQL query for the first side returning EXACTLY two columns: the key to match on (for example a client, product, or department name) and the numeric measure to compare. Aggregate it yourself, for example: SELECT \"Campaign\", SUM(\"Total_Revenue\") FROM \"Client_Breakdown\" GROUP BY \"Campaign\". Use a CASE expression on the key column when variants of the same name should be combined."
         },
         "right_sql": {
           "type": "string",

@@ -122,11 +122,9 @@ public sealed class ListTabularDataTool : AIFunction
                 builder.AppendLine(ambiguousTotals);
             }
 
-            if (table.Columns.Any(column => column.Name == TabularWorksheetShaper.SubtotalColumnName))
+            if (table.TableName.EndsWith(TabularWorksheetShaper.RollupTableSuffix, StringComparison.Ordinal))
             {
-                builder.Append("  NOTE: this table has rollup rows; aggregate with WHERE ");
-                builder.Append(TabularWorksheetShaper.SubtotalColumnName);
-                builder.AppendLine(" = 0 to avoid double-counting them.");
+                builder.AppendLine("  NOTE: holds the subtotal/grand-total rows lifted out of the matching data table, so the data table sums correctly on its own. Do NOT add this table's figures to that table's -- they already cover the same rows. Use it only to reconcile against the totals the source sheet printed.");
             }
         }
 

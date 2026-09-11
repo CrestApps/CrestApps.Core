@@ -92,11 +92,11 @@ public sealed class TabularSqlErrorFormatterTests
         create.ExecuteNonQuery();
 
         using var seed = connection.CreateCommand();
-        seed.CommandText = "INSERT INTO Client_Breakdown (Campaign) VALUES ('Eli Lilly')";
+        seed.CommandText = "INSERT INTO Client_Breakdown (Campaign) VALUES ('Northwind')";
         seed.ExecuteNonQuery();
 
         using var duplicate = connection.CreateCommand();
-        duplicate.CommandText = "INSERT INTO Client_Breakdown (Campaign) VALUES ('Eli Lilly')";
+        duplicate.CommandText = "INSERT INTO Client_Breakdown (Campaign) VALUES ('Northwind')";
         var exception = Assert.Throws<SqliteException>(() => duplicate.ExecuteNonQuery());
 
         var message = TabularSqlErrorFormatter.Format("The command could not be executed", exception, TwoTables, duplicate.CommandText);

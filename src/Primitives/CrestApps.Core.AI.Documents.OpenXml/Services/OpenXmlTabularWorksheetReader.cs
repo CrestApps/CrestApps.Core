@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
@@ -7,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Documents.OpenXml.Services;
 
-internal static class OpenXmlTabularWorksheetReader
+internal static partial class OpenXmlTabularWorksheetReader
 {
     // The lowest and highest OLE Automation date serials Excel can represent (1900-01-01 through
     // 9999-12-31). Serials outside this range are treated as plain numbers rather than dates.
@@ -47,7 +48,7 @@ internal static class OpenXmlTabularWorksheetReader
         string fileName,
         ILogger logger,
         Action<string> onWorksheetStart,
-        Action<List<string>> onRow,
+        Action<List<string>, bool> onRow,
         Action onWorksheetEnd,
         CancellationToken cancellationToken)
     {
@@ -76,7 +77,7 @@ internal static class OpenXmlTabularWorksheetReader
                     continue;
                 }
 
-                var row = ReadRow(reader, sharedStrings, dateStyles, expectedColumnCount, out var hasValue);
+                var row = ReadRow(reader, sharedStrings, dateStyles, expectedColumnCount, out var hasValue, out var hasVerticalAggregateFormula);
 
                 if (!hasValue)
                 {
@@ -84,7 +85,7 @@ internal static class OpenXmlTabularWorksheetReader
                 }
 
                 expectedColumnCount = Math.Max(expectedColumnCount, row.Count);
-                onRow(row);
+                onRow(row, hasVerticalAggregateFormula);
                 sheetRowCount++;
             }
 
@@ -140,10 +141,18 @@ internal static class OpenXmlTabularWorksheetReader
         string[] sharedStrings,
         bool[] dateStyles,
         int expectedColumnCount,
-        out bool hasValue)
+        out bool hasValue,
+        out bool hasVerticalAggregateFormula)
     {
         hasValue = false;
+        hasVerticalAggregateFormula = false;
         var values = new List<string>(expectedColumnCount);
+
+        // The worksheet row number, used to tell an aggregate over other rows apart from one confined
+        // to this row. Absent (malformed) row numbers leave the evidence unused rather than guessed at.
+        var rowNumber = int.TryParse(reader.GetAttribute("r"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedRowNumber)
+            ? parsedRowNumber
+            : -1;
 
         // The reader is positioned on the <row> start element. A self-closing row such as
         // <row r="1"/> carries no cells, so it is skipped without descending into it. Reading cells
@@ -187,10 +196,16 @@ internal static class OpenXmlTabularWorksheetReader
             }
 
             var isDateStyle = IsDateStyledCell(reader.GetAttribute("s"), dateStyles);
-            var value = GetCellValue(reader, reader.GetAttribute("t"), isDateStyle, sharedStrings);
+            var value = GetCellValue(reader, reader.GetAttribute("t"), isDateStyle, sharedStrings, out var formula);
 
             values.Add(value);
             hasValue |= !string.IsNullOrEmpty(value);
+
+            if (!hasVerticalAggregateFormula && rowNumber > 0 && formula is not null)
+            {
+                hasVerticalAggregateFormula = IsVerticalAggregateFormula(formula, rowNumber);
+            }
+
             reader.Read();
         }
 
@@ -201,6 +216,63 @@ internal static class OpenXmlTabularWorksheetReader
 
         return values;
     }
+
+    /// <summary>
+    /// Determines whether a cell formula aggregates rows other than its own, which is what makes a row
+    /// a rollup rather than a record.
+    /// </summary>
+    /// <remarks>
+    /// Both conditions are required, and each rules out a specific mistake. Demanding an aggregate
+    /// function keeps an ordinary cross-row calculation (<c>=B27*1.1</c>, a growth or variance cell)
+    /// from being read as a rollup. Demanding a reference to another row keeps a cross-column line
+    /// total (<c>=SUM(G27,E27,H27)</c>, which sums correctly down a column) from being discarded as
+    /// one. The two together are what separate a vertical aggregate from a horizontal one.
+    /// </remarks>
+    /// <param name="formula">The formula text, without its leading equals sign.</param>
+    /// <param name="rowNumber">The worksheet row the formula sits on.</param>
+    /// <returns><see langword="true"/> when the formula aggregates other rows.</returns>
+    internal static bool IsVerticalAggregateFormula(string formula, int rowNumber)
+    {
+        if (string.IsNullOrEmpty(formula) || !AggregateFunctionRegex().IsMatch(formula))
+        {
+            return false;
+        }
+
+        // References into another worksheet describe a different table, so they say nothing about
+        // whether this row restates its neighbours. Dropping them first also drops the criteria cells a
+        // lookup points at, which are frequently on a header row and would otherwise read as "another
+        // row" and misclassify every record in the sheet.
+        var localReferences = SheetQualifiedReferenceRegex().Replace(formula, " ");
+
+        foreach (Match match in CellReferenceRegex().Matches(localReferences))
+        {
+            if (int.TryParse(match.Groups[1].ValueSpan, NumberStyles.Integer, CultureInfo.InvariantCulture, out var referencedRow) &&
+                referencedRow != rowNumber)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Plain SUM, plus the two functions Excel's own outline and table-total features emit. The
+    // criteria-based relatives -- SUMIF, SUMIFS, SUMPRODUCT -- are deliberately excluded: they look a
+    // value up from somewhere else rather than restating rows of this table, and a sheet that carries
+    // one on every record (a common way to pull actuals alongside projections) would otherwise have
+    // every record classified as a rollup. A rollup written with SUMIF is still caught by its label.
+    [GeneratedRegex(@"\b(SUM|SUBTOTAL|AGGREGATE)\s*\(", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex AggregateFunctionRegex();
+
+    // A cell or range qualified by a worksheet name, quoted ('Projections - By Client'!C$2) or bare
+    // (Revenue!$K:$K).
+    [GeneratedRegex(@"(?:'[^']*'|[A-Za-z_][A-Za-z0-9_.]*)!\$?[A-Za-z]{0,3}\$?\d{0,7}(?::\$?[A-Za-z]{0,3}\$?\d{0,7})?", RegexOptions.CultureInvariant)]
+    private static partial Regex SheetQualifiedReferenceRegex();
+
+    // An A1-style reference on this worksheet, optionally absolute. Only the row number is captured,
+    // which is all the vertical/horizontal decision needs.
+    [GeneratedRegex(@"\$?[A-Za-z]{1,3}\$?(\d{1,7})\b", RegexOptions.CultureInvariant)]
+    private static partial Regex CellReferenceRegex();
 
     private static void TrimTrailingEmptyValues(List<string> values)
     {
@@ -258,8 +330,11 @@ internal static class OpenXmlTabularWorksheetReader
         XmlReader reader,
         string cellType,
         bool isDateStyle,
-        string[] sharedStrings)
+        string[] sharedStrings,
+        out string formula)
     {
+        formula = null;
+
         if (reader.IsEmptyElement)
         {
             return string.Empty;
@@ -270,8 +345,20 @@ internal static class OpenXmlTabularWorksheetReader
         string inlineText = null;
         StringBuilder inlineBuilder = null;
 
-        while (reader.Read())
+        // ReadElementContentAsString already leaves the reader on the node after the element it
+        // consumed, so advancing again would step over it. A cell holding both <f> and <v> -- every
+        // calculated cell -- loses its value that way, which is why advancing is tracked explicitly.
+        var advance = true;
+
+        while (true)
         {
+            if (advance && !reader.Read())
+            {
+                break;
+            }
+
+            advance = true;
+
             if (reader.NodeType == XmlNodeType.EndElement &&
                 reader.Depth == cellDepth &&
                 string.Equals(reader.LocalName, "c", StringComparison.Ordinal))
@@ -284,9 +371,33 @@ internal static class OpenXmlTabularWorksheetReader
                 continue;
             }
 
+            // A shared formula is written out in full on its master cell only; the dependants carry
+            // <f t="shared" si="n"/> with no text. Reading whichever copies do carry text is enough,
+            // because a rollup row only has to prove itself through one cell.
+            if (string.Equals(reader.LocalName, "f", StringComparison.Ordinal))
+            {
+                if (reader.IsEmptyElement)
+                {
+                    continue;
+                }
+
+                formula = reader.ReadElementContentAsString();
+                advance = false;
+
+                if (reader.NodeType == XmlNodeType.EndElement &&
+                    reader.Depth == cellDepth &&
+                    string.Equals(reader.LocalName, "c", StringComparison.Ordinal))
+                {
+                    break;
+                }
+
+                continue;
+            }
+
             if (string.Equals(reader.LocalName, "v", StringComparison.Ordinal))
             {
                 value = reader.ReadElementContentAsString();
+                advance = false;
 
                 if (reader.NodeType == XmlNodeType.EndElement &&
                     reader.Depth == cellDepth &&
@@ -305,6 +416,7 @@ internal static class OpenXmlTabularWorksheetReader
             }
 
             var text = reader.ReadElementContentAsString();
+            advance = false;
 
             if (inlineBuilder != null)
             {

@@ -13,7 +13,7 @@ public sealed class TabularCrossFileMergeDetectorTests
     private static readonly TabularQueryResult KeyMeasureResult = new()
     {
         Columns = ["Client", "Sept_Revenue"],
-        Rows = [["Eli Lilly", 1690423.00]],
+        Rows = [["Northwind", 1700000.00]],
     };
 
     private static readonly TabularTableInfo ClientServicesTable = new()
@@ -107,7 +107,7 @@ public sealed class TabularCrossFileMergeDetectorTests
         var threeColumnResult = new TabularQueryResult
         {
             Columns = ["Client", "Site", "Sept_Revenue"],
-            Rows = [["Eli Lilly", "Henderson", 1690423.00]],
+            Rows = [["Northwind", "Eastport", 1700000.00]],
         };
 
         var guidance = TabularCrossFileMergeDetector.Track(

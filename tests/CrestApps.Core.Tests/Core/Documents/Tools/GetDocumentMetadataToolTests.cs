@@ -110,13 +110,13 @@ public sealed class GetDocumentMetadataToolTests
                     {
                         Name = "Client Breakdown",
                         Header = ["Site", "Projected Revenue"],
-                        Rows = [["True Blue", "71822.688"], ["Milford", "20264.05"]],
+                        Rows = [["Northside", "80000.500"], ["Westfield", "20264.05"]],
                     },
                     new TabularWorksheet
                     {
                         Name = "Overall Projections",
                         Header = ["Site Location"],
-                        Rows = [["Henderson"]],
+                        Rows = [["Eastport"]],
                     },
                 ],
             });
@@ -287,8 +287,8 @@ public sealed class GetDocumentMetadataToolTests
                 Header = ["Campaign", "Projected Revenue", "Ancillary Revenue", "AI Bot Revenue", "Total Revenue"],
                 Rows =
                 [
-                    ["Eli Lilly", "342465.87", "0", "0", "342465.87"],
-                    ["LendKey", "85047.53", "0", "0", "85047.53"],
+                    ["Northwind", "350000.00", "0", "0", "350000.00"],
+                    ["Tailspin", "95000.50", "0", "0", "95000.50"],
                 ],
             });
 

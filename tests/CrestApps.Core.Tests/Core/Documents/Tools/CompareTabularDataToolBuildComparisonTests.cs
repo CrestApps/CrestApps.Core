@@ -11,12 +11,11 @@ namespace CrestApps.Core.Tests.Core.Documents.Tools;
 public sealed class CompareTabularDataToolBuildComparisonTests
 {
     /// <summary>
-    /// Reproduces the exact real numbers from testing: Learning Care Group's mismatch (-338,020.42) is
-    /// larger in magnitude than Eli Lilly's (-116,590.27), which is larger than Track Group's
-    /// (+70,111.78). Sorting by signed difference (the pre-fix behavior) would put the positive Track
-    /// Group first and the deeply negative Learning Care Group last — the opposite of what a reader
-    /// scanning from the top needs to see. This asserts the full order, not just the first row, because a
-    /// single-row assertion could pass under either sort by coincidence.
+    /// Three mismatches of decreasing magnitude, two negative and one positive: -340,000 then -120,000
+    /// then +70,000. Sorting by signed difference (the pre-fix behavior) would put the positive one
+    /// first and the most negative one last — the opposite of what a reader scanning from the top needs.
+    /// This asserts the full order, not just the first row, because a single-row assertion could pass
+    /// under either sort by coincidence.
     /// </summary>
     [Fact]
     public void BuildComparison_SortsByVarianceMagnitude_NotBySign()
@@ -26,9 +25,9 @@ public sealed class CompareTabularDataToolBuildComparisonTests
             Columns = ["Client", "Revenue"],
             Rows =
             [
-                ["Learning Care Group", 37297.68],
-                ["Eli Lilly", 1690423.00],
-                ["Track Group", 379974.00],
+                ["Fabrikam", 40000.00],
+                ["Northwind", 1700000.00],
+                ["Litware", 380000.00],
             ],
         };
 
@@ -37,23 +36,23 @@ public sealed class CompareTabularDataToolBuildComparisonTests
             Columns = ["Client", "Revenue"],
             Rows =
             [
-                ["Learning Care Group", 375318.10],
-                ["Eli Lilly", 1807013.27],
-                ["Track Group", 309862.22],
+                ["Fabrikam", 380000.00],
+                ["Northwind", 1820000.00],
+                ["Litware", 310000.00],
             ],
         };
 
-        var comparison = CompareTabularDataTool.BuildComparison(left, right, "Client Services", "Site Director", allowUnmatched: true);
+        var comparison = CompareTabularDataTool.BuildComparison(left, right, "Left File", "Right File", allowUnmatched: true);
 
-        var learningCareGroupIndex = comparison.IndexOf("Learning Care Group", StringComparison.Ordinal);
-        var eliLillyIndex = comparison.IndexOf("Eli Lilly", StringComparison.Ordinal);
-        var trackGroupIndex = comparison.IndexOf("Track Group", StringComparison.Ordinal);
+        var largestIndex = comparison.IndexOf("Fabrikam", StringComparison.Ordinal);
+        var middleIndex = comparison.IndexOf("Northwind", StringComparison.Ordinal);
+        var smallestIndex = comparison.IndexOf("Litware", StringComparison.Ordinal);
 
-        // Under the pre-fix sort (descending by signed difference), this order is exactly reversed:
-        // Track Group's difference is positive so it would lead, and Learning Care Group's is the most
-        // negative so it would trail — this assertion fails against that code, not just this one.
-        Assert.True(learningCareGroupIndex < eliLillyIndex, "Learning Care Group (-338,020, the largest mismatch) must lead Eli Lilly (-116,590).");
-        Assert.True(eliLillyIndex < trackGroupIndex, "Eli Lilly (-116,590) must lead Track Group (+70,112, the smallest mismatch).");
+        // Under the pre-fix sort (descending by signed difference) this order is exactly reversed:
+        // Litware's difference is positive so it would lead, and Fabrikam's is the most negative so it
+        // would trail — this assertion fails against that code, not just this one.
+        Assert.True(largestIndex < middleIndex, "Fabrikam (-340,000, the largest mismatch) must lead Northwind (-120,000).");
+        Assert.True(middleIndex < smallestIndex, "Northwind (-120,000) must lead Litware (+70,000, the smallest mismatch).");
     }
 
     /// <summary>
@@ -68,8 +67,8 @@ public sealed class CompareTabularDataToolBuildComparisonTests
             Columns = ["Client", "Revenue"],
             Rows =
             [
-                ["Eli Lilly", 1690423.00],
-                ["LendKey Technologies, Inc.", 84407.76],
+                ["Northwind", 1700000.00],
+                ["Tailspin Toys, Inc.", 90250.75],
             ],
         };
 
@@ -78,19 +77,19 @@ public sealed class CompareTabularDataToolBuildComparisonTests
             Columns = ["Client", "Revenue"],
             Rows =
             [
-                ["Eli Lilly", 1807013.27],
-                ["LendKey", 85047.53],
+                ["Northwind", 1820000.00],
+                ["Tailspin", 95000.00],
             ],
         };
 
-        var comparison = CompareTabularDataTool.BuildComparison(left, right, "Client Services", "Site Director", allowUnmatched: true);
+        var comparison = CompareTabularDataTool.BuildComparison(left, right, "Left File", "Right File", allowUnmatched: true);
 
-        Assert.Contains("Unmatched, only in \"Client Services\"", comparison);
-        Assert.Contains("LendKey Technologies, Inc.", comparison);
+        Assert.Contains("Unmatched, only in \"Left File\"", comparison);
+        Assert.Contains("Tailspin Toys, Inc.", comparison);
 
         // The bug this tool exists to prevent: reporting an unmatched key as a matched row against a
         // fabricated 0 on the other side, which reads as "this client has no revenue" instead of "these
         // two files never named this client the same way."
-        Assert.DoesNotContain("LendKey Technologies, Inc. | 84407.76 | 0", comparison);
+        Assert.DoesNotContain("Tailspin Toys, Inc. | 90250.75 | 0", comparison);
     }
 }

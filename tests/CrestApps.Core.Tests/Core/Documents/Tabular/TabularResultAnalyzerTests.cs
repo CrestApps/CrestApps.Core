@@ -24,14 +24,14 @@ public sealed class TabularResultAnalyzerTests
     [Fact]
     public void TryGetNumber_WithDecimal_ConvertsToDouble()
     {
-        Assert.True(TabularResultAnalyzer.TryGetNumber(1690423.00m, out var number));
-        Assert.Equal(1690423.00d, number);
+        Assert.True(TabularResultAnalyzer.TryGetNumber(1700000.00m, out var number));
+        Assert.Equal(1700000.00d, number);
     }
 
     [Fact]
     public void TryGetNumber_WithNonNumericText_ReturnsFalse()
     {
-        Assert.False(TabularResultAnalyzer.TryGetNumber("Eli Lilly", out var number));
+        Assert.False(TabularResultAnalyzer.TryGetNumber("Northwind", out var number));
         Assert.Equal(0d, number);
     }
 
@@ -45,9 +45,9 @@ public sealed class TabularResultAnalyzerTests
     [Fact]
     public void FormatNumber_UsesInvariantCultureAndTrimsTrailingZeros()
     {
-        Assert.Equal("1690423", TabularResultAnalyzer.FormatNumber(1690423.00d));
-        Assert.Equal("1690423.5", TabularResultAnalyzer.FormatNumber(1690423.5d));
-        Assert.Equal("-116590.27", TabularResultAnalyzer.FormatNumber(-116590.27d));
+        Assert.Equal("1700000", TabularResultAnalyzer.FormatNumber(1700000.00d));
+        Assert.Equal("1700000.5", TabularResultAnalyzer.FormatNumber(1700000.5d));
+        Assert.Equal("-120000.27", TabularResultAnalyzer.FormatNumber(-120000.27d));
     }
 
     /// <summary>
@@ -62,8 +62,8 @@ public sealed class TabularResultAnalyzerTests
             Columns = ["Client", "Sept_Revenue"],
             Rows =
             [
-                ["Eli Lilly", 1690423.00],
-                ["LendKey", 84407.76],
+                ["Northwind", 1700000.00],
+                ["Tailspin", 90250.75],
             ],
         };
 
@@ -76,7 +76,7 @@ public sealed class TabularResultAnalyzerTests
         var result = new TabularQueryResult
         {
             Columns = ["Client", "Site", "Sept_Revenue"],
-            Rows = [["Eli Lilly", "Henderson", 1690423.00]],
+            Rows = [["Northwind", "Eastport", 1700000.00]],
         };
 
         Assert.False(TabularResultAnalyzer.IsKeyMeasureShape(result));
@@ -88,7 +88,7 @@ public sealed class TabularResultAnalyzerTests
         var result = new TabularQueryResult
         {
             Columns = ["Client", "Region"],
-            Rows = [["Eli Lilly", "Midwest"]],
+            Rows = [["Northwind", "Midwest"]],
         };
 
         Assert.False(TabularResultAnalyzer.IsKeyMeasureShape(result));
@@ -107,7 +107,7 @@ public sealed class TabularResultAnalyzerTests
     }
 
     /// <summary>
-    /// The exact scenario that motivated this helper: five Eli Lilly sub-account rows that a model had
+    /// The exact scenario that motivated this helper: five Northwind sub-account rows that a model had
     /// previously added up by hand and gotten wrong by $295,000. The computed total must land on the
     /// true sum instead.
     /// </summary>
@@ -119,18 +119,18 @@ public sealed class TabularResultAnalyzerTests
             Columns = ["Client_Name", "Total_Proj__Revnue_2026_09_01"],
             Rows =
             [
-                ["Eli Lilly - LAC", 512595.00],
-                ["Eli Lilly - Direct Pharmacy", 265460.00],
-                ["Eli Lilly - Flex", 730180.00],
-                ["Eli Lilly - Tempo & Phone App", 60451.00],
-                ["Eli Lilly - Payment Processing", 121737.00],
+                ["Northwind - Unit A", 500000.00],
+                ["Northwind - Unit B", 270000.00],
+                ["Northwind - Unit C", 730000.00],
+                ["Northwind - Unit D", 60000.00],
+                ["Northwind - Unit E", 140000.00],
             ],
         };
 
         var totals = TabularResultAnalyzer.FormatColumnTotals(result);
 
-        Assert.Contains("Total_Proj__Revnue_2026_09_01 = 1690423", totals);
-        Assert.DoesNotContain("1985423", totals);
+        Assert.Contains("Total_Proj__Revnue_2026_09_01 = 1700000", totals);
+        Assert.DoesNotContain("1995000", totals);
     }
 
     /// <summary>
@@ -145,15 +145,15 @@ public sealed class TabularResultAnalyzerTests
             Columns = ["Client_Name", "Total_Revenue"],
             Rows =
             [
-                ["Eli Lilly", 1807013.27],
-                ["LendKey", 85047.53],
+                ["Northwind", 1820000.25],
+                ["Tailspin", 95000.50],
             ],
         };
 
         var totals = TabularResultAnalyzer.FormatColumnTotals(result);
 
         Assert.DoesNotContain("Client_Name", totals);
-        Assert.Contains("Total_Revenue = 1892060.8", totals);
+        Assert.Contains("Total_Revenue = 1915000.75", totals);
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public sealed class TabularResultAnalyzerTests
         var result = new TabularQueryResult
         {
             Columns = ["Client_Name", "Total_Revenue"],
-            Rows = [["Eli Lilly", 1807013.27]],
+            Rows = [["Northwind", 1820000.25]],
         };
 
         Assert.Null(TabularResultAnalyzer.FormatColumnTotals(result));
@@ -176,8 +176,8 @@ public sealed class TabularResultAnalyzerTests
             Columns = ["Client_Name", "Total_Revenue"],
             Rows =
             [
-                ["Eli Lilly", 1807013.27],
-                ["LendKey", 85047.53],
+                ["Northwind", 1820000.25],
+                ["Tailspin", 95000.50],
             ],
             Truncated = true,
         };

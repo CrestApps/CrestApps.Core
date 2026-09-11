@@ -630,8 +630,16 @@ internal sealed class TabularWorkspace : IDisposable
             foreach (var worksheet in worksheets)
             {
                 var tableName = AllocateTableName(usedNames, document.FileName, worksheet.Name, singleWorksheetDocument);
-                var columns = CreateTable(_connection, tableName, worksheet.Header ?? [], worksheet.Rows ?? [], cancellationToken);
+                var columns = CreateTable(_connection, tableName, worksheet.Header ?? [], worksheet.Rows ?? [], out var rollupTableName, cancellationToken);
                 RegisterTable(document, tableName, worksheet.Name, columns);
+
+                // The rollup sibling is registered in its own right so it is listed, described, and
+                // queryable rather than being an undiscoverable table sitting in the database.
+                if (rollupTableName is not null)
+                {
+                    usedNames.Add(rollupTableName);
+                    RegisterTable(document, rollupTableName, worksheet.Name, columns);
+                }
             }
 
             importStopwatch.Stop();
@@ -881,8 +889,11 @@ internal sealed class TabularWorkspace : IDisposable
         string tableName,
         List<string> header,
         List<List<string>> rows,
+        out string rollupTableName,
         CancellationToken cancellationToken)
     {
+        rollupTableName = null;
+
         if (header.Count == 0)
         {
             // Create an empty placeholder table so the model can still describe and query it.
@@ -893,24 +904,43 @@ internal sealed class TabularWorkspace : IDisposable
             return [new TabularColumnInfo("value", "TEXT")];
         }
 
-        // Widen the header so populated cells that have no header still become columns, then flag any
-        // embedded subtotal/total rows so aggregate queries can exclude them. This mirrors the streaming
-        // Open XML importer so delimited (CSV/TSV) sources are shaped the same way.
+        // Widen the header so populated cells that have no header still become columns, then split the
+        // embedded subtotal/total rows out into a sibling table so an aggregate over this one cannot
+        // double-count them. This mirrors the streaming Open XML importer so delimited (CSV/TSV) sources
+        // are shaped the same way; lacking formulas, they rely on the label heuristic alone.
         var expandedHeader = TabularWorksheetShaper.ExpandHeader(header, rows);
-        var dataColumns = TabularWorkspaceSqliteHelpers.BuildColumns(expandedHeader, rows);
-        var hasSubtotalColumn = rows.Any(TabularWorksheetShaper.IsSubtotalRow);
-        IReadOnlyList<TabularColumnInfo> columns = hasSubtotalColumn
-            ? [.. dataColumns, new TabularColumnInfo(TabularWorksheetShaper.SubtotalColumnName, "INTEGER")]
-            : dataColumns;
+        var columns = TabularWorkspaceSqliteHelpers.BuildColumns(expandedHeader, rows);
+
+        List<List<string>> dataRows = [];
+        List<List<string>> rollupRows = [];
+
+        foreach (var row in rows)
+        {
+            (TabularWorksheetShaper.IsSubtotalRow(row) ? rollupRows : dataRows).Add(row);
+        }
 
         TabularWorkspaceSqliteHelpers.CreateTable(connection, tableName, columns);
 
-        if (rows.Count == 0)
+        if (dataRows.Count > 0)
         {
-            return columns;
+            InsertRows(connection, tableName, columns, dataRows, out _, cancellationToken);
         }
 
-        InsertRows(connection, tableName, columns, dataColumns, hasSubtotalColumn, rows, out _, cancellationToken);
+        if (rollupRows.Count > 0)
+        {
+            rollupTableName = TabularWorksheetShaper.GetRollupTableName(tableName);
+            TabularWorkspaceSqliteHelpers.CreateTable(connection, rollupTableName, columns);
+            InsertRows(connection, rollupTableName, columns, rollupRows, out _, cancellationToken);
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Separated {RollupRowCount} rollup row(s) from table '{TableName}' into '{RollupTableName}'.",
+                    rollupRows.Count,
+                    tableName,
+                    rollupTableName);
+            }
+        }
 
         return columns;
     }
@@ -919,8 +949,6 @@ internal sealed class TabularWorkspace : IDisposable
         SqliteConnection connection,
         string tableName,
         IReadOnlyList<TabularColumnInfo> columns,
-        IReadOnlyList<TabularColumnInfo> dataColumns,
-        bool hasSubtotalColumn,
         List<List<string>> rows,
         out int rowsPerBatch,
         CancellationToken cancellationToken)
@@ -968,18 +996,13 @@ internal sealed class TabularWorkspace : IDisposable
 
                 var row = rows[rowIndex];
 
-                for (var columnIndex = 0; columnIndex < dataColumns.Count; columnIndex++)
+                for (var columnIndex = 0; columnIndex < columns.Count; columnIndex++)
                 {
                     var value = columnIndex < row.Count ? row[columnIndex] : null;
 
-                    command.Parameters[columnIndex].Value = value is null || TabularWorkspaceSqliteHelpers.IsNullValue(dataColumns[columnIndex].DeclaredType, value)
+                    command.Parameters[columnIndex].Value = value is null || TabularWorkspaceSqliteHelpers.IsNullValue(columns[columnIndex].DeclaredType, value)
                         ? DBNull.Value
-                        : TabularWorkspaceSqliteHelpers.NormalizeCellValue(dataColumns[columnIndex].DeclaredType, value);
-                }
-
-                if (hasSubtotalColumn)
-                {
-                    command.Parameters[dataColumns.Count].Value = TabularWorksheetShaper.IsSubtotalRow(row) ? 1L : 0L;
+                        : TabularWorkspaceSqliteHelpers.NormalizeCellValue(columns[columnIndex].DeclaredType, value);
                 }
 
                 command.ExecuteNonQuery();

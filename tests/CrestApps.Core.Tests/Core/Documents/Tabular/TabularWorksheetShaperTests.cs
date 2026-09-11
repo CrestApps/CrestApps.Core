@@ -10,8 +10,8 @@ public sealed class TabularWorksheetShaperTests
         List<IReadOnlyList<string>> rows =
         [
             ["Site", "Campaign", "Revenue"],
-            ["True Blue", "BayCare", "71822.68"],
-            ["True Blue", "CARE", "9137.29"],
+            ["Northside", "Contoso", "80000.50"],
+            ["Northside", "Relecloud", "9000.00"],
         ];
 
         Assert.Equal(0, TabularWorksheetShaper.DetectHeaderRowIndex(rows));
@@ -24,8 +24,8 @@ public sealed class TabularWorksheetShaperTests
         List<IReadOnlyList<string>> rows =
         [
             ["", "", "46266", "", ""],
-            ["CSD", "Client Name", "Production", "Training", "Management"],
-            ["Alicia Welage", "BayCare", "74612.15", "0", "6452.88"],
+            ["AD", "Client Name", "Production", "Training", "Management"],
+            ["Dana Reed", "Contoso", "80000.00", "0", "7000.00"],
         ];
 
         Assert.Equal(1, TabularWorksheetShaper.DetectHeaderRowIndex(rows));
@@ -34,13 +34,13 @@ public sealed class TabularWorksheetShaperTests
     [Fact]
     public void DetectHeaderRowIndex_AllTextTable_KeepsFirstRowAsHeader()
     {
-        // A text-only table (like "CSD List"): header and data both carry two labels, so the earliest
+        // A text-only table (like "AD List"): header and data both carry two labels, so the earliest
         // row must win rather than a later data row.
         List<IReadOnlyList<string>> rows =
         [
-            ["Client Service Director", "Client Name"],
-            ["Alicia Welage", "BayCare - Cardiac Access:"],
-            ["Alicia Welage", "Hallmark"],
+            ["Account Director", "Client Name"],
+            ["Dana Reed", "Contoso - Unit A:"],
+            ["Dana Reed", "Proseware"],
         ];
 
         Assert.Equal(0, TabularWorksheetShaper.DetectHeaderRowIndex(rows));
@@ -64,7 +64,7 @@ public sealed class TabularWorksheetShaperTests
         List<string> header = ["Site", "Campaign"];
         List<IReadOnlyList<string>> data =
         [
-            ["True Blue", "BayCare", "Imaging"],
+            ["Northside", "Contoso", "Division A"],
         ];
 
         var expanded = TabularWorksheetShaper.ExpandHeader(header, data);
@@ -86,8 +86,8 @@ public sealed class TabularWorksheetShaperTests
 
     [Theory]
     [InlineData("Totals:", true)]
-    [InlineData("Waco Total", true)]
-    [InlineData("RDI Total", true)]
+    [InlineData("Rivertown Total", true)]
+    [InlineData("Company Total", true)]
     [InlineData("Grand Total", true)]
     [InlineData("Subtotal", true)]
     public void IsSubtotalRow_TotalLabelWithNumericValue_ReturnsTrue(string label, bool expected)
@@ -109,7 +109,7 @@ public sealed class TabularWorksheetShaperTests
     [Fact]
     public void IsSubtotalRow_OrdinaryDataRow_ReturnsFalse()
     {
-        List<string> row = ["True Blue", "BayCare", "71822.68"];
+        List<string> row = ["Northside", "Contoso", "80000.50"];
 
         Assert.False(TabularWorksheetShaper.IsSubtotalRow(row));
     }
@@ -120,5 +120,71 @@ public sealed class TabularWorksheetShaperTests
         List<string> row = ["Continental Widgets", "5000"];
 
         Assert.False(TabularWorksheetShaper.IsSubtotalRow(row));
+    }
+
+    /// <summary>
+    /// Rollup rows are moved out of the data table, so a false positive does not merely mislabel a row:
+    /// it removes real revenue from the figure the caller is asking for. A company whose name begins
+    /// with "Total" is a record, and the label heuristic has to leave it alone.
+    /// </summary>
+    [Theory]
+    [InlineData("Total Wine & More")]
+    [InlineData("Total Quality Logistics")]
+    [InlineData("Total System Services")]
+    [InlineData("Totally Awesome Widgets")]
+    public void IsSubtotalRow_CompanyNameBeginningWithTotal_ReturnsFalse(string name)
+    {
+        List<string> row = [name, "5000"];
+
+        Assert.False(TabularWorksheetShaper.IsSubtotalRow(row));
+    }
+
+    /// <summary>
+    /// The forms that genuinely are rollups: a label that is nothing but a total word, or one that ends
+    /// in it. Both appear in the reported workbook.
+    /// </summary>
+    [Theory]
+    [InlineData("Total")]
+    [InlineData("Totals:")]
+    [InlineData("Grand Total")]
+    [InlineData("Sub-total")]
+    [InlineData("Northside Total")]
+    [InlineData("Extra Site 1 Total")]
+    public void IsSubtotalRow_RollupLabel_ReturnsTrue(string label)
+    {
+        List<string> row = [label, "5000"];
+
+        Assert.True(TabularWorksheetShaper.IsSubtotalRow(row));
+    }
+
+    /// <summary>
+    /// Formula evidence outranks the label. A sheet that names its rollup rows after the group they
+    /// cover -- "Region A" rather than "Region A Total" -- still imports correctly, because the row's
+    /// own arithmetic says what it is.
+    /// </summary>
+    [Fact]
+    public void IsSubtotalRow_VerticalAggregateFormulaWithoutTotalLabel_ReturnsTrue()
+    {
+        List<string> row = ["Region A", "300"];
+
+        Assert.False(TabularWorksheetShaper.IsSubtotalRow(row));
+        Assert.True(TabularWorksheetShaper.IsSubtotalRow(row, hasVerticalAggregateFormula: true));
+    }
+
+    /// <summary>
+    /// Absent formula evidence the overload must not soften the label heuristic, so a delimited source
+    /// -- which never has formulas -- behaves exactly as before.
+    /// </summary>
+    [Fact]
+    public void IsSubtotalRow_NoFormulaEvidence_FallsBackToTheLabelHeuristic()
+    {
+        Assert.True(TabularWorksheetShaper.IsSubtotalRow(["Rivertown Total", "5000"], hasVerticalAggregateFormula: false));
+        Assert.False(TabularWorksheetShaper.IsSubtotalRow(["Rivertown", "5000"], hasVerticalAggregateFormula: false));
+    }
+
+    [Fact]
+    public void GetRollupTableName_AppendsTheRollupSuffix()
+    {
+        Assert.Equal("Client_Breakdown_rollups", TabularWorksheetShaper.GetRollupTableName("Client_Breakdown"));
     }
 }

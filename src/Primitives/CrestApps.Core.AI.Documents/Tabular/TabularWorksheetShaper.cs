@@ -10,14 +10,53 @@ namespace CrestApps.Core.AI.Documents.Tabular;
 /// in-memory artifact/CSV path, and the metadata tools) so a workbook is interpreted the same way no
 /// matter which path loads it.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Terminology used throughout this type, because the distinction decides whether a total is right:
+/// </para>
+/// <para>
+/// A <strong>rollup row</strong> (also called a subtotal, total, or grand-total row) is a row whose
+/// values aggregate <em>other rows of the same table</em> -- a "Region Total" line printed beneath the
+/// rows it covers, or a grand total printed beneath those. It restates figures that are already
+/// present, so leaving it among them makes a plain <c>SUM</c> down the column count every underlying
+/// row at least twice. On a sheet with per-group subtotals and a grand total over them, the result is
+/// three times the true figure. These rows are what this type detects and what the importers move into
+/// a separate table.
+/// </para>
+/// <para>
+/// A <strong>row total column</strong> (or line-total column) is the opposite arrangement and is
+/// harmless: a column whose value aggregates <em>other columns within its own row</em> -- a "Total"
+/// column adding that record's components together. Every row still represents one record, so summing
+/// that column down the rows is exactly correct. Nothing here treats such a column as a rollup, and
+/// there is deliberately no notion of a "rollup column": duplication only arises along the axis a
+/// <c>SUM</c> travels, which is rows.
+/// </para>
+/// </remarks>
 public static partial class TabularWorksheetShaper
 {
     /// <summary>
-    /// The name of the synthetic flag column appended to a table when embedded subtotal/total rows are
-    /// detected. The column holds <c>1</c> for a suspected rollup row and <c>0</c> for a data row, so
-    /// aggregate queries can exclude rollups with <c>WHERE is_subtotal = 0</c>.
+    /// The suffix appended to a table's name to form the sibling table that holds its rollup rows.
     /// </summary>
-    public const string SubtotalColumnName = "is_subtotal";
+    public const string RollupTableSuffix = "_rollups";
+
+    /// <summary>
+    /// Builds the name of the sibling table that holds <paramref name="tableName"/>'s rollup rows.
+    /// </summary>
+    /// <remarks>
+    /// Subtotal and grand-total rows are aggregates of other rows, so keeping them in the same table as
+    /// the rows they summarize makes the obvious query wrong: a plain <c>SUM</c> over the column counts
+    /// every underlying row once as itself and again inside each rollup that covers it. Excluding them
+    /// by convention -- a flag column the caller is asked to filter on -- fails whenever the filter is
+    /// forgotten, and the result looks entirely plausible when it happens. Separating the two grains
+    /// into separate tables makes the default query correct instead, and keeps the sheet's own totals
+    /// available here to reconcile against.
+    /// </remarks>
+    /// <param name="tableName">The data table's name.</param>
+    /// <returns>The sibling rollup table's name.</returns>
+    public static string GetRollupTableName(string tableName)
+    {
+        return string.Concat(tableName, RollupTableSuffix);
+    }
 
     /// <summary>
     /// The maximum number of leading rows examined when locating the header row. Title banners and
@@ -169,9 +208,38 @@ public static partial class TabularWorksheetShaper
     }
 
     /// <summary>
+    /// Determines whether a data row is an embedded subtotal/total rollup rather than a genuine record,
+    /// using the strongest evidence available.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A spreadsheet formula is definitive evidence and is preferred whenever the source format carries
+    /// one. A rollup aggregates <em>other rows</em> of the same column (<c>=SUM(C2:C27)</c> on the row
+    /// beneath them), so including it double-counts every row it covers. An ordinary record may also
+    /// hold a <c>SUM</c>, but only across <em>its own</em> cells (<c>=SUM(G27,E27,H27)</c>) -- a
+    /// cross-column line total, which sums correctly down a column and must be kept. That distinction
+    /// is what <paramref name="hasVerticalAggregateFormula"/> carries; see
+    /// <c>OpenXmlTabularWorksheetReader</c> for how it is derived.
+    /// </para>
+    /// <para>
+    /// Delimited sources (CSV/TSV) and value-only workbooks have no formulas, so the label heuristic
+    /// remains as a fallback: a total-style label alongside at least one numeric value.
+    /// </para>
+    /// </remarks>
+    /// <param name="row">The data row to classify.</param>
+    /// <param name="hasVerticalAggregateFormula">
+    /// <see langword="true"/> when a cell in this row aggregates other rows of the sheet.
+    /// </param>
+    /// <returns><see langword="true"/> when the row is a subtotal/total rollup.</returns>
+    public static bool IsSubtotalRow(IReadOnlyList<string> row, bool hasVerticalAggregateFormula)
+    {
+        return hasVerticalAggregateFormula || IsSubtotalRow(row);
+    }
+
+    /// <summary>
     /// Determines whether a data row is an embedded subtotal/total rollup rather than a genuine record.
     /// A row qualifies when it carries a total-style label (for example <c>Totals:</c> or
-    /// <c>Waco Total</c>) alongside at least one numeric value, which distinguishes a rollup line from
+    /// <c>Rivertown Total</c>) alongside at least one numeric value, which distinguishes a rollup line from
     /// an ordinary row that merely happens to contain the word "total".
     /// </summary>
     /// <param name="row">The data row to classify.</param>
@@ -351,8 +419,11 @@ public static partial class TabularWorksheetShaper
         return TotalLabelRegex().IsMatch(value);
     }
 
-    // Matches a leading "total"/"subtotal"/"grand total" (as in "Totals:") or a trailing one (as in
-    // "Waco Total"). Anchored to word boundaries so a substring like "Totally Fun Inc" does not match.
-    [GeneratedRegex(@"(^\s*(grand\s+)?(sub[-\s]?)?totals?\b|\btotals?\s*:?\s*$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // Matches a label that is entirely a total word (as in "Totals:", "Grand Total", "Subtotal") or one
+    // that ends in a total word (as in "Rivertown Total"). The leading form is deliberately anchored to the
+    // whole label rather than to a word boundary: a real company name that merely begins with "Total"
+    // -- "Total Wine & More", "Total Quality Logistics" -- is a data row, and treating it as a rollup
+    // would move genuine revenue out of the table.
+    [GeneratedRegex(@"^\s*((grand\s+)?(sub[-\s]?)?totals?\s*[:.]?\s*$|.*\btotals?\s*[:.]?\s*$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TotalLabelRegex();
 }

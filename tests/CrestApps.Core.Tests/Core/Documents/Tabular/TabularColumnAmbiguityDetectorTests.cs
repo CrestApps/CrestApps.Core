@@ -69,7 +69,7 @@ public sealed class TabularColumnAmbiguityDetectorTests
     {
         var columns = new List<(string Name, bool IsNumeric)>
         {
-            ("CSD", false),
+            ("AD", false),
             ("Client_Name", false),
             ("Production_2026_09_01", true),
             ("Training_2026_09_01", true),
