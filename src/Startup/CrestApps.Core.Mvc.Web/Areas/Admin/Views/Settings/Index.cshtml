@@ -726,6 +726,46 @@
                             }
                         }
                     </div>
+                    <hr />
+                    <p class="text-muted mb-2">
+                        Choose which AI agents are exposed to MCP clients as callable tools. Invoking an agent runs
+                        its whole profile, so it uses the tools, data sources, and connections that profile
+                        configures &mdash; none of which this list grants or restricts, and none of which become
+                        directly callable by being used.
+                    </p>
+                    <div class="alert alert-warning py-2">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        An exposed agent can be run by any client that passes this server's authentication. Add
+                        agents that hold privileged tools or credentials deliberately.
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input asp-for="McpServerExposeAllAgents" class="form-check-input" type="checkbox" />
+                        <label asp-for="McpServerExposeAllAgents" class="form-check-label">Expose all agents</label>
+                    </div>
+                    <div class="mb-3 @(Model.McpServerExposeAllAgents ? "d-none" : null)" data-mcp-exposed-agents-picker="true">
+                        <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-user-astronaut"></i> Exposed agents</h6>
+                        @if (Model.McpServerAvailableAgents.Count == 0)
+                        {
+                            <div class="alert alert-info mb-0">
+                                <i class="fa-solid fa-circle-info"></i> No AI agents with a description are available. An agent needs a description before it can be exposed, because that is all an MCP client has to go on.
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var agent in Model.McpServerAvailableAgents)
+                            {
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="McpServerSelectedAgentNames" value="@agent.Name" id="mcp_agent_@agent.Name" @(agent.IsSelected ? "checked" : null) />
+                                    <label class="form-check-label" for="mcp_agent_@agent.Name">
+                                        <strong>@agent.Name</strong>
+                                        <br />
+
+                                        <small class="text-muted">@agent.Description</small>
+                                    </label>
+                                </div>
+                            }
+                        }
+                    </div>
                 </div>
             </div>
 
@@ -1044,6 +1084,18 @@
 
         exposeAllTools.addEventListener('change', updateExposedToolsVisibility);
         updateExposedToolsVisibility();
+
+        const exposeAllAgents = document.getElementById('@Html.IdFor(m => m.McpServerExposeAllAgents)');
+        const exposedAgentsPicker = document.querySelector('[data-mcp-exposed-agents-picker="true"]');
+
+        if (exposeAllAgents && exposedAgentsPicker) {
+            const updateExposedAgentsVisibility = function () {
+                exposedAgentsPicker.classList.toggle('d-none', exposeAllAgents.checked);
+            };
+
+            exposeAllAgents.addEventListener('change', updateExposedAgentsVisibility);
+            updateExposedAgentsVisibility();
+        }
 
         if (selectAllTools) {
             selectAllTools.addEventListener('click', function () {
