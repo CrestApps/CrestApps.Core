@@ -180,16 +180,98 @@ internal sealed class CloudflareRealtimeIceServerProvider : IRealtimeIceServerPr
             throw new InvalidOperationException("Cloudflare returned no ICE servers.");
         }
 
-        // Returned verbatim. Cloudflare answers with its own STUN entry plus a TURN entry spanning UDP, TCP,
-        // and TLS on 443 -- the last of which is what gets a caller out of a network that allows nothing else.
-        // Narrowing the list, or mixing in separately configured servers, is how a deployment ends up relaying
-        // through a URL the credentials were never issued for.
-        return [.. payload.IceServers.Select(static server => new WebRtcIceServer
+        var servers = payload.IceServers.Select(static server => new WebRtcIceServer
         {
             Urls = server.Urls ?? [],
             Username = server.Username,
             Credential = server.Credential,
-        })];
+        });
+
+        return KeepOneUrlPerTransport(servers);
+    }
+
+    /// <summary>
+    /// Reduces the issued URLs to one per scheme and transport, keeping the order Cloudflare listed them in.
+    /// </summary>
+    /// <param name="servers">The servers exactly as they were issued.</param>
+    /// <remarks>
+    /// <para>
+    /// Cloudflare answers with a matrix rather than a list: every combination of STUN and TURN, UDP, TCP and
+    /// TLS, each on both its standard port and a port chosen to slip through restrictive firewalls. Browsers
+    /// count URLs and not entries when they decide how much work gathering will be, and Chrome warns past five
+    /// of them because it gathers against all of them -- as does the SIPSorcery peer on this side, which is
+    /// handed the same list and will allocate relays it never uses.
+    /// </para>
+    /// <para>
+    /// Keeping one URL per scheme and transport leaves every route out of a network intact -- direct, relayed
+    /// over UDP, over TCP, and over TLS -- while removing only the duplicate ports that offer another way to
+    /// reach a relay already reachable. Which port survives is Cloudflare's choice rather than ours: the first
+    /// it lists for a transport wins, so the order it considers preferable is the order that is honored.
+    /// </para>
+    /// <para>
+    /// This narrows what Cloudflare issued; it never mixes in servers from elsewhere. The credentials are
+    /// minted for the whole matrix, so every URL kept is one they were issued for. The configured-servers
+    /// provider deliberately does no such thing: that list is written by hand, and every URL in it is a
+    /// deployment's explicit choice rather than a generated permutation.
+    /// </para>
+    /// </remarks>
+    private static List<WebRtcIceServer> KeepOneUrlPerTransport(IEnumerable<WebRtcIceServer> servers)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var kept = new List<WebRtcIceServer>();
+
+        foreach (var server in servers)
+        {
+            // Filtered within the entry rather than across the whole response, so each URL stays attached to
+            // the credentials it was issued with. An entry left with nothing is dropped: an ICE server with no
+            // URL is not something to hand a browser.
+            var urls = server.Urls.Where(url => !string.IsNullOrWhiteSpace(url) && seen.Add(TransportKey(url))).ToArray();
+
+            if (urls.Length == 0)
+            {
+                continue;
+            }
+
+            kept.Add(new WebRtcIceServer
+            {
+                Urls = urls,
+                Username = server.Username,
+                Credential = server.Credential,
+            });
+        }
+
+        // Every URL being unrecognisable is not a reason to hand back nothing -- that would drop the caller to
+        // the configured servers, which for a Cloudflare deployment usually means no relay at all. Whatever was
+        // issued is better than that.
+        return kept.Count > 0 ? kept : [.. servers];
+    }
+
+    /// <summary>
+    /// Identifies the route a URL represents, so two URLs that differ only by port collapse together.
+    /// </summary>
+    /// <param name="url">The ICE server URL.</param>
+    /// <remarks>
+    /// The transport is read from the query parameter RFC 7065 defines for it. Its absence is not ambiguity:
+    /// the same RFC settles the default as UDP for <c>turn:</c> and TCP for <c>turns:</c>, which is what the
+    /// browser will assume, so that is what is recorded here.
+    /// </remarks>
+    private static string TransportKey(string url)
+    {
+        var scheme = url.Split(':', 2)[0].Trim();
+
+        var transportIndex = url.IndexOf("transport=", StringComparison.OrdinalIgnoreCase);
+
+        if (transportIndex >= 0)
+        {
+            var transport = url[(transportIndex + "transport=".Length)..].Split('&', 2)[0].Trim();
+
+            return $"{scheme}/{transport}".ToLowerInvariant();
+        }
+
+        var isTls = scheme.Equals("turns", StringComparison.OrdinalIgnoreCase) ||
+                    scheme.Equals("stuns", StringComparison.OrdinalIgnoreCase);
+
+        return $"{scheme}/{(isTls ? "tcp" : "udp")}".ToLowerInvariant();
     }
 
     /// <inheritdoc />

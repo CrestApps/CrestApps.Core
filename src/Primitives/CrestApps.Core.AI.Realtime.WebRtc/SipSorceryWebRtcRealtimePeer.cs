@@ -244,6 +244,24 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         var opusFormat = new AudioFormat(AudioCodecsEnum.OPUS, OpusPayloadType, 48000, 2);
         _pc.addTrack(new MediaStreamTrack(opusFormat, MediaStreamStatusEnum.SendRecv));
 
+        // Set after the track exists: the setter fans the value out to the media streams already in the session
+        // rather than only recording it for streams added later.
+        //
+        // A browser relaying through TURN sends its media from the relay's address, which is not the address
+        // SIPSorcery recorded as the destination when ICE nominated the pair. SIPSorcery only re-points the
+        // destination on a mismatch when the address it expected was a private one — the NAT case — so a public
+        // relay address falls through to a warning instead. The warning path leaves the remote track's SSRC
+        // unset, which is the condition guarding the check, so the next packet takes the same branch: a warning
+        // per RTP packet, fifty times a second, for the length of the call. The media was never affected — the
+        // packet is processed either way — which is why this showed up as log volume and not as broken audio.
+        // Leaving the SSRC at zero does cost the RTCP reports the track they belong to, though.
+        //
+        // Accepting RTP from any end point is the property SIPSorcery offers for this decision, and it concedes
+        // nothing on a WebRTC session: a packet still has to survive ICE and then SRTP unprotection with keys
+        // from the DTLS handshake, so nothing that has not completed that handshake can inject audio, whatever
+        // address it sends from.
+        _pc.AcceptRtpFromAny = true;
+
         _silenceFrame = EncodeSilenceFrame();
 
         _pc.onicecandidate += OnLocalIceCandidate;

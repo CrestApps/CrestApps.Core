@@ -29,6 +29,31 @@ public sealed class CloudflareRealtimeIceServerProviderTests
     }
     """;
 
+    private const string MatrixResponse = """
+    {
+        "iceServers": [
+            {
+                "urls": [
+                    "stun:stun.cloudflare.com:3478",
+                    "stun:stun.cloudflare.com:53"
+                ]
+            },
+            {
+                "urls": [
+                    "turn:turn.cloudflare.com:3478?transport=udp",
+                    "turn:turn.cloudflare.com:53?transport=udp",
+                    "turn:turn.cloudflare.com:3478?transport=tcp",
+                    "turn:turn.cloudflare.com:80?transport=tcp",
+                    "turns:turn.cloudflare.com:5349?transport=tcp",
+                    "turns:turn.cloudflare.com:443?transport=tcp"
+                ],
+                "username": "cf-user",
+                "credential": "cf-credential"
+            }
+        ]
+    }
+    """;
+
     [Fact]
     public async Task GetIceServersAsync_WhenTheKeyIsNotConfigured_UsesTheConfiguredServersAndCallsNothing()
     {
@@ -66,8 +91,8 @@ public sealed class CloudflareRealtimeIceServerProviderTests
         Assert.Equal("Bearer token-1", request.Authorization);
         Assert.Contains("\"ttl\":600", request.Body);
 
-        // Returned verbatim: the TLS entry on 443 is what gets a caller out of a locked-down network, so
-        // narrowing the list would quietly remove the case TURN exists for.
+        // Every entry here is a different transport, so nothing is collapsed: the TLS entry on 443 is what gets
+        // a caller out of a locked-down network, and losing it would remove the case TURN exists for.
         Assert.Equal(2, servers.Count);
         Assert.Equal(["stun:stun.cloudflare.com:3478"], servers[0].Urls);
         Assert.Equal(
@@ -75,6 +100,93 @@ public sealed class CloudflareRealtimeIceServerProviderTests
             servers[1].Urls);
         Assert.Equal("cf-user", servers[1].Username);
         Assert.Equal("cf-credential", servers[1].Credential);
+    }
+
+    [Fact]
+    public async Task GetIceServersAsync_WhenAPortIsOfferedTwiceForOneTransport_KeepsOnlyTheFirst()
+    {
+        // Arrange
+        // The shape Cloudflare actually answers with: every transport twice, once on its standard port and
+        // once on a port picked to slip through a restrictive firewall. Browsers count URLs rather than
+        // entries when they size up gathering, and so does the peer on this side.
+        var handler = new RecordingHandler(MatrixResponse);
+        var provider = CreateProvider(handler, Configured(), out _);
+
+        // Act
+        var servers = await provider.GetIceServersAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        // One route out of the network each -- direct, relayed over UDP, over TCP, over TLS -- and the first
+        // port Cloudflare listed for each, because the order it prefers is the order that is honored.
+        var urls = servers.SelectMany(server => server.Urls).ToArray();
+
+        Assert.Equal(
+            [
+                "stun:stun.cloudflare.com:3478",
+                "turn:turn.cloudflare.com:3478?transport=udp",
+                "turn:turn.cloudflare.com:3478?transport=tcp",
+                "turns:turn.cloudflare.com:5349?transport=tcp",
+            ],
+            urls);
+
+        // Comfortably under the five that makes a browser warn about how long gathering will take.
+        Assert.True(urls.Length < 5);
+    }
+
+    [Fact]
+    public async Task GetIceServersAsync_WhenAUrlIsTrimmed_TheCredentialsStayWithTheUrlsTheyWereIssuedFor()
+    {
+        // Arrange
+        // Filtering must happen inside each entry. Flattening the response into one list would leave a URL
+        // presented with a credential pair minted for a different entry, which the relay would reject.
+        var handler = new RecordingHandler(MatrixResponse);
+        var provider = CreateProvider(handler, Configured(), out _);
+
+        // Act
+        var servers = await provider.GetIceServersAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var stun = Assert.Single(servers, server => server.Urls.All(url => url.StartsWith("stun:", StringComparison.Ordinal)));
+        Assert.Null(stun.Username);
+        Assert.Null(stun.Credential);
+
+        var relay = Assert.Single(servers, server => server.Urls.Any(url => url.StartsWith("turn", StringComparison.Ordinal)));
+        Assert.Equal("cf-user", relay.Username);
+        Assert.Equal("cf-credential", relay.Credential);
+    }
+
+    [Fact]
+    public async Task GetIceServersAsync_WhenTheTransportIsUnstated_ReadsTheDefaultFromTheScheme()
+    {
+        // Arrange
+        // RFC 7065 settles the default the browser will assume -- UDP for turn:, TCP for turns: -- so a URL
+        // that states no transport still collapses against the one that states the same thing explicitly.
+        const string Response = """
+        {
+            "iceServers": [
+                {
+                    "urls": [
+                        "turn:turn.example.com:3478",
+                        "turn:turn.example.com:53?transport=udp",
+                        "turns:turn.example.com:5349",
+                        "turns:turn.example.com:443?transport=tcp"
+                    ],
+                    "username": "u",
+                    "credential": "c"
+                }
+            ]
+        }
+        """;
+
+        var handler = new RecordingHandler(Response);
+        var provider = CreateProvider(handler, Configured(), out _);
+
+        // Act
+        var servers = await provider.GetIceServersAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var server = Assert.Single(servers);
+        Assert.Equal(["turn:turn.example.com:3478", "turns:turn.example.com:5349"], server.Urls);
     }
 
     [Fact]
