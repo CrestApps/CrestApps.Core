@@ -513,6 +513,76 @@ For simpler setups you can use a long-lived username and password instead of a s
 
 If `TurnUrls` is set but neither a secret nor static credentials are provided, no TURN entry is offered (there would be nothing to authenticate with).
 
+Static credentials are the wrong tool for a hosted TURN service. Cloudflare and Twilio issue credentials with a
+fixed lifetime — often 24 hours — so pasting a generated username and password here means realtime voice stops
+working the next day, and the failure is quiet: the relay is refused, ICE falls back, and callers behind a strict
+NAT simply get no audio. Use the section below instead.
+
+### TURN through Cloudflare Realtime
+
+Cloudflare does not expose a shared secret, so credentials cannot be signed locally the way coturn's
+`use-auth-secret` allows — they are issued by an API call. Register the provider and give it the TURN key:
+
+```csharp
+services.AddCloudflareRealtimeTurn();
+```
+
+```json
+{
+  "CrestApps": {
+    "AI": {
+      "RealtimeTransport": {
+        "Cloudflare": {
+          "KeyId": "<TURN Token ID>",
+          "ApiToken": "<API token>",
+          "TtlSeconds": 86400
+        }
+      }
+    }
+  }
+}
+```
+
+Nothing here expires. The key and token are long-lived, and every credential a browser sees is minted on demand,
+so there is no rotation step to forget. Credentials are reused until they are halfway through `TtlSeconds` and
+then replaced, which means roughly two API calls per lifetime rather than one per connection, and a credential
+handed to a browser is always valid for at least as long again — no call can outlive the credentials it started
+with.
+
+Cloudflare answers with its own STUN entry plus TURN URLs spanning UDP, TCP, and TLS on 443, and all of them are
+offered to the browser as returned. Do not narrow the list to a single `turn:` URL: the TLS entry on 443 is what
+gets a caller out of a network that allows nothing else. `StunUrls` and `TurnUrls` are ignored while Cloudflare is
+configured, because credentials issued for one relay do not authenticate against another.
+
+Two behaviours are worth knowing. While `KeyId` and `ApiToken` are unset the provider does nothing and whatever
+was configured above still applies, so registering it before the key exists is safe. And if Cloudflare cannot be
+reached, the credentials already issued keep being served — they are good for about half their lifetime — rather
+than dropping every caller to STUN only; the failure is logged and retried within 30 seconds.
+
+Changing `KeyId` or `ApiToken` at runtime, from an administration screen or a rotating secret store, takes effect
+on the next connection: the options are watched and the cached credentials dropped.
+
+### Sourcing ICE servers from somewhere else
+
+Both halves of a session — the list handed to the browser and the server-relay peer itself — resolve through
+`IRealtimeIceServerProvider`, so they can never disagree about which relay to use or which credentials to present.
+Implement it to reach any other TURN service:
+
+```csharp
+public sealed class TwilioIceServerProvider : IRealtimeIceServerProvider
+{
+    public async ValueTask<IReadOnlyList<WebRtcIceServer>> GetIceServersAsync(CancellationToken cancellationToken = default)
+    {
+        // Mint credentials however the service requires, then return them.
+    }
+}
+
+services.AddSingleton<IRealtimeIceServerProvider, TwilioIceServerProvider>();
+```
+
+The method is asynchronous precisely so an implementation may fetch credentials over the network. One that needs
+no I/O should return a completed `ValueTask`, which allocates nothing.
+
 ### Options reference
 
 | Property | Purpose |
@@ -526,7 +596,9 @@ If `TurnUrls` is set but neither a secret nor static credentials are provided, n
 | `TurnUrls` | TURN server URLs (`turn:`/`turns:`). Empty means no relay. |
 | `TurnSecret` | coturn `use-auth-secret` shared secret; enables ephemeral credentials. |
 | `TurnCredentialTtlSeconds` | Lifetime of a minted ephemeral credential (default 3600). |
-| `TurnUsername` / `TurnCredential` | Static TURN credentials, used only when `TurnSecret` is unset. |
+| `TurnUsername` / `TurnCredential` | Static TURN credentials, used only when `TurnSecret` is unset. Not suitable for a hosted TURN service, whose credentials expire. |
+| `Cloudflare:KeyId` / `Cloudflare:ApiToken` | Cloudflare Realtime TURN key. When both are set, credentials are minted per lifetime and the STUN and TURN properties above are ignored. |
+| `Cloudflare:TtlSeconds` | Lifetime requested for each Cloudflare credential (default 86400). Refreshed at half this. |
 
 ## Verifying which transport a session used
 

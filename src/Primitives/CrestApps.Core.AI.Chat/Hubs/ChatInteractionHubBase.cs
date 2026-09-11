@@ -910,7 +910,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 var registry = services.GetRequiredService<WebRtcRealtimePeerRegistry>();
                 var caller = Clients.Caller;
 
-                await using var peer = await peerFactory.CreateAsync(offerSdp, GetIceServers(services), cancellationToken);
+                await using var peer = await peerFactory.CreateAsync(offerSdp, await GetIceServersAsync(services, cancellationToken), cancellationToken);
                 // A second voice session on the same connection displaces the first; dispose it rather than
                 // leaving a live peer holding its sockets and pacing loop for the rest of the connection.
                 var displaced = registry.Add(connectionId, peer);
@@ -1012,11 +1012,9 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     {
         IReadOnlyList<RealtimeIceServerModel> servers = [];
 
-        await RunInScopeAsync(services =>
+        await RunInScopeAsync(async services =>
         {
-            servers = [.. GetIceServers(services).Select(RealtimeIceServerModel.From)];
-
-            return Task.CompletedTask;
+            servers = [.. (await GetIceServersAsync(services)).Select(RealtimeIceServerModel.From)];
         });
 
         return servers;
@@ -1194,11 +1192,15 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     }
 
     /// <summary>
-    /// Gets the ICE (STUN/TURN) servers offered to the browser for the server-relay WebRTC peer. Phase 1 uses a
-    /// public STUN server for local/same-network use; TURN for production behind NAT is configured later.
+    /// Gets the ICE (STUN/TURN) servers offered to the browser for the server-relay WebRTC peer, and used by
+    /// that peer itself so the two never disagree about which relay to use.
     /// </summary>
-    private static IReadOnlyList<WebRtcIceServer> GetIceServers(IServiceProvider services)
-        => RealtimeWebRtcIceServers.Resolve(services);
+    /// <remarks>
+    /// Asynchronous because a hosted TURN service mints its credentials over HTTP. A deployment that names its
+    /// servers in configuration resolves without any I/O.
+    /// </remarks>
+    private static ValueTask<IReadOnlyList<WebRtcIceServer>> GetIceServersAsync(IServiceProvider services, CancellationToken cancellationToken = default)
+        => RealtimeWebRtcIceServers.ResolveAsync(services, cancellationToken);
 
     /// <summary>
     /// Gets the message returned when the WebRTC transport is not available on the server.

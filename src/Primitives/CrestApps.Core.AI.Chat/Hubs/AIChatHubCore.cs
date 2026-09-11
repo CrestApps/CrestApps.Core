@@ -1243,7 +1243,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 var registry = services.GetRequiredService<WebRtcRealtimePeerRegistry>();
                 var caller = Clients.Caller;
 
-                await using var peer = await peerFactory.CreateAsync(offerSdp, RealtimeWebRtcIceServers.Resolve(services), cancellationToken);
+                await using var peer = await peerFactory.CreateAsync(offerSdp, await RealtimeWebRtcIceServers.ResolveAsync(services, cancellationToken), cancellationToken);
                 // A second voice session on the same connection displaces the first; dispose it rather than
                 // leaving a live peer holding its sockets and pacing loop for the rest of the connection.
                 var displaced = registry.Add(connectionId, peer);
@@ -1384,11 +1384,9 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     {
         IReadOnlyList<RealtimeIceServerModel> servers = [];
 
-        await RunInScopeAsync(services =>
+        await RunInScopeAsync(async services =>
         {
-            servers = [.. RealtimeWebRtcIceServers.Resolve(services).Select(RealtimeIceServerModel.From)];
-
-            return Task.CompletedTask;
+            servers = [.. (await RealtimeWebRtcIceServers.ResolveAsync(services)).Select(RealtimeIceServerModel.From)];
         });
 
         return servers;
