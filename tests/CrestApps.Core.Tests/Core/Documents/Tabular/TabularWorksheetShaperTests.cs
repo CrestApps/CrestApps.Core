@@ -121,4 +121,70 @@ public sealed class TabularWorksheetShaperTests
 
         Assert.False(TabularWorksheetShaper.IsSubtotalRow(row));
     }
+
+    /// <summary>
+    /// Rollup rows are moved out of the data table, so a false positive does not merely mislabel a row:
+    /// it removes real revenue from the figure the caller is asking for. A company whose name begins
+    /// with "Total" is a record, and the label heuristic has to leave it alone.
+    /// </summary>
+    [Theory]
+    [InlineData("Total Wine & More")]
+    [InlineData("Total Quality Logistics")]
+    [InlineData("Total System Services")]
+    [InlineData("Totally Awesome Widgets")]
+    public void IsSubtotalRow_CompanyNameBeginningWithTotal_ReturnsFalse(string name)
+    {
+        List<string> row = [name, "5000"];
+
+        Assert.False(TabularWorksheetShaper.IsSubtotalRow(row));
+    }
+
+    /// <summary>
+    /// The forms that genuinely are rollups: a label that is nothing but a total word, or one that ends
+    /// in it. Both appear in the reported workbook.
+    /// </summary>
+    [Theory]
+    [InlineData("Total")]
+    [InlineData("Totals:")]
+    [InlineData("Grand Total")]
+    [InlineData("Sub-total")]
+    [InlineData("True Blue Total")]
+    [InlineData("Extra Site 1 Total")]
+    public void IsSubtotalRow_RollupLabel_ReturnsTrue(string label)
+    {
+        List<string> row = [label, "5000"];
+
+        Assert.True(TabularWorksheetShaper.IsSubtotalRow(row));
+    }
+
+    /// <summary>
+    /// Formula evidence outranks the label. A sheet that names its rollup rows after the group they
+    /// cover -- "Region A" rather than "Region A Total" -- still imports correctly, because the row's
+    /// own arithmetic says what it is.
+    /// </summary>
+    [Fact]
+    public void IsSubtotalRow_VerticalAggregateFormulaWithoutTotalLabel_ReturnsTrue()
+    {
+        List<string> row = ["Region A", "300"];
+
+        Assert.False(TabularWorksheetShaper.IsSubtotalRow(row));
+        Assert.True(TabularWorksheetShaper.IsSubtotalRow(row, hasVerticalAggregateFormula: true));
+    }
+
+    /// <summary>
+    /// Absent formula evidence the overload must not soften the label heuristic, so a delimited source
+    /// -- which never has formulas -- behaves exactly as before.
+    /// </summary>
+    [Fact]
+    public void IsSubtotalRow_NoFormulaEvidence_FallsBackToTheLabelHeuristic()
+    {
+        Assert.True(TabularWorksheetShaper.IsSubtotalRow(["Waco Total", "5000"], hasVerticalAggregateFormula: false));
+        Assert.False(TabularWorksheetShaper.IsSubtotalRow(["Waco", "5000"], hasVerticalAggregateFormula: false));
+    }
+
+    [Fact]
+    public void GetRollupTableName_AppendsTheRollupSuffix()
+    {
+        Assert.Equal("Client_Breakdown_rollups", TabularWorksheetShaper.GetRollupTableName("Client_Breakdown"));
+    }
 }

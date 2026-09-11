@@ -160,11 +160,13 @@ public sealed class OpenXmlTabularWorkspaceImporterTests
     }
 
     /// <summary>
-    /// Problem: embedded subtotal/total rows were imported as data and double-counted by aggregates.
-    /// They must be flagged in an is_subtotal column so they can be excluded, while still being kept.
+    /// Problem: embedded subtotal/total rows were imported alongside the rows they summarize, so a plain
+    /// SUM double-counted them. Excluding them by convention (a flag column the caller has to filter on)
+    /// fails silently whenever the filter is forgotten, so the two grains are separated into two tables
+    /// instead: the data table must sum correctly with no filter at all.
     /// </summary>
     [Fact]
-    public async Task ImportAsync_SubtotalRows_AreFlaggedAndExcludableFromAggregates()
+    public async Task ImportAsync_SubtotalRows_AreSeparatedIntoRollupTable()
     {
         using var stream = BuildWorkbook(new SheetSpec("Breakdown",
         [
@@ -177,23 +179,197 @@ public sealed class OpenXmlTabularWorkspaceImporterTests
         ]));
 
         using var connection = OpenConnection();
-        var result = Assert.Single(await ImportAsync(stream, "breakdown.xlsx", connection));
+        var results = await ImportAsync(stream, "breakdown.xlsx", connection);
 
-        Assert.Contains("is_subtotal", ColumnNames(connection, result.TableName));
+        Assert.Equal(2, results.Count);
+        var data = results[0];
+        var rollups = results[1];
+        Assert.Equal(TabularWorksheetShaper.GetRollupTableName(data.TableName), rollups.TableName);
 
-        // All rows are kept.
-        Assert.Equal(5L, Scalar(connection, $"SELECT COUNT(*) FROM {Quote(result.TableName)}"));
-        // Two rollup rows are flagged.
-        Assert.Equal(2L, Scalar(connection, $"SELECT COUNT(*) FROM {Quote(result.TableName)} WHERE is_subtotal = 1"));
-        // Excluding them yields the true total (100 + 200 + 50) rather than the double-counted 1000.
-        Assert.Equal(350L, Scalar(connection, $"SELECT SUM(Revenue) FROM {Quote(result.TableName)} WHERE is_subtotal = 0"));
+        // The unqualified aggregate -- the one the model actually writes -- is now correct on its own.
+        Assert.Equal(350L, Scalar(connection, $"SELECT SUM(Revenue) FROM {Quote(data.TableName)}"));
+        Assert.Equal(3L, Scalar(connection, $"SELECT COUNT(*) FROM {Quote(data.TableName)}"));
+
+        // Nothing is lost: the sheet's own totals stay available to reconcile against.
+        Assert.Equal(2L, Scalar(connection, $"SELECT COUNT(*) FROM {Quote(rollups.TableName)}"));
+        Assert.Equal(650L, Scalar(connection, $"SELECT SUM(Revenue) FROM {Quote(rollups.TableName)}"));
+
+        // The flag column is gone; separation replaced it.
+        Assert.DoesNotContain("is_subtotal", ColumnNames(connection, data.TableName));
     }
 
     /// <summary>
-    /// Problem: a table with no subtotal rows should not gain an is_subtotal column.
+    /// Problem: a rollup row proves itself through its formula, not its label. A vertical aggregate
+    /// (=SUM over other rows) is a rollup even when the row carries no "Total" wording at all, which is
+    /// how a sheet that labels its rollups "Site 1" or leaves them blank still imports correctly.
     /// </summary>
     [Fact]
-    public async Task ImportAsync_NoSubtotalRows_OmitsIsSubtotalColumn()
+    public async Task ImportAsync_VerticalAggregateFormulaWithoutTotalLabel_IsSeparated()
+    {
+        using var stream = BuildWorkbook(new SheetSpec("Breakdown",
+        [
+            ["Site", "Revenue"],
+            ["Henderson", "100"],
+            ["Milford", "200"],
+            ["Region A", "=SUM(B2:B3)|300"],
+        ]));
+
+        using var connection = OpenConnection();
+        var results = await ImportAsync(stream, "breakdown.xlsx", connection);
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal(300L, Scalar(connection, $"SELECT SUM(Revenue) FROM {Quote(results[0].TableName)}"));
+        Assert.Equal("Region A", Scalar(connection, $"SELECT Site FROM {Quote(results[1].TableName)}"));
+    }
+
+    /// <summary>
+    /// Problem: the mirror image of the case above, and the one that makes formula evidence safe to act
+    /// on. A row total (=SUM across its own cells) is an ordinary record -- summing that column down the
+    /// rows is exactly right -- so it must stay in the data table. Only aggregates over *other rows*
+    /// double-count.
+    /// </summary>
+    [Fact]
+    public async Task ImportAsync_HorizontalRowTotalFormula_StaysInDataTable()
+    {
+        using var stream = BuildWorkbook(new SheetSpec("Breakdown",
+        [
+            ["Site", "Production", "Ancillary", "Total"],
+            ["Henderson", "100", "10", "=SUM(B2,C2)|110"],
+            ["Milford", "200", "20", "=SUM(B3,C3)|220"],
+        ]));
+
+        using var connection = OpenConnection();
+        var result = Assert.Single(await ImportAsync(stream, "breakdown.xlsx", connection));
+
+        Assert.Equal(2L, Scalar(connection, $"SELECT COUNT(*) FROM {Quote(result.TableName)}"));
+        Assert.Equal(330L, Scalar(connection, $"SELECT SUM(Total) FROM {Quote(result.TableName)}"));
+    }
+
+    /// <summary>
+    /// Problem: a workbook that pulls actuals alongside projections carries a cross-sheet lookup on
+    /// every record. Reading those as rollups would move the entire sheet into the rollup table and
+    /// leave the data table empty -- a far worse failure than the double-counting this change targets,
+    /// and one that only showed up against a real workbook. Records that merely reference another sheet
+    /// must stay put.
+    /// </summary>
+    [Fact]
+    public async Task ImportAsync_RecordsCarryingCrossSheetLookups_StayInDataTable()
+    {
+        using var stream = BuildWorkbook(
+            new SheetSpec("Projections",
+            [
+                ["CSD", "Client", "Production", "Total", "Actual"],
+                ["Alicia", "BayCare", "100", "=SUM(C2:C2)|100", "=SUMIFS(Revenue!$K:$K,Revenue!$G:$G,'Projections'!$B2,Revenue!$J:$J,'Projections'!D$1)|0"],
+                ["Ashley", "Itron", "200", "=SUM(C3:C3)|200", "=SUMIFS(Revenue!$K:$K,Revenue!$G:$G,'Projections'!$B3,Revenue!$J:$J,'Projections'!D$1)|0"],
+            ]),
+            new SheetSpec("Revenue",
+            [
+                ["Account", "Customer"],
+                ["1", "BayCare"],
+            ]));
+
+        using var connection = OpenConnection();
+        var results = await ImportAsync(stream, "master.xlsx", connection);
+
+        // Two worksheets, and neither gains a rollup table.
+        Assert.Equal(2, results.Count);
+        Assert.DoesNotContain(results, r => r.TableName.EndsWith(TabularWorksheetShaper.RollupTableSuffix, StringComparison.Ordinal));
+
+        Assert.Equal(2L, Scalar(connection, $"SELECT COUNT(*) FROM {Quote(results[0].TableName)}"));
+        Assert.Equal(300L, Scalar(connection, $"SELECT SUM(Total) FROM {Quote(results[0].TableName)}"));
+    }
+
+    /// <summary>
+    /// Problem: the importer streams, and decided whether a worksheet had rollups from only the rows it
+    /// buffered for profiling (header scan + type sample). A sheet whose first rollup sits past that
+    /// window silently kept every rollup as data. Detection must hold for the whole sheet, however late
+    /// the first rollup appears.
+    /// </summary>
+    [Fact]
+    public async Task ImportAsync_RollupBeyondProfilingWindow_IsStillSeparated()
+    {
+        var profileRowCount = TabularWorksheetShaper.HeaderScanRows + TabularWorkspaceSqliteHelpers.TypeSampleRowCount;
+        List<string[]> rows = [["Site", "Revenue"]];
+
+        for (var i = 0; i < profileRowCount + 40; i++)
+        {
+            rows.Add([$"Site{i}", "10"]);
+        }
+
+        var expected = (profileRowCount + 40) * 10;
+        rows.Add(["Grand Total", expected.ToString()]);
+
+        using var stream = BuildWorkbook(new SheetSpec("Breakdown", rows.ToArray()));
+        using var connection = OpenConnection();
+
+        var results = await ImportAsync(stream, "breakdown.xlsx", connection);
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal(expected, Convert.ToInt64(Scalar(connection, $"SELECT SUM(Revenue) FROM {Quote(results[0].TableName)}")));
+        Assert.Equal(1L, Scalar(connection, $"SELECT COUNT(*) FROM {Quote(results[1].TableName)}"));
+    }
+
+    /// <summary>
+    /// Problem: separating rows is only safe if the classifier does not claim real records. A client
+    /// whose name merely begins with "Total" is a data row, and moving its revenue into the rollup table
+    /// would understate the very total this change exists to get right.
+    /// </summary>
+    [Theory]
+    [InlineData("Total Wine & More")]
+    [InlineData("Total Quality Logistics")]
+    public async Task ImportAsync_ClientNameBeginningWithTotal_StaysInDataTable(string clientName)
+    {
+        using var stream = BuildWorkbook(new SheetSpec("Breakdown",
+        [
+            ["Client", "Revenue"],
+            ["Henderson", "100"],
+            [clientName, "250"],
+        ]));
+
+        using var connection = OpenConnection();
+        var result = Assert.Single(await ImportAsync(stream, "breakdown.xlsx", connection));
+
+        Assert.Equal(350L, Scalar(connection, $"SELECT SUM(Revenue) FROM {Quote(result.TableName)}"));
+    }
+
+    /// <summary>
+    /// Regression for the reported bug, shaped like the sheet that produced it: per-site subtotals plus
+    /// a grand total over those subtotals. Importing all three grains into one table returned exactly
+    /// three times the real figure, which is what "a sum that doesn't match the sheet" looked like.
+    /// </summary>
+    [Fact]
+    public async Task ImportAsync_SiteSubtotalsAndGrandTotal_DoNotInflateTheSum()
+    {
+        using var stream = BuildWorkbook(new SheetSpec("Client Breakdown",
+        [
+            ["Site", "Campaign", "Total Revenue"],
+            ["True Blue", "BayCare", "100"],
+            ["True Blue", "LendKey", "200"],
+            ["", "True Blue Total", "=SUM(C2:C3)|300"],
+            ["Waco", "US Health", "400"],
+            ["", "Waco Total", "=SUM(C5:C5)|400"],
+            ["", "RDI Total", "=SUM(C4,C6)|700"],
+        ]));
+
+        using var connection = OpenConnection();
+        var results = await ImportAsync(stream, "revenue.xlsx", connection);
+
+        Assert.Equal(2, results.Count);
+
+        // 700, not 2100.
+        Assert.Equal(700L, Scalar(connection, $"SELECT SUM({Quote("Total_Revenue")}) FROM {Quote(results[0].TableName)}"));
+        Assert.Equal(3L, Scalar(connection, $"SELECT COUNT(*) FROM {Quote(results[0].TableName)}"));
+
+        // The sheet's own grand total is preserved and reconciles against the data table.
+        Assert.Equal(700L, Scalar(connection, $"SELECT MAX({Quote("Total_Revenue")}) FROM {Quote(results[1].TableName)}"));
+    }
+
+    /// <summary>
+    /// Problem: a worksheet with no rollup rows must not gain an empty sibling table, so the common case
+    /// stays exactly one table per sheet.
+    /// </summary>
+    [Fact]
+    public async Task ImportAsync_NoSubtotalRows_CreatesNoRollupTable()
     {
         using var stream = BuildWorkbook(new SheetSpec("Data",
         [
@@ -424,6 +600,22 @@ public sealed class OpenXmlTabularWorkspaceImporterTests
                     {
                         var value = spec.Rows[rowIndex][columnIndex];
                         var cellReference = $"{(char)('A' + columnIndex)}{excelRowIndex}";
+
+                        // "=FORMULA|cached" writes a real formula cell carrying its cached value, which
+                        // is what Excel stores and what rollup detection reads.
+                        if (value.StartsWith('='))
+                        {
+                            var parts = value[1..].Split('|');
+
+                            row.AppendChild(new Cell
+                            {
+                                CellReference = cellReference,
+                                CellFormula = new CellFormula(parts[0]),
+                                CellValue = new CellValue(parts.Length > 1 ? parts[1] : "0"),
+                            });
+
+                            continue;
+                        }
 
                         // Data cells in a date column are written as styled numeric serials so the reader
                         // must convert them; the header row and everything else are inline strings.

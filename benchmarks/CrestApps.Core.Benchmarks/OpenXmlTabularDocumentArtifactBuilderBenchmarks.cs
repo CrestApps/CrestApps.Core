@@ -94,7 +94,7 @@ public class OpenXmlTabularDocumentArtifactBuilderCapacityBenchmarks
             {
                 headerAssigned = false;
             },
-            row =>
+            (row, _) =>
             {
                 if (!headerAssigned)
                 {

@@ -121,8 +121,13 @@ public class TabularWorkspaceTests
         Assert.Equal("North", result.Rows[0][0]);
     }
 
+    /// <summary>
+    /// Delimited sources carry no formulas, so the label heuristic alone has to separate the grains
+    /// here. The contract is the same as the workbook path: the data table sums correctly unfiltered,
+    /// and the sheet's own totals survive in a sibling table.
+    /// </summary>
     [Fact]
-    public async Task EnsureReadyAsync_SubtotalRows_AreFlaggedAndExcludableFromAggregates()
+    public async Task EnsureReadyAsync_SubtotalRows_AreSeparatedIntoRollupTable()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var workspace = CreateWorkspace();
@@ -130,15 +135,35 @@ public class TabularWorkspaceTests
 
         await workspace.EnsureReadyAsync(Documents(), Loader(csv), cancellationToken);
 
-        var columns = Assert.Single(await workspace.GetTablesAsync(cancellationToken)).Columns;
-        Assert.Contains(columns, c => c.Name == "is_subtotal");
+        var tables = await workspace.GetTablesAsync(cancellationToken);
+        Assert.Equal(["sales", "sales_rollups"], tables.Select(t => t.TableName).Order());
+        Assert.DoesNotContain(tables.Single(t => t.TableName == "sales").Columns, c => c.Name == "is_subtotal");
 
-        var flagged = await workspace.QueryAsync("SELECT COUNT(*) FROM sales WHERE is_subtotal = 1", 100, cancellationToken);
-        Assert.Equal(1L, Assert.Single(flagged.Rows)[0]);
-
-        // The Total rollup row (300) must not inflate the sum of the two real rows (100 + 200).
-        var sum = await workspace.QueryAsync("SELECT SUM(amount) FROM sales WHERE is_subtotal = 0", 100, cancellationToken);
+        // The unqualified aggregate is correct without the caller having to remember a filter.
+        var sum = await workspace.QueryAsync("SELECT SUM(amount) FROM sales", 100, cancellationToken);
         Assert.Equal(300L, Assert.Single(sum.Rows)[0]);
+
+        var rollups = await workspace.QueryAsync("SELECT region, amount FROM sales_rollups", 100, cancellationToken);
+        Assert.Equal("Total", Assert.Single(rollups.Rows)[0]);
+    }
+
+    /// <summary>
+    /// A client name that merely begins with "Total" is a record, not a rollup. Moving it out of the
+    /// data table would understate the total this separation exists to get right.
+    /// </summary>
+    [Fact]
+    public async Task EnsureReadyAsync_ClientNameBeginningWithTotal_StaysInDataTable()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = CreateWorkspace();
+        const string csv = "region,amount\nNorth,100\nTotal Wine & More,250";
+
+        await workspace.EnsureReadyAsync(Documents(), Loader(csv), cancellationToken);
+
+        Assert.Single(await workspace.GetTablesAsync(cancellationToken));
+
+        var sum = await workspace.QueryAsync("SELECT SUM(amount) FROM sales", 100, cancellationToken);
+        Assert.Equal(350L, Assert.Single(sum.Rows)[0]);
     }
 
     /// <summary>

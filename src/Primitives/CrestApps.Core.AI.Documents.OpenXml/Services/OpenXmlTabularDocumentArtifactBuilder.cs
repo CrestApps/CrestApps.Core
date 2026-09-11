@@ -68,7 +68,7 @@ public sealed class OpenXmlTabularDocumentArtifactBuilder : ITabularDocumentArti
                     Name = name,
                 };
             },
-            row =>
+            (row, _) =>
             {
                 // Every non-empty row is buffered; the header is chosen once the worksheet ends so title
                 // rows above it can be skipped.
