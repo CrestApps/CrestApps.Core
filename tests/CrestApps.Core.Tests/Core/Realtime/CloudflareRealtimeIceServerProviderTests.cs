@@ -405,4 +405,49 @@ public sealed class CloudflareRealtimeIceServerProviderTests
 
         Assert.False(services.GetRequiredService<IOptionsMonitor<CloudflareTurnOptions>>().CurrentValue.IsConfigured);
     }
+    [Fact]
+    public void AddCloudflareRealtimeTurn_CalledTwice_RegistersOneProviderAndOneBinding()
+    {
+        // Arrange
+        // Hosts enable several realtime surfaces and call the transport registrations per feature. A second
+        // call must not wrap the provider around itself, nor bind the configuration twice -- the binder
+        // appends to collection properties rather than replacing them, which is how duplicate STUN and TURN
+        // URLs got offered to the browser once before.
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["CrestApps:AI:RealtimeTransport:Cloudflare:TokenId"] = "token-id-from-configuration",
+                ["CrestApps:AI:RealtimeTransport:Cloudflare:ApiToken"] = "token-from-configuration",
+            })
+            .Build();
+
+        var services = new ServiceCollection().AddSingleton<IConfiguration>(configuration);
+
+        // Act
+        services.AddCloudflareRealtimeTurn();
+        services.AddCloudflareRealtimeTurn();
+
+        // Assert
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IRealtimeIceServerProvider) && descriptor.ImplementationFactory is not null);
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptionsMonitor<CloudflareTurnOptions>>().CurrentValue;
+        Assert.Equal("token-id-from-configuration", options.TokenId);
+    }
+
+    [Fact]
+    public void AddCloudflareRealtimeTurn_CalledTwiceWithConfigure_StillAppliesTheSecondCallback()
+    {
+        // The guard must skip the registrations, not the caller's configuration.
+        using var services = new ServiceCollection()
+            .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build())
+            .AddCloudflareRealtimeTurn(options => options.TokenId = "first")
+            .AddCloudflareRealtimeTurn(options => options.ApiToken = "second")
+            .BuildServiceProvider();
+
+        var options = services.GetRequiredService<IOptionsMonitor<CloudflareTurnOptions>>().CurrentValue;
+        Assert.Equal("first", options.TokenId);
+        Assert.Equal("second", options.ApiToken);
+        Assert.True(options.IsConfigured);
+    }
 }

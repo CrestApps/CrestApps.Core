@@ -242,6 +242,21 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // Safe to call more than once. Hosts enable several realtime surfaces and call the transport
+        // registrations per feature, and neither half of this method is naturally idempotent: a second
+        // BindConfiguration adds another IConfigureOptions, and a second provider registration would wrap
+        // the first as its own fallback -- a chain of caches in front of a chain of caches.
+        if (services.Any(descriptor => descriptor.ImplementationType == typeof(CloudflareTurnRegistrationMarker)))
+        {
+            if (configure is not null)
+            {
+                services.Configure(configure);
+            }
+
+            return services;
+        }
+
+        services.AddSingleton<CloudflareTurnRegistrationMarker>();
         services.AddHttpClient(nameof(CloudflareRealtimeIceServerProvider));
         services.TryAddSingleton(TimeProvider.System);
         // Bound from the same section the rest of the realtime transport reads, so the key can be supplied
@@ -293,4 +308,12 @@ public static class ServiceCollectionExtensions
 
         return (IRealtimeIceServerProvider)ActivatorUtilities.CreateInstance(provider, descriptor.ImplementationType);
     }
+    /// <summary>
+    /// Records that <see cref="AddCloudflareRealtimeTurn"/> has already run against a service collection.
+    /// </summary>
+    /// <remarks>
+    /// A marker rather than a check for the provider itself, because the provider is registered as a
+    /// factory whose implementation type the container does not expose.
+    /// </remarks>
+    private sealed class CloudflareTurnRegistrationMarker;
 }
