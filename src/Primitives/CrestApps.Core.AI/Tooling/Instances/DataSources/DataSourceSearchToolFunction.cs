@@ -131,7 +131,6 @@ public sealed class DataSourceSearchToolFunction : AIFunction
                     Strictness = _settings.Strictness,
                     Filter = _settings.Filter,
                     RetrievalMode = _settings.RetrievalMode,
-                    IsInScope = _settings.IsInScope,
                 },
                 _name,
                 logger,

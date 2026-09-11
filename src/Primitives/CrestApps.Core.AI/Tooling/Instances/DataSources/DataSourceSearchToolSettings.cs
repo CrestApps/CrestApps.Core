@@ -38,10 +38,4 @@ public sealed class DataSourceSearchToolSettings
     /// It is translated to the index provider's own filter syntax before the search runs.
     /// </summary>
     public string Filter { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the model must answer only from the retrieved content.
-    /// When <see langword="false"/> (the default), the model may fall back to its general knowledge.
-    /// </summary>
-    public bool IsInScope { get; set; }
 }

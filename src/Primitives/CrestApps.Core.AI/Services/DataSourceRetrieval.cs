@@ -157,9 +157,9 @@ internal static class DataSourceRetrieval
 
         if (resultSets.All(resultSet => resultSet == null || !resultSet.Any()))
         {
-            return request.IsInScope
-                ? "No relevant content was found in the data source for this query. The answer is not available in the configured data source."
-                : "No relevant content was found in the data source for this query. Answer using your general knowledge instead.";
+            return BuildEmptyResultMessage(
+                "No relevant content was found in the data source for this query.",
+                request.IsInScope);
         }
 
         var minimumScore = siteSettings.GetMinimumScore(request.Strictness);
@@ -167,9 +167,9 @@ internal static class DataSourceRetrieval
 
         if (selected.Count == 0)
         {
-            return request.IsInScope
-                ? "No results met the strictness and quality thresholds. The answer is not available in the configured data source."
-                : "No results met the strictness and quality thresholds. Answer using your general knowledge instead.";
+            return BuildEmptyResultMessage(
+                "No results met the strictness and quality thresholds.",
+                request.IsInScope);
         }
 
         var textNormalizer = services.GetRequiredService<IAITextNormalizer>();
@@ -198,6 +198,22 @@ internal static class DataSourceRetrieval
         builder.Append(references.Render());
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Builds the message returned when a search finds nothing worth returning.
+    /// </summary>
+    /// <param name="reason">The plain statement of what happened.</param>
+    /// <param name="isInScope">The caller's answering policy, when it has one.</param>
+    /// <returns>The message to hand back to the AI model.</returns>
+    private static string BuildEmptyResultMessage(string reason, bool? isInScope)
+    {
+        return isInScope switch
+        {
+            true => $"{reason} The answer is not available in the configured data source.",
+            false => $"{reason} Answer using your general knowledge instead.",
+            _ => reason,
+        };
     }
 
     /// <summary>

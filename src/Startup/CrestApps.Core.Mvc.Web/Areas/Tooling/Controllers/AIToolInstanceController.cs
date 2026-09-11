@@ -636,7 +636,6 @@ public sealed class AIToolInstanceController : Controller
                 TopNDocuments = model.DataSourceTopNDocuments,
                 Strictness = model.DataSourceStrictness,
                 Filter = string.IsNullOrWhiteSpace(model.DataSourceFilter) ? null : model.DataSourceFilter.Trim(),
-                IsInScope = model.DataSourceIsInScope,
             });
 
             return;
@@ -809,7 +808,6 @@ public sealed class AIToolInstanceController : Controller
             model.DataSourceTopNDocuments = dataSourceSettings.TopNDocuments;
             model.DataSourceStrictness = dataSourceSettings.Strictness;
             model.DataSourceFilter = dataSourceSettings.Filter;
-            model.DataSourceIsInScope = dataSourceSettings.IsInScope;
         }
 
         return model;
