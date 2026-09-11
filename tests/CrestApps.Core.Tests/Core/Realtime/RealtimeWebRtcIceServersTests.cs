@@ -94,4 +94,40 @@ public sealed class RealtimeWebRtcIceServersTests
         // Without a secret or static credentials there is nothing to authenticate with, so no TURN entry is added.
         Assert.DoesNotContain(result, s => s.Urls.Contains("turn:turn.example.com:3478"));
     }
+    [Fact]
+    public async Task ResolveAsync_WithNoProviderRegistered_StillResolvesFromConfiguration()
+    {
+        // Resolving needed no registration before IRealtimeIceServerProvider existed. A host that composes
+        // these services by hand rather than through AddCoreAIChat must keep working after upgrading.
+        using var services = new ServiceCollection()
+            .Configure<RealtimeTransportOptions>(o => o.StunUrls = ["stun:stun.example.com:3478"])
+            .BuildServiceProvider();
+
+        var result = await RealtimeWebRtcIceServers.ResolveAsync(services, TestContext.Current.CancellationToken);
+
+        var server = Assert.Single(result);
+        Assert.Equal(["stun:stun.example.com:3478"], server.Urls);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_WithAProviderRegistered_UsesIt()
+    {
+        // The seam both hubs resolve through, so a deployment on a hosted TURN service reaches it from the
+        // browser list and the server-relay peer alike.
+        using var services = new ServiceCollection()
+            .AddSingleton<IRealtimeIceServerProvider>(new StubIceServerProvider())
+            .BuildServiceProvider();
+
+        var result = await RealtimeWebRtcIceServers.ResolveAsync(services, TestContext.Current.CancellationToken);
+
+        var server = Assert.Single(result);
+        Assert.Equal(["turn:provided.example.com:3478"], server.Urls);
+    }
+
+    private sealed class StubIceServerProvider : IRealtimeIceServerProvider
+    {
+        public ValueTask<IReadOnlyList<WebRtcIceServer>> GetIceServersAsync(CancellationToken cancellationToken = default)
+            => ValueTask.FromResult<IReadOnlyList<WebRtcIceServer>>(
+                [new WebRtcIceServer { Urls = ["turn:provided.example.com:3478"] }]);
+    }
 }
