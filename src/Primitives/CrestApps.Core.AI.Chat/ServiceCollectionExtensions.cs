@@ -1,11 +1,13 @@
 using CrestApps.Core.AI.Chat.Handlers;
 using CrestApps.Core.AI.Chat.Models;
+using CrestApps.Core.AI.Chat.Realtime;
 using CrestApps.Core.AI.Chat.Security;
 using CrestApps.Core.AI.Chat.Services;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Realtime;
 using CrestApps.Core.AI.Security;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Builders;
@@ -17,6 +19,8 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Chat;
 
@@ -128,6 +132,11 @@ public static class ServiceCollectionExtensions
         services.AddDataProtection();
         services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
         services.TryAddSingleton(TimeProvider.System);
+
+        // The realtime ICE servers come from here for both the browser and the server-relay peer. The
+        // default reads them from configuration; AddCloudflareRealtimeTurn replaces it for a deployment
+        // whose TURN service issues credentials through an API instead.
+        services.TryAddSingleton<IRealtimeIceServerProvider, OptionsRealtimeIceServerProvider>();
         services.AddOptions<AIVisitorIdentityOptions>();
         services.AddOptions<AIChatEndpointRateLimitingOptions>();
         services.AddSingleton<IAIVisitorIdentityResolver, DefaultAIVisitorIdentityResolver>();
@@ -209,5 +218,76 @@ public static class ServiceCollectionExtensions
         builder.Services.Configure(configure);
 
         return builder;
+    }
+    /// <summary>
+    /// Sources the realtime TURN servers from Cloudflare Realtime, which issues short-lived credentials
+    /// through an API rather than exposing a shared secret that could be signed locally.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Configures the Cloudflare TURN key. Usually bound from configuration instead.</param>
+    /// <remarks>
+    /// <para>
+    /// Registering this is safe before the key exists: while <see cref="CloudflareTurnOptions.KeyId"/> and
+    /// <see cref="CloudflareTurnOptions.ApiToken"/> are unset the previously registered provider answers,
+    /// so a deployment running its own coturn is unaffected until it opts in.
+    /// </para>
+    /// <para>
+    /// Prefer this over pasting a generated username and password into
+    /// <see cref="RealtimeTransportOptions"/>: those are issued with a fixed lifetime and stop working when
+    /// it lapses, whereas the key and token used here are long-lived and every credential the browser sees
+    /// is minted on demand.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddCloudflareRealtimeTurn(this IServiceCollection services, Action<CloudflareTurnOptions> configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddHttpClient(nameof(CloudflareRealtimeIceServerProvider));
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddOptions<CloudflareTurnOptions>();
+
+        if (configure is not null)
+        {
+            services.Configure(configure);
+        }
+
+        // Decorates rather than replaces: the provider already registered becomes the fallback used while
+        // Cloudflare is not configured, and whenever an outage leaves no credentials to serve.
+        services.TryAddSingleton<IRealtimeIceServerProvider, OptionsRealtimeIceServerProvider>();
+
+        var existing = services.Last(descriptor => descriptor.ServiceType == typeof(IRealtimeIceServerProvider));
+
+        services.Add(ServiceDescriptor.Singleton<IRealtimeIceServerProvider>(provider =>
+            new CloudflareRealtimeIceServerProvider(
+                provider.GetRequiredService<IHttpClientFactory>(),
+                provider.GetRequiredService<IOptionsMonitor<CloudflareTurnOptions>>(),
+                CreateFallback(provider, existing),
+                provider.GetRequiredService<TimeProvider>(),
+                provider.GetRequiredService<ILogger<CloudflareRealtimeIceServerProvider>>())));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Materializes the provider that was registered before Cloudflare decorated it.
+    /// </summary>
+    /// <remarks>
+    /// Resolving <see cref="IRealtimeIceServerProvider"/> from the container here would return the
+    /// Cloudflare provider itself, since the last registration wins, and the decorator would call into
+    /// itself forever. The captured descriptor is built directly instead.
+    /// </remarks>
+    private static IRealtimeIceServerProvider CreateFallback(IServiceProvider provider, ServiceDescriptor descriptor)
+    {
+        if (descriptor.ImplementationInstance is IRealtimeIceServerProvider instance)
+        {
+            return instance;
+        }
+
+        if (descriptor.ImplementationFactory is not null)
+        {
+            return (IRealtimeIceServerProvider)descriptor.ImplementationFactory(provider);
+        }
+
+        return (IRealtimeIceServerProvider)ActivatorUtilities.CreateInstance(provider, descriptor.ImplementationType);
     }
 }

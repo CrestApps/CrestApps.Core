@@ -18,6 +18,28 @@ internal static class RealtimeWebRtcIceServers
 {
     private const string DefaultStunUrl = "stun:stun.l.google.com:19302";
 
+    /// <summary>
+    /// Resolves the ICE servers through the registered <see cref="IRealtimeIceServerProvider"/>, which is what
+    /// lets a deployment source them from a TURN service that mints credentials over HTTP instead of naming
+    /// them in configuration.
+    /// </summary>
+    /// <param name="services">The service provider.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <remarks>
+    /// Falls back to <see cref="Resolve(IServiceProvider)"/> when no provider is registered. Resolving needed
+    /// no registration at all before the provider existed, so a host that composes these services by hand
+    /// rather than through <c>AddCoreAIChat</c> keeps working after upgrading instead of failing on a service
+    /// it never registered.
+    /// </remarks>
+    public static ValueTask<IReadOnlyList<WebRtcIceServer>> ResolveAsync(IServiceProvider services, CancellationToken cancellationToken = default)
+    {
+        var provider = services.GetService<IRealtimeIceServerProvider>();
+
+        return provider is not null
+            ? provider.GetIceServersAsync(cancellationToken)
+            : ValueTask.FromResult(Resolve(services));
+    }
+
     public static IReadOnlyList<WebRtcIceServer> Resolve(IServiceProvider services)
     {
         var options = services.GetService<IOptions<RealtimeTransportOptions>>()?.Value ?? new RealtimeTransportOptions();
