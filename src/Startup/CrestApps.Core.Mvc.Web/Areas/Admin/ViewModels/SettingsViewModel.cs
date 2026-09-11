@@ -66,6 +66,21 @@ public sealed class SettingsViewModel
     [BindNever]
     public List<McpServerToolInstanceSelectionItem> McpServerAvailableToolInstances { get; set; } = [];
 
+    /// <summary>
+    /// Gets or sets a value indicating whether every agent is exposed to MCP clients.
+    /// </summary>
+    public bool McpServerExposeAllAgents { get; set; }
+
+    /// <summary>
+    /// Gets or sets the names of the agents exposed to MCP clients.
+    /// </summary>
+    public string[] McpServerSelectedAgentNames { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the agents available to expose to MCP clients.
+    /// </summary>
+    public List<McpServerAgentSelectionItem> McpServerAvailableAgents { get; set; } = [];
+
     // Default deployment settings.
     public string DefaultChatDeploymentName { get; set; }
 
@@ -216,6 +231,27 @@ public sealed class McpServerToolSelectionItem
 
     public string Category { get; set; }
 
+    public bool IsSelected { get; set; }
+}
+
+/// <summary>
+/// An AI agent that may be exposed to MCP clients as a callable tool.
+/// </summary>
+public sealed class McpServerAgentSelectionItem
+{
+    /// <summary>
+    /// Gets or sets the agent name, which is also the tool name MCP clients see.
+    /// </summary>
+    public string Name { get; set; }
+
+    /// <summary>
+    /// Gets or sets the agent description shown to MCP clients.
+    /// </summary>
+    public string Description { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this agent is exposed.
+    /// </summary>
     public bool IsSelected { get; set; }
 }
 

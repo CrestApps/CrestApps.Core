@@ -1,5 +1,11 @@
 using System.Text.Json;
+using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Mcp;
+using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Mcp.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Services;
@@ -234,7 +240,7 @@ public sealed class McpServerBuilderExtensionsTests
             await InvokeCallToolHandlerAsync(
                 serviceProvider,
                 "search",
-                TestContext.Current.CancellationToken));
+                cancellationToken: TestContext.Current.CancellationToken));
     }
 
     /// <summary>
@@ -252,7 +258,7 @@ public sealed class McpServerBuilderExtensionsTests
         var result = await InvokeCallToolHandlerAsync(
             serviceProvider,
             "search",
-            TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
     }
@@ -274,7 +280,7 @@ public sealed class McpServerBuilderExtensionsTests
         var result = await InvokeCallToolHandlerAsync(
             serviceProvider,
             "search",
-            TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
     }
@@ -290,7 +296,7 @@ public sealed class McpServerBuilderExtensionsTests
         var result = await InvokeCallToolHandlerAsync(
             serviceProvider,
             "search",
-            TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
     }
@@ -318,7 +324,7 @@ public sealed class McpServerBuilderExtensionsTests
         var result = await InvokeCallToolHandlerAsync(
             serviceProvider,
             "crestapps-docs",
-            TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
     }
@@ -347,7 +353,7 @@ public sealed class McpServerBuilderExtensionsTests
             await InvokeCallToolHandlerAsync(
                 serviceProvider,
                 "crestapps-docs",
-                TestContext.Current.CancellationToken));
+                cancellationToken: TestContext.Current.CancellationToken));
     }
 
     /// <summary>
@@ -367,7 +373,398 @@ public sealed class McpServerBuilderExtensionsTests
             await InvokeCallToolHandlerAsync(
                 serviceProvider,
                 "system",
-                TestContext.Current.CancellationToken));
+                cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
+    /// Verifies that agents stay hidden until explicitly allowed, so adding the feature never widens an
+    /// existing server's surface on upgrade.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_DefaultDeny_DoesNotExposeAgents()
+    {
+        var services = CreateServices();
+
+        AddAgents(services, CreateAgent("researcher"), CreateAgent("summarizer"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Empty(result.Tools);
+    }
+
+    /// <summary>
+    /// Verifies that turning on every tool does NOT turn on every agent. An agent runs a whole profile with
+    /// its own tools and credentials, so a server that had opted into exposing tools must not start exposing
+    /// agents the moment this feature ships.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_ExposeAllTools_DoesNotExposeAgents()
+    {
+        var services = CreateServices(configureOptions: options => options.ExposeAllTools = true);
+
+        AddLocalTool(services, "search-key", new TestAIFunction("search"));
+        AddAgents(services, CreateAgent("researcher"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["search"], result.Tools.Select(tool => tool.Name));
+    }
+
+    /// <summary>
+    /// Verifies that an allow-listed agent is exposed as a tool carrying the agent's own description and the
+    /// prompt schema, so a client calls it the way the orchestrator does.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_AgentAllowList_ExposesOnlyNamedAgents()
+    {
+        var services = CreateServices(configureOptions: options => options.Agents = ["researcher"]);
+
+        AddAgents(services, CreateAgent("researcher"), CreateAgent("summarizer"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        var tool = Assert.Single(result.Tools);
+
+        Assert.Equal("researcher", tool.Name);
+        Assert.Equal("The researcher agent.", tool.Description);
+        Assert.True(tool.InputSchema.TryGetProperty("properties", out var properties));
+        Assert.True(properties.TryGetProperty("prompt", out _));
+    }
+
+    /// <summary>
+    /// Verifies that <c>ExposeAllAgents</c> lists every agent, and that an agent missing a description is
+    /// skipped because a client would have no way to tell what it is for.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_ExposeAllAgents_ListsEveryDescribedAgent()
+    {
+        var services = CreateServices(configureOptions: options => options.ExposeAllAgents = true);
+
+        AddAgents(
+            services,
+            CreateAgent("researcher"),
+            CreateAgent("summarizer"),
+            new AIProfile { ItemId = "3", Name = "undescribed", Type = AIProfileType.Agent });
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["researcher", "summarizer"], result.Tools.Select(tool => tool.Name));
+    }
+
+    /// <summary>
+    /// Verifies that an agent sharing a name with an exposed tool is dropped from the listing, so the listed
+    /// name matches what the call handler — which resolves tools first — will actually invoke.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_AgentNameCollidingWithTool_KeepsTheTool()
+    {
+        var services = CreateServices(configureOptions: options =>
+        {
+            options.ExposeAllTools = true;
+            options.ExposeAllAgents = true;
+        });
+
+        AddLocalTool(services, "researcher-key", new TestAIFunction("researcher", "The registered tool."));
+        AddAgents(services, CreateAgent("researcher"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        var tool = Assert.Single(result.Tools);
+
+        Assert.Equal("researcher", tool.Name);
+        Assert.Equal("The registered tool.", tool.Description);
+    }
+
+    /// <summary>
+    /// Verifies that availability is irrelevant to MCP exposure. <c>AlwaysAvailable</c> versus
+    /// <c>OnDemand</c> governs a completion's token budget, not who may reach an agent from outside, so the
+    /// allow-list stays the only gate.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_AgentAvailability_DoesNotAffectExposure()
+    {
+        var onDemand = CreateAgent("on-demand");
+        var alwaysAvailable = CreateAgent("always-available");
+        alwaysAvailable.Put(new AgentMetadata { Availability = AgentAvailability.AlwaysAvailable });
+
+        var services = CreateServices(configureOptions: options => options.Agents = ["on-demand"]);
+
+        AddAgents(services, onDemand, alwaysAvailable);
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["on-demand"], result.Tools.Select(tool => tool.Name));
+    }
+
+    /// <summary>
+    /// Verifies that an agent that was never allow-listed cannot be invoked by name, so the listing is the
+    /// real boundary rather than merely a discovery hint.
+    /// </summary>
+    [Fact]
+    public async Task CallToolHandler_UnlistedAgent_Throws()
+    {
+        var services = CreateServices();
+
+        AddAgents(services, CreateAgent("researcher"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        await Assert.ThrowsAsync<McpException>(async () =>
+            await InvokeCallToolHandlerAsync(
+                serviceProvider,
+                "researcher",
+                cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
+    /// Verifies that the call handler establishes an AI invocation scope. Without one, an agent reached over
+    /// MCP silently runs with its tools disabled, because the proxy treats an untrackable recursion depth as
+    /// unsafe — a wrong answer rather than an error.
+    /// </summary>
+    [Fact]
+    public async Task CallToolHandler_EstablishesAnInvocationScope()
+    {
+        var services = CreateServices(configureOptions: options => options.ExposeAllTools = true);
+        var probe = new ScopeProbeFunction("probe");
+
+        AddLocalTool(services, "probe-key", probe);
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        Assert.Null(AIInvocationScope.Current);
+
+        await InvokeCallToolHandlerAsync(
+            serviceProvider,
+            "probe",
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(probe.SawScope);
+
+        // The scope is the call's own; it must not leak into whatever runs next on this flow.
+        Assert.Null(AIInvocationScope.Current);
+    }
+
+    /// <summary>
+    /// Verifies that the scope an MCP call establishes starts at depth zero, which is what lets an agent run
+    /// its own configured tools rather than falling back to the tool-less path.
+    /// </summary>
+    [Fact]
+    public async Task CallToolHandler_InvocationScopeStartsAtTopLevelDepth()
+    {
+        var services = CreateServices(configureOptions: options => options.ExposeAllTools = true);
+        var probe = new ScopeProbeFunction("probe");
+
+        AddLocalTool(services, "probe-key", probe);
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        await InvokeCallToolHandlerAsync(
+            serviceProvider,
+            "probe",
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, probe.ObservedAgentDepth);
+    }
+
+    /// <summary>
+    /// Verifies the central contract of exposing an agent: the allow-list decides what a client may INVOKE,
+    /// never what an agent uses internally. An allow-listed agent runs through the orchestrator with its own
+    /// configured tools even though none of those tools is exposed over MCP — and those tools stay
+    /// unreachable by name, so exposing the agent never exposes its internals.
+    /// </summary>
+    [Fact]
+    public async Task CallToolHandler_AllowedAgent_RunsItsOwnToolsWithoutExposingThem()
+    {
+        var agent = CreateAgent("researcher");
+        agent.Put(new AgentMetadata { AllowToolInvocation = true });
+
+        // Only the agent is allow-listed. The tool below stands in for one the agent uses internally.
+        var services = CreateServices(configureOptions: options => options.Agents = ["researcher"]);
+        var orchestrator = new RecordingOrchestrator("The agent used its own tools.");
+
+        AddLocalTool(services, "internal-key", new TestAIFunction("internal-tool"));
+        AddAgents(services, agent);
+        AddOrchestration(services, orchestrator);
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        // The agent is listed; the tool it uses internally is not.
+        var listed = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["researcher"], listed.Tools.Select(tool => tool.Name));
+
+        var result = await InvokeCallToolHandlerAsync(
+            serviceProvider,
+            "researcher",
+            AgentPrompt("Find the latest figures."),
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Reaching the orchestrator at all is the proof: the tool-less path never builds an orchestration
+        // context, so the agent ran with its profile's tools enabled.
+        Assert.True(orchestrator.WasExecuted);
+        Assert.Contains("The agent used its own tools.", Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text);
+
+        // The internal tool remains unreachable by name, which is the whole point of exposing the agent
+        // instead of the tools it happens to use.
+        await Assert.ThrowsAsync<McpException>(async () =>
+            await InvokeCallToolHandlerAsync(
+                serviceProvider,
+                "internal-tool",
+                cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
+    /// Verifies that an agent which has not opted into tool invocation still runs, taking the tool-less path
+    /// rather than the orchestrator. Exposure over MCP does not silently grant an agent more than its own
+    /// profile allows.
+    /// </summary>
+    [Fact]
+    public async Task CallToolHandler_AgentWithoutToolInvocation_DoesNotRunTheOrchestrator()
+    {
+        var services = CreateServices(configureOptions: options => options.Agents = ["researcher"]);
+        var orchestrator = new RecordingOrchestrator("Should not run.");
+
+        // No AgentMetadata at all, so AllowToolInvocation is false.
+        AddAgents(services, CreateAgent("researcher"));
+        AddOrchestration(services, orchestrator);
+        var completionService = AddToollessCompletion(services, "The agent answered without tools.");
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeCallToolHandlerAsync(
+            serviceProvider,
+            "researcher",
+            AgentPrompt("Find the latest figures."),
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.False(orchestrator.WasExecuted);
+        Assert.Contains("The agent answered without tools.", Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text);
+
+        // The tool-less path disables tools on the agent's own context, which is what "did not opt in" means.
+        Assert.True(completionService.LastContext?.DisableTools);
+    }
+
+    /// <summary>
+    /// Registers the services the tool-less agent path needs, and returns the recording completion service.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="response">The assistant text the completion returns.</param>
+    /// <returns>The recording completion service.</returns>
+    private static RecordingCompletionService AddToollessCompletion(IServiceCollection services, string response)
+    {
+        var completionService = new RecordingCompletionService(response);
+
+        var contextBuilder = new Mock<IAICompletionContextBuilder>();
+        contextBuilder
+            .Setup(value => value.BuildAsync(It.IsAny<object>(), It.IsAny<Action<AICompletionContext>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AICompletionContext());
+
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        deploymentManager
+            .Setup(value => value.ResolveSlotAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AIDeployment { ItemId = "deployment", Name = "chat" });
+
+        services.AddSingleton<IAICompletionService>(completionService);
+        services.AddSingleton(contextBuilder.Object);
+        services.AddSingleton(deploymentManager.Object);
+
+        return completionService;
+    }
+
+    /// <summary>
+    /// Registers the orchestration services an agent needs to run with its own tools.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="orchestrator">The orchestrator to resolve.</param>
+    private static void AddOrchestration(IServiceCollection services, RecordingOrchestrator orchestrator)
+    {
+        var contextBuilder = new Mock<IOrchestrationContextBuilder>();
+        contextBuilder
+            .Setup(value => value.BuildAsync(It.IsAny<object>(), It.IsAny<Action<OrchestrationContext>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OrchestrationContext());
+
+        var resolver = new Mock<IOrchestratorResolver>();
+        resolver
+            .Setup(value => value.Resolve(It.IsAny<string>()))
+            .Returns(orchestrator);
+
+        services.AddSingleton(contextBuilder.Object);
+        services.AddSingleton(resolver.Object);
+    }
+
+    /// <summary>
+    /// Builds the argument dictionary an agent expects.
+    /// </summary>
+    /// <param name="prompt">The prompt to send to the agent.</param>
+    /// <returns>The call arguments.</returns>
+    private static Dictionary<string, JsonElement> AgentPrompt(string prompt)
+    {
+        return new Dictionary<string, JsonElement>
+        {
+            ["prompt"] = JsonSerializer.SerializeToElement(prompt),
+        };
+    }
+
+    /// <summary>
+    /// Creates an agent profile with a description, which exposure requires.
+    /// </summary>
+    /// <param name="name">The agent name.</param>
+    /// <returns>The agent profile.</returns>
+    private static AIProfile CreateAgent(string name)
+    {
+        return new AIProfile
+        {
+            ItemId = name,
+            Name = name,
+            Description = $"The {name} agent.",
+            Type = AIProfileType.Agent,
+        };
+    }
+
+    /// <summary>
+    /// Registers a fake profile manager returning the supplied agents.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="agents">The agent profiles to return.</param>
+    private static void AddAgents(IServiceCollection services, params AIProfile[] agents)
+    {
+        var manager = new Mock<IAIProfileManager>();
+        manager
+            .Setup(value => value.GetAsync(AIProfileType.Agent, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agents);
+
+        services.AddSingleton(manager.Object);
     }
 
     /// <summary>
@@ -381,6 +778,7 @@ public sealed class McpServerBuilderExtensionsTests
         var services = new ServiceCollection();
         var builder = services.AddMcpServer();
 
+        services.AddLogging();
         services.AddOptions<AIToolDefinitionOptions>();
         services.AddOptions<ServerToolOptions>();
 
@@ -504,11 +902,13 @@ public sealed class McpServerBuilderExtensionsTests
     /// </summary>
     /// <param name="serviceProvider">The provider containing the registered handler.</param>
     /// <param name="toolName">The name of the tool to invoke.</param>
+    /// <param name="arguments">The arguments supplied with the call.</param>
     /// <param name="cancellationToken">The cancellation token passed to the handler.</param>
     /// <returns>The call-tool result.</returns>
     private static async ValueTask<CallToolResult> InvokeCallToolHandlerAsync(
         IServiceProvider serviceProvider,
         string toolName,
+        IDictionary<string, JsonElement> arguments = null,
         CancellationToken cancellationToken = default)
     {
         var options = serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value;
@@ -528,12 +928,118 @@ public sealed class McpServerBuilderExtensionsTests
             new CallToolRequestParams
             {
                 Name = toolName,
+                Arguments = arguments,
             })
         {
             Services = serviceProvider,
         };
 
         return await handler(request, cancellationToken);
+    }
+
+    /// <summary>
+    /// A completion service that records the context it was given and returns a fixed assistant reply.
+    /// </summary>
+    private sealed class RecordingCompletionService : IAICompletionService
+    {
+        private readonly string _response;
+
+        public RecordingCompletionService(string response)
+        {
+            _response = response;
+        }
+
+        public AICompletionContext LastContext { get; private set; }
+
+        public Task<ChatResponse> CompleteAsync(
+            AIDeployment deployment,
+            IEnumerable<ChatMessage> messages,
+            AICompletionContext context,
+            CancellationToken cancellationToken = default)
+        {
+            LastContext = context;
+
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, _response)));
+        }
+
+        public IAsyncEnumerable<ChatResponseUpdate> CompleteStreamingAsync(
+            AIDeployment deployment,
+            IEnumerable<ChatMessage> messages,
+            AICompletionContext context,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    /// <summary>
+    /// An orchestrator that records whether it ran and streams a fixed response.
+    /// </summary>
+    private sealed class RecordingOrchestrator : IOrchestrator
+    {
+        private readonly string _response;
+
+        public RecordingOrchestrator(string response)
+        {
+            _response = response;
+        }
+
+        public bool WasExecuted { get; private set; }
+
+        public string Name => "recording";
+
+        public async IAsyncEnumerable<ChatResponseUpdate> ExecuteStreamingAsync(
+            OrchestrationContext context,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
+
+            WasExecuted = true;
+
+            yield return new ChatResponseUpdate(ChatRole.Assistant, _response);
+        }
+    }
+
+    /// <summary>
+    /// A tool that records the ambient invocation scope it observed while running.
+    /// </summary>
+    private sealed class ScopeProbeFunction : AIFunction
+    {
+        private static readonly JsonElement _schema = JsonSerializer.Deserialize<JsonElement>(
+        """
+        {
+          "type": "object"
+        }
+        """);
+
+        private readonly string _name;
+
+        public ScopeProbeFunction(string name)
+        {
+            _name = name;
+        }
+
+        public bool SawScope { get; private set; }
+
+        public int? ObservedAgentDepth { get; private set; }
+
+        public override string Name => _name;
+
+        public override string Description => "Records the ambient invocation scope.";
+
+        public override JsonElement JsonSchema => _schema;
+
+        protected override ValueTask<object> InvokeCoreAsync(
+            AIFunctionArguments arguments,
+            CancellationToken cancellationToken)
+        {
+            var context = AIInvocationScope.Current;
+
+            SawScope = context is not null;
+            ObservedAgentDepth = context?.AgentInvocationDepth;
+
+            return ValueTask.FromResult<object>(string.Empty);
+        }
     }
 
     private sealed class TestToolInstanceSource : IAIToolInstanceSource

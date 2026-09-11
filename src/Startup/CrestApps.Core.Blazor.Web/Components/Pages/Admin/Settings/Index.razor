@@ -823,6 +823,48 @@ else
                                 }
                             </div>
                         }
+
+                        <hr />
+                        <p class="text-muted mb-2">
+                            Choose which AI agents are exposed to MCP clients as callable tools. Invoking an agent runs
+                            its whole profile, so it uses the tools, data sources, and connections that profile
+                            configures — none of which this list grants or restricts, and none of which become
+                            directly callable by being used.
+                        </p>
+                        <div class="alert alert-warning py-2">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            An exposed agent can be run by any client that passes this server's authentication. Add
+                            agents that hold privileged tools or credentials deliberately.
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <InputCheckbox id="mcpExposeAllAgents" @bind-Value="_model.McpServerExposeAllAgents" class="form-check-input" />
+                            <label for="mcpExposeAllAgents" class="form-check-label">Expose all agents</label>
+                        </div>
+                        @if (!_model.McpServerExposeAllAgents)
+                        {
+                            <div class="mb-3">
+                                <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-user-astronaut"></i> Exposed agents</h6>
+                                @if (_model.McpServerAvailableAgents.Count == 0)
+                                {
+                                    <div class="alert alert-info mb-0">
+                                        <i class="fa-solid fa-circle-info"></i> No AI agents with a description are available. An agent needs a description before it can be exposed, because that is all an MCP client has to go on.
+                                    </div>
+                                }
+                                else
+                                {
+                                    @foreach (var agent in _model.McpServerAvailableAgents)
+                                    {
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" checked="@agent.IsSelected" @onchange="e => ToggleMcpServerAgent(agent.Name, (bool)e.Value)" id="mcp_agent_@agent.Name" />
+                                            <label class="form-check-label" for="mcp_agent_@agent.Name">
+                                                <strong>@agent.Name</strong>
+                                                <br /><small class="text-muted">@agent.Description</small>
+                                            </label>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        }
                     </div>
                 </div>
 
@@ -971,6 +1013,8 @@ else
             McpServerRequireAccessPermission = mcpServerSettings.RequireAccessPermission,
             McpServerExposeAllTools = mcpServerSettings.ExposeAllTools,
             McpServerSelectedToolNames = mcpServerSettings.Tools?.ToArray() ?? [],
+            McpServerExposeAllAgents = mcpServerSettings.ExposeAllAgents,
+            McpServerSelectedAgentNames = mcpServerSettings.Agents?.ToArray() ?? [],
 
             CopilotAuthenticationType = copilotSettings.AuthenticationType,
             CopilotClientId = copilotSettings.ClientId,
@@ -1066,6 +1110,19 @@ else
             .ThenBy(tool => tool.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        var selectedAgentNames = new HashSet<string>(_model.McpServerSelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
+
+        _model.McpServerAvailableAgents = (await ProfileManager.GetAsync(AIProfileType.Agent))
+            .Where(agent => !string.IsNullOrWhiteSpace(agent.Name) && !string.IsNullOrWhiteSpace(agent.Description))
+            .OrderBy(agent => agent.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(agent => new McpServerAgentSelectionItem
+            {
+                Name = agent.Name,
+                Description = agent.Description,
+                IsSelected = selectedAgentNames.Contains(agent.Name),
+            })
+            .ToList();
+
         _model.McpServerAvailableToolInstances = (await ToolInstanceCatalog.GetAllAsync())
             .Where(instance => !string.IsNullOrWhiteSpace(instance.Name))
             .OrderBy(instance => instance.Name, StringComparer.OrdinalIgnoreCase)
@@ -1119,6 +1176,26 @@ else
         {
             instance.IsSelected = value;
         }
+    }
+
+    private void ToggleMcpServerAgent(string name, bool value)
+    {
+        var agent = _model.McpServerAvailableAgents.FirstOrDefault(item => item.Name == name);
+
+        if (agent is not null)
+        {
+            agent.IsSelected = value;
+        }
+    }
+
+    private string[] GetSelectedMcpServerAgentNames()
+    {
+        return _model.McpServerAvailableAgents
+            .Where(agent => agent.IsSelected)
+            .Select(agent => agent.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private void SelectAllMcpServerTools()
@@ -1207,6 +1284,7 @@ else
     {
         _errors.Clear();
         _model.McpServerSelectedToolNames = GetSelectedMcpServerToolNames();
+        _model.McpServerSelectedAgentNames = GetSelectedMcpServerAgentNames();
 
         if (_model.MaximumIterationsPerRequest < 1)
         {
@@ -1392,6 +1470,10 @@ else
             Tools = _model.McpServerExposeAllTools
                 ? []
                 : _model.McpServerSelectedToolNames.ToList(),
+            ExposeAllAgents = _model.McpServerExposeAllAgents,
+            Agents = _model.McpServerExposeAllAgents
+                ? []
+                : _model.McpServerSelectedAgentNames.ToList(),
         });
 
         SiteSettings.Set(new MemoryMetadata

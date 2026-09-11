@@ -59,6 +59,12 @@ public sealed class SettingsViewModel
 
     public List<McpServerToolInstanceSelectionItem> McpServerAvailableToolInstances { get; set; } = [];
 
+    public bool McpServerExposeAllAgents { get; set; }
+
+    public string[] McpServerSelectedAgentNames { get; set; } = [];
+
+    public List<McpServerAgentSelectionItem> McpServerAvailableAgents { get; set; } = [];
+
     // Default deployment settings.
     public string DefaultChatDeploymentName { get; set; }
 
@@ -183,6 +189,15 @@ public sealed class McpServerToolSelectionItem
     public string Description { get; set; }
 
     public string Category { get; set; }
+
+    public bool IsSelected { get; set; }
+}
+
+public sealed class McpServerAgentSelectionItem
+{
+    public string Name { get; set; }
+
+    public string Description { get; set; }
 
     public bool IsSelected { get; set; }
 }
