@@ -549,10 +549,18 @@ then replaced, which means roughly two API calls per lifetime rather than one pe
 handed to a browser is always valid for at least as long again — no call can outlive the credentials it started
 with.
 
-Cloudflare answers with its own STUN entry plus TURN URLs spanning UDP, TCP, and TLS on 443, and all of them are
-offered to the browser as returned. Do not narrow the list to a single `turn:` URL: the TLS entry on 443 is what
-gets a caller out of a network that allows nothing else. `StunUrls` and `TurnUrls` are ignored while Cloudflare is
-configured, because credentials issued for one relay do not authenticate against another.
+Cloudflare answers with a matrix rather than a list: STUN and TURN over UDP, TCP, and TLS, each on its standard
+port and again on a port chosen to slip through a restrictive firewall. That is more URLs than a browser wants —
+Chrome warns past five of them because it gathers against every one, and so does the peer on this side, which is
+handed the same list. The provider keeps the first URL Cloudflare lists for each scheme and transport and drops
+the rest, which leaves every route out of a network intact — direct, relayed over UDP, over TCP, and over TLS —
+while removing only the spare ports for relays that are already reachable. The URLs kept are Cloudflare's own, in
+Cloudflare's own order, and the credentials are minted for the whole matrix, so each one is authenticated by the
+credentials it ships with.
+
+`StunUrls` and `TurnUrls` are ignored while Cloudflare is configured, because credentials issued for one relay do
+not authenticate against another. Narrowing applies only to what Cloudflare itself issued: servers a deployment
+names by hand are never trimmed, and never mixed in.
 
 Two behaviours are worth knowing. While `TokenId` and `ApiToken` are unset the provider does nothing and whatever
 was configured above still applies, so registering it before the key exists is safe. And if Cloudflare cannot be
