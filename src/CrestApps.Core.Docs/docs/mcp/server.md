@@ -324,6 +324,55 @@ Because `McpServerOptions` is backed by site settings, an operator can choose wh
 
 Both code-registered tools (from `AddCoreAITool<T>()`, see [Custom Tools](../core/tools.md)) and stored tool instances (from any registered [tool instance source](../core/tool-instances.md), such as the [documentation search sources](#exposing-a-documentation-knowledge-base)) participate in the same allow-list.
 
+## Exposing Agents as Tools
+
+An **agent** — an AI profile of type agent — can be exposed to MCP clients as a callable tool, alongside plain tools and tool instances. The client sees one tool per allow-listed agent, named after the agent and described by its description, taking a single `prompt` argument. Invoking it runs that agent.
+
+```csharp
+services.Configure<McpServerOptions>(options =>
+{
+    // Expose specific agents by name.
+    options.Agents = ["researcher", "report-writer"];
+
+    // Or expose every agent that has a description.
+    // When true, the Agents allow-list above is ignored.
+    options.ExposeAllAgents = true;
+});
+```
+
+| Property | Effect |
+|----------|--------|
+| `Agents` | An allow-list of agent profile names to expose. Matching is case-insensitive. |
+| `ExposeAllAgents` | When `true`, every described agent is exposed and the allow-list is ignored. |
+
+:::warning
+Agents are gated by their **own** switch, separate from `ExposeAllTools`. This is deliberate: an agent runs a whole profile — its system message, its tools, its data sources, and the credentials behind them — so a server that had already opted into exposing tools must not start exposing agents merely because it upgraded. The allow-list is a security boundary; an exposed agent is runnable by any client that clears the server's authentication.
+:::
+
+### An agent's own tools are not filtered by the allow-list
+
+The two lists answer different questions, and they never intersect:
+
+| | Question it answers |
+|---|---|
+| `Tools` / `ExposeAllTools` | What may a client **directly name and invoke**? |
+| The agent's own profile | What does the agent use **internally** to do its job? |
+
+An allow-listed agent runs with the tools, tool instances, data sources, and MCP client connections its profile configures — whether or not any of those appear in `Tools`. Nor does using a tool internally make it directly callable: it stays unreachable by name unless separately allow-listed.
+
+Intersecting the two would be backwards. An operator wanting a working agent would have to allow-list every tool it uses internally, and each of those would then become directly callable — forcing *more* exposure, and defeating the point of publishing a curated agent instead of raw tools. Think of it as encapsulation: exposing an agent exposes a function signature, not its implementation.
+
+### What an agent may do when reached over MCP
+
+- **Its own tools run only if the agent opted in.** `AgentMetadata.AllowToolInvocation` must be `true`, exactly as when the model invokes that agent as a tool in a chat completion. It defaults to `false`, so an agent that answers suspiciously generically over MCP is usually missing this flag rather than hitting a server problem.
+- **Nested agents stay suppressed.** An agent reached over MCP can use its tools but cannot delegate to other agents; that bound is what makes running with tools safe.
+- **Availability is irrelevant.** `AgentAvailability.AlwaysAvailable` versus `OnDemand` governs a completion's token budget, not who may reach an agent from outside. The allow-list is the only gate.
+- **A name shared with a tool resolves to the tool.** Agents are enumerated last, and one whose name is already taken is skipped from the listing with a warning, so what is listed is always what a call will reach.
+
+The call handler establishes an AI invocation scope for the duration of every MCP tool call, which is what places an agent at top-level depth and lets it run its configured tools. Without it an agent would silently fall back to a tool-less completion — a worse answer rather than an error.
+
+Because `McpServerOptions` is backed by site settings, agents are chosen from the admin **Settings → MCP server** page without redeploying.
+
 ## Exposing a documentation knowledge base
 
 A common reason to run an MCP server is to answer questions from product or framework documentation that lives on a public site (such as a Docusaurus or MkDocs site). Instead of indexing that content into a vector store, the built-in documentation search [tool instance sources](../core/tool-instances.md) let an operator declare a documentation site as a **tool instance** and scan it on demand.

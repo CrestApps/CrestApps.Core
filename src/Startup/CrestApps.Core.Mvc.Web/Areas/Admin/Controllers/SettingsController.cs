@@ -131,6 +131,8 @@ public sealed class SettingsController : Controller
             McpServerRequireAccessPermission = mcpServerSettings.RequireAccessPermission,
             McpServerExposeAllTools = mcpServerSettings.ExposeAllTools,
             McpServerSelectedToolNames = mcpServerSettings.Tools?.ToArray() ?? [],
+            McpServerExposeAllAgents = mcpServerSettings.ExposeAllAgents,
+            McpServerSelectedAgentNames = mcpServerSettings.Agents?.ToArray() ?? [],
             CopilotAuthenticationType = copilotSettings.AuthenticationType,
             CopilotClientId = copilotSettings.ClientId,
             CopilotHasSecret = !string.IsNullOrWhiteSpace(copilotSettings.ProtectedClientSecret),
@@ -382,6 +384,14 @@ public sealed class SettingsController : Controller
                     .Select(name => name.Trim())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList(),
+            ExposeAllAgents = model.McpServerExposeAllAgents,
+            Agents = model.McpServerExposeAllAgents
+                ? []
+                : (model.McpServerSelectedAgentNames ?? [])
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Select(name => name.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
         });
 
         _siteSettings.Set(new MemoryMetadata
@@ -558,6 +568,21 @@ public sealed class SettingsController : Controller
                 Description = instance.Description,
                 Source = instance.Source,
                 IsSelected = selectedNames.Contains(instance.Name),
+            })
+            .ToList();
+
+        var selectedAgentNames = new HashSet<string>(model.McpServerSelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
+
+        // An agent without a description is skipped: the description is all an MCP client has to tell one
+        // agent from another, so exposing an undescribed one only adds noise.
+        model.McpServerAvailableAgents = (await _profileManager.GetAsync(AIProfileType.Agent))
+            .Where(agent => !string.IsNullOrWhiteSpace(agent.Name) && !string.IsNullOrWhiteSpace(agent.Description))
+            .OrderBy(agent => agent.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(agent => new McpServerAgentSelectionItem
+            {
+                Name = agent.Name,
+                Description = agent.Description,
+                IsSelected = selectedAgentNames.Contains(agent.Name),
             })
             .ToList();
     }

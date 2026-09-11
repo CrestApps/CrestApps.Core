@@ -1,4 +1,8 @@
+using System.Text.Json;
 using CrestApps.Core.AI.Mcp.Services;
+using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.AI;
@@ -18,6 +22,26 @@ namespace CrestApps.Core.AI.Mcp;
 public static class McpServerBuilderExtensions
 {
     /// <summary>
+    /// The input schema advertised for an agent exposed as a tool. It mirrors the schema
+    /// <c>AgentProxyTool</c> presents to the model, so an MCP client calls an agent exactly the way the
+    /// orchestrator does.
+    /// </summary>
+    private static readonly JsonElement AgentInputSchema = JsonSerializer.Deserialize<JsonElement>(
+    """
+    {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "description": "The prompt or message to send to the agent for processing."
+        }
+      },
+      "required": ["prompt"],
+      "additionalProperties": false
+    }
+    """);
+
+    /// <summary>
     /// Registers the standard CrestApps MCP server handlers for tools, prompts, and resources.
     /// This wires the CrestApps tool registry (<see cref="AIToolDefinitionOptions"/>),
     /// <see cref="IMcpServerPromptService"/>, and <see cref="IMcpServerResourceService"/>
@@ -26,6 +50,9 @@ public static class McpServerBuilderExtensions
     /// system tools that the orchestrator auto-includes are never listed or callable over MCP.
     /// Which of those selectable tools and tool instances are actually listed and callable is further
     /// controlled by the <see cref="McpServerOptions"/> site settings allow-list.
+    /// Agent profiles named in <see cref="McpServerOptions.Agents"/> are exposed as tools too, under their
+    /// own switch so enabling every tool never silently enables every agent. Invoking one runs that agent
+    /// with the tools its own profile configures, which the tool allow-list neither grants nor restricts.
     /// </summary>
     /// <param name="builder">The builder.</param>
     public static IMcpServerBuilder WithCrestAppsHandlers(this IMcpServerBuilder builder)
@@ -116,10 +143,41 @@ public static class McpServerBuilderExtensions
                     }
                 }
 
+                // Agents are enumerated last so a name they share with a tool or instance resolves to that
+                // tool, matching the call handler's resolution order.
+                foreach (var agent in await GetAllowedAgentsAsync(request.Services, serverOptions, cancellationToken))
+                {
+                    if (!seenNames.Add(agent.Name))
+                    {
+                        // A name collision is a configuration mistake, not an exceptional one, so it is
+                        // resolved and logged rather than allowed to fail the whole listing.
+                        logger ??= request.Services.GetService<ILogger<IMcpServerPromptService>>();
+                        logger?.LogWarning(
+                            "Agent '{AgentName}' is not exposed over MCP because a tool of the same name is already exposed.",
+                            agent.Name);
+
+                        continue;
+                    }
+
+                    tools.Add(new Tool
+                    {
+                        Name = agent.Name,
+                        Description = agent.Description,
+                        InputSchema = AgentInputSchema,
+                    });
+                }
+
                 return new ListToolsResult { Tools = tools };
             })
             .WithCallToolHandler(async (request, cancellationToken) =>
             {
+                // Tools invoked over MCP run outside any completion, so nothing has established the ambient
+                // invocation scope they expect. Without it an agent silently runs with its tools disabled
+                // (AgentProxyTool treats an untrackable depth as unsafe) and citation-emitting tools fall back
+                // to local reference numbering. Beginning a scope here makes an MCP call behave like the
+                // top-level completion it stands in for.
+                using var invocationScope = AIInvocationScope.Begin();
+
                 var serverOptions = request.Services.GetRequiredService<IOptionsMonitor<McpServerOptions>>().CurrentValue;
                 var exposeAll = serverOptions.ExposeAllTools;
                 var allowList = exposeAll ? null : BuildAllowList(serverOptions.Tools);
@@ -160,6 +218,23 @@ public static class McpServerBuilderExtensions
                             };
                         }
                     }
+                }
+
+                var agent = (await GetAllowedAgentsAsync(request.Services, serverOptions, cancellationToken))
+                    .FirstOrDefault(candidate => string.Equals(candidate.Name, request.Params.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (agent is not null)
+                {
+                    // The agent runs its own configured tools. The allow-list governs which agents a client
+                    // may invoke, never what an agent uses internally to do its job — filtering those would
+                    // force an operator to expose each of them directly, which is the opposite of the point.
+                    var agentTool = new AgentProxyTool(agent.Name, agent.Description);
+                    var agentResult = await agentTool.InvokeAsync(BuildArguments(request), cancellationToken);
+
+                    return new CallToolResult
+                    {
+                        Content = [new TextContentBlock { Text = agentResult?.ToString() ?? string.Empty }],
+                    };
                 }
 
                 throw new McpException($"Tool '{request.Params.Name}' not found.");
@@ -203,6 +278,54 @@ public static class McpServerBuilderExtensions
 
                 return await resourceService.ReadAsync(request, cancellationToken);
             });
+    }
+
+    /// <summary>
+    /// Gets the agent profiles this server is configured to expose, in a stable order.
+    /// </summary>
+    /// <remarks>
+    /// An agent needs a name and a description to be exposed at all: the description is the only signal an
+    /// MCP client has for what the agent is for, and an agent nobody can tell apart is worse than an absent
+    /// one. Availability (<c>AlwaysAvailable</c> versus <c>OnDemand</c>) is deliberately ignored — that
+    /// governs a completion's token budget, not who may reach the agent from outside.
+    /// </remarks>
+    /// <param name="services">The request services.</param>
+    /// <param name="serverOptions">The server exposure settings.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The exposable agent profiles.</returns>
+    private static async Task<IReadOnlyList<AIProfile>> GetAllowedAgentsAsync(
+        IServiceProvider services,
+        McpServerOptions serverOptions,
+        CancellationToken cancellationToken)
+    {
+        var exposeAllAgents = serverOptions.ExposeAllAgents;
+
+        if (!exposeAllAgents && serverOptions.Agents is not { Count: > 0 })
+        {
+            return [];
+        }
+
+        var profileManager = services.GetService<IAIProfileManager>();
+
+        if (profileManager is null)
+        {
+            return [];
+        }
+
+        var agents = await profileManager.GetAsync(AIProfileType.Agent, cancellationToken);
+
+        if (agents is null)
+        {
+            return [];
+        }
+
+        var allowList = exposeAllAgents ? null : BuildAllowList(serverOptions.Agents);
+
+        return agents
+            .Where(agent => !string.IsNullOrEmpty(agent.Name) &&
+                !string.IsNullOrEmpty(agent.Description) &&
+                IsAllowed(exposeAllAgents, allowList, agent.Name))
+            .ToList();
     }
 
     private static HashSet<string> BuildAllowList(IEnumerable<string> names)

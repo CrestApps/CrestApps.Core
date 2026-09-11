@@ -43,4 +43,29 @@ public sealed class McpServerOptions
     /// only listed and callable when it appears here.
     /// </summary>
     public IList<string> Tools { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets a value indicating whether every agent profile is exposed to MCP clients as a callable
+    /// tool. When <c>false</c> (the default), no agent is exposed unless it is named in <see cref="Agents"/>.
+    /// </summary>
+    /// <remarks>
+    /// Agents are gated separately from <see cref="ExposeAllTools"/> on purpose. An agent runs a whole AI
+    /// profile — its system message, its tools, its data sources, and the credentials behind them — so
+    /// letting the tool switch turn agents on would silently widen an existing deployment's surface the
+    /// moment it upgraded.
+    /// </remarks>
+    public bool ExposeAllAgents { get; set; }
+
+    /// <summary>
+    /// Gets or sets the allow-list of agent profile names exposed to MCP clients when
+    /// <see cref="ExposeAllAgents"/> is <c>false</c>. Each entry matches the <c>Name</c> of an AI profile of
+    /// type agent.
+    /// </summary>
+    /// <remarks>
+    /// This list is a security boundary: an allow-listed agent is runnable by any client that clears the
+    /// server's authentication. It governs only what a client may <em>invoke</em> — the tools an agent uses
+    /// internally to do its job are its own configuration and are never filtered by
+    /// <see cref="Tools"/>, nor made directly callable by being listed here.
+    /// </remarks>
+    public IList<string> Agents { get; set; } = [];
 }
