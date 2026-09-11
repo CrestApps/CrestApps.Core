@@ -88,7 +88,7 @@ public sealed class DataSourceSearchToolInstanceTests
 
         var result = await function.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object>
         {
-            ["query"] = "vacation policy",
+            ["queries"] = new[] { "vacation policy" },
         })
         {
             Services = new ServiceCollection().BuildServiceProvider(),
@@ -308,6 +308,204 @@ public sealed class DataSourceSearchToolInstanceTests
         Assert.Contains("not available", result, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Verifies that several phrases are embedded in one batched call and each gets its own index query, so
+    /// covering N topics costs one embedding round trip rather than N.
+    /// </summary>
+    [Fact]
+    public async Task InvokeAsync_MultiplePhrases_EmbedsInOneBatchAndSearchesEach()
+    {
+        var contentManager = new RecordingContentManager(
+        [
+            new DataSourceSearchResult
+            {
+                ReferenceId = "doc-1",
+                Content = "Employees accrue 15 days per year.",
+                Score = 0.9f,
+            },
+        ]);
+
+        var embeddingGenerator = new RecordingEmbeddingGenerator();
+        var services = BuildServices(contentManager, embeddingGenerator);
+
+        var function = CreateFunction(new DataSourceSearchToolSettings { DataSourceId = DataSourceId });
+
+        await InvokeAsync(function, services, "vacation policy", "sick leave policy");
+
+        Assert.Equal(1, embeddingGenerator.BatchCount);
+        Assert.Equal(["vacation policy", "sick leave policy"], embeddingGenerator.ReceivedInputs);
+        Assert.Equal(2, contentManager.SearchCount);
+    }
+
+    /// <summary>
+    /// Verifies that a chunk matched by more than one phrase is returned once under a single citation, rather
+    /// than repeated per phrase as separate independent calls would.
+    /// </summary>
+    [Fact]
+    public async Task InvokeAsync_MultiplePhrases_ReturnsOverlappingChunkOnce()
+    {
+        var shared = new DataSourceSearchResult
+        {
+            ReferenceId = "doc-1",
+            Title = "Leave policy",
+            Content = "Employees accrue 15 days per year.",
+            ChunkIndex = 0,
+            Score = 0.9f,
+        };
+
+        // Both phrases return the same chunk; only the second also returns a chunk of its own.
+        var contentManager = new RecordingContentManager(_ =>
+        [
+            shared,
+            new DataSourceSearchResult
+            {
+                ReferenceId = "doc-2",
+                Title = "Sick leave",
+                Content = "Sick days do not roll over.",
+                ChunkIndex = 0,
+                Score = 0.7f,
+            },
+        ]);
+
+        var services = BuildServices(contentManager, new RecordingEmbeddingGenerator());
+        var function = CreateFunction(new DataSourceSearchToolSettings { DataSourceId = DataSourceId });
+
+        var result = await InvokeAsync(function, services, "vacation policy", "sick leave policy");
+
+        Assert.Equal(1, CountOccurrences(result, "Employees accrue 15 days per year."));
+        Assert.Equal(1, CountOccurrences(result, "Sick days do not roll over."));
+        Assert.Equal(1, CountOccurrences(result, "[doc:1] = doc-1"));
+    }
+
+    /// <summary>
+    /// Verifies that a model which ignores the schema cap is truncated rather than rejected, so an over-eager
+    /// caller still gets an answer and never runs more index queries than the cap allows.
+    /// </summary>
+    [Fact]
+    public async Task InvokeAsync_CapsThePhraseCount_AndDropsExactRepeats()
+    {
+        var contentManager = new RecordingContentManager(
+        [
+            new DataSourceSearchResult
+            {
+                ReferenceId = "doc-1",
+                Content = "Employees accrue 15 days per year.",
+                Score = 0.9f,
+            },
+        ]);
+
+        var embeddingGenerator = new RecordingEmbeddingGenerator();
+        var services = BuildServices(contentManager, embeddingGenerator);
+        var function = CreateFunction(new DataSourceSearchToolSettings { DataSourceId = DataSourceId });
+
+        var result = await InvokeAsync(function, services, "one", "two", "  two  ", "three", "four", "five");
+
+        Assert.Equal(DataSourceRetrieval.MaxQueries, contentManager.SearchCount);
+        Assert.Equal(["one", "two", "three"], embeddingGenerator.ReceivedInputs);
+        Assert.Contains("Employees accrue 15 days per year.", result);
+    }
+
+    /// <summary>
+    /// Verifies that a model sending a bare string instead of the array the schema asks for is still served,
+    /// rather than losing a tool call to a shape mismatch it has to diagnose.
+    /// </summary>
+    [Fact]
+    public async Task InvokeAsync_AcceptsABareStringInsteadOfAnArray()
+    {
+        var contentManager = new RecordingContentManager(
+        [
+            new DataSourceSearchResult
+            {
+                ReferenceId = "doc-1",
+                Content = "Employees accrue 15 days per year.",
+                Score = 0.9f,
+            },
+        ]);
+
+        var embeddingGenerator = new RecordingEmbeddingGenerator();
+        var services = BuildServices(contentManager, embeddingGenerator);
+        var function = CreateFunction(new DataSourceSearchToolSettings { DataSourceId = DataSourceId });
+
+        var result = await function.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object>
+        {
+            ["queries"] = "vacation policy",
+        })
+        {
+            Services = services,
+        },
+        cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["vacation policy"], embeddingGenerator.ReceivedInputs);
+        Assert.Equal(1, contentManager.SearchCount);
+        Assert.Contains("Employees accrue 15 days per year.", result?.ToString());
+    }
+
+    /// <summary>
+    /// Verifies that a single phrase still ranks purely by score, so the fusion added for multiple phrases
+    /// leaves the one-phrase path — the profile-bound tool's path — behaving exactly as it did.
+    /// </summary>
+    [Fact]
+    public async Task InvokeAsync_SinglePhrase_RanksByScoreDescending()
+    {
+        var contentManager = new RecordingContentManager(
+        [
+            new DataSourceSearchResult { ReferenceId = "doc-low", Content = "Third best.", Score = 0.5f },
+            new DataSourceSearchResult { ReferenceId = "doc-high", Content = "Best match.", Score = 0.95f },
+            new DataSourceSearchResult { ReferenceId = "doc-mid", Content = "Second best.", Score = 0.8f },
+        ]);
+
+        var services = BuildServices(contentManager, new RecordingEmbeddingGenerator());
+        var function = CreateFunction(new DataSourceSearchToolSettings { DataSourceId = DataSourceId });
+
+        var result = await InvokeAsync(function, services, "vacation policy");
+
+        Assert.Equal(1, contentManager.SearchCount);
+        Assert.True(result.IndexOf("Best match.", StringComparison.Ordinal) < result.IndexOf("Second best.", StringComparison.Ordinal));
+        Assert.True(result.IndexOf("Second best.", StringComparison.Ordinal) < result.IndexOf("Third best.", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Verifies that ranking is by position within each phrase's own results, not by raw similarity across
+    /// phrases. A phrase whose whole result set scores lower still gets its best hit near the top, instead of
+    /// being buried under a phrase that happens to produce higher similarities.
+    /// </summary>
+    [Fact]
+    public async Task InvokeAsync_MultiplePhrases_RankByPositionNotRawScoreAcrossPhrases()
+    {
+        // Similarity scores are only comparable within one query vector. The broad phrase's best match scores
+        // 0.60 while every hit for the narrow phrase scores above 0.90 — ranking the union by raw score would
+        // bury the broad phrase's answer beneath all three of the narrow phrase's.
+        var narrow = new DataSourceSearchResult[]
+        {
+            new() { ReferenceId = "narrow-1", Content = "Narrow first.", Score = 0.95f },
+            new() { ReferenceId = "narrow-2", Content = "Narrow second.", Score = 0.93f },
+            new() { ReferenceId = "narrow-3", Content = "Narrow third.", Score = 0.91f },
+        };
+
+        var broad = new DataSourceSearchResult[]
+        {
+            new() { ReferenceId = "broad-1", Content = "Broad first.", Score = 0.60f },
+        };
+
+        var narrowVector = "narrow phrase".GetHashCode(StringComparison.Ordinal);
+
+        var contentManager = new RecordingContentManager(vector => vector[0] == narrowVector ? narrow : broad);
+        var services = BuildServices(contentManager, new RecordingEmbeddingGenerator());
+        var function = CreateFunction(new DataSourceSearchToolSettings { DataSourceId = DataSourceId });
+
+        var result = await InvokeAsync(function, services, "narrow phrase", "broad phrase");
+
+        var narrowFirst = result.IndexOf("Narrow first.", StringComparison.Ordinal);
+        var narrowSecond = result.IndexOf("Narrow second.", StringComparison.Ordinal);
+        var broadFirst = result.IndexOf("Broad first.", StringComparison.Ordinal);
+
+        Assert.All(new[] { narrowFirst, narrowSecond, broadFirst }, index => Assert.True(index >= 0));
+
+        // Each phrase's top hit outranks the narrow phrase's runner-up, despite scoring 0.33 lower.
+        Assert.True(narrowFirst < broadFirst, "The highest-ranked result overall should still come first.");
+        Assert.True(broadFirst < narrowSecond, "A phrase's own top hit should outrank another phrase's runner-up.");
+    }
+
     private static int CountOccurrences(string text, string value)
     {
         return text.Split(value).Length - 1;
@@ -328,11 +526,11 @@ public sealed class DataSourceSearchToolInstanceTests
         return (DataSourceSearchToolFunction)new DataSourceSearchToolInstanceSource().CreateTool(instance);
     }
 
-    private static async Task<string> InvokeAsync(DataSourceSearchToolFunction function, IServiceProvider services, string query)
+    private static async Task<string> InvokeAsync(DataSourceSearchToolFunction function, IServiceProvider services, params string[] queries)
     {
         var result = await function.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object>
         {
-            ["query"] = query,
+            ["queries"] = queries,
         })
         {
             Services = services,
@@ -444,15 +642,21 @@ public sealed class DataSourceSearchToolInstanceTests
 
         public List<string> ReceivedInputs { get; } = [];
 
+        public int BatchCount { get; private set; }
+
         public Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
             IEnumerable<string> values,
             EmbeddingGenerationOptions options = null,
             CancellationToken cancellationToken = default)
         {
-            ReceivedInputs.AddRange(values);
+            var batch = values.ToList();
 
+            BatchCount++;
+            ReceivedInputs.AddRange(batch);
+
+            // Each phrase gets its own distinguishable vector so a test can tell which phrase a search ran for.
             return Task.FromResult(new GeneratedEmbeddings<Embedding<float>>(
-                ReceivedInputs.Select(_ => new Embedding<float>(new float[] { 0.1f, 0.2f, 0.3f })).ToList()));
+                batch.Select(value => new Embedding<float>(new float[] { value.GetHashCode(StringComparison.Ordinal) })).ToList()));
         }
 
         public object GetService(Type serviceType, object serviceKey = null) => null;
@@ -465,10 +669,17 @@ public sealed class DataSourceSearchToolInstanceTests
     private sealed class RecordingContentManager : IDataSourceContentManager
     {
         private readonly IReadOnlyList<DataSourceSearchResult> _results;
+        private readonly Func<float[], IReadOnlyList<DataSourceSearchResult>> _resultsByVector;
+        private readonly Lock _gate = new();
 
         public RecordingContentManager(IReadOnlyList<DataSourceSearchResult> results)
         {
             _results = results;
+        }
+
+        public RecordingContentManager(Func<float[], IReadOnlyList<DataSourceSearchResult>> resultsByVector)
+        {
+            _resultsByVector = resultsByVector;
         }
 
         public string ReceivedDataSourceId { get; private set; }
@@ -476,6 +687,8 @@ public sealed class DataSourceSearchToolInstanceTests
         public string ReceivedFilter { get; private set; }
 
         public int ReceivedTopN { get; private set; }
+
+        public int SearchCount { get; private set; }
 
         public Task<IEnumerable<DataSourceSearchResult>> SearchAsync(
             IIndexProfileInfo indexProfile,
@@ -485,11 +698,19 @@ public sealed class DataSourceSearchToolInstanceTests
             string filter = null,
             CancellationToken cancellationToken = default)
         {
-            ReceivedDataSourceId = dataSourceId;
-            ReceivedFilter = filter;
-            ReceivedTopN = topN;
+            IReadOnlyList<DataSourceSearchResult> results;
 
-            return Task.FromResult<IEnumerable<DataSourceSearchResult>>(_results);
+            lock (_gate)
+            {
+                ReceivedDataSourceId = dataSourceId;
+                ReceivedFilter = filter;
+                ReceivedTopN = topN;
+                SearchCount++;
+
+                results = _resultsByVector?.Invoke(embedding) ?? _results;
+            }
+
+            return Task.FromResult<IEnumerable<DataSourceSearchResult>>(results);
         }
 
         public Task<long> DeleteByDataSourceIdAsync(

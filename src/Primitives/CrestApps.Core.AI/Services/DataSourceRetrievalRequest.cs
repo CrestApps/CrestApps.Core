@@ -13,9 +13,10 @@ internal sealed class DataSourceRetrievalRequest
     public string DataSourceId { get; init; }
 
     /// <summary>
-    /// Gets the natural-language phrase to embed and search for.
+    /// Gets the natural-language phrases to embed and search for. Every phrase is embedded in one batched
+    /// call and searched independently, and the result sets are fused into a single ranking.
     /// </summary>
-    public string Query { get; init; }
+    public IReadOnlyList<string> Queries { get; init; }
 
     /// <summary>
     /// Gets the number of top-scoring results to return. When not set, the configured site default is used.

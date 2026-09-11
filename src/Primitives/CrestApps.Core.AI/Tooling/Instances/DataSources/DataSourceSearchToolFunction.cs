@@ -13,10 +13,12 @@ namespace CrestApps.Core.AI.Tooling.Instances.DataSources;
 /// data source, so a host can expose one callable function per knowledge base it wants the model to reach.
 /// </summary>
 /// <remarks>
-/// The model supplies only the search phrase. That phrase is embedded with the same embedding deployment
-/// the data source's knowledge base index was indexed with, so it is compared against the stored chunks in
-/// the same vector space. Every other retrieval parameter — retrieval mode, retrieved document count,
-/// strictness, and filter — comes from the instance settings the user configured.
+/// The model supplies only the search phrases — one, or up to <see cref="DataSourceRetrieval.MaxQueries"/>
+/// when the question spans genuinely distinct topics. They are embedded in a single batched call using the
+/// same embedding deployment the data source's knowledge base index was indexed with, so they are compared
+/// against the stored chunks in the same vector space, then searched in parallel and fused into one ranking.
+/// Every other retrieval parameter — retrieval mode, retrieved document count, strictness, and filter —
+/// comes from the instance settings the user configured.
 /// </remarks>
 public sealed class DataSourceSearchToolFunction : AIFunction
 {
@@ -25,12 +27,15 @@ public sealed class DataSourceSearchToolFunction : AIFunction
     {
       "type": "object",
       "properties": {
-        "query": {
-          "type": "string",
-          "description": "A short set of keywords describing what to look for, extracted from the user's request. Pass the essential search terms (nouns and distinctive words), not the user's full sentence or question."
+        "queries": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "maxItems": 3,
+          "description": "One search phrase per genuinely distinct topic the question covers. Each phrase is a short set of keywords (nouns and distinctive words), not the user's full sentence. Pass a SINGLE phrase unless the question really spans separate subjects — for example ['vacation policy', 'sick leave policy'] for a question comparing the two. Never pass synonyms, rewordings, or singular/plural variants of the same idea: they retrieve the same content twice and waste the search budget."
         }
       },
-      "required": ["query"],
+      "required": ["queries"],
       "additionalProperties": false
     }
     """);
@@ -93,11 +98,13 @@ public sealed class DataSourceSearchToolFunction : AIFunction
         var logger = services?.GetService<ILoggerFactory>()?.CreateLogger<DataSourceSearchToolFunction>()
             ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<DataSourceSearchToolFunction>.Instance;
 
-        if (!arguments.TryGetFirstString("query", out var query) || string.IsNullOrWhiteSpace(query))
-        {
-            logger.LogWarning("AI tool '{ToolName}' missing required argument 'query'.", _name);
+        var queries = ReadQueries(arguments);
 
-            return "Unable to find a 'query' argument in the arguments parameter.";
+        if (queries.Count == 0)
+        {
+            logger.LogWarning("AI tool '{ToolName}' missing required argument 'queries'.", _name);
+
+            return "Unable to find a 'queries' argument in the arguments parameter.";
         }
 
         if (services is null)
@@ -119,7 +126,7 @@ public sealed class DataSourceSearchToolFunction : AIFunction
                 new DataSourceRetrievalRequest
                 {
                     DataSourceId = _settings.DataSourceId,
-                    Query = query,
+                    Queries = queries,
                     TopNDocuments = _settings.TopNDocuments,
                     Strictness = _settings.Strictness,
                     Filter = _settings.Filter,
@@ -139,6 +146,91 @@ public sealed class DataSourceSearchToolFunction : AIFunction
             logger.LogError(ex, "AI tool '{ToolName}' failed to search data source '{DataSourceId}'.", _name, _settings.DataSourceId);
 
             return "An error occurred while searching the data source.";
+        }
+    }
+
+    /// <summary>
+    /// Reads the search phrases the model supplied.
+    /// </summary>
+    /// <remarks>
+    /// The schema asks for an array under <c>queries</c>, but models routinely send a bare string, and some
+    /// send the singular <c>query</c> the rest of the tooling uses. Both are accepted: refusing them would
+    /// turn a trivially recoverable shape mismatch into a wasted tool call the model has to diagnose.
+    /// </remarks>
+    /// <param name="arguments">The arguments supplied by the AI model.</param>
+    /// <returns>The phrases to search for, in the order supplied.</returns>
+    private static List<string> ReadQueries(AIFunctionArguments arguments)
+    {
+        var queries = new List<string>();
+
+        foreach (var key in (string[])["queries", "query"])
+        {
+            if (!arguments.TryGetFirst(key, out var raw))
+            {
+                continue;
+            }
+
+            Collect(raw, queries);
+
+            if (queries.Count > 0)
+            {
+                break;
+            }
+        }
+
+        return queries;
+    }
+
+    private static void Collect(object value, List<string> queries)
+    {
+        switch (value)
+        {
+            case string text:
+                Add(text, queries);
+
+                break;
+
+            case JsonElement { ValueKind: JsonValueKind.String } element:
+                Add(element.GetString(), queries);
+
+                break;
+
+            case JsonElement { ValueKind: JsonValueKind.Array } element:
+                foreach (var item in element.EnumerateArray())
+                {
+                    Collect(item, queries);
+                }
+
+                break;
+
+            case IEnumerable<string> texts:
+                foreach (var text in texts)
+                {
+                    Add(text, queries);
+                }
+
+                break;
+
+            case System.Collections.IEnumerable items:
+                foreach (var item in items)
+                {
+                    Collect(item, queries);
+                }
+
+                break;
+
+            default:
+                Add(value?.ToString(), queries);
+
+                break;
+        }
+    }
+
+    private static void Add(string text, List<string> queries)
+    {
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            queries.Add(text);
         }
     }
 }

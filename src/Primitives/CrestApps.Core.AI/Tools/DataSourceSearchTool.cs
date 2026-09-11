@@ -100,7 +100,7 @@ public sealed class DataSourceSearchTool : AIFunction
                 new DataSourceRetrievalRequest
                 {
                     DataSourceId = dataSourceId,
-                    Query = query,
+                    Queries = [query],
                     TopNDocuments = ragMetadata?.TopNDocuments,
                     Strictness = ragMetadata?.Strictness,
                     Filter = ragMetadata?.Filter,

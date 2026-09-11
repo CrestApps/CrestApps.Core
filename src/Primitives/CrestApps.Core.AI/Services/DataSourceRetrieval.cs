@@ -27,6 +27,14 @@ namespace CrestApps.Core.AI.Services;
 internal static class DataSourceRetrieval
 {
     /// <summary>
+    /// The most phrases one search may embed and run. Each phrase costs its own index query, and a model
+    /// handed an array will happily send six rewordings of one idea — which retrieves nearly the same chunks
+    /// six times over. Extra phrases are dropped rather than rejected, so an over-eager caller still gets an
+    /// answer instead of an error it has to recover from.
+    /// </summary>
+    public const int MaxQueries = 3;
+
+    /// <summary>
     /// Searches the requested data source and returns the text to hand back to the AI model.
     /// </summary>
     /// <param name="services">The request services used to resolve the stores, index provider, and embedding generator.</param>
@@ -44,6 +52,15 @@ internal static class DataSourceRetrieval
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(request);
+
+        var queries = NormalizeQueries(request.Queries);
+
+        if (queries.Count == 0)
+        {
+            logger.LogWarning("AI tool '{ToolName}' failed: no search phrase was supplied.", toolName);
+
+            return "No search phrase was supplied. Provide at least one phrase to search for.";
+        }
 
         var dataSourceStore = services.GetRequiredService<IAIDataSourceStore>();
         var dataSource = await dataSourceStore.FindByIdAsync(request.DataSourceId, cancellationToken);
@@ -90,13 +107,20 @@ internal static class DataSourceRetrieval
             return "Embedding configuration is missing for the knowledge base index.";
         }
 
-        var embeddings = await embeddingGenerator.GenerateAsync([request.Query], cancellationToken: cancellationToken);
+        // One batched call regardless of how many phrases were asked for: the embedding API takes the whole
+        // set, so N phrases cost one round trip rather than N.
+        var embeddings = await embeddingGenerator.GenerateAsync(queries, cancellationToken: cancellationToken);
 
-        if (embeddings == null || embeddings.Count == 0 || embeddings[0]?.Vector == null)
+        var vectors = embeddings?
+            .Where(embedding => embedding?.Vector != null)
+            .Select(embedding => embedding.Vector.ToArray())
+            .ToList() ?? [];
+
+        if (vectors.Count == 0)
         {
-            logger.LogWarning("AI tool '{ToolName}' failed: could not generate embedding for query.", toolName);
+            logger.LogWarning("AI tool '{ToolName}' failed: could not generate embeddings for the search phrases.", toolName);
 
-            return "Failed to generate embedding for the search query.";
+            return "Failed to generate embeddings for the search phrases.";
         }
 
         var siteSettings = services.GetRequiredService<IOptionsMonitor<AIDataSourceOptions>>().CurrentValue;
@@ -118,15 +142,20 @@ internal static class DataSourceRetrieval
             }
         }
 
-        var results = await contentManager.SearchAsync(
-            masterIndexProfile,
-            embeddings[0].Vector.ToArray(),
-            request.DataSourceId,
-            DataSourceSearchResultSelector.GetCandidateCount(topN),
-            providerFilter,
-            cancellationToken);
+        var candidateCount = DataSourceSearchResultSelector.GetCandidateCount(topN);
 
-        if (results == null || !results.Any())
+        // The phrases are independent queries against a thread-safe index client, so they run together rather
+        // than one after another. That matters on a realtime session, where a grounded turn cannot start
+        // speaking until retrieval returns.
+        var resultSets = await Task.WhenAll(vectors.Select(vector => contentManager.SearchAsync(
+            masterIndexProfile,
+            vector,
+            request.DataSourceId,
+            candidateCount,
+            providerFilter,
+            cancellationToken)));
+
+        if (resultSets.All(resultSet => resultSet == null || !resultSet.Any()))
         {
             return request.IsInScope
                 ? "No relevant content was found in the data source for this query. The answer is not available in the configured data source."
@@ -134,7 +163,7 @@ internal static class DataSourceRetrieval
         }
 
         var minimumScore = siteSettings.GetMinimumScore(request.Strictness);
-        var selected = DataSourceSearchResultSelector.SelectTopResults(results, topN, minimumScore);
+        var selected = DataSourceSearchResultSelector.FuseTopResults(resultSets, topN, minimumScore);
 
         if (selected.Count == 0)
         {
@@ -169,6 +198,49 @@ internal static class DataSourceRetrieval
         builder.Append(references.Render());
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Trims the requested phrases to the set actually worth searching: blanks dropped, exact repeats
+    /// collapsed, and the remainder capped at <see cref="MaxQueries"/>.
+    /// </summary>
+    /// <param name="queries">The requested phrases.</param>
+    /// <returns>The phrases to embed and search.</returns>
+    private static List<string> NormalizeQueries(IReadOnlyList<string> queries)
+    {
+        if (queries is not { Count: > 0 })
+        {
+            return [];
+        }
+
+        var normalized = new List<string>(Math.Min(queries.Count, MaxQueries));
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var query in queries)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                continue;
+            }
+
+            var trimmed = query.Trim();
+
+            // An exact repeat costs a whole index query and returns the same chunks, so it never survives.
+            // Near-synonyms cannot be caught here — the schema description is what discourages those.
+            if (!seen.Add(trimmed))
+            {
+                continue;
+            }
+
+            normalized.Add(trimmed);
+
+            if (normalized.Count == MaxQueries)
+            {
+                break;
+            }
+        }
+
+        return normalized;
     }
 
     /// <summary>
