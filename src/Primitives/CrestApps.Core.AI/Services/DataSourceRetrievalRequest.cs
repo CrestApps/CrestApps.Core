@@ -39,8 +39,17 @@ internal sealed class DataSourceRetrievalRequest
     public DataSourceRetrievalMode RetrievalMode { get; init; }
 
     /// <summary>
-    /// Gets a value indicating whether the model must answer only from the retrieved content. This only
-    /// changes the guidance returned when nothing relevant is found.
+    /// Gets how an empty result should be reported to the model, when the caller is in a position to say.
+    /// <see langword="true"/> states that the answer is not available; <see langword="false"/> invites a
+    /// fall back to general knowledge; <see langword="null"/> — the default — reports only that nothing was
+    /// found.
     /// </summary>
-    public bool IsInScope { get; init; }
+    /// <remarks>
+    /// Only a caller that owns the model's whole turn can hold the model to an answering policy, because the
+    /// policy has to reach the system prompt. A single tool cannot: the model is free to ignore a sentence in
+    /// one tool result. So a caller configured per profile or interaction passes its setting through, while a
+    /// standalone tool leaves this unset and states the plain fact instead of implying a constraint it has no
+    /// way to enforce.
+    /// </remarks>
+    public bool? IsInScope { get; init; }
 }

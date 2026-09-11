@@ -405,12 +405,6 @@
                 <InputText @bind-Value="_model.DataSourceFilter" class="form-control font-monospace" placeholder="filters/status eq 'published'" />
                 <div class="form-text">Optional OData filter expression translated to the index provider's own syntax before the search runs.</div>
             </div>
-
-            <div class="form-check mb-3">
-                <InputCheckbox @bind-Value="_model.DataSourceIsInScope" class="form-check-input" />
-                <label class="form-check-label">Limit answers to the retrieved content</label>
-                <div class="form-text">When checked, the tool tells the model the answer is unavailable rather than letting it fall back to general knowledge.</div>
-            </div>
         }
 
         <ToolInstanceParameterEditor Source="@_model.Source"
@@ -820,7 +814,6 @@
                 TopNDocuments = model.DataSourceTopNDocuments,
                 Strictness = model.DataSourceStrictness,
                 Filter = string.IsNullOrWhiteSpace(model.DataSourceFilter) ? null : model.DataSourceFilter.Trim(),
-                IsInScope = model.DataSourceIsInScope,
             });
 
             return;

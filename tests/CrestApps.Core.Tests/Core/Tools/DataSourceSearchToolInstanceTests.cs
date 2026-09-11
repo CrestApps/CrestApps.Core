@@ -4,7 +4,10 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Tooling.Instances.DataSources;
+using CrestApps.Core.AI.Tools;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
 using CrestApps.Core.Infrastructure.Indexing.Models;
@@ -277,8 +280,8 @@ public sealed class DataSourceSearchToolInstanceTests
     }
 
     /// <summary>
-    /// Verifies that a strictness high enough to reject every match tells the model the knowledge base has
-    /// no answer instead of returning an empty block of context.
+    /// Verifies that a strictness high enough to reject every match says so, instead of returning an empty
+    /// block of context.
     /// </summary>
     [Fact]
     public async Task InvokeAsync_ReportsNoMatches_WhenStrictnessRejectsEveryResult()
@@ -299,13 +302,83 @@ public sealed class DataSourceSearchToolInstanceTests
         {
             DataSourceId = DataSourceId,
             Strictness = AIDataSourceOptions.MaxStrictness,
-            IsInScope = true,
         });
 
         var result = await InvokeAsync(function, services, "vacation policy");
 
         Assert.Contains("strictness", result, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("not available", result, StringComparison.OrdinalIgnoreCase);
+        AssertStatesTheFactWithoutDirectingTheModel(result);
+    }
+
+    /// <summary>
+    /// Verifies that a search finding nothing reports exactly that, without telling the model whether it may
+    /// answer from general knowledge. A standalone tool cannot hold the model to an answering policy — that
+    /// has to reach the system prompt — so it states the fact and leaves the decision where it belongs.
+    /// </summary>
+    [Fact]
+    public async Task InvokeAsync_ReportsNoResults_WithoutDirectingHowToAnswer()
+    {
+        var contentManager = new RecordingContentManager([]);
+        var services = BuildServices(contentManager, new RecordingEmbeddingGenerator());
+
+        var function = CreateFunction(new DataSourceSearchToolSettings { DataSourceId = DataSourceId });
+
+        var result = await InvokeAsync(function, services, "vacation policy");
+
+        Assert.Contains("No relevant content was found in the data source", result, StringComparison.OrdinalIgnoreCase);
+        AssertStatesTheFactWithoutDirectingTheModel(result);
+    }
+
+    /// <summary>
+    /// Verifies that the profile-bound tool still states the profile's answering policy on an empty result.
+    /// Only that tool can: the same policy reaches the system prompt through the orchestration handlers, so
+    /// repeating it in the tool result reinforces something the model is already bound by. A tool instance,
+    /// which has no such backing, would only be asserting a constraint it cannot enforce.
+    /// </summary>
+    /// <param name="isInScope">The profile's in-scope setting.</param>
+    /// <param name="expected">The guidance the empty result must carry.</param>
+    [Theory]
+    [InlineData(true, "not available in the configured data source")]
+    [InlineData(false, "Answer using your general knowledge instead")]
+    public async Task ProfileBoundTool_StillStatesTheProfilePolicy_OnEmptyResults(bool isInScope, string expected)
+    {
+        var contentManager = new RecordingContentManager([]);
+        var services = BuildServices(contentManager, new RecordingEmbeddingGenerator());
+
+        var profile = new AIProfile
+        {
+            ItemId = "profile-1",
+            Name = "grounded",
+            Type = AIProfileType.Chat,
+        };
+
+        profile.Put(new AIDataSourceRagMetadata { IsInScope = isInScope });
+
+        using var scope = AIInvocationScope.Begin();
+
+        AIInvocationScope.Current.DataSourceId = DataSourceId;
+        AIInvocationScope.Current.ToolExecutionContext = new AIToolExecutionContext(profile);
+
+        var result = await new DataSourceSearchTool().InvokeAsync(new AIFunctionArguments(new Dictionary<string, object>
+        {
+            ["query"] = "vacation policy",
+        })
+        {
+            Services = services,
+        },
+        cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Contains(expected, result?.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Asserts an empty-result message reports what happened without prescribing how the model should answer.
+    /// </summary>
+    /// <param name="result">The tool result.</param>
+    private static void AssertStatesTheFactWithoutDirectingTheModel(string result)
+    {
+        Assert.DoesNotContain("general knowledge", result, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("not available in the configured data source", result, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

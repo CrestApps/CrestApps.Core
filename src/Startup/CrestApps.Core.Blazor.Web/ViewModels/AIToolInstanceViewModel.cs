@@ -283,9 +283,4 @@ public sealed class AIToolInstanceViewModel
     /// </summary>
     public string DataSourceFilter { get; set; }
 
-    /// <summary>
-    /// Gets or sets a value indicating whether the data source search source instructs the model to answer
-    /// only from the retrieved content.
-    /// </summary>
-    public bool DataSourceIsInScope { get; set; }
 }

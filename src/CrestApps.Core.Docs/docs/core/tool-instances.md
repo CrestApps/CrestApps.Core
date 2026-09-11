@@ -518,11 +518,12 @@ Each instance binds **one** data source plus the retrieval parameters applied to
 | `TopNDocuments` | site default | The number of top-scoring results to return, between `AIDataSourceOptions.MinTopNDocuments` and `MaxTopNDocuments`. |
 | `Strictness` | site default | How relevant a result must be to survive, between `AIDataSourceOptions.MinStrictness` and `MaxStrictness`. Higher values keep only closer matches. |
 | `Filter` | *(none)* | An OData filter expression translated to the index provider's own filter syntax before the search runs. |
-| `IsInScope` | `false` | When set, a search that finds nothing tells the model the answer is unavailable rather than inviting it to fall back to general knowledge. |
 
 The model's phrases are embedded with the **same embedding deployment the knowledge base index was indexed with** — resolved from `SearchIndexProfile.EmbeddingDeploymentName`, optionally overridden by `DataSourceIndexProfileMetadata` on that profile — so the queries and the stored chunks live in the same vector space. This is the identical resolution the indexing service performs, which is what keeps a profile indexed under the top-level embedding deployment queryable.
 
 Results are returned with `[doc:N]` citations, one index per source document, and each citation is registered on the active invocation context so a host can render it as a link.
+
+A search that finds nothing reports exactly that — *"No relevant content was found in the data source for this query."* — and stops there. It does not tell the model whether it may answer from general knowledge, because a single tool has no way to hold it to that: an answering policy only binds when it reaches the system prompt, which is why `AIDataSourceRagMetadata.IsInScope` lives on the profile or chat interaction and is applied by the orchestration handlers across the whole turn. A tool instance states the fact and leaves the policy to whatever owns the turn.
 
 ### Searching several phrases at once
 
