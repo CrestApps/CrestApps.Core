@@ -174,6 +174,12 @@ public static class ServiceCollectionExtensions
             .WithCategory("Tabular Data")
             .Hidden();
 
+        services.AddCoreAITool<CompareTabularDataTool>(CompareTabularDataTool.TheName)
+            .WithTitle("Compare Tabular Data")
+            .WithDescription("Compares a numeric measure between two tabular queries, matching rows on a shared key and reporting the difference.")
+            .WithCategory("Tabular Data")
+            .Hidden();
+
         services.AddCoreAITool<GenerateFileTool>(GenerateFileTool.TheName)
             .WithTitle("Generate File")
             .WithDescription("Creates a downloadable file (PDF, Word, Markdown, HTML, text, CSV, or spreadsheet) from generated content and attaches it to the conversation for download.")

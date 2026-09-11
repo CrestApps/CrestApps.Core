@@ -113,6 +113,19 @@ public sealed class ListTabularDataTool : AIFunction
 
             builder.Append("  Columns: ");
             builder.AppendLine(string.Join(", ", table.Columns.Select(FormatColumn)));
+
+            var ambiguousTotals = TabularColumnAmbiguityDetector.DescribeAmbiguousTotals(
+                table.Columns.Select(column => (column.Name, IsNumeric: column.DeclaredType is "INTEGER" or "REAL")).ToList());
+
+            if (ambiguousTotals is not null)
+            {
+                builder.AppendLine(ambiguousTotals);
+            }
+
+            if (table.TableName.EndsWith(TabularWorksheetShaper.RollupTableSuffix, StringComparison.Ordinal))
+            {
+                builder.AppendLine("  NOTE: holds the subtotal/grand-total rows lifted out of the matching data table, so the data table sums correctly on its own. Do NOT add this table's figures to that table's -- they already cover the same rows. Use it only to reconcile against the totals the source sheet printed.");
+            }
         }
 
         builder.AppendLine();

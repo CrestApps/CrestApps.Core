@@ -213,17 +213,28 @@ public static class TabularWorkspaceSqliteHelpers
     /// <summary>
     /// Returns the value to store for a cell, normalizing numeric-looking text (currency symbols,
     /// thousands separators, and accounting-style parenthesized negatives) into a plain number string
-    /// when the column is numeric. Values that do not parse and cells in <c>TEXT</c> columns are left
-    /// unchanged, so nothing is lost and the import never fails on an unexpected cell.
+    /// when the column is numeric, and trimming leading/trailing whitespace from <c>TEXT</c> column
+    /// values so incidental spacing (for example a trailing space on one row's label) does not split an
+    /// otherwise-identical value into a separate SQL <c>GROUP BY</c> key. Values that do not parse are
+    /// left unchanged, so nothing is lost and the import never fails on an unexpected cell.
     /// </summary>
     /// <param name="declaredType">The column's declared SQLite storage type.</param>
     /// <param name="value">The raw cell value.</param>
     /// <returns>The value to bind, normalized when appropriate.</returns>
     public static string NormalizeCellValue(string declaredType, string value)
     {
-        if (value is null ||
-            (!string.Equals(declaredType, "INTEGER", StringComparison.Ordinal) &&
-             !string.Equals(declaredType, "REAL", StringComparison.Ordinal)))
+        if (value is null)
+        {
+            return value;
+        }
+
+        if (string.Equals(declaredType, "TEXT", StringComparison.Ordinal))
+        {
+            return value.Trim();
+        }
+
+        if (!string.Equals(declaredType, "INTEGER", StringComparison.Ordinal) &&
+            !string.Equals(declaredType, "REAL", StringComparison.Ordinal))
         {
             return value;
         }

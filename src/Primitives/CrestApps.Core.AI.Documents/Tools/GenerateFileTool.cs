@@ -242,12 +242,51 @@ public sealed class GenerateFileTool : AIFunction
 
             if (header.Count > 0)
             {
+                var delimiter = DelimitedDataParser.DetectDelimiter(content, fileName);
+
                 fileContent.Header = header;
-                fileContent.Rows = rows;
+                fileContent.Rows = ReflowOverflowRows(header, rows, delimiter);
             }
         }
 
         return fileContent;
+    }
+
+    /// <summary>
+    /// Rejoins overflow fields when the model left an unquoted delimiter in a value (e.g. "Acme, Inc.").
+    /// Assumes the overflow is in the leading field(s), since free-text labels come first.
+    /// </summary>
+    private static IReadOnlyList<IReadOnlyList<string>> ReflowOverflowRows(
+        IReadOnlyList<string> header,
+        IReadOnlyList<IReadOnlyList<string>> rows, char delimiter)
+    {
+        var expectedCount = header.Count;
+        List<IReadOnlyList<string>> repaired = null;
+
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var row = rows[i];
+
+            if (row.Count <= expectedCount)
+            {
+                repaired?.Add(row);
+
+                continue;
+            }
+
+            repaired ??= new List<IReadOnlyList<string>>(rows.Take(i));
+
+            var overflow = row.Count - expectedCount;
+            var fixedRow = new List<string>(expectedCount)
+            {
+                string.Join(delimiter, row.Take(overflow + 1)),
+            };
+            fixedRow.AddRange(row.Skip(overflow + 1));
+
+            repaired.Add(fixedRow);
+        }
+
+        return repaired ?? rows;
     }
 
     private static bool LooksLikeDownloadStatusMessage(string content)

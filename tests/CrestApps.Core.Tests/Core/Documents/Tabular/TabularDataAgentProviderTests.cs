@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Templates.Models;
 using CrestApps.Core.Templates.Services;
 
@@ -53,11 +54,13 @@ public class TabularDataAgentProviderTests
         Assert.True(agent.TryGet<FunctionInvocationMetadata>(out var functionMetadata));
         Assert.Equal(
             [
+                SystemToolNames.GetDocumentMetadata,
                 TabularToolNames.ListTabularData,
                 TabularToolNames.QueryTabularData,
                 TabularToolNames.ExecuteTabularCommand,
                 TabularToolNames.FillEmptyTabularCells,
                 TabularToolNames.ExportTabularData,
+                TabularToolNames.CompareTabularData,
             ],
             functionMetadata.Names);
 

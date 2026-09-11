@@ -2,6 +2,7 @@ using System.Text.Json;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.Support;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -72,14 +73,14 @@ public sealed class ExecuteTabularCommandTool : AIFunction
         var logger = arguments.Services.GetRequiredService<ILogger<ExecuteTabularCommandTool>>();
         var invocationNumber = IncrementInvocationCount();
 
-        if (logger.IsEnabled(LogLevel.Debug))
-        {
-            logger.LogDebug("AI tool '{ToolName}' invoked (call #{InvocationNumber}).", Name, invocationNumber);
-        }
-
         if (!arguments.TryGetFirstString("sql", out var sql) || string.IsNullOrWhiteSpace(sql))
         {
             return "A 'sql' statement is required.";
+        }
+
+        if (logger.IsEnabled(LogLevel.Debug))
+        {
+            logger.LogDebug("AI tool '{ToolName}' invoked (call #{InvocationNumber}) with SQL: {Sql}", Name, invocationNumber, sql.SanitizeForLog());
         }
 
         var preparation = await TabularToolRunner.PrepareAsync(arguments.Services, cancellationToken);

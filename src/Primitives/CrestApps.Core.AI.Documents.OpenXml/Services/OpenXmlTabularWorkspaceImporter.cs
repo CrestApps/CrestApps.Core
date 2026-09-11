@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using CrestApps.Core.AI.Documents.Tabular;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
@@ -12,6 +13,9 @@ namespace CrestApps.Core.AI.Documents.OpenXml.Services;
 /// </summary>
 public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
 {
+    // Bounds memory; above the largest real padding run seen in practice (~13,600 rows).
+    private const int MaxPendingBlankRows = 25_000;
+
     private readonly ILogger<OpenXmlTabularWorkspaceImporter> _logger;
 
     /// <summary>
@@ -86,21 +90,105 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
         string worksheetName = null;
         string currentTableName = null;
         var leadingRows = new List<List<string>>(profileRowCount);
+
+        // Runs parallel to leadingRows: whether each buffered row proved itself a rollup by formula.
+        var leadingRowIsRollup = new List<bool>(profileRowCount);
         IReadOnlyList<TabularColumnInfo> dataColumns = null;
-        IReadOnlyList<TabularColumnInfo> allColumns = null;
-        var hasSubtotalColumn = false;
         var finalized = false;
         SqliteCommand insertCommand = null;
         SqliteTransaction transaction = null;
         var rowCount = 0;
         var insertCommandCount = 0;
 
+        // Rollup rows are written to a sibling table rather than the data table, so an aggregate over
+        // the data table cannot double-count the rows a rollup already covers. The sibling table is
+        // created only when the worksheet actually contains one.
+        string rollupTableName = null;
+        SqliteCommand rollupInsertCommand = null;
+        var rollupRowCount = 0;
+
+        // Withheld until a following row proves the run isn't trailing formula-fill padding (e.g. "0" cells past the real data).
+        List<int> textColumnIndexes = null;
+        var pendingBlankRows = new List<List<string>>();
+
         void InsertDataRow(List<string> row)
         {
-            BindDataRow(insertCommand, row, dataColumns, hasSubtotalColumn);
+            BindDataRow(insertCommand, row, dataColumns);
             insertCommand.ExecuteNonQuery();
             rowCount++;
             insertCommandCount++;
+        }
+
+        void InsertRollupRow(List<string> row)
+        {
+            // Created on first use, so a worksheet without rollups gains no extra table.
+            if (rollupInsertCommand is null)
+            {
+                rollupTableName = TabularWorksheetShaper.GetRollupTableName(currentTableName);
+                TabularWorkspaceSqliteHelpers.CreateTable(connection, rollupTableName, dataColumns);
+                rollupInsertCommand = CreateInsertCommand(connection, transaction, rollupTableName, dataColumns);
+            }
+
+            BindDataRow(rollupInsertCommand, row, dataColumns);
+            rollupInsertCommand.ExecuteNonQuery();
+            rollupRowCount++;
+            insertCommandCount++;
+        }
+
+        void InsertRow(List<string> row, bool isRollup)
+        {
+            if (isRollup)
+            {
+                InsertRollupRow(row);
+
+                return;
+            }
+
+            InsertDataRow(row);
+        }
+
+        bool IsStructurallyBlank(List<string> row)
+        {
+            if (textColumnIndexes.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (var columnIndex in textColumnIndexes)
+            {
+                var value = columnIndex < row.Count ? row[columnIndex] : null;
+
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                if (TabularWorkspaceSqliteHelpers.TryNormalizeNumeric(value, out var normalized, out _) &&
+                    double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out var numeric) &&
+                    numeric == 0)
+                {
+                    continue;
+                }
+
+                return false;
+            }
+
+            return true;
+        }
+
+        void FlushPendingBlankRows()
+        {
+            if (pendingBlankRows.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var blankRow in pendingBlankRows)
+            {
+                InsertDataRow(blankRow);
+            }
+
+            pendingBlankRows.Clear();
         }
 
         // The table cannot be created until the header row has been located and enough data rows sampled
@@ -108,28 +196,30 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
         void FinalizeTable()
         {
             var headerIndex = TabularWorksheetShaper.DetectHeaderRowIndex(leadingRows);
-            var header = leadingRows[headerIndex];
+            var header = TabularWorksheetShaper.FixDuplicateColumnNames(leadingRows, headerIndex);
             var dataRows = leadingRows.GetRange(headerIndex + 1, leadingRows.Count - headerIndex - 1);
             var expandedHeader = TabularWorksheetShaper.ExpandHeader(header, dataRows);
 
             dataColumns = TabularWorkspaceSqliteHelpers.BuildColumns(expandedHeader, dataRows);
-            hasSubtotalColumn = dataRows.Any(TabularWorksheetShaper.IsSubtotalRow);
-            allColumns = hasSubtotalColumn
-                ? [.. dataColumns, new TabularColumnInfo(TabularWorksheetShaper.SubtotalColumnName, "INTEGER")]
-                : dataColumns;
+            textColumnIndexes = [.. Enumerable.Range(0, dataColumns.Count).Where(index => string.Equals(dataColumns[index].DeclaredType, "TEXT", StringComparison.Ordinal))];
 
             currentTableName = tableName(worksheetName, singleWorksheet);
-            TabularWorkspaceSqliteHelpers.CreateTable(connection, currentTableName, allColumns);
+            TabularWorkspaceSqliteHelpers.CreateTable(connection, currentTableName, dataColumns);
             transaction = connection.BeginTransaction();
-            insertCommand = CreateInsertCommand(connection, transaction, currentTableName, allColumns);
+            insertCommand = CreateInsertCommand(connection, transaction, currentTableName, dataColumns);
             finalized = true;
 
-            foreach (var dataRow in dataRows)
+            // Buffered rows are replayed through the same routing the streamed rows use, so a rollup
+            // inside the profiling window is separated exactly like one encountered after it.
+            for (var index = 0; index < dataRows.Count; index++)
             {
-                InsertDataRow(dataRow);
+                var dataRow = dataRows[index];
+
+                InsertRow(dataRow, TabularWorksheetShaper.IsSubtotalRow(dataRow, leadingRowIsRollup[headerIndex + 1 + index]));
             }
 
             leadingRows.Clear();
+            leadingRowIsRollup.Clear();
         }
 
         try
@@ -143,20 +233,25 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
                     worksheetName = name;
                     currentTableName = null;
                     leadingRows.Clear();
+                    leadingRowIsRollup.Clear();
                     dataColumns = null;
-                    allColumns = null;
-                    hasSubtotalColumn = false;
                     finalized = false;
                     insertCommand = null;
                     transaction = null;
+                    rollupTableName = null;
+                    rollupInsertCommand = null;
+                    rollupRowCount = 0;
                     rowCount = 0;
                     insertCommandCount = 0;
+                    textColumnIndexes = null;
+                    pendingBlankRows.Clear();
                 },
-                row =>
+                (row, hasVerticalAggregateFormula) =>
                 {
                     if (!finalized)
                     {
                         leadingRows.Add(row);
+                        leadingRowIsRollup.Add(hasVerticalAggregateFormula);
 
                         if (leadingRows.Count >= profileRowCount)
                         {
@@ -166,7 +261,21 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
                         return;
                     }
 
-                    InsertDataRow(row);
+                    if (IsStructurallyBlank(row))
+                    {
+                        pendingBlankRows.Add(row);
+
+                        // Cap exceeded: too long to plausibly be padding, so keep it as real data.
+                        if (pendingBlankRows.Count > MaxPendingBlankRows)
+                        {
+                            FlushPendingBlankRows();
+                        }
+
+                        return;
+                    }
+
+                    FlushPendingBlankRows();
+                    InsertRow(row, TabularWorksheetShaper.IsSubtotalRow(row, hasVerticalAggregateFormula));
                 },
                 () =>
                 {
@@ -181,17 +290,56 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
                         FinalizeTable();
                     }
 
+                    // Never followed by real data, so it's padding — discard instead of inserting.
+                    if (pendingBlankRows.Count > 0)
+                    {
+                        if (_logger.IsEnabled(LogLevel.Debug))
+                        {
+                            _logger.LogDebug(
+                                "OpenXml tabular reader discarded {DiscardedRowCount} trailing structurally-blank row(s) from worksheet '{WorksheetName}' for '{FileName}'.",
+                                pendingBlankRows.Count,
+                                worksheetName,
+                                fileName);
+                        }
+
+                        pendingBlankRows.Clear();
+                    }
+
                     transaction.Commit();
                     results.Add(new TabularWorkspaceImportResult(
                         currentTableName,
                         worksheetName,
-                        allColumns,
+                        dataColumns,
                         rowCount,
                         insertCommandCount,
                         1));
+
+                    // Registered as a table in its own right, so it is listed, described, and queryable.
+                    if (rollupTableName is not null)
+                    {
+                        results.Add(new TabularWorkspaceImportResult(
+                            rollupTableName,
+                            worksheetName,
+                            dataColumns,
+                            rollupRowCount,
+                            0,
+                            1));
+
+                        if (_logger.IsEnabled(LogLevel.Debug))
+                        {
+                            _logger.LogDebug(
+                                "OpenXml workspace importer separated {RollupRowCount} rollup row(s) from worksheet '{WorksheetName}' into table '{RollupTableName}'.",
+                                rollupRowCount,
+                                worksheetName,
+                                rollupTableName);
+                        }
+                    }
+
                     insertCommand?.Dispose();
+                    rollupInsertCommand?.Dispose();
                     transaction.Dispose();
                     insertCommand = null;
+                    rollupInsertCommand = null;
                     transaction = null;
                 },
                 cancellationToken);
@@ -264,8 +412,7 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
     private static void BindDataRow(
         SqliteCommand command,
         List<string> row,
-        IReadOnlyList<TabularColumnInfo> dataColumns,
-        bool hasSubtotalColumn)
+        IReadOnlyList<TabularColumnInfo> dataColumns)
     {
         for (var columnIndex = 0; columnIndex < dataColumns.Count; columnIndex++)
         {
@@ -274,11 +421,6 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
             command.Parameters[columnIndex].Value = value is null || TabularWorkspaceSqliteHelpers.IsNullValue(dataColumns[columnIndex].DeclaredType, value)
                 ? DBNull.Value
                 : TabularWorkspaceSqliteHelpers.NormalizeCellValue(dataColumns[columnIndex].DeclaredType, value);
-        }
-
-        if (hasSubtotalColumn)
-        {
-            command.Parameters[dataColumns.Count].Value = TabularWorksheetShaper.IsSubtotalRow(row) ? 1L : 0L;
         }
     }
 }
