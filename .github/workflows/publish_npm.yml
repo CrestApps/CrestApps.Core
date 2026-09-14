@@ -115,8 +115,11 @@ jobs:
       if: steps.check-publish.outputs.should-publish == 'true'
       with:
         node-version: "20"
-        registry-url: "https://registry.npmjs.org"
-        scope: "@crestapps"
+        # Deliberately no registry-url/scope: those make setup-node write an
+        # .npmrc with `_authToken=${NODE_AUTH_TOKEN}` and export a placeholder
+        # NODE_AUTH_TOKEN. npm would then treat that placeholder as credentials
+        # and skip OIDC, so trusted publishing never runs. The registry comes
+        # from publishConfig.registry in the package's package.json instead.
 
     - name: Update npm for trusted publishing
       if: steps.check-publish.outputs.should-publish == 'true'
@@ -135,6 +138,8 @@ jobs:
       working-directory: src/Resources/CrestApps.AI.Resources
       # No NODE_AUTH_TOKEN: authentication is handled by OIDC trusted publishing.
       run: |
+        node -v
+        npm -v
         if [ "${{ steps.check-publish.outputs.release-mode }}" = "true" ]; then
           VERSION="${{ steps.check-publish.outputs.release-version }}"
           DIST_TAG="latest"
