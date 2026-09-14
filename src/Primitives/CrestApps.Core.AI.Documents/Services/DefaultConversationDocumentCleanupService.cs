@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Models;
@@ -17,8 +16,6 @@ namespace CrestApps.Core.AI.Documents.Services;
 /// </summary>
 public sealed class DefaultConversationDocumentCleanupService : IConversationDocumentCleanupService
 {
-    private static readonly Regex _safePathSegmentExpression = new("^[a-zA-Z0-9._-]+$", RegexOptions.Compiled);
-
     private readonly IAIDocumentStore _documentStore;
     private readonly IAIDocumentChunkStore _chunkStore;
     private readonly IDocumentFileStore _fileStore;
@@ -64,11 +61,6 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
 
         var documents = await _documentStore.GetDocumentsAsync(referenceId, referenceType);
 
-        if (documents.Count == 0)
-        {
-            return;
-        }
-
         foreach (var document in documents)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -76,9 +68,12 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
             await DeleteDocumentAsync(document, cancellationToken);
         }
 
+        // Runs even when the conversation has no documents left. The workspace database is a separate
+        // file that outlives the document rows, so a conversation whose spreadsheets were each removed
+        // one by one still has a database to delete, and returning early would orphan it forever.
         TryDeleteTabularDatabase(referenceType, referenceId);
 
-        if (_logger.IsEnabled(LogLevel.Debug))
+        if (documents.Count > 0 && _logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(
                 "Removed {DocumentCount} document(s) for conversation '{ReferenceId}' of type '{ReferenceType}'.",
@@ -142,15 +137,17 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
 
     private void TryDeleteTabularDatabase(string referenceType, string referenceId)
     {
-        var databasePath = BuildTabularDatabaseStoragePath(referenceType, referenceId);
+        var databasePath = TabularWorkspaceDatabase.GetStorageRelativePath(referenceType, referenceId);
+
         if (databasePath is null)
         {
             return;
         }
 
-        TryDeleteFile(databasePath);
-        TryDeleteFile(databasePath + "-wal");
-        TryDeleteFile(databasePath + "-shm");
+        foreach (var path in TabularWorkspaceDatabase.GetDatabaseFilePaths(databasePath))
+        {
+            TryDeleteFile(path);
+        }
     }
 
     private void TryDeleteFile(string path)
@@ -166,24 +163,5 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
                 _logger.LogDebug(ex, "Failed to delete a tabular database file for conversation cleanup.");
             }
         }
-    }
-
-    private static string BuildTabularDatabaseStoragePath(string referenceType, string referenceId)
-    {
-        if (!IsSafePathSegment(referenceType) || !IsSafePathSegment(referenceId))
-        {
-            return null;
-        }
-
-        return Path.Combine("documents", referenceType, referenceId, "data", "tabular.db")
-            .Replace(Path.DirectorySeparatorChar, '/')
-            .Replace(Path.AltDirectorySeparatorChar, '/');
-    }
-
-    private static bool IsSafePathSegment(string value)
-    {
-        return !string.IsNullOrWhiteSpace(value)
-            && value is not "." and not ".."
-            && _safePathSegmentExpression.IsMatch(value);
     }
 }

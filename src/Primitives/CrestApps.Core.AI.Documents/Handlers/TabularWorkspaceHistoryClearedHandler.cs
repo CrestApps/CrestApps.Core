@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -44,10 +45,17 @@ internal sealed class TabularWorkspaceHistoryClearedHandler : IChatInteractionHi
             return Task.CompletedTask;
         }
 
-        var databasePath = Path.Combine(_basePath, "documents", AIReferenceTypes.Document.ChatInteraction, interaction.ItemId, "data", "tabular.db");
-        TryDeleteFile(databasePath);
-        TryDeleteFile(databasePath + "-wal");
-        TryDeleteFile(databasePath + "-shm");
+        var databasePath = TabularWorkspaceDatabase.GetDatabasePath(_basePath, AIReferenceTypes.Document.ChatInteraction, interaction.ItemId);
+
+        if (databasePath is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        foreach (var path in TabularWorkspaceDatabase.GetDatabaseFilePaths(databasePath))
+        {
+            TryDeleteFile(path);
+        }
 
         return Task.CompletedTask;
     }
