@@ -11,6 +11,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Extensions;
+using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Templates.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
@@ -177,7 +178,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unable to get chat completion result from Azure OpenAI.");
+            LogCompletionFailure(ex, deployment, connectionProperties);
         }
 
         return null;
@@ -251,8 +252,36 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         while (iterations <= _defaultOptions.MaximumIterationsPerRequest)
         {
             var hasToolCalls = false;
-            await foreach (var update in chatClient.CompleteChatStreamingAsync(prompts, chatOptions, cancellationToken))
+
+            // Enumerated by hand rather than with `await foreach` so the call into the provider sits in a
+            // try block: a yield cannot appear inside one, and without it a failed request leaves no record
+            // of which deployment and endpoint produced it.
+            await using var updates = chatClient
+                .CompleteChatStreamingAsync(prompts, chatOptions, cancellationToken)
+                .GetAsyncEnumerator(cancellationToken);
+
+            while (true)
             {
+                try
+                {
+                    if (!await updates.MoveNextAsync())
+                    {
+                        break;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    LogCompletionFailure(ex, deployment, connection);
+
+                    throw;
+                }
+
+                var update = updates.Current;
+
                 // Accumulate tool call updates as they arrive.
                 foreach (var toolCallUpdate in update.ToolCallUpdates)
                 {
@@ -472,6 +501,30 @@ omit optional fields, or split the operation into multiple smaller calls.
     private AzureOpenAIClient GetChatClient(AIProviderConnectionEntry connection)
     {
         return AzureOpenAIClientFactory.Create(connection, _loggerFactory, _azureClientOptions);
+    }
+
+    /// <summary>
+    /// Logs a failed completion together with the deployment and endpoint that served it.
+    /// </summary>
+    /// <remarks>
+    /// The provider's own exception names neither. A misrouted request -- a deployment bound to the wrong
+    /// connection, or a model name that does not exist on the resource that connection points at -- reads
+    /// as a bare <c>DeploymentNotFound</c> without them, which says nothing about where the request went.
+    /// The model name is the one that forms the request URL, so it is reported even when it matches the
+    /// deployment name.
+    /// </remarks>
+    /// <param name="exception">The exception the request failed with.</param>
+    /// <param name="deployment">The deployment that served the request.</param>
+    /// <param name="connection">The connection that served the request.</param>
+    private void LogCompletionFailure(Exception exception, AIDeployment deployment, AIProviderConnectionEntry connection)
+    {
+        _logger.LogError(
+            exception,
+            "Unable to get chat completion result from Azure OpenAI using deployment '{DeploymentName}' (model '{ModelName}') on connection '{ConnectionName}' at '{Endpoint}'.",
+            deployment.Name,
+            deployment.ModelName,
+            deployment.ConnectionName,
+            connection.GetEndpoint(throwException: false)?.Host);
     }
 
     private static async ValueTask<IReadOnlyList<Microsoft.Extensions.AI.AIFunction>> ConfigureOptionsAsync(ChatCompletionOptions chatOptions, AICompletionContext context, List<ChatMessage> prompts)
