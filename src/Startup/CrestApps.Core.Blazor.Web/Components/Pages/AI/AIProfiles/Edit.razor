@@ -865,14 +865,19 @@ else if (_model != null)
                                 @foreach (var doc in _model.AttachedDocuments)
                                 {
                                     <div class="attached-document-card">
+                                        <div class="d-flex gap-1 me-2">
+                                            <a class="btn btn-sm btn-outline-secondary" title="Download" href="@($"/ai/documents/{doc.DocumentId}/download")">
+                                                <i class="fa-solid fa-download"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" title="Remove" @onclick="() => RemoveDocument(doc.DocumentId)">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
                                         <span class="attached-document-icon"><i class="fa-solid fa-file-lines"></i></span>
                                         <div class="attached-document-meta flex-grow-1">
                                             <div class="attached-document-name">@doc.FileName</div>
                                             <span class="attached-document-size">@FormatFileSize(doc.FileSize)</span>
                                         </div>
-                                        <button type="button" class="btn btn-sm btn-outline-danger" title="Remove" @onclick="() => RemoveDocument(doc.DocumentId)">
-                                            <i class="fa-solid fa-trash"></i>
-                                        </button>
                                     </div>
                                 }
                             </div>
