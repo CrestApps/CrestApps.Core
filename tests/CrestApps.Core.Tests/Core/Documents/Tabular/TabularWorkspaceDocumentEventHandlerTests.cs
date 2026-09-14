@@ -118,6 +118,43 @@ public sealed class TabularWorkspaceDocumentEventHandlerTests
         }
     }
 
+    [Theory]
+    [InlineData("..")]
+    [InlineData("../session-2")]
+    [InlineData("session-1/../session-2")]
+    public async Task RemovedAsync_WhenTheScopeIsNotASinglePathSegment_LeavesEveryDatabaseAlone(string referenceId)
+    {
+        var basePath = CreateTemporaryBasePath();
+
+        try
+        {
+            // Each conversation scope owns its own database file, so a reference id that walks out of
+            // its directory would let one scope drop another scope's tables.
+            var databasePath = CreateWorkspaceDatabase(basePath, "session-2", "doc-1", "sales");
+
+            var artifactStore = new Mock<ITabularDocumentArtifactStore>();
+            var handler = CreateHandler(artifactStore, basePath);
+
+            await handler.RemovedAsync(new AIChatDocumentRemoveContext
+            {
+                ReferenceId = referenceId,
+                ReferenceType = AIReferenceTypes.Document.ChatSession,
+                DocumentInfo = new ChatDocumentInfo
+                {
+                    DocumentId = "doc-1",
+                    FileName = "data.csv",
+                },
+            }, TestContext.Current.CancellationToken);
+
+            Assert.True(File.Exists(databasePath));
+            Assert.Equal(["sales"], GetUserTableNames(databasePath));
+        }
+        finally
+        {
+            TryDeleteDirectory(basePath);
+        }
+    }
+
     [Fact]
     public async Task RemovedAsync_WhenAnEarlierConnectionLeftTheDatabaseReadOnly_StillDropsTheDocumentTables()
     {
