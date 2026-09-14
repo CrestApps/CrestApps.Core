@@ -559,16 +559,7 @@ internal sealed class TabularWorkspace : IDisposable
     /// <param name="connection">The connection to toggle.</param>
     /// <param name="writable">When <see langword="true"/>, writes are allowed; otherwise they are blocked.</param>
     private static void SetWritable(SqliteConnection connection, bool writable)
-    {
-        if (connection is null)
-        {
-            return;
-        }
-
-        using var command = connection.CreateCommand();
-        command.CommandText = writable ? "PRAGMA query_only = OFF" : "PRAGMA query_only = ON";
-        command.ExecuteNonQuery();
-    }
+        => TabularWorkspaceDatabase.SetWritable(connection, writable);
 
     private async Task SynchronizeTablesAsync(
         IReadOnlyList<TabularDocumentRef> documents,
@@ -709,13 +700,7 @@ internal sealed class TabularWorkspace : IDisposable
 
     private SqliteConnection OpenConnection()
     {
-        string connectionString;
-
-        if (string.IsNullOrEmpty(_databasePath))
-        {
-            connectionString = "Data Source=:memory:";
-        }
-        else
+        if (!string.IsNullOrEmpty(_databasePath))
         {
             var directory = Path.GetDirectoryName(_databasePath);
 
@@ -723,12 +708,11 @@ internal sealed class TabularWorkspace : IDisposable
             {
                 Directory.CreateDirectory(directory);
             }
-
-            connectionString = $"Data Source={_databasePath}";
         }
 
-        var connection = new SqliteConnection(connectionString);
-        connection.Open();
+        // Opens the connection with writes enabled so the journal-mode and metadata statements below
+        // succeed; the write window is closed again once the database is ready.
+        var connection = TabularWorkspaceDatabase.Open(_databasePath);
         EnableDoubleQuotedStringLiterals(connection);
 
         if (_logger.IsEnabled(LogLevel.Debug))

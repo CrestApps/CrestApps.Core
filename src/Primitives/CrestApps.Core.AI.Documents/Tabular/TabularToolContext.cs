@@ -251,12 +251,7 @@ internal sealed class TabularToolContext
 
         var fileStoreOptions = services.GetRequiredService<IOptions<DocumentFileSystemFileStoreOptions>>().Value;
 
-        if (string.IsNullOrEmpty(fileStoreOptions.BasePath))
-        {
-            return null;
-        }
-
-        return Path.Combine(fileStoreOptions.BasePath, "documents", referenceType, referenceId, "data", "tabular.db");
+        return TabularWorkspaceDatabase.GetDatabasePath(fileStoreOptions.BasePath, referenceType, referenceId);
     }
 
     private static AIChatSession ResolveSession()
