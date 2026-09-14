@@ -120,8 +120,9 @@ jobs:
 
     - name: Update npm for trusted publishing
       if: steps.check-publish.outputs.should-publish == 'true'
-      # npm trusted publishing (OIDC) requires npm >= 11.5.1; Node 20 ships an older npm.
-      run: npm install -g npm@latest
+      # npm trusted publishing (OIDC) requires npm >= 11.5.1; Node 20 ships npm 10.x.
+      # Pin to the 11.x line: npm 12+ dropped Node 20 support (EBADENGINE).
+      run: npm install -g npm@11
 
     - name: Build assets
       if: steps.check-publish.outputs.should-publish == 'true'
