@@ -737,6 +737,7 @@
             var interactionDocuments = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Documents));
             var uploadDocumentUrl = '@Url.Content("~/ai/chat-interactions/upload-document")';
             var removeDocumentUrl = '@Url.Content("~/ai/chat-interactions/remove-document")';
+            var downloadDocumentBaseUrl = '@Url.Content("~/ai/documents/")';
             var audioChunkIntervalMs = 250;
             var speechToTextEnabled = @Model.SpeechToTextEnabled.ToString().ToLowerInvariant();
             var conversationModeEnabled = @Model.ConversationModeEnabled.ToString().ToLowerInvariant();
@@ -1218,15 +1219,21 @@
 
                 interactionDocuments.forEach(function (doc) {
                     var row = document.createElement('div');
-                    row.className = 'd-flex justify-content-between align-items-start border rounded px-2 py-2 bg-white';
+                    row.className = 'd-flex align-items-center border rounded px-2 py-2 bg-white';
+                    var downloadUrl = downloadDocumentBaseUrl + encodeURIComponent(doc.documentId) + '/download';
                     row.innerHTML =
-                        '<div class="me-2">' +
-                            '<div class="fw-semibold small"><i class="fa-solid fa-file-lines me-1"></i>' + DOMPurify.sanitize(doc.fileName || 'Document') + '</div>' +
-                            '<div class="text-muted small">' + DOMPurify.sanitize(formatFileSize(doc.fileSize)) + '</div>' +
+                        '<div class="d-flex gap-1 me-2">' +
+                            '<a class="btn btn-sm btn-outline-secondary" title="Download" href="' + DOMPurify.sanitize(downloadUrl) + '">' +
+                                '<i class="fa-solid fa-download"></i>' +
+                            '</a>' +
+                            '<button type="button" class="btn btn-sm btn-outline-danger remove-chat-document-btn" title="Remove" data-document-id="' + DOMPurify.sanitize(doc.documentId) + '">' +
+                                '<i class="fa-solid fa-trash"></i>' +
+                            '</button>' +
                         '</div>' +
-                        '<button type="button" class="btn btn-sm btn-outline-danger remove-chat-document-btn" data-document-id="' + DOMPurify.sanitize(doc.documentId) + '">' +
-                            '<i class="fa-solid fa-trash"></i> Remove' +
-                        '</button>';
+                        '<div class="min-w-0">' +
+                            '<div class="fw-semibold small text-truncate"><i class="fa-solid fa-file-lines me-1"></i>' + DOMPurify.sanitize(doc.fileName || 'Document') + '</div>' +
+                            '<div class="text-muted small">' + DOMPurify.sanitize(formatFileSize(doc.fileSize)) + '</div>' +
+                        '</div>';
 
                     container.appendChild(row);
                 });

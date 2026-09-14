@@ -132,6 +132,22 @@ public static class DownloadAIDocument
 
                     return authorization.Succeeded ? null : CreateUnauthorizedResult(httpContext);
                 }
+            case AIReferenceTypes.Document.Profile:
+                {
+                    var profile = await profileManager.FindByIdAsync(document.ReferenceId);
+
+                    if (profile is null)
+                    {
+                        return Results.NotFound();
+                    }
+
+                    var authorization = await authorizationService.AuthorizeAsync(
+                        httpContext.User,
+                        profile,
+                        [AIChatDocumentOperations.ManageDocuments]);
+
+                    return authorization.Succeeded ? null : CreateUnauthorizedResult(httpContext);
+                }
             default:
 
                 return Results.NotFound();

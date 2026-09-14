@@ -355,19 +355,27 @@ else
                                     {
                                         @foreach (var document in _model.Documents)
                                         {
-                                            <div class="d-flex justify-content-between align-items-start gap-2 border rounded px-2 py-2 bg-white chat-document-row"
+                                            <div class="d-flex align-items-center gap-2 border rounded px-2 py-2 bg-white chat-document-row"
                                                  data-chat-document-id="@document.DocumentId"
                                                  data-chat-document-name="@document.FileName"
                                                  data-chat-document-size="@document.FileSize">
-                                                <div class="me-2 min-w-0">
-                                                    <div class="fw-semibold small"><i class="fa-solid fa-file-lines me-1"></i>@document.FileName</div>
+                                                <div class="d-flex gap-1">
+                                                    <a class="btn btn-sm btn-outline-secondary"
+                                                       title="Download"
+                                                       href="@($"/ai/documents/{document.DocumentId}/download")">
+                                                        <i class="fa-solid fa-download"></i>
+                                                    </a>
+                                                    <button type="button"
+                                                            class="btn btn-sm btn-outline-danger remove-chat-document-btn"
+                                                            title="Remove"
+                                                            data-document-id="@document.DocumentId">
+                                                        <i class="fa-solid fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <div class="fw-semibold small text-truncate"><i class="fa-solid fa-file-lines me-1"></i>@document.FileName</div>
                                                     <div class="text-muted small">@FormatFileSize(document.FileSize)</div>
                                                 </div>
-                                                <button type="button"
-                                                        class="btn btn-sm btn-outline-danger remove-chat-document-btn"
-                                                        data-document-id="@document.DocumentId">
-                                                    <i class="fa-solid fa-trash"></i> Remove
-                                                </button>
                                             </div>
                                         }
                                     }
@@ -775,6 +783,7 @@ else
             }).ToArray(),
             uploadDocumentUrl = "/ai/chat-interactions/upload-document",
             removeDocumentUrl = "/ai/chat-interactions/remove-document",
+            downloadDocumentBaseUrl = "/ai/documents/",
         });
 
         _chatInteractionConfigJson = JsonSerializer.Serialize(new

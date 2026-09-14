@@ -51,6 +51,7 @@ internal static class EntityCoreSampleServiceCollectionExtensions
             .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryHandler>()
             .AddScoped<IAuthorizationHandler, SampleChatInteractionDocumentAuthorizationHandler>()
             .AddScoped<IAuthorizationHandler, SampleAIChatSessionDocumentAuthorizationHandler>()
+            .AddScoped<IAuthorizationHandler, SampleAIProfileDocumentAuthorizationHandler>()
             .AddScoped<IAIChatDocumentEventHandler, SampleAIChatDocumentEventHandler>()
             .AddScoped<ICatalogEntryHandler<Article>, ArticleHandler>()
             .AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();

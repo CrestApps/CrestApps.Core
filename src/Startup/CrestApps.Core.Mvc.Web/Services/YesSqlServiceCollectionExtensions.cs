@@ -81,6 +81,7 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryHandler>()
             .AddScoped<IAuthorizationHandler, SampleChatInteractionDocumentAuthorizationHandler>()
             .AddScoped<IAuthorizationHandler, SampleAIChatSessionDocumentAuthorizationHandler>()
+            .AddScoped<IAuthorizationHandler, SampleAIProfileDocumentAuthorizationHandler>()
             .AddScoped<IAIChatDocumentEventHandler, SampleAIChatDocumentEventHandler>();
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, ArticleIndexProvider>());
