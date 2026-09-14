@@ -1,31 +1,51 @@
-name: Publish npm - Preview
+name: Publish npm
 
 on:
   workflow_dispatch:
   schedule:
     # 4:29 AM UTC every day (offset from NuGet preview at 4:19).
     - cron: '29 4 * * *'
+  push:
+    tags:
+      - 'v*.*.*'
 
 permissions:
-  actions: read
+  # Required to mint the short-lived OIDC token for npm trusted publishing.
+  id-token: write
   contents: read
+  # Required to query previous preview publish runs when deciding whether to publish.
+  actions: read
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    name: Publish @crestapps/ai-chat-ui (preview)
+    name: Publish @crestapps/ai-chat-ui
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
-    - name: Check if should publish
+    - name: Determine what to publish
       id: check-publish
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
         $eventName = '${{ github.event_name }}'
+
+        # Release: a version tag was pushed. Publish that version to the 'latest' tag.
+        if ($eventName -eq 'push')
+        {
+          $version = '${{ github.ref_name }}' -replace '^v', ''
+          Write-Output "Release tag detected. Publishing version $version to the 'latest' dist-tag."
+          "release-mode=true" >> $Env:GITHUB_OUTPUT
+          "release-version=$version" >> $Env:GITHUB_OUTPUT
+          "should-publish=true" >> $Env:GITHUB_OUTPUT
+          exit 0
+        }
+
+        # Everything else is a preview publish to the 'preview' dist-tag.
+        "release-mode=false" >> $Env:GITHUB_OUTPUT
 
         if ($eventName -eq 'workflow_dispatch')
         {
@@ -40,7 +60,7 @@ jobs:
           'X-GitHub-Api-Version' = '2022-11-28'
         }
 
-        $workflowRunsUrl = 'https://api.github.com/repos/${{ github.repository }}/actions/workflows/publish_npm_preview.yml/runs?status=success&branch=${{ github.ref_name }}&per_page=20'
+        $workflowRunsUrl = 'https://api.github.com/repos/${{ github.repository }}/actions/workflows/publish_npm.yml/runs?status=success&branch=${{ github.ref_name }}&per_page=20'
         $response = Invoke-RestMethod -Uri $workflowRunsUrl -Headers $headers -Method Get
         $previousRun = $response.workflow_runs |
           Where-Object { $_.id -ne [int64]'${{ github.run_id }}' } |
@@ -98,18 +118,29 @@ jobs:
         registry-url: "https://registry.npmjs.org"
         scope: "@crestapps"
 
+    - name: Update npm for trusted publishing
+      if: steps.check-publish.outputs.should-publish == 'true'
+      # npm trusted publishing (OIDC) requires npm >= 11.5.1; Node 20 ships an older npm.
+      run: npm install -g npm@latest
+
     - name: Build assets
       if: steps.check-publish.outputs.should-publish == 'true'
       run: |
         npm ci
         gulp rebuild
 
-    - name: Publish preview to npm
+    - name: Publish to npm
       if: steps.check-publish.outputs.should-publish == 'true'
       working-directory: src/Resources/CrestApps.AI.Resources
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # No NODE_AUTH_TOKEN: authentication is handled by OIDC trusted publishing.
       run: |
-        PREVIEW_VERSION="$(node -p "require('./package.json').version").${{ github.run_number }}"
-        npm version "${PREVIEW_VERSION}" --no-git-tag-version --allow-same-version
-        npm publish --access public --tag preview
+        if [ "${{ steps.check-publish.outputs.release-mode }}" = "true" ]; then
+          VERSION="${{ steps.check-publish.outputs.release-version }}"
+          DIST_TAG="latest"
+        else
+          VERSION="$(node -p "require('./package.json').version").${{ github.run_number }}"
+          DIST_TAG="preview"
+        fi
+        echo "Publishing ${VERSION} to the '${DIST_TAG}' dist-tag."
+        npm version "${VERSION}" --no-git-tag-version --allow-same-version
+        npm publish --access public --tag "${DIST_TAG}"
