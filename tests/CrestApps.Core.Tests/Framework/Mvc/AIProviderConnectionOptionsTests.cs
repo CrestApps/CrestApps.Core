@@ -609,6 +609,30 @@ public sealed class AIProviderConnectionConfigurationTests
         Assert.Equal("ui-connection", connections.Single().ItemId);
     }
 
+    [Fact]
+    public async Task ConfigurationAIProviderConnectionStore_WhenTwoConfiguredNamesDifferOnlyByCase_ShouldKeepTheFirstOne()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["CrestApps:AI:Connections:0:Name"] = "Shared-Azure",
+                ["CrestApps:AI:Connections:0:ClientName"] = "Azure",
+                ["CrestApps:AI:Connections:0:Endpoint"] = "https://first.openai.azure.com/",
+                ["CrestApps:AI:Providers:Azure:Connections:shared-azure:Endpoint"] = "https://second.openai.azure.com/",
+            })
+            .Build();
+
+        var store = CreateConnectionStore(configuration);
+
+        var connections = await store.GetAllAsync(TestContext.Current.CancellationToken);
+
+        // Both entries hash to the same identifier, so only one survives. The later one used to replace
+        // the earlier in silence, taking its endpoint and its credentials with it.
+        var connection = Assert.Single(connections);
+        Assert.Equal("Shared-Azure", connection.Name);
+        Assert.Equal("https://first.openai.azure.com/", connection.Properties["Endpoint"]?.ToString());
+    }
+
     private static DefaultAIDeploymentCapabilityService CreateCapabilityService()
     {
         return new DefaultAIDeploymentCapabilityService(Options.Create(new AIDeploymentCapabilityOptions()), Mock.Of<IAIDeploymentStore>());

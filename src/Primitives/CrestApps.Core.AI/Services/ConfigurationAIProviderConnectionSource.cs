@@ -194,6 +194,21 @@ public sealed class ConfigurationAIProviderConnectionSource : INamedSourceCatalo
             return;
         }
 
+        // The identifier hashes the lowercased provider and connection name, so two entries whose names
+        // differ only by case land on the same one. The first definition wins, matching how configured
+        // deployments are read; without this the later entry replaced the earlier one in silence and an
+        // entire connection -- its endpoint and its credentials -- disappeared with no diagnostic.
+        if (connections.TryGetValue(connection.ItemId, out var existingConnection))
+        {
+            _logger.LogWarning(
+                "Skipping AI connection '{ConnectionName}' from '{SourceDescription}' because '{ExistingConnectionName}' resolves to the same identifier. Connection names are case-insensitive; rename one of them so both are read.",
+                connection.Name,
+                sourceDescription,
+                existingConnection.Name);
+
+            return;
+        }
+
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug("Adding AI connection '{ConnectionName}' (ClientName: '{ClientName}', ItemId: '{ItemId}') from '{SourceDescription}'.",
