@@ -120,6 +120,7 @@ internal sealed class TabularWorkspace : IDisposable
 
             try
             {
+                RemoveTablesForDetachedDocuments(documents);
                 await SynchronizeTablesAsync(documents, artifactLoader, workspaceImporter, cancellationToken);
             }
             finally
@@ -644,6 +645,80 @@ internal sealed class TabularWorkspace : IDisposable
                     importStopwatch.ElapsedMilliseconds);
             }
         }
+    }
+
+    /// <summary>
+    /// Drops every table whose document is no longer attached to the conversation.
+    /// </summary>
+    /// <remarks>
+    /// The workspace database outlives a single request, so a document removed from the conversation
+    /// leaves its tables behind and the model can keep querying data the user believes is gone. The
+    /// removal handler drops them eagerly; this pass is what makes the workspace self-correcting when
+    /// that never ran, failed, or the document disappeared by another route. The caller supplies the
+    /// complete document set for the scope, so anything else in the database is detached by
+    /// definition. Must run inside a write window.
+    /// </remarks>
+    /// <param name="documents">The documents currently attached to the conversation.</param>
+    private void RemoveTablesForDetachedDocuments(IReadOnlyList<TabularDocumentRef> documents)
+    {
+        if (_tables.Count == 0)
+        {
+            return;
+        }
+
+        var attached = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var document in documents)
+        {
+            attached.Add(document.DocumentId);
+        }
+
+        List<LoadedTable> detached = null;
+
+        foreach (var table in _tables.Values)
+        {
+            if (!attached.Contains(table.DocumentId))
+            {
+                (detached ??= []).Add(table);
+            }
+        }
+
+        if (detached is null)
+        {
+            return;
+        }
+
+        foreach (var table in detached)
+        {
+            DropTable(table.TableName);
+            DeleteMetadataEntry(table.TableName);
+            _tables.Remove(table.TableName);
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Dropped tabular table '{TableName}' because document '{DocumentId}' is no longer attached to the conversation.",
+                    table.TableName,
+                    table.DocumentId);
+            }
+        }
+    }
+
+    private void DropTable(string tableName)
+    {
+        using var command = _connection.CreateCommand();
+        command.CommandText = $"DROP TABLE IF EXISTS \"{tableName.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+        command.ExecuteNonQuery();
+    }
+
+    private void DeleteMetadataEntry(string tableName)
+    {
+        using var command = _connection.CreateCommand();
+        command.CommandText = $"""
+            DELETE FROM "{MetadataTableName}" WHERE table_name = $tableName
+            """;
+        command.Parameters.AddWithValue("$tableName", tableName);
+        command.ExecuteNonQuery();
     }
 
     private bool IsDocumentLoaded(string documentId)

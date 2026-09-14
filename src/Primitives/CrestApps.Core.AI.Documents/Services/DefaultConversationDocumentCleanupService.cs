@@ -61,11 +61,6 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
 
         var documents = await _documentStore.GetDocumentsAsync(referenceId, referenceType);
 
-        if (documents.Count == 0)
-        {
-            return;
-        }
-
         foreach (var document in documents)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -73,9 +68,12 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
             await DeleteDocumentAsync(document, cancellationToken);
         }
 
+        // Runs even when the conversation has no documents left. The workspace database is a separate
+        // file that outlives the document rows, so a conversation whose spreadsheets were each removed
+        // one by one still has a database to delete, and returning early would orphan it forever.
         TryDeleteTabularDatabase(referenceType, referenceId);
 
-        if (_logger.IsEnabled(LogLevel.Debug))
+        if (documents.Count > 0 && _logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug(
                 "Removed {DocumentCount} document(s) for conversation '{ReferenceId}' of type '{ReferenceType}'.",
