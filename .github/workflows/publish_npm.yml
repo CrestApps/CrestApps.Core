@@ -144,7 +144,12 @@ jobs:
           VERSION="${{ steps.check-publish.outputs.release-version }}"
           DIST_TAG="latest"
         else
-          VERSION="$(node -p "require('./package.json').version").${{ github.run_number }}"
+          # Offset the run number so preview versions stay ahead of the pre-merge
+          # sequence. The previous per-package workflows reached 2.0.0-preview.180
+          # before they were merged into this one, which reset GitHub's run_number
+          # to 1. Adding 180 keeps the .N suffix monotonically increasing and above
+          # the last published preview.
+          VERSION="$(node -p "require('./package.json').version").$((180 + ${{ github.run_number }}))"
           DIST_TAG="preview"
         fi
         echo "Publishing ${VERSION} to the '${DIST_TAG}' dist-tag."
