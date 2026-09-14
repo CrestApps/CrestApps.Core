@@ -229,6 +229,150 @@ public sealed class TabularWorkspaceLifecycleTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task EnsureReadyAsync_WhenADocumentsContentCannotBeLoaded_CreatesNoTable()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var databasePath = DatabasePath("session-1");
+
+        using var workspace = CreateWorkspace(databasePath);
+
+        // A placeholder table here would read to the model as a file that contains no data.
+        var tables = await workspace.EnsureReadyAsync(
+            [Document("doc-1", "projections.xlsx")],
+            LoaderFor(),
+            cancellationToken);
+
+        Assert.Empty(tables);
+        Assert.Empty(GetUserTableNames(databasePath));
+        Assert.Empty(GetMetadataTableNames(databasePath));
+    }
+
+    [Fact]
+    public async Task EnsureReadyAsync_WhenContentBecomesAvailableLater_RetriesTheFailedImport()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var databasePath = DatabasePath("session-1");
+
+        using (var workspace = CreateWorkspace(databasePath))
+        {
+            await workspace.EnsureReadyAsync([Document("doc-1", "sales.csv")], LoaderFor(), cancellationToken);
+        }
+
+        // Registering the failed import would make IsDocumentLoaded true forever after, so the
+        // workspace would keep serving an empty table and never read the file again.
+        using (var workspace = CreateWorkspace(databasePath))
+        {
+            var tables = await workspace.EnsureReadyAsync(
+                [Document("doc-1", "sales.csv")],
+                LoaderFor(("doc-1", SalesCsv)),
+                cancellationToken);
+
+            var table = Assert.Single(tables);
+            Assert.Equal("sales", table.TableName);
+            Assert.Equal(2, table.RowCount);
+        }
+    }
+
+    [Fact]
+    public async Task EnsureReadyAsync_WhenOneDocumentFails_KeepsTheDocumentsThatLoaded()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var databasePath = DatabasePath("session-1");
+
+        using var workspace = CreateWorkspace(databasePath);
+
+        var tables = await workspace.EnsureReadyAsync(
+            [Document("doc-1", "sales.csv"), Document("doc-2", "budget.csv")],
+            LoaderFor(("doc-1", SalesCsv)),
+            cancellationToken);
+
+        var table = Assert.Single(tables);
+        Assert.Equal("sales", table.TableName);
+        Assert.Equal(2, table.RowCount);
+    }
+
+    [Fact]
+    public async Task EnsureReadyAsync_WhenTheDatabaseAlreadyHoldsAFailedImportsEmptyTable_ImportsTheDocumentAgain()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var databasePath = DatabasePath("session-1");
+
+        // The shape an earlier build wrote when a document's content could not be loaded. The metadata
+        // entry made the document count as loaded, so the empty table was served forever after.
+        WritePlaceholderTable(databasePath, "sales", "doc-1", "sales.csv");
+
+        using var workspace = CreateWorkspace(databasePath);
+
+        var tables = await workspace.EnsureReadyAsync(
+            [Document("doc-1", "sales.csv")],
+            LoaderFor(("doc-1", SalesCsv)),
+            cancellationToken);
+
+        var table = Assert.Single(tables);
+        Assert.Equal("sales", table.TableName);
+        Assert.Equal(2, table.RowCount);
+        Assert.Equal(["region", "amount"], table.Columns.Select(c => c.Name));
+    }
+
+    [Fact]
+    public async Task EnsureReadyAsync_DoesNotReimportATableTheUserEmptied()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var databasePath = DatabasePath("session-1");
+
+        using var workspace = CreateWorkspace(databasePath);
+
+        await workspace.EnsureReadyAsync(
+            [Document("doc-1", "sales.csv")],
+            LoaderFor(("doc-1", SalesCsv)),
+            cancellationToken);
+
+        // Deleting every row through the manipulation tool is a deliberate edit, not a failed import.
+        await workspace.ExecuteAsync("DELETE FROM sales", cancellationToken);
+
+        var tables = await workspace.EnsureReadyAsync(
+            [Document("doc-1", "sales.csv")],
+            LoaderFor(("doc-1", SalesCsv)),
+            cancellationToken);
+
+        var table = Assert.Single(tables);
+        Assert.Equal(0, table.RowCount);
+        Assert.Equal(["region", "amount"], table.Columns.Select(c => c.Name));
+    }
+
+    private static void WritePlaceholderTable(string databasePath, string tableName, string documentId, string fileName)
+    {
+        using var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False");
+        connection.Open();
+
+        using (var schemaCommand = connection.CreateCommand())
+        {
+            schemaCommand.CommandText = $"""
+                CREATE TABLE IF NOT EXISTS "_workspace_meta" (
+                    "table_name" TEXT PRIMARY KEY,
+                    "document_id" TEXT NOT NULL,
+                    "worksheet_name" TEXT,
+                    "file_name" TEXT NOT NULL,
+                    "source_names_json" TEXT NOT NULL
+                );
+                CREATE TABLE "{tableName}" ("value" TEXT);
+                """;
+            schemaCommand.ExecuteNonQuery();
+        }
+
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO "_workspace_meta" ("table_name", "document_id", "worksheet_name", "file_name", "source_names_json")
+            VALUES ($tableName, $documentId, NULL, $fileName, $sourceNames)
+            """;
+        command.Parameters.AddWithValue("$tableName", tableName);
+        command.Parameters.AddWithValue("$documentId", documentId);
+        command.Parameters.AddWithValue("$fileName", fileName);
+        command.Parameters.AddWithValue("$sourceNames", "{\"value\":null}");
+        command.ExecuteNonQuery();
+    }
+
     private string DatabasePath(string referenceId)
     {
         var path = Path.Combine(_root, "documents", "chat-session", referenceId, "data", "tabular.db");
