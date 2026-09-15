@@ -15,6 +15,11 @@ namespace CrestApps.Core.AI.Chat.Security;
 public sealed class DefaultAIVisitorIdentityResolver : IAIVisitorIdentityResolver
 {
     private const string RemoteAddressProtectionPurpose = "CrestApps.Core.AI.VisitorIdentity.RemoteAddress";
+
+    // Chrome only honours this on a cookie that is already SameSite=None and Secure. Every other browser
+    // ignores an attribute it does not know.
+    private const string PartitionedAttributeName = "Partitioned";
+
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IOptions<AIVisitorIdentityOptions> _options;
     private readonly IHostEnvironment _hostEnvironment;
@@ -82,17 +87,45 @@ public sealed class DefaultAIVisitorIdentityResolver : IAIVisitorIdentityResolve
             httpContext.Response.Cookies.Append(
                 options.CookieName,
                 visitorId,
-                new CookieOptions
-                {
-                    HttpOnly = true,
-                    IsEssential = true,
-                    MaxAge = options.CookieLifetime,
-                    SameSite = SameSiteMode.Lax,
-                    Secure = httpContext.Request.IsHttps,
-                });
+                CreateCookieOptions(httpContext, options));
         }
 
         return visitorId;
+    }
+
+    private static CookieOptions CreateCookieOptions(HttpContext httpContext, AIVisitorIdentityOptions options)
+    {
+        var isHttps = httpContext.Request.IsHttps;
+
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            IsEssential = true,
+            MaxAge = options.CookieLifetime,
+            SameSite = SameSiteMode.Lax,
+            Secure = isHttps,
+        };
+
+        // SameSite=Lax is the right default: it is what a browser keeps for a chat served from its own
+        // site. A chat embedded in a frame on another site is the exception, and there the browser
+        // refuses a Lax cookie outright, so SameSite=None is the only attribute that survives.
+        //
+        // SameSite=None is only legal together with Secure, and a Secure cookie never reaches a plain
+        // HTTP page, so a request that did not arrive over HTTPS keeps the Lax cookie. Losing the cookie
+        // is worse than keeping one the frame cannot read.
+        if (options.AllowCrossSiteEmbedding && isHttps)
+        {
+            cookieOptions.SameSite = SameSiteMode.None;
+
+            // Keeps the framed cookie in its own jar, so it cannot replace the first party cookie of the
+            // same name and downgrade that one to SameSite=None as well.
+            if (options.UsePartitionedCookie)
+            {
+                cookieOptions.Extensions.Add(PartitionedAttributeName);
+            }
+        }
+
+        return cookieOptions;
     }
 
     private string ResolveRemoteAddressHash(HttpContext httpContext)
