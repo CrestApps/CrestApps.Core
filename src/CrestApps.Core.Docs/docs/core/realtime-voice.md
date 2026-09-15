@@ -414,6 +414,14 @@ both sides of the conversation — user speech, a response starting, each chunk 
 finishing — so a spoken answer longer than the window never trips it; only real silence does. That is what makes
 a window as short as 30 seconds safe: a forgotten tab is closed in half a minute rather than ten.
 
+The provider running out of things to send is not the listener running out of things to hear. A deployment that
+synthesizes faster than real time — a cascaded one, typically — hands a whole reply over in moments and leaves
+most of it queued on a paced transport, so the last audio event can be a full window in the past while the
+assistant is still mid-sentence. When the window expires the timeout therefore checks what the transport still
+has to play, waits that out, and starts the window again from there, measuring the silence from when the
+listener actually stopped hearing the reply. A transport that hands audio straight to the client reports nothing
+queued (see `PendingPlaybackMs`) and is unaffected.
+
 **Maximum duration.** A session ends after `MaxSessionDurationSeconds` however busy it has been (300 — five
 minutes — by default; `0` disables it), reporting `session_ended` with reason `max_duration`. The idle timeout
 only catches a session nobody is using; this is the backstop for one that is genuinely held open, including a

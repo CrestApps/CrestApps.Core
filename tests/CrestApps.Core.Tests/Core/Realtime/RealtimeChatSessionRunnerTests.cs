@@ -764,6 +764,70 @@ public sealed class RealtimeChatSessionRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_WhileQueuedAudioIsStillPlaying_DoesNotTimeOutAsIdle()
+    {
+        // A deployment that synthesizes faster than real time hands the whole reply over in moments, so the last
+        // audio event can be a full idle window in the past while the listener is still hearing the answer. The
+        // watchdog has to judge silence by what is left to play, not by when the provider stopped sending.
+        //
+        // Time is virtual: the audio arrives without the clock moving at all, which is what a cascaded deployment
+        // does, and the queue then reports a minute of it still waiting to be heard.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-16b" };
+
+        var time = new ManualTimeProvider(DateTimeOffset.UtcNow);
+
+        var sink = new RecordingSink
+        {
+            PendingPlaybackMs = 60_000,
+        };
+
+        // Held open so the stream itself never ends the session - the watchdog is the only thing that can.
+        var conversation = new FakeConversation([Evt(RealtimeConversationEventType.AssistantAudioDelta, audio: [1, 2, 3])])
+        {
+            HoldOpen = true,
+        };
+
+        var (store, _) = CreateStore();
+
+        using var scope = AIInvocationScope.Begin();
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), time, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        var run = runner.RunAsync(
+            new RealtimeChatRunContext
+            {
+                Resource = profile,
+                SessionId = session.SessionId,
+                ChatSession = session,
+                IdleTimeout = TimeSpan.FromSeconds(30),
+            },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        await Task.WhenAny(conversation.EventsDrained.Task, run);
+        await WaitForArmedTimersAsync(time, 1, run);
+
+        // Past the idle window with the reply still playing. The provider has been silent the whole time, so a
+        // watchdog watching only the provider ends the session here.
+        time.Advance(TimeSpan.FromSeconds(31));
+        await WaitForArmedTimersAsync(time, 1, run);
+
+        Assert.False(run.IsCompleted);
+        Assert.Empty(sink.SessionEnded);
+
+        // The listener has now heard all of it, and the window starts from here rather than from the last audio
+        // the provider sent - so the reply is not immediately followed by a session that ends on its own.
+        sink.PendingPlaybackMs = 0;
+
+        await AdvanceUntilAsync(time, run, TimeSpan.FromSeconds(10));
+        await run;
+
+        Assert.Equal([RealtimeSessionEndReasons.Idle], sink.SessionEnded);
+    }
+
+    [Fact]
     public async Task RunAsync_WhenTheSessionReachesItsMaximumDuration_EndsIt()
     {
         // The idle watchdog only catches a session nobody is using. This is the backstop that bounds one that is

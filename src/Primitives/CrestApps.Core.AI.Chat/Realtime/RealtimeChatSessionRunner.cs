@@ -156,7 +156,7 @@ public sealed class RealtimeChatSessionRunner
 
             var inbound = PumpInputAsync(conversation, audioInput, context, responseState, linkedCts.Token);
             var outbound = PumpOutputAsync(context, turnStore, conversation, sink, context.SessionId, responseState, activity, linkedCts.Token);
-            var idle = WatchForIdleAsync(context, activity, linkedCts.Token);
+            var idle = WatchForIdleAsync(context, activity, sink, linkedCts.Token);
             var expired = WatchForMaxDurationAsync(context, startedUtc, linkedCts.Token);
 
             var finished = await Task.WhenAny(inbound, outbound, idle, expired);
@@ -689,13 +689,14 @@ public sealed class RealtimeChatSessionRunner
         await FlushAssistantTurnAsync(context, turnStore, sink, sessionId, turn, finalText: null, cancellationToken);
     }
 
-    // Ends the session when neither side has spoken for the configured idle window. Returns true when it fired,
-    // false when the session ended for another reason first. A realtime session holds an open (billed) provider
-    // connection whether or not anyone is talking, so a forgotten tab should not keep one alive until the
-    // provider's own hour-long cap closes it.
+    // Ends the session when neither side has spoken for the configured idle window, and the listener is no longer
+    // hearing anything either. Returns true when it fired, false when the session ended for another reason first.
+    // A realtime session holds an open (billed) provider connection whether or not anyone is talking, so a
+    // forgotten tab should not keep one alive until the provider's own hour-long cap closes it.
     private async Task<bool> WatchForIdleAsync(
         RealtimeChatRunContext context,
         SessionActivity activity,
+        IRealtimeConversationSink sink,
         CancellationToken cancellationToken)
     {
         if (context.IdleTimeout is not { } timeout || timeout <= TimeSpan.Zero)
@@ -714,7 +715,23 @@ public sealed class RealtimeChatSessionRunner
 
                 if (remaining <= TimeSpan.Zero)
                 {
-                    return true;
+                    // The provider finishing a reply is not the listener finishing hearing it. A deployment that
+                    // synthesizes faster than real time hands over a whole answer in seconds, leaving minutes of
+                    // it queued on a paced transport, so the last audio event can be a full window in the past
+                    // while the assistant is still mid-sentence. Waiting that audio out and starting the window
+                    // again measures the silence from when the listener actually stopped hearing the reply.
+                    var pendingPlaybackMs = sink.PendingPlaybackMs;
+
+                    if (pendingPlaybackMs <= 0)
+                    {
+                        return true;
+                    }
+
+                    await Task.Delay(TimeSpan.FromMilliseconds(pendingPlaybackMs), _timeProvider, cancellationToken);
+
+                    activity.Touch(_timeProvider.GetUtcNow());
+
+                    continue;
                 }
 
                 // Wake when the current window would expire; anything either side says simply pushes the deadline
