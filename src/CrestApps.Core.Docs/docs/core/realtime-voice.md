@@ -416,11 +416,19 @@ a window as short as 30 seconds safe: a forgotten tab is closed in half a minute
 
 The provider running out of things to send is not the listener running out of things to hear. A deployment that
 synthesizes faster than real time — a cascaded one, typically — hands a whole reply over in moments and leaves
-most of it queued on a paced transport, so the last audio event can be a full window in the past while the
-assistant is still mid-sentence. When the window expires the timeout therefore checks what the transport still
-has to play, waits that out, and starts the window again from there, measuring the silence from when the
-listener actually stopped hearing the reply. A transport that hands audio straight to the client reports nothing
-queued (see `PendingPlaybackMs`) and is unaffected.
+most of it queued, so the last audio event can be a full window in the past while the assistant is still
+mid-sentence. When the window expires the timeout therefore checks what is still waiting to be played, waits
+that out, and starts the window again from there, measuring the silence from when the listener actually stopped
+hearing the reply. Every transport reports that (`PendingPlaybackMs`): WebRTC from the paced queue on the server
+side of the peer, and the WebSocket transport from the clock, since forwarding a chunk does not play it — the
+queue simply moves into the browser, which plays it at real time out of its own audio graph. A queue that has
+not moved at all by the time it has been waited out is nobody listening — a transport whose pacing stopped with
+audio still on it — and ends the session rather than holding it open on a loop.
+
+The same applies to the user. Speech-started and the commit at the end of an utterance are the only events an
+utterance raises, and nothing at all arrives in between, so an uncommitted utterance holds the timeout off while
+someone is mid-sentence: a spoken answer longer than the window is not cut off either. That hold is bounded at
+two minutes, since a commit that never arrives is a dropped turn rather than someone still talking.
 
 **Maximum duration.** A session ends after `MaxSessionDurationSeconds` however busy it has been (300 — five
 minutes — by default; `0` disables it), reporting `session_ended` with reason `max_duration`. The idle timeout

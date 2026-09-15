@@ -55,6 +55,14 @@ public sealed class RealtimeChatSessionRunner
     // A microphone batch (~100 ms) that the provider takes this long to accept is a stall worth logging.
     private const long SlowProviderSendMs = 1000;
 
+    // Longest an utterance the provider has not committed yet may hold the idle watchdog off. The provider commits
+    // a turn as soon as its own detector hears the user stop, so a speaking state older than this is a commit that
+    // never arrived rather than someone still talking, and it must not keep a billed session open indefinitely.
+    private static readonly TimeSpan MaxUncommittedUtterance = TimeSpan.FromMinutes(2);
+
+    // How often the watchdog re-checks a session it is holding open because the user is mid-utterance.
+    private static readonly TimeSpan UserSpeechPollInterval = TimeSpan.FromSeconds(1);
+
     private readonly IRealtimeOrchestrator _orchestrator;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<RealtimeChatSessionRunner> _logger;
@@ -408,7 +416,8 @@ public sealed class RealtimeChatSessionRunner
 
                 case RealtimeConversationEventType.UserTurnCommitted:
                     {
-                        activity.Touch(_timeProvider.GetUtcNow());
+                        // The end of the utterance that speech-started opened: the idle window runs from here.
+                        activity.UserSpeechCommitted(_timeProvider.GetUtcNow());
 
                         // The provider decides at commit time whether this utterance gets a response, so this — not
                         // speech-started — is where "will it be answered?" can be judged. An utterance that began
@@ -538,7 +547,11 @@ public sealed class RealtimeChatSessionRunner
                     // talking through the same response, so flushing here would end the turn early and split one
                     // reply into two bubbles.
                     sawSpeechStarted = true;
-                    activity.Touch(_timeProvider.GetUtcNow());
+
+                    // Someone talking is the conversation being alive, and nothing else is raised until the
+                    // provider commits the utterance, so record that it is open rather than only touching the
+                    // clock: an answer longer than the idle window used to be cut off mid-sentence.
+                    activity.UserSpeechStarted(_timeProvider.GetUtcNow());
 
                     if (context.AllowInterruption)
                     {
@@ -689,8 +702,9 @@ public sealed class RealtimeChatSessionRunner
         await FlushAssistantTurnAsync(context, turnStore, sink, sessionId, turn, finalText: null, cancellationToken);
     }
 
-    // Ends the session when neither side has spoken for the configured idle window, and the listener is no longer
-    // hearing anything either. Returns true when it fired, false when the session ended for another reason first.
+    // Ends the session when neither side has spoken for the configured idle window, nobody is mid-utterance, and
+    // the listener is no longer hearing anything either. Returns true when it fired, false when the session ended
+    // for another reason first.
     // A realtime session holds an open (billed) provider connection whether or not anyone is talking, so a
     // forgotten tab should not keep one alive until the provider's own hour-long cap closes it.
     private async Task<bool> WatchForIdleAsync(
@@ -715,6 +729,18 @@ public sealed class RealtimeChatSessionRunner
 
                 if (remaining <= TimeSpan.Zero)
                 {
+                    // An utterance the provider has not committed yet is the user still talking. Speech-started
+                    // touched the clock when they began and the commit will touch it when they stop, but nothing
+                    // is raised in between, so a single answer longer than the window would otherwise be cut off
+                    // mid-sentence. Bounded, so a commit that never arrives cannot hold the session open forever.
+                    if (activity.SpeakingSinceUtc is { } speakingSince
+                        && _timeProvider.GetUtcNow() - speakingSince < MaxUncommittedUtterance)
+                    {
+                        await Task.Delay(UserSpeechPollInterval, _timeProvider, cancellationToken);
+
+                        continue;
+                    }
+
                     // The provider finishing a reply is not the listener finishing hearing it. A deployment that
                     // synthesizes faster than real time hands over a whole answer in seconds, leaving minutes of
                     // it queued on a paced transport, so the last audio event can be a full window in the past
@@ -727,7 +753,24 @@ public sealed class RealtimeChatSessionRunner
                         return true;
                     }
 
+                    var lastActivityUtc = activity.LastActivityUtc;
+
                     await Task.Delay(TimeSpan.FromMilliseconds(pendingPlaybackMs), _timeProvider, cancellationToken);
+
+                    if (activity.LastActivityUtc != lastActivityUtc)
+                    {
+                        // Something was said while the queue drained, so the window already runs from there.
+                        continue;
+                    }
+
+                    if (sink.PendingPlaybackMs >= pendingPlaybackMs)
+                    {
+                        // Nothing new arrived and the queue did not move while it was waited out, so nobody is
+                        // hearing it — a transport whose pacing stopped with frames still on it, say. Waiting
+                        // again would hold a billed session open on a dead queue, and the maximum-duration
+                        // backstop that would eventually catch it can be turned off entirely.
+                        return true;
+                    }
 
                     activity.Touch(_timeProvider.GetUtcNow());
 
@@ -1032,6 +1075,11 @@ public sealed class RealtimeChatSessionRunner
     {
         private long _lastActivityTicks;
 
+        // When the provider last reported the user starting to speak without having committed that utterance yet,
+        // or zero when they are not mid-utterance. Only speech-started and the commit touch the clock, and nothing
+        // in between does, so an utterance longer than the idle window needs this to hold the watchdog off.
+        private long _speakingSinceTicks;
+
         public SessionActivity(DateTimeOffset startedUtc)
         {
             _lastActivityTicks = startedUtc.UtcTicks;
@@ -1039,8 +1087,33 @@ public sealed class RealtimeChatSessionRunner
 
         public DateTimeOffset LastActivityUtc => new(Volatile.Read(ref _lastActivityTicks), TimeSpan.Zero);
 
+        public DateTimeOffset? SpeakingSinceUtc
+        {
+            get
+            {
+                var ticks = Volatile.Read(ref _speakingSinceTicks);
+
+                return ticks == 0
+                    ? null
+                    : new DateTimeOffset(ticks, TimeSpan.Zero);
+            }
+        }
+
         public void Touch(DateTimeOffset nowUtc)
             => Volatile.Write(ref _lastActivityTicks, nowUtc.UtcTicks);
+
+        public void UserSpeechStarted(DateTimeOffset nowUtc)
+        {
+            // Speech-started repeats for each utterance; the first one of a run is when the user began talking.
+            Interlocked.CompareExchange(ref _speakingSinceTicks, nowUtc.UtcTicks, 0);
+            Touch(nowUtc);
+        }
+
+        public void UserSpeechCommitted(DateTimeOffset nowUtc)
+        {
+            Volatile.Write(ref _speakingSinceTicks, 0);
+            Touch(nowUtc);
+        }
     }
 
     // Counts the assistant audio handed to the transport for the item currently being spoken.

@@ -828,6 +828,191 @@ public sealed class RealtimeChatSessionRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_WhileTheUserIsStillSpeaking_DoesNotTimeOutAsIdle()
+    {
+        // Speech-started and the commit at the end of the utterance are the only events an utterance raises, and
+        // nothing at all arrives in between. A window shorter than the answer would therefore cut the user off
+        // mid-sentence — the same failure as ending a session while the assistant is still being heard, on the
+        // other side of the conversation.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-16c" };
+
+        var time = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        var sink = new RecordingSink();
+
+        var committed = new TaskCompletionSource<IReadOnlyList<RealtimeConversationEvent>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // Held open so the stream itself never ends the session - the watchdog is the only thing that can.
+        var conversation = new FakeConversation([Evt(RealtimeConversationEventType.UserSpeechStarted)])
+        {
+            HoldOpen = true,
+            DeferredEvents = committed,
+        };
+
+        var (store, _) = CreateStore();
+
+        using var scope = AIInvocationScope.Begin();
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), time, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        var run = runner.RunAsync(
+            new RealtimeChatRunContext
+            {
+                Resource = profile,
+                SessionId = session.SessionId,
+                ChatSession = session,
+                IdleTimeout = TimeSpan.FromSeconds(30),
+            },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        await Task.WhenAny(conversation.EventsDrained.Task, run);
+        await WaitForArmedTimersAsync(time, 1, run);
+
+        // A long answer: past the window twice over with the provider silent throughout, because it has nothing
+        // to say until it hears the user stop.
+        for (var i = 0; i < 3; i++)
+        {
+            time.Advance(TimeSpan.FromSeconds(31));
+            await WaitForArmedTimersAsync(time, 1, run);
+
+            Assert.False(run.IsCompleted);
+        }
+
+        Assert.Empty(sink.SessionEnded);
+
+        // They stop, and the provider commits the turn. The window runs from there.
+        committed.TrySetResult([Evt(RealtimeConversationEventType.UserTurnCommitted, itemId: "item-1")]);
+        await Task.WhenAny(conversation.DeferredEventsDrained.Task, run);
+
+        await AdvanceUntilAsync(time, run, TimeSpan.FromSeconds(10));
+        await run;
+
+        Assert.Equal([RealtimeSessionEndReasons.Idle], sink.SessionEnded);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenAnUtteranceIsNeverCommitted_StillTimesOutAsIdle()
+    {
+        // Holding the watchdog off while the user talks must not become a session that cannot end: a commit that
+        // never arrives - the provider dropped the turn, or the connection went quiet without closing - would
+        // otherwise keep a billed connection open on nothing at all.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-16d" };
+
+        var time = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        var sink = new RecordingSink();
+
+        var conversation = new FakeConversation([Evt(RealtimeConversationEventType.UserSpeechStarted)])
+        {
+            HoldOpen = true,
+        };
+
+        var (store, _) = CreateStore();
+
+        using var scope = AIInvocationScope.Begin();
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), time, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        var startedUtc = time.GetUtcNow();
+
+        var run = runner.RunAsync(
+            new RealtimeChatRunContext
+            {
+                Resource = profile,
+                SessionId = session.SessionId,
+                ChatSession = session,
+                IdleTimeout = TimeSpan.FromSeconds(30),
+            },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        await Task.WhenAny(conversation.EventsDrained.Task, run);
+        await WaitForArmedTimersAsync(time, 1, run);
+
+        // Held open for as long as an utterance could plausibly run.
+        for (var i = 0; i < 3; i++)
+        {
+            time.Advance(TimeSpan.FromSeconds(31));
+            await WaitForArmedTimersAsync(time, 1, run);
+
+            Assert.False(run.IsCompleted);
+        }
+
+        // Past the point where a commit is simply not coming, the session ends on its own rather than waiting for
+        // the maximum-duration backstop - which can be turned off entirely.
+        time.Advance(TimeSpan.FromSeconds(60));
+
+        await run.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal([RealtimeSessionEndReasons.Idle], sink.SessionEnded);
+        Assert.True(time.GetUtcNow() - startedUtc < TimeSpan.FromMinutes(5));
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenQueuedAudioNeverDrains_StillTimesOutAsIdle()
+    {
+        // Waiting queued audio out assumes the queue is moving. One that does not - a transport whose pacing
+        // stopped with frames still on it - is nobody listening, and must not hold the session open on a loop.
+        // The maximum-duration backstop that would eventually catch it can be turned off entirely.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-16e" };
+
+        var time = new ManualTimeProvider(DateTimeOffset.UtcNow);
+
+        // Never drains, however long it is waited out.
+        var sink = new RecordingSink
+        {
+            PendingPlaybackMs = 60_000,
+        };
+
+        var conversation = new FakeConversation([Evt(RealtimeConversationEventType.AssistantAudioDelta, audio: [1, 2, 3])])
+        {
+            HoldOpen = true,
+        };
+
+        var (store, _) = CreateStore();
+
+        using var scope = AIInvocationScope.Begin();
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), time, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        var startedUtc = time.GetUtcNow();
+
+        var run = runner.RunAsync(
+            new RealtimeChatRunContext
+            {
+                Resource = profile,
+                SessionId = session.SessionId,
+                ChatSession = session,
+                IdleTimeout = TimeSpan.FromSeconds(30),
+            },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        await Task.WhenAny(conversation.EventsDrained.Task, run);
+        await WaitForArmedTimersAsync(time, 1, run);
+
+        // The window expires and the queue is waited out, exactly as it would be for audio really playing.
+        time.Advance(TimeSpan.FromSeconds(31));
+        await WaitForArmedTimersAsync(time, 1, run);
+
+        Assert.False(run.IsCompleted);
+
+        // It has not moved, so this is the end of it: one window and one drain that went nowhere, rather than
+        // that pair over and over.
+        time.Advance(TimeSpan.FromSeconds(61));
+
+        await run.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal([RealtimeSessionEndReasons.Idle], sink.SessionEnded);
+        Assert.True(time.GetUtcNow() - startedUtc < TimeSpan.FromMinutes(3));
+    }
+
+    [Fact]
     public async Task RunAsync_WhenTheSessionReachesItsMaximumDuration_EndsIt()
     {
         // The idle watchdog only catches a session nobody is using. This is the backstop that bounds one that is
@@ -1217,6 +1402,17 @@ public sealed class RealtimeChatSessionRunnerTests
         /// </summary>
         public bool HoldOpen { get; init; }
 
+        /// <summary>
+        /// A second batch of events a test can release once the first has been consumed, so it can put virtual
+        /// time between them — the provider raising nothing at all while the user keeps talking, for instance.
+        /// </summary>
+        public TaskCompletionSource<IReadOnlyList<RealtimeConversationEvent>>? DeferredEvents { get; init; }
+
+        /// <summary>
+        /// Completes once the deferred batch has been consumed by the runner.
+        /// </summary>
+        public TaskCompletionSource DeferredEventsDrained { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         private readonly TaskCompletionSource _hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public void Release() => _hold.TrySetResult();
@@ -1312,6 +1508,18 @@ public sealed class RealtimeChatSessionRunnerTests
             }
 
             EventsDrained.TrySetResult();
+
+            if (DeferredEvents is not null)
+            {
+                foreach (var evt in await DeferredEvents.Task.WaitAsync(cancellationToken))
+                {
+                    yield return evt;
+
+                    await Task.Yield();
+                }
+
+                DeferredEventsDrained.TrySetResult();
+            }
 
             if (HoldOpen)
             {
