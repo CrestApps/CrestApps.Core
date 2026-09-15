@@ -400,7 +400,9 @@ public sealed class TabularWorkspaceLifecycleTests : IDisposable
 
     private static List<string> GetUserTableNames(string databasePath)
     {
-        return ReadStrings(databasePath, "SELECT name FROM sqlite_master WHERE type = 'table' AND name <> '_workspace_meta' ORDER BY name");
+        // Every table the workspace keeps for its own bookkeeping is prefixed, so a new one does not
+        // have to be added here to keep these assertions about data tables accurate.
+        return ReadStrings(databasePath, "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_workspace\\_%' ESCAPE '\\' ORDER BY name");
     }
 
     private static List<string> GetMetadataTableNames(string databasePath)

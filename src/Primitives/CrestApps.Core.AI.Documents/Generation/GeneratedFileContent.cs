@@ -1,3 +1,5 @@
+using CrestApps.Core.AI.Documents.Generation.Spreadsheets;
+
 namespace CrestApps.Core.AI.Documents.Generation;
 
 /// <summary>
@@ -27,6 +29,13 @@ public sealed class GeneratedFileContent
     /// Gets or sets the optional tabular data rows that accompany <see cref="Header"/>.
     /// </summary>
     public IReadOnlyList<IReadOnlyList<string>> Rows { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional presentation applied by spreadsheet writers: per-column number formats
+    /// and storage types, header styling, conditional formatting, live formulas, a total row, and
+    /// embedded charts. Writers that cannot express presentation (CSV, plain text) ignore it.
+    /// </summary>
+    public SpreadsheetFormatting SpreadsheetFormatting { get; set; }
 
     /// <summary>
     /// Gets a value indicating whether the content carries a tabular header that writers can render.

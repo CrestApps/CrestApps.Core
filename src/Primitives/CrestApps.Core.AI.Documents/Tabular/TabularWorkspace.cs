@@ -20,6 +20,7 @@ namespace CrestApps.Core.AI.Documents.Tabular;
 internal sealed class TabularWorkspace : IDisposable
 {
     private const string MetadataTableName = "_workspace_meta";
+    private const string FormattingTableName = "_workspace_formats";
     private const int ImportProgressIntervalRows = 250;
 
     // SQLite SQLITE_DBCONFIG_DQS_* op codes. Used to re-enable the legacy double-quoted string
@@ -712,6 +713,7 @@ internal sealed class TabularWorkspace : IDisposable
         {
             DropTable(table.TableName);
             DeleteMetadataEntry(table.TableName);
+            DeleteFormattingEntry(table.TableName);
             _tables.Remove(table.TableName);
 
             if (_logger.IsEnabled(LogLevel.Debug))
@@ -736,6 +738,21 @@ internal sealed class TabularWorkspace : IDisposable
         using var command = _connection.CreateCommand();
         command.CommandText = $"""
             DELETE FROM "{MetadataTableName}" WHERE table_name = $tableName
+            """;
+        command.Parameters.AddWithValue("$tableName", tableName);
+        command.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Removes the recorded formatting for a table that is going away, so a table name reused by a
+    /// later upload does not inherit the presentation of an unrelated file.
+    /// </summary>
+    /// <param name="tableName">The SQL table name.</param>
+    private void DeleteFormattingEntry(string tableName)
+    {
+        using var command = _connection.CreateCommand();
+        command.CommandText = $"""
+            DELETE FROM "{FormattingTableName}" WHERE table_name = $tableName
             """;
         command.Parameters.AddWithValue("$tableName", tableName);
         command.ExecuteNonQuery();
@@ -778,6 +795,7 @@ internal sealed class TabularWorkspace : IDisposable
         {
             DropTable(table.TableName);
             DeleteMetadataEntry(table.TableName);
+            DeleteFormattingEntry(table.TableName);
             _tables.Remove(table.TableName);
 
             _logger.LogWarning(
@@ -962,6 +980,128 @@ internal sealed class TabularWorkspace : IDisposable
             )
             """;
         command.ExecuteNonQuery();
+
+        // Formatting is stored beside the data rather than in the invocation, so a sheet formatted in
+        // one turn is still formatted when the file is exported in a later one.
+        using var formattingCommand = connection.CreateCommand();
+        formattingCommand.CommandText = $"""
+            CREATE TABLE IF NOT EXISTS "{FormattingTableName}" (
+                "table_name" TEXT PRIMARY KEY,
+                "spec_json" TEXT NOT NULL,
+                "revision" INTEGER NOT NULL
+            )
+            """;
+        formattingCommand.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Reads the stored formatting for a table.
+    /// </summary>
+    /// <param name="tableName">The SQL table name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>
+    /// The stored specification and its revision, or a revision of zero with no specification when the
+    /// table has never been formatted.
+    /// </returns>
+    public async Task<(string SpecJson, int Revision)> GetFormattingAsync(
+        string tableName,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(tableName))
+        {
+            return (null, 0);
+        }
+
+        await _gate.WaitAsync(cancellationToken);
+
+        try
+        {
+            EnsureLoaded();
+
+            using var command = _connection.CreateCommand();
+            command.CommandText = $"SELECT \"spec_json\", \"revision\" FROM \"{FormattingTableName}\" WHERE \"table_name\" = $name";
+            command.Parameters.AddWithValue("$name", tableName);
+            command.CommandTimeout = _options.CommandTimeoutSeconds;
+
+            using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                return (null, 0);
+            }
+
+            return (reader.GetString(0), reader.GetInt32(1));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Stores the formatting for a table, replacing any previous specification.
+    /// </summary>
+    /// <param name="tableName">The SQL table name.</param>
+    /// <param name="specJson">The serialized specification, or <see langword="null"/> to clear it.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The new revision, which changes on every save so cached exports are not reused.</returns>
+    public async Task<int> SaveFormattingAsync(
+        string tableName,
+        string specJson,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(tableName);
+
+        await _gate.WaitAsync(cancellationToken);
+
+        try
+        {
+            EnsureLoaded();
+
+            SetWritable(_connection, true);
+
+            try
+            {
+                if (string.IsNullOrEmpty(specJson))
+                {
+                    using var deleteCommand = _connection.CreateCommand();
+                    deleteCommand.CommandText = $"DELETE FROM \"{FormattingTableName}\" WHERE \"table_name\" = $name";
+                    deleteCommand.Parameters.AddWithValue("$name", tableName);
+                    deleteCommand.CommandTimeout = _options.CommandTimeoutSeconds;
+
+                    await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
+
+                    return 0;
+                }
+
+                using var command = _connection.CreateCommand();
+                command.CommandText = $"""
+                    INSERT INTO "{FormattingTableName}" ("table_name", "spec_json", "revision")
+                    VALUES ($name, $spec, 1)
+                    ON CONFLICT("table_name") DO UPDATE SET
+                        "spec_json" = excluded."spec_json",
+                        "revision" = "{FormattingTableName}"."revision" + 1
+                    RETURNING "revision"
+                    """;
+                command.Parameters.AddWithValue("$name", tableName);
+                command.Parameters.AddWithValue("$spec", specJson);
+                command.CommandTimeout = _options.CommandTimeoutSeconds;
+
+                var revision = await command.ExecuteScalarAsync(cancellationToken);
+
+                return revision is long value
+                    ? (int)value
+                    : 1;
+            }
+            finally
+            {
+                SetWritable(_connection, false);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     private static bool MetadataTableNeedsRebuild(SqliteConnection connection)
