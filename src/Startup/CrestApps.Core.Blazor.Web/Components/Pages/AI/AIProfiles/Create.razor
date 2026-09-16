@@ -1,4 +1,4 @@
-@page "/ai/profiles/create"
+﻿@page "/ai/profiles/create"
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI
 @using CrestApps.Core.AI.Capabilities
@@ -840,6 +840,12 @@
                         <label class="form-label">Filter</label>
                         <InputText class="form-control" @bind-Value="_model.DataSourceFilter" placeholder="Optional provider-specific filter" />
                         <div class="form-text">Optional filter expression passed to the data source provider.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Kinds of knowledge</label>
+                        <InputText class="form-control" @bind-Value="_model.DataSourceObjectTypes" placeholder="e.g. figure, chart" />
+                        <div class="form-text">Comma-separated. Leave empty to retrieve every kind. Values: document, article, text, figure, chart, table.</div>
                     </div>
 
                     <div class="mb-3">

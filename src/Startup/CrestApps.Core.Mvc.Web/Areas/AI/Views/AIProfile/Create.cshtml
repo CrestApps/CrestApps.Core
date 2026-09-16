@@ -1,4 +1,4 @@
-@using CrestApps.Core.AI.Documents.Models
+﻿@using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.Mvc.Web.Services
@@ -643,6 +643,11 @@
                         <label asp-for="DataSourceFilter" class="form-label">Filter</label>
                         <input asp-for="DataSourceFilter" class="form-control" placeholder="Optional provider-specific filter" />
                         <div class="form-text">Optional filter expression passed to the configured data source provider.</div>
+                    </div>
+                    <div class="mb-3 rag-data-source-filter-dependent">
+                        <label asp-for="DataSourceObjectTypes" class="form-label">Kinds of knowledge</label>
+                        <input asp-for="DataSourceObjectTypes" class="form-control" placeholder="e.g. figure, chart" />
+                        <div class="form-text">Comma-separated. Leave empty to retrieve every kind. Values: document, article, text, figure, chart, table.</div>
                     </div>
                     <div class="mb-3">
                         <div class="form-check form-switch">
