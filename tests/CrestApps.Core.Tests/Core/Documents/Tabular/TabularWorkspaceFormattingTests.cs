@@ -128,6 +128,50 @@ public sealed class TabularWorkspaceFormattingTests
         Assert.Equal(["sales"], tables.Select(table => table.TableName));
     }
 
+    /// <summary>
+    /// Formatting recorded for the export as a whole is stored under its own key, separate from any
+    /// source table. An export that joins several tables has no single source table, and before this
+    /// existed its formatting was silently dropped — found by running the real agent end to end.
+    /// </summary>
+    [Fact]
+    public async Task SaveFormattingAsync_WorkspaceKey_IsSeparateFromTableFormatting()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = await CreateLoadedWorkspaceAsync(cancellationToken);
+
+        await workspace.SaveFormattingAsync("sales", Spec, cancellationToken);
+        await workspace.SaveFormattingAsync(
+            TabularToolNames.WorkspaceFormattingKey,
+            """{"bandedRows":true}""",
+            cancellationToken);
+
+        var table = await workspace.GetFormattingAsync("sales", cancellationToken);
+        var export = await workspace.GetFormattingAsync(TabularToolNames.WorkspaceFormattingKey, cancellationToken);
+
+        Assert.Equal(Spec, table.SpecJson);
+        Assert.Equal("""{"bandedRows":true}""", export.SpecJson);
+    }
+
+    /// <summary>
+    /// Verifies that the export-wide key is not reported as a data table, so the model never sees it as
+    /// something it could query.
+    /// </summary>
+    [Fact]
+    public async Task GetTablesAsync_DoesNotExposeTheWorkspaceFormattingKey()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = await CreateLoadedWorkspaceAsync(cancellationToken);
+
+        await workspace.SaveFormattingAsync(
+            TabularToolNames.WorkspaceFormattingKey,
+            """{"bandedRows":true}""",
+            cancellationToken);
+
+        var tables = await workspace.GetTablesAsync(cancellationToken);
+
+        Assert.Equal(["sales"], tables.Select(table => table.TableName));
+    }
+
     private static async Task<TabularWorkspace> CreateLoadedWorkspaceAsync(CancellationToken cancellationToken)
     {
         var workspace = new TabularWorkspace(new TabularWorkspaceOptions());

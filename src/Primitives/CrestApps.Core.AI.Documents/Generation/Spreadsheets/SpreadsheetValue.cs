@@ -184,7 +184,17 @@ public static class SpreadsheetValue
             return false;
         }
 
-        if (digits == 0 || digits > MaximumSignificantDigits)
+        if (digits == 0)
+        {
+            return false;
+        }
+
+        // The digit ceiling guards identifiers, not quantities. It applies only to whole numbers,
+        // where too many digits means an account or order number that must keep every character. A
+        // value with a decimal point is a measurement: a database returning a computed float as
+        // "-3313.2599999999948" is seventeen digits of ordinary arithmetic, and treating it as text
+        // would put a number the reader cannot sum back into the sheet.
+        if (decimalPoints == 0 && digits > MaximumSignificantDigits)
         {
             return false;
         }

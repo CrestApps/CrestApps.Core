@@ -477,6 +477,47 @@ public sealed class SpreadsheetFormattingTests
     }
 
     /// <summary>
+    /// A computed value from SQL routinely carries full floating-point precision. Rejecting it for
+    /// having too many digits put the number back in the sheet as text — the exact complaint this work
+    /// set out to fix. Found by exporting a real joined report and opening it in Excel.
+    /// </summary>
+    [Theory]
+    [InlineData("-3313.2599999999948")]
+    [InlineData("0.30000000000000004")]
+    [InlineData("1234567890123456.75")]
+    public void LooksNumeric_LongDecimal_IsStillANumber(string value)
+    {
+        Assert.True(SpreadsheetValue.LooksNumeric(value, out var number));
+        Assert.NotEqual(0, number);
+    }
+
+    /// <summary>
+    /// Verifies that the digit ceiling still protects a long whole number, which is an identifier
+    /// rather than a quantity and must keep every character.
+    /// </summary>
+    [Theory]
+    [InlineData("12345678901234567890")]
+    [InlineData("00123456")]
+    public void LooksNumeric_LongWholeNumber_StaysText(string value)
+    {
+        Assert.False(SpreadsheetValue.LooksNumeric(value, out _));
+    }
+
+    /// <summary>
+    /// Verifies that a column of full-precision computed values is typed numerically, so the reader can
+    /// sum and chart it.
+    /// </summary>
+    [Fact]
+    public void Layout_ComputedPrecisionColumn_IsTypedAsNumber()
+    {
+        var layout = CreateLayout(
+            ["Client", "Variance"],
+            [["Atlas", "-3313.2599999999948"], ["Borealis", "4239.070000000003"]]);
+
+        Assert.Equal(SpreadsheetDataKind.Number, layout.Columns[1].Kind);
+    }
+
+    /// <summary>
     /// Verifies that a date column fits the format it is given.
     /// </summary>
     [Fact]

@@ -128,9 +128,26 @@ public sealed class ExportTabularDataTool : AIFunction
         fileName = NormalizeFileName(fileName, targetExtension);
 
         var formattingTable = ResolveFormattingTable(preparation.Tables, sql);
+
+        // Formatting recorded against the source table wins; otherwise the specification recorded for
+        // the export as a whole applies. A report built by joining several tables has no single source
+        // table, so without this fallback its formatting would be silently dropped.
         var storedFormatting = formattingTable is null
             ? (SpecJson: null, Revision: 0)
             : await workspace.GetFormattingAsync(formattingTable.TableName, cancellationToken);
+
+        if (string.IsNullOrEmpty(storedFormatting.SpecJson))
+        {
+            var workspaceFormatting = await workspace.GetFormattingAsync(
+                TabularToolNames.WorkspaceFormattingKey,
+                cancellationToken);
+
+            if (!string.IsNullOrEmpty(workspaceFormatting.SpecJson))
+            {
+                storedFormatting = workspaceFormatting;
+                formattingTable = null;
+            }
+        }
 
         var cachedResponse = TryGetCachedResponse(
             preparation.Context.ExportReferenceType,

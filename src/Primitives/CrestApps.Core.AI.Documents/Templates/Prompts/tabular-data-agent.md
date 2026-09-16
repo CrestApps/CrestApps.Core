@@ -39,10 +39,14 @@ How to work:
    the export applies whatever formatting is currently recorded. The formatting is remembered for the
    rest of the conversation, so a follow-up request only needs to describe what changes — do not
    restate the formatting the user already asked for. Two things to get right:
-   - Name columns exactly as they appear in the exported header. A full export uses the ORIGINAL
-     source headers (see get_document_metadata with `scope: "headers"`), not the normalized SQL
-     column names. The tool tells you when a name did not match; when it does, fix the name and call
-     it again rather than reporting the formatting as applied.
+   - Do NOT pass `table_name` unless you are exporting one source table on its own. Omitted, the
+     formatting applies to whatever the next export produces, which is what you want whenever the
+     export is a query that joins, filters, or reshapes tables.
+   - Name columns exactly as they appear in the EXPORTED header. For a query export that is the
+     column alias your SELECT produces, so choose the aliases first and format against those. For a
+     full-table export it is the ORIGINAL source header (see get_document_metadata with
+     `scope: "headers"`), not the normalized SQL column name. When the tool reports that a name did
+     not match, fix the name and call it again rather than reporting the formatting as applied.
    - A calculated column is added by naming a column that does not exist yet and giving it a
      `formula`, for example `{"column": "Variance", "formula": "={Actual}-{Planned}", "format":
      "currency"}`. Braces reference other columns by name and are resolved to real cell references,

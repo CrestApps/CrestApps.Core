@@ -33,7 +33,7 @@ public sealed class FormatTabularDataTool : AIFunction
       "properties": {
         "table_name": {
           "type": "string",
-          "description": "Optional SQL table name from list_tabular_data. Omit this when only one table is loaded."
+          "description": "Optional SQL table name from list_tabular_data. OMIT this in almost every case: the formatting then applies to whatever the next export produces, which is what you want when the export is a query that joins or reshapes tables. Only set it to format one specific source table exported on its own."
         },
         "sheet_name": {
           "type": "string",
@@ -222,54 +222,64 @@ public sealed class FormatTabularDataTool : AIFunction
         using var workspace = preparation.Workspace;
         var table = ResolveTable(preparation.Tables, requestedTableName);
 
-        if (table is null)
+        if (table is null && !string.IsNullOrWhiteSpace(requestedTableName))
         {
-            return string.IsNullOrWhiteSpace(requestedTableName)
-                ? "Multiple tabular tables are loaded. Provide 'table_name' from list_tabular_data so the formatting is applied to the right table."
-                : $"The table '{requestedTableName}' was not found. Use list_tabular_data to find the available table names.";
+            return $"The table '{requestedTableName}' was not found. Use list_tabular_data to find the available table names.";
         }
+
+        // With no table named, the formatting belongs to whatever the next export produces. That is the
+        // common case for a report built by joining several tables, where no single source table owns
+        // the result.
+        var formattingKey = table?.TableName ?? TabularToolNames.WorkspaceFormattingKey;
 
         if (TryGetBoolean(arguments, "clear"))
         {
-            await workspace.SaveFormattingAsync(table.TableName, specJson: null, cancellationToken);
+            await workspace.SaveFormattingAsync(formattingKey, specJson: null, cancellationToken);
 
-            return $"Cleared the recorded formatting for table \"{table.TableName}\". The next export will be unformatted.";
+            return $"Cleared the recorded formatting for {DescribeTarget(table)}. The next export will be unformatted.";
         }
 
         var request = SpreadsheetFormattingJson.Parse(ToJsonElement(arguments));
 
         var existing = TryGetBoolean(arguments, "replace")
             ? null
-            : SpreadsheetFormattingJson.Deserialize((await workspace.GetFormattingAsync(table.TableName, cancellationToken)).SpecJson);
+            : SpreadsheetFormattingJson.Deserialize((await workspace.GetFormattingAsync(formattingKey, cancellationToken)).SpecJson);
 
         var merged = SpreadsheetFormattingMerge.Merge(existing, request);
         var revision = await workspace.SaveFormattingAsync(
-            table.TableName,
+            formattingKey,
             SpreadsheetFormattingJson.Serialize(merged),
             cancellationToken);
 
         if (logger.IsEnabled(LogLevel.Debug))
         {
             logger.LogDebug(
-                "AI tool '{ToolName}' completed (call #{InvocationNumber}). Table='{TableName}', Columns={ColumnCount}, ConditionalFormats={ConditionalCount}, Charts={ChartCount}, Revision={Revision}.",
+                "AI tool '{ToolName}' completed (call #{InvocationNumber}). Target='{TableName}', Columns={ColumnCount}, ConditionalFormats={ConditionalCount}, Charts={ChartCount}, Revision={Revision}.",
                 Name,
                 invocationNumber,
-                table.TableName,
+                formattingKey,
                 merged.Columns.Count,
                 merged.ConditionalFormats.Count,
                 merged.Charts.Count,
                 revision);
         }
 
-        return BuildSummary(table.TableName, merged, WarnAboutUnknownColumns(table, merged));
+        return BuildSummary(DescribeTarget(table), merged, WarnAboutUnknownColumns(table, preparation.Tables, merged));
     }
 
-    private static string BuildSummary(string tableName, SpreadsheetFormatting formatting, string warning)
+    private static string DescribeTarget(TabularTableInfo table)
+    {
+        return table is null
+            ? "the next exported file"
+            : $"table \"{table.TableName}\"";
+    }
+
+    private static string BuildSummary(string target, SpreadsheetFormatting formatting, string warning)
     {
         var builder = new StringBuilder();
-        builder.Append("Recorded the spreadsheet formatting for table \"");
-        builder.Append(tableName);
-        builder.Append("\": ");
+        builder.Append("Recorded the spreadsheet formatting for ");
+        builder.Append(target);
+        builder.Append(": ");
 
         var parts = new List<string>();
 
@@ -320,8 +330,19 @@ public sealed class FormatTabularDataTool : AIFunction
         return builder.ToString();
     }
 
-    private static string WarnAboutUnknownColumns(TabularTableInfo table, SpreadsheetFormatting formatting)
+    private static string WarnAboutUnknownColumns(
+        TabularTableInfo table,
+        IReadOnlyList<TabularTableInfo> allTables,
+        SpreadsheetFormatting formatting)
     {
+        // Formatting recorded for the export as a whole is checked against nothing: the export's headers
+        // are whatever its query aliases them to, so a name that matches no source column is normal
+        // rather than a mistake. Warning here would push the model to "correct" names that were right.
+        if (table is null)
+        {
+            return null;
+        }
+
         var known = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var column in table.Columns)

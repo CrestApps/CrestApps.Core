@@ -42,4 +42,16 @@ public static class TabularToolNames
     /// conditional formatting, formulas, totals, and charts.
     /// </summary>
     public const string FormatTabularData = "format_tabular_data";
+
+    /// <summary>
+    /// The key formatting is recorded under when it belongs to the export as a whole rather than to one
+    /// source table.
+    /// <para>
+    /// An export is frequently a query that joins several tables, so there is no single source table to
+    /// attach its presentation to. Requiring one would make formatting unavailable for exactly the
+    /// reports that need it most, so a specification recorded without naming a table is kept here and
+    /// applied to any export the workspace produces.
+    /// </para>
+    /// </summary>
+    public const string WorkspaceFormattingKey = "__workspace__";
 }
