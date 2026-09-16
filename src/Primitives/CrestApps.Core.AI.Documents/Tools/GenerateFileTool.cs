@@ -120,6 +120,17 @@ public sealed class GenerateFileTool : AIFunction
             return statusMessageError;
         }
 
+        var shadowedExportError = GetShadowedExportError(extension);
+        if (!string.IsNullOrEmpty(shadowedExportError))
+        {
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+                logger.LogDebug("AI tool '{ToolName}' rejected a tabular file that would shadow a completed export (call #{InvocationNumber}).", Name, invocationNumber);
+            }
+
+            return shadowedExportError;
+        }
+
         var tabularMisuseError = GetTabularMisuseError(content, extension, fileName);
         if (!string.IsNullOrEmpty(tabularMisuseError))
         {
@@ -216,6 +227,31 @@ public sealed class GenerateFileTool : AIFunction
         }
 
         return "A downloadable file was already created for this response. Do not generate another file from a status/update sentence; return the existing [doc:N] marker instead.";
+    }
+
+    /// <summary>
+    /// Refuses to create a tabular file once a tabular export has already produced one in this turn.
+    /// <para>
+    /// The export writes the real rows from the workspace. A model that follows it by authoring its own
+    /// spreadsheet is writing remembered values, and the user is handed that invented file instead of
+    /// the correct one — with no sign that anything went wrong. Only tabular formats are refused, so a
+    /// genuine follow-up such as a PDF summary of the same analysis still works.
+    /// </para>
+    /// </summary>
+    /// <param name="extension">The requested file extension.</param>
+    /// <returns>The refusal message, or <see langword="null"/> when the file may be created.</returns>
+    private static string GetShadowedExportError(string extension)
+    {
+        if (!_tabularExtensions.Contains(extension) || !TabularExportSignal.TryGetLast(out var export))
+        {
+            return null;
+        }
+
+        var instruction = string.IsNullOrEmpty(export.Marker)
+            ? "Return the existing download for that file instead of creating another one."
+            : $"Return this existing download marker verbatim instead of creating another file: {export.Marker}";
+
+        return $"The tabular data was already exported to \"{export.FileName}\" in this response, and that file contains the real rows from the table. Do not author a second spreadsheet from remembered values. {instruction}";
     }
 
     private static string GetTabularMisuseError(string content, string extension, string fileName)

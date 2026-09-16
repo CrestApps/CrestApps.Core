@@ -287,7 +287,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1-mini");
         Assert.Equal(AzureOpenAIConstants.ClientName, chatDeployment.ClientName);
         Assert.Equal("test1", chatDeployment.ConnectionName);
-        AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
+        AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration, AIDeploymentFeatureNames.ToolCalling, AIDeploymentFeatureNames.Streaming);
         Assert.True(chatDeployment.IsReadOnly);
 
         var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-small");
@@ -320,7 +320,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1");
         Assert.Equal("OpenAI", chatDeployment.ClientName);
         Assert.Equal("my-openai", chatDeployment.ConnectionName);
-        AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
+        AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration, AIDeploymentFeatureNames.ToolCalling, AIDeploymentFeatureNames.Streaming);
         Assert.True(chatDeployment.IsReadOnly);
 
         var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-large");
@@ -356,7 +356,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1-mini");
         Assert.Equal(AzureOpenAIConstants.ClientName, chatDeployment.ClientName);
         Assert.Equal("test1", chatDeployment.ConnectionName);
-        AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
+        AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration, AIDeploymentFeatureNames.ToolCalling, AIDeploymentFeatureNames.Streaming);
         Assert.True(chatDeployment.IsReadOnly);
 
         var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-small");
@@ -389,7 +389,10 @@ public sealed class ConfigurationAIDeploymentCatalogTests
 
         // Assert
         var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1-mini");
-                AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
+
+        // The explicit entry wins over the connection-synthesized one, so it declares only what its own
+        // configuration says.
+        AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
 
         var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-small");
         AssertDeclaresExactly(embeddingDeployment, AIDeploymentFeatureNames.TextEmbedding);
@@ -421,11 +424,39 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
 
         // Assert
-        AssertDeclaresExactly(deployments, "gpt-4.1", AIDeploymentFeatureNames.TextGeneration);
+        AssertDeclaresExactly(deployments, "gpt-4.1", AIDeploymentFeatureNames.TextGeneration, AIDeploymentFeatureNames.ToolCalling, AIDeploymentFeatureNames.Streaming);
         AssertDeclaresExactly(deployments, "text-embedding-3-large", AIDeploymentFeatureNames.TextEmbedding);
         AssertDeclaresExactly(deployments, "dall-e-3", AIDeploymentFeatureNames.ImageOutput);
         AssertDeclaresExactly(deployments, "whisper-1", AIDeploymentFeatureNames.SpeechToText);
         AssertDeclaresExactly(deployments, "tts-1", AIDeploymentFeatureNames.TextToSpeech);
+    }
+
+    /// <summary>
+    /// A chat deployment synthesized from a connection must declare tool calling. Without it every tool
+    /// is stripped from every request before it is sent, so the model describes what it is about to do
+    /// and then calls nothing — with the cause visible only as a warning in the log. A connection
+    /// deployment is read-only in the UI, so an operator cannot declare the feature by hand.
+    /// </summary>
+    [Fact]
+    public async Task GetAllAsync_WhenTheChatDeploymentComesFromAConnection_ShouldDeclareToolCalling()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Connections:0:Name"] = "my-openai",
+            ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Connections:0:ChatDeploymentName"] = "gpt-4.1-mini",
+        }).Build();
+
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(configuration, aiOptions);
+
+        var deployment = Assert.Single(await store.GetAllAsync(TestContext.Current.CancellationToken));
+
+        Assert.True(deployment.TryGet<AIDeploymentMetadata>(out var metadata));
+        Assert.True(
+            metadata.SupportsFeature(AIDeploymentFeatureNames.ToolCalling),
+            "A connection-synthesized chat deployment must declare tool calling, or every tool is stripped from every request.");
     }
 
     private static void AssertDeclaresExactly(IEnumerable<AIDeployment> deployments, string name, params string[] expectedFeatures)

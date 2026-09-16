@@ -230,8 +230,32 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         var utilityDeploymentName = connectionSection["UtilityDeploymentName"]
             ?? connectionSection["DefaultUtilityDeploymentName"];
 
-        AddConnectionDeployment(deployments, names, clientName, connectionName, chatDeploymentName, sectionPath, AIDeploymentFeatureNames.TextGeneration);
-        AddConnectionDeployment(deployments, names, clientName, connectionName, utilityDeploymentName, sectionPath, AIDeploymentFeatureNames.TextGeneration);
+        // A chat deployment declares tool calling and streaming alongside text generation. Declaring
+        // only text generation made every tool be stripped from every request before it was sent, so a
+        // host configured this way had no working tools at all: the model would describe what it was
+        // about to do and then call nothing, with the cause visible only as a warning in the log.
+        AddConnectionDeployment(
+            deployments,
+            names,
+            clientName,
+            connectionName,
+            chatDeploymentName,
+            sectionPath,
+            AIDeploymentFeatureNames.TextGeneration,
+            AIDeploymentFeatureNames.ToolCalling,
+            AIDeploymentFeatureNames.Streaming);
+
+        // The utility deployment backs background work such as title generation and data extraction,
+        // which streams but never calls tools.
+        AddConnectionDeployment(
+            deployments,
+            names,
+            clientName,
+            connectionName,
+            utilityDeploymentName,
+            sectionPath,
+            AIDeploymentFeatureNames.TextGeneration,
+            AIDeploymentFeatureNames.Streaming);
         AddConnectionDeployment(deployments, names, clientName, connectionName, embeddingDeploymentName, sectionPath, AIDeploymentFeatureNames.TextEmbedding);
         AddConnectionDeployment(deployments, names, clientName, connectionName, imagesDeploymentName, sectionPath, AIDeploymentFeatureNames.ImageOutput);
         AddConnectionDeployment(deployments, names, clientName, connectionName, speechToTextDeploymentName, sectionPath, AIDeploymentFeatureNames.SpeechToText);

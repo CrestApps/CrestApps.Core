@@ -125,8 +125,13 @@ public class GeneratedFileWriterTests
         Assert.Contains("value", body);
     }
 
+    /// <summary>
+    /// A blank line separates paragraphs and a single newline is a soft wrap, so hard-wrapped prose
+    /// flows into one paragraph instead of arriving as a stack of one-line fragments. Both line-ending
+    /// conventions are handled.
+    /// </summary>
     [Fact]
-    public async Task WordWriter_PreservesMultilineTextAcrossLineEndings()
+    public async Task WordWriter_JoinsWrappedLinesAndSplitsOnBlankLines()
     {
         var content = new GeneratedFileContent
         {
@@ -143,7 +148,7 @@ public class GeneratedFileWriterTests
             .Select(paragraph => paragraph.InnerText)
             .ToArray();
 
-        Assert.Equal(["First", string.Empty, "Second", "Third"], paragraphs);
+        Assert.Equal(["First", "Second Third"], paragraphs);
     }
 
     [Fact]

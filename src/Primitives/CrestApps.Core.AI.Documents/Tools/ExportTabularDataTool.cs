@@ -219,6 +219,10 @@ public sealed class ExportTabularDataTool : AIFunction
                     workspace.MutationVersion);
             }
 
+            // Recorded so a later file-creation call in the same turn can recognize that the real file
+            // already exists rather than writing its own copy from memory.
+            TabularExportSignal.Record(result.Document.FileName, result.ReferenceToken);
+
             var response = string.IsNullOrEmpty(result.ReferenceToken)
                 ? $"Created \"{result.Document.FileName}\" with {export.RowCount} row(s). The generated document id is {result.Document.ItemId}."
                 : $"Return this download marker verbatim and do not call export_tabular_data or generate_file again for this file: {result.ReferenceToken}";
