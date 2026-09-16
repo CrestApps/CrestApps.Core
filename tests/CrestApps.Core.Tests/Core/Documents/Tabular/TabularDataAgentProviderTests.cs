@@ -59,8 +59,12 @@ public class TabularDataAgentProviderTests
                 TabularToolNames.QueryTabularData,
                 TabularToolNames.ExecuteTabularCommand,
                 TabularToolNames.FillEmptyTabularCells,
+                TabularToolNames.FormatTabularData,
                 TabularToolNames.ExportTabularData,
                 TabularToolNames.CompareTabularData,
+
+                // The agent holds the data, so it must be able to chart it directly.
+                SystemToolNames.GenerateChart,
             ],
             functionMetadata.Names);
 

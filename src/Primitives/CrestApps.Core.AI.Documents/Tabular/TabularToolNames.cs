@@ -36,4 +36,10 @@ public static class TabularToolNames
     /// The tool that compares a measure between two tabular queries by joining them on a shared key.
     /// </summary>
     public const string CompareTabularData = "compare_tabular_data";
+
+    /// <summary>
+    /// The tool that records how an exported spreadsheet should be formatted: number formats, colors,
+    /// conditional formatting, formulas, totals, and charts.
+    /// </summary>
+    public const string FormatTabularData = "format_tabular_data";
 }
