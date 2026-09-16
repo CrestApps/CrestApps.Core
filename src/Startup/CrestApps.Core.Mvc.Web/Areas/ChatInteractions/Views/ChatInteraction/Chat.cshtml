@@ -934,8 +934,19 @@
                 link.click();
             });
 
+            // A markdown table becomes a bare <table>, which Bootstrap leaves completely unstyled: it
+            // renders as cramped, borderless text that reads as plain output rather than a table.
+            // Adding the framework's own classes styles it, and the wrapper lets a wide table scroll on
+            // its own instead of stretching the conversation. Markdown tables cannot nest, so the plain
+            // replacement is safe.
+            function styleMarkdownTables(html) {
+                return html
+                    .replace(/<table>/g, '<div class="table-responsive"><table class="table table-sm table-bordered table-striped align-middle">')
+                    .replace(/<\/table>/g, '</table></div>');
+            }
+
             function renderMarkdown(text) {
-                return DOMPurify.sanitize(marked.parse(text || ''), { ADD_ATTR: ['target'] });
+                return DOMPurify.sanitize(styleMarkdownTables(marked.parse(text || '')), { ADD_ATTR: ['target'] });
             }
 
             function sanitizeUrl(url) {

@@ -63,46 +63,30 @@
     line-height: 0;
 }
 
-/* Markdown tables are parsed into real table markup, but without these rules they render as cramped,
-   borderless text that reads as unformatted. A table is also the one block that may legitimately be
-   wider than the message, so it scrolls on its own rather than stretching the conversation. */
-.ai-chat-messages .ai-chat-message-body table {
-    width: 100%;
+/* A markdown table is rendered with the host framework's table classes, which do the bulk of the
+   styling. These rules only add what those classes leave out, and are scoped to the message list
+   rather than to a wrapper element, because a table is emitted as a direct child of the message. */
+.ai-chat-messages table {
     margin: 0.75rem 0;
-    border-collapse: collapse;
     font-size: 0.9em;
-    display: block;
-    overflow-x: auto;
 }
 
-.ai-chat-messages .ai-chat-message-body table th,
-.ai-chat-messages .ai-chat-message-body table td {
-    padding: 0.4rem 0.6rem;
-    border: 1px solid var(--bs-border-color, #dee2e6);
-    text-align: left;
+.ai-chat-messages table th,
+.ai-chat-messages table td {
     vertical-align: top;
     white-space: nowrap;
 }
 
-.ai-chat-messages .ai-chat-message-body table th {
-    background-color: var(--bs-tertiary-bg, #f8f9fa);
-    font-weight: 600;
-}
-
 /* A right-aligned column in the source markdown is almost always numeric, so the alignment the author
    asked for is honored rather than flattened to the default. */
-.ai-chat-messages .ai-chat-message-body table th[align="right"],
-.ai-chat-messages .ai-chat-message-body table td[align="right"] {
+.ai-chat-messages table th[align="right"],
+.ai-chat-messages table td[align="right"] {
     text-align: right;
 }
 
-.ai-chat-messages .ai-chat-message-body table th[align="center"],
-.ai-chat-messages .ai-chat-message-body table td[align="center"] {
+.ai-chat-messages table th[align="center"],
+.ai-chat-messages table td[align="center"] {
     text-align: center;
-}
-
-.ai-chat-messages .ai-chat-message-body table tbody tr:nth-child(even) {
-    background-color: var(--bs-secondary-bg, #f2f2f2);
 }
 
 .ai-chat-messages .ai-chat-citation-list {
