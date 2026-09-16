@@ -40,7 +40,7 @@ function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == 
  */
 // CoreAIChatMarkers lives in chat-markers.js, which every chat surface loads before this file.
 
-window.coreAIChatManager = function () {
+window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMar2, _window$CoreAIChatMar3, _window$CoreAIChatMar4, _window$CoreAIChatMar5, _window$CoreAIChatMar6, _window$CoreAIChatMar7, _window$CoreAIChatMar8) {
   // Defaults (can be overridden by instanceConfig)
   var defaultConfig = {
     // UI defaults for generated media
@@ -191,6 +191,24 @@ window.coreAIChatManager = function () {
   function getCitationLabel(reference, key) {
     return reference.title || reference.text || key;
   }
+
+  // Which references are one citation, and how a repeated marker reads, are statements about strings and
+  // live in chat-markers.js so every chat surface numbers them the same way. Without the module each
+  // reference keeps an identity of its own and nothing merges, which is the numbering this script had
+  // before it.
+  var unmergedCitationCount = 0;
+  var citationIdentity = (_window$CoreAIChatMar = (_window$CoreAIChatMar2 = window.CoreAIChatMarkers) === null || _window$CoreAIChatMar2 === void 0 ? void 0 : _window$CoreAIChatMar2.citationIdentity) !== null && _window$CoreAIChatMar !== void 0 ? _window$CoreAIChatMar : function () {
+    return "unmerged-".concat(++unmergedCitationCount);
+  };
+  var collapseRepeatedCitations = (_window$CoreAIChatMar3 = (_window$CoreAIChatMar4 = window.CoreAIChatMarkers) === null || _window$CoreAIChatMar4 === void 0 ? void 0 : _window$CoreAIChatMar4.collapseRepeatedCitations) !== null && _window$CoreAIChatMar3 !== void 0 ? _window$CoreAIChatMar3 : function (html) {
+    return html;
+  };
+  var separateAdjacentCitations = (_window$CoreAIChatMar5 = (_window$CoreAIChatMar6 = window.CoreAIChatMarkers) === null || _window$CoreAIChatMar6 === void 0 ? void 0 : _window$CoreAIChatMar6.separateAdjacentCitations) !== null && _window$CoreAIChatMar5 !== void 0 ? _window$CoreAIChatMar5 : function (html) {
+    return html;
+  };
+  var citationMarkerHtml = (_window$CoreAIChatMar7 = (_window$CoreAIChatMar8 = window.CoreAIChatMarkers) === null || _window$CoreAIChatMar8 === void 0 ? void 0 : _window$CoreAIChatMar8.citationMarkerHtml) !== null && _window$CoreAIChatMar7 !== void 0 ? _window$CoreAIChatMar7 : function (displayIndex) {
+    return "<sup>".concat(displayIndex, "</sup>");
+  };
   function buildCitationDisplay(content, references) {
     var processedContent = (content || '').trim();
     var messageReferences = normalizeReferences(references);
@@ -233,6 +251,8 @@ window.coreAIChatManager = function () {
       return a.index - b.index;
     });
     var citations = [];
+    var citationsByIdentity = new Map();
+    var placeholders = [];
     var displayIndex = 1;
     var _iterator = _createForOfIteratorHelper(citedRefs),
       _step;
@@ -241,28 +261,48 @@ window.coreAIChatManager = function () {
         var _step$value = _slicedToArray(_step.value, 2),
           key = _step$value[0],
           value = _step$value[1];
-        var placeholder = "__CITE_".concat(displayIndex, "_").concat(value.index || displayIndex, "__");
+        var label = getCitationLabel(value, key);
+        var link = value.link || null;
+        var identity = citationIdentity(label, link);
+        var citation = citationsByIdentity.get(identity);
+
+        // Every reference still has its key replaced, so the text never keeps a raw key; what the merge
+        // changes is only how many numbers the reader is given for them.
+        if (!citation) {
+          citation = {
+            referenceKey: key,
+            referenceKeys: [],
+            displayIndex: displayIndex++,
+            label: label,
+            link: link,
+            isDownload: isDownloadCitationReference(value)
+          };
+          citationsByIdentity.set(identity, citation);
+          citations.push(citation);
+        }
+        citation.referenceKeys.push(key);
+        var placeholder = "__CITE_".concat(citation.displayIndex, "_").concat(value.index || citation.displayIndex, "__");
         processedContent = processedContent.replaceAll(key, placeholder);
-        citations.push({
-          referenceKey: key,
-          displayIndex: displayIndex,
-          label: getCitationLabel(value, key),
-          link: value.link || null,
-          isDownload: isDownloadCitationReference(value),
-          placeholder: placeholder
+        placeholders.push({
+          placeholder: placeholder,
+          displayIndex: citation.displayIndex,
+          label: citation.label
         });
-        displayIndex++;
       }
     } catch (err) {
       _iterator.e(err);
     } finally {
       _iterator.f();
     }
-    for (var _i2 = 0, _citations = citations; _i2 < _citations.length; _i2++) {
-      var citation = _citations[_i2];
-      processedContent = processedContent.replaceAll(citation.placeholder, "<sup>".concat(citation.displayIndex, "</sup>"));
+    for (var _i2 = 0, _placeholders = placeholders; _i2 < _placeholders.length; _i2++) {
+      var entry = _placeholders[_i2];
+      processedContent = processedContent.replaceAll(entry.placeholder, citationMarkerHtml(entry.displayIndex, entry.label));
     }
-    processedContent = processedContent.replaceAll('</sup><sup>', '</sup><sup>,</sup><sup>');
+
+    // Merged citations can leave the same number twice over a sentence; that is collapsed before the
+    // commas go in, or the reader is given "1,1".
+    processedContent = collapseRepeatedCitations(processedContent);
+    processedContent = separateAdjacentCitations(processedContent);
 
     // Generated files (such as exported tabular data) are always offered as a download even when
     // the model does not cite them inline, so the user never loses access to the produced file.
@@ -275,6 +315,7 @@ window.coreAIChatManager = function () {
           _value = _step2$value[1];
         citations.push({
           referenceKey: _key,
+          referenceKeys: [_key],
           displayIndex: displayIndex,
           label: getCitationLabel(_value, _key),
           link: _value.link || null,
@@ -302,12 +343,27 @@ window.coreAIChatManager = function () {
     if (!copyContent || !Array.isArray(citations) || citations.length === 0) {
       return copyContent;
     }
+
+    // Every key the citation absorbed is replaced, not just the first: a merged key left behind would
+    // reach the clipboard as the raw reference token the reader never saw on the page.
     var _iterator3 = _createForOfIteratorHelper(citations),
       _step3;
     try {
       for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+        var _citation$referenceKe;
         var citation = _step3.value;
-        copyContent = copyContent.replaceAll(citation.referenceKey, "[".concat(citation.displayIndex, "]"));
+        var _iterator5 = _createForOfIteratorHelper((_citation$referenceKe = citation.referenceKeys) !== null && _citation$referenceKe !== void 0 && _citation$referenceKe.length ? citation.referenceKeys : [citation.referenceKey]),
+          _step5;
+        try {
+          for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+            var key = _step5.value;
+            copyContent = copyContent.replaceAll(key, "[".concat(citation.displayIndex, "]"));
+          }
+        } catch (err) {
+          _iterator5.e(err);
+        } finally {
+          _iterator5.f();
+        }
       }
     } catch (err) {
       _iterator3.e(err);
@@ -408,6 +464,11 @@ window.coreAIChatManager = function () {
     return "<div class=\"chart-container\" style=\"position: relative; width: 100%; max-width: 560px; min-height: 420px;\">" + "<canvas id=\"".concat(chartId, "\"></canvas>") + "</div>" + "<div class=\"mt-2\">" + "<button type=\"button\" class=\"btn btn-sm btn-outline-secondary download-chart-btn\" data-chart-id=\"".concat(chartId, "\" title=\"").concat(defaultConfig.downloadChartTitle, "\">") + "<i class=\"fa-solid fa-download\"></i> ".concat(defaultConfig.downloadChartButtonText) + "</button>" + "</div>";
   }
 
+  // The marker itself is read by chat-markers.js, shared with every other chat surface, so the three of them
+  // cannot disagree about what a marker is. Everything below -- the container, the id scheme, the Chart.js
+  // call -- is this surface's own and legitimately differs from the others.
+  var findChartMarker = window.CoreAIChatMarkers.findChartMarker;
+
   // Register [chart:{...json...}] as a native marked block extension so the
   // markdown parser handles chart markers inline with surrounding text.
   marked.use({
@@ -419,7 +480,7 @@ window.coreAIChatManager = function () {
         return idx >= 0 ? idx : undefined;
       },
       tokenizer: function tokenizer(src) {
-        var extracted = tryExtractChartMarker(src);
+        var extracted = findChartMarker(src);
         if (!extracted || extracted.startIndex !== 0) {
           return undefined;
         }
@@ -441,69 +502,6 @@ window.coreAIChatManager = function () {
       }
     }]
   });
-
-  // Extract a [chart:{...json...}] marker. This avoids regex issues with nested brackets.
-  function tryExtractChartMarker(text) {
-    var token = '[chart:';
-    var start = text.indexOf(token);
-    if (start < 0) {
-      return null;
-    }
-
-    // Find JSON object boundary by balancing braces
-    var jsonStart = start + token.length;
-    var i = jsonStart;
-    while (i < text.length && (text[i] === ' ' || text[i] === '\n' || text[i] === '\r' || text[i] === '\t')) {
-      i++;
-    }
-    if (i >= text.length || text[i] !== '{') {
-      return null;
-    }
-    var depth = 0;
-    var inString = false;
-    var escape = false;
-    for (; i < text.length; i++) {
-      var ch = text[i];
-      if (inString) {
-        if (escape) {
-          escape = false;
-          continue;
-        }
-        if (ch === '\\') {
-          escape = true;
-          continue;
-        }
-        if (ch === '"') {
-          inString = false;
-        }
-        continue;
-      }
-      if (ch === '"') {
-        inString = true;
-        continue;
-      }
-      if (ch === '{') {
-        depth++;
-      } else if (ch === '}') {
-        depth--;
-        if (depth === 0) {
-          var jsonEnd = i;
-          // Expect closing bracket after JSON
-          var closeBracketIndex = text.indexOf(']', jsonEnd + 1);
-          if (closeBracketIndex < 0) {
-            return null;
-          }
-          var json = text.substring(jsonStart, jsonEnd + 1).trim();
-          return {
-            startIndex: start,
-            endIndex: closeBracketIndex + 1,
-            json: json
-          };
-        }
-      }
-    }
-    return null;
-  }
 
   // An image the assistant named but the server will not serve. The address is written by a language
   // model from what retrieval handed it, so a mistyped or invented one is possible, and the browser's
@@ -527,11 +525,11 @@ window.coreAIChatManager = function () {
   }
   function wireBrokenImageHandlers() {
     var images = document.querySelectorAll('.generated-image-container img:not([data-broken-wired])');
-    var _iterator5 = _createForOfIteratorHelper(images),
-      _step5;
+    var _iterator6 = _createForOfIteratorHelper(images),
+      _step6;
     try {
       var _loop = function _loop() {
-        var image = _step5.value;
+        var image = _step6.value;
         image.setAttribute('data-broken-wired', 'true');
         image.addEventListener('error', function () {
           var container = image.closest('.generated-image-container');
@@ -548,13 +546,13 @@ window.coreAIChatManager = function () {
           once: true
         });
       };
-      for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+      for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
         _loop();
       }
     } catch (err) {
-      _iterator5.e(err);
+      _iterator6.e(err);
     } finally {
-      _iterator5.f();
+      _iterator6.f();
     }
   }
   function renderMessageMedia(message) {
@@ -570,17 +568,17 @@ window.coreAIChatManager = function () {
     // Defer to requestAnimationFrame so the browser has fully laid out the
     // canvas elements before Chart.js reads their dimensions.
     requestAnimationFrame(function () {
-      var _iterator6 = _createForOfIteratorHelper(charts),
-        _step6;
+      var _iterator7 = _createForOfIteratorHelper(charts),
+        _step7;
       try {
-        for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
-          var c = _step6.value;
+        for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+          var c = _step7.value;
           renderChartOnCanvas(c.chartId, c.config);
         }
       } catch (err) {
-        _iterator6.e(err);
+        _iterator7.e(err);
       } finally {
-        _iterator6.f();
+        _iterator7.f();
       }
     });
   }
@@ -2195,18 +2193,18 @@ window.coreAIChatManager = function () {
           }, 0);
           var combined = new Uint8Array(totalLength);
           var offset = 0;
-          var _iterator7 = _createForOfIteratorHelper(this.audioChunks),
-            _step7;
+          var _iterator8 = _createForOfIteratorHelper(this.audioChunks),
+            _step8;
           try {
-            for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
-              var chunk = _step7.value;
+            for (_iterator8.s(); !(_step8 = _iterator8.n()).done;) {
+              var chunk = _step8.value;
               combined.set(chunk, offset);
               offset += chunk.length;
             }
           } catch (err) {
-            _iterator7.e(err);
+            _iterator8.e(err);
           } finally {
-            _iterator7.f();
+            _iterator8.f();
           }
           this.audioChunks = [];
           var blob = new Blob([combined], {

@@ -206,6 +206,20 @@ window.chatInteractionManager = function () {
         return reference.title || reference.text || key;
     }
 
+    // Which references are one citation, and how a repeated marker reads, are statements about strings and
+    // live in chat-markers.js so every chat surface numbers them the same way. Without the module each
+    // reference keeps an identity of its own and nothing merges, which is the numbering this script had
+    // before it.
+    let unmergedCitationCount = 0;
+    const citationIdentity = window.CoreAIChatMarkers?.citationIdentity
+        ?? (() => `unmerged-${++unmergedCitationCount}`);
+    const collapseRepeatedCitations = window.CoreAIChatMarkers?.collapseRepeatedCitations
+        ?? (html => html);
+    const separateAdjacentCitations = window.CoreAIChatMarkers?.separateAdjacentCitations
+        ?? (html => html);
+    const citationMarkerHtml = window.CoreAIChatMarkers?.citationMarkerHtml
+        ?? (displayIndex => `<sup>${displayIndex}</sup>`);
+
     function buildCitationDisplay(content, references) {
         let processedContent = (content || '').trim();
         const messageReferences = normalizeReferences(references);
@@ -226,34 +240,54 @@ window.chatInteractionManager = function () {
         generatedRefs.sort(([, a], [, b]) => a.index - b.index);
 
         const citations = [];
+        const citationsByIdentity = new Map();
+        const placeholders = [];
         let displayIndex = 1;
 
         for (const [key, value] of citedRefs) {
-            const placeholder = `__CITE_${displayIndex}_${value.index || displayIndex}__`;
+            const label = getCitationLabel(value, key);
+            const link = value.link || null;
+            const identity = citationIdentity(label, link);
+            let citation = citationsByIdentity.get(identity);
+
+            // Every reference still has its key replaced, so the text never keeps a raw key; what the merge
+            // changes is only how many numbers the reader is given for them.
+            if (!citation) {
+                citation = {
+                    referenceKey: key,
+                    referenceKeys: [],
+                    displayIndex: displayIndex++,
+                    label: label,
+                    link: link,
+                    isDownload: isDownloadCitationReference(value),
+                };
+
+                citationsByIdentity.set(identity, citation);
+                citations.push(citation);
+            }
+
+            citation.referenceKeys.push(key);
+
+            const placeholder = `__CITE_${citation.displayIndex}_${value.index || citation.displayIndex}__`;
             processedContent = processedContent.replaceAll(key, placeholder);
-            citations.push({
-                referenceKey: key,
-                displayIndex: displayIndex,
-                label: getCitationLabel(value, key),
-                link: value.link || null,
-                isDownload: isDownloadCitationReference(value),
-                placeholder: placeholder,
-            });
-
-            displayIndex++;
+            placeholders.push({ placeholder, displayIndex: citation.displayIndex, label: citation.label });
         }
 
-        for (const citation of citations) {
-            processedContent = processedContent.replaceAll(citation.placeholder, `<sup>${citation.displayIndex}</sup>`);
+        for (const entry of placeholders) {
+            processedContent = processedContent.replaceAll(entry.placeholder, citationMarkerHtml(entry.displayIndex, entry.label));
         }
 
-        processedContent = processedContent.replaceAll('</sup><sup>', '</sup><sup>,</sup><sup>');
+        // Merged citations can leave the same number twice over a sentence; that is collapsed before the
+        // commas go in, or the reader is given "1,1".
+        processedContent = collapseRepeatedCitations(processedContent);
+        processedContent = separateAdjacentCitations(processedContent);
 
         // Generated files (such as exported tabular data) are always offered as a download even when
         // the model does not cite them inline, so the user never loses access to the produced file.
         for (const [key, value] of generatedRefs) {
             citations.push({
                 referenceKey: key,
+                referenceKeys: [key],
                 displayIndex: displayIndex,
                 label: getCitationLabel(value, key),
                 link: value.link || null,
@@ -277,8 +311,12 @@ window.chatInteractionManager = function () {
             return copyContent;
         }
 
+        // Every key the citation absorbed is replaced, not just the first: a merged key left behind would
+        // reach the clipboard as the raw reference token the reader never saw on the page.
         for (const citation of citations) {
-            copyContent = copyContent.replaceAll(citation.referenceKey, `[${citation.displayIndex}]`);
+            for (const key of (citation.referenceKeys?.length ? citation.referenceKeys : [citation.referenceKey])) {
+                copyContent = copyContent.replaceAll(key, `[${citation.displayIndex}]`);
+            }
         }
 
         copyContent += '\n\nReferences:\n';
@@ -391,6 +429,11 @@ window.chatInteractionManager = function () {
             + `</div>`;
     }
 
+    // The marker itself is read by chat-markers.js, shared with every other chat surface, so the three of them
+    // cannot disagree about what a marker is. Everything below -- the container, the id scheme, the Chart.js
+    // call -- is this surface's own and legitimately differs from the others.
+    const findChartMarker = window.CoreAIChatMarkers.findChartMarker;
+
     // Register [chart:{...json...}] as a native marked block extension so the
     // markdown parser handles chart markers inline with surrounding text.
     marked.use({
@@ -402,7 +445,7 @@ window.chatInteractionManager = function () {
                 return idx >= 0 ? idx : undefined;
             },
             tokenizer(src) {
-                const extracted = tryExtractChartMarker(src);
+                const extracted = findChartMarker(src);
                 if (!extracted || extracted.startIndex !== 0) {
                     return undefined;
                 }
@@ -423,77 +466,6 @@ window.chatInteractionManager = function () {
             }
         }]
     });
-
-    // Extract a [chart:{...json...}] marker. This avoids regex issues with nested brackets.
-    function tryExtractChartMarker(text) {
-        const token = '[chart:';
-        const start = text.indexOf(token);
-        if (start < 0) {
-            return null;
-        }
-
-        // Find JSON object boundary by balancing braces
-        const jsonStart = start + token.length;
-        let i = jsonStart;
-        while (i < text.length && (text[i] === ' ' || text[i] === '\n' || text[i] === '\r' || text[i] === '\t')) {
-            i++;
-        }
-
-        if (i >= text.length || text[i] !== '{') {
-            return null;
-        }
-
-        let depth = 0;
-        let inString = false;
-        let escape = false;
-
-        for (; i < text.length; i++) {
-            const ch = text[i];
-
-            if (inString) {
-                if (escape) {
-                    escape = false;
-                    continue;
-                }
-                if (ch === '\\') {
-                    escape = true;
-                    continue;
-                }
-                if (ch === '"') {
-                    inString = false;
-                }
-                continue;
-            }
-
-            if (ch === '"') {
-                inString = true;
-                continue;
-            }
-
-            if (ch === '{') {
-                depth++;
-            } else if (ch === '}') {
-                depth--;
-                if (depth === 0) {
-                    const jsonEnd = i;
-                    // Expect closing bracket after JSON
-                    const closeBracketIndex = text.indexOf(']', jsonEnd + 1);
-                    if (closeBracketIndex < 0) {
-                        return null;
-                    }
-
-                    const json = text.substring(jsonStart, jsonEnd + 1).trim();
-                    return {
-                        startIndex: start,
-                        endIndex: closeBracketIndex + 1,
-                        json: json
-                    };
-                }
-            }
-        }
-
-        return null;
-    }
 
     // An image the assistant named but the server will not serve. The address is written by a language
     // model from what retrieval handed it, so a mistyped or invented one is possible, and the browser's

@@ -12,6 +12,10 @@ function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == 
  * producing addresses that look right and resolve to nothing. The model therefore never types an address,
  * and this turns the label it does type back into the picture.
  *
+ * The chart tool works the same way from the other end: it hands back a [chart:{...}] marker and asks for it
+ * verbatim, and the host turns that marker into a canvas. Reading a marker is a statement about a string, so
+ * it lives here; drawing one is not, so each surface still does its own drawing.
+ *
  * Loaded on its own so every chat surface shares one implementation: the two shared chat scripts and the
  * MVC chat-interaction view, which renders its markdown with its own inline marked setup.
  */
@@ -100,9 +104,218 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
     return expanded;
   }
 
-  // Deliberately small: one pure function, for the host below and for the tests.
+  // The marker the chart tool emits and asks the model to repeat verbatim, braces and all.
+  var chartMarkerPrefix = '[chart:';
+  function isMarkerWhitespace(character) {
+    return character === ' ' || character === '\n' || character === '\r' || character === '\t';
+  }
+
+  /*
+   * Reads the marker that begins at startIndex, or returns null when what begins there is not one.
+   *
+   * The configuration is JSON and JSON nests, so the end of the object is found by counting braces rather
+   * than by a regular expression: an expression that stopped at the first '}' would truncate every chart
+   * whose options carry an object of their own, which is all of them. The count has to know when it is
+   * inside a string as well -- an axis label really does read "Q1 { Q2", and a counter blind to strings
+   * would end the object in the middle of the label and hand the renderer a fragment. Escapes are tracked
+   * for the same reason, so a \" inside a label does not look like the end of it.
+   */
+  function readChartMarkerAt(text, startIndex) {
+    var index = startIndex + chartMarkerPrefix.length;
+    while (index < text.length && isMarkerWhitespace(text[index])) {
+      index++;
+    }
+    if (index >= text.length || text[index] !== '{') {
+      return null;
+    }
+    var jsonStart = index;
+    var depth = 0;
+    var inString = false;
+    var escaped = false;
+    for (; index < text.length; index++) {
+      var character = text[index];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (character === '\\') {
+          escaped = true;
+        } else if (character === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (character === '"') {
+        inString = true;
+        continue;
+      }
+      if (character === '{') {
+        depth++;
+        continue;
+      }
+      if (character !== '}') {
+        continue;
+      }
+      depth--;
+      if (depth > 0) {
+        continue;
+      }
+      var jsonEnd = index + 1;
+      var closeIndex = jsonEnd;
+      while (closeIndex < text.length && isMarkerWhitespace(text[closeIndex])) {
+        closeIndex++;
+      }
+
+      // Only whitespace may sit between the object and the bracket that closes the marker. Hunting
+      // further ahead for a ']' would let a marker whose bracket the model dropped reach the one
+      // belonging to something else, and everything in between -- a paragraph of the answer, the next
+      // marker -- would be swallowed into the span the caller removes from the text.
+      if (closeIndex >= text.length || text[closeIndex] !== ']') {
+        return null;
+      }
+      return {
+        startIndex: startIndex,
+        endIndex: closeIndex + 1,
+        json: text.substring(jsonStart, jsonEnd)
+      };
+    }
+    return null;
+  }
+
+  /*
+   * Finds the first [chart:{...}] marker in the content and returns where it starts, where it ends and the
+   * JSON between, or null when there is no marker. Pure: it knows nothing of canvases, element ids or
+   * Chart.js, because the three chat surfaces draw a chart differently and agree only on what a marker is.
+   *
+   * Text that merely looks like a marker is not one, and none of these return a span: "[chart:" with no
+   * object after it, an object whose braces never balance, an object the model never closed with ']'. Each
+   * reaches the reader as the text the model typed, which is what the caller does with a null.
+   */
+  function findChartMarker(text) {
+    if (typeof text !== 'string' || !text) {
+      return null;
+    }
+    var searchFrom = 0;
+    for (;;) {
+      var start = text.indexOf(chartMarkerPrefix, searchFrom);
+      if (start < 0) {
+        return null;
+      }
+      var marker = readChartMarkerAt(text, start);
+      if (marker) {
+        return marker;
+      }
+
+      // Something that opened like a marker and was not one must not hide a real one further on, so the
+      // search carries on past it rather than giving up at the first disappointment.
+      searchFrom = start + 1;
+    }
+  }
+
+  /*
+   * The identity of a citation as a reader meets it: the line it prints, and where it points.
+   *
+   * Retrieval returns one reference per chunk, so a single article that answered a question through three of
+   * its chunks arrives as three references. Numbering those separately prints "1,2,3" over the sentence and
+   * then lists the same title three times, which tells the reader there are three sources corroborating the
+   * claim when there is one. Two references that would print the same line and lead to the same place are
+   * one citation, and are numbered once.
+   *
+   * Case and surrounding whitespace are not part of the identity, because they are not part of what the
+   * reader sees as different. Anything else -- a different title, a different page, a link to one figure
+   * rather than another -- keeps the citations apart, since that is a distinction the reader can act on.
+   */
+  function citationIdentity(label, link) {
+    var text = typeof label === 'string' ? label.replace(/\s+/g, ' ').trim().toLowerCase() : '';
+    var target = typeof link === 'string' ? link.trim().toLowerCase() : '';
+
+    // A null byte cannot occur in either part, so no pair of values can collide across the boundary:
+    // without it, label "a" + link "bc" and label "ab" + link "c" would be the same identity.
+    return text + ' ' + target;
+  }
+
+  /*
+   * Collapses a run of identical citation markers into one.
+   *
+   * Once two references share a number, a sentence that cited both ends with that number twice over --
+   * "1,1" -- which reads as a typo. Only an immediately repeated marker is removed: the same source cited
+   * again later in the paragraph is a separate citation of it and keeps its marker.
+   *
+   * The marker is matched with whatever attributes it carries, because the number is what makes two of them
+   * the same citation; a pattern written for a bare <sup> would silently stop collapsing the moment a
+   * marker gained a tooltip.
+   *
+   * What separates the two markers is swallowed with them, because the model writes its own punctuation
+   * between references -- "[ref1], [ref2]" -- and once both carry the same number that comma is left
+   * between a number and itself, printing "1,1". Only a separator that was joining the two citations is
+   * eaten: whitespace, a comma, or the marker the comma rule inserts. Anything else means the second
+   * marker is a fresh citation later in the sentence, and it is left alone.
+   */
+  var citationSeparator = '(?:\\s*(?:,|<sup(?:\\s[^>]*)?>,<\\/sup>)?\\s*)';
+  var repeatedCitationPattern = new RegExp('(<sup(?:\\s[^>]*)?>(\\d+)<\\/sup>)(?:' + citationSeparator + '<sup(?:\\s[^>]*)?>\\2<\\/sup>)+', 'g');
+  function collapseRepeatedCitations(html) {
+    if (typeof html !== 'string' || !html) {
+      return '';
+    }
+    return html.replace(repeatedCitationPattern, '$1');
+  }
+
+  /*
+   * Puts a comma between two citation markers that ended up side by side, so "12" reads as two sources
+   * rather than as the twelfth.
+   *
+   * Only the boundary between the markers is matched, so whatever attributes either one carries are left
+   * untouched. The inserted marker is not itself rescanned, since a replace walks the string it was given.
+   */
+  function separateAdjacentCitations(html) {
+    if (typeof html !== 'string' || !html) {
+      return '';
+    }
+    return html.replace(/<\/sup><sup/g, '</sup><sup>,</sup><sup');
+  }
+
+  // Escapes the few characters that would end an HTML attribute early, so a caption containing a quote
+  // cannot introduce markup of its own.
+  function escapeAttributeValue(text) {
+    return text.replace(/[&<>"']/g, function (character) {
+      switch (character) {
+        case '&':
+          return '&amp;';
+        case '<':
+          return '&lt;';
+        case '>':
+          return '&gt;';
+        case '"':
+          return '&quot;';
+        default:
+          return '&#39;';
+      }
+    });
+  }
+
+  /*
+   * The inline marker for a citation: its number, and the source it stands for as a tooltip.
+   *
+   * A bare number tells the reader only that something was cited, and answers which source it was by
+   * making them look away from the sentence and match a number against a list underneath. Carrying the
+   * label means the answer arrives where the question is asked. The list stays as it is, since a tooltip
+   * is not reachable by keyboard and cannot be the only place the source appears.
+   */
+  function citationMarkerHtml(displayIndex, label) {
+    var text = typeof label === 'string' ? label.replace(/\s+/g, ' ').trim() : '';
+    if (!text) {
+      return '<sup>' + displayIndex + '</sup>';
+    }
+    return '<sup title="' + escapeAttributeValue(text) + '">' + displayIndex + '</sup>';
+  }
+
+  // Deliberately small: pure functions over strings, for the hosts below and for the tests.
   return {
-    expandImageMarkers: expandImageMarkers
+    expandImageMarkers: expandImageMarkers,
+    findChartMarker: findChartMarker,
+    citationIdentity: citationIdentity,
+    collapseRepeatedCitations: collapseRepeatedCitations,
+    separateAdjacentCitations: separateAdjacentCitations,
+    citationMarkerHtml: citationMarkerHtml
   };
 }();
 //# sourceMappingURL=chat-markers.js.map

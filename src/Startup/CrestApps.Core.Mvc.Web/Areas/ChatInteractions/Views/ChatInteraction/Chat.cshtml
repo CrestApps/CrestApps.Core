@@ -849,37 +849,12 @@
             var _chartCounter = 0;
             var _chartConfigs = {};
 
-            function tryExtractChartMarker(text) {
-                var token = '[chart:';
-                var start = text.indexOf(token);
-                if (start < 0) return null;
-                var jsonStart = start + token.length;
-                var i = jsonStart;
-                while (i < text.length && (text[i] === ' ' || text[i] === '\n' || text[i] === '\r' || text[i] === '\t')) i++;
-                if (i >= text.length || text[i] !== '{') return null;
-                var depth = 0, inString = false, escape = false;
-                for (; i < text.length; i++) {
-                    var ch = text[i];
-                    if (inString) {
-                        if (escape) { escape = false; continue; }
-                        if (ch === '\\') { escape = true; continue; }
-                        if (ch === '"') inString = false;
-                        continue;
-                    }
-                    if (ch === '"') { inString = true; continue; }
-                    if (ch === '{') depth++;
-                    else if (ch === '}') {
-                        depth--;
-                        if (depth === 0) {
-                            var jsonEnd = i;
-                            var closeBracketIndex = text.indexOf(']', jsonEnd + 1);
-                            if (closeBracketIndex < 0) return null;
-                            return { startIndex: start, endIndex: closeBracketIndex + 1, json: text.substring(jsonStart, jsonEnd + 1).trim() };
-                        }
-                    }
-                }
-                return null;
-            }
+            // The marker is read by chat-markers.js, loaded above and shared with the other chat surfaces, so
+            // this view cannot drift from them about what a marker is. Only the canvas below, its size and its
+            // ci_chart_ ids belong to this view. Falling back to "no marker" if the module is ever missing
+            // leaves the marker on the page as the text the model typed, rather than taking the page down.
+            var findChartMarker = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.findChartMarker)
+                || function () { return null; };
 
             marked.use({
                 extensions: [{
@@ -890,7 +865,7 @@
                         return idx >= 0 ? idx : undefined;
                     },
                     tokenizer: function (src) {
-                        var extracted = tryExtractChartMarker(src);
+                        var extracted = findChartMarker(src);
                         if (!extracted || extracted.startIndex !== 0) return undefined;
                         var chartId = 'ci_chart_' + (++_chartCounter);
                         return { type: 'chart', raw: src.substring(0, extracted.endIndex), chartId: chartId, json: extracted.json };
@@ -1057,6 +1032,20 @@
                 return reference.title || reference.text || key;
             }
 
+            // Which references are one citation, and how a repeated marker reads, are statements about
+            // strings, so they are shared with the other chat surfaces through chat-markers.js rather than
+            // decided here. If the module is ever missing, every reference gets an identity of its own and
+            // nothing is merged -- the numbering this page had before, rather than a page that fails.
+            var unmergedCitationCount = 0;
+            var citationIdentity = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.citationIdentity)
+                || function () { return 'unmerged-' + (++unmergedCitationCount); };
+            var collapseRepeatedCitations = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.collapseRepeatedCitations)
+                || function (html) { return html; };
+            var citationMarkerHtml = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.citationMarkerHtml)
+                || function (displayIndex) { return '<sup>' + displayIndex + '</sup>'; };
+            var separateAdjacentCitations = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.separateAdjacentCitations)
+                || function (html) { return html; };
+
             function getDownloadReferences(messageReferences) {
                 return Object.entries(messageReferences).filter(function (entry) {
                     return isDownloadCitationReference(entry[1]);
@@ -1117,36 +1106,53 @@
                 });
 
                 var citations = [];
+                var citationsByIdentity = {};
+                var placeholders = [];
                 var displayIndex = 1;
+
                 citedRefs.forEach(function (entry) {
                     var key = entry[0];
                     var value = entry[1];
-                    var placeholder = '__CITE_' + displayIndex + '_' + (value.index || displayIndex) + '__';
+                    var label = getCitationLabel(value, key);
+                    var link = value.link || null;
+                    var identity = citationIdentity(label, link);
+                    var citation = citationsByIdentity[identity];
+
+                    // Every reference still has its key replaced, so the text never keeps a raw key; what the
+                    // merge changes is only how many numbers the reader is given for them.
+                    if (!citation) {
+                        citation = {
+                            referenceKey: key,
+                            referenceKeys: [],
+                            displayIndex: displayIndex++,
+                            label: label,
+                            link: link,
+                            isDownload: isDownloadCitationReference(value)
+                        };
+
+                        citationsByIdentity[identity] = citation;
+                        citations.push(citation);
+                    }
+
+                    citation.referenceKeys.push(key);
+
+                    var placeholder = '__CITE_' + citation.displayIndex + '_' + (value.index || citation.displayIndex) + '__';
                     processedContent = processedContent.replaceAll(key, placeholder);
-                    citations.push({
-                        referenceKey: key,
-                        displayIndex: displayIndex,
-                        label: getCitationLabel(value, key),
-                        link: value.link || null,
-                        isDownload: isDownloadCitationReference(value),
-                        placeholder: placeholder
-                    });
-
-                    displayIndex++;
+                    placeholders.push({ placeholder: placeholder, displayIndex: citation.displayIndex, label: citation.label });
                 });
 
-                citations.forEach(function (citation) {
-                    processedContent = processedContent.replaceAll(citation.placeholder, '<sup>' + citation.displayIndex + '</sup>');
+                placeholders.forEach(function (entry) {
+                    processedContent = processedContent.replaceAll(entry.placeholder, citationMarkerHtml(entry.displayIndex, entry.label));
                 });
 
-                processedContent = processedContent.replaceAll('</sup><sup>', '</sup><sup>,</sup><sup>');
+                // Merged citations can leave the same number twice over a sentence; that is collapsed before
+                // the commas go in, or the reader is given "1,1".
+                processedContent = collapseRepeatedCitations(processedContent);
+                processedContent = separateAdjacentCitations(processedContent);
 
                 return {
                     content: processedContent,
-                    citations: citations.map(function (citation) {
-                        delete citation.placeholder;
-                        return citation;
-                    })
+                    citations: citations
                 };
             }
 
@@ -1157,8 +1163,16 @@
                     return copyContent;
                 }
 
+                // Every key the citation absorbed is replaced, not just the first: a merged key left behind
+                // would reach the clipboard as the raw reference token the reader never saw on the page.
                 citations.forEach(function (citation) {
-                    copyContent = copyContent.replaceAll(citation.referenceKey, '[' + citation.displayIndex + ']');
+                    var keys = citation.referenceKeys && citation.referenceKeys.length
+                        ? citation.referenceKeys
+                        : [citation.referenceKey];
+
+                    keys.forEach(function (key) {
+                        copyContent = copyContent.replaceAll(key, '[' + citation.displayIndex + ']');
+                    });
                 });
 
                 copyContent += '\n\nReferences:\n';
