@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Figure markers: the short labels the model writes, turned into pictures by the host.
  *
  * Retrieval hands the model a label -- [fig:1] -- and keeps the picture's real link in the message's reference
@@ -213,6 +213,8 @@ window.chatInteractionManager = function () {
     let unmergedCitationCount = 0;
     const citationIdentity = window.CoreAIChatMarkers?.citationIdentity
         ?? (() => `unmerged-${++unmergedCitationCount}`);
+    const splitCombinedCitations = window.CoreAIChatMarkers?.splitCombinedCitations
+        ?? (content => content);
     const collapseRepeatedCitations = window.CoreAIChatMarkers?.collapseRepeatedCitations
         ?? (html => html);
     const separateAdjacentCitations = window.CoreAIChatMarkers?.separateAdjacentCitations
@@ -221,7 +223,10 @@ window.chatInteractionManager = function () {
         ?? (displayIndex => `<sup>${displayIndex}</sup>`);
 
     function buildCitationDisplay(content, references) {
-        let processedContent = (content || '').trim();
+        // Before anything looks for a reference key, the combined form the model tends to write is split into
+        // the keys it means. A key that is not found is not replaced, and an unreplaced key reaches the reader
+        // as a raw marker mid-sentence.
+        let processedContent = splitCombinedCitations((content || '').trim());
         const messageReferences = normalizeReferences(references);
         const referenceEntries = Object.entries(messageReferences);
 
@@ -353,7 +358,9 @@ window.chatInteractionManager = function () {
         message.citationReferences = citationDisplay.citations;
         // Copied from the expanded content, so a copied answer carries the picture's link rather than a label
         // that means nothing outside this page.
-        message.copyContent = buildCopyContent(displayContent, citationDisplay.citations);
+        // Split here too: the copy is built from the expanded content rather than the display path's output,
+        // so a combined marker would otherwise survive into the clipboard as a raw key.
+        message.copyContent = buildCopyContent(splitCombinedCitations(displayContent), citationDisplay.citations);
         message.htmlContent = parseMarkdownContent(citationDisplay.content, message);
 
         return message;

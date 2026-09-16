@@ -212,6 +212,30 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
   }
 
   /*
+   * Splits a citation marker the model wrote as one bracket into the separate markers it means.
+   *
+   * A reference is keyed by the literal string the model is asked to type -- "[doc:1]" -- and the renderer
+   * replaces exactly that. Models routinely gather several into one bracket instead: "[doc:1, doc:2]". No
+   * key matches that, so nothing is replaced and the reader is shown the raw marker in the middle of a
+   * sentence, while the citations the model happened to write singly render correctly beside it.
+   *
+   * Rewriting the combined form into the separate markers is what makes the rest of the pipeline see them.
+   * Both spellings are accepted, since a model that writes "[doc:1, doc:2]" will also write "[doc:1, 2]".
+   * A lone "[doc:1]" is left exactly as it is.
+   */
+  function splitCombinedCitations(content) {
+    if (typeof content !== 'string' || !content) {
+      return '';
+    }
+    return content.replace(/\[doc:\s*\d+(?:\s*,\s*(?:doc:)?\s*\d+)+\s*\]/g, function (match) {
+      var numbers = match.match(/\d+/g) || [];
+      return numbers.map(function (number) {
+        return '[doc:' + number + ']';
+      }).join('');
+    });
+  }
+
+  /*
    * The identity of a citation as a reader meets it: the line it prints, and where it points.
    *
    * Retrieval returns one reference per chunk, so a single article that answered a question through three of
@@ -313,6 +337,7 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
     expandImageMarkers: expandImageMarkers,
     findChartMarker: findChartMarker,
     citationIdentity: citationIdentity,
+    splitCombinedCitations: splitCombinedCitations,
     collapseRepeatedCitations: collapseRepeatedCitations,
     separateAdjacentCitations: separateAdjacentCitations,
     citationMarkerHtml: citationMarkerHtml

@@ -1041,6 +1041,8 @@
             var unmergedCitationCount = 0;
             var citationIdentity = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.citationIdentity)
                 || function () { return 'unmerged-' + (++unmergedCitationCount); };
+            var splitCombinedCitations = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.splitCombinedCitations)
+                || function (content) { return content; };
             var collapseRepeatedCitations = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.collapseRepeatedCitations)
                 || function (html) { return html; };
             var citationMarkerHtml = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.citationMarkerHtml)
@@ -1079,7 +1081,10 @@
             }
 
             function formatMessageContent(content, references) {
-                var processedContent = (content || '').trim();
+                // Before anything looks for a reference key, the combined form the model tends to write is
+                // split into the keys it means. A key that is not found is not replaced, and an unreplaced key
+                // reaches the reader as a raw marker mid-sentence.
+                var processedContent = splitCombinedCitations((content || '').trim());
                 var messageReferences = normalizeReferences(references);
 
                 if (!processedContent || !Object.keys(messageReferences).length) {
@@ -1211,7 +1216,9 @@
                 message.content = rawContent;
                 message.displayContent = formatted.content;
                 message.citationReferences = formatted.citations;
-                message.copyContent = buildCopyContent(rawContent, formatted.citations);
+                // Split here too: the copy is built from the raw content, so a combined marker the display
+                // path already split would otherwise survive into the clipboard as a raw key.
+                message.copyContent = buildCopyContent(splitCombinedCitations(rawContent), formatted.citations);
                 message.htmlContent = renderMarkdown(formatted.content);
 
                 return message;

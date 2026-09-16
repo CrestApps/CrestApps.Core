@@ -40,7 +40,7 @@ function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == 
  */
 // CoreAIChatMarkers lives in chat-markers.js, which every chat surface loads before this file.
 
-window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIChatMar2, _window$CoreAIChatMar3, _window$CoreAIChatMar4, _window$CoreAIChatMar5, _window$CoreAIChatMar6, _window$CoreAIChatMar7, _window$CoreAIChatMar8) {
+window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIChatMar2, _window$CoreAIChatMar3, _window$CoreAIChatMar4, _window$CoreAIChatMar5, _window$CoreAIChatMar6, _window$CoreAIChatMar7, _window$CoreAIChatMar8, _window$CoreAIChatMar9, _window$CoreAIChatMar0) {
   // Defaults (can be overridden by instanceConfig)
   var defaultConfig = {
     // UI defaults for generated media
@@ -172,17 +172,23 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
   var citationIdentity = (_window$CoreAIChatMar = (_window$CoreAIChatMar2 = window.CoreAIChatMarkers) === null || _window$CoreAIChatMar2 === void 0 ? void 0 : _window$CoreAIChatMar2.citationIdentity) !== null && _window$CoreAIChatMar !== void 0 ? _window$CoreAIChatMar : function () {
     return "unmerged-".concat(++unmergedCitationCount);
   };
-  var collapseRepeatedCitations = (_window$CoreAIChatMar3 = (_window$CoreAIChatMar4 = window.CoreAIChatMarkers) === null || _window$CoreAIChatMar4 === void 0 ? void 0 : _window$CoreAIChatMar4.collapseRepeatedCitations) !== null && _window$CoreAIChatMar3 !== void 0 ? _window$CoreAIChatMar3 : function (html) {
+  var splitCombinedCitations = (_window$CoreAIChatMar3 = (_window$CoreAIChatMar4 = window.CoreAIChatMarkers) === null || _window$CoreAIChatMar4 === void 0 ? void 0 : _window$CoreAIChatMar4.splitCombinedCitations) !== null && _window$CoreAIChatMar3 !== void 0 ? _window$CoreAIChatMar3 : function (content) {
+    return content;
+  };
+  var collapseRepeatedCitations = (_window$CoreAIChatMar5 = (_window$CoreAIChatMar6 = window.CoreAIChatMarkers) === null || _window$CoreAIChatMar6 === void 0 ? void 0 : _window$CoreAIChatMar6.collapseRepeatedCitations) !== null && _window$CoreAIChatMar5 !== void 0 ? _window$CoreAIChatMar5 : function (html) {
     return html;
   };
-  var separateAdjacentCitations = (_window$CoreAIChatMar5 = (_window$CoreAIChatMar6 = window.CoreAIChatMarkers) === null || _window$CoreAIChatMar6 === void 0 ? void 0 : _window$CoreAIChatMar6.separateAdjacentCitations) !== null && _window$CoreAIChatMar5 !== void 0 ? _window$CoreAIChatMar5 : function (html) {
+  var separateAdjacentCitations = (_window$CoreAIChatMar7 = (_window$CoreAIChatMar8 = window.CoreAIChatMarkers) === null || _window$CoreAIChatMar8 === void 0 ? void 0 : _window$CoreAIChatMar8.separateAdjacentCitations) !== null && _window$CoreAIChatMar7 !== void 0 ? _window$CoreAIChatMar7 : function (html) {
     return html;
   };
-  var citationMarkerHtml = (_window$CoreAIChatMar7 = (_window$CoreAIChatMar8 = window.CoreAIChatMarkers) === null || _window$CoreAIChatMar8 === void 0 ? void 0 : _window$CoreAIChatMar8.citationMarkerHtml) !== null && _window$CoreAIChatMar7 !== void 0 ? _window$CoreAIChatMar7 : function (displayIndex) {
+  var citationMarkerHtml = (_window$CoreAIChatMar9 = (_window$CoreAIChatMar0 = window.CoreAIChatMarkers) === null || _window$CoreAIChatMar0 === void 0 ? void 0 : _window$CoreAIChatMar0.citationMarkerHtml) !== null && _window$CoreAIChatMar9 !== void 0 ? _window$CoreAIChatMar9 : function (displayIndex) {
     return "<sup>".concat(displayIndex, "</sup>");
   };
   function buildCitationDisplay(content, references) {
-    var processedContent = (content || '').trim();
+    // Before anything looks for a reference key, the combined form the model tends to write is split into
+    // the keys it means. A key that is not found is not replaced, and an unreplaced key reaches the reader
+    // as a raw marker mid-sentence.
+    var processedContent = splitCombinedCitations((content || '').trim());
     var messageReferences = normalizeReferences(references);
     var referenceEntries = Object.entries(messageReferences);
     if (!referenceEntries.length) {
@@ -375,7 +381,9 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
     message.citationReferences = citationDisplay.citations;
     // Copied from the expanded content, so a copied answer carries the picture's link rather than a label
     // that means nothing outside this page.
-    message.copyContent = buildCopyContent(displayContent, citationDisplay.citations);
+    // Split here too: the copy is built from the expanded content rather than the display path's output,
+    // so a combined marker would otherwise survive into the clipboard as a raw key.
+    message.copyContent = buildCopyContent(splitCombinedCitations(displayContent), citationDisplay.citations);
     message.htmlContent = parseMarkdownContent(citationDisplay.content, message);
     return message;
   }

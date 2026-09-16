@@ -144,6 +144,16 @@ public sealed class SearchIndexProfileProvisioningService : ISearchIndexProfileP
 
     private static string GetRemoteIndexValidationErrorMessage(SearchIndexProfile profile, Exception ex)
     {
+        // A provider that was never configured says so itself, and its own words name the missing setting.
+        // Replacing them with "unable to validate" turns a one-line configuration fix into a search: the
+        // operator is told the check failed and left to guess that the provider has no connection string at
+        // all. A provider signals this with InvalidOperationException, which is the same shape the embedding
+        // deployment check above already passes through.
+        if (ex is InvalidOperationException)
+        {
+            return $"{ex.Message} The index '{profile.IndexFullName}' cannot be created until the '{profile.ProviderName}' provider is configured for this host.";
+        }
+
         if (TryGetRequestFailedStatusCode(ex, out var statusCode) && (statusCode == 401 || statusCode == 403))
         {
             return $"Unable to validate whether the remote index '{profile.IndexFullName}' already exists because the remote search provider rejected the configured credentials. Verify the endpoint and use credentials with index management permissions.";

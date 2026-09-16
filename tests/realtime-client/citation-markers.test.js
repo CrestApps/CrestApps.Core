@@ -1,4 +1,4 @@
-// Unit tests for the citation rules every chat surface now numbers references with
+﻿// Unit tests for the citation rules every chat surface now numbers references with
 // (CoreAIChatMarkers.citationIdentity, collapseRepeatedCitations, separateAdjacentCitations,
 // citationMarkerHtml).
 //
@@ -30,7 +30,7 @@ function loadCitationRules() {
 
     const markers = sandbox.window.CoreAIChatMarkers;
 
-    for (const name of ['citationIdentity', 'collapseRepeatedCitations', 'separateAdjacentCitations', 'citationMarkerHtml']) {
+    for (const name of ['citationIdentity', 'splitCombinedCitations', 'collapseRepeatedCitations', 'separateAdjacentCitations', 'citationMarkerHtml']) {
         assert.ok(markers && typeof markers[name] === 'function', `chat-markers.js does not expose CoreAIChatMarkers.${name}`);
     }
 
@@ -213,6 +213,49 @@ test('nothing to work with is not an error', () => {
     assert.strictEqual(rules.separateAdjacentCitations(undefined), '');
 });
 
+test('the combined marker a model writes is split into the keys it means', () => {
+    // Observed live, mid-sentence, in a real answer: "...calculating U-values [doc:1, doc:2]." Nothing matched
+    // the key "[doc:1]", so nothing was replaced and the reader was shown the bracket itself.
+    assert.strictEqual(
+        rules.splitCombinedCitations('...when calculating U-values [doc:1, doc:2].'),
+        '...when calculating U-values [doc:1][doc:2].');
+});
+
+test('a combined marker that drops the repeated prefix is split too', () => {
+    assert.strictEqual(rules.splitCombinedCitations('a [doc:2, 5] b'), 'a [doc:2][doc:5] b');
+});
+
+test('three references in one bracket become three markers', () => {
+    assert.strictEqual(rules.splitCombinedCitations('[doc:7, doc:5, doc:1]'), '[doc:7][doc:5][doc:1]');
+});
+
+test('whitespace around the parts is tolerated', () => {
+    assert.strictEqual(rules.splitCombinedCitations('[doc: 1 , doc: 2 ]'), '[doc:1][doc:2]');
+});
+
+test('a lone marker is left exactly as it is', () => {
+    assert.strictEqual(rules.splitCombinedCitations('see [doc:1] here'), 'see [doc:1] here');
+});
+
+test('markers already written separately are left alone', () => {
+    assert.strictEqual(rules.splitCombinedCitations('[doc:1][doc:2]'), '[doc:1][doc:2]');
+});
+
+test('prose that merely mentions a bracket is not rewritten', () => {
+    const text = 'The array [1, 2] is not a citation, and neither is [figure 1, figure 2].';
+
+    assert.strictEqual(rules.splitCombinedCitations(text), text);
+});
+
+test('splitting keeps the order the model wrote', () => {
+    assert.strictEqual(rules.splitCombinedCitations('[doc:9, doc:3]'), '[doc:9][doc:3]');
+});
+
+test('nothing to split is not an error', () => {
+    assert.strictEqual(rules.splitCombinedCitations(''), '');
+    assert.strictEqual(rules.splitCombinedCitations(null), '');
+});
+
 // The surfaces that number citations. Each keeps its own assembly loop; none of them may keep its own answer
 // to which references are the same citation.
 const surfaces = [
@@ -229,6 +272,11 @@ for (const surface of surfaces) {
             `${surface} does not reference the shared marker module`);
         assert.ok(source.includes('citationIdentity'),
             `${surface} does not use the shared citation identity`);
+
+        // A surface that never splits the combined form shows the reader a raw marker mid-sentence, which is
+        // exactly the failure this rule exists for -- and it fails silently, on the surface nobody opened.
+        assert.ok(source.includes('splitCombinedCitations'),
+            `${surface} does not split combined citation markers`);
     });
 
     test(`${path.basename(surface)} keeps no hand-written comma rule`, () => {
