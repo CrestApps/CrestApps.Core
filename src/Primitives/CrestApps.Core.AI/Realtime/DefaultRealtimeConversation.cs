@@ -92,6 +92,19 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
     }
 
     /// <inheritdoc />
+    public Task RequestUnpromptedResponseAsync(string? instructions = null, CancellationToken cancellationToken = default)
+    {
+        // Deliberately not behind the RespondsAutomatically guard. That guard stops a second reply to a turn the
+        // provider has already answered; this is for the moments when it has answered nothing and the silence
+        // belongs to us -- the start of an outbound call, or a caller turn that came back with no transcript.
+        var message = string.IsNullOrWhiteSpace(instructions)
+            ? new CreateResponseRealtimeClientMessage()
+            : new CreateResponseRealtimeClientMessage { Instructions = instructions };
+
+        return _session.SendAsync(message, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task RequestAcknowledgementAsync(string instructions, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(instructions);
