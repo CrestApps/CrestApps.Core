@@ -56,7 +56,7 @@ public static class DownloadAIDocument
             return Results.NotFound();
         }
 
-        var authorizationResult = await AuthorizeAsync(
+        var authorizationResult = await AIDocumentDownloadAuthorization.AuthorizeAsync(
             httpContext,
             authorizationService,
             interactionManager,
@@ -81,67 +81,5 @@ public static class DownloadAIDocument
             string.IsNullOrWhiteSpace(document.ContentType) ? "application/octet-stream" : document.ContentType,
             document.FileName,
             enableRangeProcessing: true);
-    }
-
-    private static async Task<IResult> AuthorizeAsync(
-        HttpContext httpContext,
-        IAuthorizationService authorizationService,
-        ICatalogManager<ChatInteraction> interactionManager,
-        IAIChatSessionManager sessionManager,
-        IAIProfileManager profileManager,
-        AIDocument document)
-    {
-        switch (document.ReferenceType)
-        {
-            case AIReferenceTypes.Document.ChatInteraction:
-                {
-                    var interaction = await interactionManager.FindByIdAsync(document.ReferenceId);
-
-                    if (interaction is null)
-                    {
-                        return Results.NotFound();
-                    }
-
-                    var authorization = await authorizationService.AuthorizeAsync(
-                        httpContext.User,
-                        interaction,
-                        [AIChatDocumentOperations.ManageDocuments]);
-
-                    return authorization.Succeeded ? null : CreateUnauthorizedResult(httpContext);
-                }
-            case AIReferenceTypes.Document.ChatSession:
-                {
-                    var session = await sessionManager.FindAsync(document.ReferenceId);
-
-                    if (session is null)
-                    {
-                        return Results.NotFound();
-                    }
-
-                    var profile = await profileManager.FindByIdAsync(session.ProfileId);
-
-                    if (profile is null)
-                    {
-                        return Results.NotFound();
-                    }
-
-                    var authorization = await authorizationService.AuthorizeAsync(
-                        httpContext.User,
-                        new AIChatSessionDocumentAuthorizationContext(profile, session),
-                        [AIChatDocumentOperations.ManageDocuments]);
-
-                    return authorization.Succeeded ? null : CreateUnauthorizedResult(httpContext);
-                }
-            default:
-
-                return Results.NotFound();
-        }
-    }
-
-    private static IResult CreateUnauthorizedResult(HttpContext httpContext)
-    {
-        return httpContext.User.Identity?.IsAuthenticated == true
-            ? Results.Forbid()
-            : Results.Challenge();
     }
 }

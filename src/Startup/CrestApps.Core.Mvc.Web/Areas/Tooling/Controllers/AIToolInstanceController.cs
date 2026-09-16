@@ -636,6 +636,7 @@ public sealed class AIToolInstanceController : Controller
                 TopNDocuments = model.DataSourceTopNDocuments,
                 Strictness = model.DataSourceStrictness,
                 Filter = string.IsNullOrWhiteSpace(model.DataSourceFilter) ? null : model.DataSourceFilter.Trim(),
+                ContentTypes = SplitContentTypes(model.DataSourceContentTypes),
             });
 
             return;
@@ -734,6 +735,7 @@ public sealed class AIToolInstanceController : Controller
             Source = instance.Source,
             Name = instance.Name,
             Description = instance.Description,
+            FunctionName = instance.GetFunctionName(),
             DefaultHeaders = "{}",
         };
 
@@ -808,8 +810,30 @@ public sealed class AIToolInstanceController : Controller
             model.DataSourceTopNDocuments = dataSourceSettings.TopNDocuments;
             model.DataSourceStrictness = dataSourceSettings.Strictness;
             model.DataSourceFilter = dataSourceSettings.Filter;
+            model.DataSourceContentTypes = dataSourceSettings.ContentTypes is { Length: > 0 }
+                ? string.Join(", ", dataSourceSettings.ContentTypes)
+                : null;
         }
 
         return model;
+    }
+
+    /// <summary>
+    /// Splits a comma-separated list of knowledge kinds into the array the settings hold.
+    /// </summary>
+    /// <param name="value">The list the form supplied.</param>
+    /// <returns>The kinds, or <see langword="null"/> when none were named.</returns>
+    private static string[] SplitContentTypes(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var contentTypes = value
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToArray();
+
+        return contentTypes.Length == 0 ? null : contentTypes;
     }
 }

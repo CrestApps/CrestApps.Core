@@ -10,6 +10,9 @@ using CrestApps.Core.AI.Claude;
 using CrestApps.Core.AI.Copilot;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Endpoints;
+using CrestApps.Core.AI.Documents.Tooling;
+using CrestApps.Core.AI.Indexers;
+using CrestApps.Core.AI.Indexers.FileTransfer;
 using CrestApps.Core.AI.Documents.OpenXml;
 using CrestApps.Core.AI.Documents.Pdf;
 using CrestApps.Core.AI.Elasticsearch;
@@ -18,6 +21,7 @@ using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Tooling.Instances.DataSources;
 using CrestApps.Core.AI.Tooling.Instances.Documentation;
 using CrestApps.Core.AI.Mcp.Ftp;
+using CrestApps.Core.AI.Mcp.Knowledge;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Mcp.Sftp;
 using CrestApps.Core.AI.Ollama;
@@ -160,12 +164,14 @@ builder.Services
             .AddHttpApiRequestSource()
             .AddDocumentationSearchSources()
             .AddDataSourceSearchSource()
+            .AddKnowledgeObjectSource()
             .AddYesSqlStores()
         )
         .AddMcpServer(mcpServer => mcpServer
             .AddYesSqlStores()
             .AddFtpResources()
             .AddSftpResources()
+            .AddKnowledgeResources()
         )
         .AddSignalR(addStoreCommitterFilter: true)
         .AddA2AHost()
@@ -202,6 +208,16 @@ builder.Services.ConfigureCrestAppsChatHubOptions<AIChatHub>();
 // Opt into the strategy-based web crawlers feature and its YesSql stores. Web crawlers scrape sites
 // (starting with sitemap discovery) into any "Web" AI data source.
 builder.Services.AddCoreWebCrawlers();
+
+// Continuous intake. Registering a connector grants nothing on its own: a local folder still has to
+// be added to IndexerOptions.AllowedLocalRoots before anything under it can be read.
+builder.Services
+    .AddCoreIndexers()
+    .AddCoreLocalFolderConnector()
+    .AddCoreFtpIngestionConnector()
+    .AddCoreSftpIngestionConnector();
+
+builder.Services.Configure<IndexerOptions>(builder.Configuration.GetSection("CrestApps:Indexers"));
 builder.Services.AddCoreWebCrawlerStoresYesSql();
 
 builder.Services.Configure<A2AHostOptions>(
@@ -320,6 +336,8 @@ app.MapMcp("mcp");
 app.MapA2AHost();
 app.AddChatApiEndpoints()
     .AddDownloadAIDocumentEndpoint()
+    .AddDownloadKnowledgeFigureEndpoint()
+    .AddDownloadAIDocumentFigureEndpoint()
     .AddUploadChatInteractionDocumentEndpoint()
     .AddRemoveChatInteractionDocumentEndpoint()
     .AddUploadChatSessionDocumentEndpoint()

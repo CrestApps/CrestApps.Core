@@ -40,6 +40,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Microsoft Packages -->
+    <PackageVersion Include="Azure.AI.DocumentIntelligence" Version="1.0.0" />
     <PackageVersion Include="Azure.AI.OpenAI" Version="2.8.0-beta.1" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
     <PackageVersion Include="Azure.Search.Documents" Version="12.0.0" />

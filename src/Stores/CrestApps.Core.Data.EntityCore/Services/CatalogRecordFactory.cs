@@ -83,6 +83,19 @@ internal static class CatalogRecordFactory
                 record.Type = indexProfile.Type;
                 record.CreatedUtc = indexProfile.CreatedUtc;
                 break;
+            case KnowledgeObject knowledgeObject:
+                // The owning data source is the object's Source (auto-mapped above); the document it
+                // belongs to is denormalized into the generic reference column so a whole document can be
+                // deleted or re-read without scanning every object in the data source. The content hash is
+                // denormalized for the same reason: the figure description cache looks an object up by the
+                // bytes it was produced from, and that lookup crosses every data source in the installation.
+                record.ReferenceId = knowledgeObject.RootId;
+                record.ReferenceType = knowledgeObject.ObjectType;
+                record.Name = knowledgeObject.CanonicalId;
+                record.ContentHash = knowledgeObject.ContentHash;
+                record.CreatedUtc = knowledgeObject.CreatedUtc;
+                record.UpdatedUtc = knowledgeObject.ModifiedUtc;
+                break;
             case WebCrawler crawler:
                 // The strategy is the crawler's Source (auto-mapped above); the target data source id is
                 // denormalized into the generic reference column so crawlers can be queried per data source.
@@ -116,6 +129,7 @@ internal static class CatalogRecordFactory
         record.AIDocumentId = updated.AIDocumentId;
         record.UserId = updated.UserId;
         record.Type = updated.Type;
+        record.ContentHash = updated.ContentHash;
         record.CreatedUtc = updated.CreatedUtc;
         record.UpdatedUtc = updated.UpdatedUtc;
         record.Document.Content = updated.Document.Content;

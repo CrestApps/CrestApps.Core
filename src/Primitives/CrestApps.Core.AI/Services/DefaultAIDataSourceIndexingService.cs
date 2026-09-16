@@ -202,7 +202,6 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             return;
         }
 
-        var chunkIds = BuildChunkIds(ids);
         foreach (var dataSource in await GetMatchingDataSourcesAsync(sourceIndexProfileName))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -212,7 +211,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
                 continue;
             }
 
-            await context.DocumentManager.DeleteAsync(context.KnowledgeBaseProfile, chunkIds, cancellationToken);
+            await DeleteReferencesAsync(context, ids, cancellationToken);
         }
     }
 
@@ -244,7 +243,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             return;
         }
 
-        await context.DocumentManager.DeleteAsync(context.KnowledgeBaseProfile, BuildChunkIds(ids), cancellationToken);
+        await DeleteReferencesAsync(context, ids, cancellationToken);
     }
 
     /// <summary>
@@ -280,13 +279,27 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             }
 
             var normalizedTitle = _textNormalizer.NormalizeTitle(sourceDocument.Title);
-            var chunkTexts = await _textNormalizer.NormalizeAndChunkAsync(sourceDocument.Content, cancellationToken);
+            List<string> chunkTexts;
+
+            if (sourceDocument.IsPreChunked)
+            {
+                // The row was built to sit inside one chunk and already carries its own title. Splitting it
+                // would separate a figure description from the figure it describes.
+                var normalized = await _textNormalizer.NormalizeContentAsync(sourceDocument.Content, cancellationToken);
+
+                chunkTexts = string.IsNullOrWhiteSpace(normalized) ? [] : [normalized];
+            }
+            else
+            {
+                chunkTexts = await _textNormalizer.NormalizeAndChunkAsync(sourceDocument.Content, cancellationToken);
+            }
+
             if (chunkTexts.Count == 0)
             {
                 continue;
             }
 
-            if (!string.IsNullOrWhiteSpace(normalizedTitle))
+            if (!sourceDocument.IsPreChunked && !string.IsNullOrWhiteSpace(normalizedTitle))
             {
                 chunkTexts[0] = normalizedTitle + "\n" + chunkTexts[0];
             }
@@ -300,10 +313,11 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
 
             if (deleteExistingChunks)
             {
-                await context.DocumentManager.DeleteAsync(context.KnowledgeBaseProfile, BuildChunkIds([referenceId]), cancellationToken);
+                await DeleteReferencesAsync(context, [referenceId], cancellationToken);
             }
 
-            var filters = BuildFilterFields(sourceDocument.Fields);
+            var typed = ExtractTypedFields(sourceDocument.Fields, context.SourceHandler.ProducesTypedKnowledge);
+            var filters = BuildFilterFields(sourceDocument.Fields, typed.Keys);
             for (var i = 0; i < chunkTexts.Count; i++)
             {
                 var chunkId = $"{referenceId}_{i}";
@@ -318,7 +332,13 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
                     [DataSourceConstants.ColumnNames.Content] = chunkTexts[i],
                     [DataSourceConstants.ColumnNames.Embedding] = embeddings[i].Vector.ToArray(),
                     [DataSourceConstants.ColumnNames.Timestamp] = timestamp,
+                    [DataSourceConstants.ColumnNames.ContentType] = typed.ContentType,
                 };
+
+                foreach (var entry in typed.Columns)
+                {
+                    fields[entry.Key] = entry.Value;
+                }
                 if (filters != null)
                 {
                     fields[DataSourceConstants.ColumnNames.Filters] = filters;
@@ -368,6 +388,8 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         context.KnowledgeBaseProfile.IndexFullName ??= context.IndexManager.ComposeIndexFullName(context.KnowledgeBaseProfile);
         if (await context.IndexManager.ExistsAsync(context.KnowledgeBaseProfile, cancellationToken))
         {
+            await TryUpgradeIndexAsync(context, cancellationToken);
+
             return;
         }
 
@@ -485,6 +507,79 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             .ToArray();
     }
 
+    /// <summary>
+    /// Brings an index that already exists up to the current schema.
+    /// </summary>
+    /// <param name="context">The indexing context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <remarks>
+    /// A provider that cannot add fields keeps serving the index it has. The typed columns are then absent,
+    /// every row reads as text, and retrieval still works - it just cannot filter by type until the index is
+    /// recreated. That is a reduced capability, never a failure.
+    /// </remarks>
+    private async Task TryUpgradeIndexAsync(DataSourceIndexingContext context, CancellationToken cancellationToken)
+    {
+        var fields = await _indexProfileManager.GetFieldsAsync(context.KnowledgeBaseProfile, cancellationToken);
+
+        if (fields == null || fields.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            if (await context.IndexManager.TryAddFieldsAsync(context.KnowledgeBaseProfile, fields, cancellationToken))
+            {
+                return;
+            }
+
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation(
+                    "Provider '{ProviderName}' cannot add fields to index '{IndexName}'. Typed filters are unavailable on it until it is recreated.",
+                    context.KnowledgeBaseProfile.ProviderName,
+                    context.KnowledgeBaseProfile.IndexFullName);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to upgrade the schema of index '{IndexName}'. Indexing continues against the existing schema.", context.KnowledgeBaseProfile.IndexFullName);
+        }
+    }
+
+    /// <summary>
+    /// Deletes the rows of the supplied references, preferring a provider that can delete by predicate.
+    /// </summary>
+    /// <param name="context">The indexing context.</param>
+    /// <param name="referenceIds">The reference identifiers to delete.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <remarks>
+    /// The fallback asks for a fixed span of chunk identifiers per reference, which is a thousand
+    /// identifiers to delete a handful of rows. A provider that can express "where referenceId in (...)"
+    /// does it in one statement.
+    /// </remarks>
+    private static async Task DeleteReferencesAsync(
+        DataSourceIndexingContext context,
+        string[] referenceIds,
+        CancellationToken cancellationToken)
+    {
+        if (referenceIds.Length == 0)
+        {
+            return;
+        }
+
+        if (await context.ContentManager.DeleteByReferenceIdsAsync(context.KnowledgeBaseProfile, context.DataSource.ItemId, referenceIds, cancellationToken))
+        {
+            return;
+        }
+
+        await context.DocumentManager.DeleteAsync(context.KnowledgeBaseProfile, BuildChunkIds(referenceIds), cancellationToken);
+    }
+
     private static List<string> BuildChunkIds(IEnumerable<string> referenceIds, int maxChunksPerDocument = MaxChunkIdsPerDocument)
     {
         var chunkIds = new List<string>();
@@ -500,15 +595,84 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         return chunkIds;
     }
 
-    private static Dictionary<string, object> BuildFilterFields(Dictionary<string, object> sourceFields)
+    /// <summary>
+    /// Copies the caller-supplied fields into the filter bag, leaving out the ones promoted to real
+    /// columns so a value is never stored twice.
+    /// </summary>
+    /// <param name="sourceFields">The fields the source handler supplied.</param>
+    /// <param name="promoted">The field names written to their own columns.</param>
+    /// <returns>The filter bag, or <see langword="null"/> when nothing is left.</returns>
+    private static Dictionary<string, object> BuildFilterFields(Dictionary<string, object> sourceFields, IReadOnlyCollection<string> promoted)
     {
         if (sourceFields == null || sourceFields.Count == 0)
         {
             return null;
         }
 
-        return new Dictionary<string, object>(sourceFields, StringComparer.OrdinalIgnoreCase);
+        var filters = new Dictionary<string, object>(sourceFields, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var name in promoted)
+        {
+            filters.Remove(name);
+        }
+
+        return filters.Count == 0 ? null : filters;
     }
+
+    /// <summary>
+    /// Pulls the typed discriminators out of the caller-supplied fields.
+    /// </summary>
+    /// <param name="sourceFields">The fields the source handler supplied.</param>
+    /// <returns>The content type, the columns to write, and which field names were consumed.</returns>
+    /// <remarks>
+    /// A source that says nothing about its type is text, which is also what every row written before these
+    /// columns existed is read as.
+    /// </remarks>
+    private static TypedFields ExtractTypedFields(Dictionary<string, object> sourceFields, bool producesTypedKnowledge)
+    {
+        var columns = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        var consumed = new List<string>
+        {
+            DataSourceConstants.ColumnNames.ContentType,
+        };
+
+        var contentType = KnowledgeContentTypes.Text;
+
+        // Only a handler that produces typed knowledge means the knowledge base's own discriminators by
+        // these names. Anything else consumes nothing, so a source whose documents have always carried a
+        // top-level "contentType" of their own keeps it in the per-row bag and still filters on their field
+        // rather than having it silently written into the column and dropped from the bag. The row's own
+        // content type stays the default, which is what every row written before these columns existed
+        // already reads as.
+        if (!producesTypedKnowledge)
+        {
+            return new TypedFields(contentType, columns, []);
+        }
+
+        if (sourceFields != null)
+        {
+            if (sourceFields.TryGetValue(DataSourceConstants.ColumnNames.ContentType, out var rawContentType) &&
+                rawContentType is string text &&
+                !string.IsNullOrWhiteSpace(text))
+            {
+                contentType = text;
+            }
+
+            foreach (var name in new[] { DataSourceConstants.ColumnNames.RootId, DataSourceConstants.ColumnNames.ParentId, DataSourceConstants.ColumnNames.Page })
+            {
+                consumed.Add(name);
+
+                if (sourceFields.TryGetValue(name, out var value) && value != null)
+                {
+                    columns[name] = value;
+                }
+            }
+        }
+
+        return new TypedFields(contentType, columns, consumed);
+    }
+
+    private sealed record TypedFields(string ContentType, Dictionary<string, object> Columns, IReadOnlyCollection<string> Keys);
 
     private sealed record DataSourceIndexingContext(
         AIDataSource DataSource,

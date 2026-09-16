@@ -1,3 +1,4 @@
+using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -63,6 +64,16 @@ internal sealed class WebCrawlerReindexBackgroundService : BackgroundService
                 }
 
                 await reindexService.ReindexDueAsync(stoppingToken);
+
+                // The planner records crawl state through the transactional store. A request commits that
+                // through its filter; this scope has no filter, so the session is flushed here or the state
+                // is lost and every page reads as new on the next pass.
+                var committer = scope.ServiceProvider.GetService<IStoreCommitter>();
+
+                if (committer is not null)
+                {
+                    await committer.CommitAsync(stoppingToken);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

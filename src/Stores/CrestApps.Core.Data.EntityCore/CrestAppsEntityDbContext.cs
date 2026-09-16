@@ -99,6 +99,7 @@ public sealed class CrestAppsEntityDbContext : DbContext
             entity.Property(x => x.AIDocumentId);
             entity.Property(x => x.UserId);
             entity.Property(x => x.Type);
+            entity.Property(x => x.ContentHash);
 
             entity.HasIndex(x => new { x.EntityType, x.ItemId }).IsUnique();
             entity.HasIndex(x => new { x.EntityType, x.Name });
@@ -109,6 +110,7 @@ public sealed class CrestAppsEntityDbContext : DbContext
             entity.HasIndex(x => new { x.EntityType, x.AIDocumentId });
             entity.HasIndex(x => new { x.EntityType, x.UserId, x.Name });
             entity.HasIndex(x => new { x.EntityType, x.Type });
+            entity.HasIndex(x => new { x.EntityType, x.ContentHash });
 
             if (_options.EnforceNamedSourceUniqueness)
             {

@@ -34,7 +34,7 @@
                     <option value="">Select strategy</option>
                 </select>
                 <span asp-validation-for="Source" class="text-danger"></span>
-                <div class="form-text">How the site is discovered and fetched.</div>
+                <div class="form-text">How the site is discovered and fetched. A folder or a file server is set up under File Sources instead.</div>
             </div>
 
             <div class="mb-3 form-check">
@@ -101,6 +101,8 @@
                     <div class="form-text">Optional. A page URL matching any pattern is skipped.</div>
                 </div>
             </div>
+
+            <partial name="_CrawlIngestionSettings" model="Model" />
 
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">

@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.Indexers.FileTransfer</RootNamespace>
+    <Title>CrestApps AI Indexers - File Transfer</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      FTP/FTPS and SFTP ingestion connectors for CrestApps AI indexers.
+    </Description>
+    <PackageTags>$(PackageTags) ai indexing ftp ftps sftp connectors</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentFTP" />
+    <PackageReference Include="SSH.NET" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CrestApps.Core.AI.Indexers/CrestApps.Core.AI.Indexers.csproj" />
+    <ProjectReference Include="../CrestApps.Core.AI.Mcp.Ftp/CrestApps.Core.AI.Mcp.Ftp.csproj" />
+    <ProjectReference Include="../CrestApps.Core.AI.Mcp.Sftp/CrestApps.Core.AI.Mcp.Sftp.csproj" />
+  </ItemGroup>
+
+</Project>

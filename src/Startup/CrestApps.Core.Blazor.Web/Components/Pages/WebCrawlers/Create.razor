@@ -6,11 +6,13 @@
 @using CrestApps.Core.AI.WebCrawlers.Strategies
 @using CrestApps.Core.Blazor.Web.ViewModels
 @using CrestApps.Core.Services
+@using Microsoft.AspNetCore.DataProtection
 @using Microsoft.Extensions.Options
 @inject ISourceCatalogManager<WebCrawler> Manager
 @inject IAIDataSourceStore DataSourceStore
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
+@inject IDataProtectionProvider DataProtectionProvider
 @inject IOptions<WebCrawlerStrategyOptions> StrategyOptions
 
 <PageTitle>Create Web Crawler</PageTitle>
@@ -58,7 +60,7 @@
                         <option value="@item.Key">@item.Value</option>
                     }
                 </InputSelect>
-                <div class="form-text">How the site is discovered and fetched.</div>
+                <div class="form-text">How the site is discovered and fetched. A folder or a file server is set up under File Sources instead.</div>
             </div>
 
             <div class="mb-3 form-check">
@@ -125,6 +127,8 @@
                 </div>
             }
 
+            <CrawlerIngestionSettingsEditor Model="_model" />
+
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">
                     <i class="fa-solid fa-check"></i> Create
@@ -150,8 +154,17 @@
     {
         _errors.Clear();
 
+        // NewAsync refuses a blank source. The MVC form relies on `required` on the select; an
+        // InputSelect has no such guard, so the blank option has to be caught here.
+        if (!WebCrawlerSourceFilter.IsCrawlStrategy(_model.Source, StrategyOptions.Value.Strategies))
+        {
+            _errors = ["Select a crawl strategy. A folder or file server is set up under File Sources."];
+
+            return;
+        }
+
         var crawler = await Manager.NewAsync(_model.Source);
-        _model.ApplyTo(crawler);
+        _model.ApplyTo(crawler, DataProtectionProvider);
 
         var validation = await Manager.ValidateAsync(crawler);
 
@@ -177,9 +190,11 @@
             .Select(strategy => new KeyValuePair<string, string>(strategy.Strategy, strategy.DisplayName.Value))
             .ToList();
 
-        var dataSources = await DataSourceStore.GetAsync(AIDataSourceSourceTypes.Web);
+        // A crawl strategy only ever feeds a Web data source. The File ones are offered on the File Sources
+        // pages instead.
+        var webDataSources = await DataSourceStore.GetAsync(AIDataSourceSourceTypes.Web);
 
-        _dataSources = dataSources
+        _dataSources = webDataSources
             .Select(dataSource => new KeyValuePair<string, string>(dataSource.ItemId, dataSource.DisplayText))
             .ToList();
     }

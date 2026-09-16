@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
@@ -52,13 +53,34 @@ public sealed class DefaultImageAnalysisService : IImageAnalysisService
         ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
+        var content = await ReadStreamBytesAsync(imageStream, cancellationToken);
+
+        return await AnalyzeAsync(
+            new ImageAnalysisRequest
+            {
+                Content = content,
+                ContentType = contentType,
+                FileName = fileName,
+                DeploymentName = chatDeploymentName,
+                TemplateId = AITemplateIds.ImageAnalysis,
+            },
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<ImageAnalysisResult> AnalyzeAsync(ImageAnalysisRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.ContentType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.FileName);
+
         try
         {
-            var deployment = await ResolveVisionDeploymentAsync(chatDeploymentName, cancellationToken);
+            var deployment = await ResolveVisionDeploymentAsync(request.DeploymentName, cancellationToken);
 
             if (deployment == null)
             {
-                _logger.LogWarning("No vision-capable deployment available for image analysis of '{FileName}'.", fileName);
+                _logger.LogWarning("No vision-capable deployment available for image analysis of '{FileName}'.", request.FileName);
 
                 return ImageAnalysisResult.Failed("No vision-capable deployment is available for image analysis.");
             }
@@ -67,19 +89,21 @@ public sealed class DefaultImageAnalysisService : IImageAnalysisService
 
             var messages = new List<ChatMessage>();
 
-            var systemPrompt = await _templateService.RenderAsync(AITemplateIds.ImageAnalysis, cancellationToken: cancellationToken);
+            var templateId = string.IsNullOrWhiteSpace(request.TemplateId)
+                ? AITemplateIds.ImageAnalysis
+                : request.TemplateId;
+
+            var systemPrompt = await _templateService.RenderAsync(templateId, cancellationToken: cancellationToken);
 
             if (!string.IsNullOrWhiteSpace(systemPrompt))
             {
                 messages.Add(new(ChatRole.System, systemPrompt));
             }
 
-            var imageBytes = await ReadStreamBytesAsync(imageStream, cancellationToken);
-
             var userContents = new List<AIContent>
             {
-                new TextContent($"Analyze this image: \"{fileName}\""),
-                new DataContent(imageBytes, contentType),
+                new TextContent(BuildUserPrompt(request)),
+                new DataContent(request.Content, request.ContentType),
             };
 
             messages.Add(new(ChatRole.User, userContents));
@@ -90,7 +114,7 @@ public sealed class DefaultImageAnalysisService : IImageAnalysisService
 
             if (string.IsNullOrWhiteSpace(rawText))
             {
-                _logger.LogWarning("Vision model returned empty response for image '{FileName}'.", fileName);
+                _logger.LogWarning("Vision model returned empty response for image '{FileName}'.", request.FileName);
 
                 return ImageAnalysisResult.Failed("The vision model returned an empty response.");
             }
@@ -99,10 +123,47 @@ public sealed class DefaultImageAnalysisService : IImageAnalysisService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Image analysis failed for '{FileName}'.", fileName);
+            _logger.LogError(ex, "Image analysis failed for '{FileName}'.", request.FileName);
 
             return ImageAnalysisResult.Failed($"Image analysis failed: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Builds the message that travels with the image. The caption and the surrounding prose are what let a
+    /// model tell an axis label from a stray number, and naming the language stops it translating a
+    /// transcription that has to stay verbatim.
+    /// </summary>
+    /// <param name="request">The request.</param>
+    /// <returns>The user prompt.</returns>
+    private static string BuildUserPrompt(ImageAnalysisRequest request)
+    {
+        var builder = new StringBuilder();
+
+        builder.Append("Analyze this image: \"");
+        builder.Append(request.FileName);
+        builder.Append('"');
+
+        if (!string.IsNullOrWhiteSpace(request.Caption))
+        {
+            builder.Append("\nCaption: ");
+            builder.Append(request.Caption);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Context))
+        {
+            builder.Append("\nSurrounding text: ");
+            builder.Append(request.Context);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Language))
+        {
+            builder.Append("\nThe figure is printed in '");
+            builder.Append(request.Language);
+            builder.Append("'. Transcribe in that language and never translate.");
+        }
+
+        return builder.ToString();
     }
 
     private async Task<AIDeployment> ResolveVisionDeploymentAsync(

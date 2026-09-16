@@ -1,8 +1,10 @@
 using System.Text;
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.Documents.Ingestion;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.Tests.Support;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;
@@ -65,8 +67,9 @@ public sealed class DefaultAIDocumentProcessingServiceTests
         var serviceProvider = services.BuildServiceProvider();
 
         return new DefaultAIDocumentProcessingService(
-            serviceProvider,
+            new DefaultAIDocumentIngestionPipeline(new DefaultIngestionDocumentReaderResolver(serviceProvider), []),
             new DefaultAITextNormalizer(),
+            new RecordingDocumentFileStore(),
             Options.Create(options),
             TimeProvider.System,
             NullLogger<DefaultAIDocumentProcessingService>.Instance);

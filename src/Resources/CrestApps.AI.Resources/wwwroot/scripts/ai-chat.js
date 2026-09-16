@@ -22,6 +22,24 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
 function _iterableToArrayLimit(r, l) { var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (null != t) { var e, n, i, u, a = [], f = !0, o = !1; try { if (i = (t = t.call(r)).next, 0 === l) { if (Object(t) !== t) return; f = !1; } else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0); } catch (r) { o = !0, n = r; } finally { try { if (!f && null != t["return"] && (u = t["return"](), Object(u) !== u)) return; } finally { if (o) throw n; } } return a; } }
 function _arrayWithHoles(r) { if (Array.isArray(r)) return r; }
 function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
+/*
+ * Figure markers: the short labels the model writes, turned into pictures by the host.
+ *
+ * Retrieval hands the model a label -- [fig:1] -- and keeps the picture's real link in the message's reference
+ * map, the same way a text citation keeps its source behind "[doc:1]". A model asked to reproduce a long opaque
+ * identifier does not reproduce it: it copies the shape and substitutes ordinals, so links to figures that were
+ * never in the results came back as 404s. A label short enough to be written exactly, with the link put back
+ * here where the model cannot reach it, is what stops that.
+ *
+ * It sits on window rather than inside the manager below so the host can reach it, and so its rules can be
+ * exercised in a bare sandbox with no browser and no DOM -- see tests/realtime-client/figure-markers.test.js --
+ * exactly as window.CoreAIRealtime exposes the microphone gate's rules.
+ *
+ * The same block sits at the top of chat-interaction.js: the two chat clients are separate bundles that share no
+ * module of their own, and both render the same markdown. Change one, change the other.
+ */
+// CoreAIChatMarkers lives in chat-markers.js, which every chat surface loads before this file.
+
 window.coreAIChatManager = function () {
   // Defaults (can be overridden by instanceConfig)
   var defaultConfig = {
@@ -127,7 +145,7 @@ window.coreAIChatManager = function () {
     return Math.min(Math.max(value, min), max);
   }
   function normalizeReference(reference) {
-    var _ref, _normalized$index, _ref2, _normalized$text, _ref3, _normalized$title, _ref4, _normalized$link, _ref5, _normalized$reference, _normalized$isGenerat;
+    var _ref, _normalized$index, _ref2, _normalized$text, _ref3, _normalized$title, _ref4, _normalized$link, _ref5, _normalized$reference, _normalized$isGenerat, _normalized$isImage;
     if (!reference || _typeof(reference) !== 'object') {
       return null;
     }
@@ -138,6 +156,7 @@ window.coreAIChatManager = function () {
     normalized.link = sanitizeUrl((_ref4 = (_normalized$link = normalized.link) !== null && _normalized$link !== void 0 ? _normalized$link : normalized.Link) !== null && _ref4 !== void 0 ? _ref4 : null);
     normalized.referenceType = (_ref5 = (_normalized$reference = normalized.referenceType) !== null && _normalized$reference !== void 0 ? _normalized$reference : normalized.ReferenceType) !== null && _ref5 !== void 0 ? _ref5 : null;
     normalized.isGenerated = ((_normalized$isGenerat = normalized.isGenerated) !== null && _normalized$isGenerat !== void 0 ? _normalized$isGenerat : normalized.IsGenerated) === true;
+    normalized.isImage = ((_normalized$isImage = normalized.isImage) !== null && _normalized$isImage !== void 0 ? _normalized$isImage : normalized.IsImage) === true;
     return normalized;
   }
   function isDownloadCitationReference(reference) {
@@ -166,6 +185,9 @@ window.coreAIChatManager = function () {
     }
     return normalized;
   }
+
+  // Installed at the top of this file so it can be unit tested without a browser; see the comment there.
+  var expandImageMarkers = window.CoreAIChatMarkers.expandImageMarkers;
   function getCitationLabel(reference, key) {
     return reference.title || reference.text || key;
   }
@@ -314,13 +336,18 @@ window.coreAIChatManager = function () {
   function updateMessagePresentation(message, references) {
     var messageReferences = normalizeReferences(references !== null && references !== void 0 ? references : message.references);
     var rawContent = typeof message.rawContent === 'string' ? message.rawContent : typeof message.content === 'string' ? message.content : '';
-    var citationDisplay = buildCitationDisplay(rawContent, messageReferences);
+    // Figure markers become images before anything else reads the content: the citation pass looks for its
+    // own keys in what is left, and the markdown parser then sees an ordinary image.
+    var displayContent = expandImageMarkers(rawContent, messageReferences);
+    var citationDisplay = buildCitationDisplay(displayContent, messageReferences);
     message.rawContent = rawContent;
     message.content = rawContent;
     message.displayContent = citationDisplay.content;
     message.references = messageReferences;
     message.citationReferences = citationDisplay.citations;
-    message.copyContent = buildCopyContent(rawContent, citationDisplay.citations);
+    // Copied from the expanded content, so a copied answer carries the picture's link rather than a label
+    // that means nothing outside this page.
+    message.copyContent = buildCopyContent(displayContent, citationDisplay.citations);
     message.htmlContent = parseMarkdownContent(citationDisplay.content, message);
     return message;
   }
@@ -477,7 +504,61 @@ window.coreAIChatManager = function () {
     }
     return null;
   }
-  function renderChartsInMessage(message) {
+
+  // An image the assistant named but the server will not serve. The address is written by a language
+  // model from what retrieval handed it, so a mistyped or invented one is possible, and the browser's
+  // default for that is a broken-image icon captioned with the alt text -- which reads as a real picture
+  // that failed to arrive. Saying plainly that it could not be loaded is both truer and quieter.
+  //
+  // Wired here rather than as an inline onerror attribute because message bodies go through DOMPurify,
+  // which strips event-handler attributes.
+  function markBrokenImagesInMessage() {
+    // Scanning the document rather than one message, because the value threaded through the render
+    // path is the message DATA object -- the thing carrying content, references and pending charts --
+    // and not the element it was rendered into. Wiring is idempotent via the data-broken-wired mark,
+    // so re-scanning after each render costs a query over the handful of images already handled.
+    if (typeof document === 'undefined' || typeof requestAnimationFrame !== 'function') {
+      return;
+    }
+
+    // Deferred for the same reason the charts below are: the render that produced these elements has
+    // not necessarily been flushed to the DOM when this runs.
+    requestAnimationFrame(wireBrokenImageHandlers);
+  }
+  function wireBrokenImageHandlers() {
+    var images = document.querySelectorAll('.generated-image-container img:not([data-broken-wired])');
+    var _iterator5 = _createForOfIteratorHelper(images),
+      _step5;
+    try {
+      var _loop = function _loop() {
+        var image = _step5.value;
+        image.setAttribute('data-broken-wired', 'true');
+        image.addEventListener('error', function () {
+          var container = image.closest('.generated-image-container');
+          if (!container || container.dataset.brokenHandled) {
+            return;
+          }
+          container.dataset.brokenHandled = 'true';
+          container.hidden = true;
+          var note = document.createElement('p');
+          note.className = 'text-muted small fst-italic mb-2';
+          note.textContent = image.alt ? "(the picture \"".concat(image.alt, "\" could not be loaded)") : '(that picture could not be loaded)';
+          container.insertAdjacentElement('afterend', note);
+        }, {
+          once: true
+        });
+      };
+      for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+        _loop();
+      }
+    } catch (err) {
+      _iterator5.e(err);
+    } finally {
+      _iterator5.f();
+    }
+  }
+  function renderMessageMedia(message) {
+    markBrokenImagesInMessage();
     if (!message || !message._pendingCharts || !message._pendingCharts.length) {
       return;
     }
@@ -489,17 +570,17 @@ window.coreAIChatManager = function () {
     // Defer to requestAnimationFrame so the browser has fully laid out the
     // canvas elements before Chart.js reads their dimensions.
     requestAnimationFrame(function () {
-      var _iterator5 = _createForOfIteratorHelper(charts),
-        _step5;
+      var _iterator6 = _createForOfIteratorHelper(charts),
+        _step6;
       try {
-        for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
-          var c = _step5.value;
+        for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
+          var c = _step6.value;
           renderChartOnCanvas(c.chartId, c.config);
         }
       } catch (err) {
-        _iterator5.e(err);
+        _iterator6.e(err);
       } finally {
-        _iterator5.f();
+        _iterator6.f();
       }
     });
   }
@@ -1187,7 +1268,7 @@ window.coreAIChatManager = function () {
                     ((_data$messages = data.messages) !== null && _data$messages !== void 0 ? _data$messages : []).forEach(function (msg) {
                       _this3.addMessage(msg);
                       _this3.$nextTick(function () {
-                        renderChartsInMessage(msg);
+                        renderMessageMedia(msg);
                       });
                     });
 
@@ -1380,7 +1461,7 @@ window.coreAIChatManager = function () {
                       msg.references = normalizeReferences(Object.assign({}, msg.references || {}, references || {}));
                       updateMessagePresentation(msg, msg.references);
                       _this3.$nextTick(function () {
-                        renderChartsInMessage(msg);
+                        renderMessageMedia(msg);
                         _this3.scrollToBottom();
                       });
                     }
@@ -1569,7 +1650,7 @@ window.coreAIChatManager = function () {
           this.hidePlaceholder();
           this.$nextTick(function () {
             // Render any pending charts once the DOM is updated
-            renderChartsInMessage(message);
+            renderMessageMedia(message);
             _this6.scrollToBottom();
           });
         },
@@ -1895,7 +1976,7 @@ window.coreAIChatManager = function () {
               updateMessagePresentation(message, references);
               _this9.messages[messageIndex] = message;
               _this9.$nextTick(function () {
-                renderChartsInMessage(message);
+                renderMessageMedia(message);
                 _this9.scrollToBottom();
               });
             },
@@ -1963,7 +2044,7 @@ window.coreAIChatManager = function () {
             updateMessagePresentation(message, references);
             this.messages[messageIndex] = message;
             this.$nextTick(function () {
-              renderChartsInMessage(message);
+              renderMessageMedia(message);
               _this0.scrollToBottom();
             });
           }
@@ -2114,18 +2195,18 @@ window.coreAIChatManager = function () {
           }, 0);
           var combined = new Uint8Array(totalLength);
           var offset = 0;
-          var _iterator6 = _createForOfIteratorHelper(this.audioChunks),
-            _step6;
+          var _iterator7 = _createForOfIteratorHelper(this.audioChunks),
+            _step7;
           try {
-            for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
-              var chunk = _step6.value;
+            for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+              var chunk = _step7.value;
               combined.set(chunk, offset);
               offset += chunk.length;
             }
           } catch (err) {
-            _iterator6.e(err);
+            _iterator7.e(err);
           } finally {
-            _iterator6.f();
+            _iterator7.f();
           }
           this.audioChunks = [];
           var blob = new Blob([combined], {

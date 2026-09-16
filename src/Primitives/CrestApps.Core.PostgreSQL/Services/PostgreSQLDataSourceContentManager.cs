@@ -70,8 +70,12 @@ internal sealed class PostgreSQLDataSourceContentManager : IDataSourceContentMan
                        {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.Content)},
                        {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.ChunkIndex)},
                        {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.ReferenceType)},
-                       1 - ({PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.Embedding)} <=> @embedding) AS score
-                FROM {quotedTableName}
+                       1 - ({PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.Embedding)} <=> @embedding) AS score,
+                       to_jsonb(t) ->> '{DataSourceConstants.ColumnNames.ContentType}' AS typed_content_type,
+                       to_jsonb(t) ->> '{DataSourceConstants.ColumnNames.RootId}' AS typed_root_id,
+                       to_jsonb(t) ->> '{DataSourceConstants.ColumnNames.ParentId}' AS typed_parent_id,
+                       to_jsonb(t) ->> '{DataSourceConstants.ColumnNames.Page}' AS typed_page
+                FROM {quotedTableName} t
                 WHERE {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.DataSourceId)} = @dataSourceId
                 """;
 
@@ -102,11 +106,16 @@ internal sealed class PostgreSQLDataSourceContentManager : IDataSourceContentMan
                 results.Add(new DataSourceSearchResult
                 {
                     ReferenceId = reader.IsDBNull(0) ? null : reader.GetString(0),
+                    DataSourceId = dataSourceId,
                     Title = reader.IsDBNull(1) ? null : reader.GetString(1),
                     Content = content,
                     ChunkIndex = reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
                     ReferenceType = reader.IsDBNull(4) ? null : reader.GetString(4),
                     Score = reader.IsDBNull(5) ? 0f : reader.GetFloat(5),
+                    ContentType = reader.IsDBNull(6) ? KnowledgeContentTypes.Text : reader.GetString(6),
+                    RootId = reader.IsDBNull(7) ? null : reader.GetString(7),
+                    ParentId = reader.IsDBNull(8) ? null : reader.GetString(8),
+                    Page = reader.IsDBNull(9) || !int.TryParse(reader.GetString(9), out var page) ? null : page,
                 });
             }
 
@@ -117,6 +126,64 @@ internal sealed class PostgreSQLDataSourceContentManager : IDataSourceContentMan
             _logger.LogError(ex, "Error performing data source vector search in PostgreSQL table '{IndexName}'.", tableName);
 
             return [];
+        }
+    }
+
+    /// <summary>
+    /// Deletes every row belonging to the supplied reference identifiers in one statement.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="dataSourceId">The owning data source.</param>
+    /// <param name="referenceIds">The reference identifiers to delete.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns><see langword="true"/> when the delete ran.</returns>
+    public async Task<bool> DeleteByReferenceIdsAsync(
+        IIndexProfileInfo indexProfile,
+        string dataSourceId,
+        IReadOnlyCollection<string> referenceIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(indexProfile);
+        ArgumentException.ThrowIfNullOrWhiteSpace(dataSourceId);
+        ArgumentNullException.ThrowIfNull(referenceIds);
+
+        if (referenceIds.Count == 0)
+        {
+            return true;
+        }
+
+        var tableName = PostgreSQLSearchIndexManager.SanitizeTableName(indexProfile.IndexFullName);
+        var quotedTableName = PostgreSQLHelpers.QuoteIdentifier(tableName);
+
+        try
+        {
+            var dataSource = _clientFactory.Create();
+            await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+            await using var command = connection.CreateCommand();
+
+            command.CommandText = $"""
+                DELETE FROM {quotedTableName}
+                WHERE {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.DataSourceId)} = @dataSourceId
+                    AND {PostgreSQLHelpers.SanitizeColumnName(DataSourceConstants.ColumnNames.ReferenceId)} = ANY(@referenceIds)
+                """;
+            command.Parameters.AddWithValue("dataSourceId", dataSourceId);
+            command.Parameters.AddWithValue("referenceIds", referenceIds.ToArray());
+
+            await command.ExecuteNonQueryAsync(cancellationToken);
+
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Returning false lets the caller fall back to deleting by identifier list, which is slower but
+            // always available.
+            _logger.LogWarning(ex, "Failed to delete by reference id in PostgreSQL table '{TableName}'.", tableName);
+
+            return false;
         }
     }
 

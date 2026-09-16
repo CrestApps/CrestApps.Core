@@ -14,6 +14,15 @@ namespace CrestApps.Core.Tests.Framework.Mvc;
 
 public sealed class ConfigurationAIDeploymentCatalogTests
 {
+    // What a connection's chat or utility deployment name is expected to stand for. Written out here rather
+    // than read from the source so the test still fails if the source narrows the set again.
+    private static readonly string[] _expectedChatModelFeatures =
+    [
+        AIDeploymentFeatureNames.TextGeneration,
+        AIDeploymentFeatureNames.ToolCalling,
+        AIDeploymentFeatureNames.Streaming,
+    ];
+
     [Fact]
     public async Task GetAllAsync_ShouldMergeStoredAndConfiguredStandaloneDeployments()
     {
@@ -287,7 +296,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1-mini");
         Assert.Equal(AzureOpenAIConstants.ClientName, chatDeployment.ClientName);
         Assert.Equal("test1", chatDeployment.ConnectionName);
-        AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
+        AssertDeclaresExactly(chatDeployment, _expectedChatModelFeatures);
         Assert.True(chatDeployment.IsReadOnly);
 
         var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-small");
@@ -320,7 +329,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1");
         Assert.Equal("OpenAI", chatDeployment.ClientName);
         Assert.Equal("my-openai", chatDeployment.ConnectionName);
-        AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
+        AssertDeclaresExactly(chatDeployment, _expectedChatModelFeatures);
         Assert.True(chatDeployment.IsReadOnly);
 
         var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-large");
@@ -356,7 +365,7 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1-mini");
         Assert.Equal(AzureOpenAIConstants.ClientName, chatDeployment.ClientName);
         Assert.Equal("test1", chatDeployment.ConnectionName);
-        AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
+        AssertDeclaresExactly(chatDeployment, _expectedChatModelFeatures);
         Assert.True(chatDeployment.IsReadOnly);
 
         var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-small");
@@ -388,8 +397,10 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
 
         // Assert
+        // The explicit entry is read first and the connection's synonym is dropped as a duplicate, so the
+        // declared feature set survives untouched rather than being widened to the chat model set.
         var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1-mini");
-                AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
+        AssertDeclaresExactly(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
 
         var embeddingDeployment = Assert.Single(deployments, d => d.Name == "text-embedding-3-small");
         AssertDeclaresExactly(embeddingDeployment, AIDeploymentFeatureNames.TextEmbedding);
@@ -421,11 +432,69 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
 
         // Assert
-        AssertDeclaresExactly(deployments, "gpt-4.1", AIDeploymentFeatureNames.TextGeneration);
+        AssertDeclaresExactly(deployments, "gpt-4.1", _expectedChatModelFeatures);
         AssertDeclaresExactly(deployments, "text-embedding-3-large", AIDeploymentFeatureNames.TextEmbedding);
         AssertDeclaresExactly(deployments, "dall-e-3", AIDeploymentFeatureNames.ImageOutput);
         AssertDeclaresExactly(deployments, "whisper-1", AIDeploymentFeatureNames.SpeechToText);
         AssertDeclaresExactly(deployments, "tts-1", AIDeploymentFeatureNames.TextToSpeech);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_WhenConnectionNamesChatAndUtilityDeployments_ShouldDeclareToolCallingAndStreaming()
+    {
+        // Arrange. Capability enforcement only leaves a deployment alone when it declares no metadata, and a
+        // connection-synthesized deployment always declares some, so enforcement is unavoidable for it. A set
+        // narrowed to text generation therefore strips every tool from the request and completes a streaming
+        // call in one piece — silently, and with no editable field the operator could use to correct it.
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Connections:0:Name"] = "my-openai",
+            ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Connections:0:ChatDeploymentName"] = "chat-model",
+            ["CrestApps:AI:Connections:0:UtilityDeploymentName"] = "utility-model",
+            ["CrestApps:AI:Connections:0:EmbeddingDeploymentName"] = "embedding-model",
+        }).Build();
+
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(configuration, aiOptions);
+
+        // Act
+        var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        AssertDeclaresExactly(deployments, "chat-model", _expectedChatModelFeatures);
+        AssertDeclaresExactly(deployments, "utility-model", _expectedChatModelFeatures);
+        AssertDeclaresExactly(deployments, "embedding-model", AIDeploymentFeatureNames.TextEmbedding);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_WhenDeploymentIsDeclaredInTheDeploymentsSection_ShouldKeepOnlyTheDeclaredFeatures()
+    {
+        // Arrange. The widened set belongs to the synthesized path only. An entry in the Deployments section
+        // says what it supports, so it keeps exactly that even when a connection in the same configuration
+        // names a chat deployment of its own.
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Deployments:0:ConnectionName"] = "my-openai",
+            ["CrestApps:AI:Deployments:0:Name"] = "declared-chat-model",
+            ["CrestApps:AI:Deployments:0:Type"] = "Chat",
+            ["CrestApps:AI:Connections:0:Name"] = "my-openai",
+            ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Connections:0:ChatDeploymentName"] = "connection-chat-model",
+        }).Build();
+
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(configuration, aiOptions);
+
+        // Act
+        var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        AssertDeclaresExactly(deployments, "declared-chat-model", AIDeploymentFeatureNames.TextGeneration);
+        AssertDeclaresExactly(deployments, "connection-chat-model", _expectedChatModelFeatures);
     }
 
     private static void AssertDeclaresExactly(IEnumerable<AIDeployment> deployments, string name, params string[] expectedFeatures)

@@ -44,6 +44,13 @@ else
                                     <i class="fa-solid fa-arrows-rotate"></i> Sync
                                 </button>
                             </form>
+                            @if (string.Equals(item.Source, CrestApps.Core.AI.Models.AIDataSourceSourceTypes.File, StringComparison.OrdinalIgnoreCase))
+                            {
+                                <a href="/FileSources/FileSource/Index"
+                                   class="btn btn-sm btn-outline-info">
+                                    <i class="fa-solid fa-folder-open"></i> File sources
+                                </a>
+                            }
                             <a asp-action="Edit" asp-route-id="@item.ItemId"
                                class="btn btn-sm btn-outline-primary">
                                 <i class="fa-solid fa-pencil"></i> Edit

@@ -38,4 +38,27 @@ public interface IDataSourceContentManager
         IIndexProfileInfo indexProfile,
         string dataSourceId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes every row belonging to the supplied reference identifiers.
+    /// </summary>
+    /// <param name="profile">The index profile.</param>
+    /// <param name="dataSourceId">The owning data source.</param>
+    /// <param name="referenceIds">The reference identifiers to delete.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns><see langword="true"/> when the provider performed the delete, <see langword="false"/> when it cannot.</returns>
+    /// <remarks>
+    /// Deleting by identifier list means guessing how many chunks a reference produced and asking for all of
+    /// them, which is a thousand identifiers per reference. A provider that can delete by predicate does it
+    /// in one statement instead. Default-implemented as "not supported" so a provider outside this
+    /// repository keeps compiling and keeps the old behaviour.
+    /// </remarks>
+    Task<bool> DeleteByReferenceIdsAsync(
+        IIndexProfileInfo profile,
+        string dataSourceId,
+        IReadOnlyCollection<string> referenceIds,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(false);
+    }
 }

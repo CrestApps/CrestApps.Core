@@ -160,6 +160,20 @@ internal sealed partial class PostgreSQLODataFilterTranslator : IODataFilterTran
         index++;
 
         var prefixedField = PrefixField(fieldToken);
+
+        // "contentType eq null" is how a caller asks for rows written before the typed columns existed. SQL
+        // has no equality with NULL, so on a real column it has to become an IS NULL test rather than a
+        // comparison to 'null'. Entries in the filter bag keep their long-standing string comparison.
+        if (DataSourceConstants.ColumnNames.IsTypedColumn(fieldToken, IsKnowledgeScope(fieldToken)) && IsNullLiteral(valueToken))
+        {
+            return op switch
+            {
+                "eq" => $"{prefixedField} IS NULL",
+                "ne" => $"{prefixedField} IS NOT NULL",
+                _ => "TRUE",
+            };
+        }
+
         var parsedValue = UnquoteValue(valueToken);
 
         return op switch
@@ -174,10 +188,23 @@ internal sealed partial class PostgreSQLODataFilterTranslator : IODataFilterTran
         };
     }
 
+    private static bool IsNullLiteral(string token)
+    {
+        return string.Equals(token, "null", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string PrefixField(string field)
     {
-        if (field.StartsWith($"{DataSourceConstants.ColumnNames.Filters}.", StringComparison.OrdinalIgnoreCase))
+        // The typed discriminators are columns of their own, not entries in the filter bag — but only when
+        // the name is read in the knowledge base's own scope.
+        if (DataSourceConstants.ColumnNames.IsTypedColumn(field, IsKnowledgeScope(field)))
         {
+            return PostgreSQLHelpers.SanitizeColumnName(field);
+        }
+
+        if (DataSourceConstants.ColumnNames.IsFilterBagField(field))
+        {
+            // The caller already addressed the bag, so only the path inside it is read.
             var jsonPath = field[(DataSourceConstants.ColumnNames.Filters.Length + 1)..]
                 .Replace(".", ",", StringComparison.Ordinal);
 
@@ -185,6 +212,22 @@ internal sealed partial class PostgreSQLODataFilterTranslator : IODataFilterTran
         }
 
         return $"\"{DataSourceConstants.ColumnNames.Filters}\"#>>'{{{EscapeSql(field.Replace(".", ",", StringComparison.Ordinal))}}}'";
+    }
+
+    /// <summary>
+    /// Determines whether the supplied field is read in the knowledge base's own scope, which is the only
+    /// scope where the reserved names mean the typed columns.
+    /// </summary>
+    /// <param name="field">The field name as written in the filter.</param>
+    /// <returns><see langword="true"/> when the reserved names apply.</returns>
+    /// <remarks>
+    /// A filter only reaches a translator as text, so the scope travels with the field: a caller whose own
+    /// documents carry a field of the same name addresses it through the bag, and that is what says the
+    /// knowledge column was not meant.
+    /// </remarks>
+    private static bool IsKnowledgeScope(string field)
+    {
+        return !DataSourceConstants.ColumnNames.IsFilterBagField(field);
     }
 
     private static string UnquoteValue(string value)

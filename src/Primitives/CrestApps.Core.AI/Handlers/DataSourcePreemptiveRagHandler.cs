@@ -5,6 +5,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
 using CrestApps.Core.Infrastructure.Indexing.Models;
@@ -177,12 +178,13 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             return;
         }
 
-        await SearchAndInjectContextAsync(context, ragMetadata, indexProfile, contentManager, embeddingGenerator);
+        await SearchAndInjectContextAsync(context, ragMetadata, dataSource, indexProfile, contentManager, embeddingGenerator);
     }
 
     private async Task SearchAndInjectContextAsync(
         PreemptiveRagContext context,
         AIDataSourceRagMetadata ragMetadata,
+        AIDataSource dataSource,
         SearchIndexProfile indexProfile,
         IDataSourceContentManager contentManager,
         IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator)
@@ -262,6 +264,18 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             }
         }
 
+        await AddRelevantPicturesAsync(
+            contentManager,
+            _serviceProvider.GetKeyedService<IODataFilterTranslator>(indexProfile.ProviderName),
+            indexProfile,
+            embeddings,
+            dataSourceId,
+            candidateCount,
+            minimumScore,
+            seenChunkIds,
+            finalResults,
+            _logger);
+
         if (finalResults.Count == 0)
         {
             return;
@@ -286,7 +300,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
         }
 
         var invocationContext = AIInvocationScope.Current;
-        var seenReferences = new Dictionary<string, (int Index, string Title, string ReferenceType)>(StringComparer.OrdinalIgnoreCase);
+        var seenReferences = new Dictionary<string, (int Index, string Title, string ReferenceType, string DataSourceId)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var result in finalResults)
         {
@@ -302,7 +316,8 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
                 seenReferences[result.ReferenceId] = (
                     invocationContext?.NextReferenceIndex() ?? seenReferences.Count + 1,
                     ResolveReferenceTitle(result.Title, result.ReferenceId),
-                    result.ReferenceType);
+                    result.ReferenceType,
+                    result.DataSourceId);
             }
 
             var referenceIndex = hasReference && seenReferences.TryGetValue(result.ReferenceId, out var entry)
@@ -348,13 +363,128 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
                     Index = value.Index,
                     ReferenceId = referenceId,
                     ReferenceType = value.ReferenceType,
+                    DataSourceId = value.DataSourceId,
                 };
             }
 
             orchestrationContext.Properties["DataSourceReferences"] = citationMap;
         }
 
+        // Figures and tables are named the same way the tool path names them, through the same collector.
+        // Without this a data source attached to a chat interaction retrieves a figure's text and then has
+        // no way to show the picture, because nothing ever hands the model a [fig:N] label to write.
+        var typed = new TypedResultCollector(
+            _serviceProvider,
+            dataSourceId,
+            dataSource?.Source,
+            invocationContext,
+            _logger);
+
+        typed.Collect(finalResults);
+
+        var typedBlocks = typed.Render();
+
+        if (!string.IsNullOrEmpty(typedBlocks))
+        {
+            stringBuilder.Append(typedBlocks);
+        }
+
         orchestrationContext.SystemMessageBuilder.Append(stringBuilder);
+    }
+
+    /// <summary>
+    /// The most pictures one turn adds. A picture the reader did not ask for costs them nothing to ignore,
+    /// but a system message full of them crowds out the prose that actually answers the question.
+    /// </summary>
+    private const int MaxPreemptivePictures = 2;
+
+    /// <summary>
+    /// Adds the figures most relevant to the question, searched for on their own.
+    /// </summary>
+    /// <remarks>
+    /// A picture only reaches the reader if retrieval returned it, and on a plain search it usually does not:
+    /// "show me a figure about glazing" embeds as glazing, and the prose about glazing outscores the pictures
+    /// of it. The wish for a picture is in the question and not in the vector, so no amount of ranking finds
+    /// it. Searching the pictures separately gives them their own contest to win, and the same score floor
+    /// still applies, so a question no picture suits adds none.
+    /// </remarks>
+    private static async Task AddRelevantPicturesAsync(
+        IDataSourceContentManager contentManager,
+        IODataFilterTranslator filterTranslator,
+        SearchIndexProfile indexProfile,
+        IReadOnlyList<Embedding<float>> embeddings,
+        string dataSourceId,
+        int candidateCount,
+        float minimumScore,
+        HashSet<string> seenChunkIds,
+        List<DataSourceSearchResult> finalResults,
+        ILogger logger)
+    {
+        // The content manager takes a provider-native filter, not the OData the clause is written in, so a
+        // provider with no translator registered cannot be asked for pictures at all.
+        if (filterTranslator is null)
+        {
+            return;
+        }
+
+        var clause = $"({DataSourceConstants.ColumnNames.ContentType} eq '{KnowledgeContentTypes.Figure}' or {DataSourceConstants.ColumnNames.ContentType} eq '{KnowledgeContentTypes.Chart}')";
+        var pictureFilter = filterTranslator.Translate(clause);
+
+        if (string.IsNullOrEmpty(pictureFilter))
+        {
+            return;
+        }
+
+        var added = 0;
+
+        foreach (var embedding in embeddings)
+        {
+            if (added >= MaxPreemptivePictures || embedding?.Vector == null)
+            {
+                break;
+            }
+
+            IEnumerable<DataSourceSearchResult> results;
+
+            try
+            {
+                results = await contentManager.SearchAsync(
+                    indexProfile,
+                    embedding.Vector.ToArray(),
+                    dataSourceId,
+                    candidateCount,
+                    pictureFilter);
+            }
+            catch (Exception ex)
+            {
+                // An index predating the typed columns cannot honour this filter. The prose already
+                // retrieved stands on its own, so the turn continues without pictures -- but it says so,
+                // because a picture that silently never arrives is indistinguishable from one that does not
+                // exist.
+                logger.LogWarning(ex, "Could not search for pictures in index '{IndexName}'. The answer will have none.", indexProfile.Name);
+
+                return;
+            }
+
+            if (results == null)
+            {
+                continue;
+            }
+
+            foreach (var result in DataSourceSearchResultSelector.SelectTopResults(results, candidateCount, minimumScore))
+            {
+                if (added >= MaxPreemptivePictures)
+                {
+                    break;
+                }
+
+                if (seenChunkIds.Add($"{result.ReferenceId}:{result.ChunkIndex}"))
+                {
+                    finalResults.Add(result);
+                    added++;
+                }
+            }
+        }
     }
 
     /// <summary>

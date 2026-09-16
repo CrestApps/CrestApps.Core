@@ -59,8 +59,21 @@ else
             <div class="mb-3">
                 <label class="form-label">Name</label>
                 <input class="form-control" value="@_model.Name" disabled />
-                <div class="form-text">The name is the function name exposed to the AI model and cannot be changed after creation.</div>
+                <div class="form-text">Shown in the UI. The function name the model sees is derived from it, and cannot be changed after creation.</div>
             </div>
+
+            @if (!string.IsNullOrEmpty(_model.FunctionName))
+            {
+                <div class="mb-3">
+                    <label class="form-label">Function name (what the model sees)</label>
+                    <input class="form-control font-monospace" value="@_model.FunctionName" readonly onclick="this.select();" />
+                    <div class="form-text">
+                        The model is offered this instance under this name, not the display name above. If a system
+                        message tells the model to call a tool by name, it must use this value &mdash; naming the
+                        display name asks for a function the model does not have, and the instruction is ignored.
+                    </div>
+                </div>
+            }
 
             <div class="mb-3">
                 <label class="form-label">Description (shown to the AI model)</label>
@@ -426,6 +439,12 @@ else
                     <label class="form-label">Filter</label>
                     <InputText @bind-Value="_model.DataSourceFilter" class="form-control font-monospace" placeholder="filters/status eq 'published'" />
                     <div class="form-text">Optional OData filter expression translated to the index provider's own syntax before the search runs.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Content types</label>
+                    <InputText @bind-Value="_model.DataSourceContentTypes" class="form-control font-monospace" placeholder="figure, chart, table" />
+                    <div class="form-text">Limits the search to these kinds of knowledge. Leave empty to search every kind.</div>
                 </div>
             }
 
@@ -814,6 +833,7 @@ else
                 TopNDocuments = model.DataSourceTopNDocuments,
                 Strictness = model.DataSourceStrictness,
                 Filter = string.IsNullOrWhiteSpace(model.DataSourceFilter) ? null : model.DataSourceFilter.Trim(),
+                ContentTypes = SplitContentTypes(model.DataSourceContentTypes),
             });
 
             return;
@@ -876,6 +896,7 @@ else
             Source = instance.Source,
             Name = instance.Name,
             Description = instance.Description,
+            FunctionName = instance.GetFunctionName(),
             DefaultHeaders = "{}",
         };
 
@@ -948,6 +969,9 @@ else
             model.DataSourceTopNDocuments = dataSourceSettings.TopNDocuments;
             model.DataSourceStrictness = dataSourceSettings.Strictness;
             model.DataSourceFilter = dataSourceSettings.Filter;
+            model.DataSourceContentTypes = dataSourceSettings.ContentTypes is { Length: > 0 }
+                ? string.Join(", ", dataSourceSettings.ContentTypes)
+                : null;
         }
 
         return model;
@@ -969,5 +993,24 @@ else
         {
             _errors.Add($"{label} must be a valid absolute URL.");
         }
+    }
+
+    /// <summary>
+    /// Splits a comma-separated list of knowledge kinds into the array the settings hold.
+    /// </summary>
+    /// <param name="value">The list the form supplied.</param>
+    /// <returns>The kinds, or <see langword="null"/> when none were named.</returns>
+    private static string[] SplitContentTypes(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var contentTypes = value
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToArray();
+
+        return contentTypes.Length == 0 ? null : contentTypes;
     }
 }

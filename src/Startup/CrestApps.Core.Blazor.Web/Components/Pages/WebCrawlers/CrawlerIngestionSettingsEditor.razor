@@ -1,0 +1,93 @@
+@using CrestApps.Core.AI.Documents.Ingestion
+@using CrestApps.Core.AI.Deployments
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Blazor.Web.ViewModels
+@inject IAIDeploymentManager DeploymentManager
+
+@* The ingestion settings a crawl strategy uses. The folder and file-server cards live in
+   ConnectorSettingsEditor, which belongs to the File Sources pages. *@
+@if (Model is not null)
+{
+    <div class="card mb-3">
+        <div class="card-header">Ingestion</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Figures</label>
+                    <InputSelect @bind-Value="Model.FigureMode" class="form-select">
+                        @foreach (var mode in Enum.GetValues<FigureProcessingMode>())
+                        {
+                            <option value="@mode">@mode</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">How far figure enrichment is taken. <strong>Off</strong> is how figure transcription is disabled.</div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Figures transcribed per document</label>
+                    <InputNumber @bind-Value="Model.MaxFigureDescriptionsPerDocument" class="form-control" min="0" />
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Vision deployment</label>
+                    <InputSelect @bind-Value="Model.VisionDeploymentName" class="form-select">
+                        <option value="">Use the application default</option>
+                        @foreach (var name in _visionDeployments)
+                        {
+                            <option value="@name">@name</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">Must accept image input. Saving one that cannot read a picture is refused.</div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Utility deployment</label>
+                    <InputSelect @bind-Value="Model.UtilityDeploymentName" class="form-select">
+                        <option value="">Use the application default</option>
+                        @foreach (var name in _utilityDeployments)
+                        {
+                            <option value="@name">@name</option>
+                        }
+                    </InputSelect>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Items per run</label>
+                    <InputNumber @bind-Value="Model.MaxItemsPerRun" class="form-control" min="1" />
+                    <div class="form-text">What is left over is picked up by the next run. Nothing is removed because a run did not reach it.</div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Language</label>
+                    <InputText @bind-Value="Model.Language" class="form-control" placeholder="e.g., en, hu" />
+                    <div class="form-text">Optional. Set it only when the whole corpus is in one language.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<string> _visionDeployments = [];
+    private List<string> _utilityDeployments = [];
+
+    /// <summary>
+    /// Gets or sets the crawler being edited.
+    /// </summary>
+    [Parameter]
+    public WebCrawlerViewModel Model { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _visionDeployments = await LoadAsync(AIDeploymentSlotNames.Vision);
+        _utilityDeployments = await LoadAsync(AIDeploymentSlotNames.Utility);
+    }
+
+    private async Task<List<string>> LoadAsync(string slotName)
+    {
+        var deployments = await DeploymentManager.GetAllBySlotAsync(slotName);
+
+        return deployments.Select(deployment => deployment.Name).ToList();
+    }
+}

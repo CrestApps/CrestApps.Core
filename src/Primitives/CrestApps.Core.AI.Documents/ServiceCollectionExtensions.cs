@@ -1,7 +1,12 @@
 using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Handlers;
 using CrestApps.Core.AI.Documents.Indexing;
+using CrestApps.Core.AI.Documents.Ingestion;
+using CrestApps.Core.AI.Documents.Ingestion.Processors;
+using CrestApps.Core.AI.Documents.Knowledge;
+using CrestApps.Core.AI.Documents.Knowledge.Structure;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Documents.Tabular;
@@ -18,6 +23,8 @@ using CrestApps.Core.Templates.Extensions;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents;
@@ -52,7 +59,41 @@ public static class ServiceCollectionExtensions
             services.AddKeyedSingleton<IngestionDocumentReader>(
                 extension.Extension,
                 (sp, _) => sp.GetRequiredService<T>());
+
+            // A connector knows the media type a server declared and often has no file name at all, so a
+            // reader has to be reachable by type as well as by extension. Keyed registrations resolve
+            // last-wins, which is how a later registration replaces an earlier one for a shared type such
+            // as text/html.
+            var mediaType = MediaTypeHelper.InferMediaType(extension.Extension, fallbackContentType: string.Empty);
+
+            if (!string.IsNullOrEmpty(mediaType))
+            {
+                services.AddKeyedSingleton<IngestionDocumentReader>(
+                    mediaType,
+                    (sp, _) => sp.GetRequiredService<T>());
+            }
         }
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers an ingestion processor. Processors run in registration order, so a host that registers its
+    /// own before calling <see cref="AddCoreAIDocumentProcessing"/> runs ahead of the built-in ones.
+    /// </summary>
+    /// <typeparam name="T">The processor type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <remarks>
+    /// Processors are scoped because the useful ones reach a model, and everything that reaches a model in
+    /// this library is scoped. A singleton processor holding a scoped deployment manager is a captive
+    /// dependency, which the host's own container validation refuses to build at all.
+    /// </remarks>
+    public static IServiceCollection AddCoreAIIngestionDocumentProcessor<T>(this IServiceCollection services)
+        where T : AIDocumentIngestionProcessor
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IngestionDocumentProcessor, T>());
 
         return services;
     }
@@ -64,6 +105,23 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddCoreAIDocumentProcessing(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        // The pipeline holds the processors and the resolver holds the provider the readers come out of, so
+        // both follow the processors' lifetime. Every consumer of the pipeline is itself scoped.
+        services.TryAddScoped<IIngestionDocumentReaderResolver, DefaultIngestionDocumentReaderResolver>();
+        services.TryAddScoped<IAIDocumentIngestionPipeline, DefaultAIDocumentIngestionPipeline>();
+
+        // The built-in processors run in this order and each depends on the one before it: a caption decides
+        // whether a figure is salient, and salience decides whether a figure is worth describing.
+        services.AddOptions<CaptionPatternOptions>();
+        services.AddOptions<FigureSalienceOptions>();
+        services.AddMemoryCache();
+        services.TryAddSingleton<IFigureCaptionCandidateDetector, DefaultFigureCaptionCandidateDetector>();
+        services.TryAddSingleton<IFigureCaptionResolver, DefaultFigureCaptionResolver>();
+        services.TryAddSingleton<IFigureDescriptionCache, MemoryFigureDescriptionCache>();
+        services.AddCoreAIIngestionDocumentProcessor<FigureCaptionProcessor>();
+        services.AddCoreAIIngestionDocumentProcessor<FigureSalienceProcessor>();
+        services.AddCoreAIIngestionDocumentProcessor<FigureDescriptionProcessor>();
 
         services.AddOptions<InteractionDocumentOptions>();
         services.AddOptions<DocumentFileSystemFileStoreOptions>();
@@ -77,6 +135,22 @@ public static class ServiceCollectionExtensions
 
             return new FileSystemFileStore(basePath);
         });
+
+        // Typed knowledge: uploaded files become separate, individually retrievable objects in an
+        // Ingested data source.
+        services.AddOptions<KnowledgeIngestionOptions>();
+        services.TryAddSingleton<IDocumentStructureAnalyzer, TocSeededStructureAnalyzer>();
+        services.TryAddScoped<IPublicationMetadataExtractor, DefaultPublicationMetadataExtractor>();
+        services.TryAddScoped<IKnowledgeIngestionService, DefaultKnowledgeIngestionService>();
+        services.TryAddScoped<IKnowledgeVisionDeploymentResolver, NullKnowledgeVisionDeploymentResolver>();
+        services.TryAddScoped<IFigureDescriptionBackfillService, DefaultFigureDescriptionBackfillService>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, FigureDescriptionBackfillBackgroundService>());
+        services.TryAddKeyedScoped<IAIDataSourceSourceHandler, FileAIDataSourceSourceHandler>(AIDataSourceSourceTypes.File);
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<KnowledgeObject>, KnowledgeObjectCatalogHandler>());
+        services.Configure<AIDataSourceSourceOptions>(options => options.AddOrUpdate(
+            AIDataSourceSourceTypes.File,
+            new LocalizedString("File", "Files"),
+            new LocalizedString("File Source Description", "A target for file sources. Configure the folders and file servers to read in the File Sources area; text, figures, charts and tables are each stored as their own searchable object.")));
 
         services.TryAddScoped<IAIDocumentProcessingService, DefaultAIDocumentProcessingService>();
         services.TryAddScoped<IImageAnalysisService, DefaultImageAnalysisService>();
@@ -190,6 +264,11 @@ public static class ServiceCollectionExtensions
             .WithDescription("Performs detailed visual inspection of an uploaded image when text summaries are insufficient.")
             .WithPurpose(AIToolPurposes.DocumentProcessing);
 
+        services.AddCoreAITool<ViewDocumentFigureTool>(ViewDocumentFigureTool.TheName)
+            .WithTitle("View Document Figure")
+            .WithDescription("Returns a figure from an attached document with a link that shows the picture in the answer, and can answer a question about the picture with a vision model.")
+            .WithPurpose(AIToolPurposes.DocumentProcessing);
+
         return services;
     }
 
@@ -202,6 +281,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddKeyedScoped<IAIReferenceLinkResolver, DocumentAIReferenceLinkResolver>(AIReferenceTypes.DataSource.Document);
+        services.AddKeyedScoped<IAIReferenceLinkResolver, FileReferenceLinkResolver>(AIDataSourceSourceTypes.File);
 
         return services;
     }

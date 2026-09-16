@@ -58,4 +58,11 @@ public static class AITemplateIds
     public const string TabularBatchProcessing = "tabular-batch-processing";
 
     public const string ImageAnalysis = "image-analysis";
+
+    public const string FigureTranscription = "figure-transcription";
+
+    /// <summary>
+    /// The prompt that reads a document front matter for what the document says about itself.
+    /// </summary>
+    public const string PublicationMetadata = "publication-metadata";
 }

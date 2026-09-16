@@ -1,3 +1,21 @@
+/*
+ * Figure markers: the short labels the model writes, turned into pictures by the host.
+ *
+ * Retrieval hands the model a label -- [fig:1] -- and keeps the picture's real link in the message's reference
+ * map, the same way a text citation keeps its source behind "[doc:1]". A model asked to reproduce a long opaque
+ * identifier does not reproduce it: it copies the shape and substitutes ordinals, so links to figures that were
+ * never in the results came back as 404s. A label short enough to be written exactly, with the link put back
+ * here where the model cannot reach it, is what stops that.
+ *
+ * It sits on window rather than inside the manager below so the host can reach it, and so its rules can be
+ * exercised in a bare sandbox with no browser and no DOM -- see tests/realtime-client/figure-markers.test.js --
+ * exactly as window.CoreAIRealtime exposes the microphone gate's rules.
+ *
+ * The same block sits at the top of ai-chat.js: the two chat clients are separate bundles that share no
+ * module of their own, and both render the same markdown. Change one, change the other.
+ */
+// CoreAIChatMarkers lives in chat-markers.js, which every chat surface loads before this file.
+
 window.chatInteractionManager = function () {
 
     // Defaults (can be overridden by instanceConfig)
@@ -146,6 +164,7 @@ window.chatInteractionManager = function () {
         normalized.link = sanitizeUrl(normalized.link ?? normalized.Link ?? null);
         normalized.referenceType = normalized.referenceType ?? normalized.ReferenceType ?? null;
         normalized.isGenerated = (normalized.isGenerated ?? normalized.IsGenerated) === true;
+        normalized.isImage = (normalized.isImage ?? normalized.IsImage) === true;
 
         return normalized;
     }
@@ -179,6 +198,9 @@ window.chatInteractionManager = function () {
 
         return normalized;
     }
+
+    // Installed at the top of this file so it can be unit tested without a browser; see the comment there.
+    const expandImageMarkers = window.CoreAIChatMarkers.expandImageMarkers;
 
     function getCitationLabel(reference, key) {
         return reference.title || reference.text || key;
@@ -281,14 +303,19 @@ window.chatInteractionManager = function () {
             : typeof message.content === 'string'
                 ? message.content
                 : '';
-        const citationDisplay = buildCitationDisplay(rawContent, messageReferences);
+        // Figure markers become images before anything else reads the content: the citation pass looks for its
+        // own keys in what is left, and the markdown parser then sees an ordinary image.
+        const displayContent = expandImageMarkers(rawContent, messageReferences);
+        const citationDisplay = buildCitationDisplay(displayContent, messageReferences);
 
         message.rawContent = rawContent;
         message.content = rawContent;
         message.displayContent = citationDisplay.content;
         message.references = messageReferences;
         message.citationReferences = citationDisplay.citations;
-        message.copyContent = buildCopyContent(rawContent, citationDisplay.citations);
+        // Copied from the expanded content, so a copied answer carries the picture's link rather than a label
+        // that means nothing outside this page.
+        message.copyContent = buildCopyContent(displayContent, citationDisplay.citations);
         message.htmlContent = parseMarkdownContent(citationDisplay.content, message);
 
         return message;
@@ -468,7 +495,55 @@ window.chatInteractionManager = function () {
         return null;
     }
 
-    function renderChartsInMessage(message) {
+    // An image the assistant named but the server will not serve. The address is written by a language
+    // model from what retrieval handed it, so a mistyped or invented one is possible, and the browser's
+    // default for that is a broken-image icon captioned with the alt text -- which reads as a real picture
+    // that failed to arrive. Saying plainly that it could not be loaded is both truer and quieter.
+    //
+    // Wired here rather than as an inline onerror attribute because message bodies go through DOMPurify,
+    // which strips event-handler attributes.
+    function markBrokenImagesInMessage() {
+        // Scanning the document rather than one message, because the value threaded through the render
+        // path is the message DATA object -- the thing carrying content, references and pending charts --
+        // and not the element it was rendered into. Wiring is idempotent via the data-broken-wired mark,
+        // so re-scanning after each render costs a query over the handful of images already handled.
+        if (typeof document === 'undefined' || typeof requestAnimationFrame !== 'function') {
+            return;
+        }
+
+        // Deferred for the same reason the charts below are: the render that produced these elements has
+        // not necessarily been flushed to the DOM when this runs.
+        requestAnimationFrame(wireBrokenImageHandlers);
+    }
+
+    function wireBrokenImageHandlers() {
+        const images = document.querySelectorAll('.generated-image-container img:not([data-broken-wired])');
+
+        for (const image of images) {
+            image.setAttribute('data-broken-wired', 'true');
+            image.addEventListener('error', function () {
+                const container = image.closest('.generated-image-container');
+
+                if (!container || container.dataset.brokenHandled) {
+                    return;
+                }
+
+                container.dataset.brokenHandled = 'true';
+                container.hidden = true;
+
+                const note = document.createElement('p');
+                note.className = 'text-muted small fst-italic mb-2';
+                note.textContent = image.alt
+                    ? `(the picture "${image.alt}" could not be loaded)`
+                    : '(that picture could not be loaded)';
+                container.insertAdjacentElement('afterend', note);
+            }, { once: true });
+        }
+    }
+
+    function renderMessageMedia(message) {
+        markBrokenImagesInMessage();
+
         if (!message || !message._pendingCharts || !message._pendingCharts.length) {
             return;
         }
@@ -653,7 +728,7 @@ window.chatInteractionManager = function () {
                             this.addMessage(msg);
 
                             this.$nextTick(() => {
-                                renderChartsInMessage(msg);
+                                renderMessageMedia(msg);
                             });
                         });
                     });
@@ -812,7 +887,7 @@ window.chatInteractionManager = function () {
                             msg.references = normalizeReferences(Object.assign({}, msg.references || {}, references || {}));
                             updateMessagePresentation(msg, msg.references);
                             this.$nextTick(() => {
-                                renderChartsInMessage(msg);
+                                renderMessageMedia(msg);
                                 this.scrollToBottom();
                             });
                         }
@@ -926,7 +1001,7 @@ window.chatInteractionManager = function () {
 
                     this.$nextTick(() => {
                         // Render any pending charts once the DOM is updated
-                        renderChartsInMessage(message);
+                        renderMessageMedia(message);
                         this.scrollToBottom();
                     });
                 },
@@ -1100,7 +1175,7 @@ window.chatInteractionManager = function () {
                                 this.messages[messageIndex] = message;
 
                                 this.$nextTick(() => {
-                                    renderChartsInMessage(message);
+                                    renderMessageMedia(message);
                                     this.scrollToBottom();
                                 });
                             },
@@ -1166,7 +1241,7 @@ window.chatInteractionManager = function () {
                         this.messages[messageIndex] = message;
 
                         this.$nextTick(() => {
-                            renderChartsInMessage(message);
+                            renderMessageMedia(message);
                             this.scrollToBottom();
                         });
                     }

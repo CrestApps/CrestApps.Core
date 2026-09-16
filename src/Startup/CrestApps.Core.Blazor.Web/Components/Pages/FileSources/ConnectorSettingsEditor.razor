@@ -1,0 +1,217 @@
+@using CrestApps.Core.AI.Documents.Ingestion
+@using CrestApps.Core.AI.Deployments
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Indexers
+@using CrestApps.Core.AI.Indexers.Connectors
+@using CrestApps.Core.Blazor.Web.ViewModels
+@inject IAIDeploymentManager DeploymentManager
+
+@if (Model is not null)
+{
+    @if (Model.IsLocalFolder)
+    {
+        <div class="card mb-3">
+            <div class="card-header">Folder</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Folder</label>
+                    <InputText @bind-Value="Model.LocalRootPath" class="form-control font-monospace" placeholder="D:\knowledge" />
+                    <div class="form-text">Must sit inside a folder the application is configured to read.</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">File pattern</label>
+                        <InputText @bind-Value="Model.LocalSearchPattern" class="form-control" placeholder="*.*" />
+                    </div>
+                    <div class="col-md-6 mb-3 mt-4 form-check">
+                        <InputCheckbox @bind-Value="Model.LocalRecursive" class="form-check-input" />
+                        <label class="form-check-label">Include sub-folders</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (Model.IsFtp || Model.IsSftp)
+    {
+        <div class="card mb-3">
+            <div class="card-header">Connection</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label class="form-label">Host</label>
+                        <InputText @bind-Value="Model.RemoteHost" class="form-control" placeholder="files.example.com" />
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Port</label>
+                        <InputNumber @bind-Value="Model.RemotePort" class="form-control" />
+                        <div class="form-text">Leave empty for 21 on FTP and 22 on SFTP.</div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Username</label>
+                    <InputText @bind-Value="Model.RemoteUsername" class="form-control" autocomplete="off" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-control" @bind="Model.RemotePassword" autocomplete="new-password" />
+                    @if (Model.RemoteHasPassword)
+                    {
+                        <div class="form-text">Leave blank to keep the existing password.</div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (Model.IsFtp)
+    {
+        <div class="card mb-3">
+            <div class="card-header">FTP transport</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Encryption mode</label>
+                        <InputText @bind-Value="Model.FtpEncryptionMode" class="form-control" placeholder="None / Explicit / Implicit / Auto" />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Data connection type</label>
+                        <InputText @bind-Value="Model.FtpDataConnectionType" class="form-control" placeholder="AutoPassive / PASV / EPSV / PORT" />
+                    </div>
+                </div>
+                <div class="form-check form-switch">
+                    <InputCheckbox @bind-Value="Model.FtpValidateAnyCertificate" class="form-check-input" />
+                    <label class="form-check-label">Accept any SSL/TLS certificate</label>
+                    <div class="form-text">Turns off certificate validation for this indexer. Use it only against a server you control.</div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (Model.IsSftp)
+    {
+        <div class="card mb-3">
+            <div class="card-header">SFTP key</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Private key (PEM)</label>
+                    <InputTextArea @bind-Value="Model.SftpPrivateKey" class="form-control font-monospace" rows="5" />
+                    <div class="form-text">Either a password or a private key is required.</div>
+                    @if (Model.SftpHasPrivateKey)
+                    {
+                        <div class="form-text">Leave blank to keep the existing private key.</div>
+                    }
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Passphrase</label>
+                    <input type="password" class="form-control" @bind="Model.SftpPassphrase" autocomplete="new-password" />
+                    <div class="form-text">Only needed when the private key is encrypted.</div>
+                    @if (Model.SftpHasPassphrase)
+                    {
+                        <div class="form-text">Leave blank to keep the existing passphrase.</div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (Model.IsFtp || Model.IsSftp)
+    {
+        <div class="card mb-3">
+            <div class="card-header">Remote folder</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Folder on the server</label>
+                    <InputText @bind-Value="Model.RemoteRootPath" class="form-control font-monospace" placeholder="/" />
+                </div>
+                <div class="form-check">
+                    <InputCheckbox @bind-Value="Model.RemoteRecursive" class="form-check-input" />
+                    <label class="form-check-label">Include sub-folders</label>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="card mb-3">
+        <div class="card-header">Ingestion</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Figures</label>
+                    <InputSelect @bind-Value="Model.FigureMode" class="form-select">
+                        @foreach (var mode in Enum.GetValues<FigureProcessingMode>())
+                        {
+                            <option value="@mode">@mode</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">How far figure enrichment is taken. <strong>Off</strong> is how figure transcription is disabled.</div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Figures transcribed per document</label>
+                    <InputNumber @bind-Value="Model.MaxFigureDescriptionsPerDocument" class="form-control" min="0" />
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Vision deployment</label>
+                    <InputSelect @bind-Value="Model.VisionDeploymentName" class="form-select">
+                        <option value="">Use the application default</option>
+                        @foreach (var name in _visionDeployments)
+                        {
+                            <option value="@name">@name</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">Must accept image input. Saving one that cannot read a picture is refused.</div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Utility deployment</label>
+                    <InputSelect @bind-Value="Model.UtilityDeploymentName" class="form-select">
+                        <option value="">Use the application default</option>
+                        @foreach (var name in _utilityDeployments)
+                        {
+                            <option value="@name">@name</option>
+                        }
+                    </InputSelect>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Files per run</label>
+                    <InputNumber @bind-Value="Model.MaxItemsPerRun" class="form-control" min="1" />
+                    <div class="form-text">What is left over is picked up by the next run. Nothing is removed because a run did not reach it.</div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Language</label>
+                    <InputText @bind-Value="Model.Language" class="form-control" placeholder="e.g., en, hu" />
+                    <div class="form-text">Optional. Set it only when the whole corpus is in one language.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<string> _visionDeployments = [];
+    private List<string> _utilityDeployments = [];
+
+    /// <summary>
+    /// Gets or sets the indexer being edited.
+    /// </summary>
+    [Parameter]
+    public FileSourceViewModel Model { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _visionDeployments = await LoadAsync(AIDeploymentSlotNames.Vision);
+        _utilityDeployments = await LoadAsync(AIDeploymentSlotNames.Utility);
+    }
+
+    private async Task<List<string>> LoadAsync(string slotName)
+    {
+        var deployments = await DeploymentManager.GetAllBySlotAsync(slotName);
+
+        return deployments.Select(deployment => deployment.Name).ToList();
+    }
+}

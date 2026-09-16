@@ -1,8 +1,11 @@
+using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
 using CrestApps.Core.Infrastructure.Indexing.Models;
@@ -24,7 +27,7 @@ namespace CrestApps.Core.AI.Services;
 /// This is shared by the profile-bound <c>DataSourceSearchTool</c> and by the configured data source search
 /// tool instances, so both honor identical retrieval parameters and produce identically formatted results.
 /// </remarks>
-internal static class DataSourceRetrieval
+internal static partial class DataSourceRetrieval
 {
     /// <summary>
     /// The most phrases one search may embed and run. Each phrase costs its own index query, and a model
@@ -50,6 +53,28 @@ internal static class DataSourceRetrieval
         ILogger logger,
         CancellationToken cancellationToken)
     {
+        var result = await SearchDetailedAsync(services, request, toolName, logger, cancellationToken);
+
+        return result.Text;
+    }
+
+    /// <summary>
+    /// Searches the requested data source and returns the text to hand back to the AI model along with the
+    /// figures and tables among the hits.
+    /// </summary>
+    /// <param name="services">The request services used to resolve the stores, index provider, and embedding generator.</param>
+    /// <param name="request">The query-time retrieval parameters.</param>
+    /// <param name="toolName">The name of the calling tool, used for logging.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The search results.</returns>
+    public static async Task<DataSourceRetrievalResult> SearchDetailedAsync(
+        IServiceProvider services,
+        DataSourceRetrievalRequest request,
+        string toolName,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(request);
 
@@ -59,7 +84,7 @@ internal static class DataSourceRetrieval
         {
             logger.LogWarning("AI tool '{ToolName}' failed: no search phrase was supplied.", toolName);
 
-            return "No search phrase was supplied. Provide at least one phrase to search for.";
+            return Message("No search phrase was supplied. Provide at least one phrase to search for.");
         }
 
         var dataSourceStore = services.GetRequiredService<IAIDataSourceStore>();
@@ -69,14 +94,14 @@ internal static class DataSourceRetrieval
         {
             logger.LogWarning("AI tool '{ToolName}' failed: data source '{DataSourceId}' was not found.", toolName, request.DataSourceId);
 
-            return $"Data source '{request.DataSourceId}' was not found.";
+            return Message($"Data source '{request.DataSourceId}' was not found.");
         }
 
         if (string.IsNullOrEmpty(dataSource.AIKnowledgeBaseIndexProfileName))
         {
             logger.LogWarning("AI tool '{ToolName}' failed: no knowledge base index configured for data source '{DataSourceId}'.", toolName, request.DataSourceId);
 
-            return "No knowledge base index is configured for this data source. Please configure a knowledge base index in the data source settings.";
+            return Message("No knowledge base index is configured for this data source. Please configure a knowledge base index in the data source settings.");
         }
 
         var indexProfileStore = services.GetRequiredService<ISearchIndexProfileStore>();
@@ -86,7 +111,7 @@ internal static class DataSourceRetrieval
         {
             logger.LogWarning("AI tool '{ToolName}' failed: knowledge base index '{IndexProfileName}' was not found.", toolName, dataSource.AIKnowledgeBaseIndexProfileName);
 
-            return $"Knowledge base index '{dataSource.AIKnowledgeBaseIndexProfileName}' was not found.";
+            return Message($"Knowledge base index '{dataSource.AIKnowledgeBaseIndexProfileName}' was not found.");
         }
 
         var contentManager = services.GetKeyedService<IDataSourceContentManager>(masterIndexProfile.ProviderName);
@@ -95,7 +120,7 @@ internal static class DataSourceRetrieval
         {
             logger.LogWarning("AI tool '{ToolName}' failed: no vector search service for provider '{ProviderName}'.", toolName, masterIndexProfile.ProviderName);
 
-            return $"No vector search service is available for provider '{masterIndexProfile.ProviderName}'.";
+            return Message($"No vector search service is available for provider '{masterIndexProfile.ProviderName}'.");
         }
 
         var embeddingGenerator = await CreateEmbeddingGeneratorAsync(services, masterIndexProfile, cancellationToken);
@@ -104,7 +129,7 @@ internal static class DataSourceRetrieval
         {
             logger.LogWarning("AI tool '{ToolName}' failed: embedding configuration is missing for the knowledge base index.", toolName);
 
-            return "Embedding configuration is missing for the knowledge base index.";
+            return Message("Embedding configuration is missing for the knowledge base index.");
         }
 
         // One batched call regardless of how many phrases were asked for: the embedding API takes the whole
@@ -120,46 +145,91 @@ internal static class DataSourceRetrieval
         {
             logger.LogWarning("AI tool '{ToolName}' failed: could not generate embeddings for the search phrases.", toolName);
 
-            return "Failed to generate embeddings for the search phrases.";
+            return Message("Failed to generate embeddings for the search phrases.");
         }
 
         var siteSettings = services.GetRequiredService<IOptionsMonitor<AIDataSourceOptions>>().CurrentValue;
         var topN = siteSettings.GetTopNDocuments(request.TopNDocuments);
 
-        string providerFilter = null;
+        // Only a data source that stores typed knowledge objects has rows carrying the typed columns.
+        // Anywhere else the same names mean the caller's own fields, so they are addressed through the
+        // per-row filter bag rather than claimed by the knowledge base.
+        var storesTypedKnowledge = string.Equals(
+            AIDataSourceSourceHelper.GetSource(dataSource),
+            AIDataSourceSourceTypes.File,
+            StringComparison.OrdinalIgnoreCase);
 
-        if (!string.IsNullOrWhiteSpace(request.Filter))
+        var callerFilter = storesTypedKnowledge ? request.Filter : QualifyCallerFields(request.Filter);
+        var contentTypeClause = BuildContentTypeClause(request.ContentTypes);
+        var filter = CombineFilters(callerFilter, contentTypeClause);
+
+        IODataFilterTranslator filterTranslator = null;
+
+        if (!string.IsNullOrWhiteSpace(filter))
         {
-            var filterTranslator = services.GetKeyedService<IODataFilterTranslator>(masterIndexProfile.ProviderName);
+            filterTranslator = services.GetKeyedService<IODataFilterTranslator>(masterIndexProfile.ProviderName);
 
-            if (filterTranslator != null)
-            {
-                providerFilter = filterTranslator.Translate(request.Filter);
-            }
-            else
+            if (filterTranslator == null)
             {
                 logger.LogWarning("No OData filter translator available for provider '{ProviderName}'. Filter will be ignored.", masterIndexProfile.ProviderName);
             }
         }
 
+        var providerFilter = Translate(filterTranslator, filter);
         var candidateCount = DataSourceSearchResultSelector.GetCandidateCount(topN);
 
-        // The phrases are independent queries against a thread-safe index client, so they run together rather
-        // than one after another. That matters on a realtime session, where a grounded turn cannot start
-        // speaking until retrieval returns.
-        var resultSets = await Task.WhenAll(vectors.Select(vector => contentManager.SearchAsync(
+        var resultSets = await SearchIndexAsync(
+            contentManager,
             masterIndexProfile,
-            vector,
+            vectors,
             request.DataSourceId,
             candidateCount,
             providerFilter,
-            cancellationToken)));
+            cancellationToken);
 
-        if (resultSets.All(resultSet => resultSet == null || !resultSet.Any()))
+        var contentTypeFilterDropped = false;
+
+        if (contentTypeClause != null && providerFilter != null && IsEmpty(resultSets))
         {
-            return BuildEmptyResultMessage(
+            // An index built before the typed columns existed cannot honor a filter that names one, and
+            // every provider reports that by logging and handing back nothing rather than by throwing — so
+            // an empty result is the only signal there is to read. Searching again without the narrowing
+            // costs one round trip on a search that had nothing to return anyway, and turns a search that
+            // failed closed back into the rows the index does have.
+            var unnarrowedFilter = Translate(filterTranslator, callerFilter);
+
+            if (!string.Equals(unnarrowedFilter, providerFilter, StringComparison.Ordinal))
+            {
+                var unnarrowedSets = await SearchIndexAsync(
+                    contentManager,
+                    masterIndexProfile,
+                    vectors,
+                    request.DataSourceId,
+                    candidateCount,
+                    unnarrowedFilter,
+                    cancellationToken);
+
+                if (!IsEmpty(unnarrowedSets))
+                {
+                    resultSets = unnarrowedSets;
+                    contentTypeFilterDropped = true;
+
+                    if (logger.IsEnabled(LogLevel.Information))
+                    {
+                        logger.LogInformation(
+                            "Knowledge base index '{IndexProfileName}' could not filter by content type, so AI tool '{ToolName}' searched it without that narrowing.",
+                            masterIndexProfile.Name,
+                            toolName);
+                    }
+                }
+            }
+        }
+
+        if (IsEmpty(resultSets))
+        {
+            return Message(BuildEmptyResultMessage(
                 "No relevant content was found in the data source for this query.",
-                request.IsInScope);
+                request.IsInScope));
         }
 
         var minimumScore = siteSettings.GetMinimumScore(request.Strictness);
@@ -167,15 +237,27 @@ internal static class DataSourceRetrieval
 
         if (selected.Count == 0)
         {
-            return BuildEmptyResultMessage(
+            return Message(BuildEmptyResultMessage(
                 "No results met the strictness and quality thresholds.",
-                request.IsInScope);
+                request.IsInScope));
         }
 
         var textNormalizer = services.GetRequiredService<IAITextNormalizer>();
-        var references = new ReferenceCollector(AIInvocationScope.Current);
+
+        // Read once and shared: citations and figures register their markers on the same context, so the two
+        // cannot disagree about which invocation they belong to.
+        var invocationContext = AIInvocationScope.Current;
+        var references = new ReferenceCollector(invocationContext);
 
         using var builder = ZString.CreateStringBuilder();
+
+        if (contentTypeFilterDropped)
+        {
+            // Said before the content, because a model that asked for figures and is handed prose would
+            // otherwise read the prose as the answer to the question it asked.
+            builder.AppendLine(BuildUnnarrowedNotice(request.ContentTypes));
+        }
+
         builder.AppendLine("Relevant content from data source:");
 
         if (request.RetrievalMode == DataSourceRetrievalMode.Hierarchical)
@@ -195,10 +277,253 @@ internal static class DataSourceRetrieval
             builder.Append(AppendChunkContext(selected, textNormalizer, references));
         }
 
+        var typed = new TypedResultCollector(services, request.DataSourceId, dataSource.Source, invocationContext, logger);
+
+        typed.Collect(selected);
+
+        builder.Append(typed.Render());
         builder.Append(references.Render());
 
-        return builder.ToString();
+        return new DataSourceRetrievalResult
+        {
+            Text = builder.ToString(),
+            Figures = typed.Figures,
+            Tables = typed.Tables,
+        };
     }
+
+    /// <summary>
+    /// Wraps a plain message as a result, so every exit from a search returns the same shape.
+    /// </summary>
+    /// <param name="text">The message.</param>
+    /// <returns>The result.</returns>
+    private static DataSourceRetrievalResult Message(string text)
+    {
+        return new DataSourceRetrievalResult
+        {
+            Text = text,
+        };
+    }
+
+    /// <summary>
+    /// Builds the clause that narrows a search to the kinds of knowledge the caller asked for.
+    /// </summary>
+    /// <param name="contentTypes">The kinds of knowledge to search, when the caller named any.</param>
+    /// <returns>The clause, or <see langword="null"/> when the caller named none.</returns>
+    /// <remarks>
+    /// A row written before typed knowledge existed has no <c>contentType</c>, so asking for text alone also
+    /// asks for rows that have no value. Anything else would hide every document indexed before the column
+    /// existed.
+    /// </remarks>
+    private static string BuildContentTypeClause(IReadOnlyList<string> contentTypes)
+    {
+        if (contentTypes is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        var clauses = contentTypes
+            .Where(contentType => !string.IsNullOrWhiteSpace(contentType))
+            .Select(contentType => $"{DataSourceConstants.ColumnNames.ContentType} eq '{contentType.Replace("'", "''", StringComparison.Ordinal)}'")
+            .ToList();
+
+        if (clauses.Count == 0)
+        {
+            return null;
+        }
+
+        if (contentTypes.Any(contentType => string.Equals(contentType, KnowledgeContentTypes.Text, StringComparison.OrdinalIgnoreCase)))
+        {
+            clauses.Add($"{DataSourceConstants.ColumnNames.ContentType} eq null");
+        }
+
+        return clauses.Count == 1 ? clauses[0] : $"({string.Join(" or ", clauses)})";
+    }
+
+    /// <summary>
+    /// Joins the caller's filter and the content-type clause into the one filter to translate.
+    /// </summary>
+    /// <param name="filter">The caller's OData filter, when it has one.</param>
+    /// <param name="clause">The content-type clause, when there is one.</param>
+    /// <returns>The filter to translate, or <see langword="null"/> when there is nothing to filter on.</returns>
+    private static string CombineFilters(string filter, string clause)
+    {
+        if (string.IsNullOrWhiteSpace(clause))
+        {
+            return filter;
+        }
+
+        return string.IsNullOrWhiteSpace(filter) ? clause : $"({filter}) and {clause}";
+    }
+
+    /// <summary>
+    /// Translates a filter into the provider's own syntax, when there is a filter and a translator for it.
+    /// </summary>
+    /// <param name="translator">The provider's filter translator, when one is registered.</param>
+    /// <param name="filter">The OData filter, when there is one.</param>
+    /// <returns>The provider filter, or <see langword="null"/> when nothing is to be filtered.</returns>
+    private static string Translate(IODataFilterTranslator translator, string filter)
+    {
+        if (translator == null || string.IsNullOrWhiteSpace(filter))
+        {
+            return null;
+        }
+
+        return translator.Translate(filter);
+    }
+
+    /// <summary>
+    /// Runs every phrase's vector against the index.
+    /// </summary>
+    /// <param name="contentManager">The provider's vector search service.</param>
+    /// <param name="indexProfile">The knowledge base index profile.</param>
+    /// <param name="vectors">The query vectors, one per phrase.</param>
+    /// <param name="dataSourceId">The data source to search within.</param>
+    /// <param name="candidateCount">The number of candidates to ask each query for.</param>
+    /// <param name="providerFilter">The provider filter, when there is one.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>One result set per phrase.</returns>
+    /// <remarks>
+    /// The phrases are independent queries against a thread-safe index client, so they run together rather
+    /// than one after another. That matters on a realtime session, where a grounded turn cannot start
+    /// speaking until retrieval returns.
+    /// </remarks>
+    private static async Task<IEnumerable<DataSourceSearchResult>[]> SearchIndexAsync(
+        IDataSourceContentManager contentManager,
+        SearchIndexProfile indexProfile,
+        IReadOnlyList<float[]> vectors,
+        string dataSourceId,
+        int candidateCount,
+        string providerFilter,
+        CancellationToken cancellationToken)
+    {
+        return await Task.WhenAll(vectors.Select(vector => contentManager.SearchAsync(
+            indexProfile,
+            vector,
+            dataSourceId,
+            candidateCount,
+            providerFilter,
+            cancellationToken)));
+    }
+
+    /// <summary>
+    /// Determines whether a search found nothing at all.
+    /// </summary>
+    /// <param name="resultSets">The result sets, one per phrase.</param>
+    /// <returns><see langword="true"/> when no phrase matched anything.</returns>
+    private static bool IsEmpty(IEnumerable<DataSourceSearchResult>[] resultSets)
+    {
+        return resultSets.All(resultSet => resultSet == null || !resultSet.Any());
+    }
+
+    /// <summary>
+    /// Builds the line that states the search was not narrowed after all.
+    /// </summary>
+    /// <param name="contentTypes">The kinds of knowledge the caller asked for.</param>
+    /// <returns>The line to render above the content.</returns>
+    /// <remarks>
+    /// Returning the rows an older index does have is only an improvement if the answer says the narrowing
+    /// did not happen. Silently widening a search the caller asked to narrow is how a model ends up quoting
+    /// a paragraph as though it were the figure it asked for.
+    /// </remarks>
+    private static string BuildUnnarrowedNotice(IReadOnlyList<string> contentTypes)
+    {
+        var requested = string.Join(
+            ", ",
+            contentTypes.Where(contentType => !string.IsNullOrWhiteSpace(contentType)).Select(contentType => contentType.Trim()));
+
+        return $"This knowledge base index cannot filter by content type, so the results below were not narrowed to {requested} and may hold any kind of content.";
+    }
+
+    /// <summary>
+    /// Addresses the caller's own filter fields through the per-row filter bag, so a field that happens to
+    /// share one of the reserved names keeps meaning the caller's field.
+    /// </summary>
+    /// <param name="filter">The caller's OData filter, when it has one.</param>
+    /// <returns>The filter with its reserved names qualified.</returns>
+    /// <remarks>
+    /// The typed columns belong to ingested knowledge. A data source whose own documents have carried a
+    /// top-level <c>contentType</c> since long before those columns existed would otherwise have every
+    /// filter on it translated into a lookup against a column its rows never fill, and match nothing.
+    /// </remarks>
+    private static string QualifyCallerFields(string filter)
+    {
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            return filter;
+        }
+
+        return FilterTokenRegex().Replace(filter, match =>
+        {
+            var token = match.Value;
+
+            // A quoted literal is a value and never a field, and a name that is not reserved already means
+            // what the caller wrote.
+            if (token[0] == '\'' || !DataSourceConstants.ColumnNames.IsReservedColumnName(token))
+            {
+                return token;
+            }
+
+            return IsFieldPosition(filter, match.Index + match.Length)
+                ? DataSourceConstants.ColumnNames.QualifyFilterField(token)
+                : token;
+        });
+    }
+
+    /// <summary>
+    /// Determines whether the name ending at the supplied position was written where a field belongs.
+    /// </summary>
+    /// <param name="filter">The filter being read.</param>
+    /// <param name="index">The position just past the name.</param>
+    /// <returns><see langword="true"/> when a field belongs there.</returns>
+    /// <remarks>
+    /// A comparison names its field on the left and quotes its value on the right, and a function names its
+    /// field before the comma. Nothing else in the grammar is a field, so nothing else is rewritten.
+    /// </remarks>
+    private static bool IsFieldPosition(string filter, int index)
+    {
+        while (index < filter.Length && char.IsWhiteSpace(filter[index]))
+        {
+            index++;
+        }
+
+        if (index >= filter.Length)
+        {
+            return false;
+        }
+
+        if (filter[index] == ',')
+        {
+            return true;
+        }
+
+        var start = index;
+
+        while (index < filter.Length && char.IsLetter(filter[index]))
+        {
+            index++;
+        }
+
+        return IsComparisonOperator(filter.AsSpan(start, index - start));
+    }
+
+    /// <summary>
+    /// Determines whether the supplied word is one of the OData comparison operators.
+    /// </summary>
+    /// <param name="word">The word read after a name.</param>
+    /// <returns><see langword="true"/> when the word compares.</returns>
+    private static bool IsComparisonOperator(ReadOnlySpan<char> word)
+    {
+        return word.Equals("eq", StringComparison.OrdinalIgnoreCase) ||
+            word.Equals("ne", StringComparison.OrdinalIgnoreCase) ||
+            word.Equals("gt", StringComparison.OrdinalIgnoreCase) ||
+            word.Equals("ge", StringComparison.OrdinalIgnoreCase) ||
+            word.Equals("lt", StringComparison.OrdinalIgnoreCase) ||
+            word.Equals("le", StringComparison.OrdinalIgnoreCase);
+    }
+
+    [GeneratedRegex(@"'[^']*'|\w[\w.]*")]
+    private static partial Regex FilterTokenRegex();
 
     /// <summary>
     /// Builds the message returned when a search finds nothing worth returning.
@@ -313,14 +638,14 @@ internal static class DataSourceRetrieval
     {
         using var builder = ZString.CreateStringBuilder();
 
-        foreach (var result in results)
+        foreach (var result in GroupByDocument(results))
         {
             if (string.IsNullOrWhiteSpace(result.Content))
             {
                 continue;
             }
 
-            var entry = references.Track(result.ReferenceId, ResolveReferenceTitle(textNormalizer, result.Title, result.ReferenceId), result.ReferenceType);
+            var entry = references.Track(result.ReferenceId, ResolveCitationTitle(textNormalizer, result, results), result.ReferenceType, result.DataSourceId);
 
             builder.AppendLine("---");
 
@@ -375,6 +700,7 @@ internal static class DataSourceRetrieval
                 Score = group.Max(result => result.Score),
                 Title = group.Select(result => result.Title).FirstOrDefault(title => !string.IsNullOrWhiteSpace(title)),
                 ReferenceType = group.Select(result => result.ReferenceType).FirstOrDefault(type => !string.IsNullOrWhiteSpace(type)),
+                DataSourceId = group.Select(result => result.DataSourceId).FirstOrDefault(id => !string.IsNullOrWhiteSpace(id)),
                 Chunks = group.OrderBy(result => result.ChunkIndex).Select(result => result.Content).ToList(),
             })
             .OrderByDescending(group => group.Score)
@@ -432,7 +758,7 @@ internal static class DataSourceRetrieval
             }
 
             var title = ResolveReferenceTitle(textNormalizer, document?.Title ?? group.Title, group.ReferenceId);
-            var entry = references.Track(group.ReferenceId, title, group.ReferenceType);
+            var entry = references.Track(group.ReferenceId, title, group.ReferenceType, group.DataSourceId);
 
             builder.AppendLine("---");
 
@@ -471,12 +797,76 @@ internal static class DataSourceRetrieval
     }
 
     /// <summary>
+    /// Orders the hits so everything from one document renders together, and everything from one article
+    /// within it renders adjacently.
+    /// </summary>
+    /// <param name="results">The selected search results, in score order.</param>
+    /// <returns>The results, regrouped.</returns>
+    /// <remarks>
+    /// A figure and the paragraph that cites it are two hits with two scores, and interleaving them with
+    /// hits from another document makes the model read them as unrelated. Score order is preserved within a
+    /// group and between groups, so nothing is promoted by grouping alone.
+    /// </remarks>
+    private static IEnumerable<DataSourceSearchResult> GroupByDocument(IReadOnlyList<DataSourceSearchResult> results)
+    {
+        if (results.All(result => string.IsNullOrEmpty(result.RootId)))
+        {
+            return results;
+        }
+
+        return results
+            .Select((result, index) => (result, index))
+            .GroupBy(item => item.result.RootId ?? item.result.ReferenceId, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(group => group.Min(item => item.index))
+            .SelectMany(group => group
+                .GroupBy(item => item.result.ParentId ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(articleGroup => articleGroup.Min(item => item.index))
+                .SelectMany(articleGroup => articleGroup.OrderBy(item => item.index))
+                .Select(item => item.result));
+    }
+
+    /// <summary>
+    /// Resolves the title a hit is cited under. A figure's own title is its caption, which reads as a
+    /// citation of the caption rather than of the document, so the document's title is preferred and the
+    /// page is named alongside it.
+    /// </summary>
+    /// <param name="textNormalizer">The text normalizer used to clean citation titles.</param>
+    /// <param name="result">The hit.</param>
+    /// <param name="results">Every selected hit, used to find the document title.</param>
+    /// <returns>The citation title.</returns>
+    private static string ResolveCitationTitle(
+        IAITextNormalizer textNormalizer,
+        DataSourceSearchResult result,
+        IReadOnlyList<DataSourceSearchResult> results)
+    {
+        var title = result.Title;
+
+        if (!string.IsNullOrEmpty(result.RootId))
+        {
+            var documentTitle = results
+                .Where(item => string.Equals(item.RootId, result.RootId, StringComparison.OrdinalIgnoreCase))
+                .Where(item => item.ContentType is null or KnowledgeContentTypes.Text or KnowledgeContentTypes.Article or KnowledgeContentTypes.Document)
+                .Select(item => item.Title)
+                .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item));
+
+            if (!string.IsNullOrWhiteSpace(documentTitle))
+            {
+                title = documentTitle;
+            }
+        }
+
+        title = ResolveReferenceTitle(textNormalizer, title, result.ReferenceId);
+
+        return result.Page.HasValue ? $"{title}, p. {result.Page.Value}" : title;
+    }
+
+    /// <summary>
     /// Assigns one citation index per source document and renders the trailing reference list, registering
     /// each citation on the active invocation context so the UI can turn it into a link.
     /// </summary>
     private sealed class ReferenceCollector
     {
-        private readonly Dictionary<string, (int Index, string Title, string ReferenceType)> _seen = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, (int Index, string Title, string ReferenceType, string DataSourceId)> _seen = new(StringComparer.OrdinalIgnoreCase);
         private readonly AIInvocationContext _invocationContext;
         private int _fallbackIndex;
 
@@ -495,7 +885,8 @@ internal static class DataSourceRetrieval
         /// <param name="referenceId">The source document reference identifier.</param>
         /// <param name="title">The resolved citation title.</param>
         /// <param name="referenceType">The reference type used to build links.</param>
-        public (string Label, string Title) Track(string referenceId, string title, string referenceType)
+        /// <param name="dataSourceId">The data source the result came from.</param>
+        public (string Label, string Title) Track(string referenceId, string title, string referenceType, string dataSourceId)
         {
             if (string.IsNullOrEmpty(referenceId))
             {
@@ -504,7 +895,7 @@ internal static class DataSourceRetrieval
 
             if (!_seen.TryGetValue(referenceId, out var entry))
             {
-                entry = (NextIndex(), title, referenceType);
+                entry = (NextIndex(), title, referenceType, dataSourceId);
                 _seen[referenceId] = entry;
             }
 
@@ -546,6 +937,7 @@ internal static class DataSourceRetrieval
                         Index = kvp.Value.Index,
                         ReferenceId = kvp.Key,
                         ReferenceType = kvp.Value.ReferenceType,
+                        DataSourceId = kvp.Value.DataSourceId,
                     });
                 }
             }

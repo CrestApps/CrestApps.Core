@@ -170,6 +170,20 @@ internal sealed partial class ElasticsearchODataFilterTranslator : IODataFilterT
         index++;
 
         var prefixedField = PrefixField(fieldToken);
+
+        // "contentType eq null" is how a caller asks for rows written before the typed columns existed. A
+        // term query for the string "null" would match nothing; on a real field absence is an exists test.
+        // Entries in the filter bag keep their long-standing string comparison.
+        if (DataSourceConstants.ColumnNames.IsTypedColumn(fieldToken, IsKnowledgeScope(fieldToken)) && IsNullLiteral(valueToken))
+        {
+            return op switch
+            {
+                "eq" => $"{{\"bool\":{{\"must_not\":[{{\"exists\":{{\"field\":\"{prefixedField}\"}}}}]}}}}",
+                "ne" => $"{{\"exists\":{{\"field\":\"{prefixedField}\"}}}}",
+                _ => "{}",
+            };
+        }
+
         var parsedValue = UnquoteValue(valueToken);
 
         return op switch
@@ -184,14 +198,44 @@ internal sealed partial class ElasticsearchODataFilterTranslator : IODataFilterT
         };
     }
 
+    private static bool IsNullLiteral(string token)
+    {
+        return string.Equals(token, "null", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string PrefixField(string field)
     {
-        if (field.StartsWith($"{DataSourceConstants.ColumnNames.Filters}.", StringComparison.OrdinalIgnoreCase))
+        // The typed discriminators are fields of their own, mapped as keywords, not entries in the bag —
+        // but only when the name is read in the knowledge base's own scope.
+        if (DataSourceConstants.ColumnNames.IsTypedColumn(field, IsKnowledgeScope(field)))
         {
             return field;
         }
 
+        if (DataSourceConstants.ColumnNames.IsFilterBagField(field))
+        {
+            // The caller already addressed the bag, so the field is copied as written rather than prefixed
+            // a second time.
+            return field;
+        }
+
         return $"{DataSourceConstants.ColumnNames.Filters}.{field}";
+    }
+
+    /// <summary>
+    /// Determines whether the supplied field is read in the knowledge base's own scope, which is the only
+    /// scope where the reserved names mean the typed columns.
+    /// </summary>
+    /// <param name="field">The field name as written in the filter.</param>
+    /// <returns><see langword="true"/> when the reserved names apply.</returns>
+    /// <remarks>
+    /// A filter only reaches a translator as text, so the scope travels with the field: a caller whose own
+    /// documents carry a field of the same name addresses it through the bag, and that is what says the
+    /// knowledge column was not meant.
+    /// </remarks>
+    private static bool IsKnowledgeScope(string field)
+    {
+        return !DataSourceConstants.ColumnNames.IsFilterBagField(field);
     }
 
     private static string UnquoteValue(string value)

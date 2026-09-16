@@ -20,6 +20,7 @@ using CrestApps.Core.Data.YesSql.Indexes.DataSources;
 using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Data.YesSql.Indexes.Mcp;
 using CrestApps.Core.Data.YesSql.Indexes.Tooling;
+using CrestApps.Core.Data.YesSql.Indexes.Knowledge;
 using CrestApps.Core.Data.YesSql.Indexes.WebCrawlers;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -81,6 +82,8 @@ internal static class YesSqlServiceCollectionExtensions
             .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryHandler>()
             .AddScoped<IAuthorizationHandler, SampleChatInteractionDocumentAuthorizationHandler>()
             .AddScoped<IAuthorizationHandler, SampleAIChatSessionDocumentAuthorizationHandler>()
+            .AddScoped<IAuthorizationHandler, SampleAIProfileDocumentAuthorizationHandler>()
+            .AddScoped<IAuthorizationHandler, SampleKnowledgeFigureAuthorizationHandler>()
             .AddScoped<IAIChatDocumentEventHandler, SampleAIChatDocumentEventHandler>();
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, ArticleIndexProvider>());
@@ -162,6 +165,7 @@ internal static class YesSqlServiceCollectionExtensions
         await TryCreateTableAsync(() => schemaBuilder.CreateAIDataSourceIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateWebCrawlerIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateWebCrawlStateIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateKnowledgeObjectIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateAIMemoryEntryIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionPromptIndexSchemaAsync(storeOptions));

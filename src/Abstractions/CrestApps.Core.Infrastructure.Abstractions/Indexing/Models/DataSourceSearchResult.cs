@@ -11,6 +11,12 @@ public sealed class DataSourceSearchResult
     public string ReferenceId { get; set; }
 
     /// <summary>
+    /// Gets or sets the identifier of the data source the row belongs to. A citation link on an ingested
+    /// figure needs it, because the figure endpoint is scoped to its data source.
+    /// </summary>
+    public string DataSourceId { get; set; }
+
+    /// <summary>
     /// Gets or sets the title of the source document.
     /// </summary>
     public string Title { get; set; }
@@ -35,4 +41,31 @@ public sealed class DataSourceSearchResult
     /// Gets or sets the similarity score.
     /// </summary>
     public float Score { get; set; }
+
+    /// <summary>
+    /// Gets or sets what kind of knowledge the row holds. A row written before typed knowledge existed has
+    /// no value, and is read as text.
+    /// </summary>
+    public string ContentType { get; set; } = KnowledgeContentTypes.Text;
+
+    /// <summary>
+    /// Gets or sets the canonical identifier of the document the row ultimately belongs to.
+    /// </summary>
+    public string RootId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the canonical identifier of the object the row hangs directly off, so a hit can be
+    /// widened to the article it came from.
+    /// </summary>
+    public string ParentId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the page the row was read from.
+    /// </summary>
+    public int? Page { get; set; }
+
+    /// <summary>
+    /// Gets or sets the filter values stored with the row, where the provider keeps them.
+    /// </summary>
+    public IReadOnlyDictionary<string, object> Filters { get; set; }
 }

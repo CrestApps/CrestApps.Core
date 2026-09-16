@@ -16,6 +16,17 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<AIDeployment>
 {
+    // The capabilities a connection's chat and utility deployment names stand for. A connection names a
+    // general-purpose chat model, so this is what such a model actually does rather than the narrowest set
+    // that still answers a plain completion. See the remark on AddConnectionDeployment for why the
+    // difference matters.
+    private static readonly string[] _chatModelFeatures =
+    [
+        AIDeploymentFeatureNames.TextGeneration,
+        AIDeploymentFeatureNames.ToolCalling,
+        AIDeploymentFeatureNames.Streaming,
+    ];
+
     private readonly IConfiguration _configuration;
     private readonly TimeProvider _timeProvider;
     private readonly AIOptions _aiOptions;
@@ -230,8 +241,8 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         var utilityDeploymentName = connectionSection["UtilityDeploymentName"]
             ?? connectionSection["DefaultUtilityDeploymentName"];
 
-        AddConnectionDeployment(deployments, names, clientName, connectionName, chatDeploymentName, sectionPath, AIDeploymentFeatureNames.TextGeneration);
-        AddConnectionDeployment(deployments, names, clientName, connectionName, utilityDeploymentName, sectionPath, AIDeploymentFeatureNames.TextGeneration);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, chatDeploymentName, sectionPath, _chatModelFeatures);
+        AddConnectionDeployment(deployments, names, clientName, connectionName, utilityDeploymentName, sectionPath, _chatModelFeatures);
         AddConnectionDeployment(deployments, names, clientName, connectionName, embeddingDeploymentName, sectionPath, AIDeploymentFeatureNames.TextEmbedding);
         AddConnectionDeployment(deployments, names, clientName, connectionName, imagesDeploymentName, sectionPath, AIDeploymentFeatureNames.ImageOutput);
         AddConnectionDeployment(deployments, names, clientName, connectionName, speechToTextDeploymentName, sectionPath, AIDeploymentFeatureNames.SpeechToText);
@@ -242,8 +253,19 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
     /// Adds a deployment synthesized from a connection's well-known deployment-name settings.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The capabilities are declared here rather than inferred later: a connection-synthesized deployment is
     /// read-only in the UI, so an operator has no way to declare them by hand.
+    /// </para>
+    /// <para>
+    /// That same read-only record is why the set must be complete rather than minimal. Capability
+    /// enforcement is opt-in only in the sense that a deployment declaring no metadata constrains nothing;
+    /// every deployment synthesized here always carries metadata, so enforcement is mandatory and
+    /// unavoidable for it. An under-declared capability then fails silently rather than loudly: tools are
+    /// stripped from the request and a streaming call is completed as a single response, with no field in
+    /// the UI the operator could correct. A chat or utility deployment therefore declares tool calling and
+    /// streaming alongside text generation.
+    /// </para>
     /// </remarks>
     private void AddConnectionDeployment(
         Dictionary<string, AIDeployment> deployments,

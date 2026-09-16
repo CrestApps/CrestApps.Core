@@ -57,6 +57,12 @@ else
                             <button type="button" class="btn btn-sm btn-outline-success" @onclick="() => SyncAsync(item.ItemId)">
                                 <i class="fa-solid fa-arrows-rotate"></i> Sync
                             </button>
+                            @if (string.Equals(item.Source, AIDataSourceSourceTypes.File, StringComparison.OrdinalIgnoreCase))
+                            {
+                                <a href="/filesources" class="btn btn-sm btn-outline-info">
+                                    <i class="fa-solid fa-folder-open"></i> File sources
+                                </a>
+                            }
                             <a href="/datasources/edit/@item.ItemId" class="btn btn-sm btn-outline-primary">
                                 <i class="fa-solid fa-pencil"></i> Edit
                             </a>

@@ -16,12 +16,14 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
     private readonly IWebCrawlerStore _crawlerStore;
     private readonly IWebCrawlStateStore _crawlStateStore;
     private readonly IWebCrawlerReindexPlanner _planner;
+    private readonly IAIDataSourceStore _dataSourceStore;
     private readonly WebCrawlerOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<WebCrawlerReindexService> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="WebCrawlerReindexService"/> class.
+    /// Initializes a new instance of the <see cref="WebCrawlerReindexService"/> class that re-indexes every
+    /// enabled crawler regardless of the kind of data source it feeds.
     /// </summary>
     /// <param name="crawlerStore">The crawler store.</param>
     /// <param name="crawlStateStore">The crawl-state store.</param>
@@ -36,10 +38,36 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
         IOptions<WebCrawlerOptions> options,
         TimeProvider timeProvider,
         ILogger<WebCrawlerReindexService> logger)
+        : this(crawlerStore, crawlStateStore, planner, null, options, timeProvider, logger)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="WebCrawlerReindexService"/> class.
+    /// </summary>
+    /// <param name="crawlerStore">The crawler store.</param>
+    /// <param name="crawlStateStore">The crawl-state store.</param>
+    /// <param name="planner">The re-index planner.</param>
+    /// <param name="dataSourceStore">
+    /// The data source store, used to leave crawlers that feed an <c>Ingested</c> data source to the indexer
+    /// run service. <see langword="null"/> re-indexes every enabled crawler.
+    /// </param>
+    /// <param name="options">The web-crawler options.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="logger">The logger.</param>
+    public WebCrawlerReindexService(
+        IWebCrawlerStore crawlerStore,
+        IWebCrawlStateStore crawlStateStore,
+        IWebCrawlerReindexPlanner planner,
+        IAIDataSourceStore dataSourceStore,
+        IOptions<WebCrawlerOptions> options,
+        TimeProvider timeProvider,
+        ILogger<WebCrawlerReindexService> logger)
     {
         _crawlerStore = crawlerStore;
         _crawlStateStore = crawlStateStore;
         _planner = planner;
+        _dataSourceStore = dataSourceStore;
         _options = options.Value;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -70,6 +98,14 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            // A crawler pointed at an Ingested data source is an indexer: its pages become typed knowledge
+            // objects through the indexer run service, which keeps its own per-item state. Planning it here
+            // as well would run it twice and overwrite that state with the planner's.
+            if (await FeedsIngestedDataSourceAsync(crawler, cancellationToken))
+            {
+                continue;
+            }
+
             if (dueOnly && !await IsDueAsync(crawler, now, cancellationToken))
             {
                 continue;
@@ -87,6 +123,34 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
             {
                 _logger.LogError(ex, "Failed to re-index web crawler '{CrawlerId}'.", crawler.ItemId);
             }
+        }
+    }
+
+    private async Task<bool> FeedsIngestedDataSourceAsync(WebCrawler crawler, CancellationToken cancellationToken)
+    {
+        if (_dataSourceStore is null || string.IsNullOrWhiteSpace(crawler.AIDataSourceId))
+        {
+            return false;
+        }
+
+        try
+        {
+            var dataSource = await _dataSourceStore.FindByIdAsync(crawler.AIDataSourceId, cancellationToken);
+
+            return dataSource is not null &&
+                string.Equals(dataSource.Source, AIDataSourceSourceTypes.File, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // A data source that cannot be read is treated as a Web one, which is what every crawler fed
+            // before Ingested data sources existed.
+            _logger.LogWarning(ex, "Failed to read the data source of web crawler '{CrawlerId}'.", crawler.ItemId);
+
+            return false;
         }
     }
 

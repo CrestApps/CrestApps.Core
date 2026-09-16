@@ -20,7 +20,8 @@
 }
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
-<link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/document-drop-zone.css" />
+<link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/ai-chat.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/document-drop-zone.css" asp-append-version="true" />
 
 <style>
     .chat-page-wrapper {
@@ -714,6 +715,7 @@
 </div>
 
 @section Scripts {
+    <script src="~/_content/CrestApps.AI.Resources/scripts/chat-markers.js" asp-append-version="true"></script>
     <script src="~/_content/CrestApps.AI.Resources/scripts/document-drop-zone.js" asp-append-version="true"></script>
     <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@latest/dist/browser/signalr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -816,6 +818,22 @@
             var renderer = new marked.Renderer();
             renderer.link = function (data) {
                 return '<a href="' + DOMPurify.sanitize(data.href) + '" target="_blank" rel="noopener noreferrer">' + data.text + '</a>';
+            };
+            renderer.image = function (data) {
+                var src = sanitizeUrl(data.href);
+                if (!src) {
+                    return '';
+                }
+
+                var alt = data.text || 'Figure';
+                return '<div class="generated-image-container">'
+                    + '<img src="' + src + '" alt="' + alt + '" class="img-thumbnail" style="max-width: 400px; height: auto;" />'
+                    + '<div class="mt-2">'
+                    + '<a href="' + src + '" target="_blank" download="' + alt + '" title="Download image" class="btn btn-sm btn-outline-secondary ai-download-image">'
+                    + '<i class="fa-solid fa-download"></i>'
+                    + '</a>'
+                    + '</div>'
+                    + '</div>';
             };
             marked.setOptions({
                 renderer: renderer,
@@ -934,7 +952,39 @@
             });
 
             function renderMarkdown(text) {
-                return DOMPurify.sanitize(marked.parse(text || ''), { ADD_ATTR: ['target'] });
+                var html = DOMPurify.sanitize(marked.parse(text || ''), { ADD_ATTR: ['target'] });
+
+                if (typeof requestAnimationFrame === 'function') {
+                    requestAnimationFrame(wireBrokenImageHandlers);
+                }
+
+                return html;
+            }
+
+            function wireBrokenImageHandlers() {
+                var images = document.querySelectorAll('.generated-image-container img:not([data-broken-wired])');
+
+                for (var i = 0; i < images.length; i++) {
+                    (function (image) {
+                        image.setAttribute('data-broken-wired', 'true');
+                        image.addEventListener('error', function () {
+                            var container = image.closest('.generated-image-container');
+                            if (!container || container.dataset.brokenHandled) {
+                                return;
+                            }
+
+                            container.dataset.brokenHandled = 'true';
+                            container.hidden = true;
+
+                            var note = document.createElement('p');
+                            note.className = 'text-muted small fst-italic mb-2';
+                            note.textContent = image.alt
+                                ? '(the picture "' + image.alt + '" could not be loaded)'
+                                : '(that picture could not be loaded)';
+                            container.insertAdjacentElement('afterend', note);
+                        }, { once: true });
+                    })(images[i]);
+                }
             }
 
             function sanitizeUrl(url) {
@@ -1134,7 +1184,12 @@
                 var rawContent = typeof message.rawContent === 'string'
                     ? message.rawContent
                     : (typeof message.content === 'string' ? message.content : '');
-                var formatted = formatMessageContent(rawContent, message.references);
+                // The model writes [fig:N] rather than an address; the host turns it back into the picture.
+                // Shared with the other chat surfaces through chat-markers.js so the behaviour cannot drift.
+                var expanded = (window.CoreAIChatMarkers && typeof window.CoreAIChatMarkers.expandImageMarkers === 'function')
+                    ? window.CoreAIChatMarkers.expandImageMarkers(rawContent, message.references)
+                    : rawContent;
+                var formatted = formatMessageContent(expanded, message.references);
 
                 message.rawContent = rawContent;
                 message.content = rawContent;

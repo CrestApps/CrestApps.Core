@@ -173,6 +173,8 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             .AsBuilder()
             .UseFunctionInvocation(_loggerFactory, invoker =>
             {
+                invoker.UseTextToolResults();
+
                 if (tools.Count > 0)
                 {
                     invoker.AdditionalTools = [.. tools];

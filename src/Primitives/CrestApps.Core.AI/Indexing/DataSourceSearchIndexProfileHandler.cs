@@ -78,6 +78,30 @@ public sealed class DataSourceSearchIndexProfileHandler : EmbeddingSearchIndexPr
             },
             new SearchIndexField
             {
+                Name = DataSourceConstants.ColumnNames.ContentType,
+                FieldType = SearchFieldType.Keyword,
+                IsFilterable = true,
+            },
+            new SearchIndexField
+            {
+                Name = DataSourceConstants.ColumnNames.RootId,
+                FieldType = SearchFieldType.Keyword,
+                IsFilterable = true,
+            },
+            new SearchIndexField
+            {
+                Name = DataSourceConstants.ColumnNames.ParentId,
+                FieldType = SearchFieldType.Keyword,
+                IsFilterable = true,
+            },
+            new SearchIndexField
+            {
+                Name = DataSourceConstants.ColumnNames.Page,
+                FieldType = SearchFieldType.Integer,
+                IsFilterable = true,
+            },
+            new SearchIndexField
+            {
                 Name = DataSourceConstants.ColumnNames.Timestamp,
                 FieldType = SearchFieldType.DateTime,
                 IsFilterable = true,

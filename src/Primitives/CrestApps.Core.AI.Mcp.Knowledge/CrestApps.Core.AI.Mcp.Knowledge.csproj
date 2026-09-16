@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.Mcp.Knowledge</RootNamespace>
+    <Title>CrestApps AI MCP Knowledge</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      Exposes ingested knowledge - figures, charts and tables - as MCP resources.
+    </Description>
+    <PackageTags>$(PackageTags) ai mcp knowledge figures resources</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CrestApps.Core.AI.Mcp/CrestApps.Core.AI.Mcp.csproj" />
+    <ProjectReference Include="../CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
+  </ItemGroup>
+
+</Project>

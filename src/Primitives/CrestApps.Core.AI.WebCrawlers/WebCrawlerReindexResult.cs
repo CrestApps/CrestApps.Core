@@ -26,6 +26,14 @@ public enum WebCrawlerReindexStatus
     /// Discovery threw. The site could not be crawled at all (network failure, or the crawler was blocked).
     /// </summary>
     DiscoveryFailed,
+
+    /// <summary>
+    /// Discovery ran but did not cover the whole site - a page limit was reached, a sitemap was unreachable,
+    /// or the sitemap graph was larger than the crawler follows. New and changed pages were still indexed,
+    /// and <b>nothing was removed</b>: a page missing from a partial crawl is missing because the crawl
+    /// stopped short, not because the site removed it.
+    /// </summary>
+    PartiallyDiscovered,
 }
 
 /// <summary>

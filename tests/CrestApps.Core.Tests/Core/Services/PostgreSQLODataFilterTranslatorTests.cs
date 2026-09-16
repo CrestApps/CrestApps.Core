@@ -183,3 +183,77 @@ public sealed class PostgreSQLODataFilterTranslatorTests
         Assert.Throws<InvalidOperationException>(() => PostgreSQLHelpers.SanitizeColumnName("my\"column"));
     }
 }
+
+/// <summary>
+/// Covers the typed knowledge columns, which are real columns rather than entries in the filter bag, and
+/// the null comparison a caller uses to reach rows written before those columns existed.
+/// </summary>
+public sealed class PostgreSQLODataFilterTranslatorTypedColumnTests
+{
+    private readonly IODataFilterTranslator _translator;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PostgreSQLODataFilterTranslatorTypedColumnTests"/> class.
+    /// </summary>
+    public PostgreSQLODataFilterTranslatorTypedColumnTests()
+    {
+        var services = new ServiceCollection();
+        services.AddOptions();
+        services.AddCorePostgreSQLServices();
+        var provider = services.BuildServiceProvider();
+        _translator = provider.GetRequiredKeyedService<IODataFilterTranslator>(PostgreSQLConstants.ProviderName);
+    }
+
+    /// <summary>
+    /// Verifies that a filter on a typed column reaches the column itself. Looking it up in the filter bag
+    /// would match nothing, because the value was promoted out of the bag when it became a column.
+    /// </summary>
+    /// <param name="filter">The filter to translate.</param>
+    /// <param name="expected">The expected SQL fragment.</param>
+    [Theory]
+    [InlineData("contentType eq 'figure'", "\"contentType\" = 'figure'")]
+    [InlineData("rootId eq 'document:abc'", "\"rootId\" = 'document:abc'")]
+    [InlineData("parentId ne 'article:abc:1'", "\"parentId\" <> 'article:abc:1'")]
+    [InlineData("page ge 8", "\"page\" >= '8'")]
+    public void Translate_TypedColumn_TargetsTheColumnNotTheFilterBag(string filter, string expected)
+    {
+        var result = _translator.Translate(filter);
+
+        Assert.Equal(expected, result);
+        Assert.DoesNotContain("filters", result, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that comparing to null becomes a null test. A row indexed before the column existed has no
+    /// value, and <c>= 'null'</c> would never find it.
+    /// </summary>
+    [Fact]
+    public void Translate_EqNull_BecomesIsNull()
+    {
+        Assert.Equal("\"contentType\" IS NULL", _translator.Translate("contentType eq null"));
+        Assert.Equal("\"contentType\" IS NOT NULL", _translator.Translate("contentType ne null"));
+    }
+
+    /// <summary>
+    /// Verifies the filter retrieval composes for "text only", which has to admit legacy rows as well.
+    /// </summary>
+    [Fact]
+    public void Translate_TextOrNull_ProducesBothClauses()
+    {
+        var result = _translator.Translate("(contentType eq 'text' or contentType eq null)");
+
+        Assert.Equal("((\"contentType\" = 'text' OR \"contentType\" IS NULL))", result);
+    }
+
+    /// <summary>
+    /// Verifies that a field that is not a column still goes to the filter bag, so nothing about the
+    /// existing behaviour for caller-supplied fields changed.
+    /// </summary>
+    [Fact]
+    public void Translate_UnknownField_StillTargetsTheFilterBag()
+    {
+        var result = _translator.Translate("category eq 'news'");
+
+        Assert.Contains("\"filters\"", result, StringComparison.Ordinal);
+    }
+}

@@ -30,4 +30,11 @@ public static class AIDataSourceSourceTypes
     /// target bucket; the sites to scrape are managed as separate web-crawler records that point at it.
     /// </summary>
     public const string Web = "Web";
+
+    /// <summary>
+    /// Source documents are typed knowledge objects produced by ingesting files: text, figures, charts and
+    /// tables, each stored and retrieved on its own. The data source is a target bucket, and the places the
+    /// files come from are managed as separate file-source records that point at it.
+    /// </summary>
+    public const string File = "File";
 }

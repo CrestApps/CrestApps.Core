@@ -34,6 +34,12 @@ internal sealed class DataSourceRetrievalRequest
     public string Filter { get; init; }
 
     /// <summary>
+    /// Gets the kinds of knowledge to search, for example only figures and charts. When empty, every kind
+    /// is searched.
+    /// </summary>
+    public IReadOnlyList<string> ContentTypes { get; init; }
+
+    /// <summary>
     /// Gets the retrieval mode that decides whether matching chunks or their full source documents are returned.
     /// </summary>
     public DataSourceRetrievalMode RetrievalMode { get; init; }

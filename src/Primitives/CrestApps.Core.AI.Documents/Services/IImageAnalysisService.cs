@@ -26,4 +26,13 @@ public interface IImageAnalysisService
         string fileName,
         string chatDeploymentName = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Analyzes an image using a vision model, with the caption, surrounding text, language, prompt template
+    /// and deployment the caller wants used.
+    /// </summary>
+    /// <param name="request">The image and everything known about it.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>An <see cref="ImageAnalysisResult"/> containing the structured analysis or an error.</returns>
+    Task<ImageAnalysisResult> AnalyzeAsync(ImageAnalysisRequest request, CancellationToken cancellationToken = default);
 }

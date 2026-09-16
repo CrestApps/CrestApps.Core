@@ -264,6 +264,31 @@ public sealed class McpServerBuilderExtensionsTests
     }
 
     /// <summary>
+    /// Pins how a tool result reaches the client today: a plain string becomes exactly one text block. Rich
+    /// tool results are about to map to more than text, and a string result must keep mapping this way. This
+    /// test is not edited to make a later change pass.
+    /// </summary>
+    [Fact]
+    public async Task CallTool_StringResult_IsSingleTextBlock()
+    {
+        var services = CreateServices(configureOptions: options => options.Tools = ["search"]);
+
+        AddLocalTool(services, "search", new TestAIFunction("search", result: "plain text answer"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeCallToolHandlerAsync(
+            serviceProvider,
+            "search",
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        var block = Assert.Single(result.Content);
+        var text = Assert.IsType<TextContentBlock>(block);
+
+        Assert.Equal("plain text answer", text.Text);
+    }
+
+    /// <summary>
     /// Verifies that a tool advertised by its function name can be invoked even when the function name
     /// differs from the registration key it is keyed under, mirroring how the list handler publishes the
     /// function name rather than the key.
@@ -1067,6 +1092,7 @@ public sealed class McpServerBuilderExtensionsTests
         private readonly string _description;
         private readonly JsonElement _jsonSchema;
         private readonly string _name;
+        private readonly object _result;
 
         /// <summary>
         /// Initializes a test AI function.
@@ -1074,14 +1100,17 @@ public sealed class McpServerBuilderExtensionsTests
         /// <param name="name">The protocol tool name.</param>
         /// <param name="description">The protocol tool description.</param>
         /// <param name="jsonSchema">The protocol input schema.</param>
+        /// <param name="result">The value the invocation returns.</param>
         public TestAIFunction(
             string name,
             string description = "Test description",
-            JsonElement? jsonSchema = null)
+            JsonElement? jsonSchema = null,
+            object result = null)
         {
             _name = name;
             _description = description;
             _jsonSchema = jsonSchema ?? _defaultSchema;
+            _result = result ?? string.Empty;
         }
 
         /// <summary>
@@ -1104,12 +1133,12 @@ public sealed class McpServerBuilderExtensionsTests
         /// </summary>
         /// <param name="arguments">The function arguments.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
-        /// <returns>An empty result.</returns>
+        /// <returns>The configured result.</returns>
         protected override ValueTask<object> InvokeCoreAsync(
             AIFunctionArguments arguments,
             CancellationToken cancellationToken)
         {
-            return ValueTask.FromResult<object>(string.Empty);
+            return ValueTask.FromResult(_result);
         }
     }
 }

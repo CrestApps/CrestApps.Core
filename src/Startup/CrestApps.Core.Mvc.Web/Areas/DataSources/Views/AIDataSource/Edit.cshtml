@@ -213,7 +213,7 @@
                 <div class="form-text">The index where chunked and embedded documents are stored for AI retrieval.</div>
             </div>
 
-            <div id="field-mapping-settings"@(string.Equals(Model.Source, AIDataSourceSourceTypes.Web, StringComparison.OrdinalIgnoreCase) ? " hidden" : null)>
+            <div id="field-mapping-settings"@(string.Equals(Model.Source, AIDataSourceSourceTypes.Web, StringComparison.OrdinalIgnoreCase) || string.Equals(Model.Source, AIDataSourceSourceTypes.File, StringComparison.OrdinalIgnoreCase) ? " hidden" : null)>
                 <hr />
                 <h5>Field Mapping</h5>
 

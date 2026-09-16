@@ -22,6 +22,7 @@ using CrestApps.Core.Data.YesSql.Indexes.DataSources;
 using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Data.YesSql.Indexes.Mcp;
 using CrestApps.Core.Data.YesSql.Indexes.Tooling;
+using CrestApps.Core.Data.YesSql.Indexes.Knowledge;
 using CrestApps.Core.Data.YesSql.Indexes.WebCrawlers;
 using CrestApps.Core.Data.YesSql.Services;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -516,12 +517,17 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICatalog<WebCrawler>>(sp => sp.GetRequiredService<IWebCrawlerStore>());
         services.AddScoped<ISourceCatalog<WebCrawler>>(sp => sp.GetRequiredService<IWebCrawlerStore>());
 
+        services.TryAddScoped<IKnowledgeObjectStore, YesSqlKnowledgeObjectStore>();
+        services.AddScoped<ICatalog<KnowledgeObject>>(sp => sp.GetRequiredService<IKnowledgeObjectStore>());
+        services.AddScoped<ISourceCatalog<KnowledgeObject>>(sp => sp.GetRequiredService<IKnowledgeObjectStore>());
+
         services.TryAddScoped<IWebCrawlStateStore, YesSqlWebCrawlStateStore>();
         services.AddScoped<ICatalog<WebCrawlState>>(sp => sp.GetRequiredService<IWebCrawlStateStore>());
         services.AddScoped<ISourceCatalog<WebCrawlState>>(sp => sp.GetRequiredService<IWebCrawlStateStore>());
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, WebCrawlerIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, WebCrawlStateIndexProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, KnowledgeObjectIndexProvider>());
 
         return services;
     }

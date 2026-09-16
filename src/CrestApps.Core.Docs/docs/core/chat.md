@@ -754,6 +754,23 @@ When Chart.js is loaded, chart responses are rendered as interactive `<canvas>` 
 Both tools are registered automatically by the orchestration pipeline and listed under [Built-in System Tools](../orchestration/index.md#built-in-system-tools).
 :::
 
+### Figures from a Knowledge Base
+
+A search over a [File data source](../data-sources/file.md) can return a figure — a chart, a diagram, a photograph — among its hits. The model is not given the figure's address. It is given a **short label**, `[fig:1]`, `[fig:2]`, numbered from one within the turn, and writes that label where the picture belongs in its answer. The host turns the label into the picture.
+
+| Step | What happens |
+|------|-------------|
+| **Retrieval** | Renders each figure among the hits under its label, and registers an `AICompletionReference` for every figure the host can serve, keyed by **the marker text itself** (`"[fig:1]"`), carrying `IsImage = true`, `Link` (the absolute address the host serves the picture from) and `Title` (the caption, used as the image's alt text) |
+| **The model** | Writes `[fig:1]` where the picture belongs. Nothing else — it is never handed an address to copy |
+| **The client** | Receives that map as `references` and, for each marker whose reference is an image with a link, substitutes the markdown image `![Title](Link)` — **before** the markdown is parsed and **before** citations are processed |
+| **The renderer** | Parses the substituted markdown through the existing image renderer, so a knowledge base figure keeps the same thumbnail, download button and size cap as a generated image |
+
+This is the mechanism `[doc:n]` citations already use — a reference registered under the literal marker the model writes, resolved by the client against the message text — and `[chart:{...}]` is the same idea with its payload carried inline instead of in the reference map.
+
+**Why a label and not the address.** A figure's address ends in an opaque identifier: a hash of the document it came from, the article within it, and the figure within that. Asking a language model to reproduce one verbatim asks for the one thing it does not do. It reproduces the identifier's *shape* and substitutes plausible ordinals, so a turn that retrieved three figures of an article cites a fourth that was never in the results, and a genuine gap in the numbering is filled in as readily as it is left alone. Every address invented that way looks exactly like a working one and resolves to nothing, and the reader gets a broken image inside an otherwise correct answer. The label exists so that the model never types an address at all: it copies a marker too short to get subtly wrong, and the host — which owns every address it serves — supplies the rest.
+
+**A marker that resolves to nothing stays as text.** A `[fig:N]` with no matching reference, or one whose reference is not a servable image, is left exactly as the model wrote it and is never rendered as an image that cannot load. A figure the host has no servable address for is never registered as an image in the first place, so the answer describes it rather than pointing at a picture that was never there.
+
 ## Client-Side Assets
 
 The JavaScript and CSS files that power the chat UIs are published as an npm package:

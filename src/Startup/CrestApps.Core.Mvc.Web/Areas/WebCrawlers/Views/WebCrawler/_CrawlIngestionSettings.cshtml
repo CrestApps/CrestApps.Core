@@ -1,0 +1,87 @@
+@using CrestApps.Core.AI.Documents.Ingestion
+@using CrestApps.Core.Mvc.Web.Areas.WebCrawlers.ViewModels
+@model WebCrawlerViewModel
+
+@* The ingestion settings a crawl strategy uses. The folder and file-server cards live in
+   the File Sources screens, which own the connector settings. *@
+<div class="card mb-3">
+    <div class="card-header">Ingestion</div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label asp-for="FigureMode" class="form-label">Figures</label>
+                <select asp-for="FigureMode" class="form-select" asp-items="Html.GetEnumSelectList<FigureProcessingMode>()"></select>
+                <div class="form-text">How far figure enrichment is taken. <strong>Off</strong> is how figure transcription is disabled; leaving a deployment unset never disables it.</div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label asp-for="MaxFigureDescriptionsPerDocument" class="form-label">Figures transcribed per document</label>
+                <input asp-for="MaxFigureDescriptionsPerDocument" class="form-control" type="number" min="0" />
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <label asp-for="VisionDeploymentName" class="form-label">Vision deployment</label>
+                <select asp-for="VisionDeploymentName" asp-items="Model.VisionDeployments" class="form-select"></select>
+                <span asp-validation-for="VisionDeploymentName" class="text-danger"></span>
+                <div class="form-text">Must accept image input. Saving one that cannot read a picture is refused.</div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <label asp-for="UtilityDeploymentName" class="form-label">Utility deployment</label>
+                <select asp-for="UtilityDeploymentName" asp-items="Model.UtilityDeployments" class="form-select"></select>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label asp-for="MaxItemsPerRun" class="form-label">Items per run</label>
+                <input asp-for="MaxItemsPerRun" class="form-control" type="number" min="1" placeholder="Application default" />
+                <div class="form-text">What is left over is picked up by the next run. Nothing is removed because a run did not reach it.</div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label asp-for="Language" class="form-label">Language</label>
+                <input asp-for="Language" class="form-control" placeholder="e.g., en, hu" />
+                <div class="form-text">Optional. Set it only when the whole corpus is in one language.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.LastRun is not null)
+{
+    <div class="card mb-3">
+        <div class="card-header">Last run</div>
+        <div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-3">Status</dt>
+                <dd class="col-sm-9">@Model.LastRun.Status</dd>
+                <dt class="col-sm-3">Started</dt>
+                <dd class="col-sm-9">@Model.LastRun.StartedUtc.ToString("u")</dd>
+                <dt class="col-sm-3">Items</dt>
+                <dd class="col-sm-9">
+                    @Model.LastRun.ItemsDiscovered seen, @Model.LastRun.ItemsIndexed indexed,
+                    @Model.LastRun.ItemsSkipped unchanged, @Model.LastRun.ItemsDeleted removed,
+                    @Model.LastRun.ItemsFailed failed
+                </dd>
+                <dt class="col-sm-3">Figures</dt>
+                <dd class="col-sm-9">@Model.LastRun.FiguresDiscovered stored, @Model.LastRun.FiguresPendingDescription awaiting transcription</dd>
+                <dt class="col-sm-3">Listing</dt>
+                <dd class="col-sm-9">
+                    @if (Model.LastRun.DiscoveryCompleted)
+                    {
+                        <span class="text-success">Complete</span>
+                    }
+                    else
+                    {
+                        <span class="text-warning">Partial &mdash; nothing was removed</span>
+                    }
+                </dd>
+                @if (!string.IsNullOrWhiteSpace(Model.LastRun.Error))
+                {
+                    <dt class="col-sm-3">Note</dt>
+                    <dd class="col-sm-9">@Model.LastRun.Error</dd>
+                }
+            </dl>
+        </div>
+    </div>
+}

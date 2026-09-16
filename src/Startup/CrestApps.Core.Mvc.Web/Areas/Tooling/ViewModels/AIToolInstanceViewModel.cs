@@ -42,6 +42,17 @@ public sealed class AIToolInstanceViewModel
     public string Description { get; set; }
 
     /// <summary>
+    /// Gets or sets the function name the AI model actually sees for this instance.
+    /// </summary>
+    /// <remarks>
+    /// Every instance function name is namespaced so a user-chosen instance name can never collide with a
+    /// tool registered in code. That means the model never sees the bare instance name, and a system message
+    /// that tells the model to call the instance by its display name names a function that does not exist.
+    /// Showing the real identifier is what stops that being written by accident.
+    /// </remarks>
+    public string FunctionName { get; set; }
+
+    /// <summary>
     /// Gets or sets the parameters declared for this instance.
     /// </summary>
     public List<AIToolInstanceParameterViewModel> Parameters { get; set; } = [];
@@ -313,4 +324,10 @@ public sealed class AIToolInstanceViewModel
     /// Gets or sets the OData filter expression applied by the data source search source.
     /// </summary>
     public string DataSourceFilter { get; set; }
+
+    /// <summary>
+    /// Gets or sets the kinds of knowledge the search is limited to, as a comma-separated list. Empty
+    /// searches every kind.
+    /// </summary>
+    public string DataSourceContentTypes { get; set; }
 }

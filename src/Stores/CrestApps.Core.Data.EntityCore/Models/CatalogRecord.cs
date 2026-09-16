@@ -84,6 +84,12 @@ public sealed class CatalogRecord
     public string Type { get; set; }
 
     /// <summary>
+    /// Gets or sets the hash of the content the item was produced from, if applicable,
+    /// so lookups that deduplicate by content filter in the database.
+    /// </summary>
+    public string ContentHash { get; set; }
+
+    /// <summary>
     /// Gets or sets the UTC date and time when the record was created, if tracked.
     /// </summary>
     public DateTime? CreatedUtc { get; set; }

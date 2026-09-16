@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.Indexers</RootNamespace>
+    <Title>CrestApps AI Indexers</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      Continuous intake for CrestApps AI knowledge bases: pluggable ingestion connectors and the run service that keeps a data source in step with its source.
+    </Description>
+    <PackageTags>$(PackageTags) ai indexing connectors ingestion</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
+    <ProjectReference Include="../CrestApps.Core.DataIngestion/CrestApps.Core.DataIngestion.csproj" />
+  </ItemGroup>
+
+</Project>

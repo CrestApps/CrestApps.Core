@@ -26,6 +26,7 @@ public static class MediaTypeHelper
     {
         var mediaType = extension?.ToLowerInvariant() switch
         {
+            ".txt" or ".log" or ".text" => "text/plain",
             ".bmp" => "image/bmp",
             ".md" => "text/markdown",
             ".gif" => "image/gif",

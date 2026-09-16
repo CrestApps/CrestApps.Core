@@ -74,6 +74,76 @@ internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
     }
 
     /// <summary>
+    /// Adds the supplied fields to an existing mapping.
+    /// </summary>
+    /// <param name="profile">The index profile.</param>
+    /// <param name="fields">The fields the mapping should have.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns><see langword="true"/> when the mapping was brought up to date.</returns>
+    /// <remarks>
+    /// The types are stated explicitly rather than left to dynamic mapping. A field that arrives
+    /// dynamically is mapped as analysed text, and analysed text cannot be filtered on, which is the one
+    /// thing these fields exist to do.
+    /// </remarks>
+    public async Task<bool> TryAddFieldsAsync(IIndexProfileInfo profile, IReadOnlyCollection<SearchIndexField> fields, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(fields);
+
+        try
+        {
+            var properties = new Properties();
+
+            foreach (var field in fields)
+            {
+                // The vector mapping cannot be changed after the fact, and re-sending it risks a conflict.
+                if (field.FieldType == SearchFieldType.Vector)
+                {
+                    continue;
+                }
+
+                properties[field.Name] = field.FieldType switch
+                {
+                    SearchFieldType.Text => new TextProperty(),
+                    SearchFieldType.Integer => new IntegerNumberProperty(),
+                    SearchFieldType.Float => new FloatNumberProperty(),
+                    SearchFieldType.DateTime => new DateProperty(),
+                    _ => new KeywordProperty(),
+                };
+            }
+
+            if (!properties.Any())
+            {
+                return true;
+            }
+
+            var response = await _elasticClient.Indices.PutMappingAsync(
+                profile.IndexFullName,
+                m => m.Properties(properties),
+                cancellationToken);
+
+            if (!response.IsValidResponse)
+            {
+                _logger.LogWarning("Failed to add fields to Elasticsearch index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
+
+                return false;
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error adding fields to Elasticsearch index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
+
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Creates the operation.
     /// </summary>
     /// <param name="profile">The profile.</param>

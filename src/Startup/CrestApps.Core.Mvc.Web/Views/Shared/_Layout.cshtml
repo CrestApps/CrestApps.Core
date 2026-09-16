@@ -69,6 +69,15 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" asp-area="Admin" asp-controller="Article" asp-action="Index">
+                            <i class="fa-solid fa-book"></i> Articles
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <span class="nav-link text-uppercase small text-muted disabled ps-2">Artificial Intelligence</span>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" asp-area="AI" asp-controller="AIConnection" asp-action="Index">
                             <i class="fa-solid fa-plug"></i> AI Connections
                         </a>
@@ -76,11 +85,6 @@
                     <li class="nav-item">
                         <a class="nav-link" asp-area="AI" asp-controller="AIDeployment" asp-action="Index">
                             <i class="fa-solid fa-box"></i> AI Deployments
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" asp-area="ChatInteractions" asp-controller="ChatInteraction" asp-action="Index">
-                            <i class="fa-solid fa-comment-dots"></i> Chat Interactions
                         </a>
                     </li>
                     <li class="nav-item">
@@ -93,15 +97,23 @@
                             <i class="fa-solid fa-puzzle-piece"></i> AI Tool Instances
                         </a>
                     </li>
-
                     <li class="nav-item">
-                        <a class="nav-link" asp-area="Indexing" asp-controller="IndexProfile" asp-action="Index">
-                            <i class="fa-solid fa-database"></i> Index Profiles
+                        <a class="nav-link" asp-area="ChatInteractions" asp-controller="ChatInteraction" asp-action="Index">
+                            <i class="fa-solid fa-comment-dots"></i> Chat Interactions
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" asp-area="DataSources" asp-controller="AIDataSource" asp-action="Index">
-                            <i class="fa-solid fa-layer-group"></i> Data Sources
+                        <a class="nav-link" asp-area="AI" asp-controller="AITemplate" asp-action="Index">
+                            <i class="fa-solid fa-file-lines"></i> Templates
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <span class="nav-link text-uppercase small text-muted disabled ps-2">RAG</span>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" asp-area="FileSources" asp-controller="FileSource" asp-action="Index">
+                            <i class="fa-solid fa-folder-tree"></i> File Sources
                         </a>
                     </li>
                     <li class="nav-item">
@@ -110,15 +122,16 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" asp-area="AI" asp-controller="AITemplate" asp-action="Index">
-                            <i class="fa-solid fa-file-lines"></i> Templates
+                        <a class="nav-link" asp-area="DataSources" asp-controller="AIDataSource" asp-action="Index">
+                            <i class="fa-solid fa-layer-group"></i> Data Sources
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" asp-area="Admin" asp-controller="Article" asp-action="Index">
-                            <i class="fa-solid fa-book"></i> Articles
+                        <a class="nav-link" asp-area="Indexing" asp-controller="IndexProfile" asp-action="Index">
+                            <i class="fa-solid fa-database"></i> Index Profiles
                         </a>
                     </li>
+
                     <li class="nav-item">
                         <span class="nav-link text-uppercase small text-muted disabled ps-2">Reports</span>
                     </li>
@@ -138,14 +151,14 @@
                         </a>
                     </li>
 
-                    <hr class="my-2" />
-
+                    <li class="nav-item">
+                        <span class="nav-link text-uppercase small text-muted disabled ps-2">Integrations</span>
+                    </li>
                     <li class="nav-item">
                         <a class="nav-link" asp-area="A2A" asp-controller="A2AConnection" asp-action="Index">
                             <i class="fa-solid fa-sitemap"></i> Agent to Agent Hosts
                         </a>
                     </li>
-
                     <li class="nav-item">
                         <a class="nav-link" asp-area="Mcp" asp-controller="McpConnection" asp-action="Index">
                             <i class="fa-solid fa-network-wired"></i> MCP Hosts

@@ -405,6 +405,12 @@
                 <InputText @bind-Value="_model.DataSourceFilter" class="form-control font-monospace" placeholder="filters/status eq 'published'" />
                 <div class="form-text">Optional OData filter expression translated to the index provider's own syntax before the search runs.</div>
             </div>
+
+            <div class="mb-3">
+                <label class="form-label">Content types</label>
+                <InputText @bind-Value="_model.DataSourceContentTypes" class="form-control font-monospace" placeholder="figure, chart, table" />
+                <div class="form-text">Limits the search to these kinds of knowledge. Leave empty to search every kind.</div>
+            </div>
         }
 
         <ToolInstanceParameterEditor Source="@_model.Source"
@@ -814,6 +820,7 @@
                 TopNDocuments = model.DataSourceTopNDocuments,
                 Strictness = model.DataSourceStrictness,
                 Filter = string.IsNullOrWhiteSpace(model.DataSourceFilter) ? null : model.DataSourceFilter.Trim(),
+                ContentTypes = SplitContentTypes(model.DataSourceContentTypes),
             });
 
             return;
@@ -866,5 +873,24 @@
     private static string ProtectOrReuse(string newValue, string existingValue, IDataProtector protector)
     {
         return string.IsNullOrWhiteSpace(newValue) ? existingValue : protector.Protect(newValue);
+    }
+
+    /// <summary>
+    /// Splits a comma-separated list of knowledge kinds into the array the settings hold.
+    /// </summary>
+    /// <param name="value">The list the form supplied.</param>
+    /// <returns>The kinds, or <see langword="null"/> when none were named.</returns>
+    private static string[] SplitContentTypes(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var contentTypes = value
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToArray();
+
+        return contentTypes.Length == 0 ? null : contentTypes;
     }
 }

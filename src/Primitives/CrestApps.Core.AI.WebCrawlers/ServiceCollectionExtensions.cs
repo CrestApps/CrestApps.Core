@@ -1,6 +1,8 @@
 using System.Net;
 using CrestApps.Core;
 using CrestApps.Core.AI.DataSources;
+using CrestApps.Core.AI.Indexing;
+using CrestApps.Core.AI.WebCrawlers.Connectors;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Crawling;
@@ -66,6 +68,17 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IWebCrawlerReindexService, WebCrawlerReindexService>();
         services.TryAddKeyedScoped<IAIDataSourceSourceHandler, WebAIDataSourceSourceHandler>(AIDataSourceSourceTypes.Web);
         services.TryAddKeyedSingleton<IAIReferenceLinkResolver, WebCrawlerReferenceLinkResolver>(AIDataSourceSourceTypes.Web);
+
+        // A crawl strategy is an ingestion connector with Web in its name. Presenting it as one lets a
+        // folder, a blob container and a website reach the same reader and the same store. Which path a
+        // crawler record actually takes is decided by the data source it feeds: an Ingested data source is
+        // filled through the indexer run service, a Web data source through the re-index planner.
+        // Connectors are scoped, so the resolver has to be too: a singleton holding the root provider cannot
+        // resolve a keyed scoped service and throws the first time an indexer runs.
+        services.TryAddScoped<IIngestionConnectorResolver, KeyedIngestionConnectorResolver>();
+        services.TryAddKeyedScoped<IIngestionConnector>(
+            WebCrawlerConstants.Strategies.Sitemap,
+            (sp, key) => new WebIngestionConnector(sp.GetRequiredKeyedService<IWebCrawlerStrategy>(key)));
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<WebCrawler>, WebCrawlerCatalogHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, WebCrawlerReindexBackgroundService>());
 

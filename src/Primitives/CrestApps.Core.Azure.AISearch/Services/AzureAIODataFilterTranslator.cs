@@ -74,18 +74,41 @@ internal sealed class AzureAIODataFilterTranslator : IODataFilterTranslator
                 {
                     result.Append(token);
                 }
+                else if (DataSourceConstants.ColumnNames.IsTypedColumn(token, IsKnowledgeScope(token)))
+                {
+                    // The typed discriminators are fields of their own, not entries in the filters bag —
+                    // but only when the name is read in the knowledge base's own scope.
+                    result.Append(token);
+                }
+                else if (DataSourceConstants.ColumnNames.IsFilterBagField(token))
+                {
+                    // The caller already addressed the bag with the dotted spelling the other providers
+                    // use. This service separates nested fields with a slash, so it is written that way.
+                    result.Append(token.Replace('.', '/'));
+                }
+                else if (string.Equals(token, DataSourceConstants.ColumnNames.Filters, StringComparison.OrdinalIgnoreCase) &&
+                    i < filter.Length &&
+                    filter[i] == '/')
+                {
+                    // The caller already addressed the bag. The field after the slash is copied as written,
+                    // or it would be prefixed a second time.
+                    result.Append(token);
+                    result.Append('/');
+                    i++;
+
+                    var fieldStart = i;
+
+                    while (i < filter.Length && (char.IsLetterOrDigit(filter[i]) || filter[i] == '_' || filter[i] == '.'))
+                    {
+                        i++;
+                    }
+
+                    result.Append(filter, fieldStart, i - fieldStart);
+                }
                 else
                 {
                     // This is a field name - prefix with filters/.
-
-                    if (!token.StartsWith($"{DataSourceConstants.ColumnNames.Filters}/", StringComparison.OrdinalIgnoreCase))
-                    {
-                        result.Append($"{DataSourceConstants.ColumnNames.Filters}/{token}");
-                    }
-                    else
-                    {
-                        result.Append(token);
-                    }
+                    result.Append($"{DataSourceConstants.ColumnNames.Filters}/{token}");
                 }
             }
             else
@@ -97,6 +120,22 @@ internal sealed class AzureAIODataFilterTranslator : IODataFilterTranslator
         }
 
         return result.ToString();
+    }
+
+    /// <summary>
+    /// Determines whether the supplied field is read in the knowledge base's own scope, which is the only
+    /// scope where the reserved names mean the typed columns.
+    /// </summary>
+    /// <param name="field">The field name as written in the filter.</param>
+    /// <returns><see langword="true"/> when the reserved names apply.</returns>
+    /// <remarks>
+    /// A filter only reaches a translator as text, so the scope travels with the field: a caller whose own
+    /// documents carry a field of the same name addresses it through the bag, and that is what says the
+    /// knowledge column was not meant.
+    /// </remarks>
+    private static bool IsKnowledgeScope(string field)
+    {
+        return !DataSourceConstants.ColumnNames.IsFilterBagField(field);
     }
 
     private static bool IsODataKeyword(string token)

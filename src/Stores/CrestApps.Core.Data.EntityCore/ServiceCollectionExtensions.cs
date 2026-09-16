@@ -300,6 +300,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICatalog<WebCrawler>>(sp => sp.GetRequiredService<IWebCrawlerStore>());
         services.AddScoped<ISourceCatalog<WebCrawler>>(sp => sp.GetRequiredService<IWebCrawlerStore>());
 
+        services.Replace(ServiceDescriptor.Scoped<IKnowledgeObjectStore, EntityCoreKnowledgeObjectStore>());
+        services.AddScoped<ICatalog<KnowledgeObject>>(sp => sp.GetRequiredService<IKnowledgeObjectStore>());
+        services.AddScoped<ISourceCatalog<KnowledgeObject>>(sp => sp.GetRequiredService<IKnowledgeObjectStore>());
+
         services.Replace(ServiceDescriptor.Scoped<IWebCrawlStateStore, EntityCoreWebCrawlStateStore>());
         services.AddScoped<ICatalog<WebCrawlState>>(sp => sp.GetRequiredService<IWebCrawlStateStore>());
         services.AddScoped<ISourceCatalog<WebCrawlState>>(sp => sp.GetRequiredService<IWebCrawlStateStore>());
@@ -568,6 +572,7 @@ public static class ServiceCollectionExtensions
         await MigrateFromLegacySchemaIfNeededAsync(dbContext, tablePrefix);
 #pragma warning restore CS0618
         await EnsureOptionalTablesAsync(dbContext, tablePrefix);
+        await EnsureCatalogRecordColumnsAsync(dbContext, tablePrefix);
     }
 
     /// <summary>
@@ -1141,6 +1146,37 @@ public static class ServiceCollectionExtensions
             """;
 
         await dbContext.Database.ExecuteSqlRawAsync(extractedSql);
+    }
+
+    /// <summary>
+    /// Adds the catalog columns introduced after the table itself shipped. <c>EnsureCreatedAsync</c> only
+    /// creates tables that are missing, so a column added to <see cref="Models.CatalogRecord"/> never reaches
+    /// a database that already has the table, and every read of the table would fail on the missing column.
+    /// </summary>
+    /// <param name="dbContext">The db context.</param>
+    /// <param name="tablePrefix">The table prefix.</param>
+    private static async Task EnsureCatalogRecordColumnsAsync(
+        CrestAppsEntityDbContext dbContext,
+        string tablePrefix)
+    {
+        var catalogTableName = GetSafeSqlIdentifier($"{tablePrefix}CatalogRecords");
+
+        if (!await HasColumnAsync(dbContext, catalogTableName, nameof(Models.CatalogRecord.ContentHash)))
+        {
+            string contentHashColumnSql =
+                $"""ALTER TABLE "{catalogTableName}" ADD COLUMN "{nameof(Models.CatalogRecord.ContentHash)}" TEXT NULL;""";
+
+            await dbContext.Database.ExecuteSqlRawAsync(contentHashColumnSql);
+        }
+
+        // The index name matches the one the model builder generates, so this is a no-op on a database
+        // EnsureCreatedAsync has just built and fills the gap on one it only altered.
+        string contentHashIndexSql =
+            $"""
+            CREATE INDEX IF NOT EXISTS "{GetSafeSqlIdentifier($"IX_{tablePrefix}CatalogRecords_EntityType_ContentHash")}" ON "{catalogTableName}" ("EntityType", "ContentHash");
+            """;
+
+        await dbContext.Database.ExecuteSqlRawAsync(contentHashIndexSql);
     }
 
     private static async Task<bool> HasColumnAsync(

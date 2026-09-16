@@ -25,6 +25,11 @@ public sealed class DataSourceSearchTool : AIFunction
         "query": {
           "type": "string",
           "description": "The search query to find relevant content in the data source."
+        },
+        "contentTypes": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["text", "figure", "chart", "table", "article", "document"] },
+          "description": "Optional. Limits the search to these kinds of knowledge. Use it only when the question is specifically about one kind - for example ['chart'] for \"what does the chart on page 8 show\". Omit it to search everything."
         }
       },
       "required": ["query"],
@@ -104,6 +109,7 @@ public sealed class DataSourceSearchTool : AIFunction
                     TopNDocuments = ragMetadata?.TopNDocuments,
                     Strictness = ragMetadata?.Strictness,
                     Filter = ragMetadata?.Filter,
+                    ContentTypes = ReadContentTypes(arguments),
 
                     // A profile always states a policy, even when it has no RAG metadata, because the
                     // orchestration handlers put that same policy in the system prompt for the whole turn.
@@ -119,6 +125,39 @@ public sealed class DataSourceSearchTool : AIFunction
 
             return "An error occurred while searching the data source.";
         }
+    }
+
+    /// <summary>
+    /// Reads the kinds of knowledge the model asked for.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <returns>The kinds to search, or <see langword="null"/> to search every kind.</returns>
+    /// <remarks>
+    /// A profile states no kinds of its own, so whatever the model asks for is what is searched. The shapes
+    /// accepted here mirror the tool instance, because the same models send the same shapes to both.
+    /// </remarks>
+    private static string[] ReadContentTypes(AIFunctionArguments arguments)
+    {
+        if (!arguments.TryGetValue("contentTypes", out var raw) || raw is null)
+        {
+            return null;
+        }
+
+        var requested = raw switch
+        {
+            string single when !string.IsNullOrWhiteSpace(single) => [single],
+            IEnumerable<string> many => many.Where(item => !string.IsNullOrWhiteSpace(item)).ToArray(),
+            JsonElement { ValueKind: JsonValueKind.Array } element => element
+                .EnumerateArray()
+                .Where(item => item.ValueKind == JsonValueKind.String)
+                .Select(item => item.GetString())
+                .Where(item => !string.IsNullOrWhiteSpace(item))
+                .ToArray(),
+            JsonElement { ValueKind: JsonValueKind.String } element => [element.GetString()],
+            _ => Array.Empty<string>(),
+        };
+
+        return requested.Length == 0 ? null : requested;
     }
 
     private static AIDataSourceRagMetadata GetRagMetadata(AIToolExecutionContext executionContext)
