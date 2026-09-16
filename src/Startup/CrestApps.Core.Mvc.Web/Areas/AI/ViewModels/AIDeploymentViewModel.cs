@@ -145,6 +145,28 @@ public sealed class AIDeploymentModelFeatureViewModel
         => Name?.Replace('.', '_');
 }
 
+/// <summary>
+/// Describes one request capability that feature enforcement removes from every request sent to a
+/// deployment, so a listing can name the loss instead of leaving it in the log.
+/// </summary>
+public sealed class AIDeploymentEnforcedLimitViewModel
+{
+    /// <summary>
+    /// Gets or sets the technical name of the feature the deployment does not declare.
+    /// </summary>
+    public string FeatureName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the short badge text.
+    /// </summary>
+    public string Label { get; set; }
+
+    /// <summary>
+    /// Gets or sets the sentence describing what the runtime does to the request.
+    /// </summary>
+    public string Description { get; set; }
+}
+
 public sealed class AIDeploymentViewModel
 {
     private static readonly HashSet<string> _standaloneProviders = new(StringComparer.OrdinalIgnoreCase)
@@ -185,6 +207,14 @@ public sealed class AIDeploymentViewModel
     public string[] SelectedFeatures { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets a value indicating whether the deployment carries capability metadata at all.
+    /// Feature enforcement constrains a deployment as soon as it does, so a listing cannot say what a
+    /// request loses without knowing this.
+    /// </summary>
+    [BindNever]
+    public bool DeclaresCapabilityMetadata { get; set; }
+
+    /// <summary>
     /// Gets or sets the per-deployment settings of every registered model parameter.
     /// </summary>
     public List<AIDeploymentParameterViewModel> ModelParameters { get; set; } = [];
@@ -212,6 +242,10 @@ public sealed class AIDeploymentViewModel
             model.Endpoint = deployment.Properties.TryGetValue("Endpoint", out var ep) ? ep?.ToString() : null;
             model.AuthenticationType = deployment.Properties.TryGetValue("AuthenticationType", out var auth) ? auth?.ToString() : null;
 
+            // Read the same way enforcement does. An empty feature list and no metadata at all look
+            // alike once the features are copied out, but they mean opposite things to the runtime.
+            model.DeclaresCapabilityMetadata = deployment.TryGet<AIDeploymentMetadata>(out _);
+
             var metadata = deployment.GetOrCreate<AIDeploymentMetadata>();
             model.SelectedFeatures = metadata.Features ?? [];
 
@@ -234,6 +268,59 @@ public sealed class AIDeploymentViewModel
         }
 
         return model;
+    }
+
+    /// <summary>
+    /// Gets the chat request capabilities that feature enforcement removes from every request sent to
+    /// this deployment.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Enforcement is often described as opt-in, which is only true of the metadata as a whole: a
+    /// deployment is constrained the moment it declares any, so a source that always emits metadata —
+    /// the configuration catalog, whose deployments are read-only here — makes enforcement mandatory for
+    /// everything it produces. A declaration narrowed to text generation therefore strips every tool
+    /// from every request and completes a streaming call in one piece, and until now said so only in a
+    /// log warning.
+    /// </para>
+    /// <para>
+    /// Only tool calling and streaming are reported. They silently degrade a deployment that otherwise
+    /// works, while an undeclared reasoning or structured-output capability is the ordinary state of
+    /// most models and flagging it would bury the signal. A deployment that declares no metadata is
+    /// unconstrained and reports nothing, and so does one that does not declare text generation,
+    /// because the chat enforcement path never runs for it.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<AIDeploymentEnforcedLimitViewModel> GetEnforcedLimits()
+    {
+        if (!DeclaresCapabilityMetadata || !DeclaresFeature(AIDeploymentFeatureNames.TextGeneration))
+        {
+            return [];
+        }
+
+        var limits = new List<AIDeploymentEnforcedLimitViewModel>();
+
+        if (!DeclaresFeature(AIDeploymentFeatureNames.ToolCalling))
+        {
+            limits.Add(new AIDeploymentEnforcedLimitViewModel
+            {
+                FeatureName = AIDeploymentFeatureNames.ToolCalling,
+                Label = "Tools removed",
+                Description = $"This deployment declares its capabilities but not '{AIDeploymentFeatureNames.ToolCalling}', so every tool is removed from every request sent to it.",
+            });
+        }
+
+        if (!DeclaresFeature(AIDeploymentFeatureNames.Streaming))
+        {
+            limits.Add(new AIDeploymentEnforcedLimitViewModel
+            {
+                FeatureName = AIDeploymentFeatureNames.Streaming,
+                Label = "Streaming buffered",
+                Description = $"This deployment declares its capabilities but not '{AIDeploymentFeatureNames.Streaming}', so a streaming request is completed as a single response.",
+            });
+        }
+
+        return limits;
     }
 
     /// <summary>
@@ -471,5 +558,11 @@ public sealed class AIDeploymentViewModel
     public bool UsesStandaloneProvider()
     {
         return _standaloneProviders.Contains(ClientName ?? string.Empty);
+    }
+
+    private bool DeclaresFeature(string featureName)
+    {
+        return SelectedFeatures is { Length: > 0 } &&
+            SelectedFeatures.Contains(featureName, StringComparer.OrdinalIgnoreCase);
     }
 }

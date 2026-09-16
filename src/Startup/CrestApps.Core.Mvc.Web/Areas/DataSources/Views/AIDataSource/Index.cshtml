@@ -26,16 +26,40 @@ else
                     <th>Title</th>
                     <th>Source Index</th>
                     <th>Knowledge Base Index</th>
+                    <th>Last sync</th>
                     <th style="width: 250px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var item in Model)
                 {
-                    <tr>
+                    @* A sync that failed leaves a data source that looks perfectly normal and holds nothing,
+                       so the row itself carries the failure rather than only the badge. *@
+                    var hasLastSync = item.TryGet<CrestApps.Core.AI.Models.AIDataSourceSyncSummary>(out var lastSync);
+                    var syncFailed = hasLastSync && lastSync.Status != CrestApps.Core.AI.Models.AIDataSourceSyncStatus.Succeeded;
+
+                    <tr class="@(syncFailed ? "table-danger" : null)">
                         <td><strong>@item.DisplayText</strong></td>
                         <td><code>@(item.SourceIndexProfileName ?? "—")</code></td>
                         <td><code>@(item.AIKnowledgeBaseIndexProfileName ?? "—")</code></td>
+                        <td>
+                            @if (!hasLastSync)
+                            {
+                                <span class="text-muted">Never</span>
+                            }
+                            else
+                            {
+                                <span class="badge @(syncFailed ? "bg-danger" : "bg-success")">@lastSync.Status</span>
+                                <div class="small text-muted">
+                                    @lastSync.CompletedUtc.ToString("u") &mdash; @lastSync.DocumentsIndexed indexed
+                                </div>
+
+                                if (syncFailed)
+                                {
+                                    <div class="small text-danger">@lastSync.Error</div>
+                                }
+                            }
+                        </td>
                         <td>
                             <form asp-action="Sync" asp-route-id="@item.ItemId"
                                   method="post" class="d-inline">

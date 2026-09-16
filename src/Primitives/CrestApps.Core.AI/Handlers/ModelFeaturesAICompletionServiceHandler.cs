@@ -7,10 +7,20 @@ namespace CrestApps.Core.AI.Handlers;
 
 /// <summary>
 /// Enforces the trained features declared by the resolved deployment so that request options which
-/// depend on an unsupported capability are never sent to a provider. Enforcement is opt-in: only
-/// deployments that declare capability metadata are constrained, which keeps deployments without
-/// declared capabilities fully unconstrained.
+/// depend on an unsupported capability are never sent to a provider. Declaring capability metadata is
+/// what opts a deployment in: a deployment that declares none is left fully unconstrained.
 /// </summary>
+/// <remarks>
+/// Calling that arrangement "opt-in" is true only of the metadata, never of the deployment. A
+/// deployment does not choose whether to be constrained; whatever wrote its metadata chose for it, and
+/// a source that always writes metadata makes enforcement mandatory for everything it produces. The
+/// configuration deployment catalog is exactly such a source, and its records are read-only in the
+/// admin UI, so an operator can neither opt out of enforcement nor widen the declaration it is held to.
+/// A synthesized record that declares only <see cref="AIDeploymentFeatureNames.TextGeneration"/>
+/// therefore loses every tool on every request and has its streaming downgraded — a silent, total loss
+/// of tool calling that reads as a merely unhelpful model. Treat a narrow declaration from such a
+/// source as a defect in the source, not as consent.
+/// </remarks>
 public sealed class ModelFeaturesAICompletionServiceHandler : IAICompletionServiceHandler
 {
     private readonly IAIDeploymentCapabilityService _capabilityService;
@@ -34,9 +44,10 @@ public sealed class ModelFeaturesAICompletionServiceHandler : IAICompletionServi
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        // Feature enforcement is opt-in: only deployments that declare their capability metadata
-        // constrain the request. Deployments without metadata are treated as unconstrained so that
-        // existing configurations keep working exactly as before.
+        // Declared metadata is the gate: a deployment without any is unconstrained so that existing
+        // configurations keep working exactly as before. Past this line the declaration is binding and
+        // complete, and whatever it omits is removed from the request — including from a deployment
+        // whose metadata was synthesized rather than authored, which no operator can edit.
         if (context.Deployment is null || !context.Deployment.TryGet<AIDeploymentMetadata>(out _))
         {
             return Task.CompletedTask;

@@ -8,6 +8,7 @@ using CrestApps.Core.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -118,12 +119,145 @@ public sealed class DefaultAIDataSourceIndexingServiceTests
     }
 
     /// <summary>
+    /// Verifies that a sync which reached the index records that it did, and how much it wrote.
+    /// </summary>
+    [Fact]
+    public async Task Sync_WhenTheIndexAcceptsTheWrite_RecordsSuccessAndTheDocumentCount()
+    {
+        var documentManager = new RecordingSearchDocumentManager();
+        var harness = new Harness(documentManager)
+        {
+            Documents =
+            {
+                ["doc-1"] = new SourceDocument
+                {
+                    Title = "Vacation policy",
+                    Content = "first chunk\n\nsecond chunk",
+                },
+            },
+        };
+
+        await harness.CreateService().SyncDataSourceAsync(harness.DataSource, TestContext.Current.CancellationToken);
+
+        var summary = harness.ReadRecordedSummary();
+
+        Assert.NotNull(summary);
+        Assert.Equal(AIDataSourceSyncStatus.Succeeded, summary.Status);
+        Assert.Equal(2, summary.DocumentsIndexed);
+        Assert.Null(summary.Error);
+        Assert.Equal(_now.UtcDateTime, summary.StartedUtc);
+        Assert.Equal(_now.UtcDateTime, summary.CompletedUtc);
+    }
+
+    /// <summary>
+    /// Verifies that an index which refuses the write leaves the reason on the data source, rather than a
+    /// data source that reads as perfectly normal and holds nothing.
+    /// </summary>
+    /// <remarks>
+    /// This is the one that was paid for in production: a file was ingested while the vector database was
+    /// stopped, the knowledge objects were written, the index write failed, and the data source reported an
+    /// ordinary state with zero rows in it for days.
+    /// </remarks>
+    [Fact]
+    public async Task Sync_WhenTheIndexRefusesTheWrite_RecordsTheFailureAndItsReason()
+    {
+        var documentManager = new RecordingSearchDocumentManager
+        {
+            WriteSucceeds = false,
+        };
+
+        var harness = new Harness(documentManager)
+        {
+            Documents =
+            {
+                ["doc-1"] = new SourceDocument
+                {
+                    Title = "Vacation policy",
+                    Content = "first chunk",
+                },
+            },
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => harness.CreateService().SyncDataSourceAsync(harness.DataSource, TestContext.Current.CancellationToken));
+
+        var summary = harness.ReadRecordedSummary();
+
+        Assert.NotNull(summary);
+        Assert.Equal(AIDataSourceSyncStatus.Failed, summary.Status);
+        Assert.Equal(0, summary.DocumentsIndexed);
+        Assert.Contains("Knowledge-base indexing failed", summary.Error, StringComparison.Ordinal);
+
+        // The caller of a failed sync throws its session away, so the record only reaches storage because it
+        // was committed on a session of its own.
+        Assert.Equal(1, harness.Commits);
+    }
+
+    /// <summary>
+    /// Verifies that a data source the service cannot even build a context for records why, instead of
+    /// returning as though there had been nothing to do.
+    /// </summary>
+    [Fact]
+    public async Task Sync_WhenTheKnowledgeBaseProfileIsMissing_RecordsTheReasonInsteadOfSkippingQuietly()
+    {
+        var documentManager = new RecordingSearchDocumentManager();
+        var harness = new Harness(documentManager);
+
+        harness.DataSource.AIKnowledgeBaseIndexProfileName = "kb-index-that-is-not-registered";
+
+        await harness.CreateService().SyncDataSourceAsync(harness.DataSource, TestContext.Current.CancellationToken);
+
+        var summary = harness.ReadRecordedSummary();
+
+        Assert.NotNull(summary);
+        Assert.Equal(AIDataSourceSyncStatus.Failed, summary.Status);
+        Assert.Equal(0, summary.DocumentsIndexed);
+        Assert.Contains("kb-index-that-is-not-registered", summary.Error, StringComparison.Ordinal);
+        Assert.Empty(documentManager.Written);
+    }
+
+    /// <summary>
+    /// Verifies that the incremental path records its outcome too. Ingesting a file syncs the documents it
+    /// produced rather than the whole data source, so it is the path a failed ingest actually takes.
+    /// </summary>
+    [Fact]
+    public async Task SyncDocuments_WhenTheIndexRefusesTheWrite_RecordsTheFailureOnTheDataSource()
+    {
+        var documentManager = new RecordingSearchDocumentManager
+        {
+            WriteSucceeds = false,
+        };
+
+        var harness = new Harness(documentManager)
+        {
+            Documents =
+            {
+                ["doc-1"] = new SourceDocument
+                {
+                    Title = "Vacation policy",
+                    Content = "first chunk",
+                },
+            },
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => harness.CreateService().SyncDataSourceDocumentsAsync(DataSourceId, ["doc-1"], TestContext.Current.CancellationToken));
+
+        var summary = harness.ReadRecordedSummary();
+
+        Assert.NotNull(summary);
+        Assert.Equal(AIDataSourceSyncStatus.Failed, summary.Status);
+        Assert.Contains("Knowledge-base indexing failed", summary.Error, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Assembles the collaborators the indexing service resolves, so a test only supplies the source
     /// documents it wants indexed.
     /// </summary>
     private sealed class Harness
     {
         private readonly RecordingSearchDocumentManager _documentManager;
+        private readonly RecordingStoreCommitter _committer = new();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Harness"/> class.
@@ -148,9 +282,33 @@ public sealed class DefaultAIDataSourceIndexingServiceTests
         public AIDataSource DataSource { get; }
 
         /// <summary>
+        /// Gets the data source the service wrote back to the store, or <see langword="null"/> when it never
+        /// wrote one.
+        /// </summary>
+        public AIDataSource Recorded { get; private set; }
+
+        /// <summary>
+        /// Gets how many times the service committed a store session of its own.
+        /// </summary>
+        /// <remarks>
+        /// A sync that failed is rolled back by whoever called it, so the outcome only survives if it was
+        /// committed on its own session. Counting the commits is how that is pinned.
+        /// </remarks>
+        public int Commits => _committer.Commits;
+
+        /// <summary>
         /// Gets the source documents the fake source handler returns, keyed by reference identifier.
         /// </summary>
         public Dictionary<string, SourceDocument> Documents { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// Reads back the sync outcome the service recorded on the data source.
+        /// </summary>
+        /// <returns>The recorded outcome, or <see langword="null"/> when nothing was recorded.</returns>
+        public AIDataSourceSyncSummary ReadRecordedSummary()
+        {
+            return Recorded != null && Recorded.TryGet<AIDataSourceSyncSummary>(out var summary) ? summary : null;
+        }
 
         /// <summary>
         /// Builds the service with every collaborator wired up.
@@ -173,6 +331,10 @@ public sealed class DefaultAIDataSourceIndexingServiceTests
             dataSourceStore
                 .Setup(store => store.GetAllAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync([DataSource]);
+            dataSourceStore
+                .Setup(store => store.UpdateAsync(It.IsAny<AIDataSource>(), It.IsAny<CancellationToken>()))
+                .Callback<AIDataSource, CancellationToken>((entry, _) => Recorded = entry)
+                .Returns(ValueTask.CompletedTask);
 
             var indexProfileManager = new Mock<ISearchIndexProfileManager>();
             indexProfileManager
@@ -216,6 +378,11 @@ public sealed class DefaultAIDataSourceIndexingServiceTests
                 AIDataSourceSourceTypes.SearchIndexProfile,
                 new FakeSourceHandler(Documents));
 
+            // The outcome is recorded on a store session of its own, which the service resolves from a fresh
+            // scope rather than from the session the sync itself ran on.
+            services.AddSingleton(dataSourceStore.Object);
+            services.AddSingleton<IStoreCommitter>(_committer);
+
             return new DefaultAIDataSourceIndexingService(
                 dataSourceStore.Object,
                 indexProfileManager.Object,
@@ -234,8 +401,19 @@ public sealed class DefaultAIDataSourceIndexingServiceTests
 
         public List<IReadOnlyList<string>> Deleted { get; } = [];
 
+        /// <summary>
+        /// Gets or sets a value indicating whether the index accepts what it is handed. Set it to
+        /// <see langword="false"/> to stand in for an index that is not reachable.
+        /// </summary>
+        public bool WriteSucceeds { get; set; } = true;
+
         public Task<bool> AddOrUpdateAsync(IIndexProfileInfo profile, IReadOnlyCollection<IndexDocument> documents, CancellationToken cancellationToken = default)
         {
+            if (!WriteSucceeds)
+            {
+                return Task.FromResult(false);
+            }
+
             Written.AddRange(documents);
 
             return Task.FromResult(true);
@@ -355,6 +533,18 @@ public sealed class DefaultAIDataSourceIndexingServiceTests
 
         public void Dispose()
         {
+        }
+    }
+
+    private sealed class RecordingStoreCommitter : IStoreCommitter
+    {
+        public int Commits { get; private set; }
+
+        public ValueTask CommitAsync(CancellationToken cancellationToken = default)
+        {
+            Commits++;
+
+            return ValueTask.CompletedTask;
         }
     }
 

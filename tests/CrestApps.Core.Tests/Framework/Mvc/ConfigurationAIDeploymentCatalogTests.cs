@@ -9,6 +9,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using BlazorDeploymentViewModel = CrestApps.Core.Blazor.Web.ViewModels.AIDeploymentViewModel;
+using MvcDeploymentViewModel = CrestApps.Core.Mvc.Web.Areas.AI.ViewModels.AIDeploymentViewModel;
 
 namespace CrestApps.Core.Tests.Framework.Mvc;
 
@@ -495,6 +497,108 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         // Assert
         AssertDeclaresExactly(deployments, "declared-chat-model", AIDeploymentFeatureNames.TextGeneration);
         AssertDeclaresExactly(deployments, "connection-chat-model", _expectedChatModelFeatures);
+    }
+
+    [Fact]
+    public async Task DeploymentListings_WhenAConfiguredChatDeploymentDeclaresOnlyTextGeneration_ShouldNameWhatEnforcementRemoves()
+    {
+        // Arrange. This is the shape the outage came from: a configuration-synthesized chat deployment whose
+        // declaration stops at text generation. It is read-only in both hosts, so the operator can neither
+        // widen it nor opt out of enforcement, and the only record of the loss used to be a log warning.
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Deployments:0:ConnectionName"] = "my-openai",
+            ["CrestApps:AI:Deployments:0:Name"] = "narrow-chat-model",
+            ["CrestApps:AI:Deployments:0:Type"] = "Chat",
+        }).Build();
+
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(configuration, aiOptions);
+
+        // Act
+        var deployment = Assert.Single(await store.GetAllAsync(TestContext.Current.CancellationToken));
+
+        // Assert
+        AssertDeclaresExactly(deployment, AIDeploymentFeatureNames.TextGeneration);
+        Assert.True(deployment.IsReadOnly, "The operator can only be told about the loss if the record is the read-only kind.");
+        AssertBothListingsReport(deployment, AIDeploymentFeatureNames.ToolCalling, AIDeploymentFeatureNames.Streaming);
+    }
+
+    [Fact]
+    public async Task DeploymentListings_ShouldReportNothingWhenEnforcementTakesNothingAway()
+    {
+        // Arrange. A warning on every row would be worth as little as the log warning was. A connection-named
+        // chat deployment declares the whole chat set, an embedding deployment never reaches the chat
+        // enforcement path, and a stored deployment that declares no metadata at all stays unconstrained.
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Connections:0:Name"] = "my-openai",
+            ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Connections:0:ChatDeploymentName"] = "chat-model",
+            ["CrestApps:AI:Connections:0:EmbeddingDeploymentName"] = "embedding-model",
+        }).Build();
+
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(
+            configuration,
+            aiOptions,
+            dbEntries:
+            [
+                new AIDeployment
+                {
+                    ItemId = "ui-deployment",
+                    Name = "undeclared-model",
+                    ClientName = "OpenAI",
+                },
+            ]);
+
+        // Act
+        var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        AssertBothListingsReport(Assert.Single(deployments, d => d.Name == "chat-model"));
+        AssertBothListingsReport(Assert.Single(deployments, d => d.Name == "embedding-model"));
+
+        var undeclared = Assert.Single(deployments, d => d.Name == "undeclared-model");
+        Assert.False(undeclared.TryGet<AIDeploymentMetadata>(out _), "The unconstrained case only holds while the record declares nothing.");
+        AssertBothListingsReport(undeclared);
+    }
+
+    /// <summary>
+    /// Asserts that both hosts' deployment listings name exactly the given undeclared features, and that each
+    /// one carries badge text and a description an operator can act on.
+    /// </summary>
+    private static void AssertBothListingsReport(AIDeployment deployment, params string[] expectedFeatures)
+    {
+        AssertListingReports(
+            "MVC",
+            [.. MvcDeploymentViewModel.FromDeployment(deployment).GetEnforcedLimits().Select(static limit => (limit.FeatureName, limit.Label, limit.Description))],
+            expectedFeatures);
+
+        AssertListingReports(
+            "Blazor",
+            [.. BlazorDeploymentViewModel.FromDeployment(deployment).GetEnforcedLimits().Select(static limit => (limit.FeatureName, limit.Label, limit.Description))],
+            expectedFeatures);
+    }
+
+    private static void AssertListingReports(
+        string host,
+        List<(string FeatureName, string Label, string Description)> limits,
+        string[] expectedFeatures)
+    {
+        Assert.Equal(expectedFeatures, limits.Select(static limit => limit.FeatureName));
+
+        foreach (var limit in limits)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(limit.Label), $"The {host} listing gave '{limit.FeatureName}' no badge text.");
+
+            // The description has to name the capability the declaration is missing, because that name is the
+            // only thing the operator can go and add to the configuration.
+            Assert.Contains(limit.FeatureName, limit.Description, StringComparison.Ordinal);
+        }
     }
 
     private static void AssertDeclaresExactly(IEnumerable<AIDeployment> deployments, string name, params string[] expectedFeatures)

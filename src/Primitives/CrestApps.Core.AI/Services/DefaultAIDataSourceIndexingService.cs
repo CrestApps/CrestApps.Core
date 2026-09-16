@@ -6,6 +6,7 @@ using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
 using CrestApps.Core.Infrastructure.Indexing.Models;
+using CrestApps.Core.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
 {
     private const int BatchSize = 250;
     private const int MaxChunkIdsPerDocument = 1000;
+    private const int MaxErrorLength = 500;
 
     private readonly IAIDataSourceStore _dataSourceCatalog;
     private readonly ISearchIndexProfileManager _indexProfileManager;
@@ -94,16 +96,36 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     {
         ArgumentNullException.ThrowIfNull(dataSource);
 
-        var context = await TryCreateContextAsync(dataSource, requireSourceReader: true, cancellationToken);
-        if (context == null)
+        var summary = StartSummary();
+        var resolution = await TryCreateContextAsync(dataSource, requireSourceReader: true, cancellationToken);
+        if (resolution.Context == null)
         {
+            await CompleteAsync(dataSource.ItemId, summary, resolution.Error, cancellationToken);
+
             return;
         }
 
-        await EnsureKnowledgeBaseIndexAsync(context, cancellationToken);
-        await context.ContentManager.DeleteByDataSourceIdAsync(context.KnowledgeBaseProfile, dataSource.ItemId, cancellationToken);
-        var sourceDocuments = context.SourceHandler.ReadAsync(dataSource, cancellationToken);
-        await IndexDocumentsAsync(context, sourceDocuments, deleteExistingChunks: false, cancellationToken);
+        var context = resolution.Context;
+
+        try
+        {
+            await EnsureKnowledgeBaseIndexAsync(context, cancellationToken);
+            await context.ContentManager.DeleteByDataSourceIdAsync(context.KnowledgeBaseProfile, dataSource.ItemId, cancellationToken);
+            var sourceDocuments = context.SourceHandler.ReadAsync(dataSource, cancellationToken);
+            await IndexDocumentsAsync(context, sourceDocuments, deleteExistingChunks: false, summary, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await CompleteAsync(dataSource.ItemId, summary, DescribeFailure(ex), cancellationToken);
+
+            throw;
+        }
+
+        await CompleteAsync(dataSource.ItemId, summary, null, cancellationToken);
     }
 
     /// <summary>
@@ -133,15 +155,35 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         foreach (var dataSource in await GetMatchingDataSourcesAsync(sourceIndexProfileName))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var context = await TryCreateContextAsync(dataSource, requireSourceReader: true, cancellationToken);
-            if (context == null)
+            var summary = StartSummary();
+            var resolution = await TryCreateContextAsync(dataSource, requireSourceReader: true, cancellationToken);
+            if (resolution.Context == null)
             {
+                await CompleteAsync(dataSource.ItemId, summary, resolution.Error, cancellationToken);
+
                 continue;
             }
 
-            await EnsureKnowledgeBaseIndexAsync(context, cancellationToken);
-            var sourceDocuments = context.SourceHandler.ReadByIdsAsync(dataSource, ids, cancellationToken);
-            await IndexDocumentsAsync(context, sourceDocuments, deleteExistingChunks: true, cancellationToken);
+            var context = resolution.Context;
+
+            try
+            {
+                await EnsureKnowledgeBaseIndexAsync(context, cancellationToken);
+                var sourceDocuments = context.SourceHandler.ReadByIdsAsync(dataSource, ids, cancellationToken);
+                await IndexDocumentsAsync(context, sourceDocuments, deleteExistingChunks: true, summary, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                await CompleteAsync(dataSource.ItemId, summary, DescribeFailure(ex), cancellationToken);
+
+                throw;
+            }
+
+            await CompleteAsync(dataSource.ItemId, summary, null, cancellationToken);
         }
     }
 
@@ -167,15 +209,35 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             return;
         }
 
-        var context = await TryCreateContextAsync(dataSource, requireSourceReader: true, cancellationToken);
-        if (context == null)
+        var summary = StartSummary();
+        var resolution = await TryCreateContextAsync(dataSource, requireSourceReader: true, cancellationToken);
+        if (resolution.Context == null)
         {
+            await CompleteAsync(dataSource.ItemId, summary, resolution.Error, cancellationToken);
+
             return;
         }
 
-        await EnsureKnowledgeBaseIndexAsync(context, cancellationToken);
-        var sourceDocuments = context.SourceHandler.ReadByIdsAsync(dataSource, ids, cancellationToken);
-        await IndexDocumentsAsync(context, sourceDocuments, deleteExistingChunks: true, cancellationToken);
+        var context = resolution.Context;
+
+        try
+        {
+            await EnsureKnowledgeBaseIndexAsync(context, cancellationToken);
+            var sourceDocuments = context.SourceHandler.ReadByIdsAsync(dataSource, ids, cancellationToken);
+            await IndexDocumentsAsync(context, sourceDocuments, deleteExistingChunks: true, summary, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await CompleteAsync(dataSource.ItemId, summary, DescribeFailure(ex), cancellationToken);
+
+            throw;
+        }
+
+        await CompleteAsync(dataSource.ItemId, summary, null, cancellationToken);
     }
 
     /// <summary>
@@ -205,13 +267,13 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         foreach (var dataSource in await GetMatchingDataSourcesAsync(sourceIndexProfileName))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var context = await TryCreateContextAsync(dataSource, requireSourceReader: false, cancellationToken);
-            if (context == null)
+            var resolution = await TryCreateContextAsync(dataSource, requireSourceReader: false, cancellationToken);
+            if (resolution.Context == null)
             {
                 continue;
             }
 
-            await DeleteReferencesAsync(context, ids, cancellationToken);
+            await DeleteReferencesAsync(resolution.Context, ids, cancellationToken);
         }
     }
 
@@ -237,13 +299,13 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             return;
         }
 
-        var context = await TryCreateContextAsync(dataSource, requireSourceReader: false, cancellationToken);
-        if (context == null)
+        var resolution = await TryCreateContextAsync(dataSource, requireSourceReader: false, cancellationToken);
+        if (resolution.Context == null)
         {
             return;
         }
 
-        await DeleteReferencesAsync(context, ids, cancellationToken);
+        await DeleteReferencesAsync(resolution.Context, ids, cancellationToken);
     }
 
     /// <summary>
@@ -255,19 +317,30 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     {
         ArgumentNullException.ThrowIfNull(dataSource);
 
-        var context = await TryCreateContextAsync(dataSource, requireSourceReader: false, cancellationToken);
-        if (context == null)
+        var resolution = await TryCreateContextAsync(dataSource, requireSourceReader: false, cancellationToken);
+        if (resolution.Context == null)
         {
             return;
         }
 
-        await context.ContentManager.DeleteByDataSourceIdAsync(context.KnowledgeBaseProfile, dataSource.ItemId, cancellationToken);
+        await resolution.Context.ContentManager.DeleteByDataSourceIdAsync(resolution.Context.KnowledgeBaseProfile, dataSource.ItemId, cancellationToken);
     }
 
-    private async Task IndexDocumentsAsync(DataSourceIndexingContext context, IAsyncEnumerable<KeyValuePair<string, SourceDocument>> sourceDocuments, bool deleteExistingChunks, CancellationToken cancellationToken)
+    /// <summary>
+    /// Chunks, embeds and writes the supplied source documents.
+    /// </summary>
+    /// <param name="context">The indexing context.</param>
+    /// <param name="sourceDocuments">The documents the source handler produced.</param>
+    /// <param name="deleteExistingChunks">Whether each reference's existing rows are removed first.</param>
+    /// <param name="summary">The outcome being filled in, counted up as rows are written.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <remarks>
+    /// The count goes onto the summary rather than being returned, so a write that throws halfway still
+    /// reports how far it got. A failure that claims nothing was written is its own small lie.
+    /// </remarks>
+    private async Task IndexDocumentsAsync(DataSourceIndexingContext context, IAsyncEnumerable<KeyValuePair<string, SourceDocument>> sourceDocuments, bool deleteExistingChunks, AIDataSourceSyncSummary summary, CancellationToken cancellationToken)
     {
         var timestamp = _timeProvider.GetUtcNow().UtcDateTime;
-        var indexedChunkCount = 0;
         var documents = new List<IndexDocument>();
         await foreach (var pair in sourceDocuments.WithCancellation(cancellationToken))
         {
@@ -345,22 +418,21 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
                 }
 
                 documents.Add(new IndexDocument { Id = chunkId, Fields = fields, });
-                indexedChunkCount++;
                 if (documents.Count >= BatchSize)
                 {
-                    await FlushAsync(context, documents, cancellationToken);
+                    await FlushAsync(context, documents, summary, cancellationToken);
                 }
             }
         }
 
-        await FlushAsync(context, documents, cancellationToken);
+        await FlushAsync(context, documents, summary, cancellationToken);
         if (_logger.IsEnabled(LogLevel.Information))
         {
-            _logger.LogInformation("Synchronized {ChunkCount} knowledge-base chunk(s) for data source '{DataSourceId}'.", indexedChunkCount, context.DataSource.ItemId);
+            _logger.LogInformation("Synchronized {ChunkCount} knowledge-base chunk(s) for data source '{DataSourceId}'.", summary.DocumentsIndexed, context.DataSource.ItemId);
         }
     }
 
-    private async Task FlushAsync(DataSourceIndexingContext context, List<IndexDocument> documents, CancellationToken cancellationToken)
+    private async Task FlushAsync(DataSourceIndexingContext context, List<IndexDocument> documents, AIDataSourceSyncSummary summary, CancellationToken cancellationToken)
     {
         if (documents.Count == 0)
         {
@@ -380,6 +452,9 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
                 $"Knowledge-base indexing failed for data source '{context.DataSource.ItemId}' in index '{context.KnowledgeBaseProfile.IndexFullName}'.");
         }
 
+        // Counted after the write returned, so the recorded total is what the index took, never what was
+        // handed to it.
+        summary.DocumentsIndexed += documents.Count;
         documents.Clear();
     }
 
@@ -402,11 +477,23 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         await context.IndexManager.CreateAsync(context.KnowledgeBaseProfile, fields, cancellationToken);
     }
 
-    private async Task<DataSourceIndexingContext> TryCreateContextAsync(AIDataSource dataSource, bool requireSourceReader, CancellationToken cancellationToken)
+    /// <summary>
+    /// Resolves everything one data source needs indexing, or says why it cannot be indexed.
+    /// </summary>
+    /// <param name="dataSource">The data source.</param>
+    /// <param name="requireSourceReader">Whether a source handler and an embedding generator are needed.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The context, or the reason there is none.</returns>
+    /// <remarks>
+    /// Every one of these giving-up points used to be a log line and a silent return, which is how a data
+    /// source that can never be indexed still looks exactly like one that has nothing to index. The reason
+    /// travels back to the caller so it can be recorded on the data source.
+    /// </remarks>
+    private async Task<ContextResolution> TryCreateContextAsync(AIDataSource dataSource, bool requireSourceReader, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(dataSource.AIKnowledgeBaseIndexProfileName))
         {
-            return null;
+            return ContextResolution.Skipped("The data source has no knowledge-base index profile configured.");
         }
 
         var knowledgeBaseProfile = await _indexProfileManager.FindByNameAsync(dataSource.AIKnowledgeBaseIndexProfileName, cancellationToken);
@@ -414,14 +501,14 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index profile '{IndexProfileName}' was not found.", dataSource.ItemId, dataSource.AIKnowledgeBaseIndexProfileName);
 
-            return null;
+            return ContextResolution.Skipped($"Knowledge-base index profile '{dataSource.AIKnowledgeBaseIndexProfileName}' was not found.");
         }
 
         if (!string.Equals(knowledgeBaseProfile.Type, IndexProfileTypes.DataSource, StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index profile '{IndexProfileName}' is not a data-source profile.", dataSource.ItemId, knowledgeBaseProfile.Name);
 
-            return null;
+            return ContextResolution.Skipped($"Knowledge-base index profile '{knowledgeBaseProfile.Name}' is not a data-source profile.");
         }
 
         var indexManager = _serviceProvider.GetKeyedService<ISearchIndexManager>(knowledgeBaseProfile.ProviderName);
@@ -431,12 +518,12 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because provider '{ProviderName}' is not fully configured for data-source indexing.", dataSource.ItemId, knowledgeBaseProfile.ProviderName);
 
-            return null;
+            return ContextResolution.Skipped($"Provider '{knowledgeBaseProfile.ProviderName}' is not fully configured for data-source indexing.");
         }
 
         if (!requireSourceReader)
         {
-            return new DataSourceIndexingContext(dataSource, knowledgeBaseProfile, indexManager, documentManager, contentManager, null, null, null);
+            return ContextResolution.Resolved(new DataSourceIndexingContext(dataSource, knowledgeBaseProfile, indexManager, documentManager, contentManager, null, null, null));
         }
 
         var deploymentName = knowledgeBaseProfile.EmbeddingDeploymentName;
@@ -451,7 +538,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index '{IndexProfileName}' has no embedding deployment configured.", dataSource.ItemId, knowledgeBaseProfile.Name);
 
-            return null;
+            return ContextResolution.Skipped($"Knowledge-base index '{knowledgeBaseProfile.Name}' has no embedding deployment configured.");
         }
 
         var deployment = await _deploymentManager.FindByNameAsync(deploymentName, cancellationToken);
@@ -460,7 +547,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index '{IndexProfileName}' has no embedding deployment configured.", dataSource.ItemId, knowledgeBaseProfile.Name);
 
-            return null;
+            return ContextResolution.Skipped($"Embedding deployment '{deploymentName}' was not found.");
         }
 
         var embeddingGenerator = await _aiClientFactory.CreateEmbeddingGeneratorAsync(deployment);
@@ -469,7 +556,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because knowledge-base index '{IndexProfileName}' has no embedding deployment configured.", dataSource.ItemId, knowledgeBaseProfile.Name);
 
-            return null;
+            return ContextResolution.Skipped($"No embedding generator could be created for deployment '{deploymentName}'.");
         }
 
         var sourceType = AIDataSourceSourceHelper.GetSource(dataSource);
@@ -478,7 +565,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because source type '{SourceType}' is not registered.", dataSource.ItemId, sourceType);
 
-            return null;
+            return ContextResolution.Skipped($"Source type '{sourceType}' is not registered.");
         }
 
         var referenceType = await sourceHandler.GetReferenceTypeAsync(dataSource, cancellationToken);
@@ -486,10 +573,111 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         {
             _logger.LogWarning("Skipping data source '{DataSourceId}' because source type '{SourceType}' could not resolve a reference type.", dataSource.ItemId, sourceType);
 
-            return null;
+            return ContextResolution.Skipped($"Source type '{sourceType}' could not resolve a reference type.");
         }
 
-        return new DataSourceIndexingContext(dataSource, knowledgeBaseProfile, indexManager, documentManager, contentManager, sourceHandler, referenceType, embeddingGenerator);
+        return ContextResolution.Resolved(new DataSourceIndexingContext(dataSource, knowledgeBaseProfile, indexManager, documentManager, contentManager, sourceHandler, referenceType, embeddingGenerator));
+    }
+
+    /// <summary>
+    /// Opens the record of a sync that is about to run.
+    /// </summary>
+    /// <returns>The summary to fill in.</returns>
+    private AIDataSourceSyncSummary StartSummary()
+    {
+        return new AIDataSourceSyncSummary
+        {
+            StartedUtc = _timeProvider.GetUtcNow().UtcDateTime,
+        };
+    }
+
+    /// <summary>
+    /// Closes a sync summary and records it on the data source.
+    /// </summary>
+    /// <param name="dataSourceId">The data source that was synced.</param>
+    /// <param name="summary">The summary to close.</param>
+    /// <param name="error">Why the sync failed, or <see langword="null"/> when it succeeded.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    private async Task CompleteAsync(string dataSourceId, AIDataSourceSyncSummary summary, string error, CancellationToken cancellationToken)
+    {
+        summary.CompletedUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        summary.Status = error == null ? AIDataSourceSyncStatus.Succeeded : AIDataSourceSyncStatus.Failed;
+        summary.Error = error;
+
+        if (error != null)
+        {
+            _logger.LogError("Synchronizing data source '{DataSourceId}' failed after {DocumentCount} document(s). {Error}", dataSourceId, summary.DocumentsIndexed, error);
+        }
+
+        await RecordAsync(dataSourceId, summary, cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes the summary onto the data source, on a store session of its own.
+    /// </summary>
+    /// <param name="dataSourceId">The data source that was synced.</param>
+    /// <param name="summary">The outcome to record.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <remarks>
+    /// A failed sync is exactly when the ambient session is thrown away: the background service commits only
+    /// once the work has returned, so a record written into that session would be rolled back along with the
+    /// writes it is reporting on, and the failure would stay as invisible as it was before. Its own scope
+    /// also keeps this from committing the in-flight writes - a Web handler's "indexed" stamps, say - that
+    /// the rollback is there to undo.
+    /// </remarks>
+    private async Task RecordAsync(string dataSourceId, AIDataSourceSyncSummary summary, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var store = scope.ServiceProvider.GetRequiredService<IAIDataSourceStore>();
+            var dataSource = await store.FindByIdAsync(dataSourceId, cancellationToken);
+
+            if (dataSource == null)
+            {
+                _logger.LogWarning("Could not record the sync outcome because data source '{DataSourceId}' is not stored yet.", dataSourceId);
+
+                return;
+            }
+
+            dataSource.Put(summary);
+
+            await store.UpdateAsync(dataSource, cancellationToken);
+
+            var committer = scope.ServiceProvider.GetService<IStoreCommitter>();
+
+            if (committer != null)
+            {
+                await committer.CommitAsync(cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Failing to record an outcome must never replace it, cancellation included: a sync that worked
+            // still worked, and one that failed still has its own exception on the way out.
+            _logger.LogWarning(ex, "Failed to record the sync outcome for data source '{DataSourceId}'.", dataSourceId);
+        }
+    }
+
+    /// <summary>
+    /// Turns the exception that ended a sync into the short reason stored on the data source.
+    /// </summary>
+    /// <param name="exception">The exception that ended the sync.</param>
+    /// <returns>A one-line reason, capped so a verbose provider message cannot bloat the record.</returns>
+    private static string DescribeFailure(Exception exception)
+    {
+        var message = exception.Message;
+
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            message = exception.GetType().Name;
+        }
+
+        message = message.ReplaceLineEndings(" ").Trim();
+
+        return message.Length <= MaxErrorLength
+            ? message
+            : string.Concat(message.AsSpan(0, MaxErrorLength), "…");
     }
 
     private static string[] NormalizeDocumentIds(IEnumerable<string> documentIds)
@@ -673,6 +861,24 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
     }
 
     private sealed record TypedFields(string ContentType, Dictionary<string, object> Columns, IReadOnlyCollection<string> Keys);
+
+    /// <summary>
+    /// Either an indexing context, or the reason the data source has none.
+    /// </summary>
+    /// <param name="Context">The context, or <see langword="null"/>.</param>
+    /// <param name="Error">Why there is no context, or <see langword="null"/> when there is one.</param>
+    private sealed record ContextResolution(DataSourceIndexingContext Context, string Error)
+    {
+        public static ContextResolution Resolved(DataSourceIndexingContext context)
+        {
+            return new ContextResolution(context, null);
+        }
+
+        public static ContextResolution Skipped(string error)
+        {
+            return new ContextResolution(null, error);
+        }
+    }
 
     private sealed record DataSourceIndexingContext(
         AIDataSource DataSource,
