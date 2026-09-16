@@ -32,7 +32,7 @@ produces the message a search that matched nothing produces.
 
 | # | Status | Issue | Where |
 | --- | --- | --- | --- |
-| — | — | Nothing open. |
+| 1 | open | **A model was seen calling a descriptive chart machine-readable.** Every chart in the sample corpus is `Descriptive` with no series, and both retrieval paths state `values: descriptive - not machine-readable` in the context — yet the stored answer asserted the opposite and described numeric values. The answer predates this branch's current state, so it may already be addressed; it has not been reproduced against a fresh turn. Worth one live turn to settle, because the failure mode is a model contradicting an explicit statement in its own context, which no amount of rendering work fixes. | `TypedResultCollector.cs:243`, `KnowledgeObjectToolFunction.cs` |
 
 ## Decided, not owed
 
@@ -131,11 +131,18 @@ shown part of a chart as though it were the whole answers about the part with th
 
 **The drawing is done too.** A chart read out of a document at `Exact` confidence now carries a
 `[chart:…]` marker alongside its numbers, built from the series and drawn by the same parser the chart tool's
-own output goes through — the existing contract, not a second one. A reader asking for a chart gets a chart.
+own output goes through — the existing contract, not a second one.
 
 It is a scatter with the line shown rather than a line chart, because the points carry their own x values
 read off the axis and a line chart would space them evenly and quietly redraw the data. No legend is drawn
 when no series was named: "Dataset 1" over unnamed series has the authority of a printed key and says nothing.
+
+**Verified as far as the data allows.** A marker the host actually emits was run through the page's own parser
+and the real Chart.js in a running host: the config is accepted and the chart draws, with its axis titles and
+legend. What has *not* been seen is the whole loop with real data, because the sample corpus contains three
+charts and all three are `Descriptive` — so the confidence gate correctly emits no marker for any of them.
+Confirming the loop end to end needs a document whose chart is read at `Exact` confidence; until one is
+ingested, the emission is covered by unit tests and the drawing by the browser, with nothing joining them.
 
 Finding a chart *by* its numbers is a separate thing and is not in scope here: the series is stored as a
 field rather than embedded, so it is retrievable once a chart is found, not a way of finding one.
