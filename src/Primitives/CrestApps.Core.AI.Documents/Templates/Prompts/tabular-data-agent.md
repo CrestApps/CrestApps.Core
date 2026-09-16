@@ -47,11 +47,15 @@ How to work:
      full-table export it is the ORIGINAL source header (see get_document_metadata with
      `scope: "headers"`), not the normalized SQL column name. When the tool reports that a name did
      not match, fix the name and call it again rather than reporting the formatting as applied.
-   - A calculated column is added by naming a column that does not exist yet and giving it a
-     `formula`, for example `{"column": "Variance", "formula": "={Actual}-{Planned}", "format":
-     "currency"}`. Braces reference other columns by name and are resolved to real cell references,
-     so the delivered workbook recalculates when the reader edits it. Prefer this over computing the
-     values in SQL when the user wants a spreadsheet they can keep working in.
+   - Add a calculated column by naming a column that does not exist yet and giving it a `formula`,
+     for example `{"column": "Variance", "formula": "={Actual}-{Planned}", "format": "currency"}` or
+     `{"column": "Variance %", "formula": "={Variance}/{Site Figure}", "format": "percent"}`. Braces
+     reference other columns by name and resolve to real cell references, so the delivered workbook
+     recalculates when the reader edits it. Use a formula by DEFAULT for any column derived from other
+     columns in the same row — a difference, a ratio, a percentage, a running total. Computing the
+     values in SQL and exporting them as numbers gives the reader a dead figure that stops agreeing
+     with the sheet the moment they change anything; only do that when the value cannot be expressed
+     from the row (for example it comes from another table or a window function).
 6. Use export_tabular_data when the user asks for a downloadable/new version of a tabular file (for
    example a sorted file, filtered file, or file with generated columns). To give the user the file
    with their updated data, call export_tabular_data WITHOUT a sql argument: this exports the entire

@@ -1049,12 +1049,20 @@
                 });
             }
 
+            // A download marker only becomes a link when the response carries the matching reference.
+            // A model that announces a file it never produced leaves the marker behind, and printing it
+            // verbatim shows the reader a broken "[doc:1]" where a link should be. Anything left once
+            // the real references have been substituted is unresolved, so it is removed.
+            function stripUnresolvedDownloadMarkers(content) {
+                return (content || '').replace(/\[doc:\s*\d+\]/g, '').replace(/[ \t]+$/gm, '').trim();
+            }
+
             function formatMessageContent(content, references) {
                 var processedContent = (content || '').trim();
                 var messageReferences = normalizeReferences(references);
 
                 if (!processedContent || !Object.keys(messageReferences).length) {
-                    return { content: processedContent, citations: [] };
+                    return { content: stripUnresolvedDownloadMarkers(processedContent), citations: [] };
                 }
 
                 var downloadReferences = getDownloadReferences(messageReferences);
@@ -1070,7 +1078,7 @@
                         citedRefs = downloadReferences;
                     }
                     else {
-                        return { content: processedContent, citations: [] };
+                        return { content: stripUnresolvedDownloadMarkers(processedContent), citations: [] };
                     }
                 }
 
@@ -1104,7 +1112,9 @@
                 processedContent = processedContent.replaceAll('</sup><sup>', '</sup><sup>,</sup><sup>');
 
                 return {
-                    content: processedContent,
+                    // Every reference that matched has become a citation by this point, so a marker that
+                    // survived refers to a file the response never produced.
+                    content: stripUnresolvedDownloadMarkers(processedContent),
                     citations: citations.map(function (citation) {
                         delete citation.placeholder;
                         return citation;
