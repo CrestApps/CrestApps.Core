@@ -1,51 +1,50 @@
-# RAG and ingestion — outstanding work
+﻿# RAG and ingestion — outstanding work
 
 One place for everything still owed on the ingestion branch. Fixed defects are described in the
 changelog rather than here; the row is deleted from this file once the change ships. The review record
 that produced the original defect list is
 [pdf-ingestion-review-findings.md](pdf-ingestion-review-findings.md).
 
-**The fact that used to govern this file has expired.** The `Ingested` subsystem is no longer
-uncommitted: it landed as `ecdd8021` on `ma/file-sources-and-figure-retrieval`, and the search-failure
-fix followed as `e4796fc5`. The branch is still unmerged and unreleased, so a schema change costs no
-migration of released data — only of a local dev database — but it is no longer true that the work can
-be reshaped without rewriting history.
-
 ## State of the branch
 
-Build clean on both sample hosts, **3,688 tests passing**, `gulp rebuild` idempotent. Work sits in two
-places, and the distinction matters when reading the rows below:
+Everything described here is committed on `ma/file-sources-and-figure-retrieval`. Build clean on both sample
+hosts, **3,703 tests passing**, 88 client-side unit tests passing, `gulp rebuild` idempotent, and the assets
+gate green.
 
-- **Committed** — the subsystem itself, the `File` rename and its screens, the FTP/SFTP project split,
-  the regrouped navigation, and failure-vs-emptiness in retrieval.
-- **In the working tree, not yet committed** — the sync summary, the capability-strip surfacing, the
-  chart-marker deduplication and its regenerated assets, the enforcement documentation, the chart
-  series reaching the model, and the list-by-type tool.
+The fact that used to sit at the top of this file — that the subsystem was uncommitted and could be reshaped
+for free — is gone twice over: the work is committed, and the working tree is empty.
 
-## Fixed since the last pass
+## What closed, and what it cost
 
-Five of the eight rows that were open are closed, and two of the three redesigns recorded here as
-unstarted turned out to be done.
+Of the eight rows this file opened with, seven are closed and one was withdrawn rather than fixed (see
+**Decided, not owed**). Two of the three redesigns it recorded as unstarted turned out to have been done
+already.
 
-The one worth restating is failure-vs-emptiness, because its blast radius was wider than the symptom
-that found it. Every content manager caught its own provider exception, logged it and returned an empty
-list, so a dead index, a bad credential and a genuine miss were indistinguishable upstream. With
-PostgreSQL stopped the model answered "I could not find a photograph in this issue" — a confident wrong
-answer where the truth was "the index is down". Content managers now offer `TrySearchAsync` alongside
-`SearchAsync`, with a default implementation so providers outside this repository keep compiling, and a
-search that failed no longer produces the message a search that matched nothing produces.
+The one worth restating is failure-vs-emptiness, because its blast radius was wider than the symptom that
+found it. Every content manager caught its own provider exception, logged it and returned an empty list, so a
+dead index, a bad credential and a genuine miss were indistinguishable upstream. With PostgreSQL stopped the
+model answered "I could not find a photograph in this issue" — a confident wrong answer where the truth was
+"the index is down". Content managers now offer `TrySearchAsync` alongside `SearchAsync`, with a default
+implementation so providers outside this repository keep compiling, and a search that failed no longer
+produces the message a search that matched nothing produces.
 
 ## Still open
 
 | # | Status | Issue | Where |
 | --- | --- | --- | --- |
-| 1 | open | Chart series still have no names. The split by polyline identity is done, so two plotted lines now yield two series, but naming them needs legend parsing — matching a swatch's colour or dash pattern to a label — and neither colour nor stroke style is carried on the segment type. No name is invented in the meantime. | `Pdf/Services/VectorPathChartDataExtractor.cs:300` |
-| 2 | open | The YesSql knowledge-object store's figure-hash lookup has no unit test. The suite's YesSql harness hardwires the three chat index providers it registers, so covering `KnowledgeObjectIndex` means extending that harness. The EntityCore side is covered. | `tests/…/Framework/Mvc/YesSqlAIStoreTestDatabase.cs` |
-| 3 | open | **No screen edits the new `AIDataSourceRagMetadata.ObjectTypes`.** The restriction works and is enforced on both searches, but it can only be set from code — neither host's profile screen offers it, the way the tool instance screen offers its own content types. | both hosts' AI Profile screens |
-| 4 | open | **Nothing compares the two hosts' navigation.** The regrouping below shipped in lockstep and the two sidebars agree today, but the parity suite does not cover the layout files, so the next one-sided edit ships silently. The pair is asymmetric — the MVC file also holds the top navbar, the validation alert and the chat-widget include — so a comparison has to name what it compares rather than diff the files. | `Views/Shared/_Layout.cshtml`, `Components/Layout/NavMenu.razor` |
-| 5 | open | **The JavaScript marker tests never run anywhere but a developer's shell.** `chart-markers.test.js` (15 cases), `figure-markers.test.js` (14) and `citation-markers.test.js` (35) pass under `node --test`, but `npm test` runs only `test:gate`, which names `gate-decision.test.js` alone, and no workflow runs any node test at all — `pr_ci.yml` runs `dotnet test` and nothing else. The rules these cover are now shared by three chat surfaces, so they are exactly the code that should be gated. Pre-existing, and wider than this branch. | `package.json`, `.github/workflows/pr_ci.yml` |
-| 6 | open | **A model told a chart is machine-readable still shows a picture of it.** Driven live: asked whether a chart's values were machine-readable, the model answered that they were, described the numeric series — and rendered the figure as an image. The page had `canvasCount: 0` with the marker parser and Chart.js both loaded and ready. The over-claim is the model reading the series it was given; the contradiction is D below, seen from the reader's side rather than the code's. | see D |
-| 7 | open | SignalR is loaded from `cdn.jsdelivr.net/npm/@microsoft/signalr@latest`. A floating version cannot carry an SRI hash and cannot be reproduced, in a sample host others copy. | both hosts' chat views |
+| 1 | open | The YesSql knowledge-object store's figure-hash lookup has no unit test. The suite's YesSql harness hardwires the three chat index providers it registers, so covering `KnowledgeObjectIndex` means extending that harness. The EntityCore side is covered. | `tests/…/Framework/Mvc/YesSqlAIStoreTestDatabase.cs` |
+| 2 | open | **No screen edits `AIDataSourceRagMetadata.ObjectTypes`.** The restriction works and is enforced on both searches, but it can only be set from code — neither host's profile screen offers it, the way the tool instance screen offers its own kinds. | both hosts' AI Profile screens |
+| 3 | open | **Nothing compares the two hosts' navigation.** The regrouping shipped in lockstep and the two sidebars agree today, but the parity suite does not cover the layout files, so the next one-sided edit ships silently. The pair is asymmetric — the MVC file also holds the top navbar, the validation alert and the chat-widget include — so a comparison has to name what it compares rather than diff the files. | `Views/Shared/_Layout.cshtml`, `Components/Layout/NavMenu.razor` |
+| 4 | open | **A model told a chart is machine-readable still shows a picture of it.** Driven live: asked whether a chart's values were machine-readable, the model answered that they were, described the numeric series — and rendered the figure as an image. The page had `canvasCount: 0` with the marker parser and Chart.js both loaded and ready. The over-claim is the model reading the series it was given; the contradiction is D below, seen from the reader's side rather than the code's. | see D |
+
+## Decided, not owed
+
+**Chart series are not named, and that is the answer rather than a gap.** Splitting by polyline identity is
+done, so two plotted lines yield two series. Naming them would mean matching a legend swatch's colour or dash
+pattern to a label, and neither is carried on the segment type. A name arrived at that way is a guess, and a
+guess here does not read as one: it attributes measured values to a series that may not exist, which is the
+exact failure the confidence levels were built to prevent. An unnamed series says what is known. This is
+closed; do not re-open it as a to-do.
 
 ## Needs your action, not code
 

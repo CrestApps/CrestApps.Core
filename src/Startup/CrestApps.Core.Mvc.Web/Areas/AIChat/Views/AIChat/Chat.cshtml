@@ -1,4 +1,4 @@
-@using System.Text.Json
+﻿@using System.Text.Json
 @using CrestApps.Core
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Capabilities
@@ -302,7 +302,9 @@
 </div>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@latest/dist/browser/signalr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@10.0.11/dist/browser/signalr.min.js"
+            integrity="sha384-N+pL/4qXZHZcvsa6hVMd5/7cdF3lC59ZMNHeQyRo5q9jmC7yw0hcJILPjUDSU7ZS"
+            crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
