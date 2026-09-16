@@ -125,8 +125,50 @@ The prompt security layer is controlled by `PromptSecurityOptions`.
 | --- | --- | --- |
 | `CookieName` | `crestapps-ai-visitor` | Name of the first-party cookie used to persist anonymous visitor IDs |
 | `CookieLifetime` | `180` days | Lifetime of the anonymous visitor cookie |
+| `AllowCrossSiteEmbedding` | `false` | Writes the visitor cookie so it survives inside a frame on another site |
+| `UsePartitionedCookie` | `true` | Adds the `Partitioned` attribute when `AllowCrossSiteEmbedding` is on |
 | `RemoteAddressMode` | `Hashed` | Chooses whether remote-address data is disabled, stored as a salted hash, stored in plain text, or encrypted at rest with Data Protection |
 | `RemoteAddressHashSalt` | `CrestApps.Core.AI.VisitorIdentity` | Salt used when `RemoteAddressMode = Hashed` or `Encrypted` |
+
+#### Embedding the chat on another site
+
+The visitor cookie is written `SameSite=Lax`, which is the right default for a chat served from its own
+site. A browser refuses a `Lax` cookie in a third-party context, and says so in the console:
+
+> Cookie "crestapps-ai-visitor" has been rejected because it is in a cross-site context.
+
+So a chat embedded in a frame on someone else's site looks like a brand new visitor on every request.
+Two things follow: the conversation does not survive a page load, and the `Visitor` rate-limit partition
+never accumulates, so it stops contributing to abuse control and throttling falls back to the coarser
+keys (network address, session, connection).
+
+`AllowCrossSiteEmbedding` writes the cookie `SameSite=None; Secure; Partitioned` instead, which is the
+only combination a browser keeps in a frame. Turn it on only for a deployment that really is embedded on
+other sites:
+
+```csharp
+.ConfigureVisitorIdentity(options =>
+{
+    options.AllowCrossSiteEmbedding = true;
+})
+```
+
+What this does and does not give up:
+
+- **The cookie is an identifier, not an authenticator.** It stays `HttpOnly`, and it grants no privilege
+  of its own, so relaxing `SameSite` on it does not open a CSRF path. This option affects the visitor
+  cookie only; nothing else about how the application writes cookies changes.
+- **`Partitioned` matters more than it first appears.** `SameSite` is not part of a cookie's identity
+  key, so without partitioning the cookie written inside a frame replaces the first-party cookie of the
+  same name and downgrades that one to `SameSite=None` everywhere. The partition key *is* part of the
+  key, so the two stay apart wherever the attribute is honoured. Leave `UsePartitionedCookie` on unless
+  a deployment needs one identifier across sites and accepts that browsers are removing that ability.
+- **A partitioned cookie gives a separate identifier per embedding site**, which is what per-site abuse
+  control wants.
+- **HTTPS is required.** `SameSite=None` is only legal together with `Secure`, and a `Secure` cookie
+  never reaches a plain HTTP page, so a request that did not arrive over HTTPS keeps the `Lax` cookie
+  rather than losing it altogether. Behind a proxy that terminates TLS, forward the scheme (for example
+  with `UseForwardedHeaders`) or the option has no effect.
 
 ### Weighted-scoring thresholds
 
