@@ -42,6 +42,29 @@ public interface IRealtimeConversation : IAsyncDisposable
     Task RequestResponseAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Asks the model to speak when the user has not just spoken — to open a call, or to break a silence that
+    /// has gone on too long.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="RequestResponseAsync"/> refuses this on a session that responds automatically, and is right to:
+    /// on a turn the provider has already answered, a second response is a duplicate. That reasoning does not
+    /// hold when the provider has not answered anything — before the first turn, or after one that produced no
+    /// transcript — and those are the moments when somebody has to speak or nobody will. An outbound call left
+    /// the customer listening to silence until they said "hello" first, and a caller whose reply was lost waited
+    /// for an assistant that was waiting for them.
+    /// </para>
+    /// <para>
+    /// Only call this when no response is in flight and the user's turn is not about to be answered; on a
+    /// session that answers by itself, anything else produces two replies talking over each other.
+    /// </para>
+    /// </remarks>
+    /// <param name="instructions">What the model should say, or <see langword="null"/> to let it decide from the conversation so far.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    Task RequestUnpromptedResponseAsync(string instructions = null, CancellationToken cancellationToken = default)
+        => RequestResponseAsync(cancellationToken);
+
+    /// <summary>
     /// Asks the model to speak a short acknowledgement — "let me look that up" — to cover a wait the user would
     /// otherwise hear as silence.
     /// </summary>
