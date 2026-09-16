@@ -1,5 +1,6 @@
-using CrestApps.Core.Data.YesSql;
+﻿using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Data.YesSql.Indexes.AIChat;
+using CrestApps.Core.Data.YesSql.Indexes.Knowledge;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using YesSql;
@@ -122,11 +123,17 @@ internal sealed class YesSqlAIStoreTestDatabase : IAsyncDisposable
         };
 
         await store.InitializeCollectionAsync(collectionName, cancellationToken);
+
+        // Every index the AI collection has, not only the chat ones. A store method that filters on an index
+        // column returns nothing at all when the index was never registered, which reads as "no match" rather
+        // than as "not indexed here" -- so a harness that registers a subset makes a whole class of lookup
+        // untestable while appearing to work.
         store.RegisterIndexes(
             [
                 new AIChatSessionPromptIndexProvider(Options.Create(options)),
                 new AICompletionUsageIndexProvider(Options.Create(options)),
                 new AIChatSessionMetricsIndexProvider(Options.Create(options)),
+                new KnowledgeObjectIndexProvider(Options.Create(options)),
             ],
             collectionName);
 
@@ -140,6 +147,7 @@ internal sealed class YesSqlAIStoreTestDatabase : IAsyncDisposable
         await schemaBuilder.CreateAIChatSessionMetricsSchemaAsync(
             options,
             new AIChatSessionMetricsIndexSchemaOptions());
+        await CreateSchemaAsync(() => schemaBuilder.CreateKnowledgeObjectIndexSchemaAsync(options));
         await transaction.CommitAsync(cancellationToken);
     }
 
