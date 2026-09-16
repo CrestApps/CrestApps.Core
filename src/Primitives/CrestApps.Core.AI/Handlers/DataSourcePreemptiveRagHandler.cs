@@ -224,15 +224,20 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
 
         var topN = _options.GetTopNDocuments(ragMetadata?.TopNDocuments);
 
+        // The kind restriction is part of the filter rather than applied to the results, so a narrowed search
+        // still returns topN of what was asked for instead of topN of everything, most of it then discarded.
+        var objectTypes = ragMetadata?.ObjectTypes;
+        var filter = KnowledgeObjectTypeFilter.Combine(ragMetadata?.Filter, KnowledgeObjectTypeFilter.BuildClause(objectTypes));
+
         string providerFilter = null;
 
-        if (!string.IsNullOrWhiteSpace(ragMetadata?.Filter))
+        if (!string.IsNullOrWhiteSpace(filter))
         {
             var filterTranslator = _serviceProvider.GetKeyedService<IODataFilterTranslator>(indexProfile.ProviderName);
 
             if (filterTranslator != null)
             {
-                providerFilter = filterTranslator.Translate(ragMetadata.Filter);
+                providerFilter = filterTranslator.Translate(filter);
             }
         }
 
@@ -295,6 +300,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             dataSourceId,
             candidateCount,
             minimumScore,
+            objectTypes,
             seenChunkIds,
             finalResults,
             _logger);
@@ -456,6 +462,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
         string dataSourceId,
         int candidateCount,
         float minimumScore,
+        IReadOnlyList<string> objectTypes,
         HashSet<string> seenChunkIds,
         List<DataSourceSearchResult> finalResults,
         ILogger logger)
@@ -467,7 +474,20 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             return;
         }
 
-        var clause = $"({DataSourceConstants.ColumnNames.ContentType} eq '{KnowledgeObjectTypes.Figure}' or {DataSourceConstants.ColumnNames.ContentType} eq '{KnowledgeObjectTypes.Chart}')";
+        // This search is a second one, and the restriction the operator wrote was applied to the first. A
+        // profile narrowed to text must not be handed pictures through a door the filter never covered, and
+        // one narrowed to charts must not be handed photographs -- so the restriction is re-read here rather
+        // than assumed to have been dealt with upstream.
+        var pictureTypes = new[] { KnowledgeObjectTypes.Figure, KnowledgeObjectTypes.Chart }
+            .Where(pictureType => KnowledgeObjectTypeFilter.Admits(objectTypes, pictureType))
+            .ToList();
+
+        if (pictureTypes.Count == 0)
+        {
+            return;
+        }
+
+        var clause = KnowledgeObjectTypeFilter.BuildClause(pictureTypes);
         var pictureFilter = filterTranslator.Translate(clause);
 
         if (string.IsNullOrEmpty(pictureFilter))

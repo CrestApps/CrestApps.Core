@@ -391,11 +391,174 @@ public sealed class DataSourcePreemptiveRagHandlerTests
     /// dialect; what matters here is only that a clause survives the trip, because a provider with no
     /// translator is never asked for pictures at all.
     /// </summary>
+    /// <summary>
+    /// Verifies that a profile restricted to text is not handed pictures anyway.
+    /// </summary>
+    /// <remarks>
+    /// Pictures are fetched by a second search of their own, because a plain search ranks the prose about a
+    /// subject above the pictures of it. That second search never saw the operator's restriction, so a
+    /// restriction applied only to the first would be undone by the pass that runs after it -- the narrowing
+    /// would appear to work everywhere except where it matters.
+    /// </remarks>
+    [Fact]
+    public async Task HandleAsync_WhenTheProfileIsNarrowedToText_AddsNoPictures()
+    {
+        var dataSourceStore = new Mock<IAIDataSourceStore>();
+        dataSourceStore.Setup(store => store.FindByIdAsync("data-source-1"))
+            .ReturnsAsync(new AIDataSource
+            {
+                ItemId = "data-source-1",
+                Source = AIDataSourceSourceTypes.File,
+                AIKnowledgeBaseIndexProfileName = "kb-index",
+            });
+
+        var indexProfileStore = new Mock<ISearchIndexProfileStore>();
+        indexProfileStore.Setup(store => store.FindByNameAsync("kb-index"))
+            .ReturnsAsync(new SearchIndexProfile
+            {
+                Name = "kb-index",
+                ProviderName = "narrowing-provider",
+                EmbeddingDeploymentName = "embedding",
+            });
+
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        deploymentManager.Setup(manager => manager.FindByNameAsync("embedding"))
+            .ReturnsAsync(new AIDeployment
+            {
+                ItemId = "embedding-id",
+                Name = "embedding",
+                ModelName = "embedding",
+                ClientName = "OpenAI",
+                ConnectionName = "Default",
+            });
+
+        var textNormalizer = new Mock<IAITextNormalizer>();
+        textNormalizer.Setup(normalizer => normalizer.NormalizeTitle(It.IsAny<string>()))
+            .Returns<string>(value => value);
+
+        var linkResolver = new Mock<IAIReferenceLinkResolver>();
+        linkResolver
+            .Setup(instance => instance.ResolveLink("figure:abc:1:0", It.IsAny<IDictionary<string, object>>()))
+            .Returns("https://localhost/figures/figure-1");
+
+        var services = new ServiceCollection()
+            .AddSingleton<IAIDataSourceStore>(dataSourceStore.Object)
+            .AddSingleton<ISearchIndexProfileStore>(indexProfileStore.Object)
+            .AddSingleton<IAIDeploymentManager>(deploymentManager.Object)
+            .AddSingleton<IAIClientFactory>(new FakeAIClientFactory(new FakeEmbeddingGenerator(new Dictionary<string, float[]>
+            {
+                ["Show me a picture."] = [3f],
+            })))
+            .AddSingleton<ITemplateService, FakeTemplateService>()
+            .AddSingleton<IAITextNormalizer>(textNormalizer.Object)
+            .AddSingleton<IOptionsMonitor<AIDataSourceOptions>>(new TestOptionsMonitor<AIDataSourceOptions>
+            {
+                CurrentValue = new AIDataSourceOptions
+                {
+                    DefaultStrictness = 1,
+                    DefaultTopNDocuments = 3,
+                },
+            })
+            .AddLogging()
+            .AddKeyedSingleton<IDataSourceContentManager>("narrowing-provider", new FilterHonouringContentManager())
+            .AddKeyedSingleton<IODataFilterTranslator>("narrowing-provider", new PassThroughFilterTranslator())
+            .AddKeyedSingleton(AIDataSourceSourceTypes.File, linkResolver.Object)
+            .BuildServiceProvider();
+
+        var handler = new DataSourcePreemptiveRagHandler(
+            services,
+            services.GetRequiredService<IAIClientFactory>(),
+            services.GetRequiredService<ITemplateService>(),
+            services.GetRequiredService<IAIDeploymentManager>(),
+            services.GetRequiredService<IAITextNormalizer>(),
+            services.GetRequiredService<IOptionsMonitor<AIDataSourceOptions>>(),
+            NullLogger<DataSourcePreemptiveRagHandler>.Instance);
+
+        var profile = new AIProfile { ItemId = "profile-1", };
+        profile.Put(new AIDataSourceRagMetadata
+        {
+            ObjectTypes = [KnowledgeObjectTypes.Text],
+        });
+
+        var context = new OrchestrationContext
+        {
+            UserMessage = "Show me a picture.",
+            CompletionContext = new AICompletionContext { DataSourceId = "data-source-1", },
+        };
+
+        using var scope = AIInvocationScope.Begin();
+
+        await handler.HandleAsync(new PreemptiveRagContext(context, profile, []));
+
+        var systemMessage = context.SystemMessageBuilder.ToString();
+        var invocationContext = AIInvocationScope.Current;
+
+        // The text the restriction does admit is still retrieved and injected.
+        Assert.Contains("The measurements are discussed at length.", systemMessage, StringComparison.Ordinal);
+
+        // The picture is not, and no image is registered for the host to expand.
+        Assert.DoesNotContain("[fig:", systemMessage, StringComparison.Ordinal);
+        Assert.DoesNotContain("A measured plot", systemMessage, StringComparison.Ordinal);
+        Assert.DoesNotContain(invocationContext.ToolReferences, pair => pair.Value.IsImage);
+    }
+
     private sealed class PassThroughFilterTranslator : IODataFilterTranslator
     {
         public string Translate(string odataFilter)
         {
             return odataFilter;
+        }
+    }
+
+    /// <summary>
+    /// Returns whatever the filter it was handed actually asks for, so a test can tell a search that was
+    /// narrowed from one that only looked as though it was.
+    /// </summary>
+    private sealed class FilterHonouringContentManager : IDataSourceContentManager
+    {
+        public Task<long> DeleteByDataSourceIdAsync(IIndexProfileInfo indexProfile, string dataSourceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(0L);
+        }
+
+        public Task<IEnumerable<DataSourceSearchResult>> SearchAsync(IIndexProfileInfo indexProfile, float[] embedding, string dataSourceId, int topN, string filter = null, CancellationToken cancellationToken = default)
+        {
+            var wantsFigure = filter?.Contains($"'{KnowledgeObjectTypes.Figure}'", StringComparison.Ordinal) == true;
+            var wantsText = string.IsNullOrEmpty(filter) || filter.Contains($"'{KnowledgeObjectTypes.Text}'", StringComparison.Ordinal);
+
+            var results = new List<DataSourceSearchResult>();
+
+            if (wantsText)
+            {
+                results.Add(new DataSourceSearchResult
+                {
+                    ReferenceId = "article:abc:1",
+                    ReferenceType = AIDataSourceSourceTypes.File,
+                    ContentType = KnowledgeObjectTypes.Text,
+                    ChunkIndex = 0,
+                    Title = "The measurements, written up.",
+                    Content = "The measurements are discussed at length.",
+                    Page = 8,
+                    Score = 0.9f,
+                });
+            }
+
+            if (wantsFigure)
+            {
+                results.Add(new DataSourceSearchResult
+                {
+                    ReferenceId = "figure:abc:1:0",
+                    ReferenceType = AIDataSourceSourceTypes.File,
+                    ContentType = KnowledgeObjectTypes.Figure,
+                    ChunkIndex = 0,
+                    Title = "A measured plot.",
+                    Content = "A measured plot, described.",
+                    Page = 8,
+                    Score = 0.4f,
+                });
+            }
+
+            return Task.FromResult<IEnumerable<DataSourceSearchResult>>(results);
         }
     }
 

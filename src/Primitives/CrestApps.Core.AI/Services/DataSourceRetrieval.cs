@@ -182,8 +182,8 @@ internal static partial class DataSourceRetrieval
             StringComparison.OrdinalIgnoreCase);
 
         var callerFilter = storesTypedKnowledge ? request.Filter : QualifyCallerFields(request.Filter);
-        var contentTypeClause = BuildContentTypeClause(request.ObjectTypes);
-        var filter = CombineFilters(callerFilter, contentTypeClause);
+        var contentTypeClause = KnowledgeObjectTypeFilter.BuildClause(request.ObjectTypes);
+        var filter = KnowledgeObjectTypeFilter.Combine(callerFilter, contentTypeClause);
 
         IODataFilterTranslator filterTranslator = null;
 
@@ -369,57 +369,6 @@ internal static partial class DataSourceRetrieval
             dataSourceId);
 
         return Message(SearchFailedMessage);
-    }
-
-    /// <summary>
-    /// Builds the clause that narrows a search to the kinds of knowledge the caller asked for.
-    /// </summary>
-    /// <param name="contentTypes">The kinds of knowledge to search, when the caller named any.</param>
-    /// <returns>The clause, or <see langword="null"/> when the caller named none.</returns>
-    /// <remarks>
-    /// A row written before typed knowledge existed has no <c>contentType</c>, so asking for text alone also
-    /// asks for rows that have no value. Anything else would hide every document indexed before the column
-    /// existed.
-    /// </remarks>
-    private static string BuildContentTypeClause(IReadOnlyList<string> contentTypes)
-    {
-        if (contentTypes is not { Count: > 0 })
-        {
-            return null;
-        }
-
-        var clauses = contentTypes
-            .Where(contentType => !string.IsNullOrWhiteSpace(contentType))
-            .Select(contentType => $"{DataSourceConstants.ColumnNames.ContentType} eq '{contentType.Replace("'", "''", StringComparison.Ordinal)}'")
-            .ToList();
-
-        if (clauses.Count == 0)
-        {
-            return null;
-        }
-
-        if (contentTypes.Any(contentType => string.Equals(contentType, KnowledgeObjectTypes.Text, StringComparison.OrdinalIgnoreCase)))
-        {
-            clauses.Add($"{DataSourceConstants.ColumnNames.ContentType} eq null");
-        }
-
-        return clauses.Count == 1 ? clauses[0] : $"({string.Join(" or ", clauses)})";
-    }
-
-    /// <summary>
-    /// Joins the caller's filter and the content-type clause into the one filter to translate.
-    /// </summary>
-    /// <param name="filter">The caller's OData filter, when it has one.</param>
-    /// <param name="clause">The content-type clause, when there is one.</param>
-    /// <returns>The filter to translate, or <see langword="null"/> when there is nothing to filter on.</returns>
-    private static string CombineFilters(string filter, string clause)
-    {
-        if (string.IsNullOrWhiteSpace(clause))
-        {
-            return filter;
-        }
-
-        return string.IsNullOrWhiteSpace(filter) ? clause : $"({filter}) and {clause}";
     }
 
     /// <summary>
