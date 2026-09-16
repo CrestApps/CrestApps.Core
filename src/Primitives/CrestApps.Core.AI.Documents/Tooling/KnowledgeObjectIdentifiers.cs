@@ -1,4 +1,4 @@
-using CrestApps.Core.Infrastructure.Indexing;
+﻿using CrestApps.Core.Infrastructure.Indexing;
 
 namespace CrestApps.Core.AI.Documents.Tooling;
 
@@ -8,19 +8,19 @@ namespace CrestApps.Core.AI.Documents.Tooling;
 /// <remarks>
 /// Every canonical identifier states its own kind before its first colon, which is the only thing about an
 /// identifier that can be checked without going to the store. Both tools check it the same way, from one
-/// list, so a kind added to <see cref="KnowledgeContentTypes"/> cannot be readable by one tool and rejected
+/// list, so a kind added to <see cref="KnowledgeObjectTypes"/> cannot be readable by one tool and rejected
 /// by the other.
 /// </remarks>
 internal static class KnowledgeObjectIdentifiers
 {
     private static readonly string[] _prefixes =
     [
-        KnowledgeContentTypes.Document,
-        KnowledgeContentTypes.Article,
-        KnowledgeContentTypes.Text,
-        KnowledgeContentTypes.Figure,
-        KnowledgeContentTypes.Chart,
-        KnowledgeContentTypes.Table,
+        KnowledgeObjectTypes.Document,
+        KnowledgeObjectTypes.Article,
+        KnowledgeObjectTypes.Text,
+        KnowledgeObjectTypes.Figure,
+        KnowledgeObjectTypes.Chart,
+        KnowledgeObjectTypes.Table,
     ];
 
     /// <summary>

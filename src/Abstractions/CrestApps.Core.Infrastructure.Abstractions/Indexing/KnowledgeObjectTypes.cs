@@ -1,4 +1,4 @@
-namespace CrestApps.Core.Infrastructure.Indexing;
+﻿namespace CrestApps.Core.Infrastructure.Indexing;
 
 /// <summary>
 /// What kind of knowledge one knowledge-base row holds.
@@ -8,11 +8,20 @@ namespace CrestApps.Core.Infrastructure.Indexing;
 /// as separate rows with a type on each is what lets retrieval return "the chart on page 8" as its own hit
 /// instead of burying it in one embedding averaged over everything on the page.
 /// <para>
-/// The same values name the object types in the knowledge store, so the store and the index never disagree
-/// about what something is.
+/// These are the same values <see cref="CrestApps.Core.AI.Models.KnowledgeObject.ObjectType"/> carries, so the
+/// store and the index never disagree about what something is. The name follows the store's word deliberately:
+/// "content type" means a content item's type to anyone arriving from Orchard Core, which this library is used
+/// from, and that is not what these are.
+/// </para>
+/// <para>
+/// The indexed row still names the column <c>contentType</c>, and a data source search tool instance still
+/// stores its selection under <c>ContentTypes</c>. Both are written into stored data and read back verbatim,
+/// so they are pinned rather than renamed — the same reason the figure storage segment is still
+/// <c>Ingested</c>. Renaming either means rewriting what is already stored, which is a migration rather than
+/// a rename.
 /// </para>
 /// </remarks>
-public static class KnowledgeContentTypes
+public static class KnowledgeObjectTypes
 {
     /// <summary>
     /// An ingested file as a whole.

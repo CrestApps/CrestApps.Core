@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Clients;
+﻿using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
@@ -467,7 +467,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             return;
         }
 
-        var clause = $"({DataSourceConstants.ColumnNames.ContentType} eq '{KnowledgeContentTypes.Figure}' or {DataSourceConstants.ColumnNames.ContentType} eq '{KnowledgeContentTypes.Chart}')";
+        var clause = $"({DataSourceConstants.ColumnNames.ContentType} eq '{KnowledgeObjectTypes.Figure}' or {DataSourceConstants.ColumnNames.ContentType} eq '{KnowledgeObjectTypes.Chart}')";
         var pictureFilter = filterTranslator.Translate(clause);
 
         if (string.IsNullOrEmpty(pictureFilter))

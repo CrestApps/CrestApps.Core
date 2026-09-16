@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.DataSources;
+﻿using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -76,7 +76,7 @@ public sealed class DataSourceFigureResourceHandler : McpResourceTypeHandlerBase
         // figure out of a data source the caller was never given.
         if (entry is null ||
             !string.Equals(entry.Source, dataSourceId, StringComparison.OrdinalIgnoreCase) ||
-            entry.ObjectType is not (KnowledgeContentTypes.Figure or KnowledgeContentTypes.Chart))
+            entry.ObjectType is not (KnowledgeObjectTypes.Figure or KnowledgeObjectTypes.Chart))
         {
             return CreateErrorResult(uri, "The figure was not found.");
         }

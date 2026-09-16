@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.DataSources;
+﻿using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Data.YesSql.Indexes.Knowledge;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -13,7 +13,7 @@ namespace CrestApps.Core.Data.YesSql.Services;
 /// </summary>
 public sealed class YesSqlKnowledgeObjectStore : DocumentCatalog<KnowledgeObject, KnowledgeObjectIndex>, IKnowledgeObjectStore
 {
-    private static readonly string[] _figureTypes = [KnowledgeContentTypes.Figure, KnowledgeContentTypes.Chart];
+    private static readonly string[] _figureTypes = [KnowledgeObjectTypes.Figure, KnowledgeObjectTypes.Chart];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="YesSqlKnowledgeObjectStore"/> class.
@@ -172,7 +172,7 @@ public sealed class YesSqlKnowledgeObjectStore : DocumentCatalog<KnowledgeObject
     /// </remarks>
     private static bool IsDescribedFigure(KnowledgeObject entry, string contentHash, string promptVersion)
     {
-        if (entry.ObjectType is not (KnowledgeContentTypes.Figure or KnowledgeContentTypes.Chart))
+        if (entry.ObjectType is not (KnowledgeObjectTypes.Figure or KnowledgeObjectTypes.Chart))
         {
             return false;
         }

@@ -1,4 +1,4 @@
-using System.Text.Json.Nodes;
+﻿using System.Text.Json.Nodes;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -131,7 +131,7 @@ internal sealed class InMemoryKnowledgeObjectStore : IKnowledgeObjectStore
     {
         foreach (var entry in _entries)
         {
-            if (entry.ObjectType is not (KnowledgeContentTypes.Figure or KnowledgeContentTypes.Chart))
+            if (entry.ObjectType is not (KnowledgeObjectTypes.Figure or KnowledgeObjectTypes.Chart))
             {
                 continue;
             }

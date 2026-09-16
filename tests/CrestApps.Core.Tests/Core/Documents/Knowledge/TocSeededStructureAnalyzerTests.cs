@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Documents.Ingestion;
+﻿using CrestApps.Core.AI.Documents.Ingestion;
 using CrestApps.Core.AI.Documents.Knowledge;
 using CrestApps.Core.AI.Documents.Knowledge.Structure;
 using CrestApps.Core.AI.Models;
@@ -174,7 +174,7 @@ public sealed class TocSeededStructureAnalyzerTests
             entry => Assert.Equal(KnowledgeObjectStatus.Excluded, entry.Status));
 
         // Everything else stays indexable.
-        Assert.Contains(objects, entry => entry.ObjectType == KnowledgeContentTypes.Text && entry.Status == KnowledgeObjectStatus.Ready);
+        Assert.Contains(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Text && entry.Status == KnowledgeObjectStatus.Ready);
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Services;
 using Microsoft.Extensions.AI;
@@ -135,7 +135,7 @@ public sealed class DataSourceSearchToolFunction : AIFunction
                     TopNDocuments = _settings.TopNDocuments,
                     Strictness = _settings.Strictness,
                     Filter = _settings.Filter,
-                    ContentTypes = ReadContentTypes(arguments) ?? _settings.ContentTypes,
+                    ObjectTypes = ReadContentTypes(arguments) ?? _settings.ContentTypes,
                     RetrievalMode = _settings.RetrievalMode,
                 },
                 _name,

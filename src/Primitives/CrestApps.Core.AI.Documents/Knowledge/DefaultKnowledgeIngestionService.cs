@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents.Ingestion;
 using CrestApps.Core.AI.Documents.Ingestion.Processors;
@@ -100,7 +100,7 @@ public sealed class DefaultKnowledgeIngestionService : IKnowledgeIngestionServic
         // instead of storing a second copy of it.
         var contentHash = Convert.ToHexStringLower(SHA256.HashData(bytes));
         var fileKey = contentHash[..16];
-        var rootId = $"{KnowledgeContentTypes.Document}:{fileKey}";
+        var rootId = $"{KnowledgeObjectTypes.Document}:{fileKey}";
 
         IngestionDocument document;
 
@@ -203,7 +203,7 @@ public sealed class DefaultKnowledgeIngestionService : IKnowledgeIngestionServic
             Success = true,
             RootId = rootId,
             ObjectCount = objects.Count,
-            FigureCount = objects.Count(entry => entry.ObjectType is KnowledgeContentTypes.Figure or KnowledgeContentTypes.Chart),
+            FigureCount = objects.Count(entry => entry.ObjectType is KnowledgeObjectTypes.Figure or KnowledgeObjectTypes.Chart),
             PendingDescriptionCount = objects.Count(entry => entry.Status == KnowledgeObjectStatus.PendingDescription),
         };
     }

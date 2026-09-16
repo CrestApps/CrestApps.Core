@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.DataSources;
+﻿using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents.Knowledge;
 using CrestApps.Core.AI.Indexers;
 using CrestApps.Core.AI.Indexers.Connectors;
@@ -142,7 +142,7 @@ public sealed class IndexerRunServiceTests : IDisposable
 
         // Every file was read exactly once: one document object per file.
         Assert.Equal(Files, indexed);
-        Assert.Equal(Files, harness.Store.All.Count(entry => entry.ObjectType == KnowledgeContentTypes.Document));
+        Assert.Equal(Files, harness.Store.All.Count(entry => entry.ObjectType == KnowledgeObjectTypes.Document));
     }
 
     /// <summary>
@@ -160,7 +160,7 @@ public sealed class IndexerRunServiceTests : IDisposable
 
         await harness.Service.RunAsync(indexer, TestContext.Current.CancellationToken);
 
-        var firstRoot = Assert.Single(harness.Store.All, entry => entry.ObjectType == KnowledgeContentTypes.Document).RootId;
+        var firstRoot = Assert.Single(harness.Store.All, entry => entry.ObjectType == KnowledgeObjectTypes.Document).RootId;
 
         // A later write with different bytes; the modified time moves too, so the change token changes.
         await Task.Delay(20, TestContext.Current.CancellationToken);
@@ -170,7 +170,7 @@ public sealed class IndexerRunServiceTests : IDisposable
 
         Assert.Equal(1, summary.ItemsIndexed);
 
-        var documents = harness.Store.All.Where(entry => entry.ObjectType == KnowledgeContentTypes.Document).ToList();
+        var documents = harness.Store.All.Where(entry => entry.ObjectType == KnowledgeObjectTypes.Document).ToList();
 
         Assert.Single(documents);
         Assert.NotEqual(firstRoot, documents[0].RootId);
@@ -197,7 +197,7 @@ public sealed class IndexerRunServiceTests : IDisposable
 
         await harness.Service.RunAsync(indexer, TestContext.Current.CancellationToken);
 
-        var firstRoot = Assert.Single(harness.Store.All, entry => entry.ObjectType == KnowledgeContentTypes.Document).RootId;
+        var firstRoot = Assert.Single(harness.Store.All, entry => entry.ObjectType == KnowledgeObjectTypes.Document).RootId;
 
         // The same bytes under a different name, which is what a move looks like to a folder listing.
         File.Delete(Path.Combine(_root, "report.txt"));
@@ -205,7 +205,7 @@ public sealed class IndexerRunServiceTests : IDisposable
 
         await harness.Service.RunAsync(indexer, TestContext.Current.CancellationToken);
 
-        var documents = harness.Store.All.Where(entry => entry.ObjectType == KnowledgeContentTypes.Document).ToList();
+        var documents = harness.Store.All.Where(entry => entry.ObjectType == KnowledgeObjectTypes.Document).ToList();
 
         Assert.Single(documents);
         Assert.Equal(firstRoot, documents[0].RootId);

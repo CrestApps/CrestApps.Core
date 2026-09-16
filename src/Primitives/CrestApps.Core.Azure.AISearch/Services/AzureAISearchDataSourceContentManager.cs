@@ -1,4 +1,4 @@
-using Azure;
+﻿using Azure;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Models;
@@ -223,7 +223,7 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
                         ChunkIndex = chunkIndex,
                         ReferenceType = referenceType,
                         Score = (float)(result.Score ?? 0.0),
-                        ContentType = ReadString(document, DataSourceConstants.ColumnNames.ContentType) ?? KnowledgeContentTypes.Text,
+                        ContentType = ReadString(document, DataSourceConstants.ColumnNames.ContentType) ?? KnowledgeObjectTypes.Text,
                         RootId = ReadString(document, DataSourceConstants.ColumnNames.RootId),
                         ParentId = ReadString(document, DataSourceConstants.ColumnNames.ParentId),
                         Page = ReadInt32(document, DataSourceConstants.ColumnNames.Page),

@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Clients;
+﻿using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Indexing;
@@ -44,7 +44,7 @@ public sealed class DefaultAIDataSourceIndexingServiceTypedTests
             IsPreChunked = true,
             Fields = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
             {
-                [DataSourceConstants.ColumnNames.ContentType] = KnowledgeContentTypes.Figure,
+                [DataSourceConstants.ColumnNames.ContentType] = KnowledgeObjectTypes.Figure,
             },
         };
 
@@ -72,7 +72,7 @@ public sealed class DefaultAIDataSourceIndexingServiceTypedTests
             IsPreChunked = true,
             Fields = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
             {
-                [DataSourceConstants.ColumnNames.ContentType] = KnowledgeContentTypes.Figure,
+                [DataSourceConstants.ColumnNames.ContentType] = KnowledgeObjectTypes.Figure,
                 [DataSourceConstants.ColumnNames.RootId] = "document:key",
                 [DataSourceConstants.ColumnNames.ParentId] = "article:key:1",
                 [DataSourceConstants.ColumnNames.Page] = 8,
@@ -84,7 +84,7 @@ public sealed class DefaultAIDataSourceIndexingServiceTypedTests
 
         var written = Assert.Single(harness.DocumentManager.Written);
 
-        Assert.Equal(KnowledgeContentTypes.Figure, written.Fields[DataSourceConstants.ColumnNames.ContentType]);
+        Assert.Equal(KnowledgeObjectTypes.Figure, written.Fields[DataSourceConstants.ColumnNames.ContentType]);
         Assert.Equal("document:key", written.Fields[DataSourceConstants.ColumnNames.RootId]);
         Assert.Equal("article:key:1", written.Fields[DataSourceConstants.ColumnNames.ParentId]);
         Assert.Equal(8, written.Fields[DataSourceConstants.ColumnNames.Page]);
@@ -132,7 +132,7 @@ public sealed class DefaultAIDataSourceIndexingServiceTypedTests
         Assert.Equal("press-release", filters[DataSourceConstants.ColumnNames.ContentType]);
 
         // And it never reaches the discriminator, which stays the default every untyped row already reads as.
-        Assert.Equal(KnowledgeContentTypes.Text, written.Fields[DataSourceConstants.ColumnNames.ContentType]);
+        Assert.Equal(KnowledgeObjectTypes.Text, written.Fields[DataSourceConstants.ColumnNames.ContentType]);
     }
 
     /// <summary>

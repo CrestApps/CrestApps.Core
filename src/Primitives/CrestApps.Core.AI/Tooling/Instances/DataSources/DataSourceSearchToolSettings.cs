@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Models;
+﻿using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Tooling.Instances.DataSources;
 
@@ -44,7 +44,7 @@ public sealed class DataSourceSearchToolSettings
     /// When empty, every kind is searched.
     /// </summary>
     /// <remarks>
-    /// See <see cref="CrestApps.Core.Infrastructure.Indexing.KnowledgeContentTypes"/> for the values. A row
+    /// See <see cref="CrestApps.Core.Infrastructure.Indexing.KnowledgeObjectTypes"/> for the values. A row
     /// written before typed knowledge existed has no type and is treated as text.
     /// </remarks>
     public string[] ContentTypes { get; set; }

@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Documents.Ingestion;
+﻿using CrestApps.Core.AI.Documents.Ingestion;
 using CrestApps.Core.AI.Documents.Ingestion.Processors;
 using CrestApps.Core.AI.Documents.Knowledge;
 using CrestApps.Core.AI.Documents.Knowledge.Structure;
@@ -34,8 +34,8 @@ public sealed class KnowledgeObjectBuilderTests
     {
         var objects = Build(CreateDocument(), ["Chunk one."]);
 
-        var document = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Document);
-        var article = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Article);
+        var document = Assert.Single(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Document);
+        var article = Assert.Single(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Article);
 
         Assert.Equal(document.CanonicalId, document.RootId);
         Assert.Null(document.ParentId);
@@ -43,7 +43,7 @@ public sealed class KnowledgeObjectBuilderTests
 
         Assert.All(objects, entry => Assert.Equal(document.CanonicalId, entry.RootId));
         Assert.All(
-            objects.Where(entry => entry.ObjectType is KnowledgeContentTypes.Text or KnowledgeContentTypes.Figure or KnowledgeContentTypes.Chart or KnowledgeContentTypes.Table),
+            objects.Where(entry => entry.ObjectType is KnowledgeObjectTypes.Text or KnowledgeObjectTypes.Figure or KnowledgeObjectTypes.Chart or KnowledgeObjectTypes.Table),
             entry => Assert.Equal(article.CanonicalId, entry.ParentId));
     }
 
@@ -59,7 +59,7 @@ public sealed class KnowledgeObjectBuilderTests
         document.Sections.Add(Page(2, Paragraph("Page two body.", 2)));
 
         var objects = Build(document, ["Page one body.", "Page two body."]);
-        var chunks = objects.Where(entry => entry.ObjectType == KnowledgeContentTypes.Text).ToList();
+        var chunks = objects.Where(entry => entry.ObjectType == KnowledgeObjectTypes.Text).ToList();
 
         Assert.Equal(2, chunks.Count);
         Assert.Equal(1, chunks[0].PageStart);
@@ -83,7 +83,7 @@ public sealed class KnowledgeObjectBuilderTests
             Figure("report.pdf-p1-3", FigureTiers.Describe, "Figure 3. The other one.", description: "Already transcribed.")));
 
         var objects = Build(document, ["Body."]);
-        var figures = objects.Where(entry => entry.ObjectType is KnowledgeContentTypes.Figure or KnowledgeContentTypes.Chart).ToList();
+        var figures = objects.Where(entry => entry.ObjectType is KnowledgeObjectTypes.Figure or KnowledgeObjectTypes.Chart).ToList();
 
         Assert.Equal(3, figures.Count);
         Assert.Equal(KnowledgeObjectStatus.Ready, figures[0].Status);
@@ -106,7 +106,7 @@ public sealed class KnowledgeObjectBuilderTests
 
         var objects = Build(document, ["Body."]);
 
-        Assert.DoesNotContain(objects, entry => entry.ObjectType is KnowledgeContentTypes.Figure or KnowledgeContentTypes.Chart);
+        Assert.DoesNotContain(objects, entry => entry.ObjectType is KnowledgeObjectTypes.Figure or KnowledgeObjectTypes.Chart);
     }
 
     /// <summary>
@@ -124,7 +124,7 @@ public sealed class KnowledgeObjectBuilderTests
             Figure("report.pdf-p1-1", FigureTiers.Describe, "Figure 1. A bar chart of the values.", "A bar chart.")));
 
         var objects = Build(document, ["Body."]);
-        var chart = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Chart);
+        var chart = Assert.Single(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Chart);
 
         Assert.True(chart.TryGet<ChartDetails>(out var details));
         Assert.Equal(ChartValueConfidence.Descriptive, details.ValueConfidence);
@@ -154,7 +154,7 @@ public sealed class KnowledgeObjectBuilderTests
         document.Sections.Add(Page(1, Paragraph("Body.", 1), table));
 
         var objects = Build(document, ["Body."]);
-        var entry = Assert.Single(objects, item => item.ObjectType == KnowledgeContentTypes.Table);
+        var entry = Assert.Single(objects, item => item.ObjectType == KnowledgeObjectTypes.Table);
 
         Assert.Contains("Material | Strength", entry.Content, StringComparison.Ordinal);
         Assert.Contains("Material=Steel; Strength=400", entry.Content, StringComparison.Ordinal);
@@ -182,7 +182,7 @@ public sealed class KnowledgeObjectBuilderTests
 
         var objects = Build(document, ["Body."]);
 
-        Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Figure);
+        Assert.Single(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Figure);
     }
 
     /// <summary>
@@ -200,7 +200,7 @@ public sealed class KnowledgeObjectBuilderTests
 
         var objects = Build(document, ["Body."]);
 
-        Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Chart);
+        Assert.Single(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Chart);
     }
 
     /// <summary>
@@ -220,7 +220,7 @@ public sealed class KnowledgeObjectBuilderTests
         document.Sections.Add(Page(1, runningHead, Paragraph("Real body text.", 1), caption));
 
         var objects = Build(document, ["Real body text."]);
-        var article = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Article);
+        var article = Assert.Single(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Article);
 
         Assert.DoesNotContain("QUARTERLY REVIEW", article.Content, StringComparison.Ordinal);
         Assert.DoesNotContain("Figure 1. The caption.", article.Content, StringComparison.Ordinal);
@@ -236,7 +236,7 @@ public sealed class KnowledgeObjectBuilderTests
     public void Build_PublicationMetadata_NamesTheIssueInsteadOfTheFile()
     {
         var objects = Build(CreateDocument(), ["Chunk one."], CreatePublication());
-        var document = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Document);
+        var document = Assert.Single(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Document);
 
         Assert.Equal("The Sample Review, Volume 4, Number 2, Spring 1999", document.Title);
         Assert.DoesNotContain("report.pdf", document.Title, StringComparison.Ordinal);
@@ -250,7 +250,7 @@ public sealed class KnowledgeObjectBuilderTests
     public void Build_NoPublicationMetadata_KeepsTheFileNameAndCarriesNoDetail()
     {
         var objects = Build(CreateDocument(), ["Chunk one."]);
-        var document = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Document);
+        var document = Assert.Single(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Document);
 
         Assert.Equal("report.pdf", document.Title);
         Assert.All(objects, entry => Assert.False(entry.TryGet<PublicationDetails>(out _)));
@@ -264,7 +264,7 @@ public sealed class KnowledgeObjectBuilderTests
     public void Build_PublicationMetadataWithoutATitle_KeepsTheFileName()
     {
         var objects = Build(CreateDocument(), ["Chunk one."], new PublicationDetails { Volume = "Volume 4" });
-        var document = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Document);
+        var document = Assert.Single(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Document);
 
         Assert.Equal("report.pdf", document.Title);
     }
@@ -285,8 +285,8 @@ public sealed class KnowledgeObjectBuilderTests
 
         var objects = Build(document, ["Chunk one."], CreatePublication());
 
-        Assert.Contains(objects, entry => entry.ObjectType == KnowledgeContentTypes.Text);
-        Assert.Contains(objects, entry => entry.ObjectType == KnowledgeContentTypes.Figure);
+        Assert.Contains(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Text);
+        Assert.Contains(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Figure);
         Assert.All(objects, entry =>
         {
             Assert.True(entry.TryGet<PublicationDetails>(out var publication));
@@ -335,8 +335,8 @@ public sealed class KnowledgeObjectBuilderTests
             },
             ["Chunk one."]);
 
-        var article = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Article);
-        var text = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Text);
+        var article = Assert.Single(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Article);
+        var text = Assert.Single(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Text);
 
         Assert.Equal("The Sample Review, Volume 4, Number 2, Spring 1999", article.Title);
         Assert.Equal("The Sample Review, Volume 4, Number 2, Spring 1999", text.Title);
@@ -357,7 +357,7 @@ public sealed class KnowledgeObjectBuilderTests
             Figure("report.pdf-p1-1", FigureTiers.CaptionOnly, caption: null, description: null)));
 
         var objects = Build(document, ["Chunk one."], CreatePublication());
-        var figure = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Figure);
+        var figure = Assert.Single(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Figure);
 
         Assert.Equal("The Sample Review, Volume 4, Number 2, Spring 1999", figure.Title);
     }

@@ -1,4 +1,4 @@
-using CrestApps.Core.Infrastructure;
+﻿using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
 using CrestApps.Core.Infrastructure.Indexing.Models;
@@ -140,7 +140,7 @@ internal sealed class PostgreSQLDataSourceContentManager : IDataSourceContentMan
                     ChunkIndex = reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
                     ReferenceType = reader.IsDBNull(4) ? null : reader.GetString(4),
                     Score = reader.IsDBNull(5) ? 0f : reader.GetFloat(5),
-                    ContentType = reader.IsDBNull(6) ? KnowledgeContentTypes.Text : reader.GetString(6),
+                    ContentType = reader.IsDBNull(6) ? KnowledgeObjectTypes.Text : reader.GetString(6),
                     RootId = reader.IsDBNull(7) ? null : reader.GetString(7),
                     ParentId = reader.IsDBNull(8) ? null : reader.GetString(8),
                     Page = reader.IsDBNull(9) || !int.TryParse(reader.GetString(9), out var page) ? null : page,

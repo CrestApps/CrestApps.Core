@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -109,8 +109,8 @@ internal sealed class TypedResultCollector
         {
             switch (ResolveContentType(result))
             {
-                case KnowledgeContentTypes.Figure:
-                case KnowledgeContentTypes.Chart:
+                case KnowledgeObjectTypes.Figure:
+                case KnowledgeObjectTypes.Chart:
                     var valueConfidence = ReadFilter(result, "valueConfidence");
 
                     _figures.Add(new RetrievedFigure
@@ -143,7 +143,7 @@ internal sealed class TypedResultCollector
 
                     break;
 
-                case KnowledgeContentTypes.Table:
+                case KnowledgeObjectTypes.Table:
                     _tables.Add(new RetrievedTable
                     {
                         Id = result.ReferenceId,
@@ -176,7 +176,7 @@ internal sealed class TypedResultCollector
     private static string ResolveContentType(DataSourceSearchResult result)
     {
         if (!string.IsNullOrEmpty(result.ContentType) &&
-            !string.Equals(result.ContentType, KnowledgeContentTypes.Text, StringComparison.OrdinalIgnoreCase))
+            !string.Equals(result.ContentType, KnowledgeObjectTypes.Text, StringComparison.OrdinalIgnoreCase))
         {
             return result.ContentType;
         }
@@ -186,7 +186,7 @@ internal sealed class TypedResultCollector
             return result.ContentType;
         }
 
-        foreach (var candidate in new[] { KnowledgeContentTypes.Figure, KnowledgeContentTypes.Chart, KnowledgeContentTypes.Table })
+        foreach (var candidate in new[] { KnowledgeObjectTypes.Figure, KnowledgeObjectTypes.Chart, KnowledgeObjectTypes.Table })
         {
             if (result.ReferenceId.StartsWith(candidate + ':', StringComparison.Ordinal))
             {
@@ -247,7 +247,7 @@ internal sealed class TypedResultCollector
                     builder.Append("   values: ");
                     builder.Append(figure.ValueConfidence);
                 }
-                else if (string.Equals(figure.ContentType, KnowledgeContentTypes.Chart, StringComparison.OrdinalIgnoreCase))
+                else if (string.Equals(figure.ContentType, KnowledgeObjectTypes.Chart, StringComparison.OrdinalIgnoreCase))
                 {
                     // Silence is not a claim of exactness. Not every index provider carries the flag
                     // back, and a chart whose numbers were lifted from the file's own geometry says so

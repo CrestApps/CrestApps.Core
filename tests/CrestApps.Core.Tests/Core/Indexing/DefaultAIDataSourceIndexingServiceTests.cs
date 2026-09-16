@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Clients;
+﻿using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
@@ -78,7 +78,7 @@ public sealed class DefaultAIDataSourceIndexingServiceTests
             ],
             first.Fields.Keys);
 
-        Assert.Equal(KnowledgeContentTypes.Text, first.Fields[DataSourceConstants.ColumnNames.ContentType]);
+        Assert.Equal(KnowledgeObjectTypes.Text, first.Fields[DataSourceConstants.ColumnNames.ContentType]);
 
         Assert.Equal("doc-1_0", first.Fields[DataSourceConstants.ColumnNames.ChunkId]);
         Assert.Equal("doc-1", first.Fields[DataSourceConstants.ColumnNames.ReferenceId]);

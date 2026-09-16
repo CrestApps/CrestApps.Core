@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json.Nodes;
 using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -198,7 +198,7 @@ internal sealed class ElasticsearchDataSourceContentManager : IDataSourceContent
                         ChunkIndex = chunkIndex,
                         ReferenceType = referenceType,
                         Score = (float)(hit.Score ?? 0.0),
-                        ContentType = ReadString(document, DataSourceConstants.ColumnNames.ContentType) ?? KnowledgeContentTypes.Text,
+                        ContentType = ReadString(document, DataSourceConstants.ColumnNames.ContentType) ?? KnowledgeObjectTypes.Text,
                         RootId = ReadString(document, DataSourceConstants.ColumnNames.RootId),
                         ParentId = ReadString(document, DataSourceConstants.ColumnNames.ParentId),
                         Page = ReadInt32(document, DataSourceConstants.ColumnNames.Page),

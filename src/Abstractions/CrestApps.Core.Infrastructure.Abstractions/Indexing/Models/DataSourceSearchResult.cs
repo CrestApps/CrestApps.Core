@@ -1,4 +1,4 @@
-namespace CrestApps.Core.Infrastructure.Indexing.Models;
+﻿namespace CrestApps.Core.Infrastructure.Indexing.Models;
 
 /// <summary>
 /// Represents a search result from a data source knowledge base index.
@@ -46,7 +46,7 @@ public sealed class DataSourceSearchResult
     /// Gets or sets what kind of knowledge the row holds. A row written before typed knowledge existed has
     /// no value, and is read as text.
     /// </summary>
-    public string ContentType { get; set; } = KnowledgeContentTypes.Text;
+    public string ContentType { get; set; } = KnowledgeObjectTypes.Text;
 
     /// <summary>
     /// Gets or sets the canonical identifier of the document the row ultimately belongs to.

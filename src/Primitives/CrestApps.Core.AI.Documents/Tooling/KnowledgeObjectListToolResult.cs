@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Tooling;
+﻿using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Documents.Tooling;
@@ -20,7 +20,7 @@ public sealed class KnowledgeObjectListEntry
 
     /// <summary>
     /// Gets what kind of knowledge this is. See
-    /// <see cref="CrestApps.Core.Infrastructure.Indexing.KnowledgeContentTypes"/>.
+    /// <see cref="CrestApps.Core.Infrastructure.Indexing.KnowledgeObjectTypes"/>.
     /// </summary>
     public string ObjectType { get; init; }
 

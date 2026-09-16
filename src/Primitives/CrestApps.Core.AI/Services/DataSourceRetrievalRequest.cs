@@ -35,9 +35,15 @@ internal sealed class DataSourceRetrievalRequest
 
     /// <summary>
     /// Gets the kinds of knowledge to search, for example only figures and charts. When empty, every kind
-    /// is searched.
+    /// is searched. See <see cref="CrestApps.Core.Infrastructure.Indexing.KnowledgeObjectTypes"/>.
     /// </summary>
-    public IReadOnlyList<string> ContentTypes { get; init; }
+    /// <remarks>
+    /// Named for what it holds rather than for the column it is eventually compared against. This request is
+    /// built per query and never stored, so it is free to use the word the rest of the library uses; the
+    /// indexed column and the tool instance setting keep <c>contentType</c> because both are already written
+    /// into stored data.
+    /// </remarks>
+    public IReadOnlyList<string> ObjectTypes { get; init; }
 
     /// <summary>
     /// Gets the retrieval mode that decides whether matching chunks or their full source documents are returned.

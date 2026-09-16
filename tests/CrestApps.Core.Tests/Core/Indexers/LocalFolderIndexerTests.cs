@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents.Ingestion;
 using CrestApps.Core.AI.Documents.Knowledge;
@@ -133,8 +133,8 @@ public sealed class LocalFolderIndexerTests : IDisposable
         Assert.Equal(0, summary.ItemsFailed);
         Assert.True(summary.DiscoveryCompleted);
 
-        Assert.Contains(harness.Store.All, entry => entry.ObjectType == KnowledgeContentTypes.Document);
-        Assert.Contains(harness.Store.All, entry => entry.ObjectType == KnowledgeContentTypes.Text);
+        Assert.Contains(harness.Store.All, entry => entry.ObjectType == KnowledgeObjectTypes.Document);
+        Assert.Contains(harness.Store.All, entry => entry.ObjectType == KnowledgeObjectTypes.Text);
         Assert.NotEmpty(harness.Queue.Synced);
     }
 

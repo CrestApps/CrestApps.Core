@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.DataSources;
+﻿using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using Microsoft.EntityFrameworkCore;
@@ -18,7 +18,7 @@ namespace CrestApps.Core.Data.EntityCore.Services;
 /// </remarks>
 public sealed class EntityCoreKnowledgeObjectStore : SourceDocumentCatalog<KnowledgeObject>, IKnowledgeObjectStore
 {
-    private static readonly string[] _figureTypes = [KnowledgeContentTypes.Figure, KnowledgeContentTypes.Chart];
+    private static readonly string[] _figureTypes = [KnowledgeObjectTypes.Figure, KnowledgeObjectTypes.Chart];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EntityCoreKnowledgeObjectStore"/> class.
@@ -198,7 +198,7 @@ public sealed class EntityCoreKnowledgeObjectStore : SourceDocumentCatalog<Knowl
     /// </remarks>
     private static bool IsDescribedFigure(KnowledgeObject entry, string contentHash, string promptVersion)
     {
-        if (entry.ObjectType is not (KnowledgeContentTypes.Figure or KnowledgeContentTypes.Chart))
+        if (entry.ObjectType is not (KnowledgeObjectTypes.Figure or KnowledgeObjectTypes.Chart))
         {
             return false;
         }

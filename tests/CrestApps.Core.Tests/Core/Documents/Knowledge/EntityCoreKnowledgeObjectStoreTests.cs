@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Data.EntityCore;
 using CrestApps.Core.Data.EntityCore.Services;
@@ -30,12 +30,12 @@ public sealed class EntityCoreKnowledgeObjectStoreTests
 
         await using var harness = await Harness.CreateAsync();
 
-        var chart = CreateFigure(SecondDataSourceId, "chart:shared", KnowledgeContentTypes.Chart, "hash-shared", "A chart of the measured values.");
+        var chart = CreateFigure(SecondDataSourceId, "chart:shared", KnowledgeObjectTypes.Chart, "hash-shared", "A chart of the measured values.");
 
         await harness.SeedAsync(
             [
                 CreateText(FirstDataSourceId, "text:shared", "hash-shared"),
-                CreateFigure(FirstDataSourceId, "figure:other", KnowledgeContentTypes.Figure, "hash-other", "A photograph."),
+                CreateFigure(FirstDataSourceId, "figure:other", KnowledgeObjectTypes.Figure, "hash-other", "A photograph."),
                 chart,
             ],
             cancellationToken);
@@ -84,13 +84,13 @@ public sealed class EntityCoreKnowledgeObjectStoreTests
 
         await using var harness = await Harness.CreateAsync();
 
-        var pending = CreateFigure(FirstDataSourceId, "figure:pending", KnowledgeContentTypes.Figure, "hash-pending", description: null);
+        var pending = CreateFigure(FirstDataSourceId, "figure:pending", KnowledgeObjectTypes.Figure, "hash-pending", description: null);
         pending.Status = KnowledgeObjectStatus.PendingDescription;
 
         await harness.SeedAsync(
             [
                 pending,
-                CreateFigure(FirstDataSourceId, "figure:described", KnowledgeContentTypes.Figure, "hash-described", "A bar chart."),
+                CreateFigure(FirstDataSourceId, "figure:described", KnowledgeObjectTypes.Figure, "hash-described", "A bar chart."),
             ],
             cancellationToken);
 
@@ -117,8 +117,8 @@ public sealed class EntityCoreKnowledgeObjectStoreTests
 
         await harness.SeedAsync(
             [
-                CreateFigure(FirstDataSourceId, "figure:shared", KnowledgeContentTypes.Figure, "hash-1", "A photograph."),
-                CreateFigure(SecondDataSourceId, "figure:shared", KnowledgeContentTypes.Figure, "hash-2", "A photograph."),
+                CreateFigure(FirstDataSourceId, "figure:shared", KnowledgeObjectTypes.Figure, "hash-1", "A photograph."),
+                CreateFigure(SecondDataSourceId, "figure:shared", KnowledgeObjectTypes.Figure, "hash-2", "A photograph."),
             ],
             cancellationToken);
 
@@ -180,7 +180,7 @@ public sealed class EntityCoreKnowledgeObjectStoreTests
         {
             Source = dataSourceId,
             CanonicalId = canonicalId,
-            ObjectType = KnowledgeContentTypes.Text,
+            ObjectType = KnowledgeObjectTypes.Text,
             RootId = "document:shared",
             ParentId = "article:shared",
             Content = "The measurements were taken twice.",

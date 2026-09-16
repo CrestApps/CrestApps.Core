@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using CrestApps.Core.AI.Documents.Ingestion;
 using CrestApps.Core.AI.Documents.Ingestion.Processors;
@@ -65,7 +65,7 @@ public static class KnowledgeObjectBuilder
         ArgumentNullException.ThrowIfNull(options);
 
         var fileKey = options.FileKey;
-        var rootId = $"{KnowledgeContentTypes.Document}:{fileKey}";
+        var rootId = $"{KnowledgeObjectTypes.Document}:{fileKey}";
         var segments = BuildSegments(document);
         var documentText = string.Join('\n', segments.Select(segment => segment.Text));
         var pages = document.Sections.Count;
@@ -74,12 +74,12 @@ public static class KnowledgeObjectBuilder
 
         var objects = new List<KnowledgeObject>
         {
-            Create(options, rootId, rootId, null, KnowledgeContentTypes.Document, title, BuildDocumentContent(title, documentText), 0),
+            Create(options, rootId, rootId, null, KnowledgeObjectTypes.Document, title, BuildDocumentContent(title, documentText), 0),
         };
 
         foreach (var entry in ResolveArticles(options, document, pages, title))
         {
-            var articleId = $"{KnowledgeContentTypes.Article}:{fileKey}:{entry.Ordinal}";
+            var articleId = $"{KnowledgeObjectTypes.Article}:{fileKey}:{entry.Ordinal}";
             var articleSegments = segments.Where(segment => segment.ArticleOrdinal == entry.Ordinal).ToList();
             var articleText = string.Join('\n', articleSegments.Select(segment => segment.Text));
             var articleTitle = ResolveArticleTitle(entry.Title, title, document);
@@ -88,7 +88,7 @@ public static class KnowledgeObjectBuilder
             // returned as an answer to a question about the document's subject.
             var isExcluded = entry.Type == KnowledgeArticleTypes.Advertisement;
 
-            var article = Create(options, articleId, rootId, rootId, KnowledgeContentTypes.Article, articleTitle, BuildArticleContent(articleTitle, articleText), entry.Ordinal);
+            var article = Create(options, articleId, rootId, rootId, KnowledgeObjectTypes.Article, articleTitle, BuildArticleContent(articleTitle, articleText), entry.Ordinal);
 
             article.PageStart = entry.PageStart > 0 ? entry.PageStart : null;
             article.PageEnd = entry.PageEnd > 0 ? entry.PageEnd : null;
@@ -335,10 +335,10 @@ public static class KnowledgeObjectBuilder
 
             var entry = Create(
                 options,
-                $"{KnowledgeContentTypes.Text}:{options.FileKey}:{articleOrdinal}:{index}",
+                $"{KnowledgeObjectTypes.Text}:{options.FileKey}:{articleOrdinal}:{index}",
                 rootId,
                 articleId,
-                KnowledgeContentTypes.Text,
+                KnowledgeObjectTypes.Text,
                 title,
                 content,
                 index);
@@ -389,7 +389,7 @@ public static class KnowledgeObjectBuilder
             var context = image.GetMetadataString(FigureMetadataKeys.Context);
             var description = image.AlternativeText;
             var isChart = IsChart(caption, description, options.ChartKeywords);
-            var objectType = isChart ? KnowledgeContentTypes.Chart : KnowledgeContentTypes.Figure;
+            var objectType = isChart ? KnowledgeObjectTypes.Chart : KnowledgeObjectTypes.Figure;
 
             var entry = Create(
                 options,
@@ -435,8 +435,8 @@ public static class KnowledgeObjectBuilder
             {
                 // A value is only stored when it came out of the file's own geometry. A number read off a
                 // picture by eye looks exactly like one lifted from the geometry, and only one is true.
-                entry.ObjectType = KnowledgeContentTypes.Chart;
-                entry.CanonicalId = $"{KnowledgeContentTypes.Chart}:{options.FileKey}:{articleOrdinal}:{ordinal}";
+                entry.ObjectType = KnowledgeObjectTypes.Chart;
+                entry.CanonicalId = $"{KnowledgeObjectTypes.Chart}:{options.FileKey}:{articleOrdinal}:{ordinal}";
 
                 entry.Put(new ChartDetails
                 {
@@ -482,10 +482,10 @@ public static class KnowledgeObjectBuilder
 
             var entry = Create(
                 options,
-                $"{KnowledgeContentTypes.Table}:{options.FileKey}:{articleOrdinal}:{ordinal}",
+                $"{KnowledgeObjectTypes.Table}:{options.FileKey}:{articleOrdinal}:{ordinal}",
                 rootId,
                 articleId,
-                KnowledgeContentTypes.Table,
+                KnowledgeObjectTypes.Table,
                 caption ?? title,
                 BuildTableContent(caption, details),
                 ordinal);

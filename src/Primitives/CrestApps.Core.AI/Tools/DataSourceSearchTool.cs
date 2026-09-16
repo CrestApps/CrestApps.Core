@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -109,7 +109,7 @@ public sealed class DataSourceSearchTool : AIFunction
                     TopNDocuments = ragMetadata?.TopNDocuments,
                     Strictness = ragMetadata?.Strictness,
                     Filter = ragMetadata?.Filter,
-                    ContentTypes = ReadContentTypes(arguments),
+                    ObjectTypes = ReadContentTypes(arguments),
 
                     // A profile always states a policy, even when it has no RAG metadata, because the
                     // orchestration handlers put that same policy in the system prompt for the whole turn.

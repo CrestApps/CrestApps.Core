@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Clients;
+﻿using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Handlers;
@@ -418,7 +418,7 @@ public sealed class DataSourcePreemptiveRagHandlerTests
                     {
                         ReferenceId = "article:abc:1",
                         ReferenceType = AIDataSourceSourceTypes.File,
-                        ContentType = KnowledgeContentTypes.Text,
+                        ContentType = KnowledgeObjectTypes.Text,
                         ChunkIndex = 0,
                         Title = "The measurements, written up.",
                         Content = "The measurements are discussed at length.",
@@ -432,7 +432,7 @@ public sealed class DataSourcePreemptiveRagHandlerTests
                     {
                         ReferenceId = "figure:abc:1:0",
                         ReferenceType = AIDataSourceSourceTypes.File,
-                        ContentType = KnowledgeContentTypes.Figure,
+                        ContentType = KnowledgeObjectTypes.Figure,
                         ChunkIndex = 0,
                         Title = "A measured plot.",
                         Content = "A measured plot, described.",

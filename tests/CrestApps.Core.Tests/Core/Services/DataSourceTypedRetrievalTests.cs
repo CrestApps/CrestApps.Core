@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Clients;
+﻿using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
@@ -81,7 +81,7 @@ public sealed class DataSourceTypedRetrievalTests
     public async Task SearchDetailed_DescriptiveChart_StatesValuesNotMachineReadable()
     {
         var chart = Figure("chart:key:1:0", "Figure 2. Yield by material.", page: 5);
-        chart.ContentType = KnowledgeContentTypes.Chart;
+        chart.ContentType = KnowledgeObjectTypes.Chart;
         chart.Filters = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
             ["caption"] = "Figure 2. Yield by material.",
@@ -214,7 +214,7 @@ public sealed class DataSourceTypedRetrievalTests
             ReferenceId = "table:key:1:0",
             Title = "Table 2. Mechanical properties.",
             Content = "Table 2. Mechanical properties.\nMaterial | Strength",
-            ContentType = KnowledgeContentTypes.Table,
+            ContentType = KnowledgeObjectTypes.Table,
             RootId = "document:key",
             ParentId = "article:key:1",
             Page = 5,
@@ -539,7 +539,7 @@ public sealed class DataSourceTypedRetrievalTests
         figure.ReferenceType = AIDataSourceSourceTypes.File;
 
         // What an index that never stored the column hands back.
-        figure.ContentType = KnowledgeContentTypes.Text;
+        figure.ContentType = KnowledgeObjectTypes.Text;
 
         var harness = new Harness([figure])
         {
@@ -663,7 +663,7 @@ public sealed class DataSourceTypedRetrievalTests
             ReferenceId = referenceId,
             Title = title,
             Content = content,
-            ContentType = KnowledgeContentTypes.Text,
+            ContentType = KnowledgeObjectTypes.Text,
             RootId = "document:key",
             ParentId = "article:key:1",
             Page = page,
@@ -679,7 +679,7 @@ public sealed class DataSourceTypedRetrievalTests
             ReferenceId = referenceId,
             Title = caption,
             Content = caption,
-            ContentType = KnowledgeContentTypes.Figure,
+            ContentType = KnowledgeObjectTypes.Figure,
             RootId = "document:key",
             ParentId = "article:key:1",
             Page = page,
@@ -706,7 +706,7 @@ public sealed class DataSourceTypedRetrievalTests
     {
         var chart = Figure(referenceId, caption, page);
 
-        chart.ContentType = KnowledgeContentTypes.Chart;
+        chart.ContentType = KnowledgeObjectTypes.Chart;
 
         var filters = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
@@ -804,7 +804,7 @@ public sealed class DataSourceTypedRetrievalTests
                     Queries = ["the measurements"],
                     RetrievalMode = DataSourceRetrievalMode.Chunk,
                     Filter = filter,
-                    ContentTypes = contentTypes,
+                    ObjectTypes = contentTypes,
                 },
                 "knowledge-base",
                 NullLogger.Instance,

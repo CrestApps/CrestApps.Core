@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Clients;
+﻿using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
@@ -824,7 +824,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
             DataSourceConstants.ColumnNames.ContentType,
         };
 
-        var contentType = KnowledgeContentTypes.Text;
+        var contentType = KnowledgeObjectTypes.Text;
 
         // Only a handler that produces typed knowledge means the knowledge base's own discriminators by
         // these names. Anything else consumes nothing, so a source whose documents have always carried a

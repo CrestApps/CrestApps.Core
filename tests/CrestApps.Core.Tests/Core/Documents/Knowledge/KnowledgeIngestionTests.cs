@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Ingestion;
@@ -31,8 +31,8 @@ public sealed class KnowledgeIngestionTests
     {
         var store = new InMemoryKnowledgeObjectStore();
 
-        store.Seed(CreateObject("text:key:1:0", KnowledgeContentTypes.Text, "doc:key", "article:key:1", page: 4));
-        store.Seed(CreateObject("figure:key:1:0", KnowledgeContentTypes.Figure, "doc:key", "article:key:1", page: 8));
+        store.Seed(CreateObject("text:key:1:0", KnowledgeObjectTypes.Text, "doc:key", "article:key:1", page: 4));
+        store.Seed(CreateObject("figure:key:1:0", KnowledgeObjectTypes.Figure, "doc:key", "article:key:1", page: 8));
 
         var handler = new FileAIDataSourceSourceHandler(store);
         var rows = new List<KeyValuePair<string, SourceDocument>>();
@@ -47,7 +47,7 @@ public sealed class KnowledgeIngestionTests
 
         var figure = rows.Single(row => row.Key == "figure:key:1:0").Value;
 
-        Assert.Equal(KnowledgeContentTypes.Figure, figure.Fields[DataSourceConstants.ColumnNames.ContentType]);
+        Assert.Equal(KnowledgeObjectTypes.Figure, figure.Fields[DataSourceConstants.ColumnNames.ContentType]);
         Assert.Equal("doc:key", figure.Fields[DataSourceConstants.ColumnNames.RootId]);
         Assert.Equal("article:key:1", figure.Fields[DataSourceConstants.ColumnNames.ParentId]);
         Assert.Equal(8, figure.Fields[DataSourceConstants.ColumnNames.Page]);
@@ -61,8 +61,8 @@ public sealed class KnowledgeIngestionTests
     {
         var store = new InMemoryKnowledgeObjectStore();
 
-        store.Seed(CreateObject("text:key:1:0", KnowledgeContentTypes.Text, "doc:key", "article:key:1", page: 1));
-        store.Seed(CreateObject("text:key:1:1", KnowledgeContentTypes.Text, "doc:key", "article:key:1", page: 2));
+        store.Seed(CreateObject("text:key:1:0", KnowledgeObjectTypes.Text, "doc:key", "article:key:1", page: 1));
+        store.Seed(CreateObject("text:key:1:1", KnowledgeObjectTypes.Text, "doc:key", "article:key:1", page: 2));
 
         var handler = new FileAIDataSourceSourceHandler(store);
         var rows = new List<string>();
@@ -84,7 +84,7 @@ public sealed class KnowledgeIngestionTests
     public async Task IngestedHandler_ReadAsync_IndexesAChartThatCarriesOnlySeries()
     {
         var store = new InMemoryKnowledgeObjectStore();
-        var chart = CreateObject("chart:key:1:0", KnowledgeContentTypes.Chart, "doc:key", "article:key:1", page: 5);
+        var chart = CreateObject("chart:key:1:0", KnowledgeObjectTypes.Chart, "doc:key", "article:key:1", page: 5);
 
         chart.Content = null;
         chart.Put(new FigureDetails());
@@ -131,7 +131,7 @@ public sealed class KnowledgeIngestionTests
     public async Task IngestedHandler_ReadAsync_IndexesATableThatCarriesOnlyRows()
     {
         var store = new InMemoryKnowledgeObjectStore();
-        var table = CreateObject("table:key:1:0", KnowledgeContentTypes.Table, "doc:key", "article:key:1", page: 6);
+        var table = CreateObject("table:key:1:0", KnowledgeObjectTypes.Table, "doc:key", "article:key:1", page: 6);
 
         table.Content = null;
         table.Put(new TableDetails
@@ -169,8 +169,8 @@ public sealed class KnowledgeIngestionTests
     public async Task IngestedHandler_ReadAsync_DropsAnObjectThatCarriesNothing()
     {
         var store = new InMemoryKnowledgeObjectStore();
-        var figure = CreateObject("figure:key:1:0", KnowledgeContentTypes.Figure, "doc:key", "article:key:1", page: 3);
-        var chart = CreateObject("chart:key:1:1", KnowledgeContentTypes.Chart, "doc:key", "article:key:1", page: 3);
+        var figure = CreateObject("figure:key:1:0", KnowledgeObjectTypes.Figure, "doc:key", "article:key:1", page: 3);
+        var chart = CreateObject("chart:key:1:1", KnowledgeObjectTypes.Chart, "doc:key", "article:key:1", page: 3);
 
         figure.Content = null;
         figure.Put(new FigureDetails());
@@ -270,7 +270,7 @@ public sealed class KnowledgeIngestionTests
 
         var indexedFirst = harness.Queue.Synced.ToArray();
 
-        Assert.Contains(indexedFirst, id => id.StartsWith(KnowledgeContentTypes.Article, StringComparison.Ordinal));
+        Assert.Contains(indexedFirst, id => id.StartsWith(KnowledgeObjectTypes.Article, StringComparison.Ordinal));
 
         analyzer.ArticleType = KnowledgeArticleTypes.Advertisement;
 
@@ -321,7 +321,7 @@ public sealed class KnowledgeIngestionTests
         var first = await harness.IngestAsync("The body text.");
 
         // A figure the earlier reader produced and this one will not, with a stored picture of its own.
-        var stale = CreateObject($"figure:{first.RootId[9..]}:1:0", KnowledgeContentTypes.Figure, first.RootId, $"article:{first.RootId[9..]}:1", page: 2);
+        var stale = CreateObject($"figure:{first.RootId[9..]}:1:0", KnowledgeObjectTypes.Figure, first.RootId, $"article:{first.RootId[9..]}:1", page: 2);
 
         stale.StoragePath = "figures/stale.png";
         harness.Store.Seed(stale);

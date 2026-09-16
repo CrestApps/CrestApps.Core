@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Models;
+﻿using CrestApps.Core.AI.Models;
 using CrestApps.Core.Services;
 
 namespace CrestApps.Core.AI.DataSources;
@@ -63,7 +63,7 @@ public interface IKnowledgeObjectStore : ISourceCatalog<KnowledgeObject>
     /// </summary>
     /// <param name="dataSourceId">The owning data source.</param>
     /// <param name="objectTypes">
-    /// The kinds to return. See <see cref="CrestApps.Core.Infrastructure.Indexing.KnowledgeContentTypes"/>.
+    /// The kinds to return. See <see cref="CrestApps.Core.Infrastructure.Indexing.KnowledgeObjectTypes"/>.
     /// An empty set returns every kind.
     /// </param>
     /// <param name="take">The most objects to return.</param>

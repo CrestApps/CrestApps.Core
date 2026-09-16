@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Documents.Endpoints;
+﻿using CrestApps.Core.AI.Documents.Endpoints;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Infrastructure.Indexing;
 using Microsoft.AspNetCore.Http;
@@ -41,8 +41,8 @@ public sealed class FileReferenceLinkResolver : IAIReferenceLinkResolver
             return null;
         }
 
-        if (!referenceId.StartsWith(KnowledgeContentTypes.Figure + ':', StringComparison.Ordinal) &&
-            !referenceId.StartsWith(KnowledgeContentTypes.Chart + ':', StringComparison.Ordinal))
+        if (!referenceId.StartsWith(KnowledgeObjectTypes.Figure + ':', StringComparison.Ordinal) &&
+            !referenceId.StartsWith(KnowledgeObjectTypes.Chart + ':', StringComparison.Ordinal))
         {
             return null;
         }

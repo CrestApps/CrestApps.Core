@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
@@ -33,12 +33,12 @@ public sealed class KnowledgeObjectListToolFunction : AIFunction
     private const string SiblingsRelation = "siblings";
 
     private static readonly string[] _anyKind = [];
-    private static readonly string[] _figureKinds = [KnowledgeContentTypes.Figure, KnowledgeContentTypes.Chart];
-    private static readonly string[] _chartKinds = [KnowledgeContentTypes.Chart];
-    private static readonly string[] _tableKinds = [KnowledgeContentTypes.Table];
-    private static readonly string[] _articleKinds = [KnowledgeContentTypes.Article];
-    private static readonly string[] _textKinds = [KnowledgeContentTypes.Text];
-    private static readonly string[] _documentKinds = [KnowledgeContentTypes.Document];
+    private static readonly string[] _figureKinds = [KnowledgeObjectTypes.Figure, KnowledgeObjectTypes.Chart];
+    private static readonly string[] _chartKinds = [KnowledgeObjectTypes.Chart];
+    private static readonly string[] _tableKinds = [KnowledgeObjectTypes.Table];
+    private static readonly string[] _articleKinds = [KnowledgeObjectTypes.Article];
+    private static readonly string[] _textKinds = [KnowledgeObjectTypes.Text];
+    private static readonly string[] _documentKinds = [KnowledgeObjectTypes.Document];
 
     private static readonly JsonElement _jsonSchema = JsonSerializer.Deserialize<JsonElement>(
     """
@@ -377,7 +377,7 @@ public sealed class KnowledgeObjectListToolFunction : AIFunction
 
         foreach (var entry in listing.Objects)
         {
-            var isFigure = entry.ObjectType is KnowledgeContentTypes.Figure or KnowledgeContentTypes.Chart;
+            var isFigure = entry.ObjectType is KnowledgeObjectTypes.Figure or KnowledgeObjectTypes.Chart;
             var link = isFigure ? ResolveLink(services, entry, logger) : null;
 
             string label = null;
@@ -539,7 +539,7 @@ public sealed class KnowledgeObjectListToolFunction : AIFunction
     /// <param name="entry">The object.</param>
     private static void AppendKindDetail(StringBuilder builder, KnowledgeObject entry)
     {
-        if (entry.ObjectType == KnowledgeContentTypes.Table &&
+        if (entry.ObjectType == KnowledgeObjectTypes.Table &&
             entry.TryGet<TableDetails>(out var table) &&
             table.Columns is { Count: > 0 })
         {
@@ -548,7 +548,7 @@ public sealed class KnowledgeObjectListToolFunction : AIFunction
             return;
         }
 
-        if (entry.ObjectType is not (KnowledgeContentTypes.Figure or KnowledgeContentTypes.Chart))
+        if (entry.ObjectType is not (KnowledgeObjectTypes.Figure or KnowledgeObjectTypes.Chart))
         {
             return;
         }
@@ -565,7 +565,7 @@ public sealed class KnowledgeObjectListToolFunction : AIFunction
         {
             builder.Append("   values: ").Append(confidence);
         }
-        else if (entry.ObjectType == KnowledgeContentTypes.Chart)
+        else if (entry.ObjectType == KnowledgeObjectTypes.Chart)
         {
             // Silence is not a claim of exactness. A chart whose numbers were lifted from the file's own
             // geometry says so explicitly, so if nothing says so they are treated as read off by eye.
@@ -814,7 +814,7 @@ public sealed class KnowledgeObjectListToolFunction : AIFunction
         // A chart is a figure that happens to carry series values, and the rest of this codebase treats the
         // pair as one thing wherever it shows pictures. Answering "list the figures" with everything except
         // the charts would be a listing that is wrong about the set it claims to describe.
-        if (kind.Equals(KnowledgeContentTypes.Figure, StringComparison.OrdinalIgnoreCase))
+        if (kind.Equals(KnowledgeObjectTypes.Figure, StringComparison.OrdinalIgnoreCase))
         {
             kinds = _figureKinds;
             label = "Figures";
@@ -822,7 +822,7 @@ public sealed class KnowledgeObjectListToolFunction : AIFunction
             return true;
         }
 
-        if (kind.Equals(KnowledgeContentTypes.Chart, StringComparison.OrdinalIgnoreCase))
+        if (kind.Equals(KnowledgeObjectTypes.Chart, StringComparison.OrdinalIgnoreCase))
         {
             kinds = _chartKinds;
             label = "Charts";
@@ -830,7 +830,7 @@ public sealed class KnowledgeObjectListToolFunction : AIFunction
             return true;
         }
 
-        if (kind.Equals(KnowledgeContentTypes.Table, StringComparison.OrdinalIgnoreCase))
+        if (kind.Equals(KnowledgeObjectTypes.Table, StringComparison.OrdinalIgnoreCase))
         {
             kinds = _tableKinds;
             label = "Tables";
@@ -838,7 +838,7 @@ public sealed class KnowledgeObjectListToolFunction : AIFunction
             return true;
         }
 
-        if (kind.Equals(KnowledgeContentTypes.Article, StringComparison.OrdinalIgnoreCase))
+        if (kind.Equals(KnowledgeObjectTypes.Article, StringComparison.OrdinalIgnoreCase))
         {
             kinds = _articleKinds;
             label = "Articles";
@@ -846,7 +846,7 @@ public sealed class KnowledgeObjectListToolFunction : AIFunction
             return true;
         }
 
-        if (kind.Equals(KnowledgeContentTypes.Text, StringComparison.OrdinalIgnoreCase))
+        if (kind.Equals(KnowledgeObjectTypes.Text, StringComparison.OrdinalIgnoreCase))
         {
             kinds = _textKinds;
             label = "Text chunks";
@@ -854,7 +854,7 @@ public sealed class KnowledgeObjectListToolFunction : AIFunction
             return true;
         }
 
-        if (kind.Equals(KnowledgeContentTypes.Document, StringComparison.OrdinalIgnoreCase))
+        if (kind.Equals(KnowledgeObjectTypes.Document, StringComparison.OrdinalIgnoreCase))
         {
             kinds = _documentKinds;
             label = "Documents";

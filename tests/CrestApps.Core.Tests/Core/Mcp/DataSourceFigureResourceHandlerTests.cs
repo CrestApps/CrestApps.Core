@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Mcp.Knowledge;
+﻿using CrestApps.Core.AI.Mcp.Knowledge;
 using CrestApps.Core.AI.Mcp.Knowledge.Handlers;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Mcp.Services;
@@ -69,7 +69,7 @@ public sealed class DataSourceFigureResourceHandlerTests
             ItemId = "text:0123456789abcdef:1:0",
             Source = DataSourceId,
             CanonicalId = "text:0123456789abcdef:1:0",
-            ObjectType = KnowledgeContentTypes.Text,
+            ObjectType = KnowledgeObjectTypes.Text,
             Content = "Body.",
             StoragePath = StoragePath,
         });
@@ -141,7 +141,7 @@ public sealed class DataSourceFigureResourceHandlerTests
                 ItemId = FigureId,
                 Source = DataSourceId,
                 CanonicalId = FigureId,
-                ObjectType = KnowledgeContentTypes.Figure,
+                ObjectType = KnowledgeObjectTypes.Figure,
                 Title = "Figure 1.",
                 Content = "Figure 1.",
                 MediaType = "image/png",

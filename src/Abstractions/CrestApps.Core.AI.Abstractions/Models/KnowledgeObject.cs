@@ -1,4 +1,4 @@
-using CrestApps.Core.Models;
+﻿using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 
 namespace CrestApps.Core.AI.Models;
@@ -28,7 +28,7 @@ public sealed class KnowledgeObject : SourceCatalogEntry, IModifiedUtcAwareModel
 
     /// <summary>
     /// Gets or sets what kind of knowledge this is. See
-    /// <see cref="CrestApps.Core.Infrastructure.Indexing.KnowledgeContentTypes"/>.
+    /// <see cref="CrestApps.Core.Infrastructure.Indexing.KnowledgeObjectTypes"/>.
     /// </summary>
     public string ObjectType { get; set; }
 

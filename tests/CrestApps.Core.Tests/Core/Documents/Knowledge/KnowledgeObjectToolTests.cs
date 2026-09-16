@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.DataSources;
+﻿using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Tooling;
@@ -127,7 +127,7 @@ public sealed class KnowledgeObjectToolTests
             ItemId = "table:key:1:0",
             Source = DataSourceId,
             CanonicalId = "table:key:1:0",
-            ObjectType = KnowledgeContentTypes.Table,
+            ObjectType = KnowledgeObjectTypes.Table,
             Title = "Table 2.",
             Content = "Table 2.",
             PageStart = 5,
@@ -277,14 +277,14 @@ public sealed class KnowledgeObjectToolTests
 
         var result = await harness.InvokeAsync(new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            ["kind"] = KnowledgeContentTypes.Figure,
+            ["kind"] = KnowledgeObjectTypes.Figure,
         });
 
         var typed = Assert.IsType<KnowledgeObjectListToolResult>(result);
 
         Assert.Equal(3, typed.Entries.Count);
         Assert.All(typed.Entries, entry => Assert.True(
-            entry.ObjectType is KnowledgeContentTypes.Figure or KnowledgeContentTypes.Chart,
+            entry.ObjectType is KnowledgeObjectTypes.Figure or KnowledgeObjectTypes.Chart,
             $"'{entry.Id}' is a {entry.ObjectType}, which is not a figure."));
 
         Assert.DoesNotContain("table:doc-1:1:3", typed.Text, StringComparison.Ordinal);
@@ -309,7 +309,7 @@ public sealed class KnowledgeObjectToolTests
 
         var result = await harness.InvokeAsync(new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            ["kind"] = KnowledgeContentTypes.Figure,
+            ["kind"] = KnowledgeObjectTypes.Figure,
             ["limit"] = 2,
         });
 
@@ -333,7 +333,7 @@ public sealed class KnowledgeObjectToolTests
 
         var result = await harness.InvokeAsync(new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            ["kind"] = KnowledgeContentTypes.Figure,
+            ["kind"] = KnowledgeObjectTypes.Figure,
             ["parent_id"] = "article:doc-1:1",
         });
 
@@ -367,7 +367,7 @@ public sealed class KnowledgeObjectToolTests
         var only = Assert.Single(typed.Entries);
 
         Assert.Equal("article:doc-1:1", only.Id);
-        Assert.Equal(KnowledgeContentTypes.Article, only.ObjectType);
+        Assert.Equal(KnowledgeObjectTypes.Article, only.ObjectType);
     }
 
     /// <summary>
@@ -385,7 +385,7 @@ public sealed class KnowledgeObjectToolTests
         {
             ["id"] = "figure:doc-1:1:1",
             ["relation"] = "siblings",
-            ["kind"] = KnowledgeContentTypes.Figure,
+            ["kind"] = KnowledgeObjectTypes.Figure,
         });
 
         var typed = Assert.IsType<KnowledgeObjectListToolResult>(result);
@@ -415,7 +415,7 @@ public sealed class KnowledgeObjectToolTests
 
         var result = await harness.InvokeAsync(new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            ["kind"] = KnowledgeContentTypes.Figure,
+            ["kind"] = KnowledgeObjectTypes.Figure,
             ["parent_id"] = "article:doc-1:1",
         });
 
@@ -460,7 +460,7 @@ public sealed class KnowledgeObjectToolTests
 
         var result = await harness.InvokeAsync(new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            ["kind"] = KnowledgeContentTypes.Figure,
+            ["kind"] = KnowledgeObjectTypes.Figure,
             ["parent_id"] = "article:doc-1:1",
         });
 
@@ -481,14 +481,14 @@ public sealed class KnowledgeObjectToolTests
 
         SeedDocument(harness.Store);
 
-        var excluded = CreateListObject("figure:doc-1:1:9", KnowledgeContentTypes.Figure, "document:doc-1", "article:doc-1:1", ordinal: 9, page: 4);
+        var excluded = CreateListObject("figure:doc-1:1:9", KnowledgeObjectTypes.Figure, "document:doc-1", "article:doc-1:1", ordinal: 9, page: 4);
         excluded.Status = KnowledgeObjectStatus.Excluded;
 
         harness.Store.Seed(excluded);
 
         var result = await harness.InvokeAsync(new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            ["kind"] = KnowledgeContentTypes.Figure,
+            ["kind"] = KnowledgeObjectTypes.Figure,
         });
 
         var typed = Assert.IsType<KnowledgeObjectListToolResult>(result);
@@ -506,11 +506,11 @@ public sealed class KnowledgeObjectToolTests
     {
         var harness = new ListHarness();
 
-        harness.Store.Seed(CreateListObject("article:doc-1:1", KnowledgeContentTypes.Article, "document:doc-1", "document:doc-1"));
+        harness.Store.Seed(CreateListObject("article:doc-1:1", KnowledgeObjectTypes.Article, "document:doc-1", "document:doc-1"));
 
         var result = await harness.InvokeAsync(new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            ["kind"] = KnowledgeContentTypes.Table,
+            ["kind"] = KnowledgeObjectTypes.Table,
         });
 
         var typed = Assert.IsType<KnowledgeObjectListToolResult>(result);
@@ -563,15 +563,15 @@ public sealed class KnowledgeObjectToolTests
     /// <param name="store">The store to seed.</param>
     private static void SeedDocument(InMemoryKnowledgeObjectStore store)
     {
-        store.Seed(CreateListObject("document:doc-1", KnowledgeContentTypes.Document, "document:doc-1", null));
-        store.Seed(CreateListObject("article:doc-1:1", KnowledgeContentTypes.Article, "document:doc-1", "document:doc-1", ordinal: 0, page: 1));
-        store.Seed(CreateListObject("text:doc-1:1:0", KnowledgeContentTypes.Text, "document:doc-1", "article:doc-1:1", ordinal: 0, page: 1));
-        store.Seed(CreateListObject("figure:doc-1:1:1", KnowledgeContentTypes.Figure, "document:doc-1", "article:doc-1:1", ordinal: 1, page: 2));
-        store.Seed(CreateListObject("chart:doc-1:1:2", KnowledgeContentTypes.Chart, "document:doc-1", "article:doc-1:1", ordinal: 2, page: 3));
-        store.Seed(CreateListObject("table:doc-1:1:3", KnowledgeContentTypes.Table, "document:doc-1", "article:doc-1:1", ordinal: 3, page: 3));
-        store.Seed(CreateListObject("article:doc-1:2", KnowledgeContentTypes.Article, "document:doc-1", "document:doc-1", ordinal: 1, page: 5));
-        store.Seed(CreateListObject("figure:doc-1:2:0", KnowledgeContentTypes.Figure, "document:doc-1", "article:doc-1:2", ordinal: 0, page: 5));
-        store.Seed(CreateListObject("table:doc-1:2:1", KnowledgeContentTypes.Table, "document:doc-1", "article:doc-1:2", ordinal: 1, page: 6));
+        store.Seed(CreateListObject("document:doc-1", KnowledgeObjectTypes.Document, "document:doc-1", null));
+        store.Seed(CreateListObject("article:doc-1:1", KnowledgeObjectTypes.Article, "document:doc-1", "document:doc-1", ordinal: 0, page: 1));
+        store.Seed(CreateListObject("text:doc-1:1:0", KnowledgeObjectTypes.Text, "document:doc-1", "article:doc-1:1", ordinal: 0, page: 1));
+        store.Seed(CreateListObject("figure:doc-1:1:1", KnowledgeObjectTypes.Figure, "document:doc-1", "article:doc-1:1", ordinal: 1, page: 2));
+        store.Seed(CreateListObject("chart:doc-1:1:2", KnowledgeObjectTypes.Chart, "document:doc-1", "article:doc-1:1", ordinal: 2, page: 3));
+        store.Seed(CreateListObject("table:doc-1:1:3", KnowledgeObjectTypes.Table, "document:doc-1", "article:doc-1:1", ordinal: 3, page: 3));
+        store.Seed(CreateListObject("article:doc-1:2", KnowledgeObjectTypes.Article, "document:doc-1", "document:doc-1", ordinal: 1, page: 5));
+        store.Seed(CreateListObject("figure:doc-1:2:0", KnowledgeObjectTypes.Figure, "document:doc-1", "article:doc-1:2", ordinal: 0, page: 5));
+        store.Seed(CreateListObject("table:doc-1:2:1", KnowledgeObjectTypes.Table, "document:doc-1", "article:doc-1:2", ordinal: 1, page: 6));
     }
 
     /// <summary>
@@ -615,7 +615,7 @@ public sealed class KnowledgeObjectToolTests
             ItemId = canonicalId,
             Source = DataSourceId,
             CanonicalId = canonicalId,
-            ObjectType = KnowledgeContentTypes.Figure,
+            ObjectType = KnowledgeObjectTypes.Figure,
             Title = "Figure 1. The measurements.",
             Content = "Figure 1. The measurements.",
             MediaType = "image/png",
@@ -645,7 +645,7 @@ public sealed class KnowledgeObjectToolTests
             ItemId = canonicalId,
             Source = DataSourceId,
             CanonicalId = canonicalId,
-            ObjectType = KnowledgeContentTypes.Chart,
+            ObjectType = KnowledgeObjectTypes.Chart,
             Title = "Figure 3. Yield against load.",
             Content = "Figure 3. Yield against load.",
             MediaType = "image/png",

@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.DataSources;
+﻿using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using Microsoft.AspNetCore.Authorization;
@@ -73,7 +73,7 @@ public static class DownloadKnowledgeFigure
         var entry = await knowledgeStore.FindByCanonicalIdAsync(dataSourceId, canonicalId);
 
         if (entry is null ||
-            entry.ObjectType is not (KnowledgeContentTypes.Figure or KnowledgeContentTypes.Chart) ||
+            entry.ObjectType is not (KnowledgeObjectTypes.Figure or KnowledgeObjectTypes.Chart) ||
             string.IsNullOrWhiteSpace(entry.StoragePath))
         {
             return Results.NotFound();

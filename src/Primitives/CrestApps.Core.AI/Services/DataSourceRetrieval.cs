@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
@@ -182,7 +182,7 @@ internal static partial class DataSourceRetrieval
             StringComparison.OrdinalIgnoreCase);
 
         var callerFilter = storesTypedKnowledge ? request.Filter : QualifyCallerFields(request.Filter);
-        var contentTypeClause = BuildContentTypeClause(request.ContentTypes);
+        var contentTypeClause = BuildContentTypeClause(request.ObjectTypes);
         var filter = CombineFilters(callerFilter, contentTypeClause);
 
         IODataFilterTranslator filterTranslator = null;
@@ -302,7 +302,7 @@ internal static partial class DataSourceRetrieval
         {
             // Said before the content, because a model that asked for figures and is handed prose would
             // otherwise read the prose as the answer to the question it asked.
-            builder.AppendLine(BuildUnnarrowedNotice(request.ContentTypes));
+            builder.AppendLine(BuildUnnarrowedNotice(request.ObjectTypes));
         }
 
         builder.AppendLine("Relevant content from data source:");
@@ -398,7 +398,7 @@ internal static partial class DataSourceRetrieval
             return null;
         }
 
-        if (contentTypes.Any(contentType => string.Equals(contentType, KnowledgeContentTypes.Text, StringComparison.OrdinalIgnoreCase)))
+        if (contentTypes.Any(contentType => string.Equals(contentType, KnowledgeObjectTypes.Text, StringComparison.OrdinalIgnoreCase)))
         {
             clauses.Add($"{DataSourceConstants.ColumnNames.ContentType} eq null");
         }
@@ -926,7 +926,7 @@ internal static partial class DataSourceRetrieval
         {
             var documentTitle = results
                 .Where(item => string.Equals(item.RootId, result.RootId, StringComparison.OrdinalIgnoreCase))
-                .Where(item => item.ContentType is null or KnowledgeContentTypes.Text or KnowledgeContentTypes.Article or KnowledgeContentTypes.Document)
+                .Where(item => item.ContentType is null or KnowledgeObjectTypes.Text or KnowledgeObjectTypes.Article or KnowledgeObjectTypes.Document)
                 .Select(item => item.Title)
                 .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item));
 

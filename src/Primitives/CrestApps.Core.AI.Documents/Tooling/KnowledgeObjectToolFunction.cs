@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CrestApps.Core.AI.DataSources;
@@ -152,7 +152,7 @@ public sealed class KnowledgeObjectToolFunction : AIFunction
             return $"No object with identifier '{id}' was found in this data source.";
         }
 
-        if (entry.ObjectType is not (KnowledgeContentTypes.Figure or KnowledgeContentTypes.Chart) ||
+        if (entry.ObjectType is not (KnowledgeObjectTypes.Figure or KnowledgeObjectTypes.Chart) ||
             string.IsNullOrWhiteSpace(entry.StoragePath))
         {
             return new KnowledgeObjectToolResult
@@ -313,7 +313,7 @@ public sealed class KnowledgeObjectToolFunction : AIFunction
         builder.AppendLine();
         builder.AppendLine(entry.Content);
 
-        if (entry.ObjectType == KnowledgeContentTypes.Table && entry.TryGet<TableDetails>(out var table) && table.Rows is { Count: > 0 })
+        if (entry.ObjectType == KnowledgeObjectTypes.Table && entry.TryGet<TableDetails>(out var table) && table.Rows is { Count: > 0 })
         {
             // The rows are handed back as data rather than prose, so a caller that wants to compute with
             // them does not have to parse a sentence back into numbers.
@@ -351,12 +351,12 @@ public sealed class KnowledgeObjectToolFunction : AIFunction
     {
         foreach (var prefix in new[]
         {
-            KnowledgeContentTypes.Document,
-            KnowledgeContentTypes.Article,
-            KnowledgeContentTypes.Text,
-            KnowledgeContentTypes.Figure,
-            KnowledgeContentTypes.Chart,
-            KnowledgeContentTypes.Table,
+            KnowledgeObjectTypes.Document,
+            KnowledgeObjectTypes.Article,
+            KnowledgeObjectTypes.Text,
+            KnowledgeObjectTypes.Figure,
+            KnowledgeObjectTypes.Chart,
+            KnowledgeObjectTypes.Table,
         })
         {
             if (id.StartsWith(prefix + ':', StringComparison.OrdinalIgnoreCase))

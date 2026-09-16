@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.DataSources;
+﻿using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Knowledge;
@@ -294,7 +294,7 @@ public sealed class FigureDescriptionBackfillTests
             ItemId = canonicalId,
             Source = DataSourceId,
             CanonicalId = canonicalId,
-            ObjectType = KnowledgeContentTypes.Figure,
+            ObjectType = KnowledgeObjectTypes.Figure,
             RootId = "document:key",
             ParentId = "article:key:1",
             Title = "Figure 1. The measurements.",

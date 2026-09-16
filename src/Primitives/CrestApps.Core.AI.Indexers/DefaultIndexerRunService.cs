@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.DataSources;
+﻿using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents.Knowledge;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
@@ -432,7 +432,7 @@ public sealed class DefaultIndexerRunService : IIndexerRunService
     private static bool IsDocumentRootId(string value)
     {
         return !string.IsNullOrWhiteSpace(value) &&
-            value.StartsWith(KnowledgeContentTypes.Document + ':', StringComparison.Ordinal);
+            value.StartsWith(KnowledgeObjectTypes.Document + ':', StringComparison.Ordinal);
     }
 
     /// <summary>

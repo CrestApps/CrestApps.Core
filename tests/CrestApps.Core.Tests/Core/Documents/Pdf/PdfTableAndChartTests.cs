@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Documents.Ingestion;
+﻿using CrestApps.Core.AI.Documents.Ingestion;
 using CrestApps.Core.AI.Documents.Knowledge;
 using CrestApps.Core.AI.Documents.Pdf;
 using CrestApps.Core.AI.Documents.Pdf.Services;
@@ -260,7 +260,7 @@ public sealed class PdfTableAndChartTests
             },
             new List<string>());
 
-        var chart = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Chart);
+        var chart = Assert.Single(objects, entry => entry.ObjectType == KnowledgeObjectTypes.Chart);
 
         Assert.True(chart.TryGet<ChartDetails>(out var details));
         Assert.Equal("Elapsed time", details.AxisX);
