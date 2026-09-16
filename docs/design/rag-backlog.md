@@ -33,8 +33,7 @@ produces the message a search that matched nothing produces.
 | # | Status | Issue | Where |
 | --- | --- | --- | --- |
 | 1 | open | **No screen edits `AIDataSourceRagMetadata.ObjectTypes`.** The restriction works and is enforced on both searches, but it can only be set from code — neither host's profile screen offers it, the way the tool instance screen offers its own kinds. | both hosts' AI Profile screens |
-| 2 | open | **Nothing compares the two hosts' navigation.** The regrouping shipped in lockstep and the two sidebars agree today, but the parity suite does not cover the layout files, so the next one-sided edit ships silently. The pair is asymmetric — the MVC file also holds the top navbar, the validation alert and the chat-widget include — so a comparison has to name what it compares rather than diff the files. | `Views/Shared/_Layout.cshtml`, `Components/Layout/NavMenu.razor` |
-| 3 | open | **A model told a chart is machine-readable still shows a picture of it.** Driven live: asked whether a chart's values were machine-readable, the model answered that they were, described the numeric series — and rendered the figure as an image. The page had `canvasCount: 0` with the marker parser and Chart.js both loaded and ready. The over-claim is the model reading the series it was given; the contradiction is D below, seen from the reader's side rather than the code's. | see D |
+| 2 | open | **A model told a chart is machine-readable still shows a picture of it.** Driven live: asked whether a chart's values were machine-readable, the model answered that they were, described the numeric series — and rendered the figure as an image. The page had `canvasCount: 0` with the marker parser and Chart.js both loaded and ready. The over-claim is the model reading the series it was given; the contradiction is D below, seen from the reader's side rather than the code's. | see D |
 
 ## Decided, not owed
 
