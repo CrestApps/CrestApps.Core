@@ -255,6 +255,35 @@ public sealed class TabularWorkspaceFormattingTests
         Assert.Contains(tables, table => table.TableName == "sales");
     }
 
+    /// <summary>
+    /// A workspace left inconsistent by an earlier session must heal itself rather than stay broken for
+    /// the rest of the conversation. Dropping a table behind the workspace's back leaves metadata
+    /// claiming it exists; the next synchronization should notice and import the document again.
+    /// </summary>
+    [Fact]
+    public async Task EnsureReadyAsync_WhenATableVanished_ReimportsTheDocument()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = await CreateLoadedWorkspaceAsync(cancellationToken);
+
+        // Simulates the state a renamed or externally dropped table leaves behind.
+        await workspace.ExecuteAsync("ALTER TABLE sales RENAME TO stale", cancellationToken);
+        await workspace.ExecuteAsync("DROP TABLE stale", cancellationToken);
+
+        await workspace.EnsureReadyAsync(
+            [new TabularDocumentRef("doc1", "sales.csv")],
+            (_, _) => Task.FromResult(Csv),
+            cancellationToken);
+
+        var tables = await workspace.GetTablesAsync(cancellationToken);
+
+        Assert.Contains(tables, table => table.TableName == "sales");
+
+        var result = await workspace.QueryAsync("SELECT COUNT(*) FROM sales", 100, cancellationToken);
+
+        Assert.Equal(2L, result.Rows[0][0]);
+    }
+
     private static async Task<TabularWorkspace> CreateLoadedWorkspaceAsync(CancellationToken cancellationToken)
     {
         var workspace = new TabularWorkspace(new TabularWorkspaceOptions());

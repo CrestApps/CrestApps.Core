@@ -126,6 +126,10 @@ internal sealed class TabularWorkspace : IDisposable
 
             try
             {
+                // Reconciling before anything else lets a workspace left inconsistent by an earlier
+                // session heal itself: a metadata row whose table no longer exists is removed here, so
+                // the document it belonged to is seen as unloaded and is imported again below.
+                ReconcileTablesWithDatabase();
                 RemoveFailedImportPlaceholderTables();
                 RemoveTablesForDetachedDocuments(documents);
                 await SynchronizeTablesAsync(documents, artifactLoader, workspaceImporter, cancellationToken);
