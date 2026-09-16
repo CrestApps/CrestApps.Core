@@ -82,6 +82,27 @@ public sealed class SpreadsheetFormatting
     public IList<SpreadsheetChart> Charts { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets the cell ranges to merge, in A1 notation (<c>A1:D1</c>). A range that falls outside
+    /// the sheet is ignored rather than written, because an out-of-bounds merge makes the workbook
+    /// unopenable.
+    /// </summary>
+    public IList<string> MergedCells { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the named ranges defined for the workbook.
+    /// </summary>
+    public IList<SpreadsheetNamedRange> NamedRanges { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the worksheet is protected against editing.
+    /// <para>
+    /// This discourages accidental edits; it is not a security control, since the protection is removed
+    /// without a password by any spreadsheet application.
+    /// </para>
+    /// </summary>
+    public bool? ProtectSheet { get; set; }
+
+    /// <summary>
     /// Finds the format declared for a column, matching on the column name case-insensitively.
     /// </summary>
     /// <param name="columnName">The header name to look up.</param>

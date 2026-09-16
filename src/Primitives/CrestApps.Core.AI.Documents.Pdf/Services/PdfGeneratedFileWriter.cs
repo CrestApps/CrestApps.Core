@@ -91,7 +91,29 @@ public sealed class PdfGeneratedFileWriter : IGeneratedFileWriter
 
         if (content.HasTable)
         {
-            AddDataTable(section, content);
+            var sheets = content.GetSheets();
+
+            foreach (var sheet in sheets)
+            {
+                if (!sheet.HasTable)
+                {
+                    continue;
+                }
+
+                // With several tables in one document, each is titled so the reader can tell them apart.
+                if (sheets.Count > 1 && !string.IsNullOrWhiteSpace(sheet.Name))
+                {
+                    AddHeading(section, new RichTextBlock
+                    {
+                        Kind = RichTextBlockKind.Heading,
+                        Level = 2,
+                        Spans = [new RichTextSpan(sheet.Name)],
+                    });
+                }
+
+                AddDataTable(section, sheet);
+            }
+
             hasContent = true;
         }
 
@@ -285,9 +307,9 @@ public sealed class PdfGeneratedFileWriter : IGeneratedFileWriter
         spacer.Format.Font.Size = 5;
     }
 
-    private static void AddDataTable(Section section, GeneratedFileContent content)
+    private static void AddDataTable(Section section, GeneratedSheet sheet)
     {
-        var columnCount = content.Header.Count;
+        var columnCount = sheet.Header.Count;
         var table = CreateTable(section, columnCount);
         var headerRow = table.AddRow();
         headerRow.Shading.Color = _headerBackground;
@@ -295,16 +317,16 @@ public sealed class PdfGeneratedFileWriter : IGeneratedFileWriter
 
         for (var index = 0; index < columnCount; index++)
         {
-            var paragraph = headerRow.Cells[index].AddParagraph(content.Header[index] ?? string.Empty);
+            var paragraph = headerRow.Cells[index].AddParagraph(sheet.Header[index] ?? string.Empty);
             paragraph.Format.Font.Bold = true;
         }
 
-        if (content.Rows is null)
+        if (sheet.Rows is null)
         {
             return;
         }
 
-        foreach (var row in content.Rows)
+        foreach (var row in sheet.Rows)
         {
             var dataRow = table.AddRow();
 

@@ -98,6 +98,25 @@ public sealed class FormatTabularDataTool : AIFunction
           "additionalProperties": false
         },
         "banded_rows": { "type": "boolean", "description": "Shade alternating rows to make wide tables easier to read." },
+        "protect_sheet": { "type": "boolean", "description": "Protect the sheet against accidental edits. This is a convenience, not security: any spreadsheet application removes it without a password." },
+        "merged_cells": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Cell ranges to merge, in A1 notation such as 'A1:D1'. Row 1 is the header and data starts at row 2, so a banner above the data is not possible; merges are for spanning header cells. A range outside the sheet is ignored."
+        },
+        "named_ranges": {
+          "type": "array",
+          "description": "Named ranges defined for the workbook, so a region can be referenced by name.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "description": "The name. Letters, digits and underscores only, starting with a letter; a name with a space is ignored." },
+              "range": { "type": "string", "description": "The range in A1 notation, such as 'A1:D20'." }
+            },
+            "required": ["name", "range"],
+            "additionalProperties": false
+          }
+        },
         "band_color": { "type": "string", "description": "Hex fill color for the shaded rows. Defaults to a light gray." },
         "conditional_formats": {
           "type": "array",

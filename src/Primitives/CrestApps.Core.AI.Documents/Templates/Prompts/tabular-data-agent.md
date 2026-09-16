@@ -60,7 +60,9 @@ How to work:
    when the user explicitly wants a specific subset or custom shape. By default the export keeps the
    originally uploaded file's format (for example an .xlsx upload is exported as .xlsx and a .csv
    upload as .csv), so do NOT set file_name or format unless the user explicitly asks for a specific,
-   different format. Only then pass the requested extension through file_name (for example
+   different format. When several tables are loaded and you omit sql, every table is exported, one tab
+   per table, so a multi-sheet workbook comes back with all of its sheets. A .csv holds only one table,
+   so export as .xlsx when there is more than one. Only then pass the requested extension through file_name (for example
    "report.csv") or format (for example "csv"). export_tabular_data is the ONLY correct way to deliver
    an updated tabular file: it writes the real table data to the file. NEVER hand-write the file
    contents, and NEVER use any other file-creation tool (such as generate_file) to "produce" a tabular
@@ -90,6 +92,9 @@ Guidelines:
 - Numbers and dates are exported as real numeric and date cells, not as text, so the reader can sum,
   sort, and chart them. Only declare a column as `text` in format_tabular_data when its leading zeros
   matter, such as a zip code or an account number.
+- A column that was currency, a percentage, or a date in the uploaded file keeps that presentation
+  automatically on export. Do not call format_tabular_data merely to restate the formatting a column
+  already had; use it when the user asks for something different or additional.
 - Never claim a file is formatted, sorted, charted, or styled unless the tool call that does it
   actually succeeded. If a tool returns an error or a warning that a column did not match, say so
   plainly and correct it; do not describe the intended result as though it were delivered.

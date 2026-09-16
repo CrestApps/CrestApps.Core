@@ -58,7 +58,25 @@ public sealed class WordGeneratedFileWriter : IGeneratedFileWriter
 
             if (content.HasTable)
             {
-                body.Append(CreateDataTable(content));
+                var sheets = content.GetSheets();
+
+                foreach (var sheet in sheets)
+                {
+                    if (!sheet.HasTable)
+                    {
+                        continue;
+                    }
+
+                    // With several tables in one document, each is titled so the reader can tell them
+                    // apart.
+                    if (sheets.Count > 1 && !string.IsNullOrWhiteSpace(sheet.Name))
+                    {
+                        body.Append(CreateHeading(sheet.Name, level: 2));
+                    }
+
+                    body.Append(CreateDataTable(sheet));
+                    body.Append(new Paragraph());
+                }
             }
 
             mainPart.Document.Save();
@@ -291,28 +309,28 @@ public sealed class WordGeneratedFileWriter : IGeneratedFileWriter
         return table;
     }
 
-    private static Table CreateDataTable(GeneratedFileContent content)
+    private static Table CreateDataTable(GeneratedSheet sheet)
     {
-        var table = CreateTableShell(content.Header.Count);
+        var table = CreateTableShell(sheet.Header.Count);
         var headerRow = new TableRow();
 
-        foreach (var header in content.Header)
+        foreach (var header in sheet.Header)
         {
             headerRow.Append(CreateCell([new RichTextSpan(header ?? string.Empty)], isHeader: true));
         }
 
         table.Append(headerRow);
 
-        if (content.Rows is null)
+        if (sheet.Rows is null)
         {
             return table;
         }
 
-        foreach (var row in content.Rows)
+        foreach (var row in sheet.Rows)
         {
             var dataRow = new TableRow();
 
-            for (var index = 0; index < content.Header.Count; index++)
+            for (var index = 0; index < sheet.Header.Count; index++)
             {
                 var value = index < row.Count ? row[index] : string.Empty;
                 dataRow.Append(CreateCell([new RichTextSpan(value ?? string.Empty)], isHeader: false));

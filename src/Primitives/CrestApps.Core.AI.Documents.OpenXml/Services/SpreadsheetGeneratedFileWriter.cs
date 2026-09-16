@@ -1,3 +1,4 @@
+using System.Globalization;
 using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Generation.Spreadsheets;
 using DocumentFormat.OpenXml;
@@ -53,28 +54,50 @@ public sealed class SpreadsheetGeneratedFileWriter : IGeneratedFileWriter
             var workbookPart = document.AddWorkbookPart();
             workbookPart.Workbook = new Workbook();
 
-            var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            // One stylesheet serves the whole workbook, so every sheet shares and de-duplicates styles.
             var styles = new SpreadsheetStyleBuilder();
+            var sheets = new Sheets();
+            var definedNames = new DefinedNames();
+            var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var sheetId = 1U;
 
-            var worksheet = content.HasTable
-                ? BuildTableWorksheet(content, styles, worksheetPart, cancellationToken)
-                : BuildTextWorksheet(content);
+            foreach (var sheet in content.GetSheets())
+            {
+                var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+                string name;
 
-            worksheetPart.Worksheet = worksheet;
+                if (sheet.HasTable)
+                {
+                    var layout = SpreadsheetLayout.Create(sheet);
+                    name = MakeUniqueSheetName(layout.SheetName, usedNames);
+
+                    worksheetPart.Worksheet = BuildTableWorksheet(layout, styles, worksheetPart, cancellationToken);
+                    AppendDefinedNames(definedNames, layout, name);
+                }
+                else
+                {
+                    name = MakeUniqueSheetName(sheet.Name ?? "Sheet1", usedNames);
+                    worksheetPart.Worksheet = BuildTextWorksheet(content);
+                }
+
+                sheets.Append(new Sheet
+                {
+                    Id = workbookPart.GetIdOfPart(worksheetPart),
+                    SheetId = sheetId++,
+                    Name = name,
+                });
+            }
 
             var stylesPart = workbookPart.AddNewPart<WorkbookStylesPart>();
             stylesPart.Stylesheet = styles.Build();
             stylesPart.Stylesheet.Save();
 
-            var sheets = workbookPart.Workbook.AppendChild(new Sheets());
-            sheets.Append(new Sheet
+            workbookPart.Workbook.AppendChild(sheets);
+
+            if (definedNames.HasChildren)
             {
-                Id = workbookPart.GetIdOfPart(worksheetPart),
-                SheetId = 1U,
-                Name = content.HasTable
-                    ? SpreadsheetLayout.Create(content).SheetName
-                    : "Sheet1",
-            });
+                workbookPart.Workbook.AppendChild(definedNames);
+            }
 
             // Formulas are written without a cached result, so the workbook must recalculate when it is
             // opened; without this the reader sees empty cells until they force a recalculation.
@@ -107,13 +130,46 @@ public sealed class SpreadsheetGeneratedFileWriter : IGeneratedFileWriter
         return new Worksheet(sheetData);
     }
 
+    /// <summary>
+    /// Ensures a worksheet name is unique within the workbook. Two tabs may not share a name, and a
+    /// multi-sheet export can easily produce two tables whose names collide once truncated.
+    /// </summary>
+    /// <param name="name">The preferred name.</param>
+    /// <param name="used">The names already taken.</param>
+    /// <returns>A unique worksheet name.</returns>
+    private static string MakeUniqueSheetName(string name, HashSet<string> used)
+    {
+        var candidate = string.IsNullOrWhiteSpace(name) ? "Sheet1" : name.Trim();
+
+        if (used.Add(candidate))
+        {
+            return candidate;
+        }
+
+        for (var suffix = 2; ; suffix++)
+        {
+            var tail = " (" + suffix.ToString(CultureInfo.InvariantCulture) + ")";
+
+            // A worksheet name is capped at 31 characters, so the base is trimmed to make room.
+            var trimmed = candidate.Length + tail.Length > 31
+                ? candidate[..(31 - tail.Length)]
+                : candidate;
+
+            var next = trimmed + tail;
+
+            if (used.Add(next))
+            {
+                return next;
+            }
+        }
+    }
+
     private static Worksheet BuildTableWorksheet(
-        GeneratedFileContent content,
+        SpreadsheetLayout layout,
         SpreadsheetStyleBuilder styles,
         WorksheetPart worksheetPart,
         CancellationToken cancellationToken)
     {
-        var layout = SpreadsheetLayout.Create(content);
         var formatting = layout.Formatting;
         var worksheet = new Worksheet();
 
@@ -125,12 +181,34 @@ public sealed class SpreadsheetGeneratedFileWriter : IGeneratedFileWriter
         worksheet.Append(BuildColumnWidths(layout));
         worksheet.Append(BuildSheetData(layout, styles, cancellationToken));
 
+        // The worksheet's children follow a fixed order: protection, then the filter, then merges, then
+        // conditional formatting, then the drawing. Appending them in any other order produces a file
+        // the spreadsheet application refuses to open.
+        if (formatting.ProtectSheet == true)
+        {
+            worksheet.Append(new SheetProtection
+            {
+                Sheet = true,
+                Objects = true,
+                Scenarios = true,
+                SelectLockedCells = false,
+                SelectUnlockedCells = false,
+            });
+        }
+
         if (formatting.AutoFilter != false && layout.Columns.Count > 0)
         {
             worksheet.Append(new AutoFilter
             {
                 Reference = $"A{SpreadsheetLayout.HeaderRowNumber}:{SpreadsheetFormula.ToCellReference(layout.Columns.Count - 1, layout.LastDataRowNumber)}",
             });
+        }
+
+        var mergeCells = BuildMergeCells(layout);
+
+        if (mergeCells is not null)
+        {
+            worksheet.Append(mergeCells);
         }
 
         foreach (var conditionalFormatting in BuildConditionalFormatting(layout, styles))
@@ -146,6 +224,133 @@ public sealed class SpreadsheetGeneratedFileWriter : IGeneratedFileWriter
         }
 
         return worksheet;
+    }
+
+    /// <summary>
+    /// Builds the merged-cell ranges, dropping any that fall outside the sheet.
+    /// <para>
+    /// A merge referencing a row or column that does not exist makes the whole workbook unopenable, and
+    /// a caller computing ranges by hand gets this wrong whenever a calculated column shifts the layout.
+    /// Dropping a bad range costs one visual flourish; writing it costs the file.
+    /// </para>
+    /// </summary>
+    /// <param name="layout">The resolved sheet layout.</param>
+    /// <returns>The merge element, or <see langword="null"/> when nothing merges.</returns>
+    private static MergeCells BuildMergeCells(SpreadsheetLayout layout)
+    {
+        var requested = layout.Formatting.MergedCells;
+
+        if (requested is null || requested.Count == 0 || layout.Columns.Count == 0)
+        {
+            return null;
+        }
+
+        var lastRow = layout.HasTotalRow ? layout.TotalRowNumber : layout.LastDataRowNumber;
+        var merges = new MergeCells();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var range in requested)
+        {
+            if (!SpreadsheetRange.TryParse(range, out var parsed) ||
+                parsed.IsSingleCell ||
+                parsed.LastColumnIndex >= layout.Columns.Count ||
+                parsed.LastRowNumber > lastRow ||
+                !seen.Add(parsed.Normalized))
+            {
+                continue;
+            }
+
+            merges.Append(new MergeCell { Reference = parsed.Normalized });
+        }
+
+        if (!merges.HasChildren)
+        {
+            return null;
+        }
+
+        merges.Count = (uint)merges.Count();
+
+        return merges;
+    }
+
+    /// <summary>
+    /// Adds the workbook-level named ranges declared for a worksheet, qualified with that sheet's name.
+    /// </summary>
+    /// <param name="definedNames">The workbook's defined names.</param>
+    /// <param name="layout">The resolved sheet layout.</param>
+    /// <param name="sheetName">The worksheet name as written to the workbook.</param>
+    private static void AppendDefinedNames(DefinedNames definedNames, SpreadsheetLayout layout, string sheetName)
+    {
+        var requested = layout.Formatting.NamedRanges;
+
+        if (requested is null || requested.Count == 0)
+        {
+            return;
+        }
+
+        var lastRow = layout.HasTotalRow ? layout.TotalRowNumber : layout.LastDataRowNumber;
+
+        foreach (var named in requested)
+        {
+            if (named is null ||
+                !IsUsableDefinedName(named.Name) ||
+                !SpreadsheetRange.TryParse(named.Range, out var parsed) ||
+                parsed.LastColumnIndex >= layout.Columns.Count ||
+                parsed.LastRowNumber > lastRow)
+            {
+                continue;
+            }
+
+            definedNames.Append(new DefinedName
+            {
+                Name = named.Name.Trim(),
+                Text = $"{QuoteSheetName(sheetName)}!{parsed.ToAbsolute()}",
+            });
+        }
+    }
+
+    /// <summary>
+    /// Determines whether a defined name is one the file format accepts. A name containing a space, or
+    /// starting with a digit, makes the workbook fail to open.
+    /// </summary>
+    /// <param name="name">The candidate name.</param>
+    /// <returns><see langword="true"/> when the name is usable.</returns>
+    private static bool IsUsableDefinedName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        var trimmed = name.Trim();
+
+        if (trimmed.Length > 255 || (!char.IsLetter(trimmed[0]) && trimmed[0] != '_'))
+        {
+            return false;
+        }
+
+        foreach (var character in trimmed)
+        {
+            if (!char.IsLetterOrDigit(character) && character is not ('_' or '.'))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string QuoteSheetName(string sheetName)
+    {
+        foreach (var character in sheetName)
+        {
+            if (!char.IsLetterOrDigit(character) && character != '_')
+            {
+                return "'" + sheetName.Replace("'", "''", StringComparison.Ordinal) + "'";
+            }
+        }
+
+        return sheetName;
     }
 
     private static SheetViews BuildFrozenHeaderView()

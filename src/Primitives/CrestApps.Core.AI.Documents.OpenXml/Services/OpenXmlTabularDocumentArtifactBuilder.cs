@@ -74,7 +74,7 @@ public sealed class OpenXmlTabularDocumentArtifactBuilder : ITabularDocumentArti
                 // rows above it can be skipped.
                 current.Rows.Add(row);
             },
-            () =>
+            _ =>
             {
                 // A worksheet with no non-empty rows is not surfaced as a table. Otherwise the header row
                 // is located (skipping any title rows above it) and widened to cover populated cells that

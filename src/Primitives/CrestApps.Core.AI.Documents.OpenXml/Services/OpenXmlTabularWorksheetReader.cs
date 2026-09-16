@@ -49,11 +49,12 @@ internal static partial class OpenXmlTabularWorksheetReader
         ILogger logger,
         Action<string> onWorksheetStart,
         Action<List<string>, bool> onRow,
-        Action onWorksheetEnd,
+        Action<IReadOnlyList<string>> onWorksheetEnd,
         CancellationToken cancellationToken)
     {
         var sharedStrings = CreateSharedStringCache(workbookPart);
         var dateStyles = BuildDateStyleTable(workbookPart);
+        var styleFormats = BuildStyleFormatTable(workbookPart);
         var expectedColumnCount = 16;
 
         void ReadWorksheet(WorksheetPart worksheetPart, string worksheetName)
@@ -61,6 +62,11 @@ internal static partial class OpenXmlTabularWorksheetReader
             cancellationToken.ThrowIfCancellationRequested();
             onWorksheetStart(worksheetName);
             var sheetRowCount = 0;
+
+            // Counts the number format each column is written with, so the column's dominant format can
+            // be carried through to an export. Only the leading rows are sampled: a format is a property
+            // of the column, and scanning a large sheet for it would cost more than it is worth.
+            var formatCounts = new List<Dictionary<string, int>>();
 
             using var stream = worksheetPart.GetStream(FileMode.Open, FileAccess.Read);
             using var reader = XmlReader.Create(stream, _xmlReaderSettings);
@@ -77,7 +83,15 @@ internal static partial class OpenXmlTabularWorksheetReader
                     continue;
                 }
 
-                var row = ReadRow(reader, sharedStrings, dateStyles, expectedColumnCount, out var hasValue, out var hasVerticalAggregateFormula);
+                var row = ReadRow(
+                    reader,
+                    sharedStrings,
+                    dateStyles,
+                    styleFormats,
+                    expectedColumnCount,
+                    out var hasValue,
+                    out var hasVerticalAggregateFormula,
+                    out var rowFormats);
 
                 if (!hasValue)
                 {
@@ -85,11 +99,17 @@ internal static partial class OpenXmlTabularWorksheetReader
                 }
 
                 expectedColumnCount = Math.Max(expectedColumnCount, row.Count);
+
+                if (sheetRowCount < FormatSampleRows)
+                {
+                    AccumulateFormats(formatCounts, rowFormats);
+                }
+
                 onRow(row, hasVerticalAggregateFormula);
                 sheetRowCount++;
             }
 
-            onWorksheetEnd();
+            onWorksheetEnd(ResolveDominantFormats(formatCounts));
 
             if (logger.IsEnabled(LogLevel.Debug))
             {
@@ -140,13 +160,16 @@ internal static partial class OpenXmlTabularWorksheetReader
         XmlReader reader,
         string[] sharedStrings,
         bool[] dateStyles,
+        string[] styleFormats,
         int expectedColumnCount,
         out bool hasValue,
-        out bool hasVerticalAggregateFormula)
+        out bool hasVerticalAggregateFormula,
+        out List<string> formats)
     {
         hasValue = false;
         hasVerticalAggregateFormula = false;
         var values = new List<string>(expectedColumnCount);
+        formats = new List<string>(expectedColumnCount);
 
         // The worksheet row number, used to tell an aggregate over other rows apart from one confined
         // to this row. Absent (malformed) row numbers leave the evidence unused rather than guessed at.
@@ -193,12 +216,15 @@ internal static partial class OpenXmlTabularWorksheetReader
             while (values.Count < columnIndex)
             {
                 values.Add(string.Empty);
+                formats.Add(null);
             }
 
-            var isDateStyle = IsDateStyledCell(reader.GetAttribute("s"), dateStyles);
+            var styleAttribute = reader.GetAttribute("s");
+            var isDateStyle = IsDateStyledCell(styleAttribute, dateStyles);
             var value = GetCellValue(reader, reader.GetAttribute("t"), isDateStyle, sharedStrings, out var formula);
 
             values.Add(value);
+            formats.Add(string.IsNullOrEmpty(value) ? null : GetStyleFormat(styleAttribute, styleFormats));
             hasValue |= !string.IsNullOrEmpty(value);
 
             if (!hasVerticalAggregateFormula && rowNumber > 0 && formula is not null)
@@ -519,6 +545,151 @@ internal static partial class OpenXmlTabularWorksheetReader
         {
             return false;
         }
+    }
+
+    // How many leading rows are inspected when working out a column's dominant number format.
+    private const int FormatSampleRows = 50;
+
+    // Builds a lookup keyed by cell-format (style) index giving the number format code that style
+    // renders with. Carrying the code lets an export reproduce the presentation the source file had —
+    // a column that was currency in the upload comes back as currency — rather than discarding it.
+    private static string[] BuildStyleFormatTable(WorkbookPart workbookPart)
+    {
+        var stylesheet = workbookPart.WorkbookStylesPart?.Stylesheet;
+        var cellFormats = stylesheet?.CellFormats;
+
+        if (cellFormats is null)
+        {
+            return null;
+        }
+
+        var customFormats = new Dictionary<uint, string>();
+
+        if (stylesheet.NumberingFormats is not null)
+        {
+            foreach (var numberingFormat in stylesheet.NumberingFormats.Elements<NumberingFormat>())
+            {
+                if (numberingFormat.NumberFormatId?.Value is uint formatId &&
+                    numberingFormat.FormatCode?.Value is string formatCode)
+                {
+                    customFormats[formatId] = formatCode;
+                }
+            }
+        }
+
+        var formats = cellFormats.Elements<CellFormat>().ToList();
+        var table = new string[formats.Count];
+
+        for (var i = 0; i < formats.Count; i++)
+        {
+            var formatId = formats[i].NumberFormatId?.Value ?? 0;
+
+            table[i] = customFormats.TryGetValue(formatId, out var custom)
+                ? custom
+                : GetBuiltInFormatCode(formatId);
+        }
+
+        return table;
+    }
+
+    // The built-in format ids worth carrying. Only formats whose intent survives the round trip are
+    // listed: the general format says nothing, and text would fight the column's own storage type.
+    private static string GetBuiltInFormatCode(uint numberFormatId)
+    {
+        return numberFormatId switch
+        {
+            1 => "0",
+            2 => "0.00",
+            3 => "#,##0",
+            4 => "#,##0.00",
+            9 => "0%",
+            10 => "0.00%",
+            11 => "0.00E+00",
+            14 => "mm-dd-yy",
+            15 => "d-mmm-yy",
+            16 => "d-mmm",
+            17 => "mmm-yy",
+            18 => "h:mm AM/PM",
+            19 => "h:mm:ss AM/PM",
+            20 => "h:mm",
+            21 => "h:mm:ss",
+            22 => "m/d/yy h:mm",
+            37 or 38 => "#,##0;(#,##0)",
+            39 or 40 => "#,##0.00;(#,##0.00)",
+            45 => "mm:ss",
+            46 => "[h]:mm:ss",
+            47 => "mmss.0",
+            _ => null,
+        };
+    }
+
+    private static string GetStyleFormat(string styleAttribute, string[] styleFormats)
+    {
+        if (styleFormats is null ||
+            !int.TryParse(styleAttribute, NumberStyles.Integer, CultureInfo.InvariantCulture, out var styleIndex) ||
+            (uint)styleIndex >= (uint)styleFormats.Length)
+        {
+            return null;
+        }
+
+        return styleFormats[styleIndex];
+    }
+
+    private static void AccumulateFormats(List<Dictionary<string, int>> counts, List<string> rowFormats)
+    {
+        for (var index = 0; index < rowFormats.Count; index++)
+        {
+            var format = rowFormats[index];
+
+            if (string.IsNullOrEmpty(format))
+            {
+                continue;
+            }
+
+            while (counts.Count <= index)
+            {
+                counts.Add(null);
+            }
+
+            counts[index] ??= new Dictionary<string, int>(StringComparer.Ordinal);
+            counts[index].TryGetValue(format, out var seen);
+            counts[index][format] = seen + 1;
+        }
+    }
+
+    private static string[] ResolveDominantFormats(List<Dictionary<string, int>> counts)
+    {
+        if (counts.Count == 0)
+        {
+            return [];
+        }
+
+        var formats = new string[counts.Count];
+
+        for (var index = 0; index < counts.Count; index++)
+        {
+            var column = counts[index];
+
+            if (column is null)
+            {
+                continue;
+            }
+
+            var best = 0;
+
+            foreach (var (format, seen) in column)
+            {
+                // The header row carries its own style, so a column is only credited with a format the
+                // majority of its sampled cells share.
+                if (seen > best)
+                {
+                    best = seen;
+                    formats[index] = format;
+                }
+            }
+        }
+
+        return formats;
     }
 
     // Builds a lookup keyed by cell-format (style) index indicating whether that style renders its value

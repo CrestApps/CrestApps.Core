@@ -50,24 +50,46 @@ public sealed class PlainTextGeneratedFileWriter : IGeneratedFileWriter
         }
 
         using var builder = ZString.CreateStringBuilder();
-        builder.Append("| ");
-        builder.Append(string.Join(" | ", content.Header));
-        builder.Append(" |");
-        builder.Append(Environment.NewLine);
-        builder.Append("| ");
-        builder.Append(string.Join(" | ", content.Header.Select(_ => "---")));
-        builder.Append(" |");
-        builder.Append(Environment.NewLine);
+        var sheets = content.GetSheets();
+        var named = sheets.Count > 1;
 
-        if (content.Rows is not null)
+        foreach (var sheet in sheets)
         {
-            foreach (var row in content.Rows)
+            if (!sheet.HasTable)
             {
-                builder.Append("| ");
-                builder.Append(string.Join(" | ", row.Select(value => (value ?? string.Empty).Replace("|", "\\|", StringComparison.Ordinal))));
-                builder.Append(" |");
+                continue;
+            }
+
+            // With several tables in one file, each is titled so the reader can tell them apart.
+            if (named && !string.IsNullOrWhiteSpace(sheet.Name))
+            {
+                builder.Append("## ");
+                builder.Append(sheet.Name);
+                builder.Append(Environment.NewLine);
                 builder.Append(Environment.NewLine);
             }
+
+            builder.Append("| ");
+            builder.Append(string.Join(" | ", sheet.Header));
+            builder.Append(" |");
+            builder.Append(Environment.NewLine);
+            builder.Append("| ");
+            builder.Append(string.Join(" | ", sheet.Header.Select(_ => "---")));
+            builder.Append(" |");
+            builder.Append(Environment.NewLine);
+
+            if (sheet.Rows is not null)
+            {
+                foreach (var row in sheet.Rows)
+                {
+                    builder.Append("| ");
+                    builder.Append(string.Join(" | ", row.Select(value => (value ?? string.Empty).Replace("|", "\\|", StringComparison.Ordinal))));
+                    builder.Append(" |");
+                    builder.Append(Environment.NewLine);
+                }
+            }
+
+            builder.Append(Environment.NewLine);
         }
 
         return builder.ToString();

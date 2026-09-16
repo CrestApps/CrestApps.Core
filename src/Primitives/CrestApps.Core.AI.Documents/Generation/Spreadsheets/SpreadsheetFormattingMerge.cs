@@ -40,6 +40,12 @@ public static class SpreadsheetFormattingMerge
             // duplicate chart behind.
             TotalRow = request.TotalRow ?? existing.TotalRow,
             Charts = request.Charts is { Count: > 0 } ? request.Charts : existing.Charts,
+            ProtectSheet = request.ProtectSheet ?? existing.ProtectSheet,
+
+            // Merges and named ranges are geometry: a new set describes the whole layout, so it replaces
+            // the old one rather than accumulating stale ranges against a sheet that has since changed.
+            MergedCells = request.MergedCells is { Count: > 0 } ? request.MergedCells : existing.MergedCells,
+            NamedRanges = request.NamedRanges is { Count: > 0 } ? request.NamedRanges : existing.NamedRanges,
         };
 
         MergeColumns(existing, request, merged);

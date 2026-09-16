@@ -125,9 +125,21 @@ public sealed class SpreadsheetLayout
     {
         ArgumentNullException.ThrowIfNull(content);
 
-        var formatting = content.SpreadsheetFormatting ?? new SpreadsheetFormatting();
-        var header = content.Header ?? [];
-        var rows = content.Rows ?? [];
+        return Create(content.GetSheets()[0]);
+    }
+
+    /// <summary>
+    /// Builds the layout for one worksheet.
+    /// </summary>
+    /// <param name="sheet">The worksheet being written.</param>
+    /// <returns>The resolved layout.</returns>
+    public static SpreadsheetLayout Create(GeneratedSheet sheet)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        var formatting = sheet.Formatting ?? new SpreadsheetFormatting();
+        var header = sheet.Header ?? [];
+        var rows = sheet.Rows ?? [];
         var columns = new List<SpreadsheetLayoutColumn>(header.Count);
         var statistics = new List<ColumnStatistics>(header.Count);
 
@@ -143,7 +155,11 @@ public sealed class SpreadsheetLayout
 
         AppendComputedColumns(formatting, header, columns, statistics, rows.Count);
 
-        return new SpreadsheetLayout(NormalizeSheetName(formatting.SheetName), columns, rows, formatting);
+        // The sheet's own name wins over one named in the formatting, because a multi-sheet export names
+        // each tab after the table it came from.
+        var sheetName = NormalizeSheetName(sheet.Name ?? formatting.SheetName);
+
+        return new SpreadsheetLayout(sheetName, columns, rows, formatting);
     }
 
     private static void AppendComputedColumns(
@@ -345,6 +361,14 @@ public sealed class SpreadsheetLayout
 
     private static double EstimateNumericWidth(SpreadsheetColumnFormat requested, double magnitude)
     {
+        // An explicit format code is the only description of how the value renders, so its own decimals,
+        // separators, and literals are measured. Falling back to the plain-number estimate here is what
+        // makes an inherited currency column render as ###### despite being formatted correctly.
+        if (!string.IsNullOrWhiteSpace(requested?.FormatCode))
+        {
+            return EstimateFormatCodeWidth(requested.FormatCode, magnitude);
+        }
+
         var numberFormat = requested?.NumberFormat ?? SpreadsheetNumberFormat.General;
         var value = Math.Abs(magnitude);
 
@@ -399,6 +423,76 @@ public sealed class SpreadsheetLayout
         else
         {
             width += 1;
+        }
+
+        return width;
+    }
+
+    /// <summary>
+    /// Estimates how wide a value renders under an explicit number format code, by reading the code's
+    /// first section: its decimal places, whether it groups thousands, and how many literal characters
+    /// (a currency symbol, a percent sign) it adds around the digits.
+    /// </summary>
+    /// <param name="formatCode">The number format code.</param>
+    /// <param name="magnitude">The largest magnitude in the column.</param>
+    /// <returns>The estimated rendered width, in characters.</returns>
+    private static double EstimateFormatCodeWidth(string formatCode, double magnitude)
+    {
+        // A format code describes positive, negative, and zero in semicolon-separated sections. The
+        // first is representative and the others are no wider in practice.
+        var section = formatCode.Split(';')[0];
+        var value = Math.Abs(magnitude);
+
+        if (section.Contains('%', StringComparison.Ordinal))
+        {
+            value *= 100;
+        }
+
+        var decimals = 0;
+        var decimalPoint = section.IndexOf('.', StringComparison.Ordinal);
+
+        if (decimalPoint >= 0)
+        {
+            for (var index = decimalPoint + 1; index < section.Length && section[index] is '0' or '#'; index++)
+            {
+                decimals++;
+            }
+        }
+
+        var literals = 0;
+        var inQuotes = false;
+
+        foreach (var character in section)
+        {
+            if (character == '"')
+            {
+                inQuotes = !inQuotes;
+
+                continue;
+            }
+
+            // Anything that is not a placeholder occupies space of its own: a currency symbol, a percent
+            // sign, brackets, or a padded literal.
+            if (inQuotes || character is '%' or '(' or ')' or '$' or '¤' or '-' or '+' or ' ')
+            {
+                literals++;
+            }
+        }
+
+        var integerDigits = value < 1
+            ? 1
+            : (int)Math.Floor(Math.Log10(value)) + 1;
+
+        double width = integerDigits + literals + 1;
+
+        if (decimals > 0)
+        {
+            width += decimals + 1;
+        }
+
+        if (section.Contains(',', StringComparison.Ordinal))
+        {
+            width += Math.Max(0, (integerDigits - 1) / 3);
         }
 
         return width;

@@ -88,13 +88,73 @@ public static class SpreadsheetFormattingJson
             formatting.BandColor = bandColor;
         }
 
+        if (TryGetBoolean(element, out var protectSheet, "protect_sheet", "protectSheet", "protect", "read_only"))
+        {
+            formatting.ProtectSheet = protectSheet;
+        }
+
         ParseHeader(element, formatting);
         ParseColumns(element, formatting);
         ParseConditionalFormats(element, formatting);
         ParseTotalRow(element, formatting);
         ParseCharts(element, formatting);
+        ParseMergedCells(element, formatting);
+        ParseNamedRanges(element, formatting);
 
         return formatting;
+    }
+
+    private static void ParseMergedCells(JsonElement element, SpreadsheetFormatting formatting)
+    {
+        if (!TryGetProperty(element, out var merges, "merged_cells", "mergedCells", "merges", "merge") ||
+            merges.ValueKind is not (JsonValueKind.Array or JsonValueKind.String))
+        {
+            return;
+        }
+
+        if (merges.ValueKind == JsonValueKind.String)
+        {
+            formatting.MergedCells.Add(merges.GetString());
+
+            return;
+        }
+
+        foreach (var merge in merges.EnumerateArray())
+        {
+            if (merge.ValueKind == JsonValueKind.String)
+            {
+                formatting.MergedCells.Add(merge.GetString());
+            }
+            else if (merge.ValueKind == JsonValueKind.Object && TryGetString(merge, out var range, "range", "reference", "cells"))
+            {
+                formatting.MergedCells.Add(range);
+            }
+        }
+    }
+
+    private static void ParseNamedRanges(JsonElement element, SpreadsheetFormatting formatting)
+    {
+        if (!TryGetProperty(element, out var ranges, "named_ranges", "namedRanges", "names") ||
+            ranges.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var item in ranges.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object ||
+                !TryGetString(item, out var name, "name", "title") ||
+                !TryGetString(item, out var range, "range", "reference", "cells"))
+            {
+                continue;
+            }
+
+            formatting.NamedRanges.Add(new SpreadsheetNamedRange
+            {
+                Name = name,
+                Range = range,
+            });
+        }
     }
 
     private static void ParseHeader(JsonElement element, SpreadsheetFormatting formatting)

@@ -177,25 +177,69 @@ public sealed class ExportTabularDataTool : AIFunction
 
         try
         {
-            var export = string.IsNullOrWhiteSpace(sql)
-                ? await workspace.ExportFullAsync(cancellationToken)
-                : await workspace.ExportAsync(sql, cancellationToken);
+            var content = new GeneratedFileContent();
+            int rowCount;
 
-            if (export.Artifact.Header.Count == 0)
+            if (string.IsNullOrWhiteSpace(sql))
             {
-                return "The export query did not produce any columns.";
+                // Without a query every loaded table is exported. A multi-sheet upload therefore comes
+                // back as a multi-tab workbook instead of forcing a choice between its worksheets.
+                var exports = await workspace.ExportAllAsync(cancellationToken);
+
+                if (exports.Count > 1 && !SupportsMultipleSheets(targetExtension))
+                {
+                    return $"{exports.Count} tables are loaded, and the '{targetExtension}' format holds only one. Export as .xlsx to get one tab per table, or pass a SELECT in 'sql' to choose what to export.";
+                }
+
+                rowCount = 0;
+
+                foreach (var (tableName, worksheetName, export) in exports)
+                {
+                    if (export.Artifact.Header.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    var tableFormatting = await workspace.GetFormattingAsync(tableName, cancellationToken);
+
+                    content.Sheets.Add(new GeneratedSheet
+                    {
+                        Name = worksheetName ?? tableName,
+                        Header = export.Artifact.Header,
+                        Rows = export.Artifact.Rows,
+                        Formatting = ResolveFormatting(
+                            string.IsNullOrEmpty(tableFormatting.SpecJson) ? storedFormatting.SpecJson : tableFormatting.SpecJson,
+                            export.Artifact.Header,
+                            preparation.Tables.FirstOrDefault(table => table.TableName == tableName)),
+                    });
+
+                    rowCount += export.RowCount;
+                }
+
+                if (content.Sheets.Count == 0)
+                {
+                    return "The loaded tables did not produce any columns to export.";
+                }
+            }
+            else
+            {
+                var export = await workspace.ExportAsync(sql, cancellationToken);
+
+                if (export.Artifact.Header.Count == 0)
+                {
+                    return "The export query did not produce any columns.";
+                }
+
+                rowCount = export.RowCount;
+                content.Header = export.Artifact.Header;
+                content.Rows = export.Artifact.Rows;
+                content.SpreadsheetFormatting = ResolveFormatting(
+                    storedFormatting.SpecJson,
+                    export.Artifact.Header,
+                    formattingTable);
             }
 
             var service = arguments.Services.GetRequiredService<IGeneratedDocumentService>();
-            var content = new GeneratedFileContent
-            {
-                Header = export.Artifact.Header,
-                Rows = export.Artifact.Rows,
-                SpreadsheetFormatting = ResolveFormatting(
-                    storedFormatting.SpecJson,
-                    export.Artifact.Header,
-                    formattingTable),
-            };
 
             var result = await service.CreateAsync(
                 new GeneratedDocumentRequest(
@@ -208,14 +252,15 @@ public sealed class ExportTabularDataTool : AIFunction
             if (logger.IsEnabled(LogLevel.Debug))
             {
                 logger.LogDebug(
-                    "AI tool '{ToolName}' completed (call #{InvocationNumber}). Documents={DocumentCount}, Tables={TableCount}, FullExport={IsFullExport}, FileName='{FileName}', Rows={RowCount}, MutationVersion={MutationVersion}.",
+                    "AI tool '{ToolName}' completed (call #{InvocationNumber}). Documents={DocumentCount}, Tables={TableCount}, FullExport={IsFullExport}, FileName='{FileName}', Sheets={SheetCount}, Rows={RowCount}, MutationVersion={MutationVersion}.",
                     Name,
                     invocationNumber,
                     preparation.Context.Documents.Count,
                     preparation.Tables.Count,
                     string.IsNullOrWhiteSpace(sql),
                     fileName,
-                    export.RowCount,
+                    content.GetSheets().Count,
+                    rowCount,
                     workspace.MutationVersion);
             }
 
@@ -224,7 +269,7 @@ public sealed class ExportTabularDataTool : AIFunction
             TabularExportSignal.Record(result.Document.FileName, result.ReferenceToken);
 
             var response = string.IsNullOrEmpty(result.ReferenceToken)
-                ? $"Created \"{result.Document.FileName}\" with {export.RowCount} row(s). The generated document id is {result.Document.ItemId}."
+                ? $"Created \"{result.Document.FileName}\" with {rowCount} row(s). The generated document id is {result.Document.ItemId}."
                 : $"Return this download marker verbatim and do not call export_tabular_data or generate_file again for this file: {result.ReferenceToken}";
 
             CacheResponse(
@@ -408,9 +453,18 @@ public sealed class ExportTabularDataTool : AIFunction
     {
         var formatting = SpreadsheetFormattingJson.Deserialize(specJson);
 
-        if (formatting is null || table is null || header is null || header.Count == 0)
+        if (table is null || header is null || header.Count == 0)
         {
             return formatting;
+        }
+
+        // The source file's own number formats are applied as defaults even when nothing was requested,
+        // so a column that was currency in the upload comes back as currency.
+        formatting = ApplySourceFormats(formatting, header, table);
+
+        if (formatting is null)
+        {
+            return null;
         }
 
         var aliases = BuildColumnAliases(header, table);
@@ -446,6 +500,64 @@ public sealed class ExportTabularDataTool : AIFunction
             {
                 chart.ValueColumns[index] = Translate(chart.ValueColumns[index], aliases);
             }
+        }
+
+        return formatting;
+    }
+
+    /// <summary>
+    /// Seeds each exported column with the number format it had in the source file, for columns the
+    /// caller did not format explicitly.
+    /// <para>
+    /// The formats are defaults, never overrides: a column the caller formatted keeps what they asked
+    /// for. Only columns the export actually produced are seeded, so a query that aliases or aggregates
+    /// a column does not inherit a format that no longer describes it.
+    /// </para>
+    /// </summary>
+    /// <param name="formatting">The recorded formatting, which may be <see langword="null"/>.</param>
+    /// <param name="header">The header row this export produced.</param>
+    /// <param name="table">The source table.</param>
+    /// <returns>The formatting including the inherited defaults, or <see langword="null"/> when there is nothing to apply.</returns>
+    private static SpreadsheetFormatting ApplySourceFormats(
+        SpreadsheetFormatting formatting,
+        List<string> header,
+        TabularTableInfo table)
+    {
+        var inherited = new List<SpreadsheetColumnFormat>();
+
+        foreach (var name in header)
+        {
+            if (string.IsNullOrWhiteSpace(name) || formatting?.FindColumn(name) is not null)
+            {
+                continue;
+            }
+
+            var column = table.Columns.FirstOrDefault(candidate =>
+                SpreadsheetFormatting.NameMatches(candidate.Name, name) ||
+                SpreadsheetFormatting.NameMatches(candidate.SourceName, name));
+
+            if (column is null || string.IsNullOrWhiteSpace(column.SourceFormat))
+            {
+                continue;
+            }
+
+            inherited.Add(new SpreadsheetColumnFormat
+            {
+                Column = name,
+                FormatCode = column.SourceFormat,
+            });
+        }
+
+        if (inherited.Count == 0)
+        {
+            return formatting;
+        }
+
+        formatting ??= new SpreadsheetFormatting();
+
+        foreach (var column in inherited)
+        {
+            formatting.Columns.Add(column);
         }
 
         return formatting;
@@ -500,6 +612,18 @@ public sealed class ExportTabularDataTool : AIFunction
         return aliases.TryGetValue(name.Trim(), out var alias)
             ? alias
             : name;
+    }
+
+    /// <summary>
+    /// Determines whether a format can hold more than one table in a single file.
+    /// </summary>
+    /// <param name="extension">The target file extension.</param>
+    /// <returns><see langword="true"/> when several tables fit in one file of this format.</returns>
+    private static bool SupportsMultipleSheets(string extension)
+    {
+        // A workbook has tabs, and a document can stack titled tables. A delimited file holds exactly
+        // one table, so exporting several to it would silently drop all but the first.
+        return extension is ".xlsx" or ".docx" or ".pdf" or ".md" or ".markdown" or ".txt" or ".html" or ".htm";
     }
 
     private static string ResolveExplicitExtension(string fileName, string format)

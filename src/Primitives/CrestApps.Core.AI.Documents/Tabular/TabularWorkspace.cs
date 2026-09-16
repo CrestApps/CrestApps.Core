@@ -435,6 +435,25 @@ internal sealed class TabularWorkspace : IDisposable
     /// <returns>The export result for the full current table.</returns>
     public async Task<TabularExportResult> ExportFullAsync(CancellationToken cancellationToken = default)
     {
+        var exports = await ExportAllAsync(cancellationToken);
+
+        if (exports.Count > 1)
+        {
+            throw new TabularSqlException("Multiple tabular tables are loaded. Provide an explicit SELECT query to choose what to export.");
+        }
+
+        return exports[0].Export;
+    }
+
+    /// <summary>
+    /// Exports every loaded table, one per entry, so a multi-sheet upload can be written back as a
+    /// multi-tab workbook rather than forcing the caller to pick a single table.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The export for each loaded table, in load order.</returns>
+    public async Task<IReadOnlyList<(string TableName, string WorksheetName, TabularExportResult Export)>> ExportAllAsync(
+        CancellationToken cancellationToken = default)
+    {
         await _gate.WaitAsync(cancellationToken);
 
         try
@@ -446,23 +465,25 @@ internal sealed class TabularWorkspace : IDisposable
                 throw new TabularSqlException("There is no tabular data loaded to export.");
             }
 
-            if (_tables.Count > 1)
+            var results = new List<(string, string, TabularExportResult)>(_tables.Count);
+
+            foreach (var table in _tables.Values)
             {
-                throw new TabularSqlException("Multiple tabular tables are loaded. Provide an explicit SELECT query to choose what to export.");
+                using var command = _connection.CreateCommand();
+                command.CommandText = $"SELECT * FROM {QuoteIdentifier(table.TableName)}";
+                command.CommandTimeout = _options.CommandTimeoutSeconds;
+
+                var export = await ReadExportAsync(
+                    command,
+                    sqlName => table.SourceNames.TryGetValue(sqlName, out var sourceName) && !string.IsNullOrEmpty(sourceName)
+                        ? sourceName
+                        : sqlName,
+                    cancellationToken);
+
+                results.Add((table.TableName, table.WorksheetName, export));
             }
 
-            var table = _tables.Values.First();
-
-            using var command = _connection.CreateCommand();
-            command.CommandText = $"SELECT * FROM {QuoteIdentifier(table.TableName)}";
-            command.CommandTimeout = _options.CommandTimeoutSeconds;
-
-            return await ReadExportAsync(
-                command,
-                sqlName => table.SourceNames.TryGetValue(sqlName, out var sourceName) && !string.IsNullOrEmpty(sourceName)
-                    ? sourceName
-                    : sqlName,
-                cancellationToken);
+            return results;
         }
         finally
         {
@@ -879,9 +900,13 @@ internal sealed class TabularWorkspace : IDisposable
         IReadOnlyList<TabularColumnInfo> columns)
     {
         var sourceNames = columns.ToDictionary(c => c.Name, c => c.SourceName, StringComparer.OrdinalIgnoreCase);
-        _tables[tableName] = new LoadedTable(tableName, document.DocumentId, worksheetName, document.FileName, sourceNames);
+        var sourceFormats = columns
+            .Where(c => !string.IsNullOrEmpty(c.SourceFormat))
+            .ToDictionary(c => c.Name, c => c.SourceFormat, StringComparer.OrdinalIgnoreCase);
 
-        SaveMetadataEntry(tableName, document.DocumentId, worksheetName, document.FileName, sourceNames);
+        _tables[tableName] = new LoadedTable(tableName, document.DocumentId, worksheetName, document.FileName, sourceNames, sourceFormats);
+
+        SaveMetadataEntry(tableName, document.DocumentId, worksheetName, document.FileName, sourceNames, sourceFormats);
     }
 
     private static string AllocateTableName(
@@ -976,7 +1001,8 @@ internal sealed class TabularWorkspace : IDisposable
                 "document_id" TEXT NOT NULL,
                 "worksheet_name" TEXT,
                 "file_name" TEXT NOT NULL,
-                "source_names_json" TEXT NOT NULL
+                "source_names_json" TEXT NOT NULL,
+                "source_formats_json" TEXT
             )
             """;
         command.ExecuteNonQuery();
@@ -1123,7 +1149,9 @@ internal sealed class TabularWorkspace : IDisposable
 
         while (reader.Read())
         {
-            if (string.Equals(reader["name"]?.ToString(), "worksheet_name", StringComparison.Ordinal))
+            // The newest column decides. The workspace database is a derived cache of the source
+            // documents, so an older schema is dropped and re-imported rather than migrated.
+            if (string.Equals(reader["name"]?.ToString(), "source_formats_json", StringComparison.Ordinal))
             {
                 return false;
             }
@@ -1159,7 +1187,7 @@ internal sealed class TabularWorkspace : IDisposable
     private void LoadMetadataFromDatabase()
     {
         using var command = _connection.CreateCommand();
-        command.CommandText = $"SELECT table_name, document_id, worksheet_name, file_name, source_names_json FROM \"{MetadataTableName}\"";
+        command.CommandText = $"SELECT table_name, document_id, worksheet_name, file_name, source_names_json, source_formats_json FROM \"{MetadataTableName}\"";
 
         using var reader = command.ExecuteReader();
 
@@ -1174,7 +1202,12 @@ internal sealed class TabularWorkspace : IDisposable
             var sourceNames = JsonSerializer.Deserialize<Dictionary<string, string>>(sourceNamesJson, _jsonOptions)
                 ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            _tables[tableName] = new LoadedTable(tableName, documentId, worksheetName, fileName, sourceNames);
+            var sourceFormats = reader.IsDBNull(5)
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(5), _jsonOptions)
+                    ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            _tables[tableName] = new LoadedTable(tableName, documentId, worksheetName, fileName, sourceNames, sourceFormats);
         }
 
         if (_logger.IsEnabled(LogLevel.Debug))
@@ -1188,18 +1221,20 @@ internal sealed class TabularWorkspace : IDisposable
         string documentId,
         string worksheetName,
         string fileName,
-        IReadOnlyDictionary<string, string> sourceNames)
+        IReadOnlyDictionary<string, string> sourceNames,
+        IReadOnlyDictionary<string, string> sourceFormats)
     {
         using var command = _connection.CreateCommand();
         command.CommandText = $"""
-            INSERT OR REPLACE INTO "{MetadataTableName}" (table_name, document_id, worksheet_name, file_name, source_names_json)
-            VALUES ($tableName, $documentId, $worksheetName, $fileName, $sourceNamesJson)
+            INSERT OR REPLACE INTO "{MetadataTableName}" (table_name, document_id, worksheet_name, file_name, source_names_json, source_formats_json)
+            VALUES ($tableName, $documentId, $worksheetName, $fileName, $sourceNamesJson, $sourceFormatsJson)
             """;
         command.Parameters.AddWithValue("$tableName", tableName);
         command.Parameters.AddWithValue("$documentId", documentId);
         command.Parameters.AddWithValue("$worksheetName", (object)worksheetName ?? DBNull.Value);
         command.Parameters.AddWithValue("$fileName", fileName);
         command.Parameters.AddWithValue("$sourceNamesJson", JsonSerializer.Serialize(sourceNames, _jsonOptions));
+        command.Parameters.AddWithValue("$sourceFormatsJson", JsonSerializer.Serialize(sourceFormats, _jsonOptions));
         command.ExecuteNonQuery();
     }
 
@@ -1381,7 +1416,8 @@ internal sealed class TabularWorkspace : IDisposable
                     var name = reader["name"]?.ToString() ?? string.Empty;
                     var type = reader["type"]?.ToString() ?? "TEXT";
                     table.SourceNames.TryGetValue(name, out var sourceName);
-                    columns.Add(new TabularColumnInfo(name, type, sourceName));
+                    table.SourceFormats.TryGetValue(name, out var sourceFormat);
+                    columns.Add(new TabularColumnInfo(name, type, sourceName, sourceFormat));
                 }
             }
 
@@ -1504,14 +1540,21 @@ internal sealed class TabularWorkspace : IDisposable
             string documentId,
             string worksheetName,
             string fileName,
-            IReadOnlyDictionary<string, string> sourceNames)
+            IReadOnlyDictionary<string, string> sourceNames,
+            IReadOnlyDictionary<string, string> sourceFormats = null)
         {
             TableName = tableName;
             DocumentId = documentId;
             WorksheetName = worksheetName;
             FileName = fileName;
             SourceNames = sourceNames;
+            SourceFormats = sourceFormats ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
+
+        /// <summary>
+        /// Gets the number format code each column used in the source file, keyed by SQL column name.
+        /// </summary>
+        public IReadOnlyDictionary<string, string> SourceFormats { get; }
 
         public string TableName { get; }
 
