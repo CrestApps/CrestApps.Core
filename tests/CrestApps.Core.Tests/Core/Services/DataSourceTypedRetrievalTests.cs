@@ -22,8 +22,9 @@ namespace CrestApps.Core.Tests.Core.Services;
 
 /// <summary>
 /// Covers what typed knowledge added to retrieval: figures and tables named as objects rather than buried in
-/// prose, a chart that says outright its values were read by eye, a filter that narrows a search to one kind
-/// of knowledge, and hits from one document rendered together.
+/// prose, a chart that offers its points when they came from the document and says outright when they were
+/// read by eye, a filter that narrows a search to one kind of knowledge, and hits from one document rendered
+/// together.
 /// </summary>
 public sealed class DataSourceTypedRetrievalTests
 {
@@ -94,6 +95,111 @@ public sealed class DataSourceTypedRetrievalTests
 
         Assert.Contains("values: descriptive - not machine-readable", result.Text, StringComparison.Ordinal);
         Assert.Equal(ChartValueConfidence.Descriptive, Assert.Single(result.Figures).ValueConfidence);
+    }
+
+    /// <summary>
+    /// Verifies that a chart whose values were lifted from the document offers them, so a chart among the
+    /// hits is something the model can answer about rather than only describe.
+    /// </summary>
+    [Fact]
+    public async Task SearchDetailed_ExactChart_OffersItsPoints()
+    {
+        var chart = Chart(
+            "chart:key:1:0",
+            "Figure 3. Yield against load.",
+            page: 6,
+            ChartValueConfidence.Exact,
+            """[{"points":[[0,1],[1,4],[2,9]]}]""");
+
+        var harness = new Harness([chart]);
+
+        var result = await harness.SearchAsync();
+
+        Assert.Contains("values: Exact", result.Text, StringComparison.Ordinal);
+
+        // The series carries no name, so none is written for it: naming it is legend parsing, not this.
+        Assert.Contains("""series (JSON): [{"points":[[0,1],[1,4],[2,9]]}]""", result.Text, StringComparison.Ordinal);
+
+        // Nothing was left out, so nothing says anything was.
+        Assert.DoesNotContain("truncated", result.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that a chart whose values were only described offers no number, whatever its row happens to
+    /// store, and still says outright that its values are not machine-readable.
+    /// </summary>
+    /// <remarks>
+    /// The row is given points it should never have carried. Only a chart read at exact confidence holds
+    /// any, so a block that printed whatever the row stored would pass every ordinary test and then, on one
+    /// row written wrong, hand the model an estimate in a shape indistinguishable from a measurement.
+    /// </remarks>
+    [Fact]
+    public async Task SearchDetailed_DescriptiveChartWithStoredPoints_OffersNoNumbers()
+    {
+        var chart = Chart(
+            "chart:key:1:0",
+            "Figure 3. Yield against load.",
+            page: 6,
+            ChartValueConfidence.Descriptive,
+            """[{"points":[[0,1],[1,4],[2,9]]}]""");
+
+        var harness = new Harness([chart]);
+
+        var result = await harness.SearchAsync();
+
+        Assert.Contains("values: descriptive - not machine-readable", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("series (JSON)", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("[[0,1]", result.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that a series too long to inline is cut to the cap and says so, rather than being quietly
+    /// shortened into a chart the model would read as complete.
+    /// </summary>
+    [Fact]
+    public async Task SearchDetailed_LongExactSeries_SaysWhatWasLeftOut()
+    {
+        var chart = Chart(
+            "chart:key:1:0",
+            "Figure 4. Load over time.",
+            page: 7,
+            ChartValueConfidence.Exact,
+            SeriesJson(seriesCount: 1, pointsPerSeries: 30));
+
+        var harness = new Harness([chart]);
+
+        var result = await harness.SearchAsync();
+
+        Assert.Contains("truncated: showing the first 24 of 30 points.", result.Text, StringComparison.Ordinal);
+
+        // The last point inlined, and the first one left out, so the cap is the one that was announced.
+        Assert.Contains("[23,46]", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("[24,48]", result.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that a chart carrying more series than are inlined counts the ones it left out, so the
+    /// points shown are never read as every series the chart plots.
+    /// </summary>
+    [Fact]
+    public async Task SearchDetailed_ManyExactSeries_SaysHowManyWereLeftOut()
+    {
+        var chart = Chart(
+            "chart:key:1:0",
+            "Figure 5. Load over time, by rig.",
+            page: 8,
+            ChartValueConfidence.Exact,
+            SeriesJson(seriesCount: 6, pointsPerSeries: 2));
+
+        var harness = new Harness([chart]);
+
+        var result = await harness.SearchAsync();
+
+        Assert.Contains("truncated: showing the first 8 of 12 points from 4 of 6 series.", result.Text, StringComparison.Ordinal);
+
+        // The fourth series is inlined and the fifth is not.
+        Assert.Contains("[0,300]", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("[0,400]", result.Text, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -585,6 +691,60 @@ public sealed class DataSourceTypedRetrievalTests
                 ["mediaType"] = "image/png",
             },
         };
+    }
+
+    /// <summary>
+    /// Builds a chart row as the index hands one back.
+    /// </summary>
+    /// <param name="referenceId">The identifier.</param>
+    /// <param name="caption">The caption.</param>
+    /// <param name="page">The page it was printed on.</param>
+    /// <param name="valueConfidence">How far its values can be trusted.</param>
+    /// <param name="series">The points stored with the row, or <see langword="null"/> when it stored none.</param>
+    /// <returns>The row.</returns>
+    private static DataSourceSearchResult Chart(string referenceId, string caption, int page, string valueConfidence, string series)
+    {
+        var chart = Figure(referenceId, caption, page);
+
+        chart.ContentType = KnowledgeContentTypes.Chart;
+
+        var filters = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["caption"] = caption,
+            ["mediaType"] = "image/png",
+            ["valueConfidence"] = valueConfidence,
+        };
+
+        if (series is not null)
+        {
+            filters["series"] = series;
+        }
+
+        chart.Filters = filters;
+
+        return chart;
+    }
+
+    /// <summary>
+    /// Writes the points a chart row stores, in the shape the index hands them back in.
+    /// </summary>
+    /// <param name="seriesCount">How many series the chart plots.</param>
+    /// <param name="pointsPerSeries">How many points each one carries.</param>
+    /// <returns>The stored value.</returns>
+    /// <remarks>
+    /// Each series is offset by a hundred so a test can name one point and say which series it belongs to.
+    /// </remarks>
+    private static string SeriesJson(int seriesCount, int pointsPerSeries)
+    {
+        var series = Enumerable.Range(0, seriesCount).Select(seriesIndex =>
+        {
+            var points = Enumerable.Range(0, pointsPerSeries)
+                .Select(index => "[" + index + "," + ((seriesIndex * 100) + (index * 2)) + "]");
+
+            return "{\"points\":[" + string.Join(",", points) + "]}";
+        });
+
+        return "[" + string.Join(",", series) + "]";
     }
 
     /// <summary>

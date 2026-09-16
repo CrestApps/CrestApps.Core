@@ -59,6 +59,58 @@ public interface IKnowledgeObjectStore : ISourceCatalog<KnowledgeObject>
     Task<IReadOnlyCollection<KnowledgeObject>> GetByStatusAsync(string dataSourceId, string status, int take, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets the objects in a data source that are of the supplied kinds.
+    /// </summary>
+    /// <param name="dataSourceId">The owning data source.</param>
+    /// <param name="objectTypes">
+    /// The kinds to return. See <see cref="CrestApps.Core.Infrastructure.Indexing.KnowledgeContentTypes"/>.
+    /// An empty set returns every kind.
+    /// </param>
+    /// <param name="take">The most objects to return.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The objects, ordered by canonical identifier so the same call returns the same ones.</returns>
+    /// <remarks>
+    /// This is what lets a caller enumerate a data source - every figure, every table - rather than only rank
+    /// it against a query. A question about the set cannot be answered by similarity, and it must not be
+    /// answered by reading the data source into memory either: both shipped stores apply the kinds and the
+    /// bound in the database, because the object type is indexed alongside the source.
+    /// <para>
+    /// It is default-implemented over <see cref="GetByDataSourceIdAsync"/> so a store outside this repository
+    /// keeps compiling. That fallback materializes the data source and filters it in memory, which is exactly
+    /// what an implementation should override to avoid.
+    /// </para>
+    /// </remarks>
+    async Task<IReadOnlyCollection<KnowledgeObject>> GetByObjectTypesAsync(
+        string dataSourceId,
+        IEnumerable<string> objectTypes,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(dataSourceId);
+
+        var wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (objectTypes is not null)
+        {
+            foreach (var objectType in objectTypes)
+            {
+                if (!string.IsNullOrWhiteSpace(objectType))
+                {
+                    wanted.Add(objectType);
+                }
+            }
+        }
+
+        var objects = await GetByDataSourceIdAsync(dataSourceId, cancellationToken);
+
+        return objects
+            .Where(entry => wanted.Count == 0 || wanted.Contains(entry.ObjectType))
+            .OrderBy(entry => entry.CanonicalId, StringComparer.Ordinal)
+            .Take(take < 1 ? 1 : take)
+            .ToArray();
+    }
+
+    /// <summary>
     /// Finds a figure that was already transcribed from identical bytes by the same prompt.
     /// </summary>
     /// <param name="contentHash">The hash of the figure bytes.</param>

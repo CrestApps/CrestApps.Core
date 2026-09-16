@@ -107,6 +107,36 @@ public sealed class EntityCoreKnowledgeObjectStore : SourceDocumentCatalog<Knowl
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyCollection<KnowledgeObject>> GetByObjectTypesAsync(string dataSourceId, IEnumerable<string> objectTypes, int take, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(dataSourceId);
+
+        var wanted = objectTypes?
+            .Where(objectType => !string.IsNullOrWhiteSpace(objectType))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray() ?? [];
+
+        // The object type is denormalized into the record's reference type, so both the kinds and the bound
+        // are applied by the database. A listing has no query to rank against, which is precisely why it must
+        // never become a scan of the data source: it is the one call nothing else narrows.
+        var query = GetReadQuery().Where(x => x.Source == dataSourceId);
+
+        if (wanted.Length > 0)
+        {
+            query = query.Where(x => wanted.Contains(x.ReferenceType));
+        }
+
+        // Ordered by the canonical identifier, which is the record's name, so a bounded listing returns the
+        // same objects every time rather than whatever the database happened to hand back first.
+        var records = await query
+            .OrderBy(x => x.Name)
+            .Take(take < 1 ? 1 : take)
+            .ToListAsync(cancellationToken);
+
+        return records.Select(CatalogRecordFactory.Materialize<KnowledgeObject>).ToArray();
+    }
+
+    /// <inheritdoc />
     public async Task<KnowledgeObject> FindFigureByContentHashAsync(string contentHash, string promptVersion, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(contentHash);

@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Runtime.CompilerServices;
 using System.Text;
 using CrestApps.Core.AI.DataSources;
@@ -20,6 +22,16 @@ namespace CrestApps.Core.AI.Documents.Knowledge;
 /// </remarks>
 public sealed class FileAIDataSourceSourceHandler : IAIDataSourceSourceHandler
 {
+    /// <summary>
+    /// How a chart's series are written into the indexed row. Camel case and dropped nulls keep the payload
+    /// the retrieval side expects, and mean an unnamed series writes no name rather than a null one.
+    /// </summary>
+    private static readonly JsonSerializerOptions _seriesSerializerOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
     private const int MaxTableRowsInContent = 200;
     private const int MaxChartPointsInContent = 200;
 
@@ -180,6 +192,16 @@ public sealed class FileAIDataSourceSourceHandler : IAIDataSourceSourceHandler
         if (entry.TryGet<ChartDetails>(out var chart) && !string.IsNullOrWhiteSpace(chart.ValueConfidence))
         {
             fields["valueConfidence"] = chart.ValueConfidence;
+
+            // Only a chart whose values were actually read off the page carries them into the index. An
+            // estimate must not be stored where a later reader could mistake it for a measurement, which is
+            // the whole reason the confidence levels exist. Stored uncapped: a retrieval that shows only the
+            // first few points says how many there were, and a cap here would make that count a lie.
+            if (string.Equals(chart.ValueConfidence, ChartValueConfidence.Exact, StringComparison.OrdinalIgnoreCase) &&
+                chart.Series is { Count: > 0 })
+            {
+                fields["series"] = JsonSerializer.Serialize(chart.Series, _seriesSerializerOptions);
+            }
         }
 
         var document = new SourceDocument

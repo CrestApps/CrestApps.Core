@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
@@ -20,6 +22,25 @@ namespace CrestApps.Core.AI.Services;
 /// </remarks>
 internal sealed class TypedResultCollector
 {
+    // A figures block is a list of figures a model reads to decide what to ask about next, not a data dump.
+    // A line traced off a polyline can carry hundreds of points, and a handful of such charts among the hits
+    // would bury the labels and the instruction the block exists to give. Twenty-four points holds a chart
+    // plotted month by month across two years whole, which is most of the charts anyone plots, and four
+    // series holds more than a legend a reader keeps in their head. Anything past that is left out and said
+    // to be left out - never quietly shortened, because a model shown part of a chart as though it were the
+    // whole one answers about the part with the confidence of the whole.
+    private const int MaxInlinedPointsPerSeries = 24;
+    private const int MaxInlinedSeries = 4;
+
+    // Reads what the row stored and writes what is kept: a series nobody named stays unnamed rather than
+    // being written out as a null, and the legend parsing that would give it a name is not this.
+    private static readonly JsonSerializerOptions _seriesJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
     private readonly IServiceProvider _services;
     private readonly string _dataSourceId;
     private readonly string _sourceType;
@@ -31,6 +52,11 @@ internal sealed class TypedResultCollector
     // and the reference registered for it needs both to resolve the way a citation does. Appended in
     // lockstep with the figures, so entry i belongs to _figures[i].
     private readonly List<(string ReferenceType, string DataSourceId)> _figureOrigins = [];
+
+    // The points a chart was read at are not carried on the figure itself. Appended in lockstep with the
+    // figures, so entry i belongs to _figures[i], and null for every figure that is not a chart whose
+    // values came from the document.
+    private readonly List<List<ChartSeries>> _figureSeries = [];
     private readonly List<RetrievedTable> _tables = [];
 
     /// <summary>
@@ -85,6 +111,8 @@ internal sealed class TypedResultCollector
             {
                 case KnowledgeContentTypes.Figure:
                 case KnowledgeContentTypes.Chart:
+                    var valueConfidence = ReadFilter(result, "valueConfidence");
+
                     _figures.Add(new RetrievedFigure
                     {
                         Id = result.ReferenceId,
@@ -94,7 +122,7 @@ internal sealed class TypedResultCollector
                         Uri = $"crestapps://datasource/{_dataSourceId}/figure/{result.ReferenceId}",
                         Link = ResolveLink(result),
                         MediaType = ReadFilter(result, "mediaType"),
-                        ValueConfidence = ReadFilter(result, "valueConfidence"),
+                        ValueConfidence = valueConfidence,
                         ContentType = result.ContentType,
                         Page = result.Page,
                     });
@@ -102,6 +130,16 @@ internal sealed class TypedResultCollector
                     // The searched data source answers for a row that names none, because the route that
                     // serves a figure is scoped to a data source and an unscoped identifier opens nothing.
                     _figureOrigins.Add((ResolveReferenceType(result), result.DataSourceId ?? _dataSourceId));
+
+                    // This is the gate the whole confidence model exists for, and it is read here so it
+                    // cannot be forgotten at the point the numbers are printed. Only a chart whose values
+                    // were lifted from the document itself has points worth carrying; at any other level
+                    // they were estimated off a picture, and an estimate printed as numbers is
+                    // indistinguishable from a measurement by the time a model quotes it.
+                    _figureSeries.Add(
+                        string.Equals(valueConfidence, ChartValueConfidence.Exact, StringComparison.OrdinalIgnoreCase)
+                            ? ParseSeries(ReadFilter(result, "series"), result.ReferenceId)
+                            : null);
 
                     break;
 
@@ -219,6 +257,19 @@ internal sealed class TypedResultCollector
 
                 builder.AppendLine();
 
+                // Only ever populated for a chart whose values came from the document itself; the gate
+                // sits in Collect, next to the confidence it reads. A chart that says it is exact and
+                // then offers nothing to compute with is a picture the model can only describe.
+                if (_figureSeries[index] is { Count: > 0 } series)
+                {
+                    var points = RenderSeries(series);
+
+                    if (points is not null)
+                    {
+                        builder.AppendLine(points);
+                    }
+                }
+
                 // Registered under the very label that was just written, and read back from the same
                 // figure, so what the model is shown and what the host looks up cannot drift apart.
                 RegisterImage(index, figure);
@@ -332,6 +383,114 @@ internal sealed class TypedResultCollector
             ReferenceType = origin.ReferenceType,
             DataSourceId = origin.DataSourceId,
         });
+    }
+
+    /// <summary>
+    /// Reads the points stored with a chart row.
+    /// </summary>
+    /// <param name="value">The stored value.</param>
+    /// <param name="referenceId">The row the value came from, so a value that cannot be read says which.</param>
+    /// <returns>The series, or <see langword="null"/> when the row stored none or stored something unreadable.</returns>
+    private List<ChartSeries> ParseSeries(string value, string referenceId)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<ChartSeries>>(value, _seriesJsonOptions);
+        }
+        catch (Exception ex)
+        {
+            // A warning rather than silence: the row claims its values were lifted from the document and
+            // then hands back something that is not points, which is a fault in what was stored and not
+            // an ordinary chart with nothing to offer. The figure still lists, and still says what its
+            // confidence is; it simply has no numbers to show for it.
+            _logger?.LogWarning(ex, "The stored chart series for '{ReferenceId}' could not be read, so no points are offered for it.", referenceId);
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Renders a chart's points as data, capped so a block listing several charts stays a list of figures.
+    /// </summary>
+    /// <param name="series">The series read off the row.</param>
+    /// <returns>The line to print, or <see langword="null"/> when no series carried a point.</returns>
+    /// <remarks>
+    /// Whatever is left out is named as left out. A silently shortened series is worse than no series at
+    /// all, because a model shown the first stretch of a chart with nothing to say otherwise reads it as
+    /// the whole chart and answers about the trend it can see.
+    /// </remarks>
+    private static string RenderSeries(List<ChartSeries> series)
+    {
+        var inlined = new List<ChartSeries>();
+        var seriesWithPoints = 0;
+        var totalPoints = 0;
+        var inlinedPoints = 0;
+
+        foreach (var entry in series)
+        {
+            if (entry?.Points is not { Count: > 0 })
+            {
+                continue;
+            }
+
+            seriesWithPoints++;
+            totalPoints += entry.Points.Count;
+
+            // Counted but not inlined, so the note below can say how much of the chart is missing rather
+            // than only how much of it is here.
+            if (inlined.Count == MaxInlinedSeries)
+            {
+                continue;
+            }
+
+            var points = entry.Points.Take(MaxInlinedPointsPerSeries).ToList();
+
+            inlinedPoints += points.Count;
+
+            // Whatever name the chart carried, which for a chart whose legend was never read is none.
+            inlined.Add(new ChartSeries
+            {
+                Name = entry.Name,
+                Points = points,
+            });
+        }
+
+        if (inlined.Count == 0)
+        {
+            return null;
+        }
+
+        using var builder = ZString.CreateStringBuilder();
+
+        builder.Append("   series (JSON): ");
+        builder.Append(JsonSerializer.Serialize(inlined, _seriesJsonOptions));
+
+        if (inlinedPoints < totalPoints || inlined.Count < seriesWithPoints)
+        {
+            builder.Append(" - truncated: showing the first ");
+            builder.Append(inlinedPoints);
+            builder.Append(" of ");
+            builder.Append(totalPoints);
+            builder.Append(" points");
+
+            if (inlined.Count < seriesWithPoints)
+            {
+                builder.Append(" from ");
+                builder.Append(inlined.Count);
+                builder.Append(" of ");
+                builder.Append(seriesWithPoints);
+                builder.Append(" series");
+            }
+
+            builder.Append('.');
+        }
+
+        return builder.ToString();
     }
 
     private static string ReadFilter(DataSourceSearchResult result, string name)

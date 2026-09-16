@@ -297,8 +297,11 @@ internal static class VectorPathChartDataExtractor
                 continue;
             }
 
-            // The name is left unset. Which line the legend calls what is not read here, and a series named
-            // by guesswork is attributed to something the document never said.
+            // The name is left unset, and nothing here can set it. Telling which line a legend swatch stands
+            // for needs the colour or the dash pattern the page drew each path with, and a segment carries
+            // neither: PdfPageGeometry flattens the page's paths down to four coordinates and drops their
+            // appearance. Position alone does not say which line a label names, and a series named by
+            // guesswork is attributed to something the document never said.
             series.Add(new ChartSeries
             {
                 Points = points.OrderBy(point => point[0]).ToList(),

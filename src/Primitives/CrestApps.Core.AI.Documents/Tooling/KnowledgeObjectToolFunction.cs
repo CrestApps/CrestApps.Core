@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
@@ -37,6 +38,15 @@ public sealed class KnowledgeObjectToolFunction : AIFunction
       "additionalProperties": false
     }
     """);
+
+    // A chart states what it knows and stays silent about the rest: an axis nobody titled and a series
+    // nobody named are left out rather than written as null, because an absent name is not a fact about
+    // the chart and a model reading one is owed neither.
+    private static readonly JsonSerializerOptions _chartJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
 
     private readonly string _name;
     private readonly string _description;
@@ -314,6 +324,24 @@ public sealed class KnowledgeObjectToolFunction : AIFunction
                 columns = table.Columns,
                 rows = table.Rows,
             }));
+        }
+
+        if (chart is not null && chart.ValueConfidence == ChartValueConfidence.Exact && chart.Series is { Count: > 0 })
+        {
+            // The points get the same treatment the rows above get, and for the same reason: a caller that
+            // wants to compute with them should not have to parse a sentence back into numbers. Only at
+            // exact confidence, though. At any other level the values were estimated off a picture, and an
+            // estimate written out as JSON reads exactly like a measurement - which is the one thing the
+            // confidence is carried to prevent. The line above has already said so, and says it alone.
+            builder.AppendLine();
+            builder.AppendLine("Series (JSON):");
+            builder.AppendLine(JsonSerializer.Serialize(new
+            {
+                chartType = chart.ChartType,
+                axisX = chart.AxisX,
+                axisY = chart.AxisY,
+                series = chart.Series,
+            }, _chartJsonOptions));
         }
 
         return builder.ToString().TrimEnd();
