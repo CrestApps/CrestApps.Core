@@ -1,9 +1,11 @@
+using System.Text;
+
 namespace CrestApps.Core.AI.Documents.Generation.Spreadsheets;
 
 /// <summary>
 /// Resolves <see cref="GeneratedFileContent"/> and its requested formatting into a concrete sheet plan:
-/// the final column order, the storage type of every column, the number format codes, and the row
-/// numbers the header, data, and total row occupy.
+/// the final column order, the storage type of every column, the number format codes, the column
+/// widths, and the row numbers the header, data, and total row occupy.
 /// <para>
 /// The resolution lives here rather than in the writer so the decisions that matter most — above all,
 /// whether a column is stored as a real number or as text — are plain to read and testable without
@@ -12,9 +14,12 @@ namespace CrestApps.Core.AI.Documents.Generation.Spreadsheets;
 /// </summary>
 public sealed class SpreadsheetLayout
 {
-    private const double MinimumColumnWidth = 8;
+    private const double MinimumColumnWidth = 9;
     private const double MaximumColumnWidth = 60;
     private const double ColumnWidthPadding = 2.5;
+
+    // Used for a calculated column whose formula references nothing measurable.
+    private const double FallbackComputedWidth = 16;
 
     private readonly Dictionary<string, int> _columnsByName = new(StringComparer.OrdinalIgnoreCase);
 
@@ -124,27 +129,29 @@ public sealed class SpreadsheetLayout
         var header = content.Header ?? [];
         var rows = content.Rows ?? [];
         var columns = new List<SpreadsheetLayoutColumn>(header.Count);
+        var statistics = new List<ColumnStatistics>(header.Count);
 
         for (var index = 0; index < header.Count; index++)
         {
             var name = header[index] ?? string.Empty;
             var requested = formatting.FindColumn(name);
+            var columnStatistics = ColumnStatistics.Measure(name, index, rows);
 
-            columns.Add(Resolve(name, index, requested, rows, isComputed: false));
+            statistics.Add(columnStatistics);
+            columns.Add(Resolve(name, index, requested, columnStatistics, formatting, rows.Count, isComputed: false));
         }
 
-        AppendComputedColumns(formatting, header, rows, columns);
+        AppendComputedColumns(formatting, header, columns, statistics, rows.Count);
 
-        var sheetName = NormalizeSheetName(formatting.SheetName);
-
-        return new SpreadsheetLayout(sheetName, columns, rows, formatting);
+        return new SpreadsheetLayout(NormalizeSheetName(formatting.SheetName), columns, rows, formatting);
     }
 
     private static void AppendComputedColumns(
         SpreadsheetFormatting formatting,
         IReadOnlyList<string> header,
-        IReadOnlyList<IReadOnlyList<string>> rows,
-        List<SpreadsheetLayoutColumn> columns)
+        List<SpreadsheetLayoutColumn> columns,
+        List<ColumnStatistics> statistics,
+        int rowCount)
     {
         if (formatting.Columns is null)
         {
@@ -166,7 +173,15 @@ public sealed class SpreadsheetLayout
                 continue;
             }
 
-            columns.Add(Resolve(requested.Column.Trim(), columns.Count, requested, rows, isComputed: true));
+            var name = requested.Column.Trim();
+
+            // A calculated column has no values to measure, so its magnitude is taken from the columns
+            // its formula reads. Without this the column is sized from its header alone and Excel shows
+            // the result as ###### instead of a number.
+            var columnStatistics = ColumnStatistics.ForFormula(name, columns.Count, requested.Formula, header, statistics);
+
+            statistics.Add(columnStatistics);
+            columns.Add(Resolve(name, columns.Count, requested, columnStatistics, formatting, rowCount, isComputed: true));
         }
     }
 
@@ -187,11 +202,13 @@ public sealed class SpreadsheetLayout
         string name,
         int index,
         SpreadsheetColumnFormat requested,
-        IReadOnlyList<IReadOnlyList<string>> rows,
+        ColumnStatistics statistics,
+        SpreadsheetFormatting formatting,
+        int rowCount,
         bool isComputed)
     {
         var formatCode = SpreadsheetNumberFormatCode.Resolve(requested);
-        var kind = ResolveKind(requested, index, rows, isComputed, ref formatCode);
+        var kind = ResolveKind(requested, statistics, isComputed, ref formatCode);
 
         return new SpreadsheetLayoutColumn
         {
@@ -199,7 +216,7 @@ public sealed class SpreadsheetLayout
             Index = index,
             Kind = kind,
             NumberFormatCode = formatCode,
-            Width = requested?.Width ?? MeasureWidth(name, index, rows, isComputed),
+            Width = requested?.Width ?? MeasureWidth(name, requested, kind, statistics, formatting, rowCount),
             Style = requested?.Style is { IsEmpty: false } style ? style : null,
             Formula = string.IsNullOrWhiteSpace(requested?.Formula) ? null : requested.Formula,
             IsComputed = isComputed,
@@ -209,8 +226,7 @@ public sealed class SpreadsheetLayout
 
     private static SpreadsheetDataKind ResolveKind(
         SpreadsheetColumnFormat requested,
-        int index,
-        IReadOnlyList<IReadOnlyList<string>> rows,
+        ColumnStatistics statistics,
         bool isComputed,
         ref string formatCode)
     {
@@ -235,54 +251,7 @@ public sealed class SpreadsheetLayout
             return SpreadsheetDataKind.Number;
         }
 
-        return InferKind(index, rows, ref formatCode);
-    }
-
-    private static SpreadsheetDataKind InferKind(
-        int index,
-        IReadOnlyList<IReadOnlyList<string>> rows,
-        ref string formatCode)
-    {
-        var populated = 0;
-        var numeric = 0;
-        var dates = 0;
-        var datesWithTime = 0;
-
-        foreach (var row in rows)
-        {
-            if (row is null || index >= row.Count)
-            {
-                continue;
-            }
-
-            var value = row[index];
-
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                continue;
-            }
-
-            populated++;
-
-            if (SpreadsheetValue.LooksNumeric(value, out _))
-            {
-                numeric++;
-
-                continue;
-            }
-
-            if (SpreadsheetValue.LooksLikeDate(value, out _, out var hasTime))
-            {
-                dates++;
-
-                if (hasTime)
-                {
-                    datesWithTime++;
-                }
-            }
-        }
-
-        if (populated == 0)
+        if (statistics.Populated == 0)
         {
             return SpreadsheetDataKind.Text;
         }
@@ -290,16 +259,16 @@ public sealed class SpreadsheetLayout
         // Only a column that is entirely numeric is stored numerically. One stray label in an otherwise
         // numeric column usually means the column is not a measure at all, and a mixed column would
         // break any aggregate written over it.
-        if (numeric == populated)
+        if (statistics.Numeric == statistics.Populated)
         {
             return SpreadsheetDataKind.Number;
         }
 
-        if (dates == populated)
+        if (statistics.Dates == statistics.Populated)
         {
             // A date serial with no format renders as a bare number, which is worse than the text it
             // replaced, so an inferred date column always gets a format.
-            formatCode ??= datesWithTime > 0
+            formatCode ??= statistics.DatesWithTime > 0
                 ? "yyyy\\-mm\\-dd hh:mm"
                 : "yyyy\\-mm\\-dd";
 
@@ -309,35 +278,130 @@ public sealed class SpreadsheetLayout
         return SpreadsheetDataKind.Text;
     }
 
+    /// <summary>
+    /// Works out how wide a column has to be for its values to be readable.
+    /// <para>
+    /// A numeric column is measured from what the reader will actually see, not from the raw value:
+    /// a currency format adds a symbol, thousands separators, decimals, and a trailing alignment space,
+    /// so <c>801005.25</c> occupies thirteen characters as <c>$801,005.25</c>. A column that is too
+    /// narrow does not wrap — the spreadsheet application replaces the number with <c>######</c>, which
+    /// looks like a broken file.
+    /// </para>
+    /// </summary>
     private static double MeasureWidth(
         string name,
-        int index,
-        IReadOnlyList<IReadOnlyList<string>> rows,
-        bool isComputed)
+        SpreadsheetColumnFormat requested,
+        SpreadsheetDataKind kind,
+        ColumnStatistics statistics,
+        SpreadsheetFormatting formatting,
+        int rowCount)
     {
-        var longest = name?.Length ?? 0;
+        var width = (double)(name?.Length ?? 0);
 
-        if (!isComputed)
+        if (kind == SpreadsheetDataKind.Number)
         {
-            // Sampling bounds the cost on a very large export; the widest cell past this point is
-            // rare enough that the reader can widen the column themselves.
-            var sampled = 0;
+            var magnitude = statistics.MaxMagnitude;
 
-            foreach (var row in rows)
+            // A summed total is larger than any single row, and it sits in the same column, so the
+            // column has to fit the total rather than the widest row.
+            if (rowCount > 1 && IsSummed(formatting, name))
             {
-                if (row is not null && index < row.Count)
-                {
-                    longest = Math.Max(longest, row[index]?.Length ?? 0);
-                }
+                magnitude *= rowCount;
+            }
 
-                if (++sampled >= 200)
-                {
-                    break;
-                }
+            width = Math.Max(width, EstimateNumericWidth(requested, magnitude));
+        }
+        else if (kind == SpreadsheetDataKind.Date)
+        {
+            width = Math.Max(width, requested?.NumberFormat == SpreadsheetNumberFormat.DateTime ? 17 : 11);
+        }
+        else
+        {
+            width = Math.Max(width, statistics.MaxTextLength);
+        }
+
+        return Math.Clamp(width + ColumnWidthPadding, MinimumColumnWidth, MaximumColumnWidth);
+    }
+
+    private static bool IsSummed(SpreadsheetFormatting formatting, string name)
+    {
+        if (formatting.TotalRow?.Columns is null)
+        {
+            return false;
+        }
+
+        foreach (var total in formatting.TotalRow.Columns)
+        {
+            if (total is not null &&
+                SpreadsheetFormatting.NameMatches(total.Column, name) &&
+                total.Function is SpreadsheetAggregateFunction.Sum or SpreadsheetAggregateFunction.Count)
+            {
+                return true;
             }
         }
 
-        return Math.Clamp(longest + ColumnWidthPadding, MinimumColumnWidth, MaximumColumnWidth);
+        return false;
+    }
+
+    private static double EstimateNumericWidth(SpreadsheetColumnFormat requested, double magnitude)
+    {
+        var numberFormat = requested?.NumberFormat ?? SpreadsheetNumberFormat.General;
+        var value = Math.Abs(magnitude);
+
+        if (numberFormat == SpreadsheetNumberFormat.Percent)
+        {
+            // A percentage renders its fraction multiplied by a hundred.
+            value *= 100;
+        }
+
+        var integerDigits = value < 1
+            ? 1
+            : (int)Math.Floor(Math.Log10(value)) + 1;
+
+        double width = integerDigits;
+
+        var decimals = requested?.Decimals ?? numberFormat switch
+        {
+            SpreadsheetNumberFormat.Currency or SpreadsheetNumberFormat.Accounting => 2,
+            _ => 0,
+        };
+
+        if (decimals > 0)
+        {
+            width += decimals + 1;
+        }
+
+        switch (numberFormat)
+        {
+            case SpreadsheetNumberFormat.Number:
+            case SpreadsheetNumberFormat.Currency:
+            case SpreadsheetNumberFormat.Accounting:
+                width += Math.Max(0, (integerDigits - 1) / 3);
+
+                break;
+
+            case SpreadsheetNumberFormat.Percent:
+                width += 1;
+
+                break;
+        }
+
+        if (numberFormat is SpreadsheetNumberFormat.Currency or SpreadsheetNumberFormat.Accounting)
+        {
+            var symbol = string.IsNullOrWhiteSpace(requested?.CurrencySymbol)
+                ? 1
+                : requested.CurrencySymbol.Trim().Length;
+
+            // The symbol, a possible minus sign, and the trailing space the bracketed negative format
+            // reserves for alignment.
+            width += symbol + 2;
+        }
+        else
+        {
+            width += 1;
+        }
+
+        return width;
     }
 
     private static string NormalizeSheetName(string sheetName)
@@ -348,7 +412,7 @@ public sealed class SpreadsheetLayout
         }
 
         var trimmed = sheetName.Trim();
-        var builder = new System.Text.StringBuilder(trimmed.Length);
+        var builder = new StringBuilder(trimmed.Length);
 
         foreach (var character in trimmed)
         {
@@ -369,5 +433,168 @@ public sealed class SpreadsheetLayout
         return normalized.Length > 31
             ? normalized[..31]
             : normalized;
+    }
+
+    /// <summary>
+    /// What a single scan of a column's values tells us: how its type should be inferred, how wide its
+    /// text is, and how large its numbers get.
+    /// </summary>
+    private sealed class ColumnStatistics
+    {
+        // Sampling bounds the cost on a very large export. The rows past this point are still written;
+        // only the measurement is approximate.
+        private const int SampleLimit = 500;
+
+        public int Populated { get; private set; }
+
+        public int Numeric { get; private set; }
+
+        public int Dates { get; private set; }
+
+        public int DatesWithTime { get; private set; }
+
+        public int MaxTextLength { get; private set; }
+
+        public double MaxMagnitude { get; private set; }
+
+        public static ColumnStatistics Measure(string name, int index, IReadOnlyList<IReadOnlyList<string>> rows)
+        {
+            var statistics = new ColumnStatistics
+            {
+                MaxTextLength = name?.Length ?? 0,
+            };
+
+            var sampled = 0;
+
+            foreach (var row in rows)
+            {
+                if (row is null || index >= row.Count)
+                {
+                    continue;
+                }
+
+                var value = row[index];
+
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                statistics.Populated++;
+                statistics.MaxTextLength = Math.Max(statistics.MaxTextLength, value.Length);
+
+                if (SpreadsheetValue.LooksNumeric(value, out var number))
+                {
+                    statistics.Numeric++;
+                    statistics.MaxMagnitude = Math.Max(statistics.MaxMagnitude, Math.Abs(number));
+                }
+                else if (SpreadsheetValue.LooksLikeDate(value, out _, out var hasTime))
+                {
+                    statistics.Dates++;
+
+                    if (hasTime)
+                    {
+                        statistics.DatesWithTime++;
+                    }
+                }
+                else if (SpreadsheetValue.TryParseNumber(value, out var decorated))
+                {
+                    // A value carrying a currency symbol is not plain enough to type the column on its
+                    // own, but its magnitude still matters when the caller declares the column numeric.
+                    statistics.MaxMagnitude = Math.Max(statistics.MaxMagnitude, Math.Abs(decorated));
+                }
+
+                if (++sampled >= SampleLimit)
+                {
+                    break;
+                }
+            }
+
+            return statistics;
+        }
+
+        /// <summary>
+        /// Derives the statistics of a calculated column from the columns its formula reads. A sum or
+        /// difference of those columns cannot be wider than the widest of them plus a digit.
+        /// </summary>
+        public static ColumnStatistics ForFormula(
+            string name,
+            int index,
+            string formula,
+            IReadOnlyList<string> header,
+            IReadOnlyList<ColumnStatistics> statistics)
+        {
+            var result = new ColumnStatistics
+            {
+                MaxTextLength = name?.Length ?? 0,
+            };
+
+            var matched = false;
+
+            foreach (var reference in ReadReferences(formula))
+            {
+                for (var candidate = 0; candidate < header.Count && candidate < statistics.Count; candidate++)
+                {
+                    if (!SpreadsheetFormatting.NameMatches(header[candidate], reference))
+                    {
+                        continue;
+                    }
+
+                    matched = true;
+                    result.MaxMagnitude = Math.Max(result.MaxMagnitude, statistics[candidate].MaxMagnitude);
+                }
+            }
+
+            if (!matched)
+            {
+                // A formula that references nothing measurable (a literal, or a function over a range)
+                // still needs a width that will not render as ######.
+                result.MaxMagnitude = Math.Pow(10, FallbackComputedWidth / 2);
+            }
+            else
+            {
+                // A product of two referenced columns is wider than either, so a little headroom is
+                // cheaper than a column that renders as ######.
+                result.MaxMagnitude *= 10;
+            }
+
+            return result;
+        }
+
+        private static IEnumerable<string> ReadReferences(string formula)
+        {
+            if (string.IsNullOrEmpty(formula))
+            {
+                yield break;
+            }
+
+            var index = 0;
+
+            while (index < formula.Length)
+            {
+                var open = formula.IndexOf('{', index);
+
+                if (open < 0)
+                {
+                    yield break;
+                }
+
+                var close = formula.IndexOf('}', open + 1);
+
+                if (close < 0)
+                {
+                    yield break;
+                }
+
+                var reference = formula[(open + 1)..close].Trim();
+
+                if (!string.Equals(reference, "row", StringComparison.OrdinalIgnoreCase))
+                {
+                    yield return reference;
+                }
+
+                index = close + 1;
+            }
+        }
     }
 }

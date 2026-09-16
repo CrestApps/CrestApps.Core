@@ -371,6 +371,123 @@ public sealed class SpreadsheetFormattingTests
         Assert.Equal(31, SpreadsheetLayout.Create(content).SheetName.Length);
     }
 
+    /// <summary>
+    /// A column must be wide enough for the value as it is DISPLAYED, not as it is stored. A currency
+    /// format adds a symbol, separators, decimals, and an alignment space, and a column too narrow for
+    /// the result renders as <c>######</c> rather than wrapping — which reads as a broken file. This
+    /// was found by opening a generated workbook in Excel, not by inspecting the file.
+    /// </summary>
+    [Fact]
+    public void Layout_CurrencyColumn_IsWideEnoughForTheRenderedValue()
+    {
+        var content = new GeneratedFileContent
+        {
+            Header = ["Amount"],
+            Rows = [["837471.00"], ["801005.25"]],
+            SpreadsheetFormatting = new SpreadsheetFormatting
+            {
+                Columns =
+                [
+                    new SpreadsheetColumnFormat
+                    {
+                        Column = "Amount",
+                        NumberFormat = SpreadsheetNumberFormat.Currency,
+                        Decimals = 2,
+                    },
+                ],
+            },
+        };
+
+        // "$837,471.00 " is twelve characters; the raw value is only nine.
+        Assert.True(
+            SpreadsheetLayout.Create(content).Columns[0].Width >= 12,
+            "A currency column must fit its rendered value, not its raw value.");
+    }
+
+    /// <summary>
+    /// Verifies that a calculated column is sized from the columns its formula reads. It has no values
+    /// of its own, so measuring it from its header alone leaves it far too narrow.
+    /// </summary>
+    [Fact]
+    public void Layout_ComputedColumn_IsSizedFromItsReferences()
+    {
+        var content = new GeneratedFileContent
+        {
+            Header = ["Plan", "Actual"],
+            Rows = [["837471.00", "801005.25"]],
+            SpreadsheetFormatting = new SpreadsheetFormatting
+            {
+                Columns =
+                [
+                    new SpreadsheetColumnFormat
+                    {
+                        Column = "Var",
+                        Formula = "={Actual}-{Plan}",
+                        NumberFormat = SpreadsheetNumberFormat.Currency,
+                        Decimals = 2,
+                    },
+                ],
+            },
+        };
+
+        var computed = SpreadsheetLayout.Create(content).Columns[2];
+
+        Assert.True(computed.IsComputed);
+        Assert.True(
+            computed.Width >= 12,
+            $"A calculated column must be sized from its references, but was {computed.Width}.");
+    }
+
+    /// <summary>
+    /// Verifies that a summed column fits its total, which is larger than any single row.
+    /// </summary>
+    [Fact]
+    public void Layout_SummedColumn_IsWideEnoughForTheTotal()
+    {
+        var rows = Enumerable.Range(0, 50)
+            .Select(_ => (IReadOnlyList<string>)new List<string> { "837471.00" })
+            .ToList();
+
+        var content = new GeneratedFileContent
+        {
+            Header = ["Amount"],
+            Rows = rows,
+            SpreadsheetFormatting = new SpreadsheetFormatting
+            {
+                Columns =
+                [
+                    new SpreadsheetColumnFormat
+                    {
+                        Column = "Amount",
+                        NumberFormat = SpreadsheetNumberFormat.Currency,
+                        Decimals = 2,
+                    },
+                ],
+                TotalRow = new SpreadsheetTotalRow
+                {
+                    Columns = [new SpreadsheetTotalColumn { Column = "Amount", Function = SpreadsheetAggregateFunction.Sum }],
+                },
+            },
+        };
+
+        // The total is around $41,873,550.00, two digits and a separator wider than any single row.
+        Assert.True(
+            SpreadsheetLayout.Create(content).Columns[0].Width >= 15,
+            "A summed column must fit its total, not just its widest row.");
+    }
+
+    /// <summary>
+    /// Verifies that a date column fits the format it is given.
+    /// </summary>
+    [Fact]
+    public void Layout_DateColumn_FitsTheFormattedDate()
+    {
+        var layout = CreateLayout(["Posted"], [["2026-09-15"]]);
+
+        Assert.Equal(SpreadsheetDataKind.Date, layout.Columns[0].Kind);
+        Assert.True(layout.Columns[0].Width >= 11);
+    }
+
     private static SpreadsheetLayout CreateLayout(string[] header, List<List<string>> rows)
     {
         return SpreadsheetLayout.Create(new GeneratedFileContent
