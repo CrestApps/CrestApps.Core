@@ -21,6 +21,11 @@ internal sealed class TabularWorkspace : IDisposable
 {
     private const string MetadataTableName = "_workspace_meta";
     private const string FormattingTableName = "_workspace_formats";
+
+    // Stands in for the source file of a table the caller built with a command batch rather than
+    // uploaded. Such a table belongs to no document, which is also what exempts it from the cleanup
+    // that removes tables whose document is no longer attached.
+    private const string DerivedTableFileName = "(derived)";
     private const int ImportProgressIntervalRows = 250;
 
     // SQLite SQLITE_DBCONFIG_DQS_* op codes. Used to re-enable the legacy double-quoted string
@@ -293,6 +298,13 @@ internal sealed class TabularWorkspace : IDisposable
 
                     throw;
                 }
+
+                // A command batch may create, rename, or drop tables, and the workspace is rebuilt from
+                // its metadata on every call. Without reconciling here, a renamed table leaves metadata
+                // pointing at a name that no longer exists: every later call still reports the table as
+                // loaded while every query against it fails, and the conversation concludes the uploaded
+                // file has been lost.
+                ReconcileTablesWithDatabase();
 
                 return new TabularCommandResult(affected, statements.Count);
             }
@@ -719,6 +731,13 @@ internal sealed class TabularWorkspace : IDisposable
 
         foreach (var table in _tables.Values)
         {
+            // A table the caller built belongs to no document, so it is never swept away by a change in
+            // which documents are attached. Dropping it would destroy work the conversation just did.
+            if (string.IsNullOrEmpty(table.DocumentId))
+            {
+                continue;
+            }
+
             if (!attached.Contains(table.DocumentId))
             {
                 (detached ??= []).Add(table);
@@ -891,6 +910,81 @@ internal sealed class TabularWorkspace : IDisposable
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Brings the workspace metadata back in line with the tables that actually exist.
+    /// <para>
+    /// A command batch is allowed to reshape the workspace — that is the point of it — so it can rename
+    /// a table, drop one, or build a new one with <c>CREATE TABLE … AS SELECT</c>. Metadata that is not
+    /// reconciled afterwards goes stale in both directions: a vanished table is still reported as
+    /// loaded and every query against it fails, and a newly built table is invisible to the caller that
+    /// just created it.
+    /// </para>
+    /// </summary>
+    private void ReconcileTablesWithDatabase()
+    {
+        var physical = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        using (var command = _connection.CreateCommand())
+        {
+            command.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'";
+
+            using var reader = command.ExecuteReader();
+
+            while (reader.Read())
+            {
+                var name = reader.GetString(0);
+
+                // The workspace's own bookkeeping tables are not data.
+                if (!name.StartsWith("_workspace_", StringComparison.Ordinal))
+                {
+                    physical.Add(name);
+                }
+            }
+        }
+
+        var removed = _tables.Keys.Where(name => !physical.Contains(name)).ToList();
+
+        foreach (var name in removed)
+        {
+            _tables.Remove(name);
+            DeleteMetadataEntry(name);
+            DeleteFormattingEntry(name);
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Tabular table '{TableName}' no longer exists after a command batch; its metadata was removed.",
+                    name);
+            }
+        }
+
+        foreach (var name in physical)
+        {
+            if (_tables.ContainsKey(name))
+            {
+                continue;
+            }
+
+            // A table the caller built is registered so it is listed and queryable like any other. It
+            // belongs to no uploaded document, which also keeps it from being swept away when the
+            // documents attached to the conversation change.
+            var derived = new LoadedTable(
+                name,
+                documentId: string.Empty,
+                worksheetName: null,
+                fileName: DerivedTableFileName,
+                sourceNames: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+
+            _tables[name] = derived;
+            SaveMetadataEntry(name, string.Empty, null, DerivedTableFileName, derived.SourceNames, derived.SourceFormats);
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Registered derived tabular table '{TableName}' created by a command batch.", name);
+            }
+        }
     }
 
     private void RegisterTable(

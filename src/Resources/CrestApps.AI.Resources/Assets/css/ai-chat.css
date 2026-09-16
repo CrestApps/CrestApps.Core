@@ -63,6 +63,48 @@
     line-height: 0;
 }
 
+/* Markdown tables are parsed into real table markup, but without these rules they render as cramped,
+   borderless text that reads as unformatted. A table is also the one block that may legitimately be
+   wider than the message, so it scrolls on its own rather than stretching the conversation. */
+.ai-chat-messages .ai-chat-message-body table {
+    width: 100%;
+    margin: 0.75rem 0;
+    border-collapse: collapse;
+    font-size: 0.9em;
+    display: block;
+    overflow-x: auto;
+}
+
+.ai-chat-messages .ai-chat-message-body table th,
+.ai-chat-messages .ai-chat-message-body table td {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    text-align: left;
+    vertical-align: top;
+    white-space: nowrap;
+}
+
+.ai-chat-messages .ai-chat-message-body table th {
+    background-color: var(--bs-tertiary-bg, #f8f9fa);
+    font-weight: 600;
+}
+
+/* A right-aligned column in the source markdown is almost always numeric, so the alignment the author
+   asked for is honored rather than flattened to the default. */
+.ai-chat-messages .ai-chat-message-body table th[align="right"],
+.ai-chat-messages .ai-chat-message-body table td[align="right"] {
+    text-align: right;
+}
+
+.ai-chat-messages .ai-chat-message-body table th[align="center"],
+.ai-chat-messages .ai-chat-message-body table td[align="center"] {
+    text-align: center;
+}
+
+.ai-chat-messages .ai-chat-message-body table tbody tr:nth-child(even) {
+    background-color: var(--bs-secondary-bg, #f2f2f2);
+}
+
 .ai-chat-messages .ai-chat-citation-list {
     margin: 0.75rem 0 0;
     padding-left: 1.25rem;

@@ -172,6 +172,89 @@ public sealed class TabularWorkspaceFormattingTests
         Assert.Equal(["sales"], tables.Select(table => table.TableName));
     }
 
+    /// <summary>
+    /// Renaming a table used to leave the metadata pointing at a name that no longer existed. Every
+    /// later call still reported the table as loaded while every query against it failed, and the
+    /// conversation concluded the uploaded file had been lost and asked for a re-upload. Found by
+    /// driving the real agent, which renamed a table while building a comparison.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_RenamingATable_ReconcilesTheMetadata()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = await CreateLoadedWorkspaceAsync(cancellationToken);
+
+        await workspace.ExecuteAsync("ALTER TABLE sales RENAME TO old_sales", cancellationToken);
+
+        var tables = await workspace.GetTablesAsync(cancellationToken);
+
+        Assert.DoesNotContain(tables, table => table.TableName == "sales");
+        Assert.Contains(tables, table => table.TableName == "old_sales");
+
+        // The renamed table must be queryable under its new name rather than reported and unusable.
+        var result = await workspace.QueryAsync("SELECT COUNT(*) FROM old_sales", 100, cancellationToken);
+
+        Assert.Equal(2L, result.Rows[0][0]);
+    }
+
+    /// <summary>
+    /// Verifies that a table the caller builds is listed, so it can be queried and exported. Before
+    /// this, a created table was invisible to the caller that had just created it.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_CreatingATable_RegistersIt()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = await CreateLoadedWorkspaceAsync(cancellationToken);
+
+        await workspace.ExecuteAsync(
+            "CREATE TABLE summary AS SELECT region, SUM(amount) AS total FROM sales GROUP BY region",
+            cancellationToken);
+
+        var tables = await workspace.GetTablesAsync(cancellationToken);
+
+        Assert.Contains(tables, table => table.TableName == "summary");
+    }
+
+    /// <summary>
+    /// Verifies that dropping a table removes its metadata, so it is no longer reported as loaded.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_DroppingATable_RemovesItsMetadata()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = await CreateLoadedWorkspaceAsync(cancellationToken);
+
+        await workspace.ExecuteAsync("DROP TABLE sales", cancellationToken);
+
+        Assert.Empty(await workspace.GetTablesAsync(cancellationToken));
+    }
+
+    /// <summary>
+    /// A table the caller built belongs to no uploaded document, so it must survive the cleanup that
+    /// removes tables whose document is no longer attached. Dropping it would destroy work the
+    /// conversation just did.
+    /// </summary>
+    [Fact]
+    public async Task EnsureReadyAsync_AfterCreatingATable_KeepsIt()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var workspace = await CreateLoadedWorkspaceAsync(cancellationToken);
+
+        await workspace.ExecuteAsync("CREATE TABLE scratch AS SELECT * FROM sales", cancellationToken);
+
+        // A second synchronization is what happens on the next tool call in the conversation.
+        await workspace.EnsureReadyAsync(
+            [new TabularDocumentRef("doc1", "sales.csv")],
+            (_, _) => Task.FromResult(Csv),
+            cancellationToken);
+
+        var tables = await workspace.GetTablesAsync(cancellationToken);
+
+        Assert.Contains(tables, table => table.TableName == "scratch");
+        Assert.Contains(tables, table => table.TableName == "sales");
+    }
+
     private static async Task<TabularWorkspace> CreateLoadedWorkspaceAsync(CancellationToken cancellationToken)
     {
         var workspace = new TabularWorkspace(new TabularWorkspaceOptions());
