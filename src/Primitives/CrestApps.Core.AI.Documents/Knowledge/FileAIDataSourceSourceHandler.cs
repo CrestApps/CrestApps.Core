@@ -143,6 +143,19 @@ public sealed class FileAIDataSourceSourceHandler : IAIDataSourceSourceHandler
         AddIfPresent(fields, "language", entry.Language);
         AddIfPresent(fields, "mediaType", entry.MediaType);
 
+        if (entry.TryGet<PublicationDetails>(out var publication))
+        {
+            // What tells one issue from another issue of the same publication, and nothing else. The
+            // publisher, the editor, the place and the ISSN are the same on every issue of a title, so
+            // filtering on them narrows nothing the title does not already narrow, and each one costs a term
+            // in the filter bag of every row of every document. They stay on the object, where a citation
+            // that wants to spell the source out in full can still read them.
+            AddIfPresent(fields, "publicationTitle", publication.PublicationTitle);
+            AddIfPresent(fields, "volume", publication.Volume);
+            AddIfPresent(fields, "issue", publication.Issue);
+            AddIfPresent(fields, "issueDate", publication.Date);
+        }
+
         if (entry.PageStart.HasValue)
         {
             fields[DataSourceConstants.ColumnNames.Page] = entry.PageStart.Value;

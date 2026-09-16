@@ -335,18 +335,171 @@ public sealed class KnowledgeIngestionTests
     }
 
     /// <summary>
+    /// Verifies that two issues of one publication, ingested into one data source under the same file name,
+    /// produce rows that can be told apart by the issue they were printed in. The file names say nothing, so
+    /// without the masthead on every row there is no way to ask a question of one issue.
+    /// </summary>
+    [Fact]
+    public async Task KnowledgeIngestionService_SeveralIssuesOfOnePublication_ProduceRowsFilterableByIssue()
+    {
+        var extractor = new FixedPublicationMetadataExtractor();
+        var harness = new Harness(publicationMetadataExtractor: extractor);
+
+        extractor.Metadata = CreatePublicationMetadata("Number 1", "Winter 1998");
+
+        var first = await harness.IngestAsync("The first body text.");
+
+        extractor.Metadata = CreatePublicationMetadata("Number 2", "Spring 1999");
+
+        var second = await harness.IngestAsync("The second body text.");
+
+        Assert.NotEqual(first.RootId, second.RootId);
+
+        var rows = await ReadAsync(harness.Store);
+
+        var firstIssue = rows.Where(row => Field(row.Value, "issue") == "Number 1").ToList();
+        var secondIssue = rows.Where(row => Field(row.Value, "issue") == "Number 2").ToList();
+
+        Assert.NotEmpty(firstIssue);
+        Assert.NotEmpty(secondIssue);
+
+        // Every row belongs to one issue or the other, and to the document that issue was ingested from.
+        Assert.All(rows, row => Assert.NotNull(Field(row.Value, "issue")));
+        Assert.All(firstIssue, row => Assert.Equal(first.RootId, Field(row.Value, DataSourceConstants.ColumnNames.RootId)));
+        Assert.All(secondIssue, row => Assert.Equal(second.RootId, Field(row.Value, DataSourceConstants.ColumnNames.RootId)));
+
+        Assert.All(rows, row => Assert.Equal("The Sample Review", Field(row.Value, "publicationTitle")));
+        Assert.All(firstIssue, row => Assert.Equal("Winter 1998", Field(row.Value, "issueDate")));
+        Assert.All(rows, row => Assert.Equal("Volume 4", Field(row.Value, "volume")));
+
+        // A citation names the issue rather than the file both issues arrived as.
+        Assert.Contains(firstIssue, row => row.Value.Title == "The Sample Review, Volume 4, Number 1, Winter 1998");
+        Assert.Contains(secondIssue, row => row.Value.Title == "The Sample Review, Volume 4, Number 2, Spring 1999");
+        Assert.DoesNotContain(rows, row => row.Value.Title == "report.txt");
+    }
+
+    /// <summary>
+    /// Verifies that a document whose front matter said nothing still indexes, with no publication field on
+    /// any row and the file name still doing the naming. Nothing is invented for a document that has no
+    /// masthead.
+    /// </summary>
+    [Fact]
+    public async Task KnowledgeIngestionService_NoPublicationMetadata_IndexesRowsWithNothingInvented()
+    {
+        var harness = new Harness();
+
+        await harness.IngestAsync("The body text.");
+
+        var rows = await ReadAsync(harness.Store);
+
+        Assert.NotEmpty(rows);
+        Assert.All(rows, row =>
+        {
+            Assert.Null(Field(row.Value, "publicationTitle"));
+            Assert.Null(Field(row.Value, "volume"));
+            Assert.Null(Field(row.Value, "issue"));
+            Assert.Null(Field(row.Value, "issueDate"));
+        });
+
+        Assert.Contains(rows, row => row.Value.Title == "report.txt");
+    }
+
+    /// <summary>
+    /// Verifies that only what tells one issue from another is indexed. The publisher, the editor, the place
+    /// and the ISSN are the same on every issue of a title, so they stay on the object instead of costing a
+    /// term in the filter bag of every row.
+    /// </summary>
+    [Fact]
+    public async Task KnowledgeIngestionService_PublicationMetadata_IndexesOnlyWhatIdentifiesTheIssue()
+    {
+        var extractor = new FixedPublicationMetadataExtractor
+        {
+            Metadata = CreatePublicationMetadata("Number 2", "Spring 1999"),
+        };
+
+        var harness = new Harness(publicationMetadataExtractor: extractor);
+
+        await harness.IngestAsync("The body text.");
+
+        var rows = await ReadAsync(harness.Store);
+
+        Assert.NotEmpty(rows);
+        Assert.All(rows, row =>
+        {
+            Assert.Null(Field(row.Value, "publisher"));
+            Assert.Null(Field(row.Value, "editor"));
+            Assert.Null(Field(row.Value, "place"));
+            Assert.Null(Field(row.Value, "identifier"));
+        });
+
+        // What was left out of the index is still stored, so a citation can spell the source out in full.
+        Assert.All(harness.Store.All, entry =>
+        {
+            Assert.True(entry.TryGet<PublicationDetails>(out var publication));
+            Assert.Equal("Sample Press", publication.Publisher);
+            Assert.Equal("issn-0000-0000", publication.Identifier);
+        });
+    }
+
+    /// <summary>
+    /// Reads every row the ingested objects map onto.
+    /// </summary>
+    /// <param name="store">The knowledge object store.</param>
+    /// <returns>The rows.</returns>
+    private static async Task<List<KeyValuePair<string, SourceDocument>>> ReadAsync(IKnowledgeObjectStore store)
+    {
+        var handler = new FileAIDataSourceSourceHandler(store);
+        var rows = new List<KeyValuePair<string, SourceDocument>>();
+
+        await foreach (var row in handler.ReadAsync(CreateDataSource(), TestContext.Current.CancellationToken))
+        {
+            rows.Add(row);
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    /// Reads one indexed field, or <see langword="null"/> when the row does not carry it.
+    /// </summary>
+    /// <param name="document">The row.</param>
+    /// <param name="name">The field name.</param>
+    /// <returns>The value.</returns>
+    private static string Field(SourceDocument document, string name)
+    {
+        return document.Fields.TryGetValue(name, out var value) ? value as string : null;
+    }
+
+    private static PublicationMetadata CreatePublicationMetadata(string issue, string date)
+    {
+        return new PublicationMetadata
+        {
+            PublicationTitle = "The Sample Review",
+            Publisher = "Sample Press",
+            Editor = "A. Sample",
+            Place = "Sample City",
+            Volume = "Volume 4",
+            Issue = issue,
+            Date = date,
+            Identifier = "issn-0000-0000",
+        };
+    }
+
+    /// <summary>
     /// Wires the ingestion service up with a plain-text reader.
     /// </summary>
     /// <param name="store">The knowledge object store.</param>
     /// <param name="fileStore">The store the figure bytes are written to.</param>
     /// <param name="indexingQueue">The indexing queue.</param>
     /// <param name="structureAnalyzer">The structure analyzer, or <see langword="null"/> for the real one.</param>
+    /// <param name="publicationMetadataExtractor">The publication metadata extractor, or <see langword="null"/> to read none.</param>
     /// <returns>The service.</returns>
     private static DefaultKnowledgeIngestionService CreateService(
         IKnowledgeObjectStore store,
         IDocumentFileStore fileStore,
         IAIDataSourceIndexingQueue indexingQueue,
-        IDocumentStructureAnalyzer structureAnalyzer = null)
+        IDocumentStructureAnalyzer structureAnalyzer = null,
+        IPublicationMetadataExtractor publicationMetadataExtractor = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<PlainTextIngestionDocumentReader>();
@@ -362,7 +515,7 @@ public sealed class KnowledgeIngestionTests
             fileStore,
             new DefaultAITextNormalizer(),
             structureAnalyzer ?? new TocSeededStructureAnalyzer(NullLogger<TocSeededStructureAnalyzer>.Instance),
-            new NullPublicationMetadataExtractor(),
+            publicationMetadataExtractor ?? new NullPublicationMetadataExtractor(),
             indexingQueue,
             NullLogger<DefaultKnowledgeIngestionService>.Instance);
     }
@@ -415,6 +568,23 @@ public sealed class KnowledgeIngestionTests
         public Task<PublicationMetadata> ExtractAsync(IngestionDocument document, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<PublicationMetadata>(null);
+        }
+    }
+
+    /// <summary>
+    /// Reads whatever it is set to, so two ingests can stand in for two issues of one publication without a
+    /// model being configured.
+    /// </summary>
+    private sealed class FixedPublicationMetadataExtractor : IPublicationMetadataExtractor
+    {
+        /// <summary>
+        /// Gets or sets what the front matter is to say, or <see langword="null"/> when it says nothing.
+        /// </summary>
+        public PublicationMetadata Metadata { get; set; }
+
+        public Task<PublicationMetadata> ExtractAsync(IngestionDocument document, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Metadata);
         }
     }
 
@@ -554,9 +724,11 @@ public sealed class KnowledgeIngestionTests
     /// </summary>
     private sealed class Harness
     {
-        public Harness(IDocumentStructureAnalyzer structureAnalyzer = null)
+        public Harness(
+            IDocumentStructureAnalyzer structureAnalyzer = null,
+            IPublicationMetadataExtractor publicationMetadataExtractor = null)
         {
-            Service = CreateService(Store, FileStore, Queue, structureAnalyzer);
+            Service = CreateService(Store, FileStore, Queue, structureAnalyzer, publicationMetadataExtractor);
         }
 
         public DefaultKnowledgeIngestionService Service { get; }

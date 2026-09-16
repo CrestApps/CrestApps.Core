@@ -60,7 +60,35 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
     /// <param name="topN">The top n.</param>
     /// <param name="filter">The filter.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <remarks>
+    /// A service that cannot be reached reads here as an index holding nothing, exactly as it always has. A
+    /// caller that has to tell those apart reads <see cref="TrySearchAsync"/> instead.
+    /// </remarks>
     public async Task<IEnumerable<DataSourceSearchResult>> SearchAsync(
+        IIndexProfileInfo indexProfile,
+        float[] embedding,
+        string dataSourceId,
+        int topN,
+        string filter = null,
+        CancellationToken cancellationToken = default)
+    {
+        var outcome = await TrySearchAsync(indexProfile, embedding, dataSourceId, topN, filter, cancellationToken);
+
+        return outcome.Results;
+    }
+
+    /// <summary>
+    /// Searches the index, reporting a query that could not run as a failure rather than as an index with
+    /// nothing in it.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="embedding">The embedding.</param>
+    /// <param name="dataSourceId">The data source id.</param>
+    /// <param name="topN">The top n.</param>
+    /// <param name="filter">The filter.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The outcome of the search.</returns>
+    public async Task<DataSourceSearchOutcome> TrySearchAsync(
         IIndexProfileInfo indexProfile,
         float[] embedding,
         string dataSourceId,
@@ -74,7 +102,7 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
 
         if (embedding.Length == 0)
         {
-            return [];
+            return DataSourceSearchOutcome.Success([]);
         }
 
         try
@@ -203,24 +231,30 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
                 }
             }
 
-            return results
+            return DataSourceSearchOutcome.Success(results
                 .OrderByDescending(r => r.Score)
                 .Take(topN)
-                .ToList();
+                .ToList());
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (RequestFailedException ex)
         {
+            // A refused credential, a missing index and a rejected filter all arrive here, and none of them
+            // is a statement about what the index holds.
             _logger.LogError(ex, "Azure AI Search request failed for index '{IndexName}': {Message}",
                 indexProfile.IndexFullName, ex.Message);
 
-            return [];
+            return DataSourceSearchOutcome.Failure();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error performing data source vector search in Azure AI Search index '{IndexName}'",
                 indexProfile.IndexFullName);
 
-            return [];
+            return DataSourceSearchOutcome.Failure();
         }
     }
 

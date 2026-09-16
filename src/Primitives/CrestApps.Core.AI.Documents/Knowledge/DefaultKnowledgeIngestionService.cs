@@ -152,6 +152,11 @@ public sealed class DefaultKnowledgeIngestionService : IKnowledgeIngestionServic
             chunksByArticle[article.Ordinal] = await _textNormalizer.NormalizeAndChunkAsync(articleText, cancellationToken);
         }
 
+        // What the document says about itself is worth one model call: a citation that names the
+        // publication and issue is usable, and one that names the file it arrived in is not. It is read
+        // before the objects are built because it names them and is carried onto every one of them.
+        var publication = await _publicationMetadataExtractor.ExtractAsync(document, cancellationToken);
+
         var objects = KnowledgeObjectBuilder.Build(
             document,
             new KnowledgeObjectBuildOptions
@@ -165,17 +170,9 @@ public sealed class DefaultKnowledgeIngestionService : IKnowledgeIngestionServic
                 ContentHash = contentHash,
                 Structure = structure,
                 ChartKeywords = options.ChartKeywords,
+                Publication = CreatePublicationDetails(publication),
             },
             chunksByArticle);
-
-        // What the document says about itself is worth one model call: a citation that names the
-        // publication and issue is usable, and one that names the file it arrived in is not.
-        var publication = await _publicationMetadataExtractor.ExtractAsync(document, cancellationToken);
-
-        if (publication is not null)
-        {
-            objects[0].Put(publication);
-        }
 
         // Replacing rather than merging keeps the store honest about what the file currently contains: a
         // figure removed from a revised file must not survive as a searchable row.
@@ -246,6 +243,37 @@ public sealed class DefaultKnowledgeIngestionService : IKnowledgeIngestionServic
         }
 
         await _indexingQueue.QueueRemoveDataSourceDocumentsAsync(dataSource.ItemId, canonicalIds, cancellationToken);
+    }
+
+    /// <summary>
+    /// Copies what the front matter said onto the detail the knowledge objects carry, so the issue an object
+    /// was printed in is stored with it, indexed with it, and available to cite it by.
+    /// </summary>
+    /// <param name="metadata">What the front matter said, or <see langword="null"/> when it said nothing.</param>
+    /// <returns>The detail, or <see langword="null"/> when there was nothing to carry.</returns>
+    /// <remarks>
+    /// The extractor's result is what one model call read; this is what a stored object keeps. Copying rather
+    /// than storing the extractor's own type keeps the stored shape a knowledge-object detail like the
+    /// others, readable without a reference to the ingestion pipeline that produced it.
+    /// </remarks>
+    private static PublicationDetails CreatePublicationDetails(PublicationMetadata metadata)
+    {
+        if (metadata is null || !metadata.HasValue)
+        {
+            return null;
+        }
+
+        return new PublicationDetails
+        {
+            PublicationTitle = metadata.PublicationTitle,
+            Publisher = metadata.Publisher,
+            Editor = metadata.Editor,
+            Place = metadata.Place,
+            Volume = metadata.Volume,
+            Issue = metadata.Issue,
+            Date = metadata.Date,
+            Identifier = metadata.Identifier,
+        };
     }
 
     /// <summary>

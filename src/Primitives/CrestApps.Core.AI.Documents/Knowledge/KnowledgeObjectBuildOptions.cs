@@ -1,3 +1,5 @@
+using CrestApps.Core.AI.Models;
+
 namespace CrestApps.Core.AI.Documents.Knowledge;
 
 /// <summary>
@@ -53,4 +55,10 @@ public sealed class KnowledgeObjectBuildOptions
     /// <see langword="null"/> to use <see cref="KnowledgeObjectBuilder.DefaultChartKeywords"/>.
     /// </summary>
     public IReadOnlyList<string> ChartKeywords { get; set; }
+
+    /// <summary>
+    /// Gets or sets what the document says about the issue it was printed in, or <see langword="null"/> when
+    /// its front matter said nothing. It names the objects and is carried onto every one of them.
+    /// </summary>
+    public PublicationDetails Publication { get; set; }
 }

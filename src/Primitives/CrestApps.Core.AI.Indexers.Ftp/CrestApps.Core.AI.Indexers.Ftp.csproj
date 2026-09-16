@@ -1,14 +1,16 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>CrestApps.Core.AI.Indexers.FileTransfer</RootNamespace>
-    <Title>CrestApps AI Indexers - File Transfer</Title>
+    <!-- The namespace keeps the FileTransfer segment the connector shipped under: the types it is
+         compiled against, and every view that names them, are unchanged by which package carries it. -->
+    <RootNamespace>CrestApps.Core.AI.Indexers.FileTransfer.Ftp</RootNamespace>
+    <Title>CrestApps AI Indexers - FTP</Title>
     <Description>
       $(CrestAppsDescription)
 
-      FTP/FTPS and SFTP ingestion connectors for CrestApps AI indexers.
+      FTP/FTPS ingestion connector for CrestApps AI indexers.
     </Description>
-    <PackageTags>$(PackageTags) ai indexing ftp ftps sftp connectors</PackageTags>
+    <PackageTags>$(PackageTags) ai indexing ftp ftps connectors</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,13 +23,11 @@
 
   <ItemGroup>
     <PackageReference Include="FluentFTP" />
-    <PackageReference Include="SSH.NET" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../CrestApps.Core.AI.Indexers/CrestApps.Core.AI.Indexers.csproj" />
     <ProjectReference Include="../CrestApps.Core.AI.Mcp.Ftp/CrestApps.Core.AI.Mcp.Ftp.csproj" />
-    <ProjectReference Include="../CrestApps.Core.AI.Mcp.Sftp/CrestApps.Core.AI.Mcp.Sftp.csproj" />
   </ItemGroup>
 
 </Project>

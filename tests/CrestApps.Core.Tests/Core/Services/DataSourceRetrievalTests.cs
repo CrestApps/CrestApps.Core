@@ -87,7 +87,85 @@ public sealed class DataSourceRetrievalTests
         Assert.Equal(expected.ReplaceLineEndings("\n"), text.ReplaceLineEndings("\n"));
     }
 
+    /// <summary>
+    /// Verifies that a knowledge base which could not be searched is reported as unreachable, and never as a
+    /// knowledge base that holds nothing.
+    /// </summary>
+    /// <remarks>
+    /// This is the whole point of the outcome contract. With the database stopped, every provider handed back
+    /// an empty list, retrieval said "No relevant content was found", and the model stated with confidence
+    /// that the content did not exist — an answer that reads exactly like a real one.
+    /// </remarks>
+    [Fact]
+    public async Task SearchAsync_WhenTheIndexCannotBeReached_ReportsTheFailureInsteadOfReportingNoContent()
+    {
+        await using var unreachable = BuildServices(new OutcomeContentManager(DataSourceSearchOutcome.Failure()));
+        await using var searchable = BuildServices(new OutcomeContentManager(DataSourceSearchOutcome.Success([])));
+
+        var failedText = await RunSearchAsync(unreachable);
+        var emptyText = await RunSearchAsync(searchable);
+
+        // A search that failed and a search that matched nothing must not read alike.
+        Assert.NotEqual(emptyText, failedText);
+
+        Assert.Contains("could not be reached", failedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("No relevant content was found", failedText, StringComparison.Ordinal);
+
+        // The index that was reachable and matched nothing still says so, in the words it always used.
+        Assert.Contains("No relevant content was found in the data source for this query.", emptyText, StringComparison.Ordinal);
+        Assert.DoesNotContain("could not be reached", emptyText, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that a provider which has not adopted the outcome contract and answers a dead index by
+    /// throwing is still reported as a failure rather than as an absence.
+    /// </summary>
+    [Fact]
+    public async Task SearchAsync_WhenTheProviderThrows_ReportsTheFailureWithoutLeakingItsDetail()
+    {
+        await using var services = BuildServices(new ThrowingContentManager());
+
+        var text = await RunSearchAsync(services);
+
+        Assert.Contains("could not be reached", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("No relevant content was found", text, StringComparison.Ordinal);
+
+        // Nothing the provider said about its own plumbing reaches the model.
+        Assert.DoesNotContain("Connection refused", text, StringComparison.Ordinal);
+    }
+
+    private static Task<string> RunSearchAsync(IServiceProvider services)
+    {
+        return DataSourceRetrieval.SearchAsync(
+            services,
+            new DataSourceRetrievalRequest
+            {
+                DataSourceId = DataSourceId,
+                Queries = ["time off"],
+                RetrievalMode = DataSourceRetrievalMode.Chunk,
+            },
+            "knowledge-base",
+            NullLogger.Instance,
+            TestContext.Current.CancellationToken);
+    }
+
     private static ServiceProvider BuildServices(IReadOnlyList<DataSourceSearchResult> results)
+    {
+        var contentManager = new Mock<IDataSourceContentManager>();
+        contentManager
+            .Setup(manager => manager.SearchAsync(
+                It.IsAny<IIndexProfileInfo>(),
+                It.IsAny<float[]>(),
+                It.IsAny<string>(),
+                It.IsAny<int>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(results);
+
+        return BuildServices(contentManager.Object);
+    }
+
+    private static ServiceProvider BuildServices(IDataSourceContentManager contentManager)
     {
         var dataSource = new AIDataSource
         {
@@ -131,17 +209,6 @@ public sealed class DataSourceRetrievalTests
             .Setup(factory => factory.CreateEmbeddingGeneratorAsync(It.IsAny<AIDeployment>()))
             .ReturnsAsync(new FixedEmbeddingGenerator());
 
-        var contentManager = new Mock<IDataSourceContentManager>();
-        contentManager
-            .Setup(manager => manager.SearchAsync(
-                It.IsAny<IIndexProfileInfo>(),
-                It.IsAny<float[]>(),
-                It.IsAny<string>(),
-                It.IsAny<int>(),
-                It.IsAny<string>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(results);
-
         var textNormalizer = new Mock<IAITextNormalizer>();
         textNormalizer
             .Setup(normalizer => normalizer.NormalizeTitle(It.IsAny<string>()))
@@ -154,7 +221,7 @@ public sealed class DataSourceRetrievalTests
         services.AddSingleton(deploymentManager.Object);
         services.AddSingleton(clientFactory.Object);
         services.AddSingleton(textNormalizer.Object);
-        services.AddKeyedSingleton(ProviderName, contentManager.Object);
+        services.AddKeyedSingleton(ProviderName, contentManager);
         services.AddSingleton<IOptionsMonitor<AIDataSourceOptions>>(new TestOptionsMonitor<AIDataSourceOptions>
         {
             CurrentValue = new AIDataSourceOptions(),
@@ -162,6 +229,70 @@ public sealed class DataSourceRetrievalTests
         services.AddLogging();
 
         return services.BuildServiceProvider();
+    }
+
+    /// <summary>
+    /// A provider that reports the outcome of its searches, the way the providers in this repository do.
+    /// </summary>
+    private sealed class OutcomeContentManager : IDataSourceContentManager
+    {
+        private readonly DataSourceSearchOutcome _outcome;
+
+        public OutcomeContentManager(DataSourceSearchOutcome outcome)
+        {
+            _outcome = outcome;
+        }
+
+        public Task<DataSourceSearchOutcome> TrySearchAsync(
+            IIndexProfileInfo indexProfile,
+            float[] embedding,
+            string dataSourceId,
+            int topN,
+            string filter = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_outcome);
+        }
+
+        public Task<IEnumerable<DataSourceSearchResult>> SearchAsync(
+            IIndexProfileInfo indexProfile,
+            float[] embedding,
+            string dataSourceId,
+            int topN,
+            string filter = null,
+            CancellationToken cancellationToken = default)
+        {
+            // The older contract cannot say more than "no rows", which is exactly why the outcome exists.
+            return Task.FromResult(_outcome.Results);
+        }
+
+        public Task<long> DeleteByDataSourceIdAsync(IIndexProfileInfo indexProfile, string dataSourceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(0L);
+        }
+    }
+
+    /// <summary>
+    /// A provider from outside this repository: it has not adopted the outcome contract, and reports a dead
+    /// index the only way the older contract allows — by throwing.
+    /// </summary>
+    private sealed class ThrowingContentManager : IDataSourceContentManager
+    {
+        public Task<IEnumerable<DataSourceSearchResult>> SearchAsync(
+            IIndexProfileInfo indexProfile,
+            float[] embedding,
+            string dataSourceId,
+            int topN,
+            string filter = null,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Connection refused by the test double.");
+        }
+
+        public Task<long> DeleteByDataSourceIdAsync(IIndexProfileInfo indexProfile, string dataSourceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(0L);
+        }
     }
 
     private sealed class FixedEmbeddingGenerator : IEmbeddingGenerator<string, Embedding<float>>

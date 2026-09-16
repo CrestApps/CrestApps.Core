@@ -1,17 +1,30 @@
 using System.Text;
+using CrestApps.Core.AI.Indexers;
 using CrestApps.Core.AI.Indexers.FileTransfer;
+using CrestApps.Core.AI.Indexers.FileTransfer.Ftp;
+using CrestApps.Core.AI.Indexers.FileTransfer.Sftp;
+using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Models;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Tests.Core.Indexers;
 
 /// <summary>
 /// Covers the rules a file-server connector has to get right, none of which are about the protocol: what
-/// counts as changed, what a failed listing must not cause, and what an item identifier may reach.
+/// counts as changed, what a failed listing must not cause, and what an item identifier may reach. The
+/// registration tests cover the packaging instead: each protocol ships on its own now, and neither half
+/// may register the other's name or carry the other's library.
 /// </summary>
 public sealed class RemoteFileConnectorTests
 {
+    private const string FluentFtpAssemblyName = "FluentFTP";
+
+    private const string SshNetAssemblyName = "Renci.SshNet";
+
     /// <summary>
     /// Verifies that a listed file carries a token built from what the server reported, and that the token
     /// changes when the file does.
@@ -159,6 +172,97 @@ public sealed class RemoteFileConnectorTests
         await content.DisposeAsync();
 
         Assert.True(client.Disposed);
+    }
+
+    /// <summary>
+    /// Verifies that the FTP package registers the FTP connector under the FTP name, and registers nothing
+    /// for SFTP. The two registrations no longer sit next to each other in one file, so a name or a type
+    /// copied from one package to the other would otherwise only show up when someone creates a file source.
+    /// </summary>
+    [Fact]
+    public void AddCoreFtpIngestionConnector_RegistersTheFtpConnectorAndNothingElse()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions();
+        services.AddDataProtection();
+        services.AddCoreFtpIngestionConnector();
+
+        using var serviceProvider = services.BuildServiceProvider();
+        using var scope = serviceProvider.CreateScope();
+
+        var connector = scope.ServiceProvider.GetRequiredKeyedService<IIngestionConnector>(FtpIngestionConnector.ConnectorName);
+
+        Assert.IsType<FtpIngestionConnector>(connector);
+        Assert.Equal(FtpIngestionConnector.ConnectorName, connector.Name);
+        Assert.Null(scope.ServiceProvider.GetKeyedService<IIngestionConnector>(SftpIngestionConnector.ConnectorName));
+
+        // The screen that offers a connector reads the descriptors, because keyed services cannot be enumerated.
+        var descriptor = Assert.Single(serviceProvider.GetRequiredService<IOptions<IngestionConnectorOptions>>().Value.Connectors);
+
+        Assert.Equal(FtpIngestionConnector.ConnectorName, descriptor.Name);
+    }
+
+    /// <summary>
+    /// Verifies the same of the SFTP package: its own name, its own connector, and nothing of the FTP one.
+    /// </summary>
+    [Fact]
+    public void AddCoreSftpIngestionConnector_RegistersTheSftpConnectorAndNothingElse()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions();
+        services.AddDataProtection();
+        services.AddCoreSftpIngestionConnector();
+
+        using var serviceProvider = services.BuildServiceProvider();
+        using var scope = serviceProvider.CreateScope();
+
+        var connector = scope.ServiceProvider.GetRequiredKeyedService<IIngestionConnector>(SftpIngestionConnector.ConnectorName);
+
+        Assert.IsType<SftpIngestionConnector>(connector);
+        Assert.Equal(SftpIngestionConnector.ConnectorName, connector.Name);
+        Assert.Null(scope.ServiceProvider.GetKeyedService<IIngestionConnector>(FtpIngestionConnector.ConnectorName));
+
+        var descriptor = Assert.Single(serviceProvider.GetRequiredService<IOptions<IngestionConnectorOptions>>().Value.Connectors);
+
+        Assert.Equal(SftpIngestionConnector.ConnectorName, descriptor.Name);
+    }
+
+    /// <summary>
+    /// Verifies that the shared half carries neither protocol library and that each protocol half carries
+    /// only its own, which is the whole point of the split: referencing one protocol must not install the
+    /// other's stack. Putting the two connectors back in one assembly fails this.
+    /// </summary>
+    [Fact]
+    public void ProtocolConnectors_CarryOnlyTheirOwnProtocolLibrary()
+    {
+        var shared = ReferencedAssembliesOf<RemoteFileIngestionConnector>();
+        var ftp = ReferencedAssembliesOf<FtpIngestionConnector>();
+        var sftp = ReferencedAssembliesOf<SftpIngestionConnector>();
+
+        Assert.NotSame(typeof(FtpIngestionConnector).Assembly, typeof(SftpIngestionConnector).Assembly);
+
+        Assert.DoesNotContain(FluentFtpAssemblyName, shared);
+        Assert.DoesNotContain(SshNetAssemblyName, shared);
+
+        Assert.Contains(FluentFtpAssemblyName, ftp);
+        Assert.DoesNotContain(SshNetAssemblyName, ftp);
+
+        Assert.Contains(SshNetAssemblyName, sftp);
+        Assert.DoesNotContain(FluentFtpAssemblyName, sftp);
+    }
+
+    /// <summary>
+    /// The assemblies a type's own assembly was compiled against. Only what the code actually uses is
+    /// recorded, which is what makes this worth asserting on.
+    /// </summary>
+    /// <typeparam name="T">A type from the assembly to read.</typeparam>
+    private static string[] ReferencedAssembliesOf<T>()
+    {
+        return typeof(T).Assembly.GetReferencedAssemblies()
+            .Select(assembly => assembly.Name)
+            .ToArray();
     }
 
     private static WebCrawler CreateIndexer()

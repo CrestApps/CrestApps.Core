@@ -38,6 +38,28 @@ internal static partial class DataSourceRetrieval
     public const int MaxQueries = 3;
 
     /// <summary>
+    /// What the model is told when the knowledge base could not be searched at all.
+    /// </summary>
+    /// <remarks>
+    /// A search that failed and a search that matched nothing must never read alike. Told that nothing was
+    /// found, a model states with confidence that the content does not exist — which is exactly the wrong
+    /// answer when the index is merely unreachable, and is wrong in the way that is hardest to notice,
+    /// because it reads like an answer.
+    /// </remarks>
+    private const string SearchFailedMessage =
+        "The knowledge base could not be searched because the search index could not be reached. Nothing was searched, so this says nothing about whether the data source holds an answer. Tell the user the knowledge base is unavailable right now, and do not answer as though the data source has no such content.";
+
+    /// <summary>
+    /// What the model is told when some of a search's phrases ran and others did not.
+    /// </summary>
+    /// <remarks>
+    /// The content that did come back is worth handing over, but on its own it reads as the whole of what the
+    /// knowledge base holds, which is the same wrong answer in a smaller dose.
+    /// </remarks>
+    private const string PartialSearchNotice =
+        "Part of this knowledge base could not be searched, so the content below may be incomplete. Do not state that something is absent from the data source on the strength of it.";
+
+    /// <summary>
     /// Searches the requested data source and returns the text to hand back to the AI model.
     /// </summary>
     /// <param name="services">The request services used to resolve the stores, index provider, and embedding generator.</param>
@@ -188,14 +210,15 @@ internal static partial class DataSourceRetrieval
             cancellationToken);
 
         var contentTypeFilterDropped = false;
+        var searchFailed = HasFailure(resultSets);
 
-        if (contentTypeClause != null && providerFilter != null && IsEmpty(resultSets))
+        if (contentTypeClause != null && providerFilter != null && (searchFailed || IsEmpty(resultSets)))
         {
-            // An index built before the typed columns existed cannot honor a filter that names one, and
-            // every provider reports that by logging and handing back nothing rather than by throwing — so
-            // an empty result is the only signal there is to read. Searching again without the narrowing
-            // costs one round trip on a search that had nothing to return anyway, and turns a search that
-            // failed closed back into the rows the index does have.
+            // An index built before the typed columns existed cannot honor a filter that names one. Some
+            // providers report that by logging and handing back nothing, others by rejecting the query
+            // outright, so both signals are read here. Searching again without the narrowing costs one round
+            // trip on a search that had nothing to return anyway, and turns a search that failed closed back
+            // into the rows the index does have.
             var unnarrowedFilter = Translate(filterTranslator, callerFilter);
 
             if (!string.Equals(unnarrowedFilter, providerFilter, StringComparison.Ordinal))
@@ -209,9 +232,13 @@ internal static partial class DataSourceRetrieval
                     unnarrowedFilter,
                     cancellationToken);
 
-                if (!IsEmpty(unnarrowedSets))
+                // Kept only when the wider search did better than the narrowed one: it found rows, or it at
+                // least proved the index is reachable after the narrowed one failed. A wider search that
+                // failed too says nothing new, so the failure stands.
+                if (!HasFailure(unnarrowedSets) && (searchFailed || !IsEmpty(unnarrowedSets)))
                 {
                     resultSets = unnarrowedSets;
+                    searchFailed = false;
                     contentTypeFilterDropped = true;
 
                     if (logger.IsEnabled(LogLevel.Information))
@@ -227,19 +254,26 @@ internal static partial class DataSourceRetrieval
 
         if (IsEmpty(resultSets))
         {
-            return Message(BuildEmptyResultMessage(
-                "No relevant content was found in the data source for this query.",
-                request.IsInScope));
+            // Nothing came back, and the reason decides what may be said. An index that was searched and
+            // matched nothing supports a statement about the data source; an index that was never reached
+            // supports no statement at all.
+            return searchFailed
+                ? SearchFailed(logger, toolName, masterIndexProfile.Name, request.DataSourceId)
+                : Message(BuildEmptyResultMessage(
+                    "No relevant content was found in the data source for this query.",
+                    request.IsInScope));
         }
 
         var minimumScore = siteSettings.GetMinimumScore(request.Strictness);
-        var selected = DataSourceSearchResultSelector.FuseTopResults(resultSets, topN, minimumScore);
+        var selected = DataSourceSearchResultSelector.FuseTopResults(resultSets.Select(resultSet => resultSet.Results), topN, minimumScore);
 
         if (selected.Count == 0)
         {
-            return Message(BuildEmptyResultMessage(
-                "No results met the strictness and quality thresholds.",
-                request.IsInScope));
+            return searchFailed
+                ? SearchFailed(logger, toolName, masterIndexProfile.Name, request.DataSourceId)
+                : Message(BuildEmptyResultMessage(
+                    "No results met the strictness and quality thresholds.",
+                    request.IsInScope));
         }
 
         var textNormalizer = services.GetRequiredService<IAITextNormalizer>();
@@ -250,6 +284,19 @@ internal static partial class DataSourceRetrieval
         var references = new ReferenceCollector(invocationContext);
 
         using var builder = ZString.CreateStringBuilder();
+
+        if (searchFailed)
+        {
+            // Some phrases were searched and some never ran. The content below is real, but it is not the
+            // whole of what the knowledge base holds, and a model handed content reads it as exactly that.
+            builder.AppendLine(PartialSearchNotice);
+
+            logger.LogWarning(
+                "AI tool '{ToolName}' searched knowledge base index '{IndexProfileName}' for data source '{DataSourceId}' only in part, because at least one query failed.",
+                toolName,
+                masterIndexProfile.Name,
+                request.DataSourceId);
+        }
 
         if (contentTypeFilterDropped)
         {
@@ -303,6 +350,25 @@ internal static partial class DataSourceRetrieval
         {
             Text = text,
         };
+    }
+
+    /// <summary>
+    /// Reports a search that could not run at all, and records why the model is being told that.
+    /// </summary>
+    /// <param name="logger">The logger.</param>
+    /// <param name="toolName">The name of the calling tool.</param>
+    /// <param name="indexProfileName">The knowledge base index profile that could not be searched.</param>
+    /// <param name="dataSourceId">The data source being searched.</param>
+    /// <returns>The result.</returns>
+    private static DataSourceRetrievalResult SearchFailed(ILogger logger, string toolName, string indexProfileName, string dataSourceId)
+    {
+        logger.LogWarning(
+            "AI tool '{ToolName}' could not search knowledge base index '{IndexProfileName}' for data source '{DataSourceId}'. The model is told the knowledge base is unreachable rather than empty.",
+            toolName,
+            indexProfileName,
+            dataSourceId);
+
+        return Message(SearchFailedMessage);
     }
 
     /// <summary>
@@ -382,13 +448,13 @@ internal static partial class DataSourceRetrieval
     /// <param name="candidateCount">The number of candidates to ask each query for.</param>
     /// <param name="providerFilter">The provider filter, when there is one.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>One result set per phrase.</returns>
+    /// <returns>One outcome per phrase.</returns>
     /// <remarks>
     /// The phrases are independent queries against a thread-safe index client, so they run together rather
     /// than one after another. That matters on a realtime session, where a grounded turn cannot start
     /// speaking until retrieval returns.
     /// </remarks>
-    private static async Task<IEnumerable<DataSourceSearchResult>[]> SearchIndexAsync(
+    private static async Task<DataSourceSearchOutcome[]> SearchIndexAsync(
         IDataSourceContentManager contentManager,
         SearchIndexProfile indexProfile,
         IReadOnlyList<float[]> vectors,
@@ -397,7 +463,7 @@ internal static partial class DataSourceRetrieval
         string providerFilter,
         CancellationToken cancellationToken)
     {
-        return await Task.WhenAll(vectors.Select(vector => contentManager.SearchAsync(
+        return await Task.WhenAll(vectors.Select(vector => contentManager.SearchWithOutcomeAsync(
             indexProfile,
             vector,
             dataSourceId,
@@ -409,11 +475,26 @@ internal static partial class DataSourceRetrieval
     /// <summary>
     /// Determines whether a search found nothing at all.
     /// </summary>
-    /// <param name="resultSets">The result sets, one per phrase.</param>
+    /// <param name="resultSets">The outcomes, one per phrase.</param>
     /// <returns><see langword="true"/> when no phrase matched anything.</returns>
-    private static bool IsEmpty(IEnumerable<DataSourceSearchResult>[] resultSets)
+    private static bool IsEmpty(DataSourceSearchOutcome[] resultSets)
     {
-        return resultSets.All(resultSet => resultSet == null || !resultSet.Any());
+        return resultSets.All(resultSet => !resultSet.Results.Any());
+    }
+
+    /// <summary>
+    /// Determines whether any phrase's search could not run.
+    /// </summary>
+    /// <param name="resultSets">The outcomes, one per phrase.</param>
+    /// <returns><see langword="true"/> when at least one phrase was never actually searched for.</returns>
+    /// <remarks>
+    /// One failed phrase is enough to withhold the answer. The phrases are rewordings of one question, so a
+    /// partial result is still an answer built on a knowledge base that was only partly read — and it reads
+    /// exactly like a complete one.
+    /// </remarks>
+    private static bool HasFailure(DataSourceSearchOutcome[] resultSets)
+    {
+        return resultSets.Any(resultSet => !resultSet.Succeeded);
     }
 
     /// <summary>

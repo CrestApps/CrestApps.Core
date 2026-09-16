@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The namespace keeps the FileTransfer segment the connector shipped under: the types it is
+         compiled against, and every view that names them, are unchanged by which package carries it. -->
+    <RootNamespace>CrestApps.Core.AI.Indexers.FileTransfer.Sftp</RootNamespace>
+    <Title>CrestApps AI Indexers - SFTP</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      SFTP ingestion connector for CrestApps AI indexers.
+    </Description>
+    <PackageTags>$(PackageTags) ai indexing sftp ssh connectors</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SSH.NET" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CrestApps.Core.AI.Indexers/CrestApps.Core.AI.Indexers.csproj" />
+    <ProjectReference Include="../CrestApps.Core.AI.Mcp.Sftp/CrestApps.Core.AI.Mcp.Sftp.csproj" />
+  </ItemGroup>
+
+</Project>

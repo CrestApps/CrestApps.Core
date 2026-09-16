@@ -38,7 +38,35 @@ internal sealed class PostgreSQLDataSourceContentManager : IDataSourceContentMan
     /// <param name="topN">The maximum number of results to return.</param>
     /// <param name="filter">An optional OData-style filter expression (pre-translated to SQL WHERE clause).</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <remarks>
+    /// A database that cannot be reached reads here as an index holding nothing, exactly as it always has. A
+    /// caller that has to tell those apart reads <see cref="TrySearchAsync"/> instead.
+    /// </remarks>
     public async Task<IEnumerable<DataSourceSearchResult>> SearchAsync(
+        IIndexProfileInfo indexProfile,
+        float[] embedding,
+        string dataSourceId,
+        int topN,
+        string filter = null,
+        CancellationToken cancellationToken = default)
+    {
+        var outcome = await TrySearchAsync(indexProfile, embedding, dataSourceId, topN, filter, cancellationToken);
+
+        return outcome.Results;
+    }
+
+    /// <summary>
+    /// Searches the data source index for the nearest embeddings, reporting a query that could not run as a
+    /// failure rather than as an index with nothing in it.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="embedding">The query embedding vector.</param>
+    /// <param name="dataSourceId">The data source ID to filter by.</param>
+    /// <param name="topN">The maximum number of results to return.</param>
+    /// <param name="filter">An optional OData-style filter expression (pre-translated to SQL WHERE clause).</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The outcome of the search.</returns>
+    public async Task<DataSourceSearchOutcome> TrySearchAsync(
         IIndexProfileInfo indexProfile,
         float[] embedding,
         string dataSourceId,
@@ -52,7 +80,7 @@ internal sealed class PostgreSQLDataSourceContentManager : IDataSourceContentMan
 
         if (embedding.Length == 0)
         {
-            return [];
+            return DataSourceSearchOutcome.Success([]);
         }
 
         var tableName = PostgreSQLSearchIndexManager.SanitizeTableName(indexProfile.IndexFullName);
@@ -119,13 +147,20 @@ internal sealed class PostgreSQLDataSourceContentManager : IDataSourceContentMan
                 });
             }
 
-            return results;
+            return DataSourceSearchOutcome.Success(results);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
+            // Reported as a failure rather than as no rows: a stopped database and a table with nothing
+            // matching in it are the same empty list, and a caller that cannot tell them apart answers a
+            // stopped database by stating the content does not exist.
             _logger.LogError(ex, "Error performing data source vector search in PostgreSQL table '{IndexName}'.", tableName);
 
-            return [];
+            return DataSourceSearchOutcome.Failure();
         }
     }
 

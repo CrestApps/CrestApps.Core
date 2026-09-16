@@ -69,7 +69,7 @@ public static class KnowledgeObjectBuilder
         var segments = BuildSegments(document);
         var documentText = string.Join('\n', segments.Select(segment => segment.Text));
         var pages = document.Sections.Count;
-        var title = string.IsNullOrWhiteSpace(options.Title) ? document.Identifier : options.Title;
+        var title = ResolveTitle(options, document);
         var folios = options.Structure?.Folios;
 
         var objects = new List<KnowledgeObject>
@@ -82,7 +82,7 @@ public static class KnowledgeObjectBuilder
             var articleId = $"{KnowledgeContentTypes.Article}:{fileKey}:{entry.Ordinal}";
             var articleSegments = segments.Where(segment => segment.ArticleOrdinal == entry.Ordinal).ToList();
             var articleText = string.Join('\n', articleSegments.Select(segment => segment.Text));
-            var articleTitle = string.IsNullOrWhiteSpace(entry.Title) ? title : entry.Title;
+            var articleTitle = ResolveArticleTitle(entry.Title, title, document);
 
             // An advertisement is kept so the document stays complete and excluded so it can never be
             // returned as an answer to a question about the document's subject.
@@ -107,8 +107,8 @@ public static class KnowledgeObjectBuilder
                 : [];
 
             AddTextObjects(objects, options, rootId, articleId, articleTitle, entry.Ordinal, articleSegments, articleText, articleChunks, isExcluded, folios);
-            AddFigureObjects(objects, document, options, rootId, articleId, entry.Ordinal, isExcluded, folios);
-            AddTableObjects(objects, document, options, rootId, articleId, entry.Ordinal, isExcluded, folios);
+            AddFigureObjects(objects, document, options, rootId, articleId, articleTitle, entry.Ordinal, isExcluded, folios);
+            AddTableObjects(objects, document, options, rootId, articleId, articleTitle, entry.Ordinal, isExcluded, folios);
         }
 
         var documentObject = objects[0];
@@ -117,6 +117,80 @@ public static class KnowledgeObjectBuilder
         documentObject.ContentHash = options.ContentHash;
 
         return objects;
+    }
+
+    /// <summary>
+    /// Resolves the title the document and everything under it is cited by.
+    /// </summary>
+    /// <param name="options">What is known about the file.</param>
+    /// <param name="document">The ingested document.</param>
+    /// <returns>The title.</returns>
+    /// <remarks>
+    /// What the masthead says beats the file name. A data source holding a year of one publication holds
+    /// twelve files, and a citation naming the file tells a reader which issue to look in only as well as
+    /// whoever named the files did.
+    /// </remarks>
+    private static string ResolveTitle(KnowledgeObjectBuildOptions options, IngestionDocument document)
+    {
+        var published = BuildPublicationTitle(options.Publication);
+
+        if (!string.IsNullOrWhiteSpace(published))
+        {
+            return published;
+        }
+
+        return string.IsNullOrWhiteSpace(options.Title) ? document.Identifier : options.Title;
+    }
+
+    /// <summary>
+    /// Resolves the title an article, and the text under it, is cited by.
+    /// </summary>
+    /// <param name="articleTitle">The title the analysis gave the article.</param>
+    /// <param name="documentTitle">The title the document is cited by.</param>
+    /// <param name="document">The ingested document.</param>
+    /// <returns>The title.</returns>
+    /// <remarks>
+    /// An article the analysis could not name carries the document's own identifier as a placeholder: it is
+    /// the whole of an unsplit document, or the front matter ahead of the first article it did name. A
+    /// placeholder for the file name must not outrank what the masthead says, or the chunks of text that make
+    /// up most of a document would still be cited by the file while the document itself named its issue.
+    /// </remarks>
+    private static string ResolveArticleTitle(string articleTitle, string documentTitle, IngestionDocument document)
+    {
+        if (string.IsNullOrWhiteSpace(articleTitle) ||
+            string.Equals(articleTitle, document.Identifier, StringComparison.Ordinal))
+        {
+            return documentTitle;
+        }
+
+        return articleTitle;
+    }
+
+    /// <summary>
+    /// Names the issue: the publication, and whichever of the volume, the issue and the date was printed.
+    /// </summary>
+    /// <param name="publication">What the document said about itself.</param>
+    /// <returns>The name, or <see langword="null"/> when the document did not name its publication.</returns>
+    /// <remarks>
+    /// Every part is written exactly as the document prints it, and nothing is labelled here. A document that
+    /// prints "Vol. XII" would otherwise be cited as "Vol. Vol. XII", and one printed in another language
+    /// would be cited half in English.
+    /// <para>
+    /// A volume or an issue with no publication to belong to names nothing, so the file name is left to do
+    /// the naming in that case.
+    /// </para>
+    /// </remarks>
+    private static string BuildPublicationTitle(PublicationDetails publication)
+    {
+        if (string.IsNullOrWhiteSpace(publication?.PublicationTitle))
+        {
+            return null;
+        }
+
+        return string.Join(
+            ", ",
+            new[] { publication.PublicationTitle, publication.Volume, publication.Issue, publication.Date }
+                .Where(part => !string.IsNullOrWhiteSpace(part)));
     }
 
     /// <summary>
@@ -288,6 +362,7 @@ public static class KnowledgeObjectBuilder
         KnowledgeObjectBuildOptions options,
         string rootId,
         string articleId,
+        string title,
         int articleOrdinal,
         bool isExcluded,
         IReadOnlyDictionary<int, string> folios)
@@ -322,7 +397,7 @@ public static class KnowledgeObjectBuilder
                 rootId,
                 articleId,
                 objectType,
-                caption ?? options.Title,
+                caption ?? title,
                 BuildFigureContent(caption, context, description),
                 ordinal);
 
@@ -386,6 +461,7 @@ public static class KnowledgeObjectBuilder
         KnowledgeObjectBuildOptions options,
         string rootId,
         string articleId,
+        string title,
         int articleOrdinal,
         bool isExcluded,
         IReadOnlyDictionary<int, string> folios)
@@ -410,7 +486,7 @@ public static class KnowledgeObjectBuilder
                 rootId,
                 articleId,
                 KnowledgeContentTypes.Table,
-                caption ?? options.Title,
+                caption ?? title,
                 BuildTableContent(caption, details),
                 ordinal);
 
@@ -439,7 +515,7 @@ public static class KnowledgeObjectBuilder
         string content,
         int ordinal)
     {
-        return new KnowledgeObject
+        var entry = new KnowledgeObject
         {
             ItemId = UniqueId.GenerateId(),
             Source = options.DataSourceId,
@@ -455,6 +531,16 @@ public static class KnowledgeObjectBuilder
             Ordinal = ordinal,
             Status = KnowledgeObjectStatus.Ready,
         };
+
+        // Every object repeats what the masthead said rather than pointing at the document object for it. An
+        // object is indexed on its own, and an incremental sync of one figure never reads its document, so an
+        // object that could not answer for itself would be indexed without an issue.
+        if (options.Publication is not null)
+        {
+            entry.Put(options.Publication);
+        }
+
+        return entry;
     }
 
     /// <summary>

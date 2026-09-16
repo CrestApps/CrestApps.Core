@@ -34,7 +34,8 @@
     <Project Path="src/Primitives/CrestApps.Core.AI.Documents.Pdf/CrestApps.Core.AI.Documents.Pdf.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Elasticsearch/CrestApps.Core.AI.Elasticsearch.csproj" />
-    <Project Path="src/Primitives/CrestApps.Core.AI.Indexers.FileTransfer/CrestApps.Core.AI.Indexers.FileTransfer.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.AI.Indexers.Ftp/CrestApps.Core.AI.Indexers.Ftp.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.AI.Indexers.Sftp/CrestApps.Core.AI.Indexers.Sftp.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Indexers/CrestApps.Core.AI.Indexers.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Markdown/CrestApps.Core.AI.Markdown.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Mcp.Ftp/CrestApps.Core.AI.Mcp.Ftp.csproj" />

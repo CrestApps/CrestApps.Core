@@ -230,6 +230,163 @@ public sealed class DataSourcePreemptiveRagHandlerTests
     }
 
     /// <summary>
+    /// Verifies that a knowledge base which could not be searched is reported to the model as unreachable,
+    /// while a knowledge base that was searched and matched nothing still says nothing at all.
+    /// </summary>
+    /// <remarks>
+    /// The preemptive path injects what it retrieved into the system message and returns silently when it
+    /// retrieved nothing, so a failed search and an empty one both left the model with no context — and a
+    /// model with no context answers from its own knowledge as though it had checked the data source and
+    /// found it wanting.
+    /// </remarks>
+    [Fact]
+    public async Task HandleAsync_WhenTheSearchFails_TellsTheModelTheKnowledgeBaseCouldNotBeSearched()
+    {
+        var unreachable = await InjectAsync(new UnreachableContentManager());
+        var searchable = await InjectAsync(new EmptyContentManager());
+
+        var failedMessage = unreachable.SystemMessageBuilder.ToString();
+        var emptyMessage = searchable.SystemMessageBuilder.ToString();
+
+        // A search that failed and a search that matched nothing must not leave the model in the same place.
+        Assert.NotEqual(emptyMessage, failedMessage);
+        Assert.Contains("could not be searched", failedMessage, StringComparison.Ordinal);
+
+        // An index that was reached and matched nothing adds nothing, exactly as it always has.
+        Assert.Equal(string.Empty, emptyMessage);
+
+        // Recorded for the handlers that finish building the system message, which otherwise read "no
+        // references" as "the knowledge sources hold nothing".
+        Assert.True(unreachable.Properties.ContainsKey("DataSourceSearchFailed"));
+        Assert.False(searchable.Properties.ContainsKey("DataSourceSearchFailed"));
+    }
+
+    /// <summary>
+    /// Runs the preemptive handler against one content manager and returns the context it built.
+    /// </summary>
+    /// <param name="contentManager">The provider's vector search service.</param>
+    private static async Task<OrchestrationContext> InjectAsync(IDataSourceContentManager contentManager)
+    {
+        const string userMessage = "Does the handbook cover the calibration steps?";
+
+        var dataSourceStore = new Mock<IAIDataSourceStore>();
+        dataSourceStore.Setup(store => store.FindByIdAsync("data-source-1"))
+            .ReturnsAsync(new AIDataSource
+            {
+                ItemId = "data-source-1",
+                AIKnowledgeBaseIndexProfileName = "kb-index",
+            });
+
+        var indexProfileStore = new Mock<ISearchIndexProfileStore>();
+        indexProfileStore.Setup(store => store.FindByNameAsync("kb-index"))
+            .ReturnsAsync(new SearchIndexProfile
+            {
+                Name = "kb-index",
+                ProviderName = "test-provider",
+                EmbeddingDeploymentName = "embedding",
+            });
+
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        deploymentManager.Setup(manager => manager.FindByNameAsync("embedding"))
+            .ReturnsAsync(new AIDeployment
+            {
+                ItemId = "embedding-id",
+                Name = "embedding",
+                ModelName = "embedding",
+                ClientName = "OpenAI",
+                ConnectionName = "Default",
+            });
+
+        var textNormalizer = new Mock<IAITextNormalizer>();
+        textNormalizer.Setup(normalizer => normalizer.NormalizeTitle(It.IsAny<string>()))
+            .Returns<string>(value => value);
+
+        await using var services = new ServiceCollection()
+            .AddSingleton<IAIDataSourceStore>(dataSourceStore.Object)
+            .AddSingleton<ISearchIndexProfileStore>(indexProfileStore.Object)
+            .AddSingleton<IAIDeploymentManager>(deploymentManager.Object)
+            .AddSingleton<IAIClientFactory>(new FakeAIClientFactory(new FakeEmbeddingGenerator(new Dictionary<string, float[]>
+            {
+                [userMessage] = [1f],
+            })))
+            .AddSingleton<ITemplateService, FakeTemplateService>()
+            .AddSingleton<IAITextNormalizer>(textNormalizer.Object)
+            .AddSingleton<IOptionsMonitor<AIDataSourceOptions>>(new TestOptionsMonitor<AIDataSourceOptions>
+            {
+                CurrentValue = new AIDataSourceOptions
+                {
+                    DefaultStrictness = 3,
+                    DefaultTopNDocuments = 3,
+                },
+            })
+            .AddLogging()
+            .AddKeyedSingleton<IDataSourceContentManager>("test-provider", contentManager)
+            .BuildServiceProvider();
+
+        var handler = new DataSourcePreemptiveRagHandler(
+            services,
+            services.GetRequiredService<IAIClientFactory>(),
+            services.GetRequiredService<ITemplateService>(),
+            services.GetRequiredService<IAIDeploymentManager>(),
+            services.GetRequiredService<IAITextNormalizer>(),
+            services.GetRequiredService<IOptionsMonitor<AIDataSourceOptions>>(),
+            NullLogger<DataSourcePreemptiveRagHandler>.Instance);
+
+        var context = new OrchestrationContext
+        {
+            UserMessage = userMessage,
+            CompletionContext = new AICompletionContext
+            {
+                DataSourceId = "data-source-1",
+            },
+        };
+
+        await handler.HandleAsync(new PreemptiveRagContext(context, new AIProfile { ItemId = "profile-1", }, []));
+
+        return context;
+    }
+
+    /// <summary>
+    /// Stands in for a provider whose index cannot be reached — a stopped database, a refused credential.
+    /// </summary>
+    private sealed class UnreachableContentManager : IDataSourceContentManager
+    {
+        public Task<long> DeleteByDataSourceIdAsync(IIndexProfileInfo indexProfile, string dataSourceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(0L);
+        }
+
+        public Task<DataSourceSearchOutcome> TrySearchAsync(IIndexProfileInfo indexProfile, float[] embedding, string dataSourceId, int topN, string filter = null, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(DataSourceSearchOutcome.Failure());
+        }
+
+        public Task<IEnumerable<DataSourceSearchResult>> SearchAsync(IIndexProfileInfo indexProfile, float[] embedding, string dataSourceId, int topN, string filter = null, CancellationToken cancellationToken = default)
+        {
+            // All the older contract can say about a dead index, and the whole problem with it: it reads as
+            // an index with nothing in it.
+            return Task.FromResult(Enumerable.Empty<DataSourceSearchResult>());
+        }
+    }
+
+    /// <summary>
+    /// Stands in for an index that was searched and simply matched nothing. It does not implement the outcome
+    /// contract, so it also covers a provider that has not adopted it.
+    /// </summary>
+    private sealed class EmptyContentManager : IDataSourceContentManager
+    {
+        public Task<long> DeleteByDataSourceIdAsync(IIndexProfileInfo indexProfile, string dataSourceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(0L);
+        }
+
+        public Task<IEnumerable<DataSourceSearchResult>> SearchAsync(IIndexProfileInfo indexProfile, float[] embedding, string dataSourceId, int topN, string filter = null, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Enumerable.Empty<DataSourceSearchResult>());
+        }
+    }
+
+    /// <summary>
     /// Stands in for a provider's filter translator. A real one rewrites the clause into the provider's own
     /// dialect; what matters here is only that a clause survives the trip, because a provider with no
     /// translator is never asked for pictures at all.

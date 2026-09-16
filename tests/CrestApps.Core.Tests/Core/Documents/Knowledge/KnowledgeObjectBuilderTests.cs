@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Documents.Ingestion;
 using CrestApps.Core.AI.Documents.Ingestion.Processors;
 using CrestApps.Core.AI.Documents.Knowledge;
+using CrestApps.Core.AI.Documents.Knowledge.Structure;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using Microsoft.Extensions.DataIngestion;
@@ -226,7 +227,145 @@ public sealed class KnowledgeObjectBuilderTests
         Assert.Contains("Real body text.", article.Content, StringComparison.Ordinal);
     }
 
-    private static IReadOnlyList<KnowledgeObject> Build(IngestionDocument document, IReadOnlyList<string> chunks)
+    /// <summary>
+    /// Verifies that a document whose front matter named its publication is cited by the issue rather than by
+    /// the file it arrived in. Two issues of one publication are two files, and only the masthead says which
+    /// issue this is.
+    /// </summary>
+    [Fact]
+    public void Build_PublicationMetadata_NamesTheIssueInsteadOfTheFile()
+    {
+        var objects = Build(CreateDocument(), ["Chunk one."], CreatePublication());
+        var document = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Document);
+
+        Assert.Equal("The Sample Review, Volume 4, Number 2, Spring 1999", document.Title);
+        Assert.DoesNotContain("report.pdf", document.Title, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that a document that named no publication is still cited by its file name, with nothing
+    /// invented in place of a masthead it does not have.
+    /// </summary>
+    [Fact]
+    public void Build_NoPublicationMetadata_KeepsTheFileNameAndCarriesNoDetail()
+    {
+        var objects = Build(CreateDocument(), ["Chunk one."]);
+        var document = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Document);
+
+        Assert.Equal("report.pdf", document.Title);
+        Assert.All(objects, entry => Assert.False(entry.TryGet<PublicationDetails>(out _)));
+    }
+
+    /// <summary>
+    /// Verifies that a volume printed without a publication title names nothing on its own, so the file name
+    /// is left to do the naming rather than a citation reading "Volume 4".
+    /// </summary>
+    [Fact]
+    public void Build_PublicationMetadataWithoutATitle_KeepsTheFileName()
+    {
+        var objects = Build(CreateDocument(), ["Chunk one."], new PublicationDetails { Volume = "Volume 4" });
+        var document = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Document);
+
+        Assert.Equal("report.pdf", document.Title);
+    }
+
+    /// <summary>
+    /// Verifies that every object carries the issue it was printed in, not just the document object. An
+    /// object is indexed on its own, and an incremental sync of one figure never reads its document.
+    /// </summary>
+    [Fact]
+    public void Build_PublicationMetadata_IsCarriedByEveryObject()
+    {
+        var document = new IngestionDocument("report.pdf");
+
+        document.Sections.Add(Page(
+            1,
+            Paragraph("Chunk one.", 1),
+            Figure("report.pdf-p1-1", FigureTiers.CaptionOnly, "A view of the rig.", description: null)));
+
+        var objects = Build(document, ["Chunk one."], CreatePublication());
+
+        Assert.Contains(objects, entry => entry.ObjectType == KnowledgeContentTypes.Text);
+        Assert.Contains(objects, entry => entry.ObjectType == KnowledgeContentTypes.Figure);
+        Assert.All(objects, entry =>
+        {
+            Assert.True(entry.TryGet<PublicationDetails>(out var publication));
+            Assert.Equal("The Sample Review", publication.PublicationTitle);
+            Assert.Equal("Number 2", publication.Issue);
+            Assert.Equal("Spring 1999", publication.Date);
+        });
+    }
+
+    /// <summary>
+    /// Verifies that an article the analysis could not name is cited by the issue rather than by the file
+    /// name it carries as a placeholder. The chunks of text hanging off it are most of a document's rows, so
+    /// a citation that names the file there names it nearly everywhere.
+    /// </summary>
+    [Fact]
+    public void Build_UnnamedArticle_IsTitledByTheIssueRatherThanTheFile()
+    {
+        var document = CreateDocument();
+
+        var objects = KnowledgeObjectBuilder.Build(
+            document,
+            new KnowledgeObjectBuildOptions
+            {
+                FileKey = "0123456789abcdef",
+                DataSourceId = "data-source-1",
+                Title = "report.pdf",
+                ContentHash = new string('a', 64),
+                Publication = CreatePublication(),
+
+                // What the analysis hands back for a document it could not split: one article carrying the
+                // document's own identifier in place of a title.
+                Structure = new DocumentStructure
+                {
+                    Articles =
+                    [
+                        new DocumentArticle
+                        {
+                            Ordinal = 1,
+                            Title = document.Identifier,
+                            PageStart = 1,
+                            PageEnd = 1,
+                            Type = KnowledgeArticleTypes.Article,
+                        },
+                    ],
+                },
+            },
+            ["Chunk one."]);
+
+        var article = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Article);
+        var text = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Text);
+
+        Assert.Equal("The Sample Review, Volume 4, Number 2, Spring 1999", article.Title);
+        Assert.Equal("The Sample Review, Volume 4, Number 2, Spring 1999", text.Title);
+    }
+
+    /// <summary>
+    /// Verifies that a figure nobody captioned is cited by the issue as well, rather than by the file name it
+    /// used to fall back to.
+    /// </summary>
+    [Fact]
+    public void Build_UncaptionedFigure_IsTitledByTheIssue()
+    {
+        var document = new IngestionDocument("report.pdf");
+
+        document.Sections.Add(Page(
+            1,
+            Paragraph("Chunk one.", 1),
+            Figure("report.pdf-p1-1", FigureTiers.CaptionOnly, caption: null, description: null)));
+
+        var objects = Build(document, ["Chunk one."], CreatePublication());
+        var figure = Assert.Single(objects, entry => entry.ObjectType == KnowledgeContentTypes.Figure);
+
+        Assert.Equal("The Sample Review, Volume 4, Number 2, Spring 1999", figure.Title);
+    }
+
+    private static IReadOnlyList<KnowledgeObject> Build(
+        IngestionDocument document,
+        IReadOnlyList<string> chunks,
+        PublicationDetails publication = null)
     {
         return KnowledgeObjectBuilder.Build(
             document,
@@ -236,8 +375,21 @@ public sealed class KnowledgeObjectBuilderTests
                 DataSourceId = "data-source-1",
                 Title = "report.pdf",
                 ContentHash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                Publication = publication,
             },
             chunks);
+    }
+
+    private static PublicationDetails CreatePublication()
+    {
+        return new PublicationDetails
+        {
+            PublicationTitle = "The Sample Review",
+            Publisher = "Sample Press",
+            Volume = "Volume 4",
+            Issue = "Number 2",
+            Date = "Spring 1999",
+        };
     }
 
     private static IngestionDocument CreateDocument()

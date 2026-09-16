@@ -36,7 +36,8 @@
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Mcp.Ftp/CrestApps.Core.AI.Mcp.Ftp.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Mcp.Knowledge/CrestApps.Core.AI.Mcp.Knowledge.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Indexers/CrestApps.Core.AI.Indexers.csproj" />
-    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Indexers.FileTransfer/CrestApps.Core.AI.Indexers.FileTransfer.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Indexers.Ftp/CrestApps.Core.AI.Indexers.Ftp.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Indexers.Sftp/CrestApps.Core.AI.Indexers.Sftp.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Markdown/CrestApps.Core.AI.Markdown.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Mcp.Sftp/CrestApps.Core.AI.Mcp.Sftp.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Documents.OpenXml/CrestApps.Core.AI.Documents.OpenXml.csproj" />

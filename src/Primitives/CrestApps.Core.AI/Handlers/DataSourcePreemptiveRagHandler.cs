@@ -21,6 +21,23 @@ namespace CrestApps.Core.AI.Handlers;
 
 internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
 {
+    /// <summary>
+    /// What the model is told when the knowledge base could not be searched.
+    /// </summary>
+    /// <remarks>
+    /// Injecting nothing is indistinguishable from a knowledge base that holds nothing on the subject, and a
+    /// model given no context answers from its own knowledge as though it had checked the data source. It has
+    /// to be told that the check never happened.
+    /// </remarks>
+    private const string SearchFailedNotice =
+        "The knowledge base for this data source could not be searched, so any content below may be incomplete or missing entirely. Tell the user the knowledge base is unavailable rather than answering as though the data source has no such content.";
+
+    /// <summary>
+    /// The orchestration property that records that this turn's knowledge base could not be searched, for
+    /// the handlers that run after this one.
+    /// </summary>
+    private const string DataSourceSearchFailedKey = "DataSourceSearchFailed";
+
     private readonly IServiceProvider _serviceProvider;
     private readonly IAIClientFactory _aiClientFactory;
     private readonly ITemplateService _templateService;
@@ -223,6 +240,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
         var finalResults = new List<DataSourceSearchResult>();
         var seenChunkIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var candidateCount = DataSourceSearchResultSelector.GetCandidateCount(topN);
+        var searchFailed = false;
 
         foreach (var embedding in embeddings)
         {
@@ -231,19 +249,24 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
                 continue;
             }
 
-            var results = await contentManager.SearchAsync(
+            var outcome = await contentManager.SearchWithOutcomeAsync(
                 indexProfile,
                 embedding.Vector.ToArray(),
                 dataSourceId,
                 candidateCount,
                 providerFilter);
 
-            if (results == null)
+            if (!outcome.Succeeded)
             {
+                // Remembered rather than passed over. A search that could not run injects the same nothing
+                // as a search that matched nothing, and a model given no context answers from its own
+                // knowledge as though it had checked the data source and found it wanting.
+                searchFailed = true;
+
                 continue;
             }
 
-            foreach (var result in DataSourceSearchResultSelector.SelectTopResults(results, candidateCount, minimumScore))
+            foreach (var result in DataSourceSearchResultSelector.SelectTopResults(outcome.Results, candidateCount, minimumScore))
             {
                 var chunkKey = $"{result.ReferenceId}:{result.ChunkIndex}";
 
@@ -276,7 +299,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             finalResults,
             _logger);
 
-        if (finalResults.Count == 0)
+        if (finalResults.Count == 0 && !searchFailed)
         {
             return;
         }
@@ -297,6 +320,23 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             stringBuilder.AppendLine();
             stringBuilder.AppendLine();
             stringBuilder.Append(header);
+        }
+
+        if (searchFailed)
+        {
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine(SearchFailedNotice);
+
+            // Recorded for whatever else builds this turn's system message. A handler that sees no references
+            // and concludes the knowledge sources hold nothing has the same question to answer as this one
+            // did, and this is the only place that knows the answer.
+            orchestrationContext.Properties[DataSourceSearchFailedKey] = true;
+
+            _logger.LogWarning(
+                "The knowledge base index '{IndexProfileName}' could not be searched for data source '{DataSourceId}'. The model is told so rather than being left to answer as though the data source were empty.",
+                indexProfile.Name,
+                dataSourceId);
         }
 
         var invocationContext = AIInvocationScope.Current;
@@ -444,34 +484,25 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
                 break;
             }
 
-            IEnumerable<DataSourceSearchResult> results;
+            var outcome = await contentManager.SearchWithOutcomeAsync(
+                indexProfile,
+                embedding.Vector.ToArray(),
+                dataSourceId,
+                candidateCount,
+                pictureFilter);
 
-            try
-            {
-                results = await contentManager.SearchAsync(
-                    indexProfile,
-                    embedding.Vector.ToArray(),
-                    dataSourceId,
-                    candidateCount,
-                    pictureFilter);
-            }
-            catch (Exception ex)
+            if (!outcome.Succeeded)
             {
                 // An index predating the typed columns cannot honour this filter. The prose already
                 // retrieved stands on its own, so the turn continues without pictures -- but it says so,
                 // because a picture that silently never arrives is indistinguishable from one that does not
                 // exist.
-                logger.LogWarning(ex, "Could not search for pictures in index '{IndexName}'. The answer will have none.", indexProfile.Name);
+                logger.LogWarning("Could not search for pictures in index '{IndexName}'. The answer will have none.", indexProfile.Name);
 
                 return;
             }
 
-            if (results == null)
-            {
-                continue;
-            }
-
-            foreach (var result in DataSourceSearchResultSelector.SelectTopResults(results, candidateCount, minimumScore))
+            foreach (var result in DataSourceSearchResultSelector.SelectTopResults(outcome.Results, candidateCount, minimumScore))
             {
                 if (added >= MaxPreemptivePictures)
                 {
