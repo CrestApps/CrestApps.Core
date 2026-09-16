@@ -1,4 +1,4 @@
-// Unit tests for the chart-marker parser every chat surface now reads markers with
+﻿// Unit tests for the chart-marker parser every chat surface now reads markers with
 // (CoreAIChatMarkers.findChartMarker).
 //
 // The chart tool hands the model a [chart:{...}] marker and asks for it back verbatim, and the host turns the
@@ -208,4 +208,33 @@ test('nothing to work with is not an error', () => {
     assert.equal(find(42), null);
     assert.equal(find({}), null);
     assert.equal(find('An answer with no chart in it at all.'), null);
+});
+
+// A marker the host itself produces, copied verbatim from KnowledgeChartMarker's output for a chart read out
+// of a PDF. The C# side has its own tests and so does the parser, and both can pass while disagreeing about
+// the string that travels between them -- so the string travels through this test too.
+//
+// It is the awkward case on purpose: the config nests arrays, so the marker contains ']' characters long
+// before the one that ends it; an axis title contains a literal '[range]'; and a series label contains
+// escaped quotes. A parser that scanned for the first ']' would truncate this into nonsense.
+test('the marker the host emits for a chart read out of a document is read back whole', () => {
+    const findChartMarker = loadChartMarkerReader();
+    const marker = '[chart:{"type":"scatter","data":{"datasets":[{"label":"Measured \\u0022peak\\u0022","data":[{"x":1990,"y":3.5},{"x":2000,"y":2.1}],"showLine":true,"fill":false},{"data":[{"x":1990,"y":1}],"showLine":true,"fill":false}]},"options":{"plugins":{"legend":{"display":true}},"scales":{"x":{"title":{"display":true,"text":"Year [range]"}},"y":{"title":{"display":true,"text":"W/m\\u00B2K"}}}}}]';
+    const text = `Here is the chart. ${marker} And some words after it.`;
+
+    const found = findChartMarker(text);
+
+    assert.ok(found, 'the parser refused a marker this host produces');
+    assert.strictEqual(text.slice(found.endIndex), ' And some words after it.',
+        'the marker did not end where it ends');
+
+    const config = JSON.parse(found.json);
+
+    assert.strictEqual(config.type, 'scatter');
+    assert.strictEqual(config.data.datasets.length, 2);
+    assert.strictEqual(config.options.scales.x.title.text, 'Year [range]');
+    assert.strictEqual(config.data.datasets[0].label, 'Measured "peak"');
+
+    // A series the document never named carries no label rather than an invented one.
+    assert.strictEqual(config.data.datasets[1].label, undefined);
 });

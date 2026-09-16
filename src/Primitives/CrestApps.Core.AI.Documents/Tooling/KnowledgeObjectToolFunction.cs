@@ -342,6 +342,20 @@ public sealed class KnowledgeObjectToolFunction : AIFunction
                 axisY = chart.AxisY,
                 series = chart.Series,
             }, _chartJsonOptions));
+
+            // The numbers above are for the model to reason with; this is for the reader to look at. Without
+            // it the model is handed a machine-readable chart and has no way to show one, so it describes the
+            // values as machine-readable and reaches for the picture -- an answer that contradicts its own
+            // page. The marker is the host's existing contract, drawn by the same parser the chart tool's
+            // output goes through.
+            var marker = KnowledgeChartMarker.TryBuild(chart);
+
+            if (marker is not null)
+            {
+                builder.AppendLine();
+                builder.AppendLine("To show this chart, include the following marker exactly as-is in your response. Do not modify it, and do not show the figure image as well:");
+                builder.AppendLine(marker);
+            }
         }
 
         return builder.ToString().TrimEnd();

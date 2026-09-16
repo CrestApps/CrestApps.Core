@@ -32,7 +32,7 @@ produces the message a search that matched nothing produces.
 
 | # | Status | Issue | Where |
 | --- | --- | --- | --- |
-| 1 | open | **A model told a chart is machine-readable still shows a picture of it.** Driven live: asked whether a chart's values were machine-readable, the model answered that they were, described the numeric series — and rendered the figure as an image. The page had `canvasCount: 0` with the marker parser and Chart.js both loaded and ready. The over-claim is the model reading the series it was given; the contradiction is D below, seen from the reader's side rather than the code's. | see D |
+| — | — | Nothing open. |
 
 ## Decided, not owed
 
@@ -129,10 +129,13 @@ point the numbers are printed — so an estimate cannot reach a reader as a meas
 once. The inline block is capped at 24 points across 4 series and *says* what it left out, because a model
 shown part of a chart as though it were the whole answers about the part with the confidence of the whole.
 
-**What remains is the drawing.** Nothing turns those series into a `[chart:…]` marker, so a reader who asks
-for a chart still gets a picture of one while the model, correctly, describes the values as machine-readable
-— the contradiction in row 6. The parser and Chart.js are already loaded on the page and ready; what is
-missing is the step that emits the marker.
+**The drawing is done too.** A chart read out of a document at `Exact` confidence now carries a
+`[chart:…]` marker alongside its numbers, built from the series and drawn by the same parser the chart tool's
+own output goes through — the existing contract, not a second one. A reader asking for a chart gets a chart.
+
+It is a scatter with the line shown rather than a line chart, because the points carry their own x values
+read off the axis and a line chart would space them evenly and quietly redraw the data. No legend is drawn
+when no series was named: "Dataset 1" over unnamed series has the authority of a printed key and says nothing.
 
 Finding a chart *by* its numbers is a separate thing and is not in scope here: the series is stored as a
 field rather than embedded, so it is retrievable once a chart is found, not a way of finding one.
