@@ -1,0 +1,40 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "aspire",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "src/Startup/CrestApps.Core.Aspire.AppHost/CrestApps.Core.Aspire.AppHost.csproj",
+        "--launch-profile",
+        "https"
+      ],
+      "port": 17260,
+      "url": "https://localhost:17260"
+    },
+    {
+      "name": "mvc-standalone",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "src/Startup/CrestApps.Core.Mvc.Web/CrestApps.Core.Mvc.Web.csproj"
+      ],
+      "port": 5101,
+      "url": "http://localhost:5101"
+    },
+    {
+      "name": "blazor-standalone",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "src/Startup/CrestApps.Core.Blazor.Web/CrestApps.Core.Blazor.Web.csproj"
+      ],
+      "port": 5201,
+      "url": "http://localhost:5201"
+    }
+  ]
+}
