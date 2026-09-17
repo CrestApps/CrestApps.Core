@@ -1,14 +1,15 @@
-using System.ComponentModel.DataAnnotations;
-using System.Text;
-using CrestApps.Core.AI.Mcp.Sftp;
-using CrestApps.Core.AI.Mcp.Sftp.Models;
+using CrestApps.Core.AI.Indexers.FileTransfer;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Sftp;
+using CrestApps.Core.AI.Sftp.Models;
 using CrestApps.Core.Models;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
 using Renci.SshNet;
+using System.ComponentModel.DataAnnotations;
+using System.Text;
 
-namespace CrestApps.Core.AI.Indexers.FileTransfer.Sftp;
+namespace CrestApps.Core.AI.Sftp;
 
 /// <summary>
 /// Reads files off an SFTP server.

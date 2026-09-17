@@ -1,14 +1,15 @@
-using System.ComponentModel.DataAnnotations;
-using System.Net;
-using CrestApps.Core.AI.Mcp.Ftp;
-using CrestApps.Core.AI.Mcp.Ftp.Models;
+using CrestApps.Core.AI.Ftp;
+using CrestApps.Core.AI.Ftp.Models;
+using CrestApps.Core.AI.Indexers.FileTransfer;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Models;
 using FluentFTP;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
+using System.ComponentModel.DataAnnotations;
+using System.Net;
 
-namespace CrestApps.Core.AI.Indexers.FileTransfer.Ftp;
+namespace CrestApps.Core.AI.Ftp;
 
 /// <summary>
 /// Reads files off an FTP or FTPS server.

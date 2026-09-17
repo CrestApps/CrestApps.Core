@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Mcp.Ftp;
+namespace CrestApps.Core.AI.Ftp;
 
 /// <summary>
 /// Provides functionality for FTP Resource Constants.

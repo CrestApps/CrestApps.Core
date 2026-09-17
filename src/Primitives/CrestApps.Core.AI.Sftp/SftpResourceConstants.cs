@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Mcp.Sftp;
+namespace CrestApps.Core.AI.Sftp;
 
 /// <summary>
 /// Provides functionality for SFTP Resource Constants.

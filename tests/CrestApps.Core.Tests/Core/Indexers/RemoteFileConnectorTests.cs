@@ -1,8 +1,8 @@
 using System.Text;
 using CrestApps.Core.AI.Indexers;
 using CrestApps.Core.AI.Indexers.FileTransfer;
-using CrestApps.Core.AI.Indexers.FileTransfer.Ftp;
-using CrestApps.Core.AI.Indexers.FileTransfer.Sftp;
+using CrestApps.Core.AI.Ftp;
+using CrestApps.Core.AI.Sftp;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Models;

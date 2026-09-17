@@ -45,8 +45,8 @@ public interface IIngestionConnector
 | --- | --- | --- |
 | `Sitemap` | `CrestApps.Core.AI.WebCrawlers` | pages discovered through a site's sitemap |
 | `LocalFolder` | `CrestApps.Core.AI.Indexers` | files in a folder on the host |
-| `Ftp` | `CrestApps.Core.AI.Indexers.FileTransfer` | files on an FTP or FTPS server |
-| `Sftp` | `CrestApps.Core.AI.Indexers.FileTransfer` | files on an SFTP server |
+| `Ftp` | `CrestApps.Core.AI.Ftp` | files on an FTP or FTPS server |
+| `Sftp` | `CrestApps.Core.AI.Sftp` | files on an SFTP server |
 
 ```csharp
 builder.Services

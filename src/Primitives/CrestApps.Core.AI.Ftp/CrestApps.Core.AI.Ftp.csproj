@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.Ftp</RootNamespace>
+    <Title>CrestApps AI FTP</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      Everything FTP/FTPS: the ingestion connector a file source reads with, and the MCP resource type a
+      model reads through. Both sides share one connection record, so they ship together.
+    </Description>
+    <PackageTags>$(PackageTags) ai ftp ftps indexing mcp resources connectors</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentFTP" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CrestApps.Core.AI.Indexers/CrestApps.Core.AI.Indexers.csproj" />
+    <ProjectReference Include="../CrestApps.Core.AI.Mcp/CrestApps.Core.AI.Mcp.csproj" />
+  </ItemGroup>
+
+</Project>

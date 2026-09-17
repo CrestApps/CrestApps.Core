@@ -69,8 +69,8 @@ time instead of storing a second copy of it.
 | Connector | Package | Reads |
 | --- | --- | --- |
 | `LocalFolder` | `CrestApps.Core.AI.Indexers` | files in a folder on the host |
-| `Ftp` | `CrestApps.Core.AI.Indexers.FileTransfer` | files on an FTP or FTPS server |
-| `Sftp` | `CrestApps.Core.AI.Indexers.FileTransfer` | files on an SFTP server |
+| `Ftp` | `CrestApps.Core.AI.Ftp` | files on an FTP or FTPS server |
+| `Sftp` | `CrestApps.Core.AI.Sftp` | files on an SFTP server |
 
 ```csharp
 builder.Services

@@ -97,6 +97,18 @@ The catch recorded when this was scoped still stands: each host's shared `WebCra
 against both protocols' metadata types, so the sample hosts themselves still take both packages. The split
 achieves its purpose for anyone consuming the projects, not yet for anyone copying the sample.
 
+**Superseded — the four projects are now two.** Splitting by *layer* left the seam in the wrong place:
+`.Indexers.Ftp` had to reference `.Mcp.Ftp` because `FtpConnectionMetadata` — the host, port and
+credentials both halves read — lived in the MCP package. Anyone taking FTP ingestion was already taking
+the MCP package. The split is now by *protocol*: `CrestApps.Core.AI.Ftp` and `CrestApps.Core.AI.Sftp` each
+carry that protocol's ingestion connector and its MCP resource type, so a host that speaks neither takes
+neither, and everything FTP has one home. The name reuses the directories this section recorded deleting.
+
+The cost, recorded honestly: the merged package references both `AI.Indexers` and `AI.Mcp`, so a consumer
+who wants only the MCP resource type now pulls the document-ingestion stack (`AI.Documents`,
+`DataIngestion`) into its closure. That is the price of one home per protocol, and it is worth revisiting
+only if such a consumer turns up.
+
 ### C — Regrouped admin navigation, both hosts — DONE
 
 | Section | Items |

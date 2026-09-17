@@ -1,5 +1,5 @@
 using CrestApps.Core.AI.Indexers.Connectors;
-using CrestApps.Core.AI.Indexers.FileTransfer.Sftp;
+using CrestApps.Core.AI.Sftp;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.WebCrawlers;
 using CrestApps.Core.AI.WebCrawlers.Strategies;

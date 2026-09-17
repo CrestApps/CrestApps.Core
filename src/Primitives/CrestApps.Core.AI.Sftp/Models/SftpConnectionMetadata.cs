@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Mcp.Sftp.Models;
+namespace CrestApps.Core.AI.Sftp.Models;
 
 /// <summary>
 /// Represents the SFTP Connection Metadata.

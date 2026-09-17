@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Mcp.Ftp.Models;
+namespace CrestApps.Core.AI.Ftp.Models;
 
 /// <summary>
 /// Represents the FTP Connection Metadata.

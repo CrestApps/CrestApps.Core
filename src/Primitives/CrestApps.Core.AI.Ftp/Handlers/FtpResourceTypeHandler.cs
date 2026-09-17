@@ -1,13 +1,14 @@
-using System.Net;
-using CrestApps.Core.AI.Mcp.Ftp.Models;
+using CrestApps.Core.AI.Ftp.Models;
+using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Models;
 using FluentFTP;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Protocol;
+using System.Net;
 
-namespace CrestApps.Core.AI.Mcp.Ftp.Handlers;
+namespace CrestApps.Core.AI.Ftp.Handlers;
 
 /// <summary>
 /// Represents the FTP Resource Type Handler.
