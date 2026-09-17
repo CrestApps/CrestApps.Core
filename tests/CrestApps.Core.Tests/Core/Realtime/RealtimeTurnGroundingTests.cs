@@ -171,6 +171,51 @@ public sealed class RealtimeTurnGroundingTests
     }
 
     [Fact]
+    public async Task RequestUnpromptedResponseAsync_OnAutomaticSession_AsksTheModelToSpeak()
+    {
+        // The case the ordinary request refuses, and the one an outbound call needs: nothing has been said yet,
+        // so there is no answer to duplicate. Without it the assistant waits to be spoken to and the person who
+        // picked up hears silence.
+        var session = new RecordingSession();
+        var conversation = new DefaultRealtimeConversation(session);
+
+        Assert.True(conversation.RespondsAutomatically);
+
+        await conversation.RequestUnpromptedResponseAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        var message = Assert.IsType<CreateResponseRealtimeClientMessage>(Assert.Single(session.Sent));
+        Assert.Null(message.Instructions);
+    }
+
+    [Fact]
+    public async Task RequestUnpromptedResponseAsync_WithInstructions_CarriesThem()
+    {
+        // What a session says to break a silence is the caller's business, not the model's guess: "are you still
+        // there?" is a different thing from carrying on where it left off.
+        var session = new RecordingSession();
+        var conversation = new DefaultRealtimeConversation(session);
+
+        await conversation.RequestUnpromptedResponseAsync("Check whether they are still there.", TestContext.Current.CancellationToken);
+
+        var message = Assert.IsType<CreateResponseRealtimeClientMessage>(Assert.Single(session.Sent));
+        Assert.Equal("Check whether they are still there.", message.Instructions);
+    }
+
+    [Fact]
+    public async Task RequestUnpromptedResponseAsync_StaysInTheConversation()
+    {
+        // Unlike an acknowledgement, which is spoken and forgotten. An opening line and a nudge are both things
+        // the model must remember saying, or it introduces itself twice.
+        var session = new RecordingSession();
+        var conversation = new DefaultRealtimeConversation(session);
+
+        await conversation.RequestUnpromptedResponseAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        var message = Assert.IsType<CreateResponseRealtimeClientMessage>(Assert.Single(session.Sent));
+        Assert.NotEqual(true, message.ExcludeFromConversation);
+    }
+
+    [Fact]
     public async Task RequestResponseAsync_OnAutomaticSession_IsANoOp()
     {
         // The provider already answers for this session; a second response.create would produce a duplicate reply.
