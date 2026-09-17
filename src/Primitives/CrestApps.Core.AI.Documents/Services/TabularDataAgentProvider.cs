@@ -87,8 +87,14 @@ internal sealed class TabularDataAgentProvider : IAIProfileProvider
                 TabularToolNames.QueryTabularData,
                 TabularToolNames.ExecuteTabularCommand,
                 TabularToolNames.FillEmptyTabularCells,
+                TabularToolNames.FormatTabularData,
                 TabularToolNames.ExportTabularData,
                 TabularToolNames.CompareTabularData,
+
+                // The agent holds the data, so it is the only participant that can chart it. Without
+                // this the primary model would have to restate every figure in prose to request a
+                // chart, which is how chart requests used to fail.
+                SystemToolNames.GenerateChart,
             ],
         });
 

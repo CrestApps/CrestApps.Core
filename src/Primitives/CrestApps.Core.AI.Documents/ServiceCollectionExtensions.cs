@@ -168,6 +168,12 @@ public static class ServiceCollectionExtensions
             .WithCategory("Tabular Data")
             .Hidden();
 
+        services.AddCoreAITool<FormatTabularDataTool>(FormatTabularDataTool.TheName)
+            .WithTitle("Format Tabular Data")
+            .WithDescription("Records the number formats, colors, conditional formatting, formulas, totals, and charts applied to an exported spreadsheet.")
+            .WithCategory("Tabular Data")
+            .Hidden();
+
         services.AddCoreAITool<ExportTabularDataTool>(ExportTabularDataTool.TheName)
             .WithTitle("Export Tabular Data")
             .WithDescription("Creates a downloadable file from a read-only SQL query over the active in-memory tabular workspace, preserving the original file format by default.")

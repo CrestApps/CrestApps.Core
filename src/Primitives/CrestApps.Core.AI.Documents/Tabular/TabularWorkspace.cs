@@ -20,6 +20,12 @@ namespace CrestApps.Core.AI.Documents.Tabular;
 internal sealed class TabularWorkspace : IDisposable
 {
     private const string MetadataTableName = "_workspace_meta";
+    private const string FormattingTableName = "_workspace_formats";
+
+    // Stands in for the source file of a table the caller built with a command batch rather than
+    // uploaded. Such a table belongs to no document, which is also what exempts it from the cleanup
+    // that removes tables whose document is no longer attached.
+    private const string DerivedTableFileName = "(derived)";
     private const int ImportProgressIntervalRows = 250;
 
     // SQLite SQLITE_DBCONFIG_DQS_* op codes. Used to re-enable the legacy double-quoted string
@@ -120,6 +126,10 @@ internal sealed class TabularWorkspace : IDisposable
 
             try
             {
+                // Reconciling before anything else lets a workspace left inconsistent by an earlier
+                // session heal itself: a metadata row whose table no longer exists is removed here, so
+                // the document it belonged to is seen as unloaded and is imported again below.
+                ReconcileTablesWithDatabase();
                 RemoveFailedImportPlaceholderTables();
                 RemoveTablesForDetachedDocuments(documents);
                 await SynchronizeTablesAsync(documents, artifactLoader, workspaceImporter, cancellationToken);
@@ -293,6 +303,13 @@ internal sealed class TabularWorkspace : IDisposable
                     throw;
                 }
 
+                // A command batch may create, rename, or drop tables, and the workspace is rebuilt from
+                // its metadata on every call. Without reconciling here, a renamed table leaves metadata
+                // pointing at a name that no longer exists: every later call still reports the table as
+                // loaded while every query against it fails, and the conversation concludes the uploaded
+                // file has been lost.
+                ReconcileTablesWithDatabase();
+
                 return new TabularCommandResult(affected, statements.Count);
             }
             finally
@@ -434,6 +451,25 @@ internal sealed class TabularWorkspace : IDisposable
     /// <returns>The export result for the full current table.</returns>
     public async Task<TabularExportResult> ExportFullAsync(CancellationToken cancellationToken = default)
     {
+        var exports = await ExportAllAsync(cancellationToken);
+
+        if (exports.Count > 1)
+        {
+            throw new TabularSqlException("Multiple tabular tables are loaded. Provide an explicit SELECT query to choose what to export.");
+        }
+
+        return exports[0].Export;
+    }
+
+    /// <summary>
+    /// Exports every loaded table, one per entry, so a multi-sheet upload can be written back as a
+    /// multi-tab workbook rather than forcing the caller to pick a single table.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The export for each loaded table, in load order.</returns>
+    public async Task<IReadOnlyList<(string TableName, string WorksheetName, TabularExportResult Export)>> ExportAllAsync(
+        CancellationToken cancellationToken = default)
+    {
         await _gate.WaitAsync(cancellationToken);
 
         try
@@ -445,23 +481,25 @@ internal sealed class TabularWorkspace : IDisposable
                 throw new TabularSqlException("There is no tabular data loaded to export.");
             }
 
-            if (_tables.Count > 1)
+            var results = new List<(string, string, TabularExportResult)>(_tables.Count);
+
+            foreach (var table in _tables.Values)
             {
-                throw new TabularSqlException("Multiple tabular tables are loaded. Provide an explicit SELECT query to choose what to export.");
+                using var command = _connection.CreateCommand();
+                command.CommandText = $"SELECT * FROM {QuoteIdentifier(table.TableName)}";
+                command.CommandTimeout = _options.CommandTimeoutSeconds;
+
+                var export = await ReadExportAsync(
+                    command,
+                    sqlName => table.SourceNames.TryGetValue(sqlName, out var sourceName) && !string.IsNullOrEmpty(sourceName)
+                        ? sourceName
+                        : sqlName,
+                    cancellationToken);
+
+                results.Add((table.TableName, table.WorksheetName, export));
             }
 
-            var table = _tables.Values.First();
-
-            using var command = _connection.CreateCommand();
-            command.CommandText = $"SELECT * FROM {QuoteIdentifier(table.TableName)}";
-            command.CommandTimeout = _options.CommandTimeoutSeconds;
-
-            return await ReadExportAsync(
-                command,
-                sqlName => table.SourceNames.TryGetValue(sqlName, out var sourceName) && !string.IsNullOrEmpty(sourceName)
-                    ? sourceName
-                    : sqlName,
-                cancellationToken);
+            return results;
         }
         finally
         {
@@ -697,6 +735,13 @@ internal sealed class TabularWorkspace : IDisposable
 
         foreach (var table in _tables.Values)
         {
+            // A table the caller built belongs to no document, so it is never swept away by a change in
+            // which documents are attached. Dropping it would destroy work the conversation just did.
+            if (string.IsNullOrEmpty(table.DocumentId))
+            {
+                continue;
+            }
+
             if (!attached.Contains(table.DocumentId))
             {
                 (detached ??= []).Add(table);
@@ -712,6 +757,7 @@ internal sealed class TabularWorkspace : IDisposable
         {
             DropTable(table.TableName);
             DeleteMetadataEntry(table.TableName);
+            DeleteFormattingEntry(table.TableName);
             _tables.Remove(table.TableName);
 
             if (_logger.IsEnabled(LogLevel.Debug))
@@ -736,6 +782,21 @@ internal sealed class TabularWorkspace : IDisposable
         using var command = _connection.CreateCommand();
         command.CommandText = $"""
             DELETE FROM "{MetadataTableName}" WHERE table_name = $tableName
+            """;
+        command.Parameters.AddWithValue("$tableName", tableName);
+        command.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Removes the recorded formatting for a table that is going away, so a table name reused by a
+    /// later upload does not inherit the presentation of an unrelated file.
+    /// </summary>
+    /// <param name="tableName">The SQL table name.</param>
+    private void DeleteFormattingEntry(string tableName)
+    {
+        using var command = _connection.CreateCommand();
+        command.CommandText = $"""
+            DELETE FROM "{FormattingTableName}" WHERE table_name = $tableName
             """;
         command.Parameters.AddWithValue("$tableName", tableName);
         command.ExecuteNonQuery();
@@ -778,6 +839,7 @@ internal sealed class TabularWorkspace : IDisposable
         {
             DropTable(table.TableName);
             DeleteMetadataEntry(table.TableName);
+            DeleteFormattingEntry(table.TableName);
             _tables.Remove(table.TableName);
 
             _logger.LogWarning(
@@ -854,6 +916,81 @@ internal sealed class TabularWorkspace : IDisposable
         return false;
     }
 
+    /// <summary>
+    /// Brings the workspace metadata back in line with the tables that actually exist.
+    /// <para>
+    /// A command batch is allowed to reshape the workspace — that is the point of it — so it can rename
+    /// a table, drop one, or build a new one with <c>CREATE TABLE … AS SELECT</c>. Metadata that is not
+    /// reconciled afterwards goes stale in both directions: a vanished table is still reported as
+    /// loaded and every query against it fails, and a newly built table is invisible to the caller that
+    /// just created it.
+    /// </para>
+    /// </summary>
+    private void ReconcileTablesWithDatabase()
+    {
+        var physical = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        using (var command = _connection.CreateCommand())
+        {
+            command.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'";
+
+            using var reader = command.ExecuteReader();
+
+            while (reader.Read())
+            {
+                var name = reader.GetString(0);
+
+                // The workspace's own bookkeeping tables are not data.
+                if (!name.StartsWith("_workspace_", StringComparison.Ordinal))
+                {
+                    physical.Add(name);
+                }
+            }
+        }
+
+        var removed = _tables.Keys.Where(name => !physical.Contains(name)).ToList();
+
+        foreach (var name in removed)
+        {
+            _tables.Remove(name);
+            DeleteMetadataEntry(name);
+            DeleteFormattingEntry(name);
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Tabular table '{TableName}' no longer exists after a command batch; its metadata was removed.",
+                    name);
+            }
+        }
+
+        foreach (var name in physical)
+        {
+            if (_tables.ContainsKey(name))
+            {
+                continue;
+            }
+
+            // A table the caller built is registered so it is listed and queryable like any other. It
+            // belongs to no uploaded document, which also keeps it from being swept away when the
+            // documents attached to the conversation change.
+            var derived = new LoadedTable(
+                name,
+                documentId: string.Empty,
+                worksheetName: null,
+                fileName: DerivedTableFileName,
+                sourceNames: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+
+            _tables[name] = derived;
+            SaveMetadataEntry(name, string.Empty, null, DerivedTableFileName, derived.SourceNames, derived.SourceFormats);
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Registered derived tabular table '{TableName}' created by a command batch.", name);
+            }
+        }
+    }
+
     private void RegisterTable(
         TabularDocumentRef document,
         string tableName,
@@ -861,9 +998,13 @@ internal sealed class TabularWorkspace : IDisposable
         IReadOnlyList<TabularColumnInfo> columns)
     {
         var sourceNames = columns.ToDictionary(c => c.Name, c => c.SourceName, StringComparer.OrdinalIgnoreCase);
-        _tables[tableName] = new LoadedTable(tableName, document.DocumentId, worksheetName, document.FileName, sourceNames);
+        var sourceFormats = columns
+            .Where(c => !string.IsNullOrEmpty(c.SourceFormat))
+            .ToDictionary(c => c.Name, c => c.SourceFormat, StringComparer.OrdinalIgnoreCase);
 
-        SaveMetadataEntry(tableName, document.DocumentId, worksheetName, document.FileName, sourceNames);
+        _tables[tableName] = new LoadedTable(tableName, document.DocumentId, worksheetName, document.FileName, sourceNames, sourceFormats);
+
+        SaveMetadataEntry(tableName, document.DocumentId, worksheetName, document.FileName, sourceNames, sourceFormats);
     }
 
     private static string AllocateTableName(
@@ -958,10 +1099,133 @@ internal sealed class TabularWorkspace : IDisposable
                 "document_id" TEXT NOT NULL,
                 "worksheet_name" TEXT,
                 "file_name" TEXT NOT NULL,
-                "source_names_json" TEXT NOT NULL
+                "source_names_json" TEXT NOT NULL,
+                "source_formats_json" TEXT
             )
             """;
         command.ExecuteNonQuery();
+
+        // Formatting is stored beside the data rather than in the invocation, so a sheet formatted in
+        // one turn is still formatted when the file is exported in a later one.
+        using var formattingCommand = connection.CreateCommand();
+        formattingCommand.CommandText = $"""
+            CREATE TABLE IF NOT EXISTS "{FormattingTableName}" (
+                "table_name" TEXT PRIMARY KEY,
+                "spec_json" TEXT NOT NULL,
+                "revision" INTEGER NOT NULL
+            )
+            """;
+        formattingCommand.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Reads the stored formatting for a table.
+    /// </summary>
+    /// <param name="tableName">The SQL table name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>
+    /// The stored specification and its revision, or a revision of zero with no specification when the
+    /// table has never been formatted.
+    /// </returns>
+    public async Task<(string SpecJson, int Revision)> GetFormattingAsync(
+        string tableName,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(tableName))
+        {
+            return (null, 0);
+        }
+
+        await _gate.WaitAsync(cancellationToken);
+
+        try
+        {
+            EnsureLoaded();
+
+            using var command = _connection.CreateCommand();
+            command.CommandText = $"SELECT \"spec_json\", \"revision\" FROM \"{FormattingTableName}\" WHERE \"table_name\" = $name";
+            command.Parameters.AddWithValue("$name", tableName);
+            command.CommandTimeout = _options.CommandTimeoutSeconds;
+
+            using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                return (null, 0);
+            }
+
+            return (reader.GetString(0), reader.GetInt32(1));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Stores the formatting for a table, replacing any previous specification.
+    /// </summary>
+    /// <param name="tableName">The SQL table name.</param>
+    /// <param name="specJson">The serialized specification, or <see langword="null"/> to clear it.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The new revision, which changes on every save so cached exports are not reused.</returns>
+    public async Task<int> SaveFormattingAsync(
+        string tableName,
+        string specJson,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(tableName);
+
+        await _gate.WaitAsync(cancellationToken);
+
+        try
+        {
+            EnsureLoaded();
+
+            SetWritable(_connection, true);
+
+            try
+            {
+                if (string.IsNullOrEmpty(specJson))
+                {
+                    using var deleteCommand = _connection.CreateCommand();
+                    deleteCommand.CommandText = $"DELETE FROM \"{FormattingTableName}\" WHERE \"table_name\" = $name";
+                    deleteCommand.Parameters.AddWithValue("$name", tableName);
+                    deleteCommand.CommandTimeout = _options.CommandTimeoutSeconds;
+
+                    await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
+
+                    return 0;
+                }
+
+                using var command = _connection.CreateCommand();
+                command.CommandText = $"""
+                    INSERT INTO "{FormattingTableName}" ("table_name", "spec_json", "revision")
+                    VALUES ($name, $spec, 1)
+                    ON CONFLICT("table_name") DO UPDATE SET
+                        "spec_json" = excluded."spec_json",
+                        "revision" = "{FormattingTableName}"."revision" + 1
+                    RETURNING "revision"
+                    """;
+                command.Parameters.AddWithValue("$name", tableName);
+                command.Parameters.AddWithValue("$spec", specJson);
+                command.CommandTimeout = _options.CommandTimeoutSeconds;
+
+                var revision = await command.ExecuteScalarAsync(cancellationToken);
+
+                return revision is long value
+                    ? (int)value
+                    : 1;
+            }
+            finally
+            {
+                SetWritable(_connection, false);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     private static bool MetadataTableNeedsRebuild(SqliteConnection connection)
@@ -983,7 +1247,9 @@ internal sealed class TabularWorkspace : IDisposable
 
         while (reader.Read())
         {
-            if (string.Equals(reader["name"]?.ToString(), "worksheet_name", StringComparison.Ordinal))
+            // The newest column decides. The workspace database is a derived cache of the source
+            // documents, so an older schema is dropped and re-imported rather than migrated.
+            if (string.Equals(reader["name"]?.ToString(), "source_formats_json", StringComparison.Ordinal))
             {
                 return false;
             }
@@ -1019,7 +1285,7 @@ internal sealed class TabularWorkspace : IDisposable
     private void LoadMetadataFromDatabase()
     {
         using var command = _connection.CreateCommand();
-        command.CommandText = $"SELECT table_name, document_id, worksheet_name, file_name, source_names_json FROM \"{MetadataTableName}\"";
+        command.CommandText = $"SELECT table_name, document_id, worksheet_name, file_name, source_names_json, source_formats_json FROM \"{MetadataTableName}\"";
 
         using var reader = command.ExecuteReader();
 
@@ -1034,7 +1300,12 @@ internal sealed class TabularWorkspace : IDisposable
             var sourceNames = JsonSerializer.Deserialize<Dictionary<string, string>>(sourceNamesJson, _jsonOptions)
                 ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            _tables[tableName] = new LoadedTable(tableName, documentId, worksheetName, fileName, sourceNames);
+            var sourceFormats = reader.IsDBNull(5)
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(5), _jsonOptions)
+                    ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            _tables[tableName] = new LoadedTable(tableName, documentId, worksheetName, fileName, sourceNames, sourceFormats);
         }
 
         if (_logger.IsEnabled(LogLevel.Debug))
@@ -1048,18 +1319,20 @@ internal sealed class TabularWorkspace : IDisposable
         string documentId,
         string worksheetName,
         string fileName,
-        IReadOnlyDictionary<string, string> sourceNames)
+        IReadOnlyDictionary<string, string> sourceNames,
+        IReadOnlyDictionary<string, string> sourceFormats)
     {
         using var command = _connection.CreateCommand();
         command.CommandText = $"""
-            INSERT OR REPLACE INTO "{MetadataTableName}" (table_name, document_id, worksheet_name, file_name, source_names_json)
-            VALUES ($tableName, $documentId, $worksheetName, $fileName, $sourceNamesJson)
+            INSERT OR REPLACE INTO "{MetadataTableName}" (table_name, document_id, worksheet_name, file_name, source_names_json, source_formats_json)
+            VALUES ($tableName, $documentId, $worksheetName, $fileName, $sourceNamesJson, $sourceFormatsJson)
             """;
         command.Parameters.AddWithValue("$tableName", tableName);
         command.Parameters.AddWithValue("$documentId", documentId);
         command.Parameters.AddWithValue("$worksheetName", (object)worksheetName ?? DBNull.Value);
         command.Parameters.AddWithValue("$fileName", fileName);
         command.Parameters.AddWithValue("$sourceNamesJson", JsonSerializer.Serialize(sourceNames, _jsonOptions));
+        command.Parameters.AddWithValue("$sourceFormatsJson", JsonSerializer.Serialize(sourceFormats, _jsonOptions));
         command.ExecuteNonQuery();
     }
 
@@ -1241,7 +1514,8 @@ internal sealed class TabularWorkspace : IDisposable
                     var name = reader["name"]?.ToString() ?? string.Empty;
                     var type = reader["type"]?.ToString() ?? "TEXT";
                     table.SourceNames.TryGetValue(name, out var sourceName);
-                    columns.Add(new TabularColumnInfo(name, type, sourceName));
+                    table.SourceFormats.TryGetValue(name, out var sourceFormat);
+                    columns.Add(new TabularColumnInfo(name, type, sourceName, sourceFormat));
                 }
             }
 
@@ -1364,14 +1638,21 @@ internal sealed class TabularWorkspace : IDisposable
             string documentId,
             string worksheetName,
             string fileName,
-            IReadOnlyDictionary<string, string> sourceNames)
+            IReadOnlyDictionary<string, string> sourceNames,
+            IReadOnlyDictionary<string, string> sourceFormats = null)
         {
             TableName = tableName;
             DocumentId = documentId;
             WorksheetName = worksheetName;
             FileName = fileName;
             SourceNames = sourceNames;
+            SourceFormats = sourceFormats ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
+
+        /// <summary>
+        /// Gets the number format code each column used in the source file, keyed by SQL column name.
+        /// </summary>
+        public IReadOnlyDictionary<string, string> SourceFormats { get; }
 
         public string TableName { get; }
 

@@ -506,11 +506,20 @@ window.chatInteractionManager = function () {
   // Parse markdown content via marked (which natively handles [chart:...] markers
   // through the registered extension) and collect pending chart configs for later
   // Chart.js rendering.
+  // A markdown table becomes a bare <table>, which Bootstrap leaves completely unstyled: it renders
+  // as cramped, borderless text that reads as plain output rather than a table. Adding the framework's
+  // own classes styles it wherever Bootstrap is loaded, and the wrapper lets a wide table scroll on
+  // its own instead of stretching the conversation. Markdown tables cannot nest, so the plain
+  // replacement is safe. This page renders markdown through its own pipeline, so the same treatment
+  // is applied here as in the shared chat script.
+  function styleMarkdownTables(html) {
+    return html.replace(/<table>/g, '<div class="table-responsive"><table class="table table-sm table-bordered table-striped align-middle">').replace(/<\/table>/g, '</table></div>');
+  }
   function parseMarkdownContent(content, message) {
     _pendingCharts = [];
-    var html = marked.parse(content, {
+    var html = styleMarkdownTables(marked.parse(content, {
       renderer: renderer
-    });
+    }));
     message._pendingCharts = _pendingCharts.length > 0 ? _toConsumableArray(_pendingCharts) : [];
     return DOMPurify.sanitize(html, {
       ADD_TAGS: ['canvas'],
