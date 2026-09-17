@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Services;
@@ -16,16 +16,6 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<AIDeployment>
 {
-    // The capabilities a connection's chat and utility deployment names stand for. A connection names a
-    // general-purpose chat model, so this is what such a model actually does rather than the narrowest set
-    // that still answers a plain completion. See the remark on AddConnectionDeployment for why the
-    // difference matters.
-    private static readonly string[] _chatModelFeatures =
-    [
-        AIDeploymentFeatureNames.TextGeneration,
-        AIDeploymentFeatureNames.ToolCalling,
-        AIDeploymentFeatureNames.Streaming,
-    ];
 
     private readonly IConfiguration _configuration;
     private readonly TimeProvider _timeProvider;
@@ -241,8 +231,32 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         var utilityDeploymentName = connectionSection["UtilityDeploymentName"]
             ?? connectionSection["DefaultUtilityDeploymentName"];
 
-        AddConnectionDeployment(deployments, names, clientName, connectionName, chatDeploymentName, sectionPath, _chatModelFeatures);
-        AddConnectionDeployment(deployments, names, clientName, connectionName, utilityDeploymentName, sectionPath, _chatModelFeatures);
+        // A chat deployment declares tool calling and streaming alongside text generation. Declaring
+        // only text generation made every tool be stripped from every request before it was sent, so a
+        // host configured this way had no working tools at all: the model would describe what it was
+        // about to do and then call nothing, with the cause visible only as a warning in the log.
+        AddConnectionDeployment(
+            deployments,
+            names,
+            clientName,
+            connectionName,
+            chatDeploymentName,
+            sectionPath,
+            AIDeploymentFeatureNames.TextGeneration,
+            AIDeploymentFeatureNames.ToolCalling,
+            AIDeploymentFeatureNames.Streaming);
+
+        // The utility deployment backs background work such as title generation and data extraction,
+        // which streams but never calls tools.
+        AddConnectionDeployment(
+            deployments,
+            names,
+            clientName,
+            connectionName,
+            utilityDeploymentName,
+            sectionPath,
+            AIDeploymentFeatureNames.TextGeneration,
+            AIDeploymentFeatureNames.Streaming);
         AddConnectionDeployment(deployments, names, clientName, connectionName, embeddingDeploymentName, sectionPath, AIDeploymentFeatureNames.TextEmbedding);
         AddConnectionDeployment(deployments, names, clientName, connectionName, imagesDeploymentName, sectionPath, AIDeploymentFeatureNames.ImageOutput);
         AddConnectionDeployment(deployments, names, clientName, connectionName, speechToTextDeploymentName, sectionPath, AIDeploymentFeatureNames.SpeechToText);

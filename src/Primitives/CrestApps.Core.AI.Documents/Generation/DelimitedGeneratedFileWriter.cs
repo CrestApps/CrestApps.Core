@@ -27,13 +27,20 @@ public sealed class DelimitedGeneratedFileWriter : IGeneratedFileWriter
 
         if (content.HasTable)
         {
-            await WriteRowAsync(writer, content.Header, cancellationToken);
+            // A delimited file holds exactly one table, so only the first sheet is written. The caller
+            // decides whether several sheets should go to a format that can hold them.
+            var sheet = content.GetSheets().FirstOrDefault(candidate => candidate.HasTable);
 
-            if (content.Rows is not null)
+            if (sheet is not null)
             {
-                foreach (var row in content.Rows)
+                await WriteRowAsync(writer, sheet.Header, cancellationToken);
+
+                if (sheet.Rows is not null)
                 {
-                    await WriteRowAsync(writer, row, cancellationToken);
+                    foreach (var row in sheet.Rows)
+                    {
+                        await WriteRowAsync(writer, row, cancellationToken);
+                    }
                 }
             }
         }

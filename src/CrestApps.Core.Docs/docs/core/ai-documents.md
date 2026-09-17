@@ -63,6 +63,29 @@ This is the recommended path for tasks such as:
 
 Under the hood, tabular workflows are handled by the built-in **Tabular Data Agent**. It is a code-defined, always-available **system agent** that stays hidden from the AI Profile and Chat Interaction agent pickers, yet still participates in orchestration and is exposed through the A2A host for remote clients.
 
+#### Spreadsheet formatting
+
+Exported `.xlsx` files are written with real cell types: a numeric column becomes numbers and a date column becomes date serials, so the recipient can sum, sort, filter, and chart the result rather than receiving a sheet of text. A column whose leading zeros matter — a postal code or an account number — is detected and kept as text.
+
+On top of that, the agent's hidden `format_tabular_data` tool records how the exported workbook should look, and `export_tabular_data` applies whatever is currently recorded:
+
+| Capability | What the user can ask for |
+| --- | --- |
+| Number formats | currency, accounting, number, percent, date, date/time, time, duration, scientific, text, or an explicit format code, with decimal places, a currency symbol, and negatives in red |
+| Cell styling | bold, italic, underline, font name and size, text color, fill color, alignment, text wrapping, borders, column widths |
+| Sheet layout | worksheet name, styled header row, frozen header, filter dropdowns, banded rows |
+| Conditional formatting | gradient color scales, data bars, icon sets, duplicate highlighting, and comparisons (greater than, less than, equal to, between, contains text) |
+| Formulas | calculated columns written as live formulas that reference other columns by name (`={Actual}-{Planned}`), and a total row built from `SUBTOTAL` so it follows the reader's filtering |
+| Charts | column, bar, line, pie, and area charts embedded in the worksheet and bound to its cell ranges, so they redraw when the data changes |
+
+The recorded formatting is stored alongside the workspace data, so formatting requested in one turn still applies when the file is exported in a later one, and a follow-up request refines it instead of replacing it.
+
+Requires `AddOpenXml()`; other formats (such as CSV) ignore the formatting and export the data alone.
+
+#### Charts in the conversation
+
+A chart embedded in the workbook is for the downloaded file. To render a chart in the chat itself, the agent calls the `generate_chart` system tool with the actual values (`labels` and `series`), which builds the chart configuration directly from those numbers.
+
 ### Images
 
 When your deployment supports vision, users can upload supported image files alongside standard documents. This enables image-aware chat scenarios such as describing screenshots, extracting visible text, or answering questions about diagrams and photos.

@@ -63,6 +63,32 @@
     line-height: 0;
 }
 
+/* A markdown table is rendered with the host framework's table classes, which do the bulk of the
+   styling. These rules only add what those classes leave out, and are scoped to the message list
+   rather than to a wrapper element, because a table is emitted as a direct child of the message. */
+.ai-chat-messages table {
+    margin: 0.75rem 0;
+    font-size: 0.9em;
+}
+
+.ai-chat-messages table th,
+.ai-chat-messages table td {
+    vertical-align: top;
+    white-space: nowrap;
+}
+
+/* A right-aligned column in the source markdown is almost always numeric, so the alignment the author
+   asked for is honored rather than flattened to the default. */
+.ai-chat-messages table th[align="right"],
+.ai-chat-messages table td[align="right"] {
+    text-align: right;
+}
+
+.ai-chat-messages table th[align="center"],
+.ai-chat-messages table td[align="center"] {
+    text-align: center;
+}
+
 .ai-chat-messages .ai-chat-citation-list {
     margin: 0.75rem 0 0;
     padding-left: 1.25rem;

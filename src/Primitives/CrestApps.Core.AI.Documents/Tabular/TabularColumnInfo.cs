@@ -11,11 +11,12 @@ public sealed class TabularColumnInfo
     /// <param name="name">The column name.</param>
     /// <param name="declaredType">The declared SQLite storage type of the column.</param>
     /// <param name="sourceName">The original source header name, when different from the SQL column name.</param>
-    public TabularColumnInfo(string name, string declaredType, string sourceName = null)
+    public TabularColumnInfo(string name, string declaredType, string sourceName = null, string sourceFormat = null)
     {
         Name = name;
         DeclaredType = declaredType;
         SourceName = sourceName;
+        SourceFormat = sourceFormat;
     }
 
     /// <summary>
@@ -32,4 +33,14 @@ public sealed class TabularColumnInfo
     /// Gets the original source header name, when different from the SQL column name.
     /// </summary>
     public string SourceName { get; }
+
+    /// <summary>
+    /// Gets the number format code the column used in the source file, when the source carried one.
+    /// <para>
+    /// This is what lets an export reproduce the presentation the upload had — a column that was
+    /// currency or a percentage comes back that way without the caller having to ask. It is a default
+    /// only; formatting the caller requests explicitly always wins.
+    /// </para>
+    /// </summary>
+    public string SourceFormat { get; }
 }

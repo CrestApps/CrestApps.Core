@@ -674,7 +674,22 @@ omit optional fields, or split the operation into multiple smaller calls.
 
     private async Task RecordUsageAsync(AICompletionContext context, string connectionName, string deploymentName, string modelName, string responseId, Microsoft.Extensions.AI.UsageDetails usage, double responseLatencyMs, bool isStreaming, CancellationToken cancellationToken)
     {
-        var observers = _serviceProvider.GetServices<IAICompletionUsageObserver>();
+        IEnumerable<IAICompletionUsageObserver> observers;
+
+        try
+        {
+            observers = _serviceProvider.GetServices<IAICompletionUsageObserver>();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Usage recording runs as the response finishes, by which point the scope that owns the
+            // provider may already be gone — the caller navigated away, or sent again before the first
+            // answer completed. Accounting is not worth failing an answer the user is reading, so the
+            // record is dropped instead of surfacing as "an error occurred while streaming".
+            _logger.LogDebug("Skipped recording AI usage because the service provider was already disposed.");
+
+            return;
+        }
 
         if (!observers.Any())
         {

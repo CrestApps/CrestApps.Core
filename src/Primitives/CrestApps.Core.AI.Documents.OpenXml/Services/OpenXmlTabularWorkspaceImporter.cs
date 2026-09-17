@@ -277,7 +277,7 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
                     FlushPendingBlankRows();
                     InsertRow(row, TabularWorksheetShaper.IsSubtotalRow(row, hasVerticalAggregateFormula));
                 },
-                () =>
+                columnFormats =>
                 {
                     // A worksheet with no non-empty rows produces no table.
                     if (!finalized)
@@ -306,10 +306,15 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
                     }
 
                     transaction.Commit();
+
+                    // The source's own number formats ride along with the columns, so an export can
+                    // reproduce the presentation the upload had instead of discarding it.
+                    var formattedColumns = ApplySourceFormats(dataColumns, columnFormats);
+
                     results.Add(new TabularWorkspaceImportResult(
                         currentTableName,
                         worksheetName,
-                        dataColumns,
+                        formattedColumns,
                         rowCount,
                         insertCommandCount,
                         1));
@@ -320,7 +325,7 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
                         results.Add(new TabularWorkspaceImportResult(
                             rollupTableName,
                             worksheetName,
-                            dataColumns,
+                            formattedColumns,
                             rollupRowCount,
                             0,
                             1));
@@ -422,5 +427,47 @@ public sealed class OpenXmlTabularWorkspaceImporter : ITabularWorkspaceImporter
                 ? DBNull.Value
                 : TabularWorkspaceSqliteHelpers.NormalizeCellValue(dataColumns[columnIndex].DeclaredType, value);
         }
+    }
+
+    /// <summary>
+    /// Attaches each column's dominant source number format, matched by position.
+    /// <para>
+    /// A format is only carried when it says something an export can act on. The general format says
+    /// nothing, and the text format would fight the column's own storage type: a column the workspace
+    /// typed as numeric must not be handed a format that renders it as text.
+    /// </para>
+    /// </summary>
+    /// <param name="columns">The imported columns.</param>
+    /// <param name="formats">The dominant source format per column, by position.</param>
+    /// <returns>The columns, carrying their source formats.</returns>
+    private static IReadOnlyList<TabularColumnInfo> ApplySourceFormats(
+        IReadOnlyList<TabularColumnInfo> columns,
+        IReadOnlyList<string> formats)
+    {
+        if (columns is null || formats is null || formats.Count == 0)
+        {
+            return columns;
+        }
+
+        var result = new List<TabularColumnInfo>(columns.Count);
+
+        for (var index = 0; index < columns.Count; index++)
+        {
+            var column = columns[index];
+            var format = index < formats.Count ? formats[index] : null;
+
+            if (string.IsNullOrWhiteSpace(format) ||
+                string.Equals(format, "General", StringComparison.OrdinalIgnoreCase) ||
+                format.Trim() == "@")
+            {
+                result.Add(column);
+
+                continue;
+            }
+
+            result.Add(new TabularColumnInfo(column.Name, column.DeclaredType, column.SourceName, format.Trim()));
+        }
+
+        return result;
     }
 }

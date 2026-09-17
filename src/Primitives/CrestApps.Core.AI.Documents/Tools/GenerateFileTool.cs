@@ -120,6 +120,19 @@ public sealed class GenerateFileTool : AIFunction
             return statusMessageError;
         }
 
+        var shadowedExportError = GetShadowedExportError(extension)
+            ?? await GetTabularWorkspaceErrorAsync(arguments, extension, cancellationToken);
+
+        if (!string.IsNullOrEmpty(shadowedExportError))
+        {
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+                logger.LogDebug("AI tool '{ToolName}' rejected a tabular file that would shadow a completed export (call #{InvocationNumber}).", Name, invocationNumber);
+            }
+
+            return shadowedExportError;
+        }
+
         var tabularMisuseError = GetTabularMisuseError(content, extension, fileName);
         if (!string.IsNullOrEmpty(tabularMisuseError))
         {
@@ -216,6 +229,69 @@ public sealed class GenerateFileTool : AIFunction
         }
 
         return "A downloadable file was already created for this response. Do not generate another file from a status/update sentence; return the existing [doc:N] marker instead.";
+    }
+
+    /// <summary>
+    /// Refuses to create a tabular file once a tabular export has already produced one in this turn.
+    /// <para>
+    /// The export writes the real rows from the workspace. A model that follows it by authoring its own
+    /// spreadsheet is writing remembered values, and the user is handed that invented file instead of
+    /// the correct one — with no sign that anything went wrong. Only tabular formats are refused, so a
+    /// genuine follow-up such as a PDF summary of the same analysis still works.
+    /// </para>
+    /// </summary>
+    /// <param name="extension">The requested file extension.</param>
+    /// <returns>The refusal message, or <see langword="null"/> when the file may be created.</returns>
+    private static string GetShadowedExportError(string extension)
+    {
+        if (!_tabularExtensions.Contains(extension) || !TabularExportSignal.TryGetLast(out var export))
+        {
+            return null;
+        }
+
+        var instruction = string.IsNullOrEmpty(export.Marker)
+            ? "Return the existing download for that file instead of creating another one."
+            : $"Return this existing download marker verbatim instead of creating another file: {export.Marker}";
+
+        return $"The tabular data was already exported to \"{export.FileName}\" in this response, and that file contains the real rows from the table. Do not author a second spreadsheet from remembered values. {instruction}";
+    }
+
+    /// <summary>
+    /// Refuses to author a spreadsheet by hand while the conversation has tabular data loaded.
+    /// <para>
+    /// The per-response guard only covers a turn in which an export already ran. A later turn has no
+    /// such record, and that is exactly where this goes wrong in practice: asked to change something
+    /// about a file it produced earlier, the model writes its own spreadsheet from remembered values
+    /// and presents it as the updated file. The user receives invented rows — or, as observed, a
+    /// near-empty workbook — with nothing to say it is not the real export. Whenever a tabular
+    /// workspace exists, the real rows are one <c>export_tabular_data</c> call away, so authoring one
+    /// is refused outright.
+    /// </para>
+    /// </summary>
+    /// <param name="arguments">The tool arguments, used to resolve the conversation's documents.</param>
+    /// <param name="extension">The requested file extension.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The refusal message, or <see langword="null"/> when the file may be created.</returns>
+    private static async Task<string> GetTabularWorkspaceErrorAsync(
+        AIFunctionArguments arguments,
+        string extension,
+        CancellationToken cancellationToken)
+    {
+        if (!_tabularExtensions.Contains(extension))
+        {
+            return null;
+        }
+
+        var context = await TabularToolContext.ResolveAsync(arguments.Services, cancellationToken);
+
+        if (context is null || context.Documents.Count == 0)
+        {
+            return null;
+        }
+
+        var names = string.Join(", ", context.Documents.Select(document => $"\"{document.FileName}\""));
+
+        return $"This conversation has tabular data loaded ({names}), so a spreadsheet must not be written by hand: it would contain remembered values rather than the real rows. Use export_tabular_data instead — it exports the live table, including every change already applied — and apply any presentation with format_tabular_data first.";
     }
 
     private static string GetTabularMisuseError(string content, string extension, string fileName)
