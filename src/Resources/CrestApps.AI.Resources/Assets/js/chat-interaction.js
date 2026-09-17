@@ -406,14 +406,19 @@ window.chatInteractionManager = function () {
         if (!src) return '';
         const alt = data.text || defaultConfig.generatedImageAltText;
         const maxWidth = defaultConfig.generatedImageMaxWidth;
-        return `<div class="generated-image-container">
+        // Spans, not divs. A figure marker is often written mid-sentence -- "Figures [fig:1], [fig:2] and
+        // [fig:3] show..." -- and a block element cannot sit inside a paragraph: the browser closes the <p>
+        // at the first one, so the sentence is torn into fragments and the commas between the markers are
+        // left stranded on their own lines. Inline-block keeps the figure looking exactly the same while
+        // remaining something a paragraph can legally contain.
+        return `<span class="generated-image-container">
             <img src="${src}" alt="${alt}" class="img-thumbnail" style="max-width: ${maxWidth}px; height: auto;" />
-            <div class="mt-2">
+            <span class="mt-2 d-block">
                 <a href="${src}" target="_blank" download="${alt}" title="${defaultConfig.downloadImageTitle}" class="btn btn-sm btn-outline-secondary ai-download-image">
                     <i class="fa-solid fa-download"></i>
                 </a>
-            </div>
-        </div>`;
+            </span>
+        </span>`;
     };
 
     // Chart counter for unique IDs

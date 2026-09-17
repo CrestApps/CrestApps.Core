@@ -1,4 +1,4 @@
-.ai-chat-message-heading {
+﻿.ai-chat-message-heading {
     font-size: 0.75rem;
     margin-bottom: 0.35rem;
 }
@@ -441,6 +441,15 @@
    of the conversation off screen. A pixel width also overflows any panel narrower than it. Both axes are
    capped relative to the container instead, so a picture is bounded whatever its proportions and
    wherever it is shown. !important is needed because the width it overrides is written inline. */
+.generated-image-container {
+    /* The wrapper is a span so a figure marker written mid-sentence does not close the paragraph it
+       sits in. Inline-block restores the box behaviour the layout below assumes, and a top margin
+       keeps a figure off the line of text it follows. */
+    display: inline-block;
+    vertical-align: top;
+    margin-top: 0.5rem;
+}
+
 .generated-image-container img {
     max-width: 100% !important;
     max-height: 60vh;

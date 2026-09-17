@@ -1,4 +1,4 @@
-// Unit tests for the figure-marker expansion both chat clients run before they parse a message
+﻿// Unit tests for the figure-marker expansion both chat clients run before they parse a message
 // (CoreAIChatMarkers.expandImageMarkers).
 //
 // Retrieval used to hand the model a figure's absolute address and ask it to embed that address itself. It did
@@ -210,3 +210,31 @@ bothClients('nothing to work with is not an error', (expand) => {
     assert.equal(expand('[fig:1]', { '[fig:1]': null }), '[fig:1]');
     assert.equal(expand('[fig:1]', { '': { isImage: true, link: LINK } }), '[fig:1]');
 });
+
+// The three surfaces that turn a figure marker into a picture. A marker is often written mid-sentence --
+// "Figures [fig:1], [fig:2] and [fig:3] show..." -- and the wrapper they emit has to be something a
+// paragraph can legally contain. A <div> is not: the browser closes the <p> at the first one, the sentence
+// is torn into fragments, and the commas between the markers are stranded on their own lines. Seen in a real
+// answer before this was fixed.
+const figureRenderingSurfaces = [
+    'src/Resources/CrestApps.AI.Resources/Assets/js/ai-chat.js',
+    'src/Resources/CrestApps.AI.Resources/Assets/js/chat-interaction.js',
+    'src/Startup/CrestApps.Core.Mvc.Web/Areas/ChatInteractions/Views/ChatInteraction/Chat.cshtml',
+];
+
+for (const surface of figureRenderingSurfaces) {
+    test(`${path.basename(surface)} wraps a figure in something a paragraph can contain`, () => {
+        const source = fs.readFileSync(path.join(__dirname, '../../', surface), 'utf8');
+        const start = source.indexOf('generated-image-container');
+
+        assert.ok(start > 0, `${surface} no longer renders figures`);
+
+        // The wrapper's own tag, read back from the markup that builds it.
+        const before = source.slice(Math.max(0, start - 30), start);
+
+        assert.ok(!/<div class="$/.test(before),
+            `${surface} wraps figures in a <div>; a marker written mid-sentence will break the paragraph`);
+        assert.ok(/<span class="$/.test(before),
+            `${surface} should wrap figures in a <span>`);
+    });
+}

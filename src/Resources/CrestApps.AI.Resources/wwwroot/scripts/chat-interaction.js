@@ -427,7 +427,12 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
     if (!src) return '';
     var alt = data.text || defaultConfig.generatedImageAltText;
     var maxWidth = defaultConfig.generatedImageMaxWidth;
-    return "<div class=\"generated-image-container\">\n            <img src=\"".concat(src, "\" alt=\"").concat(alt, "\" class=\"img-thumbnail\" style=\"max-width: ").concat(maxWidth, "px; height: auto;\" />\n            <div class=\"mt-2\">\n                <a href=\"").concat(src, "\" target=\"_blank\" download=\"").concat(alt, "\" title=\"").concat(defaultConfig.downloadImageTitle, "\" class=\"btn btn-sm btn-outline-secondary ai-download-image\">\n                    <i class=\"fa-solid fa-download\"></i>\n                </a>\n            </div>\n        </div>");
+    // Spans, not divs. A figure marker is often written mid-sentence -- "Figures [fig:1], [fig:2] and
+    // [fig:3] show..." -- and a block element cannot sit inside a paragraph: the browser closes the <p>
+    // at the first one, so the sentence is torn into fragments and the commas between the markers are
+    // left stranded on their own lines. Inline-block keeps the figure looking exactly the same while
+    // remaining something a paragraph can legally contain.
+    return "<span class=\"generated-image-container\">\n            <img src=\"".concat(src, "\" alt=\"").concat(alt, "\" class=\"img-thumbnail\" style=\"max-width: ").concat(maxWidth, "px; height: auto;\" />\n            <span class=\"mt-2 d-block\">\n                <a href=\"").concat(src, "\" target=\"_blank\" download=\"").concat(alt, "\" title=\"").concat(defaultConfig.downloadImageTitle, "\" class=\"btn btn-sm btn-outline-secondary ai-download-image\">\n                    <i class=\"fa-solid fa-download\"></i>\n                </a>\n            </span>\n        </span>");
   };
 
   // Chart counter for unique IDs
