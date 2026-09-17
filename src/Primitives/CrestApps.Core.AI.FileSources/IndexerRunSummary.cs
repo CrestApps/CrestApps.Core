@@ -1,9 +1,9 @@
-namespace CrestApps.Core.AI.Indexers;
+namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
 /// How one indexer run ended.
 /// </summary>
-public enum IndexerRunStatus
+public enum FileSourceRunStatus
 {
     /// <summary>
     /// The run has never happened.
@@ -55,7 +55,7 @@ public sealed class IndexerRunSummary
     /// <summary>
     /// Gets or sets how the run ended.
     /// </summary>
-    public IndexerRunStatus Status { get; set; }
+    public FileSourceRunStatus Status { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the listing was the whole of what the source holds.

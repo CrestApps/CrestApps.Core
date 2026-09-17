@@ -2,7 +2,7 @@ using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents.Knowledge;
 using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.AI.Indexers;
+namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
 /// Answers with the vision deployment the figure's own indexer was configured with.
@@ -12,19 +12,19 @@ namespace CrestApps.Core.AI.Indexers;
 /// Without this the per-indexer choice would take effect for everything except the one thing it exists to
 /// control.
 /// </remarks>
-public sealed class IndexerVisionDeploymentResolver : IKnowledgeVisionDeploymentResolver
+public sealed class FileSourceVisionDeploymentResolver : IKnowledgeVisionDeploymentResolver
 {
     private readonly IWebCrawlerStore _indexerStore;
-    private readonly ILogger<IndexerVisionDeploymentResolver> _logger;
+    private readonly ILogger<FileSourceVisionDeploymentResolver> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="IndexerVisionDeploymentResolver"/> class.
+    /// Initializes a new instance of the <see cref="FileSourceVisionDeploymentResolver"/> class.
     /// </summary>
     /// <param name="indexerStore">The store the indexers live in.</param>
     /// <param name="logger">The logger.</param>
-    public IndexerVisionDeploymentResolver(
+    public FileSourceVisionDeploymentResolver(
         IWebCrawlerStore indexerStore,
-        ILogger<IndexerVisionDeploymentResolver> logger)
+        ILogger<FileSourceVisionDeploymentResolver> logger)
     {
         _indexerStore = indexerStore;
         _logger = logger;

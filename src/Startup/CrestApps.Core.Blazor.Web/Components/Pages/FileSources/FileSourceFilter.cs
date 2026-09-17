@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Indexers;
+using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.Blazor.Web.Components.Pages.FileSources;

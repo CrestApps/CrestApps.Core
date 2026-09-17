@@ -87,7 +87,7 @@ rows pass. The Blazor screen remains unseen, as noted above.
 
 ### B — FTP and SFTP in their own projects — DONE
 
-`CrestApps.Core.AI.Indexers.Ftp` and `.Indexers.Sftp` now exist as separate projects and
+`CrestApps.Core.AI.FileSources.Ftp` and `.Indexers.Sftp` now exist as separate projects and
 `.Indexers.FileTransfer` is gone, so a host takes FluentFTP or SSH.NET rather than both. `IRemoteFileClient`
 and `RemoteFileIngestionConnector` reference neither library and stay in the neutral `Indexers` project that
 both reference. The stale `CrestApps.Core.AI.Ftp` and `.Sftp` directories — which held only `bin`/`obj` and

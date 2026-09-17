@@ -6,7 +6,7 @@ using CrestApps.Core.Infrastructure.Indexing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.AI.Indexers;
+namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
 /// Runs one indexer against its connector and keeps its data source in step with the source.
@@ -17,19 +17,19 @@ namespace CrestApps.Core.AI.Indexers;
 /// though it had been deletes every item it failed to see, and nothing downstream can tell that apart from a
 /// genuine deletion.
 /// </remarks>
-public sealed class DefaultIndexerRunService : IIndexerRunService
+public sealed class DefaultFileSourceRunService : IFileSourceRunService
 {
     private readonly IIngestionConnectorResolver _connectorResolver;
     private readonly IWebCrawlStateStore _stateStore;
     private readonly IWebCrawlerStore _indexerStore;
     private readonly IKnowledgeIngestionService _ingestionService;
     private readonly IAIDataSourceStore _dataSourceStore;
-    private readonly IndexerOptions _options;
+    private readonly FileSourceOptions _options;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger<DefaultIndexerRunService> _logger;
+    private readonly ILogger<DefaultFileSourceRunService> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DefaultIndexerRunService"/> class.
+    /// Initializes a new instance of the <see cref="DefaultFileSourceRunService"/> class.
     /// </summary>
     /// <param name="connectorResolver">The connector resolver.</param>
     /// <param name="stateStore">The per-item state store.</param>
@@ -39,15 +39,15 @@ public sealed class DefaultIndexerRunService : IIndexerRunService
     /// <param name="options">The indexer options.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
-    public DefaultIndexerRunService(
+    public DefaultFileSourceRunService(
         IIngestionConnectorResolver connectorResolver,
         IWebCrawlStateStore stateStore,
         IWebCrawlerStore indexerStore,
         IKnowledgeIngestionService ingestionService,
         IAIDataSourceStore dataSourceStore,
-        IOptions<IndexerOptions> options,
+        IOptions<FileSourceOptions> options,
         TimeProvider timeProvider,
-        ILogger<DefaultIndexerRunService> logger)
+        ILogger<DefaultFileSourceRunService> logger)
     {
         _connectorResolver = connectorResolver;
         _stateStore = stateStore;
@@ -69,7 +69,7 @@ public sealed class DefaultIndexerRunService : IIndexerRunService
         var summary = new IndexerRunSummary
         {
             StartedUtc = now,
-            Status = IndexerRunStatus.Running,
+            Status = FileSourceRunStatus.Running,
         };
 
         if (!indexer.Enabled || string.IsNullOrWhiteSpace(indexer.AIDataSourceId))
@@ -171,8 +171,8 @@ public sealed class DefaultIndexerRunService : IIndexerRunService
 
         summary.CompletedUtc = _timeProvider.GetUtcNow().UtcDateTime;
         summary.Status = summary.ItemsFailed > 0 || !summary.DiscoveryCompleted
-            ? IndexerRunStatus.PartiallyCompleted
-            : IndexerRunStatus.Succeeded;
+            ? FileSourceRunStatus.PartiallyCompleted
+            : FileSourceRunStatus.Succeeded;
 
         await SaveSummaryAsync(indexer, summary, cancellationToken);
 
@@ -603,7 +603,7 @@ public sealed class DefaultIndexerRunService : IIndexerRunService
         CancellationToken cancellationToken)
     {
         summary.CompletedUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        summary.Status = IndexerRunStatus.Failed;
+        summary.Status = FileSourceRunStatus.Failed;
         summary.Error = error;
 
         await SaveSummaryAsync(indexer, summary, cancellationToken);

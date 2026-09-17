@@ -1,7 +1,7 @@
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Knowledge;
-using CrestApps.Core.AI.Indexers.Connectors;
-using CrestApps.Core.AI.Indexers.Handlers;
+using CrestApps.Core.AI.FileSources.Connectors;
+using CrestApps.Core.AI.FileSources.Handlers;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Builders;
@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Hosting;
 
-namespace CrestApps.Core.AI.Indexers;
+namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
 /// Registers the indexer subsystem: connectors, the run service, and the options that bound both.
@@ -28,17 +28,17 @@ public static class ServiceCollectionExtensions
     /// the HTML reader registered here has to win over the plain-text reader document processing registers
     /// for <c>.html</c>, or a web page read from a folder or a server is indexed with its markup.
     /// </remarks>
-    public static IServiceCollection AddCoreIndexers(this IServiceCollection services)
+    public static IServiceCollection AddCoreFileSources(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddOptions<IndexerOptions>();
+        services.AddOptions<FileSourceOptions>();
         services.AddOptions<IngestionConnectorOptions>();
         // Connectors are scoped, so the resolver has to be too: a singleton holding the root provider cannot
         // resolve a keyed scoped service and throws the first time an indexer runs.
         services.TryAddScoped<IIngestionConnectorResolver, KeyedIngestionConnectorResolver>();
-        services.TryAddScoped<IIndexerRunService, DefaultIndexerRunService>();
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<WebCrawler>, IndexerSettingsCatalogHandler>());
+        services.TryAddScoped<IFileSourceRunService, DefaultFileSourceRunService>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<WebCrawler>, FileSourceSettingsCatalogHandler>());
 
         // A connector hands over whatever a folder or a server holds, and a web page read that way is HTML
         // rather than the cleaned text a crawl strategy produces. The HTML reader takes those keys over from
@@ -47,8 +47,8 @@ public static class ServiceCollectionExtensions
 
         // Replaces the default that answers nothing, so a figure produced by an indexer is transcribed
         // by the model that indexer was configured with.
-        services.Replace(ServiceDescriptor.Scoped<IKnowledgeVisionDeploymentResolver, IndexerVisionDeploymentResolver>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, IndexerBackgroundService>());
+        services.Replace(ServiceDescriptor.Scoped<IKnowledgeVisionDeploymentResolver, FileSourceVisionDeploymentResolver>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, FileSourceBackgroundService>());
 
         return services;
     }
@@ -68,7 +68,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrEmpty(name);
 
-        services.AddCoreIndexers();
+        services.AddCoreFileSources();
         services.TryAddScoped<TConnector>();
         services.TryAddKeyedScoped<IIngestionConnector>(name, (sp, _) => sp.GetRequiredService<TConnector>());
 
@@ -96,7 +96,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <remarks>
-    /// A folder still has to be added to <see cref="IndexerOptions.AllowedLocalRoots"/> before anything can
+    /// A folder still has to be added to <see cref="FileSourceOptions.AllowedLocalRoots"/> before anything can
     /// be read: registering the connector grants nothing on its own.
     /// </remarks>
     public static IServiceCollection AddCoreLocalFolderConnector(this IServiceCollection services)
@@ -121,7 +121,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        builder.Services.AddCoreIndexers();
+        builder.Services.AddCoreFileSources();
         configure?.Invoke(builder.Services);
 
         return builder;

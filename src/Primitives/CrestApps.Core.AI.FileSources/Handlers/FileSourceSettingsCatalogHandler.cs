@@ -6,7 +6,7 @@ using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 
-namespace CrestApps.Core.AI.Indexers.Handlers;
+namespace CrestApps.Core.AI.FileSources.Handlers;
 
 /// <summary>
 /// Refuses indexer settings that would silently do nothing.
@@ -20,17 +20,17 @@ namespace CrestApps.Core.AI.Indexers.Handlers;
 /// indexer carry a model choice nobody wanted to make.
 /// </para>
 /// </remarks>
-public sealed class IndexerSettingsCatalogHandler : CatalogEntryHandlerBase<WebCrawler>
+public sealed class FileSourceSettingsCatalogHandler : CatalogEntryHandlerBase<WebCrawler>
 {
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIDeploymentCapabilityService _capabilityService;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="IndexerSettingsCatalogHandler"/> class.
+    /// Initializes a new instance of the <see cref="FileSourceSettingsCatalogHandler"/> class.
     /// </summary>
     /// <param name="deploymentManager">The deployment manager.</param>
     /// <param name="capabilityService">The capability service.</param>
-    public IndexerSettingsCatalogHandler(
+    public FileSourceSettingsCatalogHandler(
         IAIDeploymentManager deploymentManager,
         IAIDeploymentCapabilityService capabilityService)
     {

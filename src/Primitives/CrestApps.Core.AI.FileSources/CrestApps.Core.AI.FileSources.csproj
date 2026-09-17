@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>CrestApps.Core.AI.Indexers</RootNamespace>
+    <RootNamespace>CrestApps.Core.AI.FileSources</RootNamespace>
     <Title>CrestApps AI Indexers</Title>
     <Description>
       $(CrestAppsDescription)

@@ -1,12 +1,12 @@
 @page "/filesources"
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI.DataSources
-@using CrestApps.Core.AI.Indexers
+@using CrestApps.Core.AI.FileSources
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.Services
 @using Microsoft.Extensions.Options
 @inject ISourceCatalogManager<WebCrawler> Manager
-@inject IIndexerRunService RunService
+@inject IFileSourceRunService RunService
 @inject IAIDataSourceStore DataSourceStore
 @inject IWebCrawlStateStore StateStore
 @inject IStoreCommitter StoreCommitter
@@ -204,7 +204,7 @@ else
         // no request filter to flush it, so commit explicitly (the Delete handler below does the same).
         await StoreCommitter.CommitAsync();
 
-        if (run.Status == IndexerRunStatus.Failed)
+        if (run.Status == FileSourceRunStatus.Failed)
         {
             ToastNotifications.ShowError(run.Error);
         }

@@ -44,18 +44,18 @@ public interface IIngestionConnector
 | Connector | Package | Reads |
 | --- | --- | --- |
 | `Sitemap` | `CrestApps.Core.AI.WebCrawlers` | pages discovered through a site's sitemap |
-| `LocalFolder` | `CrestApps.Core.AI.Indexers` | files in a folder on the host |
+| `LocalFolder` | `CrestApps.Core.AI.FileSources` | files in a folder on the host |
 | `Ftp` | `CrestApps.Core.AI.Ftp` | files on an FTP or FTPS server |
 | `Sftp` | `CrestApps.Core.AI.Sftp` | files on an SFTP server |
 
 ```csharp
 builder.Services
-    .AddCoreIndexers()
+    .AddCoreFileSources()
     .AddCoreLocalFolderConnector()
     .AddCoreFtpIngestionConnector()
     .AddCoreSftpIngestionConnector();
 
-builder.Services.Configure<IndexerOptions>(
+builder.Services.Configure<FileSourceOptions>(
     builder.Configuration.GetSection("CrestApps:Indexers"));
 ```
 
@@ -137,7 +137,7 @@ application's own is used and the run carries on.
 
 ## What a run records
 
-`IIndexerRunService.RunAsync` returns an `IndexerRunSummary` and stores it on the record, so the last run is
+`IFileSourceRunService.RunAsync` returns an `IndexerRunSummary` and stores it on the record, so the last run is
 visible without reading a log: status, when it started and finished, how many items were seen, indexed, left
 unchanged, removed and failed, how many figures were stored and how many still await transcription, and
 whether the listing was complete.
@@ -149,7 +149,7 @@ failed).
 Two actions sit beside each record:
 
 - **Sync** runs it now. The data source decides the path: a record feeding a **File** data source is a file
-  source and runs through `IIndexerRunService`; one feeding a **Web** data source is a web crawler and runs
+  source and runs through `IFileSourceRunService`; one feeding a **Web** data source is a web crawler and runs
   through the re-index planner.
 - **Reset state** forgets what has been read - not what was stored - so the next run re-reads every item.
 
@@ -178,15 +178,15 @@ An extension is a claim, not a fact. `IIngestionDocumentReaderResolver` asks, in
 
 The stream is always returned to where it was found.
 
-`AddCoreIndexers()` also registers the HTML reader for `.html`, `.htm` and `text/html`. A connector hands over
+`AddCoreFileSources()` also registers the HTML reader for `.html`, `.htm` and `text/html`. A connector hands over
 whatever a folder or a server holds, and a web page read that way is HTML rather than the cleaned text a crawl
 strategy produces; the plain-text reader document processing registers for those keys would index the markup.
-Keyed readers resolve to the last registration, so call `AddCoreIndexers()` after `AddDocumentProcessing()`.
+Keyed readers resolve to the last registration, so call `AddCoreFileSources()` after `AddDocumentProcessing()`.
 
 ## Running
 
-A hosted job runs the records that are due every `IndexerOptions.RunCheckIntervalMinutes`; a host that
-prefers its own scheduling calls `IIndexerRunService` directly. Whether a record is due is read from the run
+A hosted job runs the records that are due every `FileSourceOptions.RunCheckIntervalMinutes`; a host that
+prefers its own scheduling calls `IFileSourceRunService` directly. Whether a record is due is read from the run
 summary stored on it, so the schedule survives a restart.
 
 Only records that feed a **File** data source run here. A crawler that feeds a **Web** data source is

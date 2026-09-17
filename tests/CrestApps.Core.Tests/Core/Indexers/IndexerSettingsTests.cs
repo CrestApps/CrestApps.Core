@@ -1,7 +1,7 @@
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Deployments;
-using CrestApps.Core.AI.Indexers;
-using CrestApps.Core.AI.Indexers.Handlers;
+using CrestApps.Core.AI.FileSources;
+using CrestApps.Core.AI.FileSources.Handlers;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Models;
 using Moq;
@@ -62,7 +62,7 @@ public sealed class IndexerSettingsTests
             .Setup(manager => manager.FindByNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AIDeployment)null);
 
-        var handler = new IndexerSettingsCatalogHandler(deploymentManager.Object, Mock.Of<IAIDeploymentCapabilityService>());
+        var handler = new FileSourceSettingsCatalogHandler(deploymentManager.Object, Mock.Of<IAIDeploymentCapabilityService>());
 
         await handler.ValidatingAsync(context, TestContext.Current.CancellationToken);
 
@@ -102,7 +102,7 @@ public sealed class IndexerSettingsTests
         return new ValidatingContext<WebCrawler>(indexer);
     }
 
-    private static IndexerSettingsCatalogHandler CreateHandler(bool imageInput, bool textEmbedding)
+    private static FileSourceSettingsCatalogHandler CreateHandler(bool imageInput, bool textEmbedding)
     {
         var deployment = new AIDeployment
         {
@@ -123,6 +123,6 @@ public sealed class IndexerSettingsTests
             .Setup(service => service.SupportsFeatureOrUnconstrained(It.IsAny<AIDeployment>(), AIDeploymentFeatureNames.TextEmbedding))
             .Returns(textEmbedding);
 
-        return new IndexerSettingsCatalogHandler(deploymentManager.Object, capabilityService.Object);
+        return new FileSourceSettingsCatalogHandler(deploymentManager.Object, capabilityService.Object);
     }
 }

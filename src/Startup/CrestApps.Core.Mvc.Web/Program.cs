@@ -11,7 +11,7 @@ using CrestApps.Core.AI.Copilot;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Endpoints;
 using CrestApps.Core.AI.Documents.Tooling;
-using CrestApps.Core.AI.Indexers;
+using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.Ftp;
 using CrestApps.Core.AI.Sftp;
 using CrestApps.Core.AI.Documents.OpenXml;
@@ -209,16 +209,16 @@ builder.Services.ConfigureCrestAppsChatHubOptions<AIChatHub>();
 builder.Services.AddCoreWebCrawlers();
 
 // Continuous intake. Registering a connector grants nothing on its own: a local folder still has to
-// be added to IndexerOptions.AllowedLocalRoots before anything under it can be read. Each protocol
+// be added to FileSourceOptions.AllowedLocalRoots before anything under it can be read. Each protocol
 // connector ships in its own package, so a host that reads only local folders references neither
 // CrestApps.Core.AI.Ftp (FluentFTP) nor CrestApps.Core.AI.Sftp (SSH.NET).
 builder.Services
-    .AddCoreIndexers()
+    .AddCoreFileSources()
     .AddCoreLocalFolderConnector()
     .AddCoreFtpIngestionConnector()
     .AddCoreSftpIngestionConnector();
 
-builder.Services.Configure<IndexerOptions>(builder.Configuration.GetSection("CrestApps:Indexers"));
+builder.Services.Configure<FileSourceOptions>(builder.Configuration.GetSection("CrestApps:Indexers"));
 builder.Services.AddCoreWebCrawlerStoresYesSql();
 
 builder.Services.Configure<A2AHostOptions>(

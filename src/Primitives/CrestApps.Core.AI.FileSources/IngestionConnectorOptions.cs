@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Localization;
 
-namespace CrestApps.Core.AI.Indexers;
+namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
 /// How one registered connector is presented to whoever configures an indexer.

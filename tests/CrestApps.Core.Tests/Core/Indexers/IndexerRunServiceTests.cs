@@ -1,7 +1,7 @@
 ﻿using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents.Knowledge;
-using CrestApps.Core.AI.Indexers;
-using CrestApps.Core.AI.Indexers.Connectors;
+using CrestApps.Core.AI.FileSources;
+using CrestApps.Core.AI.FileSources.Connectors;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -65,7 +65,7 @@ public sealed class IndexerRunServiceTests : IDisposable
         var saved = harness.Saved[^1];
 
         Assert.True(saved.TryGet<IndexerRunSummary>(out var summary));
-        Assert.Equal(IndexerRunStatus.Succeeded, summary.Status);
+        Assert.Equal(FileSourceRunStatus.Succeeded, summary.Status);
         Assert.Equal(1, summary.ItemsDiscovered);
         Assert.Equal(1, summary.ItemsIndexed);
         Assert.True(summary.DiscoveryCompleted);
@@ -85,7 +85,7 @@ public sealed class IndexerRunServiceTests : IDisposable
 
         var summary = await harness.Service.RunAsync(harness.CreateIndexer(), TestContext.Current.CancellationToken);
 
-        Assert.Equal(IndexerRunStatus.Failed, summary.Status);
+        Assert.Equal(FileSourceRunStatus.Failed, summary.Status);
         Assert.Contains("connector", summary.Error, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -106,7 +106,7 @@ public sealed class IndexerRunServiceTests : IDisposable
 
         var summary = await harness.Service.RunAsync(indexer, TestContext.Current.CancellationToken);
 
-        Assert.Equal(IndexerRunStatus.PartiallyCompleted, summary.Status);
+        Assert.Equal(FileSourceRunStatus.PartiallyCompleted, summary.Status);
         Assert.False(summary.DiscoveryCompleted);
         Assert.Equal(0, summary.ItemsDeleted);
         Assert.False(string.IsNullOrWhiteSpace(summary.DiscoveryCursor));
@@ -228,7 +228,7 @@ public sealed class IndexerRunServiceTests : IDisposable
 
         var summary = await harness.Service.RunAsync(harness.CreateIndexer(), TestContext.Current.CancellationToken);
 
-        Assert.Equal(IndexerRunStatus.Failed, summary.Status);
+        Assert.Equal(FileSourceRunStatus.Failed, summary.Status);
         Assert.Contains("Ingested", summary.Error, StringComparison.Ordinal);
         Assert.Empty(harness.Store.All);
     }
@@ -250,7 +250,7 @@ public sealed class IndexerRunServiceTests : IDisposable
         {
             _root = root;
 
-            var options = new IndexerOptions();
+            var options = new FileSourceOptions();
 
             options.AllowedLocalRoots.Add(root);
 
@@ -271,7 +271,7 @@ public sealed class IndexerRunServiceTests : IDisposable
 
         public string DataSourceType { get; init; } = AIDataSourceSourceTypes.File;
 
-        public DefaultIndexerRunService Service => Build();
+        public DefaultFileSourceRunService Service => Build();
 
         /// <summary>
         /// Builds an indexer pointed at the folder. The same instance is reused across runs, which is how the
@@ -307,7 +307,7 @@ public sealed class IndexerRunServiceTests : IDisposable
             return indexer;
         }
 
-        private DefaultIndexerRunService Build()
+        private DefaultFileSourceRunService Build()
         {
             var ingestionService = IndexerTestPipeline.Create(Store);
 
@@ -332,15 +332,15 @@ public sealed class IndexerRunServiceTests : IDisposable
                 .Callback((WebCrawler indexer, CancellationToken _) => Saved.Add(indexer))
                 .Returns(ValueTask.CompletedTask);
 
-            return new DefaultIndexerRunService(
+            return new DefaultFileSourceRunService(
                 resolver.Object,
                 StateStore,
                 indexerStore.Object,
                 ingestionService,
                 dataSourceStore.Object,
-                Options.Create(new IndexerOptions()),
+                Options.Create(new FileSourceOptions()),
                 TimeProvider.System,
-                NullLogger<DefaultIndexerRunService>.Instance);
+                NullLogger<DefaultFileSourceRunService>.Instance);
         }
     }
 }

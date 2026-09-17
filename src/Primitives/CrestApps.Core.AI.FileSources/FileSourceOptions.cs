@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Indexers;
+namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
 /// Host-wide limits on what an indexer may reach and how hard it may work.
@@ -8,7 +8,7 @@ namespace CrestApps.Core.AI.Indexers;
 /// around that: which folders may be read at all, how much one run may take on, and how many things it may
 /// do at once.
 /// </remarks>
-public sealed class IndexerOptions
+public sealed class FileSourceOptions
 {
     /// <summary>
     /// Gets the folders a local-folder indexer may read from. A root outside every entry is refused.

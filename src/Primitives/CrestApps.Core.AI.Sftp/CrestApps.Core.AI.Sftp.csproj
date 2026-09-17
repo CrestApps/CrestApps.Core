@@ -25,7 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../CrestApps.Core.AI.Indexers/CrestApps.Core.AI.Indexers.csproj" />
+    <ProjectReference Include="../CrestApps.Core.AI.FileSources/CrestApps.Core.AI.FileSources.csproj" />
     <ProjectReference Include="../CrestApps.Core.AI.Mcp/CrestApps.Core.AI.Mcp.csproj" />
   </ItemGroup>
 

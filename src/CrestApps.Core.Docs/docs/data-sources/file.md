@@ -68,18 +68,18 @@ time instead of storing a second copy of it.
 
 | Connector | Package | Reads |
 | --- | --- | --- |
-| `LocalFolder` | `CrestApps.Core.AI.Indexers` | files in a folder on the host |
+| `LocalFolder` | `CrestApps.Core.AI.FileSources` | files in a folder on the host |
 | `Ftp` | `CrestApps.Core.AI.Ftp` | files on an FTP or FTPS server |
 | `Sftp` | `CrestApps.Core.AI.Sftp` | files on an SFTP server |
 
 ```csharp
 builder.Services
-    .AddCoreIndexers()
+    .AddCoreFileSources()
     .AddCoreLocalFolderConnector()
     .AddCoreFtpIngestionConnector()
     .AddCoreSftpIngestionConnector();
 
-builder.Services.Configure<IndexerOptions>(
+builder.Services.Configure<FileSourceOptions>(
     builder.Configuration.GetSection("CrestApps:Indexers"));
 ```
 
@@ -146,7 +146,7 @@ are ordinary, but it turns validation off for that record. Use it only against a
 
 Two actions sit beside each file source:
 
-- **Sync** runs it now, through `IIndexerRunService`.
+- **Sync** runs it now, through `IFileSourceRunService`.
 - **Reset state** forgets what has been read — not what was stored — so the next run re-reads every item.
 
 A hosted job runs the sources that are due on their own schedule, and each run stores an

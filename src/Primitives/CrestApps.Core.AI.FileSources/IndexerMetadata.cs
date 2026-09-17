@@ -1,6 +1,6 @@
 using CrestApps.Core.AI.Documents.Ingestion;
 
-namespace CrestApps.Core.AI.Indexers;
+namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
 /// The ingestion settings one indexer applies to everything it reads.

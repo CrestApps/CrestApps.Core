@@ -5,7 +5,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.Models;
 using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.AI.Indexers.FileTransfer;
+namespace CrestApps.Core.AI.FileSources.FileTransfer;
 
 /// <summary>
 /// The folder settings a file-server indexer carries.

@@ -1,11 +1,11 @@
 using CrestApps.Core.AI.Models;
 
-namespace CrestApps.Core.AI.Indexers;
+namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
 /// Runs one indexer: list what the source holds, ingest what is new or changed, and remove what is gone.
 /// </summary>
-public interface IIndexerRunService
+public interface IFileSourceRunService
 {
     /// <summary>
     /// Runs one indexer.

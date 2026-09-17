@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Indexers.FileTransfer;
+namespace CrestApps.Core.AI.FileSources.FileTransfer;
 
 /// <summary>
 /// One file on a remote server.

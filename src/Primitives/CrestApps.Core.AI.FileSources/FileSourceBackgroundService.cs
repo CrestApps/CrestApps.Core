@@ -7,35 +7,35 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.AI.Indexers;
+namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
 /// A thin hosted job that periodically runs the indexers that are due.
 /// </summary>
 /// <remarks>
-/// All of the run logic lives in <see cref="IIndexerRunService"/>, so a host that prefers its own scheduling
+/// All of the run logic lives in <see cref="IFileSourceRunService"/>, so a host that prefers its own scheduling
 /// — or an operator pressing a button — drives the same code this does. Whether a record is due is read from
 /// the run summary stored on it, so the schedule survives a restart.
 /// </remarks>
-internal sealed class IndexerBackgroundService : BackgroundService
+internal sealed class FileSourceBackgroundService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly IndexerOptions _options;
+    private readonly FileSourceOptions _options;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger<IndexerBackgroundService> _logger;
+    private readonly ILogger<FileSourceBackgroundService> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="IndexerBackgroundService"/> class.
+    /// Initializes a new instance of the <see cref="FileSourceBackgroundService"/> class.
     /// </summary>
     /// <param name="serviceProvider">The service provider.</param>
     /// <param name="options">The indexer options.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
-    public IndexerBackgroundService(
+    public FileSourceBackgroundService(
         IServiceProvider serviceProvider,
-        IOptions<IndexerOptions> options,
+        IOptions<FileSourceOptions> options,
         TimeProvider timeProvider,
-        ILogger<IndexerBackgroundService> logger)
+        ILogger<FileSourceBackgroundService> logger)
     {
         _serviceProvider = serviceProvider;
         _options = options.Value;
@@ -83,7 +83,7 @@ internal sealed class IndexerBackgroundService : BackgroundService
         using var scope = _serviceProvider.CreateScope();
 
         var services = scope.ServiceProvider;
-        var runService = services.GetService<IIndexerRunService>();
+        var runService = services.GetService<IFileSourceRunService>();
         var store = services.GetService<IWebCrawlerStore>();
         var dataSourceStore = services.GetService<IAIDataSourceStore>();
         var connectorResolver = services.GetService<IIngestionConnectorResolver>();

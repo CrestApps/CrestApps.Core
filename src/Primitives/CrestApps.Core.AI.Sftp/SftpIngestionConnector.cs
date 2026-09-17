@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Indexers.FileTransfer;
+using CrestApps.Core.AI.FileSources.FileTransfer;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Sftp;
 using CrestApps.Core.AI.Sftp.Models;

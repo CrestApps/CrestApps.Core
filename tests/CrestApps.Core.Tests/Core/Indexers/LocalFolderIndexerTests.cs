@@ -4,8 +4,8 @@ using CrestApps.Core.AI.Documents.Ingestion;
 using CrestApps.Core.AI.Documents.Knowledge;
 using CrestApps.Core.AI.Documents.Knowledge.Structure;
 using CrestApps.Core.AI.Documents.Services;
-using CrestApps.Core.AI.Indexers;
-using CrestApps.Core.AI.Indexers.Connectors;
+using CrestApps.Core.AI.FileSources;
+using CrestApps.Core.AI.FileSources.Connectors;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
@@ -207,7 +207,7 @@ public sealed class LocalFolderIndexerTests : IDisposable
 
     private LocalFolderIngestionConnector CreateConnector(bool allowed = true)
     {
-        var options = new IndexerOptions();
+        var options = new FileSourceOptions();
 
         if (allowed)
         {
@@ -249,7 +249,7 @@ public sealed class LocalFolderIndexerTests : IDisposable
         {
             _root = root;
 
-            var options = new IndexerOptions();
+            var options = new FileSourceOptions();
 
             options.AllowedLocalRoots.Add(root);
 
@@ -290,15 +290,15 @@ public sealed class LocalFolderIndexerTests : IDisposable
 
             var indexerStore = new Mock<IWebCrawlerStore>();
 
-            Service = new DefaultIndexerRunService(
+            Service = new DefaultFileSourceRunService(
                 resolver.Object,
                 StateStore,
                 indexerStore.Object,
                 ingestionService,
                 dataSourceStore.Object,
-                Options.Create(new IndexerOptions()),
+                Options.Create(new FileSourceOptions()),
                 TimeProvider.System,
-                NullLogger<DefaultIndexerRunService>.Instance);
+                NullLogger<DefaultFileSourceRunService>.Instance);
         }
 
         public OverridableConnector Connector { get; }
@@ -311,7 +311,7 @@ public sealed class LocalFolderIndexerTests : IDisposable
 
         public InMemoryWebCrawlStateStore StateStore { get; } = new();
 
-        public DefaultIndexerRunService Service { get; }
+        public DefaultFileSourceRunService Service { get; }
 
         public Task<IndexerRunSummary> RunAsync()
         {

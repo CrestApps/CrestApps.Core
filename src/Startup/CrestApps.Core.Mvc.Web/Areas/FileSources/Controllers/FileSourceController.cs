@@ -1,7 +1,7 @@
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
-using CrestApps.Core.AI.Indexers;
-using CrestApps.Core.AI.Indexers.Connectors;
+using CrestApps.Core.AI.FileSources;
+using CrestApps.Core.AI.FileSources.Connectors;
 using CrestApps.Core.AI.Ftp.Models;
 using CrestApps.Core.AI.Sftp.Models;
 using CrestApps.Core.AI.Models;
@@ -21,7 +21,7 @@ public sealed class FileSourceController : Controller
 {
     private readonly ISourceCatalogManager<WebCrawler> _manager;
     private readonly IAIDataSourceStore _dataSourceStore;
-    private readonly IIndexerRunService _runService;
+    private readonly IFileSourceRunService _runService;
     private readonly IWebCrawlStateStore _stateStore;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IDataProtectionProvider _dataProtectionProvider;
@@ -30,7 +30,7 @@ public sealed class FileSourceController : Controller
     public FileSourceController(
         ISourceCatalogManager<WebCrawler> manager,
         IAIDataSourceStore dataSourceStore,
-        IIndexerRunService runService,
+        IFileSourceRunService runService,
         IWebCrawlStateStore stateStore,
         IAIDeploymentManager deploymentManager,
         IDataProtectionProvider dataProtectionProvider,
@@ -182,7 +182,7 @@ public sealed class FileSourceController : Controller
 
         var run = await _runService.RunAsync(fileSource, HttpContext.RequestAborted);
 
-        if (run.Status == IndexerRunStatus.Failed)
+        if (run.Status == FileSourceRunStatus.Failed)
         {
             TempData["ErrorMessage"] = run.Error;
         }

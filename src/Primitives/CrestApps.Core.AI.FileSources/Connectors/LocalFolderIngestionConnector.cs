@@ -6,7 +6,7 @@ using CrestApps.Core.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.AI.Indexers.Connectors;
+namespace CrestApps.Core.AI.FileSources.Connectors;
 
 /// <summary>
 /// The settings a local-folder indexer carries.
@@ -52,7 +52,7 @@ public sealed class LocalFolderIngestionConnector : IIngestionConnector
     /// </summary>
     public const string ConnectorName = "LocalFolder";
 
-    private readonly IndexerOptions _options;
+    private readonly FileSourceOptions _options;
     private readonly ILogger<LocalFolderIngestionConnector> _logger;
 
     /// <summary>
@@ -61,7 +61,7 @@ public sealed class LocalFolderIngestionConnector : IIngestionConnector
     /// <param name="options">The indexer options.</param>
     /// <param name="logger">The logger.</param>
     public LocalFolderIngestionConnector(
-        IOptions<IndexerOptions> options,
+        IOptions<FileSourceOptions> options,
         ILogger<LocalFolderIngestionConnector> logger)
     {
         _options = options.Value;
