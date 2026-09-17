@@ -82,7 +82,9 @@ public class OpenXmlTabularDocumentArtifactBuilderCapacityBenchmarks
             : new List<List<string>>(initialRowCapacity);
         var headerAssigned = false;
 
-        static void OnWorksheetEnd()
+        // The reader hands back the worksheet's source number formats; the benchmark measures the read
+        // itself and has no use for them.
+        static void OnWorksheetEnd(IReadOnlyList<string> sourceFormats)
         {
         }
 
