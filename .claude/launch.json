@@ -35,6 +35,20 @@
       ],
       "port": 5201,
       "url": "http://localhost:5201"
+    },
+    {
+      "name": "mvc-5100",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "src/Startup/CrestApps.Core.Mvc.Web/CrestApps.Core.Mvc.Web.csproj",
+        "--no-launch-profile",
+        "--urls",
+        "https://localhost:5100"
+      ],
+      "port": 5100,
+      "url": "https://localhost:5100"
     }
   ]
 }
