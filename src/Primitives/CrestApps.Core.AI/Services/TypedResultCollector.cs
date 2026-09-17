@@ -280,6 +280,23 @@ internal sealed class TypedResultCollector
             var example = _figures.FirstOrDefault(IsServable);
             var unservable = _figures.Where(figure => !IsServable(figure)).Select(figure => figure.Label).ToList();
 
+            // A figure whose numbers were never read off the file carries a note saying so, and on its own
+            // that note is read as a hint to reason around rather than a fact to report. Asked whether a
+            // chart's values were machine-readable, a model shown "values: descriptive - not
+            // machine-readable" answered that they "might not be immediately machine-readable" and offered
+            // to extract them with "some extraction effort" -- true of a picture in the abstract, and not
+            // an answer to what this knowledge base holds, which is nothing. The note states the fact; this
+            // says what to do with it, the same way the label and URL lines above do.
+            var anyValuesUnquotable = _figures.Any(figure =>
+                string.Equals(figure.ValueConfidence, ChartValueConfidence.Descriptive, StringComparison.OrdinalIgnoreCase) ||
+                (string.IsNullOrWhiteSpace(figure.ValueConfidence) &&
+                    string.Equals(figure.ContentType, KnowledgeObjectTypes.Chart, StringComparison.OrdinalIgnoreCase)));
+
+            if (anyValuesUnquotable)
+            {
+                builder.AppendLine("A figure marked descriptive or unconfirmed has no numbers stored here, only a picture and a caption. Asked whether such a chart's values are machine-readable, or for its data, say plainly that they are not available - do not quote figures from it, do not offer to extract them, and do not call them convertible.");
+            }
+
             if (example is not null)
             {
                 // The label is the whole instruction. Naming an address here would undo the point of
