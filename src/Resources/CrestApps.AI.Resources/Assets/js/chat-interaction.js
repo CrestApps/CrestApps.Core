@@ -2812,15 +2812,38 @@ window.chatInteractionDocumentManager = function () {
 
             interactionDocuments.forEach(documentInfo => {
                 const row = window.document.createElement('div');
-                row.className = 'd-flex justify-content-between align-items-start gap-2 border rounded px-2 py-2 bg-white chat-document-row';
+                row.className = 'd-flex align-items-center gap-2 border rounded px-2 py-2 bg-white chat-document-row';
                 row.dataset.chatDocumentId = documentInfo.documentId;
                 row.dataset.chatDocumentName = documentInfo.fileName;
                 row.dataset.chatDocumentSize = documentInfo.fileSize;
 
-                const details = window.document.createElement('div');
-                details.className = 'me-2 min-w-0';
+                const actions = window.document.createElement('div');
+                actions.className = 'd-flex gap-1';
 
-                const name = createTextElement('div', 'fw-semibold small', documentInfo.fileName || 'Document');
+                const downloadBaseUrl = config.downloadDocumentBaseUrl || '/ai/documents/';
+                const downloadLink = createTextElement('a', 'btn btn-sm btn-outline-secondary', '');
+                downloadLink.title = 'Download';
+                downloadLink.href = downloadBaseUrl + encodeURIComponent(documentInfo.documentId) + '/download';
+                const downloadIcon = window.document.createElement('i');
+                downloadIcon.className = 'fa-solid fa-download';
+                downloadLink.appendChild(downloadIcon);
+
+                const removeButton = createTextElement('button', 'btn btn-sm btn-outline-danger remove-chat-document-btn', '');
+                removeButton.type = 'button';
+                removeButton.title = 'Remove';
+                removeButton.dataset.documentId = documentInfo.documentId;
+                const removeIcon = window.document.createElement('i');
+                removeIcon.className = 'fa-solid fa-trash';
+                removeButton.appendChild(removeIcon);
+                removeButton.addEventListener('click', () => removeDocument(documentInfo.documentId));
+
+                actions.appendChild(downloadLink);
+                actions.appendChild(removeButton);
+
+                const details = window.document.createElement('div');
+                details.className = 'min-w-0';
+
+                const name = createTextElement('div', 'fw-semibold small text-truncate', documentInfo.fileName || 'Document');
                 const icon = window.document.createElement('i');
                 icon.className = 'fa-solid fa-file-lines me-1';
                 name.prepend(icon);
@@ -2830,16 +2853,8 @@ window.chatInteractionDocumentManager = function () {
                 details.appendChild(name);
                 details.appendChild(size);
 
-                const removeButton = createTextElement('button', 'btn btn-sm btn-outline-danger remove-chat-document-btn', ' Remove');
-                removeButton.type = 'button';
-                removeButton.dataset.documentId = documentInfo.documentId;
-                const removeIcon = window.document.createElement('i');
-                removeIcon.className = 'fa-solid fa-trash';
-                removeButton.prepend(removeIcon);
-                removeButton.addEventListener('click', () => removeDocument(documentInfo.documentId));
-
+                row.appendChild(actions);
                 row.appendChild(details);
-                row.appendChild(removeButton);
                 documentsList.appendChild(row);
             });
         }

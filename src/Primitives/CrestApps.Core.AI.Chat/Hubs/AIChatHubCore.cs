@@ -1083,7 +1083,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
                 var promptStore = services.GetRequiredService<IAIChatSessionPromptStore>();
                 var runner = services.GetRequiredService<RealtimeChatSessionRunner>();
-                var sink = new SignalRRealtimeConversationSink(Clients.Caller);
+                var sink = new SignalRRealtimeConversationSink(Clients.Caller, _timeProvider);
                 var turnStore = new ChatSessionRealtimeTurnStore(promptStore);
 
                 var titleGenerated = false;
@@ -1288,7 +1288,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
                     var promptStore = services.GetRequiredService<IAIChatSessionPromptStore>();
                     var runner = services.GetRequiredService<RealtimeChatSessionRunner>();
-                    var innerSink = new SignalRRealtimeConversationSink(caller);
+                    var innerSink = new SignalRRealtimeConversationSink(caller, _timeProvider);
                     var sink = new WebRtcRealtimeConversationSink(innerSink, peer);
                     var turnStore = new ChatSessionRealtimeTurnStore(promptStore);
 
@@ -2829,13 +2829,24 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     {
         private readonly TClient _client;
 
-        public SignalRRealtimeConversationSink(TClient client)
+        // Forwarding a chunk is not the user hearing it: the queue moves into the browser, which plays it at real
+        // time out of its own audio graph. Without this the server believes a reply that took two seconds to send
+        // was over two seconds in, and the idle watchdog ends the session while the user is still listening to it.
+        private readonly ClientPlaybackEstimate _playback;
+
+        public SignalRRealtimeConversationSink(TClient client, TimeProvider timeProvider)
         {
             _client = client;
+            _playback = new ClientPlaybackEstimate(timeProvider);
         }
+
+        /// <inheritdoc />
+        public int PendingPlaybackMs => _playback.PendingMs;
 
         public Task AssistantAudioAsync(string identifier, ReadOnlyMemory<byte> audio, CancellationToken cancellationToken)
         {
+            _playback.Append(audio.Length);
+
             return _client.ReceiveAudioChunk(identifier, Convert.ToBase64String(audio.Span), "audio/pcm");
         }
 
@@ -2890,6 +2901,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             // already scheduled in the browser's Web Audio graph. The client cannot know an interruption happened
             // from its own microphone alone (the gate may be closed, or push-to-talk may be in use), so tell it:
             // without this signal the interrupted reply plays to the end and the new one is appended behind it.
+            _playback.Flush();
+
             return _client.ReceiveRealtimeEvent(identifier, RealtimeClientEventTypes.SpeechStarted, null);
         }
 
@@ -2897,6 +2910,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         {
             // WebRTC audio is flushed on the peer itself (see WebRtcRealtimeConversationSink); on the WebSocket
             // transport the buffered PCM lives in the browser, so the flush has to travel there.
+            _playback.Flush();
+
             return _client.ReceiveRealtimeEvent(identifier, RealtimeClientEventTypes.PlaybackFlush, null);
         }
 

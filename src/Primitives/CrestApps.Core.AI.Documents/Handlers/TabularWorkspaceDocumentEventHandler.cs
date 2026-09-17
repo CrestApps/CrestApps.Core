@@ -1,7 +1,6 @@
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Models;
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -46,22 +45,18 @@ internal sealed class TabularWorkspaceDocumentEventHandler : IAIChatDocumentEven
     /// </summary>
     private void TryDropDocumentTable(string referenceType, string referenceId, string documentId)
     {
-        if (string.IsNullOrEmpty(_basePath) || string.IsNullOrEmpty(referenceType) || string.IsNullOrEmpty(referenceId))
-        {
-            return;
-        }
+        var databasePath = TabularWorkspaceDatabase.GetDatabasePath(_basePath, referenceType, referenceId);
 
-        var databasePath = Path.Combine(_basePath, "documents", referenceType, referenceId, "data", "tabular.db");
-
-        if (!File.Exists(databasePath))
+        if (databasePath is null || !File.Exists(databasePath))
         {
             return;
         }
 
         try
         {
-            using var connection = new SqliteConnection($"Data Source={databasePath}");
-            connection.Open();
+            // The workspace keeps its connection read-only between write windows, so the connection is
+            // opened through the shared helper that turns query_only back off before anything writes.
+            using var connection = TabularWorkspaceDatabase.Open(databasePath);
 
             // A single document can produce multiple tables (one per worksheet), so drop them all.
             var tableNames = new List<string>();
@@ -115,18 +110,19 @@ internal sealed class TabularWorkspaceDocumentEventHandler : IAIChatDocumentEven
         }
         catch (Exception ex)
         {
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug(ex, "Failed to drop tables for document '{DocumentId}' from workspace database.", documentId);
-            }
+            // The document was removed from the conversation but its data is still in the workspace
+            // database, so the model can keep querying it. That is worth surfacing rather than hiding
+            // behind a debug-level log.
+            _logger.LogWarning(ex, "Failed to drop tables for document '{DocumentId}' from workspace database.", documentId);
         }
     }
 
     private void TryDeleteDatabaseFiles(string databasePath)
     {
-        TryDeleteFile(databasePath);
-        TryDeleteFile(databasePath + "-wal");
-        TryDeleteFile(databasePath + "-shm");
+        foreach (var path in TabularWorkspaceDatabase.GetDatabaseFilePaths(databasePath))
+        {
+            TryDeleteFile(path);
+        }
     }
 
     private void TryDeleteFile(string path)

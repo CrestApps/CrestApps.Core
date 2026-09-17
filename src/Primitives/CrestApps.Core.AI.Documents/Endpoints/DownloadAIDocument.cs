@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Chat;
+﻿using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Services;

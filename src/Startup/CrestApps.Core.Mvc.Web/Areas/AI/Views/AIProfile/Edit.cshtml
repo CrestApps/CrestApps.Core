@@ -748,14 +748,19 @@
                             @foreach (var doc in Model.AttachedDocuments)
                             {
                                 <div class="attached-document-card existing-doc-row" data-doc-id="@doc.DocumentId">
+                                    <div class="d-flex gap-1 me-2">
+                                        <a class="btn btn-sm btn-outline-secondary" title="Download" href="@Url.Content($"~/ai/documents/{doc.DocumentId}/download")">
+                                            <i class="fa-solid fa-download"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-outline-danger remove-existing-doc-btn" title="Remove">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </div>
                                     <span class="attached-document-icon"><i class="fa-solid fa-file-lines"></i></span>
                                     <div class="attached-document-meta flex-grow-1">
                                         <div class="attached-document-name">@doc.FileName</div>
                                         <span class="attached-document-size">@(doc.FileSize < 1024 ? doc.FileSize + " B" : doc.FileSize < 1048576 ? (doc.FileSize / 1024.0).ToString("F1") + " KB" : (doc.FileSize / 1048576.0).ToString("F1") + " MB")</span>
                                     </div>
-                                    <button type="button" class="btn btn-sm btn-outline-danger remove-existing-doc-btn" title="Remove">
-                                        <i class="fa-solid fa-trash"></i>
-                                    </button>
                                 </div>
                             }
                         </div>

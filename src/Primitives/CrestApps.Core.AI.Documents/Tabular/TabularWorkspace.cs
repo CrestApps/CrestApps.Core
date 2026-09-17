@@ -120,6 +120,8 @@ internal sealed class TabularWorkspace : IDisposable
 
             try
             {
+                RemoveFailedImportPlaceholderTables();
+                RemoveTablesForDetachedDocuments(documents);
                 await SynchronizeTablesAsync(documents, artifactLoader, workspaceImporter, cancellationToken);
             }
             finally
@@ -559,16 +561,7 @@ internal sealed class TabularWorkspace : IDisposable
     /// <param name="connection">The connection to toggle.</param>
     /// <param name="writable">When <see langword="true"/>, writes are allowed; otherwise they are blocked.</param>
     private static void SetWritable(SqliteConnection connection, bool writable)
-    {
-        if (connection is null)
-        {
-            return;
-        }
-
-        using var command = connection.CreateCommand();
-        command.CommandText = writable ? "PRAGMA query_only = OFF" : "PRAGMA query_only = ON";
-        command.ExecuteNonQuery();
-    }
+        => TabularWorkspaceDatabase.SetWritable(connection, writable);
 
     private async Task SynchronizeTablesAsync(
         IReadOnlyList<TabularDocumentRef> documents,
@@ -601,7 +594,10 @@ internal sealed class TabularWorkspace : IDisposable
 
                 var importResults = await workspaceImporter(document, _connection, allocator, cancellationToken);
 
-                if (importResults != null)
+                // An importer that produced nothing falls through to the artifact loader rather than
+                // marking the document imported, so a failed streaming import still gets a second
+                // chance and never leaves the document represented by no table at all.
+                if (importResults is { Count: > 0 })
                 {
                     foreach (var importResult in importResults)
                     {
@@ -624,7 +620,23 @@ internal sealed class TabularWorkspace : IDisposable
             }
 
             var artifact = await artifactLoader(document, cancellationToken);
-            var worksheets = artifact?.GetWorksheets() ?? [new TabularWorksheet()];
+            var worksheets = (artifact?.GetWorksheets() ?? []).Where(HasContent).ToList();
+
+            // A document whose content could not be loaded (a missing artifact, missing chunks, or an
+            // unreadable file) must not be turned into a table. Creating one would write a placeholder
+            // column with no rows, register it in the metadata, and make IsDocumentLoaded true forever
+            // after, so the workspace would serve an empty table for the rest of the conversation and
+            // never retry the import. Leaving it unregistered means the next request tries again.
+            if (worksheets.Count == 0)
+            {
+                _logger.LogWarning(
+                    "No tabular content could be loaded for document '{FileName}' ('{DocumentId}'), so no table was created. The import will be retried on the next request.",
+                    document.FileName,
+                    document.DocumentId);
+
+                continue;
+            }
+
             var singleWorksheetDocument = worksheets.Count == 1;
 
             foreach (var worksheet in worksheets)
@@ -653,6 +665,180 @@ internal sealed class TabularWorkspace : IDisposable
                     importStopwatch.ElapsedMilliseconds);
             }
         }
+    }
+
+    /// <summary>
+    /// Drops every table whose document is no longer attached to the conversation.
+    /// </summary>
+    /// <remarks>
+    /// The workspace database outlives a single request, so a document removed from the conversation
+    /// leaves its tables behind and the model can keep querying data the user believes is gone. The
+    /// removal handler drops them eagerly; this pass is what makes the workspace self-correcting when
+    /// that never ran, failed, or the document disappeared by another route. The caller supplies the
+    /// complete document set for the scope, so anything else in the database is detached by
+    /// definition. Must run inside a write window.
+    /// </remarks>
+    /// <param name="documents">The documents currently attached to the conversation.</param>
+    private void RemoveTablesForDetachedDocuments(IReadOnlyList<TabularDocumentRef> documents)
+    {
+        if (_tables.Count == 0)
+        {
+            return;
+        }
+
+        var attached = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var document in documents)
+        {
+            attached.Add(document.DocumentId);
+        }
+
+        List<LoadedTable> detached = null;
+
+        foreach (var table in _tables.Values)
+        {
+            if (!attached.Contains(table.DocumentId))
+            {
+                (detached ??= []).Add(table);
+            }
+        }
+
+        if (detached is null)
+        {
+            return;
+        }
+
+        foreach (var table in detached)
+        {
+            DropTable(table.TableName);
+            DeleteMetadataEntry(table.TableName);
+            _tables.Remove(table.TableName);
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(
+                    "Dropped tabular table '{TableName}' because document '{DocumentId}' is no longer attached to the conversation.",
+                    table.TableName,
+                    table.DocumentId);
+            }
+        }
+    }
+
+    private void DropTable(string tableName)
+    {
+        using var command = _connection.CreateCommand();
+        command.CommandText = $"DROP TABLE IF EXISTS \"{tableName.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+        command.ExecuteNonQuery();
+    }
+
+    private void DeleteMetadataEntry(string tableName)
+    {
+        using var command = _connection.CreateCommand();
+        command.CommandText = $"""
+            DELETE FROM "{MetadataTableName}" WHERE table_name = $tableName
+            """;
+        command.Parameters.AddWithValue("$tableName", tableName);
+        command.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Discards tables left behind by an import that produced no content, so the document is read
+    /// again on this request.
+    /// </summary>
+    /// <remarks>
+    /// Such a table was created before a failed import stopped being registered, and it is indelible
+    /// on its own: the metadata entry makes the document count as loaded, so the workspace serves an
+    /// empty table for the rest of the conversation and never reads the file again. This repairs a
+    /// database already in that state without waiting for the user to upload the files a second time.
+    /// Must run inside a write window.
+    /// </remarks>
+    private void RemoveFailedImportPlaceholderTables()
+    {
+        if (_tables.Count == 0)
+        {
+            return;
+        }
+
+        List<LoadedTable> placeholders = null;
+
+        foreach (var table in _tables.Values)
+        {
+            if (IsFailedImportPlaceholder(table.TableName))
+            {
+                (placeholders ??= []).Add(table);
+            }
+        }
+
+        if (placeholders is null)
+        {
+            return;
+        }
+
+        foreach (var table in placeholders)
+        {
+            DropTable(table.TableName);
+            DeleteMetadataEntry(table.TableName);
+            _tables.Remove(table.TableName);
+
+            _logger.LogWarning(
+                "Discarded the empty table '{TableName}' left behind by a failed import of document '{DocumentId}'. The document will be imported again.",
+                table.TableName,
+                table.DocumentId);
+        }
+    }
+
+    /// <summary>
+    /// Determines whether a table has the exact shape a failed import leaves behind: the single
+    /// placeholder <c>value</c> column and no rows.
+    /// </summary>
+    /// <remarks>
+    /// The row check is what makes this safe to act on. A table the user emptied through a
+    /// manipulation tool keeps the real columns of its source file, so it can never match, and
+    /// re-importing something that matches cannot lose data because it holds none.
+    /// </remarks>
+    /// <param name="tableName">The table to inspect.</param>
+    /// <returns><see langword="true"/> when the table is a failed import's leftover.</returns>
+    private bool IsFailedImportPlaceholder(string tableName)
+    {
+        using (var schemaCommand = _connection.CreateCommand())
+        {
+            schemaCommand.CommandText = $"PRAGMA table_info({QuoteIdentifier(tableName)})";
+
+            using var reader = schemaCommand.ExecuteReader();
+
+            // Exactly one column, named "value".
+            if (!reader.Read() || !string.Equals(reader.GetString(1), "value", StringComparison.Ordinal) || reader.Read())
+            {
+                return false;
+            }
+        }
+
+        using var rowCommand = _connection.CreateCommand();
+        rowCommand.CommandText = $"SELECT EXISTS(SELECT 1 FROM {QuoteIdentifier(tableName)})";
+
+        return Convert.ToInt64(rowCommand.ExecuteScalar()) == 0;
+    }
+
+    /// <summary>
+    /// Determines whether a worksheet carries anything worth creating a table for. A worksheet with
+    /// no header and no rows means the import produced nothing, not that the spreadsheet is empty.
+    /// </summary>
+    /// <param name="worksheet">The parsed worksheet.</param>
+    /// <returns><see langword="true"/> when the worksheet has a header or rows.</returns>
+    private static bool HasContent(TabularWorksheet worksheet)
+    {
+        if (worksheet is null)
+        {
+            return false;
+        }
+
+        if (worksheet.Rows is { Count: > 0 })
+        {
+            return true;
+        }
+
+        return worksheet.Header is { Count: > 0 }
+            && worksheet.Header.Any(name => !string.IsNullOrWhiteSpace(name));
     }
 
     private bool IsDocumentLoaded(string documentId)
@@ -709,13 +895,7 @@ internal sealed class TabularWorkspace : IDisposable
 
     private SqliteConnection OpenConnection()
     {
-        string connectionString;
-
-        if (string.IsNullOrEmpty(_databasePath))
-        {
-            connectionString = "Data Source=:memory:";
-        }
-        else
+        if (!string.IsNullOrEmpty(_databasePath))
         {
             var directory = Path.GetDirectoryName(_databasePath);
 
@@ -723,12 +903,11 @@ internal sealed class TabularWorkspace : IDisposable
             {
                 Directory.CreateDirectory(directory);
             }
-
-            connectionString = $"Data Source={_databasePath}";
         }
 
-        var connection = new SqliteConnection(connectionString);
-        connection.Open();
+        // Opens the connection with writes enabled so the journal-mode and metadata statements below
+        // succeed; the write window is closed again once the database is ready.
+        var connection = TabularWorkspaceDatabase.Open(_databasePath);
         EnableDoubleQuotedStringLiterals(connection);
 
         if (_logger.IsEnabled(LogLevel.Debug))

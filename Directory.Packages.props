@@ -3,19 +3,19 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     <ModelContextProtocolVersion>2.2.0</ModelContextProtocolVersion>
-    <GitHubCopilotSdkVersion>1.0.11</GitHubCopilotSdkVersion>
+    <GitHubCopilotSdkVersion>1.0.13</GitHubCopilotSdkVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- Miscellaneous Packages -->
     <PackageVersion Include="A2A" Version="1.0.0-preview2" />
     <PackageVersion Include="A2A.AspNetCore" Version="1.0.0-preview2" />
-    <PackageVersion Include="AngleSharp" Version="1.7.1" />
-    <PackageVersion Include="Anthropic" Version="12.44.0" />
+    <PackageVersion Include="AngleSharp" Version="1.8.1" />
+    <PackageVersion Include="Anthropic" Version="12.47.0" />
     <PackageVersion Include="DocumentFormat.OpenXml" Version="3.5.1" />
-    <PackageVersion Include="Elastic.Clients.Elasticsearch" Version="[8.19.24,9.0.0)" />
+    <PackageVersion Include="Elastic.Clients.Elasticsearch" Version="[8.19.25,9.0.0)" />
     <PackageVersion Include="Fluid.Core" Version="2.40.0" />
-    <PackageVersion Include="FluentFTP" Version="54.2.0" />
-    <PackageVersion Include="Lucene.Net.Analysis.Common" Version="4.8.0-beta00017" />
+    <PackageVersion Include="FluentFTP" Version="54.2.1" />
+    <PackageVersion Include="Lucene.Net.Analysis.Common" Version="4.8.0-beta00018" />
     <PackageVersion Include="Markdig" Version="1.1.2" />
     <PackageVersion Include="ModelContextProtocol" Version="$(ModelContextProtocolVersion)" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="$(ModelContextProtocolVersion)" />
@@ -41,39 +41,44 @@
   <ItemGroup>
     <!-- Microsoft Packages -->
     <PackageVersion Include="Azure.AI.DocumentIntelligence" Version="1.0.0" />
-    <PackageVersion Include="Azure.AI.OpenAI" Version="2.8.0-beta.1" />
+    <PackageVersion Include="Azure.AI.OpenAI" Version="2.9.0-beta.1" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
     <PackageVersion Include="Azure.Search.Documents" Version="12.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="10.0.12" />
     <PackageVersion Include="Microsoft.CognitiveServices.Speech" Version="1.51.2" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.9.0" />
-    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.9.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.AzureAIInference" Version="10.0.0-preview.1.25559.3" />
+    <!-- Held at 10.9.0 on purpose. 10.10.0 requires OpenAI 2.13.0, and Azure.AI.OpenAI
+         (2.8.0-beta.1 and 2.9.0-beta.1) throws a NullReferenceException from
+         AzureChatClient.PostfixClearStreamOptions against that version whenever a streaming
+         chat request carries an image content part. 10.9.0 keeps OpenAI on 2.12.0, where the
+         path works. Bump once Azure.AI.OpenAI ships a build compatible with OpenAI 2.13.0. -->
     <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.9.0" />
     <PackageVersion Include="Microsoft.Extensions.DataIngestion" Version="10.4.0-preview.1.26160.2" />
     <PackageVersion Include="Microsoft.Extensions.DataIngestion.Markdig" Version="10.4.0-preview.1.26160.2" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.FileProviders.Physical" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.9.0" />
-    <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.Resilience" Version="10.9.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.FileProviders.Physical" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.10.0" />
+    <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Resilience" Version="10.10.0" />
     <PackageVersion Include="Microsoft.ML.Tokenizers.Data.O200kBase" Version="2.0.0" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.400" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
   </ItemGroup>
   <ItemGroup>
     <!-- Testing Packages -->
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
     <PackageVersion Include="Microsoft.Playwright" Version="1.62.0" />
     <PackageVersion Include="Moq" Version="4.20.72" />
     <PackageVersion Include="xunit.runner.inproc" Version="3.2.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
-    <PackageVersion Include="xunit.v3" Version="4.0.0" />
+    <PackageVersion Include="xunit.v3" Version="4.0.1" />
   </ItemGroup>
   <ItemGroup>
     <!-- Benchmark Packages -->
@@ -91,10 +96,10 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Transitive Packages -->
-    <PackageVersion Include="Microsoft.Bcl.Memory" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Bcl.Memory" Version="10.0.12" />
     <PackageVersion Include="Nerdbank.MessagePack" Version="1.2.4" />
     <PackageVersion Include="MessagePack" Version="3.1.7" />
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
   </ItemGroup>
 </Project>

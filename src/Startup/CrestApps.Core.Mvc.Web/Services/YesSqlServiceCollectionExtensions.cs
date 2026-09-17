@@ -1,4 +1,4 @@
-using System.Data.Common;
+﻿using System.Data.Common;
 using System.Text.Json;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Chat;

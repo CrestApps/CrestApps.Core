@@ -57,6 +57,23 @@ internal static class TabularToolRunner
             context.ImportToWorkspaceAsync,
             cancellationToken);
 
+        if (tables.Count == 0)
+        {
+            // The conversation has tabular files but none of them could be read. Say so instead of
+            // handing back an empty workspace, which reads to the model as files that contain no data.
+            workspace.Dispose();
+
+            logger?.LogWarning(
+                "None of the {DocumentCount} tabular document(s) attached to this conversation could be loaded into the workspace.",
+                context.Documents.Count);
+
+            return new PreparationResult(
+                null,
+                null,
+                null,
+                "The tabular files attached to this conversation could not be read. Their stored content is unavailable, so no data can be queried. Ask the user to upload the files again.");
+        }
+
         if (logger?.IsEnabled(LogLevel.Debug) == true)
         {
             logger.LogDebug(
