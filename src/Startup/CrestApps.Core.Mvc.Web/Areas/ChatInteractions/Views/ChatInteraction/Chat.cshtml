@@ -542,6 +542,18 @@
                         <div class="form-text">Optional filter expression passed to the configured data source provider.</div>
                     </div>
 
+                    <div class="mb-2 rag-data-source-filter-dependent">
+                        <label class="form-label">
+                            Kinds of knowledge
+                            <span class="text-muted ms-1" data-bs-toggle="tooltip" title="An ingested file is stored as separate typed pieces - its text, its figures, its charts and its tables. This limits which of those a search may return.">
+                                <i class="fa-solid fa-circle-question"></i>
+                            </span>
+                        </label>
+                        <input type="text" class="form-control setting-input" id="setting-objectTypes"
+                               value="@Model.DataSourceObjectTypes" placeholder="e.g. figure, chart" data-setting="objectTypes" />
+                        <div class="form-text">Comma-separated. Leave empty to retrieve every kind. Values: document, article, text, figure, chart, table.</div>
+                    </div>
+
                     <div class="form-check form-switch mb-2">
                         <input class="form-check-input setting-input" type="checkbox" id="setting-isInScope"
                                data-setting="isInScope" @(Model.DataSourceIsInScope ? "checked" : "") />

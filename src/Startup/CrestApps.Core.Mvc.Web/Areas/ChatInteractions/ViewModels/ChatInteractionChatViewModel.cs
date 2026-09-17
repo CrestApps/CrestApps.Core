@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Documents.Models;
+﻿using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Mvc.Web.Areas.A2A.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
@@ -86,6 +86,12 @@ internal sealed class ChatInteractionChatViewModel
     public bool DataSourceIsInScope { get; set; }
 
     public string DataSourceFilter { get; set; }
+
+    /// <summary>
+    /// Gets or sets the kinds of knowledge to retrieve, as a comma-separated list. Empty retrieves every
+    /// kind. The stored value is an array; this is its editable form.
+    /// </summary>
+    public string DataSourceObjectTypes { get; set; }
 
     // Copilot
     public string CopilotModel { get; set; }
