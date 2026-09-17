@@ -105,6 +105,36 @@ public sealed class SpreadsheetLayout
     }
 
     /// <summary>
+    /// Returns the columns whose formula references a column this sheet does not have.
+    /// <para>
+    /// Such a formula cannot be written — a broken reference makes the workbook open with an error — so
+    /// the column is delivered empty. An empty column looks like lost data and gives the reader no clue
+    /// why, so the caller is told which columns are affected and can correct the names.
+    /// </para>
+    /// </summary>
+    /// <returns>The names of the columns whose formulas cannot be resolved.</returns>
+    public IReadOnlyList<string> GetUnresolvableFormulaColumns()
+    {
+        List<string> unresolvable = null;
+
+        foreach (var column in Columns)
+        {
+            if (column.Formula is null)
+            {
+                continue;
+            }
+
+            // Any data row resolves the same references, so the first one settles it.
+            if (SpreadsheetFormula.Resolve(column.Formula, FirstDataRowNumber, TryGetColumnIndex) is null)
+            {
+                (unresolvable ??= []).Add(column.Name);
+            }
+        }
+
+        return unresolvable ?? (IReadOnlyList<string>)[];
+    }
+
+    /// <summary>
     /// Finds a resolved column by name.
     /// </summary>
     /// <param name="name">The column name.</param>

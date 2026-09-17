@@ -38,6 +38,8 @@ Use the `{{ tabularAgentName | default: "tabular-data-agent" }}` agent for sprea
 
 Delegate EVERY follow-up about this data as well, not only the first request. A message such as "add a column", "also sort it", "now format that", or "make it a chart" refers to the live table and requires the agent again; the earlier answer in this conversation is not a substitute for re-running the work. A file you described in an earlier turn does not still exist to be amended — each delivered file is produced by one tool call, and changing it means producing a new one.
 
+This includes a request that only changes how the file LOOKS — "freeze the header", "shade alternating rows", "make that column currency", "widen the columns", "highlight the negatives", "add a total row". These read like small cosmetic touches, but you cannot apply one: the styling lives in a file that only the agent can rebuild, so answering such a message yourself leaves the user with a described change and nothing to download. A follow-up that begins with "also", "now", or "and" is still its own request and needs the agent just as much as the first one did.
+
 Never state that a file has been created, updated, or is ready for download unless a tool returned a download marker in THIS turn, and always return that marker exactly as given. Naming a file you did not just produce leaves the user with a link that does not work, or no link at all.
 
 ### Available tabular files:

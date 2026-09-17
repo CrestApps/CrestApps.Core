@@ -34,7 +34,7 @@ public sealed class ExportTabularDataTool : AIFunction
       "properties": {
         "sql": {
           "type": "string",
-          "description": "Optional single read-only SQL query (SELECT or WITH ... SELECT) in SQLite dialect to shape the exported data. OMIT this to export the entire current in-memory table (all rows and columns, including every change applied with execute_tabular_command). Only provide it when the user wants a specific subset or custom shape."
+          "description": "Optional single read-only SQL query (SELECT or WITH ... SELECT) in SQLite dialect to shape the exported data. OMIT this to export the current in-memory tables as they stand (all rows and columns, including every change applied with execute_tabular_command; one tab per table). Provide it whenever the file should be a subset or a custom shape, and ALWAYS when the requested file is a join, a comparison, or any other result that no single loaded table already holds - omitting it there exports the source tables instead of the result."
         },
         "file_name": {
           "type": "string",
@@ -58,7 +58,7 @@ public sealed class ExportTabularDataTool : AIFunction
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Creates a downloadable file from the active in-memory copy of the uploaded tabular data, reflecting every change already applied with execute_tabular_command (the exported data comes from memory, not the original uploaded file). Omit 'sql' to export the entire current table; provide a read-only SELECT only to export a specific subset. By default the export keeps the format of the originally uploaded file (for example xlsx stays xlsx); a different format can be requested. The export cannot read host files or data outside this tabular workspace. Returns a [doc:N] marker that MUST be included exactly as-is in your response so the UI renders the download link; never write the file name in brackets or invent your own link.";
+    public override string Description => "Creates a downloadable file from the active in-memory copy of the uploaded tabular data, reflecting every change already applied with execute_tabular_command (the exported data comes from memory, not the original uploaded file). Omit 'sql' only to export the uploaded tables exactly as they stand (one tab per table); pass a read-only SELECT whenever the file should be a subset, or any joined, reshaped, or comparison result, because an omitted 'sql' exports the sources instead of that result. By default the export keeps the format of the originally uploaded file (for example xlsx stays xlsx); a different format can be requested. The export cannot read host files or data outside this tabular workspace. Returns a [doc:N] marker that MUST be included exactly as-is in your response so the UI renders the download link; never write the file name in brackets or invent your own link.";
 
     /// <summary>
     /// Gets the json Schema.
@@ -239,6 +239,17 @@ public sealed class ExportTabularDataTool : AIFunction
                     formattingTable);
             }
 
+            // A formula naming a column the sheet does not have cannot be written, so the column would
+            // arrive empty and look like lost data. Stopping here, with the header the export actually
+            // produced, lets the caller correct the names or the query rather than hand the user a
+            // workbook with a hollow column in it.
+            var unresolvableFormulas = DescribeUnresolvableFormulas(content);
+
+            if (unresolvableFormulas is not null)
+            {
+                return unresolvableFormulas;
+            }
+
             var service = arguments.Services.GetRequiredService<IGeneratedDocumentService>();
 
             var result = await service.CreateAsync(
@@ -387,6 +398,48 @@ public sealed class ExportTabularDataTool : AIFunction
             // produces a new file instead of handing back the previous, unformatted one.
             formattingRevision.ToString(CultureInfo.InvariantCulture),
             sql?.Trim() ?? string.Empty);
+    }
+
+    /// <summary>
+    /// Describes every calculated column whose formula references a column the exported data does not
+    /// contain, naming the columns each sheet does have so the caller can correct the request in one
+    /// step.
+    /// </summary>
+    /// <param name="content">The content that is about to be written.</param>
+    /// <returns>
+    /// An explanation of the mismatch, or <see langword="null"/> when every formula resolves.
+    /// </returns>
+    private static string DescribeUnresolvableFormulas(GeneratedFileContent content)
+    {
+        StringBuilder message = null;
+
+        foreach (var sheet in content.GetSheets())
+        {
+            var layout = SpreadsheetLayout.Create(sheet);
+            var unresolvable = layout.GetUnresolvableFormulaColumns();
+
+            if (unresolvable.Count == 0)
+            {
+                continue;
+            }
+
+            message ??= new StringBuilder(
+                "The file was not created. A calculated column refers to a column that this export does not contain, which would deliver that column empty. ");
+
+            message
+                .Append("On the sheet \"")
+                .Append(layout.SheetName)
+                .Append("\" the formula for ")
+                .AppendJoin(", ", unresolvable.Select(name => $"\"{name}\""))
+                .Append(" could not be resolved. The columns available on that sheet are: ")
+                .AppendJoin(", ", layout.Columns.Where(column => column.Formula is null).Select(column => $"\"{column.Name}\""))
+                .Append(". ");
+        }
+
+        message?.Append(
+            "Either re-record the formatting with format_tabular_data using column names that exist, or export the query whose aliases the formula expects, then export again.");
+
+        return message?.ToString();
     }
 
     /// <summary>

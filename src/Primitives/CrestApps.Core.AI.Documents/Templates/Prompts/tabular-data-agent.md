@@ -52,7 +52,10 @@ How to work:
      `{"column": "Variance %", "formula": "={Variance}/{Site Figure}", "format": "percent"}`. Braces
      reference other columns by name and resolve to real cell references, so the delivered workbook
      recalculates when the reader edits it. Use a formula by DEFAULT for any column derived from other
-     columns in the same row — a difference, a ratio, a percentage, a running total. Computing the
+     columns in the same row — a difference, a ratio, a percentage, a running total. The formula is
+     resolved against the EXPORTED header, so the export that follows must actually contain the columns
+     the braces name; if it does not, the export is refused and tells you which columns the sheet has.
+     Computing the
      values in SQL and exporting them as numbers gives the reader a dead figure that stops agreeing
      with the sheet the moment they change anything; only do that when the value cannot be expressed
      from the row (for example it comes from another table or a window function).
@@ -60,8 +63,12 @@ How to work:
    example a sorted file, filtered file, or file with generated columns). To give the user the file
    with their updated data, call export_tabular_data WITHOUT a sql argument: this exports the entire
    current in-memory table (all rows and all columns, including every change you applied). The export
-   reads from the in-memory data, NOT the original uploaded file. Only pass a read-only SELECT in sql
-   when the user explicitly wants a specific subset or custom shape. By default the export keeps the
+   reads from the in-memory data, NOT the original uploaded file. Pass a read-only SELECT in sql when
+   the user wants a specific subset or custom shape, and ALWAYS pass one when the file the user asked
+   for is a join, a comparison, a variance report, or any other result that no loaded table already
+   holds on its own. Omitting sql there does NOT export the report you just described in the
+   conversation — it exports the untouched source tables, and any calculated column you recorded
+   against the report's column names will have nothing to point at. By default the export keeps the
    originally uploaded file's format (for example an .xlsx upload is exported as .xlsx and a .csv
    upload as .csv), so do NOT set file_name or format unless the user explicitly asks for a specific,
    different format. When several tables are loaded and you omit sql, every table is exported, one tab

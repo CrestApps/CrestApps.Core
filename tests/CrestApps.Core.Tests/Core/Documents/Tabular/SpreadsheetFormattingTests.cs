@@ -529,6 +529,69 @@ public sealed class SpreadsheetFormattingTests
         Assert.True(layout.Columns[0].Width >= 11);
     }
 
+    /// <summary>
+    /// Verifies that a calculated column whose formula names a column the sheet does not have is
+    /// reported rather than written. This is the shape that reached a user: a "Variance %" column was
+    /// recorded against a comparison report, the export ran without a query and so delivered the two
+    /// untouched source tables, and the column arrived as a header with nothing underneath it.
+    /// </summary>
+    [Fact]
+    public void Layout_FormulaReferencingAMissingColumn_IsReported()
+    {
+        var formatting = Parse(
+            """
+            {
+              "columns": [
+                { "column": "Variance %", "formula": "={Variance}/{Site Figure}", "format": "percent" }
+              ]
+            }
+            """);
+
+        var layout = CreateLayout(
+            ["Client", "September Projection"],
+            [["Atlas Health", "95400"], ["Borealis Bank", "81000"]],
+            formatting);
+
+        Assert.Equal(["Variance %"], layout.GetUnresolvableFormulaColumns());
+    }
+
+    /// <summary>
+    /// Verifies that a formula whose references all exist is not reported, so the check only fires on a
+    /// column that would genuinely arrive empty.
+    /// </summary>
+    [Fact]
+    public void Layout_FormulaReferencingPresentColumns_IsNotReported()
+    {
+        var formatting = Parse(
+            """
+            {
+              "columns": [
+                { "column": "Variance", "formula": "={Actual}-{Planned}", "format": "currency" }
+              ]
+            }
+            """);
+
+        var layout = CreateLayout(
+            ["Client", "Planned", "Actual"],
+            [["Atlas Health", "95400", "92086.74"]],
+            formatting);
+
+        Assert.Empty(layout.GetUnresolvableFormulaColumns());
+    }
+
+    private static SpreadsheetLayout CreateLayout(
+        string[] header,
+        List<List<string>> rows,
+        SpreadsheetFormatting formatting)
+    {
+        return SpreadsheetLayout.Create(new GeneratedFileContent
+        {
+            Header = header,
+            Rows = rows.Cast<IReadOnlyList<string>>().ToList(),
+            SpreadsheetFormatting = formatting,
+        });
+    }
+
     private static SpreadsheetLayout CreateLayout(string[] header, List<List<string>> rows)
     {
         return SpreadsheetLayout.Create(new GeneratedFileContent
