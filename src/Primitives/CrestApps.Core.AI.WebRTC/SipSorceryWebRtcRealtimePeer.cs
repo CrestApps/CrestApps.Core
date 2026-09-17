@@ -4,11 +4,12 @@ using System.Net;
 using System.Threading.Channels;
 using Concentus;
 using Concentus.Enums;
+using CrestApps.Core.AI.Realtime;
 using Microsoft.Extensions.Logging;
 using SIPSorcery.Net;
 using SIPSorceryMedia.Abstractions;
 
-namespace CrestApps.Core.AI.Realtime.WebRtc;
+namespace CrestApps.Core.AI.WebRTC;
 
 /// <summary>
 /// A server-relay WebRTC peer backed by SIPSorcery (ICE/DTLS/SRTP/RTP) and Concentus (Opus). Audio crosses the

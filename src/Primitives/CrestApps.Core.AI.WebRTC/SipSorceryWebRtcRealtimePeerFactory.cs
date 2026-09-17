@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.AI.Realtime.WebRtc;
+namespace CrestApps.Core.AI.WebRTC;
 
 /// <summary>
 /// Creates SIPSorcery-backed server-relay WebRTC peers.
