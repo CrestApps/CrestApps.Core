@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>CrestApps.Core.AI.Realtime.WebRtc</RootNamespace>
-    <Title>CrestApps AI Realtime WebRTC Transport</Title>
+    <RootNamespace>CrestApps.Core.AI.WebRTC</RootNamespace>
+    <Title>CrestApps AI WebRTC Transport</Title>
     <Description>
 			$(CrestAppsDescription)
 
