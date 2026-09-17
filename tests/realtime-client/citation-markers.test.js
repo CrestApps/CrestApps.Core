@@ -256,6 +256,69 @@ test('nothing to split is not an error', () => {
     assert.strictEqual(rules.splitCombinedCitations(null), '');
 });
 
+test('an unclosed run of numbers finishes immediately instead of backtracking', () => {
+    // CodeQL js/redos, high severity, on the pattern this function used to use: a bracket that opens, repeats
+    // " 9," many times and never closes forced the engine to try every way of matching the spaces around each
+    // comma. Twenty-six repetitions took two seconds; a few more hung the tab. It needs no attacker -- this
+    // runs on whatever the model wrote, in the reader's browser.
+    const evil = '[doc:9,' + ' 9,'.repeat(20000) + '!';
+
+    const started = Date.now();
+    const result = rules.splitCombinedCitations(evil);
+    const elapsed = Date.now() - started;
+
+    assert.strictEqual(result, evil, 'a marker that never closes must be left exactly as written');
+    assert.ok(elapsed < 1000, `took ${elapsed}ms; the split is no longer linear`);
+});
+
+test('a realistic list of many references is still split, and quickly', () => {
+    // Ten references written the long way is under a hundred characters; this is well past anything a model
+    // writes, and still inside the length a citation is allowed to be.
+    const many = '[doc:1' + ', 2'.repeat(40) + ']';
+
+    const started = Date.now();
+    const result = rules.splitCombinedCitations(many);
+
+    assert.strictEqual((result.match(/\[doc:/g) || []).length, 41);
+    assert.ok(Date.now() - started < 1000);
+});
+
+test('an opening bracket whose close is far away is not a citation', () => {
+    // The length cap is what keeps the work per marker fixed. Without it a paragraph full of openings whose
+    // ']' is thousands of characters away is examined once per opening, and the whole pass turns quadratic.
+    const far = '[doc:1, 2' + ' '.repeat(600) + ']';
+
+    assert.strictEqual(rules.splitCombinedCitations(far), far);
+});
+
+test('a page of false starts is walked once, not once per start', () => {
+    const many = '[doc:x'.repeat(200000) + ']';
+
+    const started = Date.now();
+    rules.splitCombinedCitations(many);
+    const elapsed = Date.now() - started;
+
+    assert.ok(elapsed < 1000, `took ${elapsed}ms; the pass is not linear`);
+});
+
+test('an unclosed marker does not swallow a good one after it', () => {
+    // The scan gives up at the first unclosed bracket rather than searching on, so this is the documented
+    // trade: text after an unterminated marker keeps its markers unexpanded rather than being rewritten.
+    assert.strictEqual(
+        rules.splitCombinedCitations('[doc:1, 2 and later [doc:3, 4]'),
+        '[doc:1, 2 and later [doc:3][doc:4]');
+});
+
+test('a bracket holding something other than numbers is left alone', () => {
+    assert.strictEqual(rules.splitCombinedCitations('[doc:1, two]'), '[doc:1, two]');
+    assert.strictEqual(rules.splitCombinedCitations('[doc:, 2]'), '[doc:, 2]');
+});
+
+test('the prefix is not repeated on the first entry', () => {
+    // "[doc:1, doc:2]" is written by models; "[doc:doc:1, 2]" is not, and is not a citation.
+    assert.strictEqual(rules.splitCombinedCitations('[doc:doc:1, 2]'), '[doc:doc:1, 2]');
+});
+
 // The surfaces that number citations. Each keeps its own assembly loop; none of them may keep its own answer
 // to which references are the same citation.
 const surfaces = [

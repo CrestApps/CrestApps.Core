@@ -106,6 +106,20 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
 
   // The marker the chart tool emits and asks the model to repeat verbatim, braces and all.
   var chartMarkerPrefix = '[chart:';
+
+  // What a citation the model typed opens with. The reference map is keyed by the whole marker, so this is
+  // also how a rewritten one is put back together.
+  var citationMarkerPrefix = '[doc:';
+
+  /*
+   * How much text may sit between "[doc:" and its "]" before it stops being a citation.
+   *
+   * A list of reference numbers is short: even ten of them, written the long way, is under a hundred
+   * characters. The limit is what keeps the work per marker fixed, and so the whole pass linear -- without
+   * it, an opening bracket whose "]" is thousands of characters away is examined in full, and a paragraph
+   * full of such openings is examined once per opening.
+   */
+  var maxCitationMarkerLength = 512;
   function isMarkerWhitespace(character) {
     return character === ' ' || character === '\n' || character === '\r' || character === '\t';
   }
@@ -227,12 +241,75 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
     if (typeof content !== 'string' || !content) {
       return '';
     }
-    return content.replace(/\[doc:\s*\d+(?:\s*,\s*(?:doc:)?\s*\d+)+\s*\]/g, function (match) {
-      var numbers = match.match(/\d+/g) || [];
-      return numbers.map(function (number) {
-        return '[doc:' + number + ']';
-      }).join('');
-    });
+    var result = '';
+    var from = 0;
+
+    // The closing bracket last searched for. A ']' found from an earlier position is still the next one
+    // from here, because there was none in between -- so text like "[doc:x[doc:x[doc:x...]" is walked once
+    // rather than rescanned from every false start, which would make the whole pass quadratic.
+    var knownClose = -1;
+    for (;;) {
+      var start = content.indexOf(citationMarkerPrefix, from);
+      if (start < 0) {
+        return result + content.slice(from);
+      }
+      var end = knownClose >= start ? knownClose : content.indexOf(']', start);
+      knownClose = end;
+      if (end < 0) {
+        // Nothing closes it, so nothing here is a marker. The rest is returned as it was written.
+        return result + content.slice(from);
+      }
+      var numbers = end - start <= maxCitationMarkerLength ? readCitationNumbers(content.slice(start + citationMarkerPrefix.length, end)) : null;
+      if (!numbers) {
+        // Whatever this opened, it was not a list of references. The search carries on from just
+        // after the prefix rather than past the bracket, because the ']' that was found may belong to
+        // a real marker further along -- "[doc:1, and later [doc:3, doc:4]" closes the second one, and
+        // skipping to it would hide it.
+        result += content.slice(from, start + citationMarkerPrefix.length);
+        from = start + citationMarkerPrefix.length;
+        continue;
+      }
+
+      // One number is already a marker of its own and is left exactly as it is; the rewrite exists only
+      // for the several-in-one-bracket form.
+      if (numbers.length > 1) {
+        result += content.slice(from, start);
+        result += numbers.map(function (number) {
+          return citationMarkerPrefix + number + ']';
+        }).join('');
+      } else {
+        result += content.slice(from, end + 1);
+      }
+      from = end + 1;
+    }
+  }
+
+  /*
+   * Reads the numbers out of the inside of a citation bracket, or returns null when it does not hold a list
+   * of them.
+   *
+   * Deliberately not a regular expression over the whole bracket. The pattern that reads naturally --
+   * optional spaces on both sides of each comma, repeated -- gives the engine several ways to match the same
+   * text, and on a bracket that never closes it explores all of them: CodeQL flagged it as exponential, and
+   * it was. A model writing "[doc:9, 9, 9, 9..." and forgetting the bracket is not a hostile act, and it is
+   * a reader's own tab that stops responding.
+   *
+   * Splitting on the comma and checking each part on its own is linear, and each pattern below is anchored
+   * over a single character class, so neither can backtrack at all.
+   */
+  function readCitationNumbers(interior) {
+    var parts = interior.split(',');
+    var numbers = [];
+    for (var index = 0; index < parts.length; index++) {
+      // Only the parts after the first may repeat the prefix: "[doc:1, doc:2]" and "[doc:1, 2]" are both
+      // written by models, "[doc:doc:1]" is not.
+      var part = index === 0 ? parts[index].trim() : parts[index].trim().replace(/^doc:\s*/, '');
+      if (!/^\d+$/.test(part)) {
+        return null;
+      }
+      numbers.push(part);
+    }
+    return numbers;
   }
 
   /*
