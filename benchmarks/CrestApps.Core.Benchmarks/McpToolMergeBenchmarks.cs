@@ -1,6 +1,5 @@
 using System.Text.Json;
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 

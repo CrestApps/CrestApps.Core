@@ -1,5 +1,4 @@
 using CrestApps.Core.AI.Ingestion;
-using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;
 

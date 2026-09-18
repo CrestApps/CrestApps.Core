@@ -1,8 +1,8 @@
-using CrestApps.Core.AI.Ingestion;
-using CrestApps.Core.AI.Ingestion.Knowledge;
 using CrestApps.Core.AI.FileSources.Connectors;
 using CrestApps.Core.AI.FileSources.Handlers;
 using CrestApps.Core.AI.Indexing;
+using CrestApps.Core.AI.Ingestion;
+using CrestApps.Core.AI.Ingestion.Knowledge;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Builders;
 using CrestApps.Core.DataIngestion;
@@ -10,8 +10,8 @@ using CrestApps.Core.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI.FileSources;
 

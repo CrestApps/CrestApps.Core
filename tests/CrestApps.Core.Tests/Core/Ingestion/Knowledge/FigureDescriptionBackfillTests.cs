@@ -1,7 +1,5 @@
-﻿using CrestApps.Core.AI.DataSources;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
-using CrestApps.Core.AI.Documents;
-using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Ingestion.Knowledge;
 using CrestApps.Core.AI.Models;

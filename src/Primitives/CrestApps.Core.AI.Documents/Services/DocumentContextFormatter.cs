@@ -7,11 +7,11 @@ namespace CrestApps.Core.AI.Documents.Services;
 internal static class DocumentContextFormatter
 {
     /// <summary>
-/// Formats document text from stored chunks.
+    /// Formats document text from stored chunks.
     /// </summary>
-/// <param name="services">The service provider.</param>
+    /// <param name="services">The service provider.</param>
     /// <param name="document">The document.</param>
-/// <param name="maxLength">The maximum content length.</param>
+    /// <param name="maxLength">The maximum content length.</param>
     public static async Task<string> FormatDocumentTextFromChunksAsync(IServiceProvider services, AIDocument document, int? maxLength = null)
     {
         ArgumentNullException.ThrowIfNull(services);

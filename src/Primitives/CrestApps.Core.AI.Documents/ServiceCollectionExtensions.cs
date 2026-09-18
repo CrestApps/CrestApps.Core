@@ -1,31 +1,23 @@
 using CrestApps.Core.AI.Chat;
-using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Handlers;
 using CrestApps.Core.AI.Documents.Indexing;
-using CrestApps.Core.AI.Ingestion;
-using CrestApps.Core.AI.Ingestion.Processors;
-using CrestApps.Core.AI.Ingestion.Knowledge;
-using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Documents.Tools;
+using CrestApps.Core.AI.Ingestion;
+using CrestApps.Core.AI.Ingestion.Knowledge;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
-using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Services;
 using CrestApps.Core.Templates.Extensions;
-using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Localization;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents;
 

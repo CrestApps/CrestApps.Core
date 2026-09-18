@@ -1,6 +1,5 @@
 using System.Text;
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Documents.Services;
 using Microsoft.Extensions.Logging;

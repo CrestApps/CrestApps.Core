@@ -1,6 +1,5 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.AzureAIInference;
-using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;

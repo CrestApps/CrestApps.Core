@@ -1,8 +1,7 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.Json;
-using CrestApps.Core.AI.Ingestion;
-using CrestApps.Core.AI.Ingestion.Processors;
 using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
+using CrestApps.Core.AI.Ingestion.Processors;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using Microsoft.Extensions.DataIngestion;

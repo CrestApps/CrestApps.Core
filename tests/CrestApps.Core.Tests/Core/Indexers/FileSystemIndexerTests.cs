@@ -1,6 +1,4 @@
-﻿using System.Text;
 using CrestApps.Core.AI.DataSources;
-using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.FileSources.Connectors;
 using CrestApps.Core.AI.Indexing;

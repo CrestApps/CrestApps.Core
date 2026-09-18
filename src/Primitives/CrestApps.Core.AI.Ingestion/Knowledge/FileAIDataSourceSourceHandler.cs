@@ -1,8 +1,8 @@
 using System.Globalization;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure;

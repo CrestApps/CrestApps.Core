@@ -14,7 +14,6 @@ using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Xunit;
 
 namespace CrestApps.Core.Tests.Core.WebCrawlers;
 

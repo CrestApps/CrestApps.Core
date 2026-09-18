@@ -1,13 +1,12 @@
-﻿using CrestApps.Core.AI.FileSources.FileTransfer;
-using CrestApps.Core.AI.Ftp;
+using System.ComponentModel.DataAnnotations;
+using System.Net;
+using CrestApps.Core.AI.FileSources.FileTransfer;
 using CrestApps.Core.AI.Ftp.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Models;
 using FluentFTP;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
-using System.ComponentModel.DataAnnotations;
-using System.Net;
 
 namespace CrestApps.Core.AI.Ftp;
 

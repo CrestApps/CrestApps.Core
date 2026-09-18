@@ -1,4 +1,3 @@
-using System.IO;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 

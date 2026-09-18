@@ -1,5 +1,4 @@
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Data.YesSql.Indexes;
 using Microsoft.Extensions.Options;
 using YesSql.Indexes;
 

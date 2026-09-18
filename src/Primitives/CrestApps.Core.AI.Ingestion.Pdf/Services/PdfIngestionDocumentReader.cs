@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using CrestApps.Core.AI.Ingestion;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

@@ -1,5 +1,4 @@
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;

@@ -1,6 +1,5 @@
 using System.Text;
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.OpenXml.Services;
 using CrestApps.Core.AI.Documents.Pdf.Services;

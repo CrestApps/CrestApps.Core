@@ -1,5 +1,4 @@
 using CrestApps.Core.AI.Deployments;
-using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.Logging;

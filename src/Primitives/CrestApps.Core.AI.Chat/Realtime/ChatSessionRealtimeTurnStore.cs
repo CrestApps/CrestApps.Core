@@ -1,6 +1,5 @@
 #nullable enable
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Services;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Chat.Realtime;

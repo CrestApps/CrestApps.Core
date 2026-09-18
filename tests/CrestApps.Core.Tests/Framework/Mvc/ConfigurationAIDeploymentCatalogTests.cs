@@ -1,4 +1,4 @@
-﻿using CrestApps.Core.AI;
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI;
@@ -9,8 +9,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using BlazorDeploymentViewModel = CrestApps.Core.Blazor.Web.ViewModels.AIDeploymentViewModel;
-using MvcDeploymentViewModel = CrestApps.Core.Mvc.Web.Areas.AI.ViewModels.AIDeploymentViewModel;
 
 namespace CrestApps.Core.Tests.Framework.Mvc;
 

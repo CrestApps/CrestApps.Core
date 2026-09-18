@@ -1,5 +1,3 @@
-using CrestApps.Core.AI.Ingestion;
-
 namespace CrestApps.Core.AI.Ingestion.Knowledge;
 
 /// <summary>

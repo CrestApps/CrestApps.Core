@@ -1,7 +1,6 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Configs;
-using BenchmarkDotNet.Jobs;
 using CrestApps.Core.AI.Services;
 
 namespace CrestApps.Core.Benchmarks;

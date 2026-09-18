@@ -1,8 +1,7 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using CrestApps.Core.AI.DataSources;
-using CrestApps.Core.AI.Ingestion;
-using CrestApps.Core.AI.Ingestion.Processors;
 using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
+using CrestApps.Core.AI.Ingestion.Processors;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure.Indexing;

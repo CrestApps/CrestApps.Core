@@ -1,10 +1,7 @@
 using System.Security.Claims;
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
-using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.Security;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Security;
 using Microsoft.Extensions.AI;

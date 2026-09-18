@@ -1,6 +1,5 @@
 using System.Text.Json;
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Security;

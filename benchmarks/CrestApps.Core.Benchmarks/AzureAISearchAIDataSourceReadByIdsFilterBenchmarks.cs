@@ -1,5 +1,4 @@
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 using CrestApps.Core.Azure.AISearch.Services;
 
 namespace CrestApps.Core.Benchmarks;
