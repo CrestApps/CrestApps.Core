@@ -130,6 +130,36 @@ services.Configure<ChatDocumentsOptions>(options =>
 
 Use these values in both the upload UI and server-side validation so the supported-format guidance stays consistent.
 
+### How large an upload may be
+
+`InteractionDocumentSettings.MaxIndexableCharacters` caps the **extracted text** a document may hold and still be indexed. It counts characters of text, not bytes on disk, because that is what decides whether the document can be embedded — a 40 MB scanned PDF may carry less text than a 200 KB spreadsheet.
+
+A document over the cap is **refused at upload**, with a message naming the file, its measured size and the configured limit. It is not accepted and quietly left unsearchable, which is what used to happen: the file appeared attached, the chat listed it, and every search over it returned nothing.
+
+The measuring pass runs before ingestion and with figure description off, so an oversized document is refused in seconds rather than after paying for a vision call per figure. That means the measured size is the text without figure descriptions, and is a little smaller than the document's final indexed length.
+
+| value | meaning |
+|---|---|
+| a positive number | the cap, in characters of extracted text |
+| `0` | no limit — every document is indexed however long it is |
+| default | `50000` |
+
+An AI profile may override the site value through `DocumentsMetadata.MaxIndexableCharacters`, where `null` means "use the site setting". An AI template carries the same field, so a profile created from a template starts with it.
+
+:::warning
+`0` means **unlimited**, not "refuse everything". A host that sets it is accepting that a large document is embedded in full.
+:::
+
+### Whether figures are described
+
+Describing figures is the expensive part of ingestion — one vision call per figure, which is why a magazine takes minutes to ingest and a text file takes seconds. `InteractionDocumentSettings.DescribeFiguresInUploads` turns it off for uploaded documents without turning off figure extraction: a figure is still pulled out, still stored and still servable, and it keeps its caption. Only the transcription is skipped.
+
+It defaults to `true`, and an AI profile may override it through `DocumentsMetadata.DescribeFiguresInUploads`, where `null` means "use the site setting".
+
+The setting maps to `FigureProcessingMode.Auto` when on and `FigureProcessingMode.Off` when off. Description needs a deployment in the **Vision** slot — not the utility model. With none configured nothing is described whatever this is set to, so leaving it on costs nothing on a host that has no vision deployment.
+
+These two settings only apply to documents uploaded into a chat session or a chat interaction. A file source ingesting from a folder or a server carries its own `FigureMode` and `MaxFigureDescriptionsPerDocument` on the record, covered in [File data sources](../data-sources/file.md).
+
 ## Custom File Formats
 
 If you need to support a format that is not built in, register a custom reader for the new extension.
@@ -216,9 +246,15 @@ services.Configure<PdfLayoutOptions>(options =>
     options.MaxDecorationCharacters = 200;        // never treat a longer block as decoration
     options.EmitDecorationAsHeaderFooter = true;  // false drops decoration instead of marking it
     options.UseLayoutAnalysis = true;             // false falls back to raw content-stream text per page
+    options.EmitImages = true;                    // false emits no figures from placed images
+    options.MinImageSamples = 32;                 // smaller than this is a rule, a bullet or an icon
+    options.EmitTables = true;                    // false reads a ruled table as prose
+    options.EmitVectorFigures = true;             // false misses every chart the page draws rather than places
     options.MaxVectorSegmentsPerPage = 4000;      // skip drawn-table and figure detection on denser pages
 });
 ```
+
+Two of those are easy to underestimate. `EmitTables` decides whether a ruled table is read as a table at all — read as prose it is a row of numbers with nothing saying which column each belongs to. `EmitVectorFigures` decides whether figures the page **draws** are read, as opposed to images it **places**: a chart produced by a spreadsheet is usually not an image, just instructions for drawing one, so reading only placed images misses every chart of that kind.
 
 `MaxVectorSegmentsPerPage` exists because grouping drawn lines into grids and drawings compares every line with every other. A page of dense vector artwork — a map, an advertisement drawn as geometry — can carry tens of thousands, and reading it would take minutes for figures nobody asked about. Past the ceiling the page keeps its text, its placed images and any whitespace-aligned tables, and simply reports no drawn tables or figures.
 
@@ -291,6 +327,8 @@ Nothing here can fail an ingest:
 - no vision deployment configured, or one that turns out not to accept images: logged once at Information, the document continues as text
 - a call that throws: logged at Warning, that one figure drops back to `CaptionOnly`, the rest are still transcribed
 - `MaxFigureDescriptionsPerDocument` is enforced again here as a hard stop on calls made
+
+For an uploaded document this whole step is skipped when [figure description is turned off](#whether-figures-are-described). The figure is still extracted, stored and servable, and still carries its caption; what it loses is the transcription, so a value printed only inside the artwork is no longer searchable text.
 
 Slot resolution falls back to "the first deployment capable of the slot's feature", so a non-null answer is not proof that the deployment accepts images. The capability is always checked.
 
