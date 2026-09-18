@@ -212,9 +212,9 @@ public sealed class DefaultAIDocumentProcessingServiceTests
     [Fact]
     public async Task ProcessFileAsync_ProfileDeclinesFigureDescription_StillProcessesTheDocument()
     {
-        var options = new ChatDocumentsOptions { AnalyzeImagesAtUpload = true };
+        var options = new ChatDocumentsOptions();
         options.Add(new ExtractorExtension(".log", embeddable: true, isTabular: false));
-        var service = CreateService(options);
+        var service = CreateService(options, siteDescribesFigures: true);
 
         var result = await service.ProcessFileAsync(
             CreateFormFile("notes.log", "text/plain", "a short note about a chart"),
@@ -222,7 +222,7 @@ public sealed class DefaultAIDocumentProcessingServiceTests
             AIReferenceTypes.Document.ChatInteraction,
             embeddingGenerator: null,
             maxIndexableCharacters: null,
-            analyzeImagesAtUpload: false);
+            describeFiguresInUploads: false);
 
         // Turning description off is not turning ingestion off: the text is still read and stored.
         Assert.True(result.Success);
@@ -230,11 +230,11 @@ public sealed class DefaultAIDocumentProcessingServiceTests
     }
 
     [Fact]
-    public async Task ProcessFileAsync_ProfileSaysNothing_FollowsTheHostSetting()
+    public async Task ProcessFileAsync_ProfileSaysNothing_FollowsTheSiteSetting()
     {
-        var options = new ChatDocumentsOptions { AnalyzeImagesAtUpload = false };
+        var options = new ChatDocumentsOptions();
         options.Add(new ExtractorExtension(".log", embeddable: true, isTabular: false));
-        var service = CreateService(options);
+        var service = CreateService(options, siteDescribesFigures: false);
 
         var result = await service.ProcessFileAsync(
             CreateFormFile("notes.log", "text/plain", "a short note about a chart"),
@@ -245,7 +245,7 @@ public sealed class DefaultAIDocumentProcessingServiceTests
         Assert.True(result.Success);
     }
 
-    private static DefaultAIDocumentProcessingService CreateService(ChatDocumentsOptions options, int siteLimit = 0)
+    private static DefaultAIDocumentProcessingService CreateService(ChatDocumentsOptions options, int siteLimit = 0, bool siteDescribesFigures = true)
     {
         var services = new ServiceCollection();
         services.AddSingleton<PlainTextIngestionDocumentReader>();
@@ -263,7 +263,11 @@ public sealed class DefaultAIDocumentProcessingServiceTests
             new RecordingDocumentFileStore(),
             Options.Create(options),
             Mock.Of<IOptionsMonitor<InteractionDocumentSettings>>(monitor =>
-                    monitor.CurrentValue == new InteractionDocumentSettings { MaxIndexableCharacters = siteLimit }),
+                    monitor.CurrentValue == new InteractionDocumentSettings
+                    {
+                        MaxIndexableCharacters = siteLimit,
+                        DescribeFiguresInUploads = siteDescribesFigures,
+                    }),
             TimeProvider.System,
             NullLogger<DefaultAIDocumentProcessingService>.Instance);
     }

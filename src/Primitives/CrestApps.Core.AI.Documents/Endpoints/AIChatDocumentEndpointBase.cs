@@ -36,7 +36,7 @@ public abstract class AIChatDocumentEndpointBase
         bool allowDocumentUploads,
         string chatDeploymentName,
         int? maxIndexableCharacters,
-        bool? analyzeImagesAtUpload,
+        bool? describeFiguresInUploads,
         ILogger logger,
         IStringLocalizer S)
     {
@@ -131,7 +131,7 @@ public abstract class AIChatDocumentEndpointBase
                     logger);
             }
 
-            var result = await documentProcessingService.ProcessFileAsync(file, referenceId, referenceType, embeddingGenerator, maxIndexableCharacters, analyzeImagesAtUpload);
+            var result = await documentProcessingService.ProcessFileAsync(file, referenceId, referenceType, embeddingGenerator, maxIndexableCharacters, describeFiguresInUploads);
 
             return await PersistProcessedDocumentAsync(file, referenceId, referenceType, result, documentStore, chunkStore, fileStore, logger, S);
         }

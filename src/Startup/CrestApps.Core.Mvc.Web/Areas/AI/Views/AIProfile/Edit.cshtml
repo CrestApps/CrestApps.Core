@@ -729,18 +729,18 @@
 
                     <div class="mb-3" id="max-indexable-characters-row">
                         <label asp-for="MaxIndexableCharacters" class="form-label">Largest document that can be indexed</label>
-                        <input asp-for="MaxIndexableCharacters" type="number" class="form-control" min="0" placeholder="Use the site's limit" />
+                        <input asp-for="MaxIndexableCharacters" type="number" class="form-control" min="0" placeholder="Use site default" />
                         <div class="form-text">Characters of extracted text. A larger document is refused at upload rather than stored unsearchable. Leave empty to use the site&#39;s limit; 0 means no limit.</div>
                     </div>
 
                     <div class="mb-3" id="analyze-images-row">
-                        <label asp-for="AnalyzeImagesAtUpload" class="form-label">Describe figures in uploaded documents</label>
-                        <select asp-for="AnalyzeImagesAtUpload" class="form-select">
-                            <option value="">Follow the host&#39;s setting</option>
+                        <label asp-for="DescribeFiguresInUploads" class="form-label">Describe figures in uploaded documents</label>
+                        <select asp-for="DescribeFiguresInUploads" class="form-select">
+                            <option value="">Use site default</option>
                             <option value="true">Describe figures</option>
                             <option value="false">Do not describe figures</option>
                         </select>
-                        <div class="form-text">Describing figures uses a vision model and is the expensive part of ingestion. Off still keeps each figure&#39;s caption. Leave unset to follow the host&#39;s setting.</div>
+                        <div class="form-text">Describing figures uses a vision model and is the expensive part of ingestion. It needs a deployment in the Vision slot &ndash; with none configured nothing is described, and a figure keeps its caption either way.</div>
                     </div>
 
                     <div class="mb-3">

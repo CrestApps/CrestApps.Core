@@ -41,5 +41,5 @@ public sealed class DocumentsMetadata
     /// where that choice belongs. With it off, a figure still keeps its caption -- the picture is not lost,
     /// only the model's description of it.
     /// </remarks>
-    public bool? AnalyzeImagesAtUpload { get; set; }
+    public bool? DescribeFiguresInUploads { get; set; }
 }

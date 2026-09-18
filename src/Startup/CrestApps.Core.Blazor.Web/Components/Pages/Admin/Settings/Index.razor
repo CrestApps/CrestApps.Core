@@ -524,6 +524,13 @@ else
                             }
                             <div class="form-text">Characters of extracted text. A larger document is refused at upload rather than stored unsearchable. An AI profile may raise this for itself; 0 means no limit.</div>
                         </div>
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="describeFigures" class="form-check-input" @bind-Value="_model.DescribeFiguresInUploads" />
+                                <label for="describeFigures" class="form-check-label">Describe figures in uploaded documents</label>
+                            </div>
+                            <div class="form-text">Describing figures uses a vision model and is the expensive part of ingestion. It needs a deployment in the Vision slot -- with none configured nothing is described, and a figure keeps its caption either way. An AI profile may override this for itself.</div>
+                        </div>
 
                         <div class="mb-3">
                             <label for="docRetrievalMode" class="form-label">Default retrieval mode</label>
@@ -1013,6 +1020,7 @@ else
             DocumentIndexProfileName = documentSettings.IndexProfileName,
             DocumentTopN = documentSettings.TopN,
             MaxIndexableCharacters = documentSettings.MaxIndexableCharacters,
+            DescribeFiguresInUploads = documentSettings.DescribeFiguresInUploads,
             DocumentRetrievalMode = documentSettings.RetrievalMode,
             AllowInteractionImageUploads = documentSettings.AllowImageUploads,
             AllowInteractionDocumentUploads = documentSettings.AllowDocumentUploads,
@@ -1466,6 +1474,7 @@ else
             IndexProfileName = _model.DocumentIndexProfileName?.Trim(),
             TopN = _model.DocumentTopN,
             MaxIndexableCharacters = _model.MaxIndexableCharacters,
+            DescribeFiguresInUploads = _model.DescribeFiguresInUploads,
             RetrievalMode = _model.DocumentRetrievalMode,
             AllowDocumentUploads = _model.AllowInteractionDocumentUploads,
             AllowImageUploads = _model.AllowInteractionImageUploads,

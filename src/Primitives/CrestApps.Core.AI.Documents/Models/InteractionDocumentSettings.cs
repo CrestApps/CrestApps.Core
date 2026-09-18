@@ -43,4 +43,14 @@ public sealed class InteractionDocumentSettings
     /// it without changing what every other profile pays.
     /// </remarks>
     public int MaxIndexableCharacters { get; set; } = 50000;
+
+    /// <summary>
+    /// Gets or sets whether figures inside an uploaded document are described by a vision model.
+    /// </summary>
+    /// <remarks>
+    /// The site's answer, which an AI profile may override for itself. Describing figures is the expensive
+    /// part of ingestion, and it needs a deployment in the <c>Vision</c> slot: with none configured nothing
+    /// is described whatever this says, and a figure keeps its caption either way.
+    /// </remarks>
+    public bool DescribeFiguresInUploads { get; set; } = true;
 }

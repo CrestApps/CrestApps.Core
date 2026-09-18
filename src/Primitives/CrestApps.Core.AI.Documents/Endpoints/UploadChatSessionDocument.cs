@@ -191,7 +191,7 @@ public static class UploadChatSessionDocument
                     profile?.TryGet<DocumentsMetadata>(out var documentsMetadata) == true ? documentsMetadata.MaxIndexableCharacters : null,
                     // The profile's choice about describing figures, which is the expensive
                     // half of ingestion and recurs across every session on that profile.
-                    profile?.TryGet<DocumentsMetadata>(out var figureMetadata) == true ? figureMetadata.AnalyzeImagesAtUpload : null,
+                    profile?.TryGet<DocumentsMetadata>(out var figureMetadata) == true ? figureMetadata.DescribeFiguresInUploads : null,
                     logger,
                     S);
                 if (!result.Success)

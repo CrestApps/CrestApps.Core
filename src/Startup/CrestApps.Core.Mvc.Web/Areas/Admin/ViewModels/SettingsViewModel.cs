@@ -45,6 +45,11 @@ public sealed class SettingsViewModel
     /// </summary>
     public int MaxIndexableCharacters { get; set; } = 50000;
 
+    /// <summary>
+    /// Gets or sets whether figures inside an uploaded document are described by a vision model.
+    /// </summary>
+    public bool DescribeFiguresInUploads { get; set; } = true;
+
     public DocumentRetrievalMode DocumentRetrievalMode { get; set; } = DocumentRetrievalMode.Chunk;
 
     public bool AllowInteractionImageUploads { get; set; }
