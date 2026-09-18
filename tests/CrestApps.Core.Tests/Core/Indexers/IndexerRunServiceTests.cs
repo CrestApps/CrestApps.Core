@@ -254,12 +254,12 @@ public sealed class IndexerRunServiceTests : IDisposable
 
             options.AllowedLocalRoots.Add(root);
 
-            Connector = new LocalFolderIngestionConnector(
+            Connector = new FileSystemIngestionConnector(
                 Options.Create(options),
-                NullLogger<LocalFolderIngestionConnector>.Instance);
+                NullLogger<FileSystemIngestionConnector>.Instance);
         }
 
-        public LocalFolderIngestionConnector Connector { get; }
+        public FileSystemIngestionConnector Connector { get; }
 
         public InMemoryKnowledgeObjectStore Store { get; } = new();
 
@@ -284,7 +284,7 @@ public sealed class IndexerRunServiceTests : IDisposable
             var indexer = new WebCrawler
             {
                 ItemId = "indexer-1",
-                Source = LocalFolderIngestionConnector.ConnectorName,
+                Source = FileSystemIngestionConnector.ConnectorName,
                 DisplayText = "The folder",
                 AIDataSourceId = DataSourceId,
                 Enabled = true,

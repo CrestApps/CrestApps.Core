@@ -209,7 +209,7 @@ builder.Services.AddCoreWebCrawlers();
 // CrestApps.Core.AI.Ftp (FluentFTP) nor CrestApps.Core.AI.Sftp (SSH.NET).
 builder.Services
     .AddCoreFileSources(builder.Configuration)
-    .AddCoreLocalFolderConnector()
+    .AddCoreFileSystemConnector()
     .AddCoreFtpIngestionConnector()
     .AddCoreSftpIngestionConnector();
 

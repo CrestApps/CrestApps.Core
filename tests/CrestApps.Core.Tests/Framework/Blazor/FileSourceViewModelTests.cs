@@ -137,7 +137,7 @@ public sealed class FileSourceViewModelTests
     /// Verifies that a folder file source stores folder settings and no connection at all.
     /// </summary>
     [Fact]
-    public void ApplyTo_LocalFolderSource_StoresNoConnection()
+    public void ApplyTo_FileSystemSource_StoresNoConnection()
     {
         var provider = new EphemeralDataProtectionProvider();
         var fileSource = new WebCrawler();
@@ -145,7 +145,7 @@ public sealed class FileSourceViewModelTests
         var model = new FileSourceViewModel
         {
             DisplayText = "Knowledge folder",
-            Source = LocalFolderIngestionConnector.ConnectorName,
+            Source = FileSystemIngestionConnector.ConnectorName,
             AIDataSourceId = "data-source-1",
             LocalRootPath = "D:\\knowledge",
             LocalSearchPattern = "*.pdf",

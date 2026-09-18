@@ -23,7 +23,7 @@ public sealed class WebCrawlerSourceFilterTests
         var records = new[]
         {
             CreateRecord("crawler-1", WebCrawlerConstants.Strategies.Sitemap),
-            CreateRecord("indexer-1", LocalFolderIngestionConnector.ConnectorName),
+            CreateRecord("indexer-1", FileSystemIngestionConnector.ConnectorName),
             CreateRecord("indexer-2", SftpIngestionConnector.ConnectorName),
         };
 
@@ -38,7 +38,7 @@ public sealed class WebCrawlerSourceFilterTests
         var records = new[]
         {
             CreateRecord("crawler-1", WebCrawlerConstants.Strategies.Sitemap),
-            CreateRecord("indexer-1", LocalFolderIngestionConnector.ConnectorName),
+            CreateRecord("indexer-1", FileSystemIngestionConnector.ConnectorName),
             CreateRecord("indexer-2", SftpIngestionConnector.ConnectorName),
         };
 
@@ -54,7 +54,7 @@ public sealed class WebCrawlerSourceFilterTests
     [Theory]
     [InlineData("Sitemap", true)]
     [InlineData("sitemap", true)]
-    [InlineData(LocalFolderIngestionConnector.ConnectorName, false)]
+    [InlineData(FileSystemIngestionConnector.ConnectorName, false)]
     [InlineData("SomethingNoLongerRegistered", false)]
     [InlineData("", false)]
     [InlineData(null, false)]

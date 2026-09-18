@@ -24,16 +24,16 @@ namespace CrestApps.Core.Tests.Core.Indexers;
 /// Covers continuous intake from a folder on the host: what it lists, what it refuses to read, and the one
 /// rule the whole subsystem turns on — a partial listing never deletes anything.
 /// </summary>
-public sealed class LocalFolderIndexerTests : IDisposable
+public sealed class FileSystemIndexerTests : IDisposable
 {
     private const string DataSourceId = "data-source-1";
 
     private readonly string _root;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="LocalFolderIndexerTests"/> class.
+    /// Initializes a new instance of the <see cref="FileSystemIndexerTests"/> class.
     /// </summary>
-    public LocalFolderIndexerTests()
+    public FileSystemIndexerTests()
     {
         _root = Path.Combine(Path.GetTempPath(), "crestapps-indexer-" + Guid.NewGuid().ToString("N"));
 
@@ -120,7 +120,7 @@ public sealed class LocalFolderIndexerTests : IDisposable
     /// real pipeline.
     /// </summary>
     [Fact]
-    public async Task Run_LocalFolder_PopulatesTheDataSource()
+    public async Task Run_FileSystem_PopulatesTheDataSource()
     {
         await File.WriteAllTextAsync(Path.Combine(_root, "report.txt"), "The rig was measured at three loads.", TestContext.Current.CancellationToken);
 
@@ -205,7 +205,7 @@ public sealed class LocalFolderIndexerTests : IDisposable
         Assert.Equal(stored, harness.Store.All.Count);
     }
 
-    private LocalFolderIngestionConnector CreateConnector(bool allowed = true)
+    private FileSystemIngestionConnector CreateConnector(bool allowed = true)
     {
         var options = new FileSourceOptions();
 
@@ -214,9 +214,9 @@ public sealed class LocalFolderIndexerTests : IDisposable
             options.AllowedLocalRoots.Add(_root);
         }
 
-        return new LocalFolderIngestionConnector(
+        return new FileSystemIngestionConnector(
             Options.Create(options),
-            NullLogger<LocalFolderIngestionConnector>.Instance);
+            NullLogger<FileSystemIngestionConnector>.Instance);
     }
 
     private WebCrawler CreateIndexer()
@@ -224,7 +224,7 @@ public sealed class LocalFolderIndexerTests : IDisposable
         var indexer = new WebCrawler
         {
             ItemId = "indexer-1",
-            Source = LocalFolderIngestionConnector.ConnectorName,
+            Source = FileSystemIngestionConnector.ConnectorName,
             DisplayText = "The folder",
             AIDataSourceId = DataSourceId,
             Enabled = true,
@@ -253,9 +253,9 @@ public sealed class LocalFolderIndexerTests : IDisposable
 
             options.AllowedLocalRoots.Add(root);
 
-            Connector = new OverridableConnector(new LocalFolderIngestionConnector(
+            Connector = new OverridableConnector(new FileSystemIngestionConnector(
                 Options.Create(options),
-                NullLogger<LocalFolderIngestionConnector>.Instance));
+                NullLogger<FileSystemIngestionConnector>.Instance));
 
             var services = new ServiceCollection();
             services.AddSingleton<PlainTextIngestionDocumentReader>();
@@ -318,7 +318,7 @@ public sealed class LocalFolderIndexerTests : IDisposable
             var indexer = new WebCrawler
             {
                 ItemId = "indexer-1",
-                Source = LocalFolderIngestionConnector.ConnectorName,
+                Source = FileSystemIngestionConnector.ConnectorName,
                 DisplayText = "The folder",
                 AIDataSourceId = DataSourceId,
                 Enabled = true,

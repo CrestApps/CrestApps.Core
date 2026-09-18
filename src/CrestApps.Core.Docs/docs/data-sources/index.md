@@ -47,7 +47,7 @@ The built-in source types are:
 
 A `Web` data source holds no site configuration itself. Instead, one or more **web crawlers** — each choosing a scraping strategy (today, sitemap discovery) — point at it, so many sites can populate a single knowledge base. See [Web Crawlers](./web-crawlers.md).
 
-A `File` data source holds no configuration either. One or more **file sources** — each choosing a connector (a local folder, an FTP server or an SFTP server) — point at it and feed it, the same way web crawlers feed a `Web` data source. What a file holds becomes separately retrievable objects carrying a `contentType`, the page they came from, and a link back to the document they belong to. See [File Sources](./file.md).
+A `File` data source holds no configuration either. One or more **file sources** — each choosing a connector (the host's file system, an FTP server or an SFTP server) — point at it and feed it, the same way web crawlers feed a `Web` data source. What a file holds becomes separately retrievable objects carrying a `contentType`, the page they came from, and a link back to the document they belong to. See [File Sources](./file.md).
 
 ## Field Mapping
 

@@ -43,7 +43,7 @@ public sealed class FileSourceViewModel
 
     public string Language { get; set; }
 
-    // Local folder settings.
+    // File-system folder settings.
     public string LocalRootPath { get; set; }
 
     public string LocalSearchPattern { get; set; } = "*.*";
@@ -98,8 +98,8 @@ public sealed class FileSourceViewModel
     [BindNever]
     public IEnumerable<SelectListItem> DataSources { get; set; } = [];
 
-    public bool IsLocalFolder
-        => string.Equals(Source, LocalFolderIngestionConnector.ConnectorName, StringComparison.OrdinalIgnoreCase);
+    public bool IsFileSystem
+        => string.Equals(Source, FileSystemIngestionConnector.ConnectorName, StringComparison.OrdinalIgnoreCase);
 
     public bool IsFtp
         => string.Equals(Source, FtpIngestionConnector.ConnectorName, StringComparison.OrdinalIgnoreCase);
@@ -120,7 +120,7 @@ public sealed class FileSourceViewModel
         {
             ItemId = fileSource.ItemId,
             DisplayText = fileSource.DisplayText,
-            Source = fileSource.Source,
+            Source = FileSystemIngestionConnector.NormalizeSource(fileSource.Source),
             AIDataSourceId = fileSource.AIDataSourceId,
             Enabled = fileSource.Enabled,
             ReindexIntervalMinutes = fileSource.ReindexIntervalMinutes,
@@ -209,7 +209,7 @@ public sealed class FileSourceViewModel
         fileSource.Remove<LocalFolderIndexerMetadata>();
         fileSource.Remove<RemoteFolderIndexerMetadata>();
 
-        if (IsLocalFolder)
+        if (IsFileSystem)
         {
             fileSource.Put(new LocalFolderIndexerMetadata
             {

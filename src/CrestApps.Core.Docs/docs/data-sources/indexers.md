@@ -20,7 +20,7 @@ are configuring one; this page is the contract each layer of it exposes.
   WHERE                      WHAT                       MEANING                      SHAPE
 IIngestionConnector  ──▶  IngestionDocumentReader  ──▶  ingestion processors  ──▶  knowledge objects
   Sitemap (web)             Pdf                         figure caption               document / article
-  LocalFolder               OpenXml                     figure salience              text / figure / chart / table
+  FileSystem                OpenXml                     figure salience              text / figure / chart / table
   Ftp / Sftp                PlainText                   figure description
 ```
 
@@ -44,14 +44,14 @@ public interface IIngestionConnector
 | Connector | Package | Reads |
 | --- | --- | --- |
 | `Sitemap` | `CrestApps.Core.AI.WebCrawlers` | pages discovered through a site's sitemap |
-| `LocalFolder` | `CrestApps.Core.AI.FileSources` | files in a folder on the host |
+| `FileSystem` | `CrestApps.Core.AI.FileSources` | files in a folder on the host |
 | `Ftp` | `CrestApps.Core.AI.Ftp` | files on an FTP or FTPS server |
 | `Sftp` | `CrestApps.Core.AI.Sftp` | files on an SFTP server |
 
 ```csharp
 builder.Services
     .AddCoreFileSources()
-    .AddCoreLocalFolderConnector()
+    .AddCoreFileSystemConnector()
     .AddCoreFtpIngestionConnector()
     .AddCoreSftpIngestionConnector();
 
@@ -68,9 +68,9 @@ paged listing whose second page failed — each returns what it has and says the
 as complete, any of them would delete every item it failed to see, and nothing downstream could tell that
 apart from a genuine deletion.
 
-## Reading a local folder
+## Reading a folder on the host
 
-A local-folder source stores `{ RootPath, SearchPattern, Recursive, MaxItems }`, and the root has to sit
+A file-system source stores `{ RootPath, SearchPattern, Recursive, MaxItems }`, and the root has to sit
 inside a host-allow-listed folder:
 
 ```json
@@ -86,13 +86,13 @@ inside a host-allow-listed folder:
 }
 ```
 
-Empty means no local folder may be read at all, which is the default. Without it, an administrator with
+Empty means no folder may be read at all, which is the default. Without it, an administrator with
 access to the File Sources screen can read any file the host process can open. An item identifier that
 resolves outside the root is refused when it is fetched as well as when it is listed, because identifiers
 also arrive from stored state.
 
 Registering the connector grants nothing, and neither sample host ships a root, so cloning the repository
-grants nothing either. [File Sources](./file.md#reading-a-local-folder) has the whole rule and how to name a
+grants nothing either. [File Sources](./file.md#reading-a-folder-on-the-host) has the whole rule and how to name a
 root for local development without committing it.
 
 ## Reading a file server

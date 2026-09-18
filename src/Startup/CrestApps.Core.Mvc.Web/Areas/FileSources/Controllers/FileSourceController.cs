@@ -225,10 +225,14 @@ public sealed class FileSourceController : Controller
     /// </summary>
     /// <param name="source">The record's stored source.</param>
     /// <returns><see langword="true"/> when the source names a registered connector.</returns>
+    /// <remarks>
+    /// A connector that was renamed still claims the name it was registered under before, so a record
+    /// written before the rename stays on this screen rather than disappearing off both.
+    /// </remarks>
     private bool IsRegisteredConnector(string source)
     {
         return !string.IsNullOrWhiteSpace(source) &&
-            _connectors.Any(connector => string.Equals(connector.Name, source, StringComparison.OrdinalIgnoreCase));
+            _connectors.Any(connector => connector.Matches(source));
     }
 
     private async Task ValidateAsync(FileSourceViewModel model, WebCrawler fileSource)
@@ -253,7 +257,7 @@ public sealed class FileSourceController : Controller
             nameof(WebCrawler.DisplayText) => nameof(FileSourceViewModel.DisplayText),
             nameof(WebCrawler.AIDataSourceId) => nameof(FileSourceViewModel.AIDataSourceId),
             nameof(WebCrawler.Source) => nameof(FileSourceViewModel.Source),
-            nameof(LocalFolderIndexerMetadata.RootPath) => model.IsLocalFolder
+            nameof(LocalFolderIndexerMetadata.RootPath) => model.IsFileSystem
                 ? nameof(FileSourceViewModel.LocalRootPath)
                 : nameof(FileSourceViewModel.RemoteRootPath),
             nameof(FtpConnectionMetadata.Host) => nameof(FileSourceViewModel.RemoteHost),

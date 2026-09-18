@@ -30,7 +30,7 @@ public sealed class WebCrawlerCatalogHandlerTests
     public async Task Validating_ConnectorSource_IsAcceptedAndValidatedByTheConnector()
     {
         var connector = new Mock<IIngestionConnector>();
-        var context = CreateContext("LocalFolder", IngestedDataSourceId);
+        var context = CreateContext("FileSystem", IngestedDataSourceId);
 
         await CreateHandler(connector: connector.Object).ValidatingAsync(context, TestContext.Current.CancellationToken);
 
@@ -61,7 +61,7 @@ public sealed class WebCrawlerCatalogHandlerTests
     [Fact]
     public async Task Validating_ConnectorFeedingWebDataSource_IsRefused()
     {
-        var context = CreateContext("LocalFolder", WebDataSourceId);
+        var context = CreateContext("FileSystem", WebDataSourceId);
 
         await CreateHandler(connector: Mock.Of<IIngestionConnector>()).ValidatingAsync(context, TestContext.Current.CancellationToken);
 
@@ -132,7 +132,7 @@ public sealed class WebCrawlerCatalogHandlerTests
         var connectorResolver = new Mock<IIngestionConnectorResolver>();
         connectorResolver
             .Setup(resolver => resolver.Get(It.IsAny<string>()))
-            .Returns((string name) => name == "LocalFolder" ? connector : null);
+            .Returns((string name) => name == "FileSystem" ? connector : null);
 
         return new WebCrawlerCatalogHandler(
             Mock.Of<IHttpContextAccessor>(),

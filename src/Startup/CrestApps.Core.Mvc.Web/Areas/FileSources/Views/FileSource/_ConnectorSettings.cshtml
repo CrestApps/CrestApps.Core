@@ -7,7 +7,7 @@
 
 @* Each card names the connectors it belongs to and is hidden server-side for the rest, so a validation
    redisplay never flashes another connector's settings before the toggle script runs. *@
-<div class="card mb-3" data-source-section="@LocalFolderIngestionConnector.ConnectorName"@(Model.IsLocalFolder ? null : " hidden")>
+<div class="card mb-3" data-source-section="@FileSystemIngestionConnector.ConnectorName"@(Model.IsFileSystem ? null : " hidden")>
     <div class="card-header">Folder</div>
     <div class="card-body">
         <div class="mb-3">

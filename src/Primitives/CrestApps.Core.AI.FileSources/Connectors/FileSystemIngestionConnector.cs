@@ -9,8 +9,12 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.AI.FileSources.Connectors;
 
 /// <summary>
-/// The settings a local-folder indexer carries.
+/// The settings a file-system file source carries.
 /// </summary>
+/// <remarks>
+/// The type keeps its old name because it is persisted under its short type name: renaming it would strand
+/// the settings of every file source already configured.
+/// </remarks>
 public sealed class LocalFolderIndexerMetadata
 {
     /// <summary>
@@ -35,7 +39,7 @@ public sealed class LocalFolderIndexerMetadata
 }
 
 /// <summary>
-/// Reads files out of a folder on the host.
+/// Reads files out of a folder on the host's file system.
 /// </summary>
 /// <remarks>
 /// This is the simplest possible source, and the one that makes every other part of the intake path testable
@@ -45,24 +49,54 @@ public sealed class LocalFolderIndexerMetadata
 /// indexer screen can read any file the host process can open.
 /// </para>
 /// </remarks>
-public sealed class LocalFolderIngestionConnector : IIngestionConnector
+public sealed class FileSystemIngestionConnector : IIngestionConnector
 {
     /// <summary>
-    /// The connector's registered name, stored as the indexer's source.
+    /// The connector's registered name, stored as the file source's source.
     /// </summary>
-    public const string ConnectorName = "LocalFolder";
-
-    private readonly FileSourceOptions _options;
-    private readonly ILogger<LocalFolderIngestionConnector> _logger;
+    public const string ConnectorName = "FileSystem";
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="LocalFolderIngestionConnector"/> class.
+    /// The name this connector was registered under before it was renamed.
+    /// </summary>
+    /// <remarks>
+    /// A file source stores its connector's name, so records written before the rename still say
+    /// <c>LocalFolder</c>. The connector stays resolvable under both names, and a record is rewritten with
+    /// the current name the next time it is saved.
+    /// </remarks>
+    public const string DeprecatedConnectorName = "LocalFolder";
+
+    /// <summary>
+    /// Maps a stored source onto the connector's current name.
+    /// </summary>
+    /// <param name="source">The stored source.</param>
+    /// <returns>
+    /// <see cref="ConnectorName"/> when the source names this connector under either name; otherwise the
+    /// source unchanged.
+    /// </returns>
+    /// <remarks>
+    /// A form reading a record written before the rename would otherwise offer a connector the picker has
+    /// no entry for, and saving it would quietly move the record to whichever connector the picker had
+    /// selected instead.
+    /// </remarks>
+    public static string NormalizeSource(string source)
+    {
+        return string.Equals(source, DeprecatedConnectorName, StringComparison.OrdinalIgnoreCase)
+            ? ConnectorName
+            : source;
+    }
+
+    private readonly FileSourceOptions _options;
+    private readonly ILogger<FileSystemIngestionConnector> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FileSystemIngestionConnector"/> class.
     /// </summary>
     /// <param name="options">The indexer options.</param>
     /// <param name="logger">The logger.</param>
-    public LocalFolderIngestionConnector(
+    public FileSystemIngestionConnector(
         IOptions<FileSourceOptions> options,
-        ILogger<LocalFolderIngestionConnector> logger)
+        ILogger<FileSystemIngestionConnector> logger)
     {
         _options = options.Value;
         _logger = logger;

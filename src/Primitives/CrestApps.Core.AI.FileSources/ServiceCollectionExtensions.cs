@@ -106,7 +106,13 @@ public static class ServiceCollectionExtensions
     /// </summary>
     /// <typeparam name="TConnector">The connector type.</typeparam>
     /// <param name="services">The service collection.</param>
-    /// <param name="name">The connector name, which is stored as an indexer's source.</param>
+    /// <param name="name">The connector name, which is stored as a file source's source.</param>
+    /// <param name="configure">An optional callback that shapes how the connector is presented.</param>
+    /// <remarks>
+    /// A descriptor that lists <see cref="IngestionConnectorDescriptor.Aliases"/> is also registered under
+    /// each of them, so a record written before the connector was renamed still resolves. The aliases are
+    /// keys only: the choice offered on a screen stays one entry per connector.
+    /// </remarks>
     public static IServiceCollection AddCoreIngestionConnector<TConnector>(
         this IServiceCollection services,
         string name,
@@ -116,47 +122,58 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrEmpty(name);
 
+        var descriptor = new IngestionConnectorDescriptor
+        {
+            Name = name,
+            DisplayName = new LocalizedString(name, name),
+            Description = new LocalizedString(name, name),
+        };
+
+        configure?.Invoke(descriptor);
+
         services.AddCoreFileSources();
         services.TryAddScoped<TConnector>();
-        services.TryAddKeyedScoped<IIngestionConnector>(name, (sp, _) => sp.GetRequiredService<TConnector>());
+        services.TryAddKeyedScoped<IIngestionConnector>(descriptor.Name, (sp, _) => sp.GetRequiredService<TConnector>());
+
+        foreach (var alias in descriptor.Aliases)
+        {
+            services.TryAddKeyedScoped<IIngestionConnector>(alias, (sp, _) => sp.GetRequiredService<TConnector>());
+        }
 
         // Keyed services cannot be enumerated, so a screen that offers a choice of connectors needs the
         // registration to say the connector exists.
         services.Configure<IngestionConnectorOptions>(options =>
         {
-            var descriptor = new IngestionConnectorDescriptor
-            {
-                Name = name,
-                DisplayName = new LocalizedString(name, name),
-                Description = new LocalizedString(name, name),
-            };
-
-            configure?.Invoke(descriptor);
-
-            options.AddOrUpdate(descriptor.Name, descriptor.DisplayName, descriptor.Description);
+            options.AddOrUpdate(descriptor.Name, descriptor.DisplayName, descriptor.Description, descriptor.Aliases);
         });
 
         return services;
     }
 
     /// <summary>
-    /// Adds the local-folder connector, which reads files out of a folder on the host.
+    /// Adds the file-system connector, which reads files out of a folder on the host.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <remarks>
     /// A folder still has to be added to <see cref="FileSourceOptions.AllowedLocalRoots"/> before anything can
     /// be read: registering the connector grants nothing on its own.
+    /// <para>
+    /// The connector is also registered under
+    /// <see cref="FileSystemIngestionConnector.DeprecatedConnectorName"/>, so file sources stored before the
+    /// rename keep running.
+    /// </para>
     /// </remarks>
-    public static IServiceCollection AddCoreLocalFolderConnector(this IServiceCollection services)
+    public static IServiceCollection AddCoreFileSystemConnector(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        return services.AddCoreIngestionConnector<LocalFolderIngestionConnector>(
-            LocalFolderIngestionConnector.ConnectorName,
+        return services.AddCoreIngestionConnector<FileSystemIngestionConnector>(
+            FileSystemIngestionConnector.ConnectorName,
             descriptor =>
             {
-                descriptor.DisplayName = new LocalizedString("LocalFolder", "Local folder");
-                descriptor.Description = new LocalizedString("LocalFolder Description", "Reads files from a folder on the server, within the allowed roots.");
+                descriptor.DisplayName = new LocalizedString("FileSystem", "File system");
+                descriptor.Description = new LocalizedString("FileSystem Description", "Reads files from a folder on the server, within the allowed roots.");
+                descriptor.Aliases.Add(FileSystemIngestionConnector.DeprecatedConnectorName);
             });
     }
 

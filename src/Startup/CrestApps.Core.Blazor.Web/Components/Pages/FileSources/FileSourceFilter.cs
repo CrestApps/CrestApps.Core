@@ -26,10 +26,11 @@ public static class FileSourceFilter
         }
 
         // An unregistered source belongs to neither page, so it is left out rather than shown here by
-        // default. Whatever registered it is gone, and the record cannot be run either way.
+        // default. Whatever registered it is gone, and the record cannot be run either way. A connector that
+        // was renamed still claims its old name, so records written before the rename stay on this page.
         foreach (var connector in connectors)
         {
-            if (string.Equals(connector.Name, source, StringComparison.OrdinalIgnoreCase))
+            if (connector.Matches(source))
             {
                 return true;
             }
