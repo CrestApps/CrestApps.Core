@@ -136,6 +136,75 @@ public sealed class DefaultAIDocumentProcessingServiceTests
         Assert.True(result.Success);
     }
 
+    // The failure this whole ceiling exists to stop, in the one configuration where it came back.
+    //
+    // Refusing over-large files was added in front of two caps that still held the old constant: one skipped
+    // embedding entirely past 50,000 characters, the other embedded only the first 25,000. Setting the limit
+    // to zero -- "no ceiling" -- therefore accepted the file and then indexed none of it, which is exactly
+    // the silent unsearchable document the refusal was meant to replace. Observed in a running host.
+    [Fact]
+    public async Task ProcessFileAsync_LimitOfZero_StillEmbedsTheWholeDocument()
+    {
+        var options = new ChatDocumentsOptions();
+        options.Add(new ExtractorExtension(".log", embeddable: true, isTabular: false));
+        var service = CreateService(options, siteLimit: 0);
+
+        // Comfortably past both of the old constants.
+        var text = string.Join('\n', Enumerable.Range(0, 400).Select(index => $"line {index} " + new string('x', 200)));
+
+        var result = await service.ProcessFileAsync(
+            CreateFormFile("big.log", "text/plain", text),
+            "ref-1",
+            AIReferenceTypes.Document.ChatInteraction,
+            embeddingGenerator: new CountingEmbeddingGenerator());
+
+        Assert.True(result.Success);
+        Assert.NotEmpty(result.Chunks);
+
+        // Every chunk carries an embedding: none was silently dropped for being past a constant.
+        Assert.All(result.Chunks, chunk => Assert.NotNull(chunk.Embedding));
+    }
+
+    // A ceiling that is set still caps what is embedded, and the upload was already refused above it, so a
+    // chunk should never be dropped for length in practice.
+    [Fact]
+    public async Task ProcessFileAsync_UnderTheLimit_EmbedsEveryChunk()
+    {
+        var options = new ChatDocumentsOptions();
+        options.Add(new ExtractorExtension(".log", embeddable: true, isTabular: false));
+        var service = CreateService(options, siteLimit: 100_000);
+
+        var text = string.Join('\n', Enumerable.Range(0, 100).Select(index => $"line {index} " + new string('x', 200)));
+
+        var result = await service.ProcessFileAsync(
+            CreateFormFile("medium.log", "text/plain", text),
+            "ref-1",
+            AIReferenceTypes.Document.ChatInteraction,
+            embeddingGenerator: new CountingEmbeddingGenerator());
+
+        Assert.True(result.Success);
+        Assert.All(result.Chunks, chunk => Assert.NotNull(chunk.Embedding));
+    }
+
+    private sealed class CountingEmbeddingGenerator : IEmbeddingGenerator<string, Embedding<float>>
+    {
+        public Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
+            IEnumerable<string> values,
+            EmbeddingGenerationOptions options = null,
+            CancellationToken cancellationToken = default)
+        {
+            var embeddings = values.Select(_ => new Embedding<float>(new float[] { 0.1f, 0.2f, 0.3f })).ToArray();
+
+            return Task.FromResult(new GeneratedEmbeddings<Embedding<float>>(embeddings));
+        }
+
+        public object GetService(Type serviceType, object serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
     private static DefaultAIDocumentProcessingService CreateService(ChatDocumentsOptions options, int siteLimit = 0)
     {
         var services = new ServiceCollection();

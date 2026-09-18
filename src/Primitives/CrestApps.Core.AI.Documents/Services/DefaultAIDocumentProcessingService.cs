@@ -17,7 +17,6 @@ namespace CrestApps.Core.AI.Documents.Services;
 /// </summary>
 public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingService
 {
-    private const int MaxEmbeddingTotalChars = 25000;
     private const int MaxStoredChunkLength = 16000;
     private const string FigureBlockStart = "[figure";
     private const string FigureBlockEnd = "[/figure]";
@@ -79,12 +78,52 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         var options = _extractorOptions.Value;
         var isTabular = options.IsTabularFileExtension(extension);
 
+        // The profile's ceiling when it set one, the site's otherwise. Zero means no ceiling.
+        var characterLimit = maxIndexableCharacters ?? _interactionDocumentOptions.CurrentValue.MaxIndexableCharacters;
+
         string text;
         IngestionDocument ingestionDoc;
         try
         {
-            using var stream = file.OpenReadStream();
             var mediaType = MediaTypeHelper.InferMediaType(extension, file.ContentType);
+
+            // Measured before the document is ingested for real, because the expensive half of ingestion is
+            // describing figures with a vision model, and there is no sense paying for that on a file that is
+            // about to be refused. FigureProcessingMode.Off short-circuits both the caption processor and the
+            // description processor, so this pass is extraction and nothing else.
+            //
+            // Run only when a ceiling actually applies: with no ceiling there is nothing to refuse, and the
+            // file would otherwise be read twice for no reason.
+            if (characterLimit > 0 && embeddingGenerator is not null && options.EmbeddableFileExtensions.Contains(extension))
+            {
+                using var measuringStream = file.OpenReadStream();
+
+                var measured = await _pipeline.IngestAsync(
+                    measuringStream,
+                    file.FileName,
+                    mediaType,
+                    new DocumentIngestionContext
+                    {
+                        FigureMode = FigureProcessingMode.Off,
+                        DescribeFiguresInline = false,
+                    });
+
+                var measuredLength = FlattenForEmbedding(measured)?.Length ?? 0;
+
+                if (measuredLength > characterLimit)
+                {
+                    _logger.LogWarning(
+                        "Rejected '{FileName}' before ingestion: {TextLength} characters of text exceeds the {Limit} that can be indexed.",
+                        file.FileName,
+                        measuredLength,
+                        characterLimit);
+
+                    return DocumentProcessingResult.Failed(
+                        $"This document holds about {measuredLength:N0} characters of text, more than the {characterLimit:N0} that can be indexed for search. Split it into smaller files and upload those.");
+                }
+            }
+
+            using var stream = file.OpenReadStream();
             ingestionDoc = await _pipeline.IngestAsync(
                 stream,
                 file.FileName,
@@ -151,30 +190,6 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
             text = string.Join('\n', textChunks);
         }
 
-        // Refused rather than accepted and quietly left unsearchable. A file past this ceiling used to upload
-        // successfully, appear attached, and then be skipped by embedding and by indexing -- so the reader was
-        // told their document was there while the model could not retrieve a word of it, and the only trace
-        // was a Debug line. Accepting a file is a promise to ingest it; when the promise cannot be kept, the
-        // upload has to say so while the reader can still do something about it.
-        // The profile's limit when it set one, the site's otherwise. Zero or less means no ceiling, for a
-        // host that would rather pay for embeddings than refuse anything.
-        var characterLimit = maxIndexableCharacters ?? _interactionDocumentOptions.CurrentValue.MaxIndexableCharacters;
-
-        if (embeddingGenerator is not null &&
-            characterLimit > 0 &&
-            options.EmbeddableFileExtensions.Contains(extension) &&
-            text.Length > characterLimit)
-        {
-            _logger.LogWarning(
-                "Rejected '{FileName}': {TextLength} characters of text exceeds the {Limit} that can be indexed.",
-                file.FileName,
-                text.Length,
-                characterLimit);
-
-            return DocumentProcessingResult.Failed(
-                $"This document holds about {text.Length:N0} characters of text, more than the {characterLimit:N0} that can be indexed for search. Split it into smaller files and upload those.");
-        }
-
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var document = new AIDocument
         {
@@ -193,9 +208,9 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         GeneratedEmbeddings<Embedding<float>> embeddings = null;
         var embeddedChunkCount = 0;
 
-        if (ShouldGenerateEmbeddings(extension, text.Length, embeddingGenerator, options))
+        if (ShouldGenerateEmbeddings(extension, embeddingGenerator, options))
         {
-            var chunksForEmbedding = LimitChunksForEmbedding(textChunks);
+            var chunksForEmbedding = LimitChunksForEmbedding(textChunks, characterLimit);
 
             if (_logger.IsEnabled(LogLevel.Debug))
             {
@@ -501,7 +516,6 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
 
     private static bool ShouldGenerateEmbeddings(
         string extension,
-        int textLength,
         IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
         ChatDocumentsOptions options)
     {
@@ -515,22 +529,37 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
             return false;
         }
 
-        if (textLength > MaxEmbeddingTotalChars * 2)
-        {
-            return false;
-        }
-
+        // No length check here. A file over the ceiling was already refused at upload, and a host that set
+        // no ceiling means it: skipping silently at this point is what left a document attached and
+        // unsearchable with nothing but a Debug line to say so.
         return true;
     }
 
-    private static List<string> LimitChunksForEmbedding(List<string> chunks)
+    /// <summary>
+    /// Takes the chunks that fit inside the ceiling.
+    /// </summary>
+    /// <param name="chunks">The chunks.</param>
+    /// <param name="characterLimit">The ceiling, or zero for none.</param>
+    /// <returns>The chunks to embed.</returns>
+    /// <remarks>
+    /// This used to stop at a constant well below the ceiling the upload was checked against, so a document
+    /// that was accepted could still have most of itself silently left out of the index -- searchable in its
+    /// first pages and missing everywhere after. It now stops only where the ceiling does, and not at all
+    /// when there is none.
+    /// </remarks>
+    private static List<string> LimitChunksForEmbedding(List<string> chunks, int characterLimit)
     {
+        if (characterLimit <= 0)
+        {
+            return chunks;
+        }
+
         var limitedChunks = new List<string>();
         var totalLength = 0;
 
         foreach (var chunk in chunks)
         {
-            if (totalLength + chunk.Length > MaxEmbeddingTotalChars)
+            if (totalLength + chunk.Length > characterLimit)
             {
                 break;
             }
