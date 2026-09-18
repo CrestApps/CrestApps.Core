@@ -1206,7 +1206,7 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
             var failedItem = this.uploadErrors[m];
             var failedName = failedItem.fileName || 'File';
             var errorMsg = failedItem.error || 'Upload failed';
-            // The reason is shown, not hidden behind a tooltip. A pill reading "EpGep_2025_0..."
+            // The reason is shown, not hidden behind a tooltip. A pill reading "quarterly-report-2..."
             // tells a reader their upload failed and nothing about why, and a title attribute is
             // unreachable on a touch device -- so the one sentence that tells them what to do next
             // was the one thing the widget would not display.
