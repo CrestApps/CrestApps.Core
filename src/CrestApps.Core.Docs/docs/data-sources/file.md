@@ -310,6 +310,23 @@ builder.Services
     .AddCoreAIDocumentProcessing();
 ```
 
+A host that only reads files into a knowledge base takes the ingestion path instead, and none of the chat,
+tabular or tool services come with it:
+
+```csharp
+builder.Services
+    .AddCoreAIServices()
+    .AddCoreAIDocumentIngestion(ingestion => ingestion
+        .AddPlainTextReader()
+        .AddFigureProcessing()
+        .AddFigureBackfill()
+    );
+```
+
+`AddCoreFileSources()` already does exactly that, so a file source host needs neither call. The **Files**
+entry in the data source picker is registered by `AddCoreFileSources()`, because that is the package whose
+screens configure it.
+
 Add the figure download endpoint and the citation links that point at it:
 
 ```csharp

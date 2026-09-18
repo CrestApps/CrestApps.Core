@@ -43,6 +43,56 @@ At a high level, document processing lets your app:
 - route spreadsheets and CSV files through a structured tabular workflow
 - expose uploaded and generated files as downloads in chat
 
+## The ingestion path on its own
+
+Turning a file into knowledge and answering chat questions about an upload are two different jobs, and they
+live in two packages.
+
+`CrestApps.Core.AI.Ingestion` holds the first one: the readers that turn a file into a document, the processor
+pipeline that captions and describes its figures, and `IKnowledgeIngestionService`, which stores the result as
+the typed objects of an AI data source. `CrestApps.Core.AI.Documents` holds the second: uploads, tabular
+workspaces, generated files and the chat tool surface.
+
+`AddCoreAIDocumentProcessing()` calls `AddCoreAIDocumentIngestion()` for you, so a host that wants the chat
+experience carries on as before. A host that only reads files into a knowledge base registers the ingestion
+half on its own and none of the chat services come with it:
+
+```csharp
+builder.Services
+    .AddCoreAIServices()
+    .AddCoreAIDocumentIngestion(ingestion => ingestion
+        .AddPlainTextReader()
+        .AddFigureProcessing()
+        .AddFigureBackfill()
+        .AddPdf()
+    );
+```
+
+Only what cannot be left out is registered outright — the pipeline, the file store, and
+`IKnowledgeIngestionService`. Everything else is asked for:
+
+| Call | Registers | Leave it out when |
+| --- | --- | --- |
+| `AddPlainTextReader()` | the reader for `.txt`, `.csv`, `.md`, `.json`, `.xml`, `.html`, `.htm`, `.log`, `.yaml`, `.yml` | those file types never reach you |
+| `AddFigureProcessing()` | figure captioning, salience, and vision transcription | you ingest text you know has no figures, and want no vision calls |
+| `AddFigureBackfill()` | the hosted job that finishes figures an ingest left pending | you run ingests elsewhere, or want no background work in this process |
+| `AddPdf()` | the PDF reader, from `CrestApps.Core.AI.Ingestion.Pdf` | you read no PDFs |
+
+:::note
+`AddPdf()` on the **ingestion** builder registers the PDF *reader* only. `AddPdf()` on the document processing
+builder registers that same reader plus the writer that turns generated content into a downloadable PDF,
+which needs document processing. Reading a PDF and writing one are separate packages.
+:::
+
+In practice a file source host rarely calls this directly, because `AddCoreFileSources()` already registers
+the reader, the figure processors and the backfill — see [File Sources](../data-sources/indexers.md).
+
+:::note
+If you want both, call `AddDocumentProcessing()` **before** `AddCoreFileSources()`. Keyed readers resolve to
+the last registration, and the HTML reader file sources register has to win over the plain-text reader the
+ingestion path registers for `.html`, or a web page read from a folder or a server is indexed with its markup.
+:::
+
 ## Built-In Capabilities
 
 ### Document-aware chat

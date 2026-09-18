@@ -1,10 +1,10 @@
 using CrestApps.Core.AI.FileSources.Connectors;
 using CrestApps.Core.AI.FileSources.FileTransfer;
 using CrestApps.Core.AI.Ftp;
-using CrestApps.Core.AI.Sftp;
 using CrestApps.Core.AI.Ftp.Models;
-using CrestApps.Core.AI.Sftp.Models;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Sftp;
+using CrestApps.Core.AI.Sftp.Models;
 using CrestApps.Core.Blazor.Web.ViewModels;
 using Microsoft.AspNetCore.DataProtection;
 

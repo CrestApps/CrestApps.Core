@@ -4,7 +4,7 @@ using CrestApps.Core.Infrastructure.Indexing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace CrestApps.Core.AI.Documents.Knowledge;
+namespace CrestApps.Core.AI.Ingestion.Knowledge;
 
 /// <summary>
 /// Resolves citation links for <c>Ingested</c> data source references. A figure or a chart links to its

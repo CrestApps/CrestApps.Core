@@ -1,5 +1,5 @@
-using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Handlers;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

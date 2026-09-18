@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Documents.Ingestion;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.FileSources.Connectors;
 using CrestApps.Core.AI.FileSources.FileTransfer;

@@ -1,5 +1,5 @@
-using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Tabular;
+using CrestApps.Core.AI.Ingestion;
 
 namespace CrestApps.Core.Tests.Core.Documents.Tabular;
 

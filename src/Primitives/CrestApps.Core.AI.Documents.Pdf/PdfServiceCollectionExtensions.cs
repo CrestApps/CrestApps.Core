@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Pdf.Services;
+using CrestApps.Core.AI.Ingestion.Pdf;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,12 +15,17 @@ public static class PdfServiceCollectionExtensions
     /// Adds core ai pdf document processing.
     /// </summary>
     /// <param name="services">The service collection.</param>
+    /// <remarks>
+    /// Registers both halves of PDF support: the reader, which lives on the ingestion path in
+    /// <c>CrestApps.Core.AI.Ingestion.Pdf</c>, and the writer that turns generated content into a
+    /// downloadable PDF. A host that only reads PDFs into a knowledge base takes the ingestion package on its
+    /// own and leaves the writer, and the document processing it needs, behind.
+    /// </remarks>
     public static IServiceCollection AddCoreAIPdfDocumentProcessing(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddOptions<PdfLayoutOptions>();
-        services.AddCoreAIIngestionDocumentReader<PdfIngestionDocumentReader>(".pdf");
+        services.AddCoreAIPdfIngestion();
 
         // Register the PDF output writer so generated files can be downloaded as PDF documents.
         services.AddGeneratedFileWriter<PdfGeneratedFileWriter>(".pdf");

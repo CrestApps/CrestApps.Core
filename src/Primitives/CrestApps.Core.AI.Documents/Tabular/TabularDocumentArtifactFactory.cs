@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DataIngestion;

@@ -1,5 +1,5 @@
 using System.Globalization;
-using CrestApps.Core.AI.Documents;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Models;

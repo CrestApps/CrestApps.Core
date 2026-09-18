@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using CrestApps.Core.AI.Ingestion;
 
 namespace CrestApps.Core.AI.Documents.Tabular;
 

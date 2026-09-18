@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Documents.Ingestion;
+using CrestApps.Core.AI.Ingestion;
 
 namespace CrestApps.Core.AI.FileSources;
 

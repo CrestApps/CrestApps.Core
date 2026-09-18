@@ -2,6 +2,7 @@ using System.Text;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Handlers;
+using CrestApps.Core.AI.Ingestion;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

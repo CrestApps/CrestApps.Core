@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Documents;
+using CrestApps.Core.AI.Ingestion;
 
 namespace CrestApps.Core.Tests.Support;
 

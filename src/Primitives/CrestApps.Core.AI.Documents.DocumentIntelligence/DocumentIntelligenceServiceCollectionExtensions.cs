@@ -2,7 +2,7 @@ using Azure;
 using Azure.AI.DocumentIntelligence;
 using Azure.Identity;
 using CrestApps.Core.AI.Documents.DocumentIntelligence.Services;
-using CrestApps.Core.AI.Documents.Ingestion;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;

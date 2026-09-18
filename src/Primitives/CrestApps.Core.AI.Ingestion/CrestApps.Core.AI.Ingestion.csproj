@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.Ingestion</RootNamespace>
+    <Title>CrestApps AI Ingestion</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      The ingestion path shared by every CrestApps AI knowledge producer: document readers, the processor
+      pipeline that enriches what they read, and the knowledge ingestion service that turns a file into the
+      typed objects of an AI data source. Depended on by document processing and by file sources alike, so
+      neither has to depend on the other.
+    </Description>
+    <PackageTags>$(PackageTags) ai ingestion knowledge readers processing rag</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.DataIngestion" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Abstractions/CrestApps.Core.Abstractions/CrestApps.Core.Abstractions.csproj" />
+    <ProjectReference Include="../CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
+  </ItemGroup>
+
+</Project>

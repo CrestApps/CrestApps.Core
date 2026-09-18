@@ -1,5 +1,5 @@
 using System.Text;
-using CrestApps.Core.AI.Documents.Services;
+using CrestApps.Core.AI.Ingestion;
 
 namespace CrestApps.Core.Tests.Helpers.DocumentReaders;
 

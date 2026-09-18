@@ -1,7 +1,6 @@
 using System.Text;
-using CrestApps.Core.AI.Documents;
-using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Documents.Tabular;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;

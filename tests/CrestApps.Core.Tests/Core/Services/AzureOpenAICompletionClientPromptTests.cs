@@ -1,3 +1,5 @@
+using System.ClientModel;
+using System.ClientModel.Primitives;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Net;
@@ -19,11 +21,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using OpenAI.Chat;
-using System.ClientModel;
-using System.ClientModel.Primitives;
-using AIContent = Microsoft.Extensions.AI.AIContent;
 using AIChatMessage = Microsoft.Extensions.AI.ChatMessage;
 using AIChatRole = Microsoft.Extensions.AI.ChatRole;
+using AIContent = Microsoft.Extensions.AI.AIContent;
 using DataContent = Microsoft.Extensions.AI.DataContent;
 using SdkChatMessage = OpenAI.Chat.ChatMessage;
 using TextContent = Microsoft.Extensions.AI.TextContent;

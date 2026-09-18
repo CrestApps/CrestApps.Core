@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 

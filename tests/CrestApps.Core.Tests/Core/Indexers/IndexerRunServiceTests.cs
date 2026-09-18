@@ -1,8 +1,8 @@
 ﻿using CrestApps.Core.AI.DataSources;
-using CrestApps.Core.AI.Documents.Knowledge;
 using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.FileSources.Connectors;
 using CrestApps.Core.AI.Indexing;
+using CrestApps.Core.AI.Ingestion.Knowledge;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Models;

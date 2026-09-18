@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;

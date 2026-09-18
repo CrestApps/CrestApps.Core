@@ -1,5 +1,5 @@
 using CrestApps.Core.AI.DataSources;
-using CrestApps.Core.AI.Documents.Knowledge;
+using CrestApps.Core.AI.Ingestion.Knowledge;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.FileSources;

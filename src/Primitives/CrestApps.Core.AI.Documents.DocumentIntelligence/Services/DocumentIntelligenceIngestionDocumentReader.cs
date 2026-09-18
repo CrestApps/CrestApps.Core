@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using Azure;
 using Azure.AI.DocumentIntelligence;
-using CrestApps.Core.AI.Documents.Ingestion;
+using CrestApps.Core.AI.Ingestion;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

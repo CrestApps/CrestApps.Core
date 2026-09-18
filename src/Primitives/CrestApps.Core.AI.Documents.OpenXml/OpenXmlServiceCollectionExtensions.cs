@@ -1,7 +1,7 @@
 using CrestApps.Core.AI.Documents.Generation;
-using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.OpenXml.Services;
 using CrestApps.Core.AI.Documents.Tabular;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DependencyInjection;
 
