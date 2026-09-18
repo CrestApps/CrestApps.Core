@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Documents.DocumentIntelligence;
+namespace CrestApps.Core.Azure.DocumentIntelligence;
 
 /// <summary>
 /// Configures the Azure AI Document Intelligence reader.

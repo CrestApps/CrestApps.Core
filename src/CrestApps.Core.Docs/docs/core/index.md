@@ -59,7 +59,7 @@ The quickest way to validate the setup is to use **Chat Interactions** first, th
 | Foundation | `CrestApps.Core` | Shared models, validation, catalog helpers, and host utilities |
 | AI runtime | `CrestApps.Core.AI` | Deployments, profiles, completions, orchestration, tools, and memory |
 | Chat | `CrestApps.Core.AI.Chat` | Chat sessions, widgets, handlers, and metrics |
-| Ingestion | `CrestApps.Core.AI.Ingestion`, `CrestApps.Core.AI.Ingestion.Pdf` | Document readers, the processor pipeline, and the knowledge ingestion service every knowledge producer shares |
+| Ingestion | `CrestApps.Core.AI.Ingestion`, `CrestApps.Core.AI.Ingestion.Pdf`, `CrestApps.Core.Azure.DocumentIntelligence` | Document readers, the processor pipeline, and the knowledge ingestion service every knowledge producer shares |
 | Documents | `CrestApps.Core.AI.Documents` | Uploaded-document processing, tabular workspaces, generated files, and document RAG |
 | Templates | `CrestApps.Core.Templates` | Reusable prompts and template-driven profile composition |
 | Providers | Provider packages | OpenAI, Azure OpenAI, Azure AI Inference, and Ollama integrations |

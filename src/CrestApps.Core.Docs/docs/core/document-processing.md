@@ -77,6 +77,15 @@ Only what cannot be left out is registered outright — the pipeline, the file s
 | `AddFigureProcessing()` | figure captioning, salience, and vision transcription | you ingest text you know has no figures, and want no vision calls |
 | `AddFigureBackfill()` | the hosted job that finishes figures an ingest left pending | you run ingests elsewhere, or want no background work in this process |
 | `AddPdf()` | the PDF reader, from `CrestApps.Core.AI.Ingestion.Pdf` | you read no PDFs |
+| `AddDocumentIntelligence()` | the Azure reader, from `CrestApps.Core.Azure.DocumentIntelligence` | you have no Azure endpoint, or the local readers are enough |
+
+:::caution Office documents still need document processing
+`.docx`, `.xlsx` and `.pptx` are read by `CrestApps.Core.AI.Documents.OpenXml`, which depends on
+`CrestApps.Core.AI.Documents`. That package is mostly tabular workspaces and the spreadsheet and Word
+writers, with the reader as one file of nine, so it was left whole rather than split the way PDF was. A host
+that ingests Office documents therefore still registers document processing. Text, PDFs and anything read
+through Azure need nothing from it.
+:::
 
 :::note
 `AddPdf()` on the **ingestion** builder registers the PDF *reader* only. `AddPdf()` on the document processing
@@ -223,19 +232,27 @@ This lets you extend document support without changing the rest of the document-
 ## Reading Structure From A Service
 
 Everything above infers structure from where the glyphs sit. Where an operator has a document-understanding
-service, that inference can be replaced with fact. `AddDocumentIntelligence()` registers a reader backed by
-Azure AI Document Intelligence:
+service, that inference can be replaced with fact. `AddDocumentIntelligence()`, from
+`CrestApps.Core.Azure.DocumentIntelligence`, registers a reader backed by Azure AI Document Intelligence.
+It is a reader like any other, so it goes on the ingestion builder:
 
 ```csharp
-.AddDocumentProcessing(documentProcessing => documentProcessing
+builder.Services.AddCoreAIDocumentIngestion(ingestion => ingestion
+    .AddPlainTextReader()
+    .AddFigureProcessing()
+    .AddFigureBackfill()
     .AddPdf()
     .AddDocumentIntelligence(options =>
     {
         options.Endpoint = "https://my-resource.cognitiveservices.azure.com/";
         options.ApiKey = "...";   // omit to use the ambient Azure credential
     })
-)
+);
 ```
+
+Because it sits on the ingestion builder rather than on document processing, a host that only reads files
+into a knowledge base can use it without registering uploads, tabular workspaces or the chat tool surface.
+It also reads scanned pages, which the local readers cannot.
 
 The layout model reports, for any language, which paragraph is a heading, which is a running head, what
 order the page reads in, where the tables are and what their cells span, and which caption belongs to which

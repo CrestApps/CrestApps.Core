@@ -6,7 +6,7 @@ using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.AI.Documents.DocumentIntelligence.Services;
+namespace CrestApps.Core.Azure.DocumentIntelligence.Services;
 
 /// <summary>
 /// Reads a document's structure from Azure AI Document Intelligence instead of inferring it locally.

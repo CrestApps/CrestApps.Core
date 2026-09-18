@@ -1,10 +1,10 @@
 using Azure.AI.DocumentIntelligence;
-using CrestApps.Core.AI.Documents.DocumentIntelligence.Services;
+using CrestApps.Core.Azure.DocumentIntelligence.Services;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Ingestion.Processors;
 using Microsoft.Extensions.DataIngestion;
 
-namespace CrestApps.Core.Tests.Core.Documents.DocumentIntelligence;
+namespace CrestApps.Core.Tests.Core.Azure.DocumentIntelligence;
 
 /// <summary>
 /// Covers the mapping from a Document Intelligence analysis onto the element model. Every fixture is written

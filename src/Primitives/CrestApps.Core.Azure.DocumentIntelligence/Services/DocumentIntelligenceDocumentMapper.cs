@@ -5,7 +5,7 @@ using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Ingestion.Processors;
 using Microsoft.Extensions.DataIngestion;
 
-namespace CrestApps.Core.AI.Documents.DocumentIntelligence.Services;
+namespace CrestApps.Core.Azure.DocumentIntelligence.Services;
 
 /// <summary>
 /// Turns an analysis result into the element model the rest of the ingestion pipeline works on.

@@ -29,7 +29,6 @@
     <Project Path="src/Primitives/CrestApps.Core.AI.Chat/CrestApps.Core.AI.Chat.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Claude/CrestApps.Core.AI.Claude.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Copilot/CrestApps.Core.AI.Copilot.csproj" />
-    <Project Path="src/Primitives/CrestApps.Core.AI.Documents.DocumentIntelligence/CrestApps.Core.AI.Documents.DocumentIntelligence.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Documents.OpenXml/CrestApps.Core.AI.Documents.OpenXml.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Documents.Pdf/CrestApps.Core.AI.Documents.Pdf.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
@@ -56,6 +55,7 @@
     <Project Path="src/Primitives/CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Azure.AISearch/CrestApps.Core.Azure.AISearch.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Azure/CrestApps.Core.Azure.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.Azure.DocumentIntelligence/CrestApps.Core.Azure.DocumentIntelligence.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.DataIngestion/CrestApps.Core.DataIngestion.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Elasticsearch/CrestApps.Core.Elasticsearch.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Infrastructure/CrestApps.Core.Infrastructure.csproj" />

@@ -1,7 +1,7 @@
 using Azure;
 using Azure.AI.DocumentIntelligence;
 using Azure.Identity;
-using CrestApps.Core.AI.Documents.DocumentIntelligence.Services;
+using CrestApps.Core.Azure.DocumentIntelligence.Services;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.Builders;
 using Microsoft.Extensions.DataIngestion;
@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.AI.Documents.DocumentIntelligence;
+namespace CrestApps.Core.Azure.DocumentIntelligence;
 
 /// <summary>
 /// Registers the Azure AI Document Intelligence reader.
@@ -86,10 +86,15 @@ public static class DocumentIntelligenceServiceCollectionExtensions
     /// <summary>
     /// Adds the Document Intelligence reader for the configured extensions.
     /// </summary>
-    /// <param name="builder">The document processing builder.</param>
+    /// <param name="builder">The ingestion builder.</param>
     /// <param name="configure">Configures the reader.</param>
-    public static CrestAppsDocumentProcessingBuilder AddDocumentIntelligence(
-        this CrestAppsDocumentProcessingBuilder builder,
+    /// <remarks>
+    /// This reader is a reader like any other, so it belongs to the ingestion builder rather than to document
+    /// processing: a host that only reads files into a knowledge base can reach it without registering chat
+    /// uploads, tabular workspaces and the tool surface to get at it.
+    /// </remarks>
+    public static CrestAppsDocumentIngestionBuilder AddDocumentIntelligence(
+        this CrestAppsDocumentIngestionBuilder builder,
         Action<DocumentIntelligenceOptions> configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);

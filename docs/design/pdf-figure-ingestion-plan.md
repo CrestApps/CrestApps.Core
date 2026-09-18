@@ -1550,7 +1550,7 @@ references point to the design the phase implements; the phase text does not rep
   phase 9, which is where the resolver is completed. Running it *before* phases 5–8 improves their input.
 - **Goal:** where an operator has a document-understanding service, stop inferring structure and read it.
   PdfPig and the heuristics stay as the offline fallback, unchanged.
-- **Files:** C project `src/Primitives/CrestApps.Core.AI.Documents.DocumentIntelligence/` (own package, so
+- **Files:** C project `src/Primitives/CrestApps.Core.Azure.DocumentIntelligence/` (own package, so
   the core takes no Azure dependency), C `DocumentIntelligenceIngestionDocumentReader.cs`,
   C `DocumentIntelligenceOptions.cs`, C `FallbackIngestionDocumentReader.cs`, C `ServiceCollectionExtensions.cs`,
   M `FigureCaptionProcessor.cs` + `FigureSalienceProcessor.cs` (honour provider-supplied metadata),
