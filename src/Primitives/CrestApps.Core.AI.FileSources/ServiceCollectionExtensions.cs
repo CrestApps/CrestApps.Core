@@ -7,6 +7,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.Builders;
 using CrestApps.Core.DataIngestion;
 using CrestApps.Core.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Localization;
@@ -15,12 +16,59 @@ using Microsoft.Extensions.Hosting;
 namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
-/// Registers the indexer subsystem: connectors, the run service, and the options that bound both.
+/// Registers the file source subsystem: connectors, the run service, and the options that bound both.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds the indexer subsystem.
+    /// The configuration section <see cref="FileSourceOptions"/> is read from.
+    /// </summary>
+    public const string ConfigurationSectionName = "CrestApps:AI:FileSources";
+
+    /// <summary>
+    /// The configuration section this feature was read from before it was renamed.
+    /// </summary>
+    /// <remarks>
+    /// Kept readable because a configuration key lives in places this repository cannot see -- user
+    /// secrets, environment variables, a deployed <c>appsettings.json</c>. Dropping it would take a host's
+    /// allowed roots away silently, and a file source whose root is not allowed simply refuses every folder.
+    /// </remarks>
+    public const string DeprecatedConfigurationSectionName = "CrestApps:Indexers";
+
+    /// <summary>
+    /// Adds the file source subsystem and binds <see cref="FileSourceOptions"/> from configuration.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configuration">The configuration to read the options from.</param>
+    /// <remarks>
+    /// Reads <see cref="ConfigurationSectionName"/>, falling back to
+    /// <see cref="DeprecatedConfigurationSectionName"/> when the new section is absent.
+    /// <para>
+    /// One section wins outright rather than the two being layered, because
+    /// <see cref="FileSourceOptions.AllowedLocalRoots"/> is a list: binding both would merge them by index,
+    /// so a host that shortened its list would keep entries it thought it had removed.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddCoreFileSources(this IServiceCollection services, IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        var section = configuration.GetSection(ConfigurationSectionName);
+
+        if (!section.Exists())
+        {
+            section = configuration.GetSection(DeprecatedConfigurationSectionName);
+        }
+
+        services.AddCoreFileSources();
+        services.Configure<FileSourceOptions>(section);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds the file source subsystem.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <remarks>

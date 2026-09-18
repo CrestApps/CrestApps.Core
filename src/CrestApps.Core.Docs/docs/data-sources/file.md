@@ -74,17 +74,14 @@ time instead of storing a second copy of it.
 
 ```csharp
 builder.Services
-    .AddCoreFileSources()
+    .AddCoreFileSources(builder.Configuration)
     .AddCoreLocalFolderConnector()
     .AddCoreFtpIngestionConnector()
     .AddCoreSftpIngestionConnector();
-
-builder.Services.Configure<FileSourceOptions>(
-    builder.Configuration.GetSection("CrestApps:Indexers"));
 ```
 
 Only the connectors a host registers are offered, so a host that never adds the file-transfer package offers
-a folder and nothing else. See [Indexers](./indexers.md) for the connector contract and for adding one.
+a folder and nothing else. See [File Source Connectors](./indexers.md) for the connector contract and for adding one.
 
 ## Reading a local folder
 
@@ -94,9 +91,11 @@ inside a host-allow-listed folder:
 ```json
 {
   "CrestApps": {
-    "Indexers": {
-      "AllowedLocalRoots": [ "D:\\knowledge" ],
-      "MaxItemsPerRun": 200
+    "AI": {
+      "FileSources": {
+        "AllowedLocalRoots": [ "D:\\knowledge" ],
+        "MaxItemsPerRun": 200
+      }
     }
   }
 }
@@ -104,7 +103,7 @@ inside a host-allow-listed folder:
 
 :::warning
 **A local folder reads nothing until a root is allow-listed.** Registering the connector grants nothing:
-until `CrestApps:Indexers:AllowedLocalRoots` names a folder, every root is refused and the file source fails
+until `CrestApps:AI:FileSources:AllowedLocalRoots` names a folder, every root is refused and the file source fails
 validation before it lists a single file. The empty default is the point, not an oversight — without it, an
 administrator with access to this screen could read any file the host process can open.
 :::
@@ -116,12 +115,12 @@ repository nor any configuration file that is committed:
 
 ```bash
 cd src/Startup/CrestApps.Core.Mvc.Web
-dotnet user-secrets set "CrestApps:Indexers:AllowedLocalRoots:0" "D:\your-folder"
+dotnet user-secrets set "CrestApps:AI:FileSources:AllowedLocalRoots:0" "D:\your-folder"
 ```
 
 Both hosts already declare a `UserSecretsId`, so there is nothing to initialize first. The array is indexed,
 so a second root is `:1`, and an environment variable spells the same key
-`CrestApps__Indexers__AllowedLocalRoots__0`. An item identifier that resolves outside the root is refused
+`CrestApps__AI__FileSources__AllowedLocalRoots__0`. An item identifier that resolves outside the root is refused
 when it is fetched as well as when it is listed, because identifiers also arrive from stored state.
 
 ## Reading a file server
@@ -159,7 +158,7 @@ An item whose content changes produces a new document, because a document's iden
 The run removes the document the item produced before — unless another item of the same file source still
 produces it, since the same file placed twice is one document by design.
 
-[Indexers](./indexers.md) covers the rest of the run machinery: change tokens, discovery cursors, reader
+[File Source Connectors](./indexers.md) covers the rest of the run machinery: change tokens, discovery cursors, reader
 resolution, and the per-record model and figure settings.
 
 ## Typed columns and filtering

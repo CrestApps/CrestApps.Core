@@ -51,7 +51,7 @@ with the section documented and empty. A development root is now set in user sec
 pointing at a dedicated folder rather than a whole desktop:
 
 ```bash
-dotnet user-secrets set "CrestApps:Indexers:AllowedLocalRoots:0" "D:\ingestion-source"
+dotnet user-secrets set "CrestApps:AI:FileSources:AllowedLocalRoots:0" "D:\ingestion-source"
 ```
 
 **The Blazor File Sources screen has still never been looked at.** Its route is registered and auth-gated

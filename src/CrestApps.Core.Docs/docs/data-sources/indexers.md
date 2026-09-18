@@ -1,13 +1,13 @@
 ---
-sidebar_label: Indexers
+sidebar_label: File Source Connectors
 sidebar_position: 8
-title: Indexers
+title: File Source Connectors
 description: Keep a File data source in step with a folder, an FTP server or an SFTP server through pluggable ingestion connectors.
 ---
 
-# Indexers
+# File Source Connectors
 
-> Continuous intake. An **indexer** points a connector at a source, and keeps a
+> Continuous intake. A **file source** points a connector at a folder or a server, and keeps a
 > [File data source](./file.md) in step with it: what is new is read, what changed is re-read, and
 > what is gone is removed.
 
@@ -55,8 +55,7 @@ builder.Services
     .AddCoreFtpIngestionConnector()
     .AddCoreSftpIngestionConnector();
 
-builder.Services.Configure<FileSourceOptions>(
-    builder.Configuration.GetSection("CrestApps:Indexers"));
+builder.Services.AddCoreFileSources(builder.Configuration);
 ```
 
 ## A partial listing never deletes anything
@@ -77,15 +76,17 @@ inside a host-allow-listed folder:
 ```json
 {
   "CrestApps": {
-    "Indexers": {
-      "AllowedLocalRoots": [ "D:\\knowledge" ],
-      "MaxItemsPerRun": 200
+    "AI": {
+      "FileSources": {
+        "AllowedLocalRoots": [ "D:\\knowledge" ],
+        "MaxItemsPerRun": 200
+      }
     }
   }
 }
 ```
 
-Empty means no local folder may be indexed at all, which is the default. Without it, an administrator with
+Empty means no local folder may be read at all, which is the default. Without it, an administrator with
 access to the File Sources screen can read any file the host process can open. An item identifier that
 resolves outside the root is refused when it is fetched as well as when it is listed, because identifiers
 also arrive from stored state.
