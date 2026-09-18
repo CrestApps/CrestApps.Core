@@ -1206,11 +1206,19 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
             var failedItem = this.uploadErrors[m];
             var failedName = failedItem.fileName || 'File';
             var errorMsg = failedItem.error || 'Upload failed';
-            if (failedName.length > 15) failedName = failedName.substring(0, 12) + '...';
-            html += '<span class="badge bg-danger bg-opacity-25 text-danger d-inline-flex align-items-center gap-1 px-2 py-1" style="font-size: 0.8rem;" title="' + this.escapeHtml((failedItem.fileName || '') + ': ' + errorMsg) + '">';
-            html += '<i class="fa-solid fa-circle-exclamation" style="font-size: 0.7rem;"></i> ';
-            html += this.escapeHtml(failedName);
-            html += ' <button type="button" class="btn-close btn-close-sm ms-1" style="font-size: 0.5rem;" data-error-index="' + m + '" aria-label="Dismiss"></button>';
+            // The reason is shown, not hidden behind a tooltip. A pill reading "EpGep_2025_0..."
+            // tells a reader their upload failed and nothing about why, and a title attribute is
+            // unreachable on a touch device -- so the one sentence that tells them what to do next
+            // was the one thing the widget would not display.
+            html += '<span class="alert alert-danger d-flex align-items-start gap-2 w-100 mb-1 py-1 px-2" role="alert" style="font-size: 0.8rem;">';
+            html += '<i class="fa-solid fa-circle-exclamation mt-1" style="font-size: 0.7rem;"></i>';
+            html += '<span class="flex-grow-1">';
+            if (failedItem.fileName) {
+              html += '<strong>' + this.escapeHtml(failedItem.fileName) + '</strong>: ';
+            }
+            html += this.escapeHtml(errorMsg);
+            html += '</span>';
+            html += '<button type="button" class="btn-close btn-close-sm" style="font-size: 0.5rem;" data-error-index="' + m + '" aria-label="Dismiss"></button>';
             html += '</span>';
           }
           if (this.isUploading) {
