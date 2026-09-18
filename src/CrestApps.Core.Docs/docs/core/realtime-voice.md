@@ -88,7 +88,7 @@ Browser ◀─WebRTC/Opus── Hub (WebRTC sink)     ◀─encode←PCM16(24k)�
 
 ## Enabling the WebRTC transport
 
-The transport lives in the `CrestApps.Core.AI.Realtime.WebRtc` package. Register it during startup:
+The transport lives in the `CrestApps.Core.AI.WebRTC` package. Register it during startup:
 
 ```csharp
 builder.Services.AddWebRtcRealtimeTransport();
@@ -663,12 +663,12 @@ is the quickest way to confirm a deployment actually converses. `REALTIME_E2E_BA
 interruptions off. On Windows a suitable WAV can be produced with the built-in speech synthesizer
 (`System.Speech.Synthesis.SpeechSynthesizer`, 48 kHz, 16-bit, mono, with a couple of seconds of leading silence).
 The test logs the gate's live measurements, and the server logs the inbound peak amplitude every five seconds
-under `CrestApps.Core.AI.Realtime.WebRtc` — between them a silent failure is explainable.
+under `CrestApps.Core.AI.WebRTC` — between them a silent failure is explainable.
 
 ## Diagnostics
 
 On the server, the WebRTC peer logs its lifecycle (connection/ICE state, first inbound packet decoded, first
-assistant frame sent) under the `CrestApps.Core.AI.Realtime.WebRtc` logger, and warns when the inbound microphone
+assistant frame sent) under the `CrestApps.Core.AI.WebRTC` logger, and warns when the inbound microphone
 buffer overflows. The runner logs response start/completion and session end reasons under
 `CrestApps.Core.AI.Chat.Realtime.RealtimeChatSessionRunner` — including a warning when a session ran a whole
 conversation without the provider ever reporting user speech, which means that deployment's events are not

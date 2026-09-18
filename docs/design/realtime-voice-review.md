@@ -206,7 +206,7 @@ The open-office tester's setup is the one to re-test first.
 | Hub methods | `AIChatHubCore.StartRealtimeConversation / StartRealtimeWebRtc / AddRealtimeIceCandidate`; `ChatInteractionHubBase` (same three) | Authorization, capability gate, session creation, peer creation, run the session for the lifetime of the hub invocation. |
 | Runner | `CrestApps.Core.AI.Chat/Realtime/RealtimeChatSessionRunner.cs` | Transport-agnostic pump: mic audio → provider; provider events → sink + persistence; half-duplex enforcement when barge-in is off. |
 | Sinks | `SignalRRealtimeConversationSink` (private, one per hub) and `WebRtcRealtimeConversationSink` | Deliver audio (SignalR base64 PCM, or Opus over the peer) and transcripts/errors (always SignalR). |
-| WebRTC peer | `CrestApps.Core.AI.Realtime.WebRtc/SipSorceryWebRtcRealtimePeer.cs` | SIPSorcery ICE/DTLS/SRTP; Concentus Opus 24 kHz; 20 ms pacing loop for outbound audio; flush on barge-in. |
+| WebRTC peer | `CrestApps.Core.AI.WebRTC/SipSorceryWebRtcRealtimePeer.cs` | SIPSorcery ICE/DTLS/SRTP; Concentus Opus 24 kHz; 20 ms pacing loop for outbound audio; flush on barge-in. |
 | ICE config | `RealtimeWebRtcIceServers.cs`, `RealtimeTransportOptions.cs` | STUN/TURN (ephemeral coturn creds) — **server side only today (see F1).** |
 | Orchestrator | `CrestApps.Core.AI/Realtime/DefaultRealtimeOrchestrator.cs`, `DefaultRealtimeSessionConfigurator.cs`, `DefaultRealtimeConversation.cs` | PREPARE pipeline reuse, tools via MEAI `UseFunctionInvocation`, provider events → neutral `RealtimeConversationEvent`. |
 | Azure transport | `CrestApps.Core.AI.OpenAI.Azure/Realtime/*` | Raw WebSocket to Azure OpenAI GA realtime; JSON protocol mapping. OpenAI-direct uses MEAI's `OpenAIRealtimeClient`. |

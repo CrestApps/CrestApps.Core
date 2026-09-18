@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Realtime.WebRtc;
+namespace CrestApps.Core.AI.WebRTC;
 
 /// <summary>
 /// Halves the sample rate of a PCM16 mono stream (48 kHz to 24 kHz) with a low-pass FIR so content above the new

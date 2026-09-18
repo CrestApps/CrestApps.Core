@@ -1,5 +1,5 @@
 using CrestApps.Core.AI.Realtime;
-using CrestApps.Core.AI.Realtime.WebRtc;
+using CrestApps.Core.AI.WebRTC;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
