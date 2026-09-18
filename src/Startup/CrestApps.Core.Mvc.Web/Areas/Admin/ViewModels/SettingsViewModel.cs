@@ -40,6 +40,11 @@ public sealed class SettingsViewModel
 
     public int DocumentTopN { get; set; } = 3;
 
+    /// <summary>
+    /// Gets or sets how much extracted text an uploaded document may hold and still be indexed.
+    /// </summary>
+    public int MaxIndexableCharacters { get; set; } = 50000;
+
     public DocumentRetrievalMode DocumentRetrievalMode { get; set; } = DocumentRetrievalMode.Chunk;
 
     public bool AllowInteractionImageUploads { get; set; }

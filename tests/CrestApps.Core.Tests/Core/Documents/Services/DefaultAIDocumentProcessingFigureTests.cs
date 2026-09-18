@@ -189,6 +189,8 @@ public sealed class DefaultAIDocumentProcessingFigureTests
                 textNormalizer ?? new DefaultAITextNormalizer(),
                 FileStore,
                 Options.Create(options),
+                Mock.Of<IOptionsMonitor<InteractionDocumentSettings>>(monitor =>
+                    monitor.CurrentValue == new InteractionDocumentSettings { MaxIndexableCharacters = 0 }),
                 TimeProvider.System,
                 NullLogger<DefaultAIDocumentProcessingService>.Instance);
         }

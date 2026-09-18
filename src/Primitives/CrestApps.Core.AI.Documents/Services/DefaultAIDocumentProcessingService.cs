@@ -26,6 +26,7 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
     private readonly IAITextNormalizer _textNormalizer;
     private readonly IDocumentFileStore _fileStore;
     private readonly IOptions<ChatDocumentsOptions> _extractorOptions;
+    private readonly IOptionsMonitor<InteractionDocumentSettings> _interactionDocumentOptions;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DefaultAIDocumentProcessingService> _logger;
 
@@ -43,6 +44,7 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         IAITextNormalizer textNormalizer,
         IDocumentFileStore fileStore,
         IOptions<ChatDocumentsOptions> extractorOptions,
+        IOptionsMonitor<InteractionDocumentSettings> interactionDocumentOptions,
         TimeProvider timeProvider,
         ILogger<DefaultAIDocumentProcessingService> logger)
     {
@@ -50,6 +52,7 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         _textNormalizer = textNormalizer;
         _fileStore = fileStore;
         _extractorOptions = extractorOptions;
+        _interactionDocumentOptions = interactionDocumentOptions;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -65,7 +68,8 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         IFormFile file,
         string referenceId,
         string referenceType,
-        IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator)
+        IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
+        int? maxIndexableCharacters = null)
     {
         ArgumentNullException.ThrowIfNull(file);
         ArgumentException.ThrowIfNullOrEmpty(referenceId);
@@ -152,18 +156,23 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         // told their document was there while the model could not retrieve a word of it, and the only trace
         // was a Debug line. Accepting a file is a promise to ingest it; when the promise cannot be kept, the
         // upload has to say so while the reader can still do something about it.
+        // The profile's limit when it set one, the site's otherwise. Zero or less means no ceiling, for a
+        // host that would rather pay for embeddings than refuse anything.
+        var characterLimit = maxIndexableCharacters ?? _interactionDocumentOptions.CurrentValue.MaxIndexableCharacters;
+
         if (embeddingGenerator is not null &&
+            characterLimit > 0 &&
             options.EmbeddableFileExtensions.Contains(extension) &&
-            text.Length > MaxEmbeddingTotalChars * 2)
+            text.Length > characterLimit)
         {
             _logger.LogWarning(
                 "Rejected '{FileName}': {TextLength} characters of text exceeds the {Limit} that can be indexed.",
                 file.FileName,
                 text.Length,
-                MaxEmbeddingTotalChars * 2);
+                characterLimit);
 
             return DocumentProcessingResult.Failed(
-                $"This document holds about {text.Length:N0} characters of text, more than the {MaxEmbeddingTotalChars * 2:N0} that can be indexed for search. Split it into smaller files and upload those.");
+                $"This document holds about {text.Length:N0} characters of text, more than the {characterLimit:N0} that can be indexed for search. Split it into smaller files and upload those.");
         }
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;

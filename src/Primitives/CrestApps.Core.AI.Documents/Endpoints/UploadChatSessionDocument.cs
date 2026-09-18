@@ -187,6 +187,8 @@ public static class UploadChatSessionDocument
                     allowVisionImages,
                     sessionDocMetadata?.AllowSessionDocuments == true,
                     visionDeployment?.Name,
+                    // The profile's own ceiling when it set one; the site's otherwise.
+                    profile?.TryGet<DocumentsMetadata>(out var documentsMetadata) == true ? documentsMetadata.MaxIndexableCharacters : null,
                     logger,
                     S);
                 if (!result.Success)

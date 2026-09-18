@@ -662,6 +662,11 @@
                                     <input asp-for="DocumentTopN" type="number" class="form-control" min="1" max="20" placeholder="Default: 3" />
                                     <div class="form-text">Number of top matching chunks or documents to include as AI context.</div>
                                 </div>
+                                <div class="mb-3">
+                                    <label asp-for="MaxIndexableCharacters" class="form-label">Largest document that can be indexed</label>
+                                    <input asp-for="MaxIndexableCharacters" type="number" class="form-control" min="0" placeholder="Use the site's limit" />
+                                    <div class="form-text">Characters of extracted text. Leave empty to use the site&#39;s limit; 0 means no limit.</div>
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">

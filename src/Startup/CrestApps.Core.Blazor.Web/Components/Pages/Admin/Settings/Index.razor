@@ -515,6 +515,15 @@ else
                             }
                             <div class="form-text">The default number of matched chunks or documents to include when a profile does not override it.</div>
                         </div>
+                        <div class="mb-3">
+                            <label for="maxIndexableCharacters" class="form-label">Largest document that can be indexed</label>
+                            <InputNumber id="maxIndexableCharacters" @bind-Value="_model.MaxIndexableCharacters" class="form-control" style="max-width: 200px;" />
+                            @if (_errors.TryGetValue(nameof(_model.MaxIndexableCharacters), out var maxCharsErr))
+                            {
+                                <span class="text-danger">@maxCharsErr</span>
+                            }
+                            <div class="form-text">Characters of extracted text. A larger document is refused at upload rather than stored unsearchable. An AI profile may raise this for itself; 0 means no limit.</div>
+                        </div>
 
                         <div class="mb-3">
                             <label for="docRetrievalMode" class="form-label">Default retrieval mode</label>
@@ -1003,6 +1012,7 @@ else
 
             DocumentIndexProfileName = documentSettings.IndexProfileName,
             DocumentTopN = documentSettings.TopN,
+            MaxIndexableCharacters = documentSettings.MaxIndexableCharacters,
             DocumentRetrievalMode = documentSettings.RetrievalMode,
             AllowInteractionImageUploads = documentSettings.AllowImageUploads,
             AllowInteractionDocumentUploads = documentSettings.AllowDocumentUploads,
@@ -1450,6 +1460,7 @@ else
         {
             IndexProfileName = _model.DocumentIndexProfileName?.Trim(),
             TopN = _model.DocumentTopN,
+            MaxIndexableCharacters = _model.MaxIndexableCharacters,
             RetrievalMode = _model.DocumentRetrievalMode,
             AllowDocumentUploads = _model.AllowInteractionDocumentUploads,
             AllowImageUploads = _model.AllowInteractionImageUploads,

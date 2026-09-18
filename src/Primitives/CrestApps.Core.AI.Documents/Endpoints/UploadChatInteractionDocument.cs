@@ -175,6 +175,8 @@ public static class UploadChatInteractionDocument
                     allowVisionImages,
                     allowDocumentUploads,
                     visionDeployment?.Name,
+                    // The profile's own ceiling when it set one; the site's otherwise.
+                    interaction.TryGet<DocumentsMetadata>(out var documentsMetadata) ? documentsMetadata.MaxIndexableCharacters : null,
                     logger,
                     S);
                 if (!result.Success)

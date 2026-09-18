@@ -18,6 +18,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using UglyToad.PdfPig;
 
+using Moq;
+
 namespace CrestApps.Core.Tests.Core.Documents.Regression;
 
 /// <summary>
@@ -127,6 +129,8 @@ public sealed class ChatDocumentRegressionTests
             new DefaultAITextNormalizer(),
             new RecordingDocumentFileStore(),
             Options.Create(options),
+            Mock.Of<IOptionsMonitor<InteractionDocumentSettings>>(monitor =>
+                    monitor.CurrentValue == new InteractionDocumentSettings { MaxIndexableCharacters = 0 }),
             TimeProvider.System,
             NullLogger<DefaultAIDocumentProcessingService>.Instance);
 

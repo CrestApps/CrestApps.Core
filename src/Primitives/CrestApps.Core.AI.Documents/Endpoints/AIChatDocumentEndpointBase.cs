@@ -35,6 +35,7 @@ public abstract class AIChatDocumentEndpointBase
         bool allowVisionImages,
         bool allowDocumentUploads,
         string chatDeploymentName,
+        int? maxIndexableCharacters,
         ILogger logger,
         IStringLocalizer S)
     {
@@ -129,7 +130,7 @@ public abstract class AIChatDocumentEndpointBase
                     logger);
             }
 
-            var result = await documentProcessingService.ProcessFileAsync(file, referenceId, referenceType, embeddingGenerator);
+            var result = await documentProcessingService.ProcessFileAsync(file, referenceId, referenceType, embeddingGenerator, maxIndexableCharacters);
 
             return await PersistProcessedDocumentAsync(file, referenceId, referenceType, result, documentStore, chunkStore, fileStore, logger, S);
         }

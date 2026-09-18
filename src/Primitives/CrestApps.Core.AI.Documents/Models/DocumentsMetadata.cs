@@ -23,4 +23,10 @@ public sealed class DocumentsMetadata
     /// Gets or sets how retrieved document matches are added to AI context.
     /// </summary>
     public DocumentRetrievalMode? RetrievalMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets how much extracted text an uploaded document may hold and still be indexed, or
+    /// <see langword="null"/> to use the site's own limit.
+    /// </summary>
+    public int? MaxIndexableCharacters { get; set; }
 }

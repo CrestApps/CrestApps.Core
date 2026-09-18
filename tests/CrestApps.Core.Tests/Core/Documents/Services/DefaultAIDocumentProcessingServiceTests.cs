@@ -11,6 +11,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using Moq;
+
+using Microsoft.Extensions.AI;
+
 namespace CrestApps.Core.Tests.Core.Documents.Services;
 
 public sealed class DefaultAIDocumentProcessingServiceTests
@@ -54,7 +58,85 @@ public sealed class DefaultAIDocumentProcessingServiceTests
         Assert.Null(chunk.Embedding);
     }
 
-    private static DefaultAIDocumentProcessingService CreateService(ChatDocumentsOptions options)
+
+    // A document too large to index used to upload successfully and then be skipped by embedding and by
+    // indexing, so the reader was told their file was there while the model could not retrieve a word of it.
+    // Accepting a file is a promise to ingest it.
+    [Fact]
+    public async Task ProcessFileAsync_DocumentOverTheSiteLimit_IsRefusedRatherThanStoredUnsearchable()
+    {
+        var options = new ChatDocumentsOptions();
+        options.Add(new ExtractorExtension(".log", embeddable: true, isTabular: false));
+        var service = CreateService(options, siteLimit: 100);
+
+        var result = await service.ProcessFileAsync(
+            CreateFormFile("big.log", "text/plain", new string('a', 500)),
+            "ref-1",
+            AIReferenceTypes.Document.ChatInteraction,
+            embeddingGenerator: Mock.Of<IEmbeddingGenerator<string, Embedding<float>>>());
+
+        Assert.False(result.Success);
+
+        // The message has to name both numbers, because "too large" without them tells the reader nothing
+        // about how much they need to cut.
+        Assert.Contains("500", result.Error, StringComparison.Ordinal);
+        Assert.Contains("100", result.Error, StringComparison.Ordinal);
+    }
+
+    // The profile's own ceiling wins over the site's, which is the whole point of having both.
+    [Fact]
+    public async Task ProcessFileAsync_ProfileRaisesTheLimit_AcceptsWhatTheSiteWouldRefuse()
+    {
+        var options = new ChatDocumentsOptions();
+        options.Add(new ExtractorExtension(".log", embeddable: true, isTabular: false));
+        var service = CreateService(options, siteLimit: 100);
+
+        var result = await service.ProcessFileAsync(
+            CreateFormFile("big.log", "text/plain", new string('a', 500)),
+            "ref-1",
+            AIReferenceTypes.Document.ChatInteraction,
+            embeddingGenerator: null,
+            maxIndexableCharacters: 1000);
+
+        Assert.True(result.Success);
+    }
+
+    // And lowers it, so a profile can be stricter than the site rather than only more permissive.
+    [Fact]
+    public async Task ProcessFileAsync_ProfileLowersTheLimit_RefusesWhatTheSiteWouldAccept()
+    {
+        var options = new ChatDocumentsOptions();
+        options.Add(new ExtractorExtension(".log", embeddable: true, isTabular: false));
+        var service = CreateService(options, siteLimit: 10000);
+
+        var result = await service.ProcessFileAsync(
+            CreateFormFile("big.log", "text/plain", new string('a', 500)),
+            "ref-1",
+            AIReferenceTypes.Document.ChatInteraction,
+            embeddingGenerator: Mock.Of<IEmbeddingGenerator<string, Embedding<float>>>(),
+            maxIndexableCharacters: 100);
+
+        Assert.False(result.Success);
+    }
+
+    // Zero is "no ceiling", for a host that would rather pay for embeddings than refuse anything.
+    [Fact]
+    public async Task ProcessFileAsync_LimitOfZero_RefusesNothing()
+    {
+        var options = new ChatDocumentsOptions();
+        options.Add(new ExtractorExtension(".log", embeddable: true, isTabular: false));
+        var service = CreateService(options, siteLimit: 0);
+
+        var result = await service.ProcessFileAsync(
+            CreateFormFile("big.log", "text/plain", new string('a', 500_000)),
+            "ref-1",
+            AIReferenceTypes.Document.ChatInteraction,
+            embeddingGenerator: null);
+
+        Assert.True(result.Success);
+    }
+
+    private static DefaultAIDocumentProcessingService CreateService(ChatDocumentsOptions options, int siteLimit = 0)
     {
         var services = new ServiceCollection();
         services.AddSingleton<PlainTextIngestionDocumentReader>();
@@ -71,6 +153,8 @@ public sealed class DefaultAIDocumentProcessingServiceTests
             new DefaultAITextNormalizer(),
             new RecordingDocumentFileStore(),
             Options.Create(options),
+            Mock.Of<IOptionsMonitor<InteractionDocumentSettings>>(monitor =>
+                    monitor.CurrentValue == new InteractionDocumentSettings { MaxIndexableCharacters = siteLimit }),
             TimeProvider.System,
             NullLogger<DefaultAIDocumentProcessingService>.Instance);
     }

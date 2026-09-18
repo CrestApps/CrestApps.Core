@@ -139,6 +139,12 @@ public sealed class AIProfileViewModel
     // Documents
     public List<DocumentItem> AttachedDocuments { get; set; } = [];
     public int? DocumentTopN { get; set; }
+
+    /// <summary>
+    /// Gets or sets how much extracted text an uploaded document may hold and still be indexed, or
+    /// <see langword="null"/> to use the site's limit.
+    /// </summary>
+    public int? MaxIndexableCharacters { get; set; }
     public DocumentRetrievalMode? DocumentRetrievalMode { get; set; }
 
     public bool AllowSessionDocuments { get; set; }
@@ -396,6 +402,7 @@ public sealed class AIProfileViewModel
         if (profile.TryGet<DocumentsMetadata>(out var docMetadata))
         {
             vm.DocumentTopN = docMetadata.DocumentTopN;
+            vm.MaxIndexableCharacters = docMetadata.MaxIndexableCharacters;
             vm.DocumentRetrievalMode = docMetadata.RetrievalMode;
             vm.AttachedDocuments = (docMetadata.Documents ?? []).Select(d => new DocumentItem
             {
@@ -632,6 +639,7 @@ public sealed class AIProfileViewModel
         profile.Alter<DocumentsMetadata>(metadata =>
         {
             metadata.DocumentTopN = DocumentTopN;
+            metadata.MaxIndexableCharacters = MaxIndexableCharacters;
             metadata.RetrievalMode = DocumentRetrievalMode;
         });
 
