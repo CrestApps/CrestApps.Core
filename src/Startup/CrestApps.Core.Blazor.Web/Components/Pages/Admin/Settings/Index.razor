@@ -729,6 +729,76 @@ else
                     </div>
                 </div>
 
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="fa-solid fa-comment-dots me-1"></i> Claude</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">
+                            Configure direct Claude access for the Claude orchestrator. No external executable or separate Anthropic installation is required.
+                        </p>
+
+                        <div class="mb-3">
+                            <label for="claudeAuth" class="form-label">Authentication type</label>
+                            <select id="claudeAuth" class="form-select" value="@_model.AnthropicAuthenticationType" @onchange="OnAnthropicAuthTypeChanged">
+                                <option value="@ClaudeAuthenticationType.NotConfigured">Not configured</option>
+                                <option value="@ClaudeAuthenticationType.ApiKey">API key</option>
+                            </select>
+                            <div class="form-text">Choose how the Claude orchestrator authenticates. "Not configured" keeps Claude disabled until you explicitly enable API key authentication.</div>
+                        </div>
+
+                        @if (_model.AnthropicAuthenticationType == ClaudeAuthenticationType.ApiKey)
+                        {
+                            <div class="mb-3">
+                                <label for="claudeBaseUrl" class="form-label">Base URL</label>
+                                <InputText id="claudeBaseUrl" @bind-Value="_model.AnthropicBaseUrl" class="form-control" placeholder="https://api.anthropic.com" />
+                                <div class="form-text">Use the standard Anthropic API base URL unless you have a custom gateway.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="claudeApiKey" class="form-label">API key</label>
+                                <InputText id="claudeApiKey" @bind-Value="_model.AnthropicApiKey" type="password" class="form-control" placeholder="Enter API key" />
+                                @if (_errors.TryGetValue(nameof(_model.AnthropicApiKey), out var claudeKeyErr))
+                                {
+                                    <span class="text-danger">@claudeKeyErr</span>
+                                }
+                                @if (_model.AnthropicHasApiKey)
+                                {
+                                    <div class="form-text text-success">A Claude API key has been securely stored. Enter a new value to replace it, or leave empty to keep the existing key.</div>
+                                }
+                                else
+                                {
+                                    <div class="form-text">The Claude API key used for live model discovery and Claude-orchestrated chats.</div>
+                                }
+                            </div>
+
+                            @if (_model.AnthropicAvailableModels.Any())
+                            {
+                                <div class="mb-3">
+                                    <label for="claudeModel" class="form-label">Default model</label>
+                                    <select id="claudeModel" class="form-select" @bind="_model.AnthropicDefaultModel">
+                                        <option value="">Use per-item override</option>
+                                        @foreach (var m in _model.AnthropicAvailableModels)
+                                        {
+                                            <option value="@m.Key">@m.Value</option>
+                                        }
+                                    </select>
+                                    <div class="form-text">Available models are loaded from the Anthropic Models API using the configured API key.</div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="mb-3">
+                                    <label for="claudeModel" class="form-label">Default model</label>
+                                    <InputText id="claudeModel" @bind-Value="_model.AnthropicDefaultModel" class="form-control" placeholder="claude-sonnet-4-6" />
+                                    <div class="form-text">Optionally set the Claude model ID used when a profile or interaction does not override it.</div>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+
+                <div class="mt-4">
                 @* ── MCP Server ── *@
                 <div class="card mb-4">
                     <div class="card-header">
@@ -885,76 +955,7 @@ else
                 </div>
 
                 @* ── Claude ── *@
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0"><i class="fa-solid fa-comment-dots me-1"></i> Claude</h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="text-muted mb-3">
-                            Configure direct Claude access for the Claude orchestrator. No external executable or separate Anthropic installation is required.
-                        </p>
 
-                        <div class="mb-3">
-                            <label for="claudeAuth" class="form-label">Authentication type</label>
-                            <select id="claudeAuth" class="form-select" value="@_model.AnthropicAuthenticationType" @onchange="OnAnthropicAuthTypeChanged">
-                                <option value="@ClaudeAuthenticationType.NotConfigured">Not configured</option>
-                                <option value="@ClaudeAuthenticationType.ApiKey">API key</option>
-                            </select>
-                            <div class="form-text">Choose how the Claude orchestrator authenticates. "Not configured" keeps Claude disabled until you explicitly enable API key authentication.</div>
-                        </div>
-
-                        @if (_model.AnthropicAuthenticationType == ClaudeAuthenticationType.ApiKey)
-                        {
-                            <div class="mb-3">
-                                <label for="claudeBaseUrl" class="form-label">Base URL</label>
-                                <InputText id="claudeBaseUrl" @bind-Value="_model.AnthropicBaseUrl" class="form-control" placeholder="https://api.anthropic.com" />
-                                <div class="form-text">Use the standard Anthropic API base URL unless you have a custom gateway.</div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="claudeApiKey" class="form-label">API key</label>
-                                <InputText id="claudeApiKey" @bind-Value="_model.AnthropicApiKey" type="password" class="form-control" placeholder="Enter API key" />
-                                @if (_errors.TryGetValue(nameof(_model.AnthropicApiKey), out var claudeKeyErr))
-                                {
-                                    <span class="text-danger">@claudeKeyErr</span>
-                                }
-                                @if (_model.AnthropicHasApiKey)
-                                {
-                                    <div class="form-text text-success">A Claude API key has been securely stored. Enter a new value to replace it, or leave empty to keep the existing key.</div>
-                                }
-                                else
-                                {
-                                    <div class="form-text">The Claude API key used for live model discovery and Claude-orchestrated chats.</div>
-                                }
-                            </div>
-
-                            @if (_model.AnthropicAvailableModels.Any())
-                            {
-                                <div class="mb-3">
-                                    <label for="claudeModel" class="form-label">Default model</label>
-                                    <select id="claudeModel" class="form-select" @bind="_model.AnthropicDefaultModel">
-                                        <option value="">Use per-item override</option>
-                                        @foreach (var m in _model.AnthropicAvailableModels)
-                                        {
-                                            <option value="@m.Key">@m.Value</option>
-                                        }
-                                    </select>
-                                    <div class="form-text">Available models are loaded from the Anthropic Models API using the configured API key.</div>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="mb-3">
-                                    <label for="claudeModel" class="form-label">Default model</label>
-                                    <InputText id="claudeModel" @bind-Value="_model.AnthropicDefaultModel" class="form-control" placeholder="claude-sonnet-4-6" />
-                                    <div class="form-text">Optionally set the Claude model ID used when a profile or interaction does not override it.</div>
-                                </div>
-                            }
-                        }
-                    </div>
-                </div>
-
-                <div class="mt-4">
                     <button type="submit" class="btn btn-primary">
                         <i class="fa-solid fa-check"></i> Save Settings
                     </button>
