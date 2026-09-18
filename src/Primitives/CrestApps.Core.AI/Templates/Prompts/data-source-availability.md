@@ -17,6 +17,8 @@ Use any retrieved data-source context already present in the system message when
 {% if searchToolName %}
 If the user asks for facts, summaries, or references that could come from the configured data source, call `{{ searchToolName }}` before answering whenever you need more context.
 
+When calling `{{ searchToolName }}`, pass the search phrase as `query`. If the request is specifically about one kind of knowledge, also pass that kind in the optional `contentTypes` argument — one or more of `text`, `figure`, `chart`, `table`, `article`, `document` — so only that kind is searched; for example `["chart"]` when the user asks what a chart shows. Omit `contentTypes` to search everything.
+
 Do not conclude that the configured data source lacks relevant information until after searching it.
 
 ### Available data source tools:

@@ -1,0 +1,64 @@
+@using CrestApps.Core.Mvc.Web.Areas.FileSources.ViewModels
+@model FileSourceViewModel
+@{
+    ViewData["Title"] = "Edit File Source";
+}
+
+<h2><i class="fa-solid fa-pencil"></i> Edit File Source</h2>
+<hr />
+
+<form asp-action="Edit" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="ItemId" />
+    <div class="row">
+        <div class="col-12">
+            <div class="mb-3">
+                <label asp-for="DisplayText" class="form-label">Title <span class="text-danger">*</span></label>
+                <input asp-for="DisplayText" class="form-control" required placeholder="e.g., Reports drop" />
+                <span asp-validation-for="DisplayText" class="text-danger"></span>
+                <div class="form-text">A human-readable name for this file source.</div>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="AIDataSourceId" class="form-label">Target data source <span class="text-danger">*</span></label>
+                <select asp-for="AIDataSourceId" asp-items="Model.DataSources" class="form-select" required>
+                    <option value="">Select data source</option>
+                </select>
+                <span asp-validation-for="AIDataSourceId" class="text-danger"></span>
+                <div class="form-text">The <strong>File</strong> data source whose knowledge base receives what is read. Create one under Data Sources.</div>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Source" class="form-label">Reads from <span class="text-danger">*</span></label>
+                <select asp-for="Source" asp-items="Model.Connectors" id="Source" class="form-select" required>
+                    <option value="">Select where the files are read from</option>
+                </select>
+                <span asp-validation-for="Source" class="text-danger"></span>
+                <div class="form-text">Where the files live: a folder on this machine, or a file server. Changing it drops the settings the previous choice carried.</div>
+            </div>
+
+            <div class="mb-3 form-check">
+                <input asp-for="Enabled" class="form-check-input" type="checkbox" />
+                <label asp-for="Enabled" class="form-check-label">Enabled</label>
+                <div class="form-text">Disabled file sources are skipped by the background synchronization service.</div>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="ReindexIntervalMinutes" class="form-label">Sync interval (minutes)</label>
+                <input asp-for="ReindexIntervalMinutes" class="form-control" type="number" min="1" placeholder="1440" />
+                <div class="form-text">How often the background service re-reads this file source and indexes what changed.</div>
+            </div>
+
+            <partial name="_ConnectorSettings" model="Model" />
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa-solid fa-check"></i> Save
+                </button>
+                <a asp-action="Index" class="btn btn-secondary ms-2">Cancel</a>
+            </div>
+        </div>
+    </div>
+</form>
+
+@await Html.PartialAsync("_ConnectorSettingsScript")

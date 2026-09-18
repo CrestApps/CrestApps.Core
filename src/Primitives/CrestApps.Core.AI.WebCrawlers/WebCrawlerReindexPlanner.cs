@@ -62,11 +62,11 @@ public sealed class WebCrawlerReindexPlanner : IWebCrawlerReindexPlanner
             return WebCrawlerReindexResult.Empty;
         }
 
-        IReadOnlyList<CrawledPageRef> discoveredRefs;
+        WebCrawlDiscovery discovery;
 
         try
         {
-            discoveredRefs = await strategy.DiscoverAsync(crawler, cancellationToken);
+            discovery = await strategy.DiscoverDetailedAsync(crawler, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -83,6 +83,8 @@ public sealed class WebCrawlerReindexPlanner : IWebCrawlerReindexPlanner
             return WebCrawlerReindexResult.Failed(
                 $"The site could not be crawled: {ex.Message} Verify the site is reachable and that it is not blocking the crawler's user agent.");
         }
+
+        var discoveredRefs = discovery.Pages;
 
         if (discoveredRefs.Count == 0)
         {
@@ -162,9 +164,19 @@ public sealed class WebCrawlerReindexPlanner : IWebCrawlerReindexPlanner
             await _crawlStateStore.UpdateAsync(state, cancellationToken);
         }
 
-        var removed = existingByUrl.Keys
-            .Where(url => !discovered.ContainsKey(url))
-            .ToArray();
+        // A page missing from a crawl that stopped short is missing because the crawl stopped short. Removing
+        // it would delete knowledge because a sitemap was briefly unreachable or a page cap was reached.
+        var removed = discovery.IsComplete
+            ? existingByUrl.Keys.Where(url => !discovered.ContainsKey(url)).ToArray()
+            : [];
+
+        if (!discovery.IsComplete && _logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation(
+                "Web-crawler discovery for crawler '{CrawlerId}' did not cover the whole site, so no page was removed. {Message}",
+                crawler.ItemId,
+                discovery.Message);
+        }
 
         if (toIndex.Count > 0)
         {
@@ -180,6 +192,8 @@ public sealed class WebCrawlerReindexPlanner : IWebCrawlerReindexPlanner
         var result = new WebCrawlerReindexResult(newCount, changedCount, removed.Length, unchanged)
         {
             DiscoveredCount = discovered.Count,
+            Status = discovery.IsComplete ? WebCrawlerReindexStatus.Completed : WebCrawlerReindexStatus.PartiallyDiscovered,
+            Message = discovery.IsComplete ? null : discovery.Message,
         };
 
         if (_logger.IsEnabled(LogLevel.Information) && (result.NewCount > 0 || result.ChangedCount > 0 || result.RemovedCount > 0))

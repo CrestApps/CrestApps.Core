@@ -235,6 +235,40 @@ public sealed class GetDocumentMetadataTool : AIFunction
         builder.Append("- file_size_bytes: ");
         builder.AppendLine(document.FileSize.ToString());
 
+        var figures = document.GetFigures();
+
+        if (figures.Count > 0)
+        {
+            // The figures are what the text cannot carry. Naming them here, with the identifier the view tool
+            // takes, is how the model learns it can show one.
+            builder.Append("- figures: ");
+            builder.Append(figures.Count.ToString(CultureInfo.InvariantCulture));
+            builder.Append(" (show one with ");
+            builder.Append(SystemToolNames.ViewDocumentFigure);
+            builder.AppendLine(")");
+
+            foreach (var figure in figures)
+            {
+                builder.Append("  - ");
+                builder.Append(figure.FigureId);
+
+                if (figure.Page.HasValue)
+                {
+                    builder.Append(" (page ");
+                    builder.Append(figure.Page.Value.ToString(CultureInfo.InvariantCulture));
+                    builder.Append(')');
+                }
+
+                if (!string.IsNullOrWhiteSpace(figure.Caption))
+                {
+                    builder.Append(": ");
+                    builder.Append(figure.Caption);
+                }
+
+                builder.AppendLine();
+            }
+        }
+
         return builder.ToString();
     }
 

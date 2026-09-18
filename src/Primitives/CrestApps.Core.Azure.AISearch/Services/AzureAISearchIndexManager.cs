@@ -94,6 +94,75 @@ internal sealed class AzureAISearchIndexManager : ISearchIndexManager
     }
 
     /// <summary>
+    /// Adds the supplied fields to an index that already exists.
+    /// </summary>
+    /// <param name="profile">The index profile.</param>
+    /// <param name="fields">The fields the index should have.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns><see langword="true"/> when the index was brought up to date.</returns>
+    /// <remarks>
+    /// Only fields the index does not already have are appended. Adding a non-key field is allowed on an
+    /// existing index; changing or removing one is not, so nothing already present is touched.
+    /// </remarks>
+    public async Task<bool> TryAddFieldsAsync(IIndexProfileInfo profile, IReadOnlyCollection<SearchIndexField> fields, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(fields);
+
+        try
+        {
+            var existing = await _searchIndexClient.GetIndexAsync(profile.IndexFullName, cancellationToken);
+            var index = existing.Value;
+            var present = new HashSet<string>(index.Fields.Select(field => field.Name), StringComparer.OrdinalIgnoreCase);
+            var added = false;
+
+            foreach (var field in fields)
+            {
+                if (field.FieldType == SearchFieldType.Vector || field.IsKey || !present.Add(field.Name))
+                {
+                    continue;
+                }
+
+                var dataType = field.FieldType switch
+                {
+                    SearchFieldType.Text or SearchFieldType.Keyword => SearchFieldDataType.String,
+                    SearchFieldType.Integer => SearchFieldDataType.Int32,
+                    SearchFieldType.Float => SearchFieldDataType.Double,
+                    SearchFieldType.DateTime => SearchFieldDataType.DateTimeOffset,
+                    _ => SearchFieldDataType.String,
+                };
+
+                index.Fields.Add(new SearchField(field.Name, dataType)
+                {
+                    IsFilterable = field.IsFilterable,
+                    IsSearchable = field.IsSearchable && field.FieldType == SearchFieldType.Text,
+                });
+
+                added = true;
+            }
+
+            if (!added)
+            {
+                return true;
+            }
+
+            await _searchIndexClient.CreateOrUpdateIndexAsync(index, cancellationToken: cancellationToken);
+
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to add fields to Azure AI Search index '{IndexName}'.", profile.IndexFullName);
+
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Creates the operation.
     /// </summary>
     /// <param name="profile">The profile.</param>

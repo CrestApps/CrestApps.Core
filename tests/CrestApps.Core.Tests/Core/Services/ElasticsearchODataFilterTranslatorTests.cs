@@ -242,3 +242,40 @@ public sealed class ElasticsearchODataFilterTranslatorTests
         Assert.Equal("index", exception.ParamName);
     }
 }
+
+/// <summary>
+/// Covers the typed knowledge columns, which are fields of their own rather than entries in the filter
+/// bag, and the null comparison a caller uses to reach rows written before those fields existed.
+/// </summary>
+public sealed class ElasticsearchODataFilterTranslatorTypedColumnTests
+{
+    private readonly IODataFilterTranslator _translator;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ElasticsearchODataFilterTranslatorTypedColumnTests"/> class.
+    /// </summary>
+    public ElasticsearchODataFilterTranslatorTypedColumnTests()
+    {
+        var services = new ServiceCollection();
+        services.AddCoreElasticsearchServices();
+        var provider = services.BuildServiceProvider();
+        _translator = provider.GetRequiredKeyedService<IODataFilterTranslator>(ElasticsearchConstants.ProviderName);
+    }
+
+    /// <summary>
+    /// Verifies that a typed column is queried by its own name, and that absence is an exists test rather
+    /// than a comparison to the string "null".
+    /// </summary>
+    /// <param name="filter">The filter to translate.</param>
+    /// <param name="expected">The expected Elasticsearch query JSON.</param>
+    [Theory]
+    [InlineData("contentType eq 'figure'", """{"term":{"contentType":"figure"}}""")]
+    [InlineData("page ge 8", """{"range":{"page":{"gte":"8"}}}""")]
+    [InlineData("contentType eq null", """{"bool":{"must_not":[{"exists":{"field":"contentType"}}]}}""")]
+    [InlineData("contentType ne null", """{"exists":{"field":"contentType"}}""")]
+    [InlineData("category eq 'news'", """{"term":{"filters.category":"news"}}""")]
+    public void Translate_TypedColumnsAndNull_ProduceExactQuery(string filter, string expected)
+    {
+        Assert.Equal(expected, _translator.Translate(filter));
+    }
+}

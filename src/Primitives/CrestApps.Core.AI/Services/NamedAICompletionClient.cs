@@ -5,6 +5,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Resilience;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Extensions;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.AI;
@@ -86,6 +87,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
     protected virtual void ConfigureFunctionInvocation(FunctionInvokingChatClient client)
     {
         client.MaximumIterationsPerRequest = _defaultOptions.MaximumIterationsPerRequest;
+        client.UseTextToolResults();
     }
 
     /// <summary>

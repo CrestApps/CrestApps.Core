@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Services;
@@ -16,6 +16,7 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<AIDeployment>
 {
+
     private readonly IConfiguration _configuration;
     private readonly TimeProvider _timeProvider;
     private readonly AIOptions _aiOptions;
@@ -266,8 +267,19 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
     /// Adds a deployment synthesized from a connection's well-known deployment-name settings.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The capabilities are declared here rather than inferred later: a connection-synthesized deployment is
     /// read-only in the UI, so an operator has no way to declare them by hand.
+    /// </para>
+    /// <para>
+    /// That same read-only record is why the set must be complete rather than minimal. Capability
+    /// enforcement is opt-in only in the sense that a deployment declaring no metadata constrains nothing;
+    /// every deployment synthesized here always carries metadata, so enforcement is mandatory and
+    /// unavoidable for it. An under-declared capability then fails silently rather than loudly: tools are
+    /// stripped from the request and a streaming call is completed as a single response, with no field in
+    /// the UI the operator could correct. A chat or utility deployment therefore declares tool calling and
+    /// streaming alongside text generation.
+    /// </para>
     /// </remarks>
     private void AddConnectionDeployment(
         Dictionary<string, AIDeployment> deployments,

@@ -28,139 +28,225 @@
     </div>
 </div>
 
-<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
-    <div class="col">
-        <div class="card h-100 border-success">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <i class="fa-solid fa-plug fs-2 text-success me-3"></i>
-                    <h5 class="card-title mb-0">AI Connections</h5>
+<section class="mb-5">
+        <h3 class="mb-3"><i class="fa-solid fa-gauge-high text-muted me-2"></i>Admin</h3>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
+        <div class="col">
+            <div class="card h-100 border-primary">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fa-solid fa-book fs-2 text-primary me-3"></i>
+                        <h5 class="card-title mb-0">Articles</h5>
+                    </div>
+                    <p class="card-text">Manage the sample content this host stores, used to demonstrate indexing and retrieval.</p>
+                    <a asp-area="Admin" asp-controller="Article" asp-action="Index" class="btn btn-primary text-white">
+                        <i class="fa-solid fa-arrow-right"></i> Manage Articles
+                    </a>
                 </div>
-                <p class="card-text">Configure connections to AI providers (OpenAI, Azure OpenAI, Ollama, Azure AI Inference).</p>
-                <a asp-area="AI" asp-controller="AIConnection" asp-action="Index" class="btn btn-success">
-                    <i class="fa-solid fa-arrow-right"></i> Manage Connections
-                </a>
             </div>
         </div>
-    </div>
-    <div class="col">
-        <div class="card h-100 border-warning">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <i class="fa-solid fa-box fs-2 text-warning me-3"></i>
-                    <h5 class="card-title mb-0">AI Deployments</h5>
+        </div>
+    </section>
+    <section class="mb-5">
+        <h3 class="mb-3"><i class="fa-solid fa-robot text-muted me-2"></i>Artificial Intelligence</h3>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
+        <div class="col">
+            <div class="card h-100 border-success">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fa-solid fa-plug fs-2 text-success me-3"></i>
+                        <h5 class="card-title mb-0">AI Connections</h5>
+                    </div>
+                    <p class="card-text">Configure connections to AI providers (OpenAI, Azure OpenAI, Ollama, Azure AI Inference).</p>
+                    <a asp-area="AI" asp-controller="AIConnection" asp-action="Index" class="btn btn-success text-white">
+                        <i class="fa-solid fa-arrow-right"></i> Manage Connections
+                    </a>
                 </div>
-                <p class="card-text">Map model deployments to connections for fine-grained control over which models are used.</p>
-                <a asp-area="AI" asp-controller="AIDeployment" asp-action="Index" class="btn btn-warning">
-                    <i class="fa-solid fa-arrow-right"></i> Manage Deployments
-                </a>
             </div>
         </div>
-    </div>
-    <div class="col">
-        <div class="card h-100 border-danger">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <i class="fa-solid fa-comment-dots fs-2 text-danger me-3"></i>
-                    <h5 class="card-title mb-0">Chat Interactions</h5>
+        <div class="col">
+            <div class="card h-100 border-warning">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fa-solid fa-box fs-2 text-warning me-3"></i>
+                        <h5 class="card-title mb-0">AI Deployments</h5>
+                    </div>
+                    <p class="card-text">Map model deployments to connections for fine-grained control over which models are used.</p>
+                    <a asp-area="AI" asp-controller="AIDeployment" asp-action="Index" class="btn btn-warning">
+                        <i class="fa-solid fa-arrow-right"></i> Manage Deployments
+                    </a>
                 </div>
-                <p class="card-text">The fastest way to test a new setup with a real conversation before creating reusable profiles.</p>
-                <a asp-area="ChatInteractions" asp-controller="ChatInteraction" asp-action="Index" class="btn btn-danger">
-                    <i class="fa-solid fa-arrow-right"></i> Manage Interactions
-                </a>
             </div>
         </div>
-    </div>
-    <div class="col">
-        <div class="card h-100 border-primary">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <i class="fa-solid fa-user-gear fs-2 text-primary me-3"></i>
-                    <h5 class="card-title mb-0">AI Profiles</h5>
+        <div class="col">
+            <div class="card h-100 border-primary">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fa-solid fa-user-gear fs-2 text-primary me-3"></i>
+                        <h5 class="card-title mb-0">AI Profiles</h5>
+                    </div>
+                    <p class="card-text">Create reusable AI behavior for chat, agents, tools, data sources, memory, and session processing.</p>
+                    <a asp-area="AI" asp-controller="AIProfile" asp-action="Index" class="btn btn-primary text-white">
+                        <i class="fa-solid fa-arrow-right"></i> Manage Profiles
+                    </a>
                 </div>
-                <p class="card-text">Create reusable AI behavior for chat, agents, tools, data sources, memory, and session processing.</p>
-                <a asp-area="AI" asp-controller="AIProfile" asp-action="Index" class="btn btn-primary">
-                    <i class="fa-solid fa-arrow-right"></i> Manage Profiles
-                </a>
             </div>
         </div>
-    </div>
-
-    <div class="col">
-        <div class="card h-100 border-dark">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <i class="fa-solid fa-database fs-2 text-dark me-3"></i>
-                    <h5 class="card-title mb-0">Index Profiles</h5>
+        <div class="col">
+            <div class="card h-100 border-info">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fa-solid fa-puzzle-piece fs-2 text-info me-3"></i>
+                        <h5 class="card-title mb-0">AI Tool Instances</h5>
+                    </div>
+                    <p class="card-text">Configure reusable tool instances that AI profiles and agents can call during a conversation.</p>
+                    <a asp-area="Tooling" asp-controller="AIToolInstance" asp-action="Index" class="btn btn-info text-white">
+                        <i class="fa-solid fa-arrow-right"></i> Manage Tool Instances
+                    </a>
                 </div>
-                <p class="card-text">Define search index profiles for Elasticsearch or Azure AI Search vector stores.</p>
-                <a asp-area="Indexing" asp-controller="IndexProfile" asp-action="Index" class="btn btn-dark">
-                    <i class="fa-solid fa-arrow-right"></i> Manage Index Profiles
-                </a>
             </div>
         </div>
-    </div>
-    <div class="col">
-        <div class="card h-100" style="border-color: #6f42c1;">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <i class="fa-solid fa-layer-group fs-2 me-3" style="color: #6f42c1;"></i>
-                    <h5 class="card-title mb-0">Data Sources</h5>
+        <div class="col">
+            <div class="card h-100 border-danger">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fa-solid fa-comment-dots fs-2 text-danger me-3"></i>
+                        <h5 class="card-title mb-0">Chat Interactions</h5>
+                    </div>
+                    <p class="card-text">The fastest way to test a new setup with a real conversation before creating reusable profiles.</p>
+                    <a asp-area="ChatInteractions" asp-controller="ChatInteraction" asp-action="Index" class="btn btn-danger text-white">
+                        <i class="fa-solid fa-arrow-right"></i> Open Chat
+                    </a>
                 </div>
-                <p class="card-text">Map existing search indexes to a knowledge base for AI-powered retrieval.</p>
-                <a asp-area="DataSources" asp-controller="AIDataSource" asp-action="Index" class="btn text-white" style="background-color: #6f42c1;">
-                    <i class="fa-solid fa-arrow-right"></i> Manage Data Sources
-                </a>
             </div>
         </div>
-    </div>
-    <div class="col">
-        <div class="card h-100 border-secondary">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <i class="fa-solid fa-file-lines fs-2 text-secondary me-3"></i>
-                    <h5 class="card-title mb-0">Templates</h5>
+        <div class="col">
+            <div class="card h-100 border-secondary">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fa-solid fa-file-lines fs-2 text-secondary me-3"></i>
+                        <h5 class="card-title mb-0">Templates</h5>
+                    </div>
+                    <p class="card-text">Create reusable system prompt and profile templates for consistent AI behavior.</p>
+                    <a asp-area="AI" asp-controller="AITemplate" asp-action="Index" class="btn btn-secondary text-white">
+                        <i class="fa-solid fa-arrow-right"></i> Manage Templates
+                    </a>
                 </div>
-                <p class="card-text">Create reusable system prompt and profile templates for consistent AI behavior.</p>
-                <a asp-area="AI" asp-controller="AITemplate" asp-action="Index" class="btn btn-secondary">
-                    <i class="fa-solid fa-arrow-right"></i> Manage Templates
-                </a>
             </div>
         </div>
-    </div>
-    <div class="col">
-        <div class="card h-100 border-info">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <i class="fa-solid fa-puzzle-piece fs-2 text-info me-3"></i>
-                    <h5 class="card-title mb-0">AI Tool Instances</h5>
+        </div>
+    </section>
+    <section class="mb-5">
+        <h3 class="mb-3"><i class="fa-solid fa-folder-tree text-muted me-2"></i>RAG</h3>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
+        <div class="col">
+            <div class="card h-100 border-success">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fa-solid fa-folder-tree fs-2 text-success me-3"></i>
+                        <h5 class="card-title mb-0">File Sources</h5>
+                    </div>
+                    <p class="card-text">Read files from a local folder, an FTP server or an SFTP server into a File data source.</p>
+                    <a asp-area="FileSources" asp-controller="FileSource" asp-action="Index" class="btn btn-success text-white">
+                        <i class="fa-solid fa-arrow-right"></i> Manage File Sources
+                    </a>
                 </div>
-                <p class="card-text">Configure reusable tool instances that AI profiles and agents can call during a conversation.</p>
-                <a asp-area="Tooling" asp-controller="AIToolInstance" asp-action="Index" class="btn btn-info text-white">
-                    <i class="fa-solid fa-arrow-right"></i> Manage Tool Instances
-                </a>
             </div>
         </div>
-    </div>
-    <div class="col">
-        <div class="card h-100" style="border-color: #20c997;">
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <i class="fa-solid fa-globe fs-2 me-3" style="color: #20c997;"></i>
-                    <h5 class="card-title mb-0">Web Crawlers</h5>
+        <div class="col">
+            <div class="card h-100 border-info">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fa-solid fa-globe fs-2 text-info me-3"></i>
+                        <h5 class="card-title mb-0">Web Crawlers</h5>
+                    </div>
+                    <p class="card-text">Scrape websites into a Web data source, mapping many sites into one knowledge base for retrieval.</p>
+                    <a asp-area="WebCrawlers" asp-controller="WebCrawler" asp-action="Index" class="btn btn-info text-white">
+                        <i class="fa-solid fa-arrow-right"></i> Manage Web Crawlers
+                    </a>
                 </div>
-                <p class="card-text">Scrape websites into a Web data source, mapping many sites into one knowledge base for retrieval.</p>
-                <a asp-area="WebCrawlers" asp-controller="WebCrawler" asp-action="Index" class="btn text-white" style="background-color: #20c997;">
-                    <i class="fa-solid fa-arrow-right"></i> Manage Web Crawlers
-                </a>
             </div>
         </div>
-    </div>
-</div>
-
-<section class="mt-5">
-    <h3 class="mb-3">Agent to Agent Protocol</h3>
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
+        <div class="col">
+            <div class="card h-100 border-primary">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fa-solid fa-layer-group fs-2 text-primary me-3"></i>
+                        <h5 class="card-title mb-0">Data Sources</h5>
+                    </div>
+                    <p class="card-text">Map existing search indexes to a knowledge base for AI-powered retrieval.</p>
+                    <a asp-area="DataSources" asp-controller="AIDataSource" asp-action="Index" class="btn btn-primary text-white">
+                        <i class="fa-solid fa-arrow-right"></i> Manage Data Sources
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card h-100 border-dark">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fa-solid fa-database fs-2 text-dark me-3"></i>
+                        <h5 class="card-title mb-0">Index Profiles</h5>
+                    </div>
+                    <p class="card-text">Define search index profiles for Elasticsearch or Azure AI Search vector stores.</p>
+                    <a asp-area="Indexing" asp-controller="IndexProfile" asp-action="Index" class="btn btn-dark text-white">
+                        <i class="fa-solid fa-arrow-right"></i> Manage Index Profiles
+                    </a>
+                </div>
+            </div>
+        </div>
+        </div>
+    </section>
+    <section class="mb-5">
+        <h3 class="mb-3"><i class="fa-solid fa-chart-column text-muted me-2"></i>Reports</h3>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
+        <div class="col">
+            <div class="card h-100 border-success">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fa-solid fa-chart-column fs-2 text-success me-3"></i>
+                        <h5 class="card-title mb-0">Chat Analytics</h5>
+                    </div>
+                    <p class="card-text">See how chat is being used across profiles, sessions and interactions.</p>
+                    <a asp-area="AIChat" asp-controller="ChatAnalytics" asp-action="Index" class="btn btn-success text-white">
+                        <i class="fa-solid fa-arrow-right"></i> Open Chat Analytics
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card h-100 border-warning">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fa-solid fa-chart-line fs-2 text-warning me-3"></i>
+                        <h5 class="card-title mb-0">AI Usage Analytics</h5>
+                    </div>
+                    <p class="card-text">Track token usage and cost per deployment, so an expensive model is visible before the bill is.</p>
+                    <a asp-area="AIChat" asp-controller="UsageAnalytics" asp-action="Index" class="btn btn-warning">
+                        <i class="fa-solid fa-arrow-right"></i> Open Usage Analytics
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card h-100 border-secondary">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fa-solid fa-table fs-2 text-secondary me-3"></i>
+                        <h5 class="card-title mb-0">Chat Extracted Data</h5>
+                    </div>
+                    <p class="card-text">Review the structured data extracted from conversations by data processing profiles.</p>
+                    <a asp-area="AIChat" asp-controller="ChatExtractedData" asp-action="Index" class="btn btn-secondary text-white">
+                        <i class="fa-solid fa-arrow-right"></i> Open Extracted Data
+                    </a>
+                </div>
+            </div>
+        </div>
+        </div>
+    </section>
+    <section class="mb-5">
+        <h3 class="mb-3"><i class="fa-solid fa-network-wired text-muted me-2"></i>Integrations</h3>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
         <div class="col">
             <div class="card h-100 border-info">
                 <div class="card-body">
@@ -175,12 +261,6 @@
                 </div>
             </div>
         </div>
-    </div>
-</section>
-
-<section class="mt-5">
-    <h3 class="mb-3">Model Context Protocol (MCP)</h3>
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
         <div class="col">
             <div class="card h-100 border-primary">
                 <div class="card-body">
@@ -189,7 +269,7 @@
                         <h5 class="card-title mb-0">MCP Hosts</h5>
                     </div>
                     <p class="card-text">Configure remote SSE MCP servers and local stdio MCP tools for orchestration.</p>
-                    <a asp-area="Mcp" asp-controller="McpConnection" asp-action="Index" class="btn btn-primary">
+                    <a asp-area="Mcp" asp-controller="McpConnection" asp-action="Index" class="btn btn-primary text-white">
                         <i class="fa-solid fa-arrow-right"></i> Manage MCP Hosts
                     </a>
                 </div>
@@ -203,7 +283,7 @@
                         <h5 class="card-title mb-0">MCP Prompts</h5>
                     </div>
                     <p class="card-text">Define MCP prompts with optional arguments so external clients can discover reusable prompt templates.</p>
-                    <a asp-area="Mcp" asp-controller="McpPrompt" asp-action="Index" class="btn btn-secondary">
+                    <a asp-area="Mcp" asp-controller="McpPrompt" asp-action="Index" class="btn btn-secondary text-white">
                         <i class="fa-solid fa-arrow-right"></i> Manage MCP Prompts
                     </a>
                 </div>
@@ -217,14 +297,14 @@
                         <h5 class="card-title mb-0">MCP Resources</h5>
                     </div>
                     <p class="card-text">Register FTP and SFTP-backed MCP resources, including template-based URI patterns for dynamic resources.</p>
-                    <a asp-area="Mcp" asp-controller="McpResource" asp-action="Index" class="btn btn-dark">
+                    <a asp-area="Mcp" asp-controller="McpResource" asp-action="Index" class="btn btn-dark text-white">
                         <i class="fa-solid fa-arrow-right"></i> Manage MCP Resources
                     </a>
                 </div>
             </div>
         </div>
-    </div>
-</section>
+        </div>
+    </section>
 
 @if (User.Identity?.IsAuthenticated ?? false)
 {

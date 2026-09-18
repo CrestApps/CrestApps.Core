@@ -9,6 +9,14 @@ namespace CrestApps.Core.AI.Capabilities;
 /// trained feature the deployment does not declare. The logic is used by both the completion
 /// pipeline handler and the client-factory wrapper so that enforcement is identical on every path.
 /// </summary>
+/// <remarks>
+/// Every removal here is reported as a warning and nothing more, which is only adequate while a human
+/// is reading the log. A deployment that is wrong about itself — most often one whose metadata was
+/// synthesized rather than authored, and which is therefore read-only in the admin UI — loses the same
+/// capability on every request for as long as it exists, and the product simply looks incapable. The
+/// deployment listings in the sample hosts read the same feature names back and name the loss on the
+/// screen for this reason; a warning added here should be reflected there rather than left to the log.
+/// </remarks>
 internal static class ModelFeatureEnforcement
 {
     /// <summary>

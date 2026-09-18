@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Claude.Services;
@@ -99,6 +99,13 @@ public sealed class AIProfileViewModel
     public bool DataSourceIsInScope { get; set; }
     public string DataSourceFilter { get; set; }
 
+    /// <summary>
+    /// Gets or sets the kinds of knowledge to retrieve, as a comma-separated list. Empty retrieves every
+    /// kind. The stored value is an array; this is its editable form, the same way the tool instance screen
+    /// takes its own kinds.
+    /// </summary>
+    public string DataSourceObjectTypes { get; set; }
+
     // A2A Connections
     public string[] SelectedA2AConnectionIds { get; set; } = [];
     public List<A2AConnectionSelectionItem> AvailableA2AConnections { get; set; } = [];
@@ -132,6 +139,18 @@ public sealed class AIProfileViewModel
     // Documents
     public List<DocumentItem> AttachedDocuments { get; set; } = [];
     public int? DocumentTopN { get; set; }
+
+    /// <summary>
+    /// Gets or sets how much extracted text an uploaded document may hold and still be indexed, or
+    /// <see langword="null"/> to use the site's limit.
+    /// </summary>
+    public int? MaxIndexableCharacters { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether figures in an uploaded document are described by a vision model, or
+    /// <see langword="null"/> to follow the host's setting.
+    /// </summary>
+    public bool? DescribeFiguresInUploads { get; set; }
     public DocumentRetrievalMode? DocumentRetrievalMode { get; set; }
 
     public bool AllowSessionDocuments { get; set; }
@@ -349,6 +368,9 @@ public sealed class AIProfileViewModel
             vm.DataSourceTopNDocuments = dataSourceRagMetadata.TopNDocuments;
             vm.DataSourceIsInScope = dataSourceRagMetadata.IsInScope;
             vm.DataSourceFilter = dataSourceRagMetadata.Filter;
+            vm.DataSourceObjectTypes = dataSourceRagMetadata.ObjectTypes is { Length: > 0 }
+                ? string.Join(", ", dataSourceRagMetadata.ObjectTypes)
+                : null;
         }
 
         if (profile.TryGet<AIProfileA2AMetadata>(out var a2aMetadata))
@@ -386,6 +408,8 @@ public sealed class AIProfileViewModel
         if (profile.TryGet<DocumentsMetadata>(out var docMetadata))
         {
             vm.DocumentTopN = docMetadata.DocumentTopN;
+            vm.MaxIndexableCharacters = docMetadata.MaxIndexableCharacters;
+            vm.DescribeFiguresInUploads = docMetadata.DescribeFiguresInUploads;
             vm.DocumentRetrievalMode = docMetadata.RetrievalMode;
             vm.AttachedDocuments = (docMetadata.Documents ?? []).Select(d => new DocumentItem
             {
@@ -581,6 +605,7 @@ public sealed class AIProfileViewModel
             x.TopNDocuments = DataSourceTopNDocuments;
             x.IsInScope = DataSourceIsInScope;
             x.Filter = DataSourceFilter;
+            x.ObjectTypes = SplitObjectTypes(DataSourceObjectTypes);
         });
 
         profile.Alter<PromptTemplateMetadata>(metadata =>
@@ -621,6 +646,8 @@ public sealed class AIProfileViewModel
         profile.Alter<DocumentsMetadata>(metadata =>
         {
             metadata.DocumentTopN = DocumentTopN;
+            metadata.MaxIndexableCharacters = MaxIndexableCharacters;
+            metadata.DescribeFiguresInUploads = DescribeFiguresInUploads;
             metadata.RetrievalMode = DocumentRetrievalMode;
         });
 
@@ -744,6 +771,29 @@ public sealed class AIProfileViewModel
             values.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value)),
             StringComparer.OrdinalIgnoreCase);
     }
+
+    /// <summary>
+    /// Turns the comma-separated kinds the form carries into the array the metadata stores.
+    /// </summary>
+    /// <param name="value">The editable value.</param>
+    /// <returns>The kinds, or <see langword="null"/> when nothing was named.</returns>
+    /// <remarks>
+    /// Naming nothing is not a restriction to nothing: an empty box means every kind, so it stores null
+    /// rather than an empty array that a reader could mistake for "none of them".
+    /// </remarks>
+    private static string[] SplitObjectTypes(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var objectTypes = value
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToArray();
+
+        return objectTypes.Length == 0 ? null : objectTypes;
+    }
 }
 
 public sealed class ToolSelectionItem
@@ -832,4 +882,5 @@ public sealed class ConversionGoalItem
 
     public int MinScore { get; set; }
     public int MaxScore { get; set; } = 10;
+
 }

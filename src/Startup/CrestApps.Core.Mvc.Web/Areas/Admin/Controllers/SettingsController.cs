@@ -121,6 +121,8 @@ public sealed class SettingsController : Controller
             DefaultRealtimeVoiceId = deploymentDefaults.DefaultRealtimeVoiceId,
             DocumentIndexProfileName = documentSettings.IndexProfileName,
             DocumentTopN = documentSettings.TopN,
+            MaxIndexableCharacters = documentSettings.MaxIndexableCharacters,
+            DescribeFiguresInUploads = documentSettings.DescribeFiguresInUploads,
             DocumentRetrievalMode = documentSettings.RetrievalMode,
             AllowInteractionImageUploads = documentSettings.AllowImageUploads,
             AllowInteractionDocumentUploads = documentSettings.AllowDocumentUploads,
@@ -191,6 +193,11 @@ public sealed class SettingsController : Controller
         if (model.MaxPostCloseAttempts < 1)
         {
             ModelState.AddModelError(nameof(model.MaxPostCloseAttempts), "Must be at least 1.");
+        }
+
+        if (model.MaxIndexableCharacters < 0)
+        {
+            ModelState.AddModelError(nameof(model.MaxIndexableCharacters), "Must be zero or more; zero means no limit.");
         }
 
         if (model.DocumentTopN < 1)
@@ -360,6 +367,8 @@ public sealed class SettingsController : Controller
         {
             IndexProfileName = model.DocumentIndexProfileName?.Trim(),
             TopN = model.DocumentTopN,
+            MaxIndexableCharacters = model.MaxIndexableCharacters,
+            DescribeFiguresInUploads = model.DescribeFiguresInUploads,
             RetrievalMode = model.DocumentRetrievalMode,
             AllowDocumentUploads = model.AllowInteractionDocumentUploads,
             AllowImageUploads = model.AllowInteractionImageUploads,

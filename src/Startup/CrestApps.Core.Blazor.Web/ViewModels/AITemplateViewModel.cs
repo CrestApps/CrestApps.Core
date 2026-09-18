@@ -115,6 +115,45 @@ public sealed class AITemplateViewModel
 
     public int? DocumentTopN { get; set; }
 
+    /// <summary>
+    /// Gets or sets how much extracted text an uploaded document may hold and still be indexed, or
+    /// <see langword="null"/> to use the site's limit.
+    /// </summary>
+    public int? MaxIndexableCharacters { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether figures in an uploaded document are described by a vision model, or
+    /// <see langword="null"/> to follow the site's setting.
+    /// </summary>
+    public bool? DescribeFiguresInUploads { get; set; }
+
+    /// <summary>
+    /// Gets or sets <see cref="DescribeFiguresInUploads"/> as a string.
+    /// </summary>
+    /// <remarks>
+    /// Binding the nullable bool straight to <c>InputSelect</c> renders a null value as "false", which
+    /// preselects "Do not describe figures" on a brand new profile instead of the site default. Every
+    /// other select on the form -- including the nullable enum beside this one -- lands on its empty
+    /// option correctly, so the fault is specific to <c>InputSelect&lt;bool?&gt;</c>. Going through a
+    /// string keeps the three states distinct.
+    /// </remarks>
+    public string DescribeFiguresInUploadsSelection
+    {
+        get => DescribeFiguresInUploads switch
+        {
+            true => "true",
+            false => "false",
+            _ => string.Empty,
+        };
+
+        set => DescribeFiguresInUploads = value switch
+        {
+            "true" => true,
+            "false" => false,
+            _ => null,
+        };
+    }
+
     public DocumentRetrievalMode? DocumentRetrievalMode { get; set; }
 
     public bool HasDocumentIndexConfiguration { get; set; }
@@ -327,6 +366,8 @@ public sealed class AITemplateViewModel
             if (template.TryGet<DocumentsMetadata>(out var docMetadata))
             {
                 model.DocumentTopN = docMetadata.DocumentTopN;
+                model.MaxIndexableCharacters = docMetadata.MaxIndexableCharacters;
+                model.DescribeFiguresInUploads = docMetadata.DescribeFiguresInUploads;
                 model.DocumentRetrievalMode = docMetadata.RetrievalMode;
             }
 
@@ -545,6 +586,8 @@ public sealed class AITemplateViewModel
             {
                 DocumentTopN = DocumentTopN,
                 RetrievalMode = DocumentRetrievalMode,
+                MaxIndexableCharacters = MaxIndexableCharacters,
+                DescribeFiguresInUploads = DescribeFiguresInUploads,
             });
 
             template.Put(new AIProfileDataExtractionSettings

@@ -1,3 +1,21 @@
+﻿/*
+ * Figure markers: the short labels the model writes, turned into pictures by the host.
+ *
+ * Retrieval hands the model a label -- [fig:1] -- and keeps the picture's real link in the message's reference
+ * map, the same way a text citation keeps its source behind "[doc:1]". A model asked to reproduce a long opaque
+ * identifier does not reproduce it: it copies the shape and substitutes ordinals, so links to figures that were
+ * never in the results came back as 404s. A label short enough to be written exactly, with the link put back
+ * here where the model cannot reach it, is what stops that.
+ *
+ * It sits on window rather than inside the manager below so the host can reach it, and so its rules can be
+ * exercised in a bare sandbox with no browser and no DOM -- see tests/realtime-client/figure-markers.test.js --
+ * exactly as window.CoreAIRealtime exposes the microphone gate's rules.
+ *
+ * The same block sits at the top of ai-chat.js: the two chat clients are separate bundles that share no
+ * module of their own, and both render the same markdown. Change one, change the other.
+ */
+// CoreAIChatMarkers lives in chat-markers.js, which every chat surface loads before this file.
+
 window.chatInteractionManager = function () {
 
     // Defaults (can be overridden by instanceConfig)
@@ -146,6 +164,7 @@ window.chatInteractionManager = function () {
         normalized.link = sanitizeUrl(normalized.link ?? normalized.Link ?? null);
         normalized.referenceType = normalized.referenceType ?? normalized.ReferenceType ?? null;
         normalized.isGenerated = (normalized.isGenerated ?? normalized.IsGenerated) === true;
+        normalized.isImage = (normalized.isImage ?? normalized.IsImage) === true;
 
         return normalized;
     }
@@ -180,12 +199,34 @@ window.chatInteractionManager = function () {
         return normalized;
     }
 
+    // Installed at the top of this file so it can be unit tested without a browser; see the comment there.
+    const expandImageMarkers = window.CoreAIChatMarkers.expandImageMarkers;
+
     function getCitationLabel(reference, key) {
         return reference.title || reference.text || key;
     }
 
+    // Which references are one citation, and how a repeated marker reads, are statements about strings and
+    // live in chat-markers.js so every chat surface numbers them the same way. Without the module each
+    // reference keeps an identity of its own and nothing merges, which is the numbering this script had
+    // before it.
+    let unmergedCitationCount = 0;
+    const citationIdentity = window.CoreAIChatMarkers?.citationIdentity
+        ?? (() => `unmerged-${++unmergedCitationCount}`);
+    const splitCombinedCitations = window.CoreAIChatMarkers?.splitCombinedCitations
+        ?? (content => content);
+    const collapseRepeatedCitations = window.CoreAIChatMarkers?.collapseRepeatedCitations
+        ?? (html => html);
+    const separateAdjacentCitations = window.CoreAIChatMarkers?.separateAdjacentCitations
+        ?? (html => html);
+    const citationMarkerHtml = window.CoreAIChatMarkers?.citationMarkerHtml
+        ?? (displayIndex => `<sup>${displayIndex}</sup>`);
+
     function buildCitationDisplay(content, references) {
-        let processedContent = (content || '').trim();
+        // Before anything looks for a reference key, the combined form the model tends to write is split into
+        // the keys it means. A key that is not found is not replaced, and an unreplaced key reaches the reader
+        // as a raw marker mid-sentence.
+        let processedContent = splitCombinedCitations((content || '').trim());
         const messageReferences = normalizeReferences(references);
         const referenceEntries = Object.entries(messageReferences);
 
@@ -204,34 +245,54 @@ window.chatInteractionManager = function () {
         generatedRefs.sort(([, a], [, b]) => a.index - b.index);
 
         const citations = [];
+        const citationsByIdentity = new Map();
+        const placeholders = [];
         let displayIndex = 1;
 
         for (const [key, value] of citedRefs) {
-            const placeholder = `__CITE_${displayIndex}_${value.index || displayIndex}__`;
+            const label = getCitationLabel(value, key);
+            const link = value.link || null;
+            const identity = citationIdentity(label, link);
+            let citation = citationsByIdentity.get(identity);
+
+            // Every reference still has its key replaced, so the text never keeps a raw key; what the merge
+            // changes is only how many numbers the reader is given for them.
+            if (!citation) {
+                citation = {
+                    referenceKey: key,
+                    referenceKeys: [],
+                    displayIndex: displayIndex++,
+                    label: label,
+                    link: link,
+                    isDownload: isDownloadCitationReference(value),
+                };
+
+                citationsByIdentity.set(identity, citation);
+                citations.push(citation);
+            }
+
+            citation.referenceKeys.push(key);
+
+            const placeholder = `__CITE_${citation.displayIndex}_${value.index || citation.displayIndex}__`;
             processedContent = processedContent.replaceAll(key, placeholder);
-            citations.push({
-                referenceKey: key,
-                displayIndex: displayIndex,
-                label: getCitationLabel(value, key),
-                link: value.link || null,
-                isDownload: isDownloadCitationReference(value),
-                placeholder: placeholder,
-            });
-
-            displayIndex++;
+            placeholders.push({ placeholder, displayIndex: citation.displayIndex, label: citation.label });
         }
 
-        for (const citation of citations) {
-            processedContent = processedContent.replaceAll(citation.placeholder, `<sup>${citation.displayIndex}</sup>`);
+        for (const entry of placeholders) {
+            processedContent = processedContent.replaceAll(entry.placeholder, citationMarkerHtml(entry.displayIndex, entry.label));
         }
 
-        processedContent = processedContent.replaceAll('</sup><sup>', '</sup><sup>,</sup><sup>');
+        // Merged citations can leave the same number twice over a sentence; that is collapsed before the
+        // commas go in, or the reader is given "1,1".
+        processedContent = collapseRepeatedCitations(processedContent);
+        processedContent = separateAdjacentCitations(processedContent);
 
         // Generated files (such as exported tabular data) are always offered as a download even when
         // the model does not cite them inline, so the user never loses access to the produced file.
         for (const [key, value] of generatedRefs) {
             citations.push({
                 referenceKey: key,
+                referenceKeys: [key],
                 displayIndex: displayIndex,
                 label: getCitationLabel(value, key),
                 link: value.link || null,
@@ -255,8 +316,12 @@ window.chatInteractionManager = function () {
             return copyContent;
         }
 
+        // Every key the citation absorbed is replaced, not just the first: a merged key left behind would
+        // reach the clipboard as the raw reference token the reader never saw on the page.
         for (const citation of citations) {
-            copyContent = copyContent.replaceAll(citation.referenceKey, `[${citation.displayIndex}]`);
+            for (const key of (citation.referenceKeys?.length ? citation.referenceKeys : [citation.referenceKey])) {
+                copyContent = copyContent.replaceAll(key, `[${citation.displayIndex}]`);
+            }
         }
 
         copyContent += '\n\nReferences:\n';
@@ -281,14 +346,21 @@ window.chatInteractionManager = function () {
             : typeof message.content === 'string'
                 ? message.content
                 : '';
-        const citationDisplay = buildCitationDisplay(rawContent, messageReferences);
+        // Figure markers become images before anything else reads the content: the citation pass looks for its
+        // own keys in what is left, and the markdown parser then sees an ordinary image.
+        const displayContent = expandImageMarkers(rawContent, messageReferences);
+        const citationDisplay = buildCitationDisplay(displayContent, messageReferences);
 
         message.rawContent = rawContent;
         message.content = rawContent;
         message.displayContent = citationDisplay.content;
         message.references = messageReferences;
         message.citationReferences = citationDisplay.citations;
-        message.copyContent = buildCopyContent(rawContent, citationDisplay.citations);
+        // Copied from the expanded content, so a copied answer carries the picture's link rather than a label
+        // that means nothing outside this page.
+        // Split here too: the copy is built from the expanded content rather than the display path's output,
+        // so a combined marker would otherwise survive into the clipboard as a raw key.
+        message.copyContent = buildCopyContent(splitCombinedCitations(displayContent), citationDisplay.citations);
         message.htmlContent = parseMarkdownContent(citationDisplay.content, message);
 
         return message;
@@ -334,14 +406,19 @@ window.chatInteractionManager = function () {
         if (!src) return '';
         const alt = data.text || defaultConfig.generatedImageAltText;
         const maxWidth = defaultConfig.generatedImageMaxWidth;
-        return `<div class="generated-image-container">
+        // Spans, not divs. A figure marker is often written mid-sentence -- "Figures [fig:1], [fig:2] and
+        // [fig:3] show..." -- and a block element cannot sit inside a paragraph: the browser closes the <p>
+        // at the first one, so the sentence is torn into fragments and the commas between the markers are
+        // left stranded on their own lines. Inline-block keeps the figure looking exactly the same while
+        // remaining something a paragraph can legally contain.
+        return `<span class="generated-image-container">
             <img src="${src}" alt="${alt}" class="img-thumbnail" style="max-width: ${maxWidth}px; height: auto;" />
-            <div class="mt-2">
+            <span class="mt-2 d-block">
                 <a href="${src}" target="_blank" download="${alt}" title="${defaultConfig.downloadImageTitle}" class="btn btn-sm btn-outline-secondary ai-download-image">
                     <i class="fa-solid fa-download"></i>
                 </a>
-            </div>
-        </div>`;
+            </span>
+        </span>`;
     };
 
     // Chart counter for unique IDs
@@ -364,6 +441,11 @@ window.chatInteractionManager = function () {
             + `</div>`;
     }
 
+    // The marker itself is read by chat-markers.js, shared with every other chat surface, so the three of them
+    // cannot disagree about what a marker is. Everything below -- the container, the id scheme, the Chart.js
+    // call -- is this surface's own and legitimately differs from the others.
+    const findChartMarker = window.CoreAIChatMarkers.findChartMarker;
+
     // Register [chart:{...json...}] as a native marked block extension so the
     // markdown parser handles chart markers inline with surrounding text.
     marked.use({
@@ -375,7 +457,7 @@ window.chatInteractionManager = function () {
                 return idx >= 0 ? idx : undefined;
             },
             tokenizer(src) {
-                const extracted = tryExtractChartMarker(src);
+                const extracted = findChartMarker(src);
                 if (!extracted || extracted.startIndex !== 0) {
                     return undefined;
                 }
@@ -397,78 +479,55 @@ window.chatInteractionManager = function () {
         }]
     });
 
-    // Extract a [chart:{...json...}] marker. This avoids regex issues with nested brackets.
-    function tryExtractChartMarker(text) {
-        const token = '[chart:';
-        const start = text.indexOf(token);
-        if (start < 0) {
-            return null;
+    // An image the assistant named but the server will not serve. The address is written by a language
+    // model from what retrieval handed it, so a mistyped or invented one is possible, and the browser's
+    // default for that is a broken-image icon captioned with the alt text -- which reads as a real picture
+    // that failed to arrive. Saying plainly that it could not be loaded is both truer and quieter.
+    //
+    // Wired here rather than as an inline onerror attribute because message bodies go through DOMPurify,
+    // which strips event-handler attributes.
+    function markBrokenImagesInMessage() {
+        // Scanning the document rather than one message, because the value threaded through the render
+        // path is the message DATA object -- the thing carrying content, references and pending charts --
+        // and not the element it was rendered into. Wiring is idempotent via the data-broken-wired mark,
+        // so re-scanning after each render costs a query over the handful of images already handled.
+        if (typeof document === 'undefined' || typeof requestAnimationFrame !== 'function') {
+            return;
         }
 
-        // Find JSON object boundary by balancing braces
-        const jsonStart = start + token.length;
-        let i = jsonStart;
-        while (i < text.length && (text[i] === ' ' || text[i] === '\n' || text[i] === '\r' || text[i] === '\t')) {
-            i++;
-        }
-
-        if (i >= text.length || text[i] !== '{') {
-            return null;
-        }
-
-        let depth = 0;
-        let inString = false;
-        let escape = false;
-
-        for (; i < text.length; i++) {
-            const ch = text[i];
-
-            if (inString) {
-                if (escape) {
-                    escape = false;
-                    continue;
-                }
-                if (ch === '\\') {
-                    escape = true;
-                    continue;
-                }
-                if (ch === '"') {
-                    inString = false;
-                }
-                continue;
-            }
-
-            if (ch === '"') {
-                inString = true;
-                continue;
-            }
-
-            if (ch === '{') {
-                depth++;
-            } else if (ch === '}') {
-                depth--;
-                if (depth === 0) {
-                    const jsonEnd = i;
-                    // Expect closing bracket after JSON
-                    const closeBracketIndex = text.indexOf(']', jsonEnd + 1);
-                    if (closeBracketIndex < 0) {
-                        return null;
-                    }
-
-                    const json = text.substring(jsonStart, jsonEnd + 1).trim();
-                    return {
-                        startIndex: start,
-                        endIndex: closeBracketIndex + 1,
-                        json: json
-                    };
-                }
-            }
-        }
-
-        return null;
+        // Deferred for the same reason the charts below are: the render that produced these elements has
+        // not necessarily been flushed to the DOM when this runs.
+        requestAnimationFrame(wireBrokenImageHandlers);
     }
 
-    function renderChartsInMessage(message) {
+    function wireBrokenImageHandlers() {
+        const images = document.querySelectorAll('.generated-image-container img:not([data-broken-wired])');
+
+        for (const image of images) {
+            image.setAttribute('data-broken-wired', 'true');
+            image.addEventListener('error', function () {
+                const container = image.closest('.generated-image-container');
+
+                if (!container || container.dataset.brokenHandled) {
+                    return;
+                }
+
+                container.dataset.brokenHandled = 'true';
+                container.hidden = true;
+
+                const note = document.createElement('p');
+                note.className = 'text-muted small fst-italic mb-2';
+                note.textContent = image.alt
+                    ? `(the picture "${image.alt}" could not be loaded)`
+                    : '(that picture could not be loaded)';
+                container.insertAdjacentElement('afterend', note);
+            }, { once: true });
+        }
+    }
+
+    function renderMessageMedia(message) {
+        markBrokenImagesInMessage();
+
         if (!message || !message._pendingCharts || !message._pendingCharts.length) {
             return;
         }
@@ -665,7 +724,7 @@ window.chatInteractionManager = function () {
                             this.addMessage(msg);
 
                             this.$nextTick(() => {
-                                renderChartsInMessage(msg);
+                                renderMessageMedia(msg);
                             });
                         });
                     });
@@ -824,7 +883,7 @@ window.chatInteractionManager = function () {
                             msg.references = normalizeReferences(Object.assign({}, msg.references || {}, references || {}));
                             updateMessagePresentation(msg, msg.references);
                             this.$nextTick(() => {
-                                renderChartsInMessage(msg);
+                                renderMessageMedia(msg);
                                 this.scrollToBottom();
                             });
                         }
@@ -938,7 +997,7 @@ window.chatInteractionManager = function () {
 
                     this.$nextTick(() => {
                         // Render any pending charts once the DOM is updated
-                        renderChartsInMessage(message);
+                        renderMessageMedia(message);
                         this.scrollToBottom();
                     });
                 },
@@ -1112,7 +1171,7 @@ window.chatInteractionManager = function () {
                                 this.messages[messageIndex] = message;
 
                                 this.$nextTick(() => {
-                                    renderChartsInMessage(message);
+                                    renderMessageMedia(message);
                                     this.scrollToBottom();
                                 });
                             },
@@ -1178,7 +1237,7 @@ window.chatInteractionManager = function () {
                         this.messages[messageIndex] = message;
 
                         this.$nextTick(() => {
-                            renderChartsInMessage(message);
+                            renderMessageMedia(message);
                             this.scrollToBottom();
                         });
                     }
@@ -2201,6 +2260,14 @@ window.chatInteractionManager = function () {
 
                         try {
                             const response = await fetch(config.realtimeVoicesUrl + '?deploymentName=' + encodeURIComponent(deploymentName), { credentials: 'same-origin' });
+                            const contentType = (response.headers.get('content-type') || '').toLowerCase();
+
+                            // A sign-in redirect answers with HTML and response.ok, so this has to be checked
+                            // rather than parsed: the default voice is a fine outcome, a parser error is not.
+                            if (!response.ok || contentType.indexOf('json') < 0) {
+                                return;
+                            }
+
                             const result = await response.json();
                             if (!result || !Array.isArray(result.voices)) {
                                 return;
@@ -3146,6 +3213,15 @@ window.chatInteractionDocumentManager = function () {
                 if (!response.ok) {
                     console.error('Failed to remove document:', await response.text());
                     showUploadStatus('Failed to remove document.', 'text-danger');
+                    return;
+                }
+
+                if ((response.headers.get('content-type') || '').toLowerCase().indexOf('json') < 0) {
+                    console.error('Remove document: response was not JSON.', { status: response.status, redirected: response.redirected });
+                    showUploadStatus(response.redirected
+                        ? 'You may not be signed in, or you do not have permission for this. Please reload and try again.'
+                        : 'Failed to remove document.', 'text-danger');
+
                     return;
                 }
 

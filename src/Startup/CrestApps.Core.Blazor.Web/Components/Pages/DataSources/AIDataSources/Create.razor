@@ -244,7 +244,7 @@
                 <div class="form-text">The index where chunked and embedded documents are stored for AI retrieval.</div>
             </div>
 
-            @if (!IsWebSource())
+            @if (!IsBucketSource())
             {
                 <hr />
                 <h5>Field Mapping</h5>
@@ -323,7 +323,7 @@
             _errors.Add("Source type is required.");
         }
 
-        if (!IsWebSource())
+        if (!IsBucketSource())
         {
             if (string.IsNullOrWhiteSpace(model.KeyFieldName))
             {
@@ -434,4 +434,8 @@
 
     private bool IsWebSource()
         => string.Equals(_model.Source, AIDataSourceSourceTypes.Web, StringComparison.OrdinalIgnoreCase);
+
+    // A bucket source has no field mapping: what lands in it already carries its own key, title and content.
+    private bool IsBucketSource()
+        => IsWebSource() || string.Equals(_model.Source, AIDataSourceSourceTypes.File, StringComparison.OrdinalIgnoreCase);
 }

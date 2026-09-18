@@ -42,21 +42,48 @@ else
                     <th>Source</th>
                     <th>Source Index</th>
                     <th>Knowledge Base Index</th>
+                    <th>Last sync</th>
                     <th style="width: 250px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var item in _dataSources)
                 {
-                    <tr>
+                    var lastSync = GetLastSync(item);
+
+                    <tr class="@GetRowClass(lastSync)">
                         <td><strong>@item.DisplayText</strong></td>
                         <td>@GetSourceDisplayName(item)</td>
                         <td><code>@GetSourceReference(item)</code></td>
                         <td><code>@(item.AIKnowledgeBaseIndexProfileName ?? "—")</code></td>
                         <td>
+                            @if (lastSync is null)
+                            {
+                                <span class="text-muted">Never</span>
+                            }
+                            else
+                            {
+                                var syncFailed = lastSync.Status != AIDataSourceSyncStatus.Succeeded;
+
+                                <span class="badge @(syncFailed ? "bg-danger" : "bg-success")">@lastSync.Status</span>
+                                <div class="small text-muted">@lastSync.CompletedUtc.ToString("u") &mdash; @lastSync.DocumentsIndexed indexed</div>
+
+                                if (syncFailed)
+                                {
+                                    <div class="small text-danger">@lastSync.Error</div>
+                                }
+                            }
+                        </td>
+                        <td>
                             <button type="button" class="btn btn-sm btn-outline-success" @onclick="() => SyncAsync(item.ItemId)">
                                 <i class="fa-solid fa-arrows-rotate"></i> Sync
                             </button>
+                            @if (string.Equals(item.Source, AIDataSourceSourceTypes.File, StringComparison.OrdinalIgnoreCase))
+                            {
+                                <a href="/filesources" class="btn btn-sm btn-outline-info">
+                                    <i class="fa-solid fa-folder-open"></i> File sources
+                                </a>
+                            }
                             <a href="/datasources/edit/@item.ItemId" class="btn btn-sm btn-outline-primary">
                                 <i class="fa-solid fa-pencil"></i> Edit
                             </a>
@@ -123,6 +150,18 @@ else
         await StoreCommitter.CommitAsync();
         ToastNotifications.ShowSuccess("Data source deleted successfully. Knowledge-base cleanup has been queued.");
         await LoadAsync();
+    }
+
+    private static AIDataSourceSyncSummary GetLastSync(AIDataSource dataSource)
+    {
+        return dataSource.TryGet<AIDataSourceSyncSummary>(out var lastSync) ? lastSync : null;
+    }
+
+    private static string GetRowClass(AIDataSourceSyncSummary lastSync)
+    {
+        // A failed sync leaves a data source that reads as perfectly normal and holds nothing, so the row
+        // itself carries the failure rather than only the badge.
+        return lastSync is not null && lastSync.Status != AIDataSourceSyncStatus.Succeeded ? "table-danger" : null;
     }
 
     private string GetSourceDisplayName(AIDataSource dataSource)

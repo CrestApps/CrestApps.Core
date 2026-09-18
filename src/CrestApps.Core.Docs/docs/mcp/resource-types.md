@@ -35,7 +35,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 
 ## Problem & Solution
 
-MCP resources represent files, URLs, or data that clients can read. FTP and SFTP handlers are available as optional packages (`CrestApps.Core.AI.Mcp.Ftp` and `CrestApps.Core.AI.Mcp.Sftp`), and applications often need additional resource types for databases, APIs, blob storage, or custom protocols. Resource type handlers provide a pluggable extension point.
+MCP resources represent files, URLs, or data that clients can read. FTP and SFTP handlers are available as optional packages (`CrestApps.Core.AI.Ftp` and `CrestApps.Core.AI.Sftp`), and applications often need additional resource types for databases, APIs, blob storage, or custom protocols. Resource type handlers provide a pluggable extension point.
 
 ## Built-in Resource Types
 
@@ -43,8 +43,21 @@ MCP resources represent files, URLs, or data that clients can read. FTP and SFTP
 |------|---------|----------|
 | `ftp` | `FtpResourceTypeHandler` | FTP/FTPS |
 | `sftp` | `SftpResourceTypeHandler` | SFTP |
+| `datasource-figure` | `DataSourceFigureResourceHandler` | Knowledge figures and charts in a `File` data source |
 
-Register them explicitly with `AddCoreAIFtpMcpResources()` and `AddCoreAISftpMcpResources()`.
+Register them explicitly with `AddCoreAIFtpMcpResources()`, `AddCoreAISftpMcpResources()` and
+`AddCoreAIKnowledgeMcpResources()`.
+
+### Knowledge figures
+
+`CrestApps.Core.AI.Mcp.Knowledge` publishes one template,
+`crestapps://datasource/{dataSourceId}/figure/{figureId}` — the same address a search result carries, so a
+client can read a figure straight out of what a search told it. Listing resources never enumerates the
+figures in a knowledge base; only the template is published.
+
+A canonical identifier is short and guessable, so the handler establishes that the object belongs to the
+data source in the address and is actually a figure or chart before it serves any bytes. Anything else is a
+not-found.
 
 ## Registration
 

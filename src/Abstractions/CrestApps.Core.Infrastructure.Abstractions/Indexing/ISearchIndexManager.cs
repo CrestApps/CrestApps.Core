@@ -32,6 +32,23 @@ public interface ISearchIndexManager
     Task CreateAsync(IIndexProfileInfo profile, IReadOnlyCollection<SearchIndexField> fields, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Adds fields to an index that already exists, so a schema change reaches indexes built before it.
+    /// </summary>
+    /// <param name="profile">The index profile.</param>
+    /// <param name="fields">The fields to add. A field that is already present is left alone.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns><see langword="true"/> when the provider added the fields, <see langword="false"/> when it cannot.</returns>
+    /// <remarks>
+    /// Default-implemented as "not supported" so a provider outside this repository keeps compiling. A
+    /// provider that returns <see langword="false"/> simply serves an index without the newer columns until
+    /// it is recreated; nothing fails.
+    /// </remarks>
+    Task<bool> TryAddFieldsAsync(IIndexProfileInfo profile, IReadOnlyCollection<SearchIndexField> fields, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(false);
+    }
+
+    /// <summary>
     /// Deletes the specified search index.
     /// </summary>
     /// <param name="profile">The index profile.</param>

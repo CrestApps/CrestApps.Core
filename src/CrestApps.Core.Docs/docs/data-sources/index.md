@@ -41,10 +41,13 @@ The built-in source types are:
 | `AzureAISearch` | An external Azure AI Search index using per-data-source connection settings | explicit notifications through `IAIDataSourceChangeNotifier` |
 | `PostgreSQL` | An external PostgreSQL table using per-data-source connection settings | explicit notifications through `IAIDataSourceChangeNotifier` |
 | `Web` | A target bucket populated by [web crawlers](./web-crawlers.md) that scrape public websites | scheduled re-crawl that re-indexes only the pages that changed |
+| `File` | A target bucket populated by [file sources](./file.md), stored as separate text, figure, chart and table objects | scheduled run that reads only what is new or changed |
 
 `SearchIndexProfile` remains the default source type and the simplest option when your content is already indexed through CrestApps.Core.
 
 A `Web` data source holds no site configuration itself. Instead, one or more **web crawlers** — each choosing a scraping strategy (today, sitemap discovery) — point at it, so many sites can populate a single knowledge base. See [Web Crawlers](./web-crawlers.md).
+
+A `File` data source holds no configuration either. One or more **file sources** — each choosing a connector (a local folder, an FTP server or an SFTP server) — point at it and feed it, the same way web crawlers feed a `Web` data source. What a file holds becomes separately retrievable objects carrying a `contentType`, the page they came from, and a link back to the document they belong to. See [File Sources](./file.md).
 
 ## Field Mapping
 

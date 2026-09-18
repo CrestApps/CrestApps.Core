@@ -5,6 +5,9 @@
     ViewData["Title"] = "AI Deployments";
     var userDefinedDeployments = Model.Where(static deployment => !deployment.IsReadOnly).ToList();
     var configuredDeployments = Model.Where(static deployment => deployment.IsReadOnly).ToList();
+    // A read-only deployment has no editable capability list, so the screen has to spell out what its
+    // declaration costs every request instead of leaving that in a log warning.
+    var limitedConfiguredDeployments = configuredDeployments.Where(static deployment => deployment.GetEnforcedLimits().Count > 0).ToList();
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -48,13 +51,22 @@ else
                                     <td><strong>@deployment.TechnicalName</strong></td>
                                     <td>@(string.IsNullOrWhiteSpace(deployment.ModelName) ? "—" : deployment.ModelName)</td>
                                     <td>
-                                        @if (deployment.SelectedFeatures is null || !deployment.SelectedFeatures.Any())
+                                        @if (deployment.SelectedFeatures is null || deployment.SelectedFeatures.Length == 0)
                                         {
                                             <span class="text-muted">&mdash;</span>
                                         }
-                                        @foreach (var feature in (deployment.SelectedFeatures ?? []).OrderBy(static name => name, StringComparer.OrdinalIgnoreCase))
+                                        else
                                         {
-                                            <span class="badge bg-secondary me-1">@feature</span>
+                                            foreach (var feature in deployment.SelectedFeatures.OrderBy(static name => name, StringComparer.OrdinalIgnoreCase))
+                                            {
+                                                <span class="badge bg-secondary me-1">@feature</span>
+                                            }
+                                        }
+                                        @foreach (var limit in deployment.GetEnforcedLimits())
+                                        {
+                                            <span class="badge text-bg-warning me-1" title="@limit.Description">
+                                                <i class="fa-solid fa-triangle-exclamation"></i> @limit.Label
+                                            </span>
                                         }
                                     </td>
                                     <td>
@@ -89,6 +101,25 @@ else
             </div>
             <div class="card-body">
                 <p class="text-muted mb-3">These deployments come from system configuration and cannot be edited or deleted from the UI.</p>
+                @if (limitedConfiguredDeployments.Count > 0)
+                {
+                    <div class="alert alert-warning">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        A deployment that declares any capability at all is held to that declaration, and these declare one. Anything left out is removed from every request, so the capabilities below are not a description of the model &mdash; they are the whole of what it is allowed to do. Widen the declaration in system configuration; it cannot be corrected here.
+                        <ul class="mb-0 mt-2">
+                            @foreach (var deployment in limitedConfiguredDeployments)
+                            {
+                                <li>
+                                    <strong>@deployment.TechnicalName</strong>
+                                    @foreach (var limit in deployment.GetEnforcedLimits())
+                                    {
+                                        <span>&mdash; @limit.Description</span>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
                 <div class="table-responsive mb-0">
                     <table class="table table-striped table-hover mb-0">
                         <thead class="table-dark">
@@ -107,13 +138,22 @@ else
                                     <td><strong>@deployment.TechnicalName</strong></td>
                                     <td>@(string.IsNullOrWhiteSpace(deployment.ModelName) ? "—" : deployment.ModelName)</td>
                                     <td>
-                                        @if (deployment.SelectedFeatures is null || !deployment.SelectedFeatures.Any())
+                                        @if (deployment.SelectedFeatures is null || deployment.SelectedFeatures.Length == 0)
                                         {
                                             <span class="text-muted">&mdash;</span>
                                         }
-                                        @foreach (var feature in (deployment.SelectedFeatures ?? []).OrderBy(static name => name, StringComparer.OrdinalIgnoreCase))
+                                        else
                                         {
-                                            <span class="badge bg-secondary me-1">@feature</span>
+                                            foreach (var feature in deployment.SelectedFeatures.OrderBy(static name => name, StringComparer.OrdinalIgnoreCase))
+                                            {
+                                                <span class="badge bg-secondary me-1">@feature</span>
+                                            }
+                                        }
+                                        @foreach (var limit in deployment.GetEnforcedLimits())
+                                        {
+                                            <span class="badge text-bg-warning me-1" title="@limit.Description">
+                                                <i class="fa-solid fa-triangle-exclamation"></i> @limit.Label
+                                            </span>
                                         }
                                     </td>
                                     <td>

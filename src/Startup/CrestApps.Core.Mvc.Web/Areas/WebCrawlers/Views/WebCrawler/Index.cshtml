@@ -14,7 +14,7 @@
 {
     <div class="alert alert-info">
         <i class="fa-solid fa-circle-info"></i> No web crawlers found.
-        Create one to scrape a website into a Web data source.
+        Create one to crawl a website into a Web data source. A folder or a file server is set up under File Sources.
     </div>
 }
 else
@@ -26,7 +26,8 @@ else
                     <th>Title</th>
                     <th>Strategy</th>
                     <th>Enabled</th>
-                    <th style="width: 250px;">Actions</th>
+                    <th>Last run</th>
+                    <th style="width: 320px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -46,11 +47,36 @@ else
                             }
                         </td>
                         <td>
+                            @if (item.TryGet<CrestApps.Core.AI.FileSources.IndexerRunSummary>(out var lastRun))
+                            {
+                                <span class="badge @(lastRun.Status == CrestApps.Core.AI.FileSources.FileSourceRunStatus.Succeeded ? "bg-success" : lastRun.Status == CrestApps.Core.AI.FileSources.FileSourceRunStatus.Failed ? "bg-danger" : "bg-warning text-dark")">@lastRun.Status</span>
+                                <div class="small text-muted">
+                                    @lastRun.StartedUtc.ToString("u") &mdash; @lastRun.ItemsIndexed indexed, @lastRun.ItemsDeleted removed
+                                    @if (!lastRun.DiscoveryCompleted)
+                                    {
+                                        <text>(partial listing)</text>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="text-muted">Never</span>
+                            }
+                        </td>
+                        <td>
                             <form asp-action="Sync" asp-route-id="@item.ItemId"
                                   method="post" class="d-inline">
                                 @Html.AntiForgeryToken()
                                 <button type="submit" class="btn btn-sm btn-outline-success">
                                     <i class="fa-solid fa-arrows-rotate"></i> Sync
+                                </button>
+                            </form>
+                            <form asp-action="ResetState" asp-route-id="@item.ItemId"
+                                  method="post" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-sm btn-outline-warning"
+                                        onclick="return confirm('Forget what this indexer has read? The next run re-reads every item.')">
+                                    <i class="fa-solid fa-rotate-left"></i> Reset state
                                 </button>
                             </form>
                             <a asp-action="Edit" asp-route-id="@item.ItemId"

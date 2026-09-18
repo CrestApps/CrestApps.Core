@@ -144,7 +144,7 @@ public static class UploadChatSessionDocument
                 [AIChatDocumentOperations.ManageDocuments]);
             if (!authorization.Succeeded)
             {
-                return TypedResults.Forbid();
+                return TypedResults.Json(new { error = "You do not have permission to manage documents here." }, statusCode: StatusCodes.Status403Forbidden);
             }
 
             var deployment = await ResolveSessionDeploymentAsync(profile, deploymentManager);
@@ -187,6 +187,11 @@ public static class UploadChatSessionDocument
                     allowVisionImages,
                     sessionDocMetadata?.AllowSessionDocuments == true,
                     visionDeployment?.Name,
+                    // The profile's own ceiling when it set one; the site's otherwise.
+                    profile?.TryGet<DocumentsMetadata>(out var documentsMetadata) == true ? documentsMetadata.MaxIndexableCharacters : null,
+                    // The profile's choice about describing figures, which is the expensive
+                    // half of ingestion and recurs across every session on that profile.
+                    profile?.TryGet<DocumentsMetadata>(out var figureMetadata) == true ? figureMetadata.DescribeFiguresInUploads : null,
                     logger,
                     S);
                 if (!result.Success)

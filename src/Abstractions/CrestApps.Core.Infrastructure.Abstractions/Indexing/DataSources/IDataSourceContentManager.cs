@@ -18,7 +18,10 @@ public interface IDataSourceContentManager
     /// <param name="topN">The maximum number of results to return.</param>
     /// <param name="filter">An optional filter expression to narrow the search.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>An enumerable of search results ranked by similarity.</returns>
+    /// <returns>An enumerable of search results ranked by similarity, which is empty when the search matched nothing and when it failed.</returns>
+    /// <remarks>
+    /// A caller that needs to know which of those two happened reads <see cref="TrySearchAsync"/> instead.
+    /// </remarks>
     Task<IEnumerable<DataSourceSearchResult>> SearchAsync(
         IIndexProfileInfo indexProfile,
         float[] embedding,
@@ -26,6 +29,40 @@ public interface IDataSourceContentManager
         int topN,
         string filter = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Searches for document chunks that are similar to the provided embedding vector, and reports whether
+    /// the search ran at all.
+    /// </summary>
+    /// <param name="indexProfile">The index profile describing the target index.</param>
+    /// <param name="embedding">The embedding vector to search against.</param>
+    /// <param name="dataSourceId">The identifier of the data source to search within.</param>
+    /// <param name="topN">The maximum number of results to return.</param>
+    /// <param name="filter">An optional filter expression to narrow the search.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The outcome of the search, or <see langword="null"/> when the provider cannot tell a search that failed from one that matched nothing.</returns>
+    /// <remarks>
+    /// <see cref="SearchAsync"/> answers an unreachable index, a refused credential and a genuine miss with
+    /// the same empty list, so everything upstream reads a dead knowledge base as one that simply holds
+    /// nothing — which is how a model comes to state with confidence that content does not exist. This tells
+    /// the two apart.
+    /// <para>
+    /// Default-implemented as "not supported" so a provider outside this repository keeps compiling and keeps
+    /// the old behaviour. Callers read it through
+    /// <see cref="DataSourceContentManagerExtensions.SearchWithOutcomeAsync"/>, which falls back to
+    /// <see cref="SearchAsync"/> for such a provider rather than leaving every caller to handle its absence.
+    /// </para>
+    /// </remarks>
+    Task<DataSourceSearchOutcome> TrySearchAsync(
+        IIndexProfileInfo indexProfile,
+        float[] embedding,
+        string dataSourceId,
+        int topN,
+        string filter = null,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<DataSourceSearchOutcome>(null);
+    }
 
     /// <summary>
     /// Deletes all document chunks belonging to the specified data source from the index.
@@ -38,4 +75,27 @@ public interface IDataSourceContentManager
         IIndexProfileInfo indexProfile,
         string dataSourceId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes every row belonging to the supplied reference identifiers.
+    /// </summary>
+    /// <param name="profile">The index profile.</param>
+    /// <param name="dataSourceId">The owning data source.</param>
+    /// <param name="referenceIds">The reference identifiers to delete.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns><see langword="true"/> when the provider performed the delete, <see langword="false"/> when it cannot.</returns>
+    /// <remarks>
+    /// Deleting by identifier list means guessing how many chunks a reference produced and asking for all of
+    /// them, which is a thousand identifiers per reference. A provider that can delete by predicate does it
+    /// in one statement instead. Default-implemented as "not supported" so a provider outside this
+    /// repository keeps compiling and keeps the old behaviour.
+    /// </remarks>
+    Task<bool> DeleteByReferenceIdsAsync(
+        IIndexProfileInfo profile,
+        string dataSourceId,
+        IReadOnlyCollection<string> referenceIds,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(false);
+    }
 }

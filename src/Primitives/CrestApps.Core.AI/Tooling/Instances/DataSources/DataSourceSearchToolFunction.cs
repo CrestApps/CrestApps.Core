@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Services;
 using Microsoft.Extensions.AI;
@@ -33,6 +33,11 @@ public sealed class DataSourceSearchToolFunction : AIFunction
           "minItems": 1,
           "maxItems": 3,
           "description": "One search phrase per genuinely distinct topic the question covers. Each phrase is a short set of keywords (nouns and distinctive words), not the user's full sentence. Pass a SINGLE phrase unless the question really spans separate subjects — for example ['vacation policy', 'sick leave policy'] for a question comparing the two. Never pass synonyms, rewordings, or singular/plural variants of the same idea: they retrieve the same content twice and waste the search budget."
+        },
+        "contentTypes": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["text", "figure", "chart", "table", "article", "document"] },
+          "description": "Optional. Limits the search to these kinds of knowledge. Use it only when the question is specifically about one kind - for example ['chart'] for \"what does the chart on page 8 show\". Omit it to search everything."
         }
       },
       "required": ["queries"],
@@ -121,7 +126,7 @@ public sealed class DataSourceSearchToolFunction : AIFunction
 
         try
         {
-            return await DataSourceRetrieval.SearchAsync(
+            return await DataSourceRetrieval.SearchDetailedAsync(
                 services,
                 new DataSourceRetrievalRequest
                 {
@@ -130,6 +135,7 @@ public sealed class DataSourceSearchToolFunction : AIFunction
                     TopNDocuments = _settings.TopNDocuments,
                     Strictness = _settings.Strictness,
                     Filter = _settings.Filter,
+                    ObjectTypes = ReadContentTypes(arguments) ?? _settings.ContentTypes,
                     RetrievalMode = _settings.RetrievalMode,
                 },
                 _name,
@@ -146,6 +152,53 @@ public sealed class DataSourceSearchToolFunction : AIFunction
 
             return "An error occurred while searching the data source.";
         }
+    }
+
+    /// <summary>
+    /// Reads the kinds of knowledge the model asked for, narrowed to what the instance allows.
+    /// </summary>
+    /// <param name="arguments">The arguments supplied by the AI model.</param>
+    /// <returns>The kinds to search, or <see langword="null"/> to use the configured ones.</returns>
+    /// <remarks>
+    /// A model may narrow a search but never widen it: an instance configured for figures alone stays an
+    /// instance for figures alone, whatever the model asks for.
+    /// </remarks>
+    private string[] ReadContentTypes(AIFunctionArguments arguments)
+    {
+        if (!arguments.TryGetValue("contentTypes", out var raw) || raw is null)
+        {
+            return null;
+        }
+
+        var requested = raw switch
+        {
+            string single when !string.IsNullOrWhiteSpace(single) => [single],
+            IEnumerable<string> many => many.Where(item => !string.IsNullOrWhiteSpace(item)).ToArray(),
+            JsonElement { ValueKind: JsonValueKind.Array } element => element
+                .EnumerateArray()
+                .Where(item => item.ValueKind == JsonValueKind.String)
+                .Select(item => item.GetString())
+                .Where(item => !string.IsNullOrWhiteSpace(item))
+                .ToArray(),
+            JsonElement { ValueKind: JsonValueKind.String } element => [element.GetString()],
+            _ => Array.Empty<string>(),
+        };
+
+        if (requested.Length == 0)
+        {
+            return null;
+        }
+
+        if (_settings.ContentTypes is not { Length: > 0 })
+        {
+            return requested;
+        }
+
+        var allowed = requested
+            .Where(item => _settings.ContentTypes.Contains(item, StringComparer.OrdinalIgnoreCase))
+            .ToArray();
+
+        return allowed.Length == 0 ? _settings.ContentTypes : allowed;
     }
 
     /// <summary>

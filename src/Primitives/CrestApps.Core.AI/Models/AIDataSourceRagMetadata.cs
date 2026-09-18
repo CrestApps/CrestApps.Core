@@ -30,4 +30,19 @@ public sealed class AIDataSourceRagMetadata
     /// The filter format depends on the search provider (e.g., Elasticsearch query for Elasticsearch).
     /// </summary>
     public string Filter { get; set; }
+
+    /// <summary>
+    /// Gets or sets the kinds of knowledge to retrieve, for example only figures and charts. When empty,
+    /// every kind is retrieved. See <see cref="CrestApps.Core.Infrastructure.Indexing.KnowledgeObjectTypes"/>.
+    /// </summary>
+    /// <remarks>
+    /// A tool instance could already be pinned to particular kinds through its own settings, but a data
+    /// source attached straight to a profile had no equivalent: the same knowledge base narrowed one way when
+    /// the model chose to search it and not at all when the profile searched it preemptively. This is that
+    /// restriction for the preemptive path.
+    /// <para>
+    /// Asking for text also admits rows written before typed knowledge existed, which carry no kind at all.
+    /// </para>
+    /// </remarks>
+    public string[] ObjectTypes { get; set; }
 }

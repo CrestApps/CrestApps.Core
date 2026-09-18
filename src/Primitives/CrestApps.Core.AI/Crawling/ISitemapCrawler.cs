@@ -10,6 +10,23 @@ namespace CrestApps.Core.AI.Crawling;
 public interface ISitemapCrawler
 {
     /// <summary>
+    /// Discovers the page entries and says whether the walk covered the whole sitemap graph.
+    /// </summary>
+    /// <param name="client">The HTTP client used to download sitemap and <c>robots.txt</c> documents.</param>
+    /// <param name="request">The discovery request describing the site and limits.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The entries, and whether they are all of them.</returns>
+    /// <remarks>
+    /// A walk stops short when the page cap is reached, when the sitemap graph is larger than the crawler
+    /// will follow, or when a child sitemap could not be downloaded. A caller that deletes what it did not
+    /// see has to be able to tell those apart from a site that genuinely shrank.
+    /// </remarks>
+    Task<SitemapDiscoveryResult> DiscoverDetailedAsync(
+        HttpClient client,
+        SitemapCrawlRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Discovers the page entries for the supplied request by walking its sitemap graph.
     /// </summary>
     /// <param name="client">The HTTP client used to download sitemap and <c>robots.txt</c> documents.</param>

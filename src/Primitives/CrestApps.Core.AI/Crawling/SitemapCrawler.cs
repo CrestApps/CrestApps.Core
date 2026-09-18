@@ -43,6 +43,15 @@ public sealed class SitemapCrawler : ISitemapCrawler
         SitemapCrawlRequest request,
         CancellationToken cancellationToken = default)
     {
+        return (await DiscoverDetailedAsync(client, request, cancellationToken)).Entries;
+    }
+
+    /// <inheritdoc />
+    public async Task<SitemapDiscoveryResult> DiscoverDetailedAsync(
+        HttpClient client,
+        SitemapCrawlRequest request,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(request);
 
@@ -63,6 +72,7 @@ public sealed class SitemapCrawler : ISitemapCrawler
         }
 
         var processedSitemaps = 0;
+        string incomplete = null;
 
         while (queue.Count > 0 && entries.Count < maxPages && processedSitemaps < MaxSitemapDocuments)
         {
@@ -73,6 +83,10 @@ public sealed class SitemapCrawler : ISitemapCrawler
 
             if (content is null)
             {
+                // The pages this sitemap lists are missing from the result through no fault of the site.
+                // A caller that deleted what it did not see would delete all of them.
+                incomplete ??= "One or more sitemaps could not be downloaded.";
+
                 continue;
             }
 
@@ -101,9 +115,23 @@ public sealed class SitemapCrawler : ISitemapCrawler
                     }
                 }
             }
+            else if (childSitemaps.Count > 0)
+            {
+                incomplete ??= "The sitemap graph is nested deeper than the crawler follows.";
+            }
         }
 
-        return entries;
+        if (entries.Count >= maxPages)
+        {
+            incomplete ??= "The page limit was reached before the sitemap was fully read.";
+        }
+
+        if (processedSitemaps >= MaxSitemapDocuments && queue.Count > 0)
+        {
+            incomplete ??= "The site lists more sitemaps than the crawler reads in one pass.";
+        }
+
+        return new SitemapDiscoveryResult(entries, incomplete is null, incomplete);
     }
 
     /// <summary>

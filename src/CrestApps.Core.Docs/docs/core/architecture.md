@@ -63,8 +63,8 @@ This page describes the project architecture and how the major layers depend on 
 | `CrestApps.Core.Elasticsearch` | Elasticsearch provider primitives for client setup, index management, document management, and query/filter translation |
 | `CrestApps.Core.AI.Elasticsearch` | Elasticsearch integration for AI document index profiles, AI memory search, and AI data-source registrations |
 | `CrestApps.Core.AI.Mcp` | Model Context Protocol (MCP) client and server |
-| `CrestApps.Core.AI.Mcp.Ftp` | FTP/FTPS MCP resource type handler |
-| `CrestApps.Core.AI.Mcp.Sftp` | SFTP MCP resource type handler |
+| `CrestApps.Core.AI.Ftp` | Everything FTP/FTPS: the file-source ingestion connector and the MCP resource type handler |
+| `CrestApps.Core.AI.Sftp` | Everything SFTP: the file-source ingestion connector and the MCP resource type handler |
 | `CrestApps.Core.Azure` | Azure-specific utilities and integration helpers |
 | `CrestApps.Core.SignalR` | SignalR hub abstractions for real-time AI chat |
 | `CrestApps.Core.Support` | General utility classes |

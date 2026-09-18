@@ -85,6 +85,80 @@ internal sealed class PostgreSQLSearchIndexManager : ISearchIndexManager
     }
 
     /// <summary>
+    /// Builds the statement that adds one column to an index that already exists.
+    /// </summary>
+    /// <param name="quotedTableName">The table, already quoted.</param>
+    /// <param name="field">The field to add.</param>
+    /// <returns>The statement.</returns>
+    /// <remarks>
+    /// <c>IF NOT EXISTS</c> is what makes topping up a schema safe to run on every synchronization: an
+    /// index already carrying the column is left exactly as it is.
+    /// </remarks>
+    internal static string BuildAddColumnStatement(string quotedTableName, SearchIndexField field)
+    {
+        var columnName = SanitizeColumnName(field.Name);
+        var columnType = field.FieldType switch
+        {
+            SearchFieldType.Integer => "INTEGER",
+            SearchFieldType.Float => "REAL",
+            SearchFieldType.DateTime => "TIMESTAMPTZ",
+            _ => "TEXT",
+        };
+
+        return $"ALTER TABLE {quotedTableName} ADD COLUMN IF NOT EXISTS {columnName} {columnType}";
+    }
+
+    /// <summary>
+    /// Adds any of the supplied fields that the table does not already have.
+    /// </summary>
+    /// <param name="profile">The index profile.</param>
+    /// <param name="fields">The fields the schema should have.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns><see langword="true"/> when the table was brought up to date.</returns>
+    /// <remarks>
+    /// Only additive changes are made. A column that exists keeps whatever type it has, because changing a
+    /// populated column's type is a migration rather than a schema top-up.
+    /// </remarks>
+    public async Task<bool> TryAddFieldsAsync(IIndexProfileInfo profile, IReadOnlyCollection<SearchIndexField> fields, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(fields);
+
+        var tableName = SanitizeTableName(profile.IndexFullName);
+        var quotedTableName = PostgreSQLHelpers.QuoteIdentifier(tableName);
+
+        try
+        {
+            var dataSource = _clientFactory.Create();
+            await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+
+            foreach (var field in fields)
+            {
+                if (field.IsKey || field.FieldType == SearchFieldType.Vector)
+                {
+                    continue;
+                }
+
+                await using var command = connection.CreateCommand();
+                command.CommandText = BuildAddColumnStatement(quotedTableName, field);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to add fields to PostgreSQL table '{TableName}'.", tableName);
+
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Creates a new index table in PostgreSQL with the specified fields including pgvector columns.
     /// </summary>
     /// <param name="profile">The index profile.</param>

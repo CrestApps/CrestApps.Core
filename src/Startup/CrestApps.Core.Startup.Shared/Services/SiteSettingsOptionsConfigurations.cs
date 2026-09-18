@@ -122,6 +122,8 @@ internal static class SiteSettingsInteractionDocumentOptionsMapper
         options.RetrievalMode = settings.RetrievalMode;
         options.AllowDocumentUploads = settings.AllowDocumentUploads;
         options.AllowImageUploads = settings.AllowImageUploads;
+        options.MaxIndexableCharacters = settings.MaxIndexableCharacters;
+        options.DescribeFiguresInUploads = settings.DescribeFiguresInUploads;
     }
 }
 

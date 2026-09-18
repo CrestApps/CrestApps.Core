@@ -60,6 +60,8 @@ const sidebars = {
                         'data-sources/azure-ai',
                         'data-sources/elasticsearch',
                         'data-sources/postgresql',
+                        'data-sources/file',
+                        'data-sources/indexers',
                         'data-sources/web-crawlers',
                     ],
                 },

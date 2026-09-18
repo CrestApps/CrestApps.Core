@@ -1,4 +1,4 @@
-@using CrestApps.Core.AI.Documents.Models
+﻿@using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.Mvc.Web.Services
@@ -668,6 +668,11 @@
                         <input asp-for="DataSourceFilter" class="form-control" placeholder="Optional provider-specific filter" />
                         <div class="form-text">Optional filter expression passed to the configured data source provider.</div>
                     </div>
+                    <div class="mb-3 rag-data-source-filter-dependent">
+                        <label asp-for="DataSourceObjectTypes" class="form-label">Kinds of knowledge</label>
+                        <input asp-for="DataSourceObjectTypes" class="form-control" placeholder="e.g. figure, chart" />
+                        <div class="form-text">Comma-separated. Leave empty to retrieve every kind. Values: document, article, text, figure, chart, table.</div>
+                    </div>
                     <div class="mb-3">
                         <div class="form-check form-switch">
                             <input asp-for="DataSourceIsInScope" class="form-check-input" type="checkbox" />
@@ -680,7 +685,6 @@
                             <div class="mb-3">
                                 <label asp-for="DocumentTopN" class="form-label">Document Top N</label>
                                 <input asp-for="DocumentTopN" type="number" class="form-control" min="1" max="20" placeholder="Default: 3" />
-                            </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -721,6 +725,22 @@
                             <label asp-for="AllowSessionDocuments" class="form-check-label">Allow session document uploads</label>
                         </div>
                         <div class="form-text">Allow users to upload documents during chat sessions with this profile.</div>
+                    </div>
+
+                    <div class="mb-3" id="max-indexable-characters-row">
+                        <label asp-for="MaxIndexableCharacters" class="form-label">Largest document that can be indexed</label>
+                        <input asp-for="MaxIndexableCharacters" type="number" class="form-control" min="0" placeholder="Use site default" />
+                        <div class="form-text">Characters of extracted text. A larger document is refused at upload rather than stored unsearchable. Leave empty to use the site&#39;s limit; 0 means no limit.</div>
+                    </div>
+
+                    <div class="mb-3" id="analyze-images-row">
+                        <label asp-for="DescribeFiguresInUploads" class="form-label">Describe figures in uploaded documents</label>
+                        <select asp-for="DescribeFiguresInUploads" class="form-select">
+                            <option value="">Use site default</option>
+                            <option value="true">Describe figures</option>
+                            <option value="false">Do not describe figures</option>
+                        </select>
+                        <div class="form-text">Describing figures uses a vision model and is the expensive part of ingestion. It needs a deployment in the Vision slot &ndash; with none configured nothing is described, and a figure keeps its caption either way.</div>
                     </div>
 
                     <div class="mb-3">
@@ -779,6 +799,7 @@
                             </div>
                         </div>
                     </div>
+                </div>
                 </div>
 
                 <!-- Data Processing & Metrics Tab -->
@@ -1133,6 +1154,29 @@
 </form>
 
 @section Scripts {
+<script>
+    // The ceiling only applies to documents uploaded in a session, so it is shown only when those are
+    // allowed. Bound on input as well as change so the row follows the switch immediately.
+    (function () {
+        var toggle = document.querySelector('[name="AllowSessionDocuments"]');
+        var rows = ['max-indexable-characters-row', 'analyze-images-row']
+            .map(function (id) { return document.getElementById(id); })
+            .filter(Boolean);
+
+        if (!toggle || rows.length === 0) {
+            return;
+        }
+
+        function sync() {
+            rows.forEach(function (row) { row.style.display = toggle.checked ? '' : 'none'; });
+        }
+
+        toggle.addEventListener('change', sync);
+        toggle.addEventListener('input', sync);
+        sync();
+    })();
+</script>
+
     <script src="~/_content/CrestApps.AI.Resources/scripts/document-drop-zone.js" asp-append-version="true"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {

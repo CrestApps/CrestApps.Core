@@ -190,10 +190,7 @@ public static class McpServerBuilderExtensions
                 {
                     var result = await codeTool.InvokeAsync(BuildArguments(request), cancellationToken);
 
-                    return new CallToolResult
-                    {
-                        Content = [new TextContentBlock { Text = result?.ToString() ?? string.Empty }],
-                    };
+                    return McpToolResultMapper.ToCallToolResult(result);
                 }
 
                 var instanceCatalog = request.Services.GetService<INamedCatalog<AIToolInstance>>();
@@ -212,10 +209,7 @@ public static class McpServerBuilderExtensions
                         {
                             var result = await instanceFunction.InvokeAsync(BuildArguments(request), cancellationToken);
 
-                            return new CallToolResult
-                            {
-                                Content = [new TextContentBlock { Text = result?.ToString() ?? string.Empty }],
-                            };
+                            return McpToolResultMapper.ToCallToolResult(result);
                         }
                     }
                 }
@@ -231,10 +225,7 @@ public static class McpServerBuilderExtensions
                     var agentTool = new AgentProxyTool(agent.Name, agent.Description);
                     var agentResult = await agentTool.InvokeAsync(BuildArguments(request), cancellationToken);
 
-                    return new CallToolResult
-                    {
-                        Content = [new TextContentBlock { Text = agentResult?.ToString() ?? string.Empty }],
-                    };
+                    return McpToolResultMapper.ToCallToolResult(agentResult);
                 }
 
                 throw new McpException($"Tool '{request.Params.Name}' not found.");

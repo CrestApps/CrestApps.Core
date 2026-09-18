@@ -1,0 +1,27 @@
+<script>
+    (() => {
+        const connectorField = document.getElementById('Source');
+
+        const updateVisibility = () => {
+            const connector = connectorField ? connectorField.value : '';
+
+            // A settings card names the connectors it belongs to, space separated, and is shown for
+            // those only. Without this every connector's card renders on every file source's form.
+            const sections = document.querySelectorAll('[data-source-section]');
+
+            for (const section of sections) {
+                const sources = (section.getAttribute('data-source-section') || '')
+                    .split(/\s+/)
+                    .filter(value => value.length > 0);
+
+                section.hidden = sources.indexOf(connector) === -1;
+            }
+        };
+
+        if (connectorField) {
+            connectorField.addEventListener('change', updateVisibility);
+        }
+
+        updateVisibility();
+    })();
+</script>

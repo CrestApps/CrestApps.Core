@@ -108,7 +108,7 @@ public static class UploadChatInteractionDocument
             var authorization = await authorizationService.AuthorizeAsync(request.HttpContext.User, interaction, [AIChatDocumentOperations.ManageDocuments]);
             if (!authorization.Succeeded)
             {
-                return TypedResults.Forbid();
+                return TypedResults.Json(new { error = "You do not have permission to manage documents here." }, statusCode: StatusCodes.Status403Forbidden);
             }
 
             if (logger.IsEnabled(LogLevel.Information))
@@ -175,6 +175,11 @@ public static class UploadChatInteractionDocument
                     allowVisionImages,
                     allowDocumentUploads,
                     visionDeployment?.Name,
+                    // The profile's own ceiling when it set one; the site's otherwise.
+                    interaction.TryGet<DocumentsMetadata>(out var documentsMetadata) ? documentsMetadata.MaxIndexableCharacters : null,
+                    // A chat interaction is one conversation, so the recurring cost this
+                    // controls does not arise; it follows the host's setting.
+                    null,
                     logger,
                     S);
                 if (!result.Success)

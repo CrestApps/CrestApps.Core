@@ -30,9 +30,11 @@
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Chat/CrestApps.Core.AI.Chat.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.WebRTC/CrestApps.Core.AI.WebRTC.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
-    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Mcp.Ftp/CrestApps.Core.AI.Mcp.Ftp.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Ftp/CrestApps.Core.AI.Ftp.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Mcp.Knowledge/CrestApps.Core.AI.Mcp.Knowledge.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.FileSources/CrestApps.Core.AI.FileSources.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Markdown/CrestApps.Core.AI.Markdown.csproj" />
-    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Mcp.Sftp/CrestApps.Core.AI.Mcp.Sftp.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Sftp/CrestApps.Core.AI.Sftp.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Documents.OpenXml/CrestApps.Core.AI.Documents.OpenXml.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Documents.Pdf/CrestApps.Core.AI.Documents.Pdf.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Elasticsearch/CrestApps.Core.AI.Elasticsearch.csproj" />

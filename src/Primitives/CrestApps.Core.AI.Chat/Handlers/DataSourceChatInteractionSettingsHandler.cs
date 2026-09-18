@@ -88,6 +88,7 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
         var topNDocuments = GetInt(settings, "topNDocuments");
         var strictness = GetInt(settings, "strictness");
         var filter = GetString(settings, "filter");
+        var objectTypes = SplitObjectTypes(GetString(settings, "objectTypes"));
 
         interaction.Alter<AIDataSourceRagMetadata>(metadata =>
         {
@@ -95,7 +96,31 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
             metadata.TopNDocuments = topNDocuments;
             metadata.IsInScope = isInScope;
             metadata.Filter = filter;
+            metadata.ObjectTypes = objectTypes;
         });
+    }
+
+    /// <summary>
+    /// Turns the comma-separated kinds the settings panel carries into the array the metadata stores.
+    /// </summary>
+    /// <param name="value">The value as typed.</param>
+    /// <returns>The kinds, or <see langword="null"/> when nothing was named.</returns>
+    /// <remarks>
+    /// Naming nothing is not a restriction to nothing: an empty box means every kind, so it stores null
+    /// rather than an empty array that a reader could mistake for "none of them".
+    /// </remarks>
+    private static string[] SplitObjectTypes(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var objectTypes = value
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToArray();
+
+        return objectTypes.Length == 0 ? null : objectTypes;
     }
 
     private static string GetString(JsonElement element, string propertyName)

@@ -1,4 +1,4 @@
-using CrestApps.Core.AI;
+﻿using CrestApps.Core.AI;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI;
@@ -9,11 +9,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using BlazorDeploymentViewModel = CrestApps.Core.Blazor.Web.ViewModels.AIDeploymentViewModel;
+using MvcDeploymentViewModel = CrestApps.Core.Mvc.Web.Areas.AI.ViewModels.AIDeploymentViewModel;
 
 namespace CrestApps.Core.Tests.Framework.Mvc;
 
 public sealed class ConfigurationAIDeploymentCatalogTests
 {
+
     [Fact]
     public async Task GetAllAsync_ShouldMergeStoredAndConfiguredStandaloneDeployments()
     {
@@ -388,6 +391,8 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
 
         // Assert
+        // The explicit entry is read first and the connection's synonym is dropped as a duplicate, so the
+        // declared feature set survives untouched rather than being widened to the chat model set.
         var chatDeployment = Assert.Single(deployments, d => d.Name == "gpt-4.1-mini");
 
         // The explicit entry wins over the connection-synthesized one, so it declares only what its own

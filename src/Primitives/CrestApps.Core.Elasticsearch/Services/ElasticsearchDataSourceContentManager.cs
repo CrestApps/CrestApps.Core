@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json.Nodes;
 using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -61,7 +61,35 @@ internal sealed class ElasticsearchDataSourceContentManager : IDataSourceContent
     /// <param name="topN">The top n.</param>
     /// <param name="filter">The filter.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <remarks>
+    /// A cluster that cannot be reached reads here as an index holding nothing, exactly as it always has. A
+    /// caller that has to tell those apart reads <see cref="TrySearchAsync"/> instead.
+    /// </remarks>
     public async Task<IEnumerable<DataSourceSearchResult>> SearchAsync(
+        IIndexProfileInfo indexProfile,
+        float[] embedding,
+        string dataSourceId,
+        int topN,
+        string filter = null,
+        CancellationToken cancellationToken = default)
+    {
+        var outcome = await TrySearchAsync(indexProfile, embedding, dataSourceId, topN, filter, cancellationToken);
+
+        return outcome.Results;
+    }
+
+    /// <summary>
+    /// Searches the index, reporting a query that could not run as a failure rather than as an index with
+    /// nothing in it.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="embedding">The embedding.</param>
+    /// <param name="dataSourceId">The data source id.</param>
+    /// <param name="topN">The top n.</param>
+    /// <param name="filter">The filter.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The outcome of the search.</returns>
+    public async Task<DataSourceSearchOutcome> TrySearchAsync(
         IIndexProfileInfo indexProfile,
         float[] embedding,
         string dataSourceId,
@@ -75,7 +103,7 @@ internal sealed class ElasticsearchDataSourceContentManager : IDataSourceContent
 
         if (embedding.Length == 0)
         {
-            return [];
+            return DataSourceSearchOutcome.Success([]);
         }
 
         try
@@ -114,9 +142,11 @@ internal sealed class ElasticsearchDataSourceContentManager : IDataSourceContent
 
             if (!response.IsValidResponse)
             {
+                // An unreachable cluster and a refused credential both land here, and neither is a statement
+                // about what the index holds.
                 _logger.LogWarning("Elasticsearch data source vector search failed: {Error}", response.DebugInformation);
 
-                return [];
+                return DataSourceSearchOutcome.Failure();
             }
 
             var results = new List<DataSourceSearchResult>();
@@ -162,26 +192,167 @@ internal sealed class ElasticsearchDataSourceContentManager : IDataSourceContent
                     results.Add(new DataSourceSearchResult
                     {
                         ReferenceId = referenceId,
+                        DataSourceId = dataSourceId,
                         Title = title,
                         Content = content,
                         ChunkIndex = chunkIndex,
                         ReferenceType = referenceType,
                         Score = (float)(hit.Score ?? 0.0),
+                        ContentType = ReadString(document, DataSourceConstants.ColumnNames.ContentType) ?? KnowledgeObjectTypes.Text,
+                        RootId = ReadString(document, DataSourceConstants.ColumnNames.RootId),
+                        ParentId = ReadString(document, DataSourceConstants.ColumnNames.ParentId),
+                        Page = ReadInt32(document, DataSourceConstants.ColumnNames.Page),
+                        Filters = ReadFilters(document),
                     });
                 }
             }
 
-            return results
+            return DataSourceSearchOutcome.Success(results
                 .OrderByDescending(r => r.Score)
                 .Take(topN)
-                .ToList();
+                .ToList());
         }
-
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error performing data source vector search in Elasticsearch index '{IndexName}'", indexProfile.IndexFullName);
 
-            return [];
+            return DataSourceSearchOutcome.Failure();
+        }
+    }
+
+    /// <summary>
+    /// Reads one string field, tolerating its absence.
+    /// </summary>
+    /// <param name="document">The document.</param>
+    /// <param name="name">The field name.</param>
+    /// <returns>The value, or <see langword="null"/> when the field is not present.</returns>
+    /// <remarks>
+    /// An index built before typed knowledge existed simply has no such field, and a row from it reads as
+    /// ordinary text rather than failing the search.
+    /// </remarks>
+    private static string ReadString(JsonObject document, string name)
+    {
+        if (!document.TryGetPropertyValue(name, out var node) || node == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return node.GetValue<string>();
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Reads one integer field, tolerating its absence.
+    /// </summary>
+    /// <param name="document">The document.</param>
+    /// <param name="name">The field name.</param>
+    /// <returns>The value, or <see langword="null"/> when the field is not present.</returns>
+    private static int? ReadInt32(JsonObject document, string name)
+    {
+        if (!document.TryGetPropertyValue(name, out var node) || node == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return node.GetValue<int>();
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Reads the filter values stored alongside the row.
+    /// </summary>
+    /// <param name="document">The document.</param>
+    /// <returns>The filters, or <see langword="null"/> when the row carries none.</returns>
+    private static Dictionary<string, object> ReadFilters(JsonObject document)
+    {
+        if (!document.TryGetPropertyValue(DataSourceConstants.ColumnNames.Filters, out var node) || node is not JsonObject filters)
+        {
+            return null;
+        }
+
+        var values = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in filters)
+        {
+            values[entry.Key] = entry.Value?.ToString();
+        }
+
+        return values;
+    }
+
+    /// <summary>
+    /// Deletes every row belonging to the supplied reference identifiers in one request.
+    /// </summary>
+    /// <param name="indexProfile">The index profile.</param>
+    /// <param name="dataSourceId">The owning data source.</param>
+    /// <param name="referenceIds">The reference identifiers to delete.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns><see langword="true"/> when the delete ran.</returns>
+    public async Task<bool> DeleteByReferenceIdsAsync(
+        IIndexProfileInfo indexProfile,
+        string dataSourceId,
+        IReadOnlyCollection<string> referenceIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(indexProfile);
+        ArgumentException.ThrowIfNullOrWhiteSpace(dataSourceId);
+        ArgumentNullException.ThrowIfNull(referenceIds);
+
+        if (referenceIds.Count == 0)
+        {
+            return true;
+        }
+
+        try
+        {
+            var values = referenceIds.Select(FieldValue (id) => id).ToArray();
+
+            var response = await _elasticClient.DeleteByQueryAsync<JsonObject>(indexProfile.IndexFullName, d => d
+                .Query(q => q
+                    .Bool(b => b
+                        .Must(
+                            m => m.Term(t => t.Field(DataSourceConstants.ColumnNames.DataSourceId).Value(dataSourceId)),
+                            m => m.Terms(t => t.Field(DataSourceConstants.ColumnNames.ReferenceId).Terms(new TermsQueryField(values)))
+                        )
+                    )
+                ),
+                cancellationToken);
+
+            if (!response.IsValidResponse)
+            {
+                _logger.LogWarning("Elasticsearch delete by reference id failed for index '{IndexName}': {Error}", indexProfile.IndexFullName, response.DebugInformation);
+
+                return false;
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Returning false lets the caller fall back to deleting by identifier list.
+            _logger.LogWarning(ex, "Error deleting by reference id in Elasticsearch index '{IndexName}'.", indexProfile.IndexFullName);
+
+            return false;
         }
     }
 

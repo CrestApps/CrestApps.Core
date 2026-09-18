@@ -13,4 +13,5 @@ When citing information, include the corresponding reference marker (e.g., [doc:
 {% if searchToolName %}
 
 If you need additional context or more relevant information, use the '{{ searchToolName }}' tool to retrieve more documents from the data source.
+When what is missing is a specific kind of knowledge, narrow that search with the tool's optional `contentTypes` argument — one or more of `text`, `figure`, `chart`, `table`, `article`, `document`.
 {% endif %}

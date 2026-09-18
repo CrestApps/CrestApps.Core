@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Models;
+﻿using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Tooling.Instances.DataSources;
 
@@ -38,4 +38,14 @@ public sealed class DataSourceSearchToolSettings
     /// It is translated to the index provider's own filter syntax before the search runs.
     /// </summary>
     public string Filter { get; set; }
+
+    /// <summary>
+    /// Gets or sets the kinds of knowledge this instance searches, for example only figures and charts.
+    /// When empty, every kind is searched.
+    /// </summary>
+    /// <remarks>
+    /// See <see cref="CrestApps.Core.Infrastructure.Indexing.KnowledgeObjectTypes"/> for the values. A row
+    /// written before typed knowledge existed has no type and is treated as text.
+    /// </remarks>
+    public string[] ContentTypes { get; set; }
 }

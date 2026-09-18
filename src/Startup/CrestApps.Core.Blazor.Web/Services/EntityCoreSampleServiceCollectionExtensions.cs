@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.A2A.Models;
+﻿using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Copilot;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Documents;
@@ -52,6 +52,7 @@ internal static class EntityCoreSampleServiceCollectionExtensions
             .AddScoped<IAuthorizationHandler, SampleChatInteractionDocumentAuthorizationHandler>()
             .AddScoped<IAuthorizationHandler, SampleAIChatSessionDocumentAuthorizationHandler>()
             .AddScoped<IAuthorizationHandler, SampleAIProfileDocumentAuthorizationHandler>()
+            .AddScoped<IAuthorizationHandler, SampleKnowledgeFigureAuthorizationHandler>()
             .AddScoped<IAIChatDocumentEventHandler, SampleAIChatDocumentEventHandler>()
             .AddScoped<ICatalogEntryHandler<Article>, ArticleHandler>()
             .AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();

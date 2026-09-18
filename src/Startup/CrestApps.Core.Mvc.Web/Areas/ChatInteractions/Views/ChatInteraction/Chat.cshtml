@@ -1,4 +1,4 @@
-@using CrestApps.Core.AI.Documents.Models
+﻿@using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.ViewModels
 @using CrestApps.Core.AI.Models
 @using Microsoft.Extensions.Options
@@ -20,7 +20,8 @@
 }
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
-<link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/document-drop-zone.css" />
+<link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/ai-chat.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/document-drop-zone.css" asp-append-version="true" />
 
 <style>
     .chat-page-wrapper {
@@ -541,6 +542,18 @@
                         <div class="form-text">Optional filter expression passed to the configured data source provider.</div>
                     </div>
 
+                    <div class="mb-2 rag-data-source-filter-dependent">
+                        <label class="form-label">
+                            Kinds of knowledge
+                            <span class="text-muted ms-1" data-bs-toggle="tooltip" title="An ingested file is stored as separate typed pieces - its text, its figures, its charts and its tables. This limits which of those a search may return.">
+                                <i class="fa-solid fa-circle-question"></i>
+                            </span>
+                        </label>
+                        <input type="text" class="form-control setting-input" id="setting-objectTypes"
+                               value="@Model.DataSourceObjectTypes" placeholder="e.g. figure, chart" data-setting="objectTypes" />
+                        <div class="form-text">Comma-separated. Leave empty to retrieve every kind. Values: document, article, text, figure, chart, table.</div>
+                    </div>
+
                     <div class="form-check form-switch mb-2">
                         <input class="form-check-input setting-input" type="checkbox" id="setting-isInScope"
                                data-setting="isInScope" @(Model.DataSourceIsInScope ? "checked" : "") />
@@ -714,8 +727,11 @@
 </div>
 
 @section Scripts {
+    <script src="~/_content/CrestApps.AI.Resources/scripts/chat-markers.js" asp-append-version="true"></script>
     <script src="~/_content/CrestApps.AI.Resources/scripts/document-drop-zone.js" asp-append-version="true"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@latest/dist/browser/signalr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@10.0.11/dist/browser/signalr.min.js"
+            integrity="sha384-N+pL/4qXZHZcvsa6hVMd5/7cdF3lC59ZMNHeQyRo5q9jmC7yw0hcJILPjUDSU7ZS"
+            crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
@@ -777,6 +793,13 @@
 
                 try {
                     const response = await fetch(realtimeVoicesUrl + '?deploymentName=' + encodeURIComponent(deploymentName), { credentials: 'same-origin' });
+
+                    // A sign-in redirect answers with HTML and response.ok, so this is checked rather than
+                    // parsed: keeping the default voice is a fine outcome, a parser error is not.
+                    if (!response.ok || ((response.headers.get('content-type') || '').toLowerCase().indexOf('json') < 0)) {
+                        return;
+                    }
+
                     const result = await response.json();
                     if (!result || !Array.isArray(result.voices)) {
                         return;
@@ -818,6 +841,27 @@
             renderer.link = function (data) {
                 return '<a href="' + DOMPurify.sanitize(data.href) + '" target="_blank" rel="noopener noreferrer">' + data.text + '</a>';
             };
+            renderer.image = function (data) {
+                var src = sanitizeUrl(data.href);
+                if (!src) {
+                    return '';
+                }
+
+                var alt = data.text || 'Figure';
+                // Spans, not divs. A figure marker is often written mid-sentence -- "Figures [fig:1],
+                // [fig:2] and [fig:3] show..." -- and a block element cannot sit inside a paragraph: the
+                // browser closes the <p> at the first one, so the sentence is torn into fragments and the
+                // commas between the markers are left stranded on their own lines. Inline-block keeps the
+                // figure looking exactly the same while remaining something a paragraph can legally contain.
+                return '<span class="generated-image-container">'
+                    + '<img src="' + src + '" alt="' + alt + '" class="img-thumbnail" style="max-width: 400px; height: auto;" />'
+                    + '<span class="mt-2 d-block">'
+                    + '<a href="' + src + '" target="_blank" download="' + alt + '" title="Download image" class="btn btn-sm btn-outline-secondary ai-download-image">'
+                    + '<i class="fa-solid fa-download"></i>'
+                    + '</a>'
+                    + '</span>'
+                    + '</span>';
+            };
             marked.setOptions({
                 renderer: renderer,
                 highlight: function (code, lang) {
@@ -832,37 +876,12 @@
             var _chartCounter = 0;
             var _chartConfigs = {};
 
-            function tryExtractChartMarker(text) {
-                var token = '[chart:';
-                var start = text.indexOf(token);
-                if (start < 0) return null;
-                var jsonStart = start + token.length;
-                var i = jsonStart;
-                while (i < text.length && (text[i] === ' ' || text[i] === '\n' || text[i] === '\r' || text[i] === '\t')) i++;
-                if (i >= text.length || text[i] !== '{') return null;
-                var depth = 0, inString = false, escape = false;
-                for (; i < text.length; i++) {
-                    var ch = text[i];
-                    if (inString) {
-                        if (escape) { escape = false; continue; }
-                        if (ch === '\\') { escape = true; continue; }
-                        if (ch === '"') inString = false;
-                        continue;
-                    }
-                    if (ch === '"') { inString = true; continue; }
-                    if (ch === '{') depth++;
-                    else if (ch === '}') {
-                        depth--;
-                        if (depth === 0) {
-                            var jsonEnd = i;
-                            var closeBracketIndex = text.indexOf(']', jsonEnd + 1);
-                            if (closeBracketIndex < 0) return null;
-                            return { startIndex: start, endIndex: closeBracketIndex + 1, json: text.substring(jsonStart, jsonEnd + 1).trim() };
-                        }
-                    }
-                }
-                return null;
-            }
+            // The marker is read by chat-markers.js, loaded above and shared with the other chat surfaces, so
+            // this view cannot drift from them about what a marker is. Only the canvas below, its size and its
+            // ci_chart_ ids belong to this view. Falling back to "no marker" if the module is ever missing
+            // leaves the marker on the page as the text the model typed, rather than taking the page down.
+            var findChartMarker = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.findChartMarker)
+                || function () { return null; };
 
             marked.use({
                 extensions: [{
@@ -873,7 +892,7 @@
                         return idx >= 0 ? idx : undefined;
                     },
                     tokenizer: function (src) {
-                        var extracted = tryExtractChartMarker(src);
+                        var extracted = findChartMarker(src);
                         if (!extracted || extracted.startIndex !== 0) return undefined;
                         var chartId = 'ci_chart_' + (++_chartCounter);
                         return { type: 'chart', raw: src.substring(0, extracted.endIndex), chartId: chartId, json: extracted.json };
@@ -946,7 +965,39 @@
             }
 
             function renderMarkdown(text) {
-                return DOMPurify.sanitize(styleMarkdownTables(marked.parse(text || '')), { ADD_ATTR: ['target'] });
+                var html = DOMPurify.sanitize(styleMarkdownTables(marked.parse(text || '')), { ADD_ATTR: ['target'] });
+
+                if (typeof requestAnimationFrame === 'function') {
+                    requestAnimationFrame(wireBrokenImageHandlers);
+                }
+
+                return html;
+            }
+
+            function wireBrokenImageHandlers() {
+                var images = document.querySelectorAll('.generated-image-container img:not([data-broken-wired])');
+
+                for (var i = 0; i < images.length; i++) {
+                    (function (image) {
+                        image.setAttribute('data-broken-wired', 'true');
+                        image.addEventListener('error', function () {
+                            var container = image.closest('.generated-image-container');
+                            if (!container || container.dataset.brokenHandled) {
+                                return;
+                            }
+
+                            container.dataset.brokenHandled = 'true';
+                            container.hidden = true;
+
+                            var note = document.createElement('p');
+                            note.className = 'text-muted small fst-italic mb-2';
+                            note.textContent = image.alt
+                                ? '(the picture "' + image.alt + '" could not be loaded)'
+                                : '(that picture could not be loaded)';
+                            container.insertAdjacentElement('afterend', note);
+                        }, { once: true });
+                    })(images[i]);
+                }
             }
 
             function sanitizeUrl(url) {
@@ -1019,6 +1070,22 @@
                 return reference.title || reference.text || key;
             }
 
+            // Which references are one citation, and how a repeated marker reads, are statements about
+            // strings, so they are shared with the other chat surfaces through chat-markers.js rather than
+            // decided here. If the module is ever missing, every reference gets an identity of its own and
+            // nothing is merged -- the numbering this page had before, rather than a page that fails.
+            var unmergedCitationCount = 0;
+            var citationIdentity = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.citationIdentity)
+                || function () { return 'unmerged-' + (++unmergedCitationCount); };
+            var splitCombinedCitations = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.splitCombinedCitations)
+                || function (content) { return content; };
+            var collapseRepeatedCitations = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.collapseRepeatedCitations)
+                || function (html) { return html; };
+            var citationMarkerHtml = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.citationMarkerHtml)
+                || function (displayIndex) { return '<sup>' + displayIndex + '</sup>'; };
+            var separateAdjacentCitations = (window.CoreAIChatMarkers && window.CoreAIChatMarkers.separateAdjacentCitations)
+                || function (html) { return html; };
+
             function getDownloadReferences(messageReferences) {
                 return Object.entries(messageReferences).filter(function (entry) {
                     return isDownloadCitationReference(entry[1]);
@@ -1058,7 +1125,10 @@
             }
 
             function formatMessageContent(content, references) {
-                var processedContent = (content || '').trim();
+                // Before anything looks for a reference key, the combined form the model tends to write is
+                // split into the keys it means. A key that is not found is not replaced, and an unreplaced key
+                // reaches the reader as a raw marker mid-sentence.
+                var processedContent = splitCombinedCitations((content || '').trim());
                 var messageReferences = normalizeReferences(references);
 
                 if (!processedContent || !Object.keys(messageReferences).length) {
@@ -1087,38 +1157,55 @@
                 });
 
                 var citations = [];
+                var citationsByIdentity = {};
+                var placeholders = [];
                 var displayIndex = 1;
+
                 citedRefs.forEach(function (entry) {
                     var key = entry[0];
                     var value = entry[1];
-                    var placeholder = '__CITE_' + displayIndex + '_' + (value.index || displayIndex) + '__';
+                    var label = getCitationLabel(value, key);
+                    var link = value.link || null;
+                    var identity = citationIdentity(label, link);
+                    var citation = citationsByIdentity[identity];
+
+                    // Every reference still has its key replaced, so the text never keeps a raw key; what the
+                    // merge changes is only how many numbers the reader is given for them.
+                    if (!citation) {
+                        citation = {
+                            referenceKey: key,
+                            referenceKeys: [],
+                            displayIndex: displayIndex++,
+                            label: label,
+                            link: link,
+                            isDownload: isDownloadCitationReference(value)
+                        };
+
+                        citationsByIdentity[identity] = citation;
+                        citations.push(citation);
+                    }
+
+                    citation.referenceKeys.push(key);
+
+                    var placeholder = '__CITE_' + citation.displayIndex + '_' + (value.index || citation.displayIndex) + '__';
                     processedContent = processedContent.replaceAll(key, placeholder);
-                    citations.push({
-                        referenceKey: key,
-                        displayIndex: displayIndex,
-                        label: getCitationLabel(value, key),
-                        link: value.link || null,
-                        isDownload: isDownloadCitationReference(value),
-                        placeholder: placeholder
-                    });
-
-                    displayIndex++;
+                    placeholders.push({ placeholder: placeholder, displayIndex: citation.displayIndex, label: citation.label });
                 });
 
-                citations.forEach(function (citation) {
-                    processedContent = processedContent.replaceAll(citation.placeholder, '<sup>' + citation.displayIndex + '</sup>');
+                placeholders.forEach(function (entry) {
+                    processedContent = processedContent.replaceAll(entry.placeholder, citationMarkerHtml(entry.displayIndex, entry.label));
                 });
 
-                processedContent = processedContent.replaceAll('</sup><sup>', '</sup><sup>,</sup><sup>');
+                // Merged citations can leave the same number twice over a sentence; that is collapsed before
+                // the commas go in, or the reader is given "1,1".
+                processedContent = collapseRepeatedCitations(processedContent);
+                processedContent = separateAdjacentCitations(processedContent);
 
                 return {
                     // Every reference that matched has become a citation by this point, so a marker that
                     // survived refers to a file the response never produced.
                     content: stripUnresolvedDownloadMarkers(processedContent),
-                    citations: citations.map(function (citation) {
-                        delete citation.placeholder;
-                        return citation;
-                    })
+                    citations: citations
                 };
             }
 
@@ -1129,8 +1216,16 @@
                     return copyContent;
                 }
 
+                // Every key the citation absorbed is replaced, not just the first: a merged key left behind
+                // would reach the clipboard as the raw reference token the reader never saw on the page.
                 citations.forEach(function (citation) {
-                    copyContent = copyContent.replaceAll(citation.referenceKey, '[' + citation.displayIndex + ']');
+                    var keys = citation.referenceKeys && citation.referenceKeys.length
+                        ? citation.referenceKeys
+                        : [citation.referenceKey];
+
+                    keys.forEach(function (key) {
+                        copyContent = copyContent.replaceAll(key, '[' + citation.displayIndex + ']');
+                    });
                 });
 
                 copyContent += '\n\nReferences:\n';
@@ -1156,13 +1251,20 @@
                 var rawContent = typeof message.rawContent === 'string'
                     ? message.rawContent
                     : (typeof message.content === 'string' ? message.content : '');
-                var formatted = formatMessageContent(rawContent, message.references);
+                // The model writes [fig:N] rather than an address; the host turns it back into the picture.
+                // Shared with the other chat surfaces through chat-markers.js so the behaviour cannot drift.
+                var expanded = (window.CoreAIChatMarkers && typeof window.CoreAIChatMarkers.expandImageMarkers === 'function')
+                    ? window.CoreAIChatMarkers.expandImageMarkers(rawContent, message.references)
+                    : rawContent;
+                var formatted = formatMessageContent(expanded, message.references);
 
                 message.rawContent = rawContent;
                 message.content = rawContent;
                 message.displayContent = formatted.content;
                 message.citationReferences = formatted.citations;
-                message.copyContent = buildCopyContent(rawContent, formatted.citations);
+                // Split here too: the copy is built from the raw content, so a combined marker the display
+                // path already split would otherwise survive into the clipboard as a raw key.
+                message.copyContent = buildCopyContent(splitCombinedCitations(rawContent), formatted.citations);
                 message.htmlContent = renderMarkdown(formatted.content);
 
                 return message;

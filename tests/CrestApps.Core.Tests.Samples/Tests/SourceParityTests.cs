@@ -97,6 +97,9 @@ public class SourceParityTests
         { "WebCrawlers/Index", "src/Startup/CrestApps.Core.Mvc.Web/Areas/WebCrawlers/Views/WebCrawler/Index.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/WebCrawlers/Index.razor" },
         { "WebCrawlers/Create", "src/Startup/CrestApps.Core.Mvc.Web/Areas/WebCrawlers/Views/WebCrawler/Create.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/WebCrawlers/Create.razor" },
         { "WebCrawlers/Edit", "src/Startup/CrestApps.Core.Mvc.Web/Areas/WebCrawlers/Views/WebCrawler/Edit.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/WebCrawlers/Edit.razor" },
+        { "FileSources/Index", "src/Startup/CrestApps.Core.Mvc.Web/Areas/FileSources/Views/FileSource/Index.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/FileSources/Index.razor" },
+        { "FileSources/Create", "src/Startup/CrestApps.Core.Mvc.Web/Areas/FileSources/Views/FileSource/Create.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/FileSources/Create.razor" },
+        { "FileSources/Edit", "src/Startup/CrestApps.Core.Mvc.Web/Areas/FileSources/Views/FileSource/Edit.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/FileSources/Edit.razor" },
 
         // Indexing
         { "IndexProfiles/Index", "src/Startup/CrestApps.Core.Mvc.Web/Areas/Indexing/Views/IndexProfile/Index.cshtml", "src/Startup/CrestApps.Core.Blazor.Web/Components/Pages/Indexing/IndexProfiles/Index.razor" },
@@ -246,6 +249,8 @@ public class SourceParityTests
             "McpPrompts/Index", "McpPrompts/Create", "McpPrompts/Edit",
             "McpResources/Index", "McpResources/Create", "McpResources/Edit",
             "AIDataSources/Index", "AIDataSources/Create", "AIDataSources/Edit",
+            "WebCrawlers/Index", "WebCrawlers/Create", "WebCrawlers/Edit",
+            "FileSources/Index", "FileSources/Create", "FileSources/Edit",
             "IndexProfiles/Index", "IndexProfiles/Create", "IndexProfiles/Edit",
             "ChatInteractions/Index", "ChatInteractions/Create", "ChatInteractions/Chat",
             "Articles/Index", "Articles/Create", "Articles/Edit",

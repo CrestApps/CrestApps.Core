@@ -12,12 +12,27 @@
         };
 
         const updateVisibility = () => {
-            const strategy = strategyField?.value ?? '';
+            const strategy = strategyField ? strategyField.value : '';
 
             toggle('sitemap-strategy-settings', strategy === 'Sitemap');
+
+            // A settings card names the sources it belongs to, space separated, and is shown for
+            // those only. Without this every connector's card renders on every crawler's form.
+            const sections = document.querySelectorAll('[data-source-section]');
+
+            for (const section of sections) {
+                const sources = (section.getAttribute('data-source-section') || '')
+                    .split(/\s+/)
+                    .filter(value => value.length > 0);
+
+                section.hidden = sources.indexOf(strategy) === -1;
+            }
         };
 
-        strategyField?.addEventListener('change', updateVisibility);
+        if (strategyField) {
+            strategyField.addEventListener('change', updateVisibility);
+        }
+
         updateVisibility();
     })();
 </script>

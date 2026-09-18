@@ -1,4 +1,4 @@
-using CrestApps.Core.AI;
+﻿using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Chat;
@@ -266,6 +266,7 @@ public sealed class ChatInteractionController : Controller
             DataSourceTopNDocuments = ragMetadata?.TopNDocuments,
             DataSourceIsInScope = ragMetadata?.IsInScope ?? false,
             DataSourceFilter = ragMetadata?.Filter,
+            DataSourceObjectTypes = ragMetadata?.ObjectTypes is { Length: > 0 } kinds ? string.Join(", ", kinds) : null,
             DocumentRetrievalMode = documentMetadata?.RetrievalMode,
             ClaudeModel = anthropicMetadata?.ClaudeModel,
             ClaudeEffortLevel = anthropicMetadata?.EffortLevel ?? ClaudeEffortLevel.None,

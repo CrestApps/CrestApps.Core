@@ -1,10 +1,11 @@
-using CrestApps.Core.AI.Clients;
+﻿using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.DataSources;
 using CrestApps.Core.Infrastructure.Indexing.Models;
@@ -20,6 +21,23 @@ namespace CrestApps.Core.AI.Handlers;
 
 internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
 {
+    /// <summary>
+    /// What the model is told when the knowledge base could not be searched.
+    /// </summary>
+    /// <remarks>
+    /// Injecting nothing is indistinguishable from a knowledge base that holds nothing on the subject, and a
+    /// model given no context answers from its own knowledge as though it had checked the data source. It has
+    /// to be told that the check never happened.
+    /// </remarks>
+    private const string SearchFailedNotice =
+        "The knowledge base for this data source could not be searched, so any content below may be incomplete or missing entirely. Tell the user the knowledge base is unavailable rather than answering as though the data source has no such content.";
+
+    /// <summary>
+    /// The orchestration property that records that this turn's knowledge base could not be searched, for
+    /// the handlers that run after this one.
+    /// </summary>
+    private const string DataSourceSearchFailedKey = "DataSourceSearchFailed";
+
     private readonly IServiceProvider _serviceProvider;
     private readonly IAIClientFactory _aiClientFactory;
     private readonly ITemplateService _templateService;
@@ -177,12 +195,13 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             return;
         }
 
-        await SearchAndInjectContextAsync(context, ragMetadata, indexProfile, contentManager, embeddingGenerator);
+        await SearchAndInjectContextAsync(context, ragMetadata, dataSource, indexProfile, contentManager, embeddingGenerator);
     }
 
     private async Task SearchAndInjectContextAsync(
         PreemptiveRagContext context,
         AIDataSourceRagMetadata ragMetadata,
+        AIDataSource dataSource,
         SearchIndexProfile indexProfile,
         IDataSourceContentManager contentManager,
         IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator)
@@ -205,15 +224,20 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
 
         var topN = _options.GetTopNDocuments(ragMetadata?.TopNDocuments);
 
+        // The kind restriction is part of the filter rather than applied to the results, so a narrowed search
+        // still returns topN of what was asked for instead of topN of everything, most of it then discarded.
+        var objectTypes = ragMetadata?.ObjectTypes;
+        var filter = KnowledgeObjectTypeFilter.Combine(ragMetadata?.Filter, KnowledgeObjectTypeFilter.BuildClause(objectTypes));
+
         string providerFilter = null;
 
-        if (!string.IsNullOrWhiteSpace(ragMetadata?.Filter))
+        if (!string.IsNullOrWhiteSpace(filter))
         {
             var filterTranslator = _serviceProvider.GetKeyedService<IODataFilterTranslator>(indexProfile.ProviderName);
 
             if (filterTranslator != null)
             {
-                providerFilter = filterTranslator.Translate(ragMetadata.Filter);
+                providerFilter = filterTranslator.Translate(filter);
             }
         }
 
@@ -221,6 +245,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
         var finalResults = new List<DataSourceSearchResult>();
         var seenChunkIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var candidateCount = DataSourceSearchResultSelector.GetCandidateCount(topN);
+        var searchFailed = false;
 
         foreach (var embedding in embeddings)
         {
@@ -229,19 +254,24 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
                 continue;
             }
 
-            var results = await contentManager.SearchAsync(
+            var outcome = await contentManager.SearchWithOutcomeAsync(
                 indexProfile,
                 embedding.Vector.ToArray(),
                 dataSourceId,
                 candidateCount,
                 providerFilter);
 
-            if (results == null)
+            if (!outcome.Succeeded)
             {
+                // Remembered rather than passed over. A search that could not run injects the same nothing
+                // as a search that matched nothing, and a model given no context answers from its own
+                // knowledge as though it had checked the data source and found it wanting.
+                searchFailed = true;
+
                 continue;
             }
 
-            foreach (var result in DataSourceSearchResultSelector.SelectTopResults(results, candidateCount, minimumScore))
+            foreach (var result in DataSourceSearchResultSelector.SelectTopResults(outcome.Results, candidateCount, minimumScore))
             {
                 var chunkKey = $"{result.ReferenceId}:{result.ChunkIndex}";
 
@@ -262,7 +292,20 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             }
         }
 
-        if (finalResults.Count == 0)
+        await AddRelevantPicturesAsync(
+            contentManager,
+            _serviceProvider.GetKeyedService<IODataFilterTranslator>(indexProfile.ProviderName),
+            indexProfile,
+            embeddings,
+            dataSourceId,
+            candidateCount,
+            minimumScore,
+            objectTypes,
+            seenChunkIds,
+            finalResults,
+            _logger);
+
+        if (finalResults.Count == 0 && !searchFailed)
         {
             return;
         }
@@ -285,8 +328,25 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             stringBuilder.Append(header);
         }
 
+        if (searchFailed)
+        {
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine(SearchFailedNotice);
+
+            // Recorded for whatever else builds this turn's system message. A handler that sees no references
+            // and concludes the knowledge sources hold nothing has the same question to answer as this one
+            // did, and this is the only place that knows the answer.
+            orchestrationContext.Properties[DataSourceSearchFailedKey] = true;
+
+            _logger.LogWarning(
+                "The knowledge base index '{IndexProfileName}' could not be searched for data source '{DataSourceId}'. The model is told so rather than being left to answer as though the data source were empty.",
+                indexProfile.Name,
+                dataSourceId);
+        }
+
         var invocationContext = AIInvocationScope.Current;
-        var seenReferences = new Dictionary<string, (int Index, string Title, string ReferenceType)>(StringComparer.OrdinalIgnoreCase);
+        var seenReferences = new Dictionary<string, (int Index, string Title, string ReferenceType, string DataSourceId)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var result in finalResults)
         {
@@ -302,7 +362,8 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
                 seenReferences[result.ReferenceId] = (
                     invocationContext?.NextReferenceIndex() ?? seenReferences.Count + 1,
                     ResolveReferenceTitle(result.Title, result.ReferenceId),
-                    result.ReferenceType);
+                    result.ReferenceType,
+                    result.DataSourceId);
             }
 
             var referenceIndex = hasReference && seenReferences.TryGetValue(result.ReferenceId, out var entry)
@@ -348,13 +409,133 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
                     Index = value.Index,
                     ReferenceId = referenceId,
                     ReferenceType = value.ReferenceType,
+                    DataSourceId = value.DataSourceId,
                 };
             }
 
             orchestrationContext.Properties["DataSourceReferences"] = citationMap;
         }
 
+        // Figures and tables are named the same way the tool path names them, through the same collector.
+        // Without this a data source attached to a chat interaction retrieves a figure's text and then has
+        // no way to show the picture, because nothing ever hands the model a [fig:N] label to write.
+        var typed = new TypedResultCollector(
+            _serviceProvider,
+            dataSourceId,
+            dataSource?.Source,
+            invocationContext,
+            _logger);
+
+        typed.Collect(finalResults);
+
+        var typedBlocks = typed.Render();
+
+        if (!string.IsNullOrEmpty(typedBlocks))
+        {
+            stringBuilder.Append(typedBlocks);
+        }
+
         orchestrationContext.SystemMessageBuilder.Append(stringBuilder);
+    }
+
+    /// <summary>
+    /// The most pictures one turn adds. A picture the reader did not ask for costs them nothing to ignore,
+    /// but a system message full of them crowds out the prose that actually answers the question.
+    /// </summary>
+    private const int MaxPreemptivePictures = 2;
+
+    /// <summary>
+    /// Adds the figures most relevant to the question, searched for on their own.
+    /// </summary>
+    /// <remarks>
+    /// A picture only reaches the reader if retrieval returned it, and on a plain search it usually does not:
+    /// "show me a figure about glazing" embeds as glazing, and the prose about glazing outscores the pictures
+    /// of it. The wish for a picture is in the question and not in the vector, so no amount of ranking finds
+    /// it. Searching the pictures separately gives them their own contest to win, and the same score floor
+    /// still applies, so a question no picture suits adds none.
+    /// </remarks>
+    private static async Task AddRelevantPicturesAsync(
+        IDataSourceContentManager contentManager,
+        IODataFilterTranslator filterTranslator,
+        SearchIndexProfile indexProfile,
+        IReadOnlyList<Embedding<float>> embeddings,
+        string dataSourceId,
+        int candidateCount,
+        float minimumScore,
+        IReadOnlyList<string> objectTypes,
+        HashSet<string> seenChunkIds,
+        List<DataSourceSearchResult> finalResults,
+        ILogger logger)
+    {
+        // The content manager takes a provider-native filter, not the OData the clause is written in, so a
+        // provider with no translator registered cannot be asked for pictures at all.
+        if (filterTranslator is null)
+        {
+            return;
+        }
+
+        // This search is a second one, and the restriction the operator wrote was applied to the first. A
+        // profile narrowed to text must not be handed pictures through a door the filter never covered, and
+        // one narrowed to charts must not be handed photographs -- so the restriction is re-read here rather
+        // than assumed to have been dealt with upstream.
+        var pictureTypes = new[] { KnowledgeObjectTypes.Figure, KnowledgeObjectTypes.Chart }
+            .Where(pictureType => KnowledgeObjectTypeFilter.Admits(objectTypes, pictureType))
+            .ToList();
+
+        if (pictureTypes.Count == 0)
+        {
+            return;
+        }
+
+        var clause = KnowledgeObjectTypeFilter.BuildClause(pictureTypes);
+        var pictureFilter = filterTranslator.Translate(clause);
+
+        if (string.IsNullOrEmpty(pictureFilter))
+        {
+            return;
+        }
+
+        var added = 0;
+
+        foreach (var embedding in embeddings)
+        {
+            if (added >= MaxPreemptivePictures || embedding?.Vector == null)
+            {
+                break;
+            }
+
+            var outcome = await contentManager.SearchWithOutcomeAsync(
+                indexProfile,
+                embedding.Vector.ToArray(),
+                dataSourceId,
+                candidateCount,
+                pictureFilter);
+
+            if (!outcome.Succeeded)
+            {
+                // An index predating the typed columns cannot honour this filter. The prose already
+                // retrieved stands on its own, so the turn continues without pictures -- but it says so,
+                // because a picture that silently never arrives is indistinguishable from one that does not
+                // exist.
+                logger.LogWarning("Could not search for pictures in index '{IndexName}'. The answer will have none.", indexProfile.Name);
+
+                return;
+            }
+
+            foreach (var result in DataSourceSearchResultSelector.SelectTopResults(outcome.Results, candidateCount, minimumScore))
+            {
+                if (added >= MaxPreemptivePictures)
+                {
+                    break;
+                }
+
+                if (seenChunkIds.Add($"{result.ReferenceId}:{result.ChunkIndex}"))
+                {
+                    finalResults.Add(result);
+                    added++;
+                }
+            }
+        }
     }
 
     /// <summary>

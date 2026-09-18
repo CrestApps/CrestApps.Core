@@ -367,6 +367,35 @@ public sealed class WebCrawlerTests
         Assert.DoesNotContain("disabled", planner.Reindexed);
     }
 
+    [Fact]
+    public async Task ReindexService_CrawlerFeedingIngestedDataSource_IsLeftToTheIndexerService()
+    {
+        var crawlerStore = new InMemoryCrawlerStore();
+        crawlerStore.Items.Add(new WebCrawler { ItemId = "web", Source = WebCrawlerConstants.Strategies.Sitemap, AIDataSourceId = "web-ds", Enabled = true });
+        crawlerStore.Items.Add(new WebCrawler { ItemId = "ingested", Source = WebCrawlerConstants.Strategies.Sitemap, AIDataSourceId = "ingested-ds", Enabled = true });
+
+        var dataSourceStore = new InMemoryDataSourceStore();
+        dataSourceStore.Items.Add(new AIDataSource { ItemId = "web-ds", Source = AIDataSourceSourceTypes.Web });
+        dataSourceStore.Items.Add(new AIDataSource { ItemId = "ingested-ds", Source = AIDataSourceSourceTypes.File });
+
+        var planner = new RecordingPlanner();
+        var service = new WebCrawlerReindexService(
+            crawlerStore,
+            new InMemoryCrawlStateStore(),
+            planner,
+            dataSourceStore,
+            Options.Create(new WebCrawlerOptions()),
+            TimeProvider.System,
+            NullLogger<WebCrawlerReindexService>.Instance);
+
+        await service.ReindexAllAsync(Ct);
+
+        // The crawler that feeds an Ingested data source is an indexer, run by the indexer service with its
+        // own per-item state. Planning it here too would run it twice and overwrite that state.
+        Assert.Contains("web", planner.Reindexed);
+        Assert.DoesNotContain("ingested", planner.Reindexed);
+    }
+
     private static WebCrawlerReindexService CreateReindexService(
         InMemoryCrawlerStore crawlerStore,
         InMemoryCrawlStateStore stateStore,
@@ -534,6 +563,10 @@ public sealed class WebCrawlerTests
         {
             return Task.FromResult<IReadOnlyCollection<WebCrawler>>(Items.Where(x => x.AIDataSourceId == dataSourceId).ToArray());
         }
+    }
+
+    private sealed class InMemoryDataSourceStore : InMemorySourceCatalog<AIDataSource>, IAIDataSourceStore
+    {
     }
 
     private sealed class InMemoryCrawlStateStore : InMemorySourceCatalog<WebCrawlState>, IWebCrawlStateStore

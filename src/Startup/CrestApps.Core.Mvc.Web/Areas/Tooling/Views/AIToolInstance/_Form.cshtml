@@ -43,6 +43,19 @@
                 }
             </div>
 
+            @if (!string.IsNullOrEmpty(Model.FunctionName))
+            {
+                <div class="mb-3">
+                    <label asp-for="FunctionName" class="form-label">Function name (what the model sees)</label>
+                    <input asp-for="FunctionName" class="form-control font-monospace" readonly onclick="this.select();" />
+                    <div class="form-text">
+                        The model is offered this instance under this name, not the display name above. If a system
+                        message tells the model to call a tool by name, it must use this value &mdash; naming the
+                        display name asks for a function the model does not have, and the instruction is ignored.
+                    </div>
+                </div>
+            }
+
             <div class="mb-3">
                 <label asp-for="Description" class="form-label">Description (shown to the AI model)</label>
                 <textarea asp-for="Description" class="form-control" rows="3"
@@ -374,6 +387,12 @@
                     <input asp-for="DataSourceFilter" class="form-control font-monospace" placeholder="filters/status eq 'published'" />
                     <span asp-validation-for="DataSourceFilter" class="text-danger"></span>
                     <div class="form-text">Optional OData filter expression translated to the index provider's own syntax before the search runs.</div>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="DataSourceContentTypes" class="form-label">Content types</label>
+                    <input asp-for="DataSourceContentTypes" class="form-control font-monospace" placeholder="figure, chart, table" />
+                    <div class="form-text">Limits the search to these kinds of knowledge. Leave empty to search every kind.</div>
+                    <span asp-validation-for="DataSourceContentTypes" class="text-danger"></span>
                 </div>
             </div>
 

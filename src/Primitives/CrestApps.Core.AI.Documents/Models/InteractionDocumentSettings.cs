@@ -32,4 +32,25 @@ public sealed class InteractionDocumentSettings
     /// When enabled, image uploads are processed using the global vision deployment.
     /// </summary>
     public bool AllowImageUploads { get; set; }
+
+    /// <summary>
+    /// Gets or sets how much extracted text a single uploaded document may hold and still be indexed.
+    /// </summary>
+    /// <remarks>
+    /// A document past this is refused at upload rather than stored and left unsearchable: accepting a file
+    /// is a promise to ingest it. Raising it costs embedding calls on every upload that now fits, which is
+    /// why it is a setting rather than a constant, and why a profile that ingests large documents can raise
+    /// it without changing what every other profile pays.
+    /// </remarks>
+    public int MaxIndexableCharacters { get; set; } = 50000;
+
+    /// <summary>
+    /// Gets or sets whether figures inside an uploaded document are described by a vision model.
+    /// </summary>
+    /// <remarks>
+    /// The site's answer, which an AI profile may override for itself. Describing figures is the expensive
+    /// part of ingestion, and it needs a deployment in the <c>Vision</c> slot: with none configured nothing
+    /// is described whatever this says, and a figure keeps its caption either way.
+    /// </remarks>
+    public bool DescribeFiguresInUploads { get; set; } = true;
 }

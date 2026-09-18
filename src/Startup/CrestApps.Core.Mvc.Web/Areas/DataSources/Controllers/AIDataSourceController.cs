@@ -174,9 +174,10 @@ public sealed class AIDataSourceController : Controller
             ModelState.AddModelError(nameof(model.Source), "Source type is required.");
         }
 
-        // The Web source derives its key, title, and content from each crawled page, so field mapping is
-        // not required for it.
-        if (!string.Equals(model.Source, AIDataSourceSourceTypes.Web, StringComparison.OrdinalIgnoreCase))
+        // The Web and File sources are target buckets: what lands in them already carries its own key,
+        // title and content, so there is nothing to map.
+        if (!string.Equals(model.Source, AIDataSourceSourceTypes.Web, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(model.Source, AIDataSourceSourceTypes.File, StringComparison.OrdinalIgnoreCase))
         {
             if (string.IsNullOrWhiteSpace(model.KeyFieldName))
             {

@@ -33,6 +33,28 @@ public interface IWebCrawlerStrategy
     Task<IReadOnlyList<CrawledPageRef>> DiscoverAsync(WebCrawler crawler, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Discovers the current set of pages and says whether that is all of them.
+    /// </summary>
+    /// <param name="crawler">The crawler configuration.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The pages, and whether the discovery covered the whole site.</returns>
+    /// <remarks>
+    /// Deleting a page because it was missing from a crawl is only sound when the crawl saw the whole site.
+    /// A strategy that stopped short - a page cap, an unreachable sitemap, a throttled host - says so here,
+    /// and nothing is removed on the strength of it.
+    /// <para>
+    /// Default-implemented in terms of <see cref="DiscoverAsync"/>, so a strategy outside this repository
+    /// keeps working and keeps today's behaviour: a non-empty crawl is treated as complete.
+    /// </para>
+    /// </remarks>
+    async Task<WebCrawlDiscovery> DiscoverDetailedAsync(WebCrawler crawler, CancellationToken cancellationToken = default)
+    {
+        var pages = await DiscoverAsync(crawler, cancellationToken);
+
+        return new WebCrawlDiscovery(pages ?? [], pages is { Count: > 0 });
+    }
+
+    /// <summary>
     /// Fetches and cleans a single page.
     /// </summary>
     /// <param name="crawler">The crawler configuration.</param>

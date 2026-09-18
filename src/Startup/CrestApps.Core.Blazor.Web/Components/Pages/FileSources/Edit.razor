@@ -1,0 +1,180 @@
+@page "/filesources/edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.DataSources
+@using CrestApps.Core.AI.FileSources
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Blazor.Web.Components.Pages.WebCrawlers
+@using CrestApps.Core.Services
+@using Microsoft.AspNetCore.DataProtection
+@using Microsoft.Extensions.Options
+@inject ISourceCatalogManager<WebCrawler> Manager
+@inject IAIDataSourceStore DataSourceStore
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+@inject IDataProtectionProvider DataProtectionProvider
+@inject IOptions<IngestionConnectorOptions> ConnectorOptions
+
+<PageTitle>Edit File Source</PageTitle>
+
+<h2><i class="fa-solid fa-pencil"></i> Edit File Source</h2>
+<hr />
+
+@if (_notFound)
+{
+    <div class="alert alert-warning">The file source could not be found.</div>
+}
+else if (_model == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm FormName="filesources-edit" Model="_model" OnValidSubmit="HandleSubmitAsync">
+        <div class="row">
+            <div class="col-12">
+                @if (_errors.Count > 0)
+                {
+                    <div class="alert alert-danger">
+                        @foreach (var error in _errors)
+                        {
+                            <div>@error</div>
+                        }
+                    </div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Title <span class="text-danger">*</span></label>
+                    <InputText @bind-Value="_model.DisplayText" class="form-control" placeholder="e.g., Reports drop" />
+                    <div class="form-text">A human-readable name for this file source.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Target data source <span class="text-danger">*</span></label>
+                    <InputSelect @bind-Value="_model.AIDataSourceId" class="form-select">
+                        <option value="">Select data source</option>
+                        @foreach (var item in _dataSources)
+                        {
+                            <option value="@item.Key">@item.Value</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">The data source whose knowledge base receives the files that are read. Only <strong>File</strong> data sources are listed; create one under Data Sources.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Reads from <span class="text-danger">*</span></label>
+                    <InputSelect @bind-Value="_model.Source" class="form-select">
+                        <option value="">Select a connector</option>
+                        @foreach (var item in _connectors)
+                        {
+                            <option value="@item.Key">@item.Value</option>
+                        }
+                    </InputSelect>
+                    <div class="form-text">Where the files come from: a folder on this machine, or a file server.</div>
+                </div>
+
+                <div class="mb-3 form-check">
+                    <InputCheckbox @bind-Value="_model.Enabled" class="form-check-input" />
+                    <label class="form-check-label">Enabled</label>
+                    <div class="form-text">Disabled file sources are skipped by the background service.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Sync interval (minutes)</label>
+                    <InputNumber @bind-Value="_model.RunIntervalMinutes" class="form-control" placeholder="1440" />
+                    <div class="form-text">How often the background service re-reads this source and indexes what changed.</div>
+                </div>
+
+                <ConnectorSettingsEditor Model="_model" />
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-check"></i> Save
+                    </button>
+                    <a href="/filesources" class="btn btn-secondary ms-2">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; }
+
+    private FileSourceViewModel _model;
+    private bool _notFound;
+    private List<string> _errors = [];
+    private List<KeyValuePair<string, string>> _connectors = [];
+    private List<KeyValuePair<string, string>> _dataSources = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var fileSource = await Manager.FindByIdAsync(Id);
+
+        // A strategy-backed record is a web crawler, and this screen refuses to edit one as if it read
+        // files. It is managed on the Web Crawlers pages instead.
+        if (fileSource == null || !FileSourceFilter.IsIngestionConnector(fileSource.Source, ConnectorOptions.Value.Connectors))
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        _model = FileSourceViewModel.FromFileSource(fileSource);
+        await PopulateDropdownsAsync();
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _errors.Clear();
+
+        var fileSource = await Manager.FindByIdAsync(_model.ItemId);
+
+        if (fileSource == null)
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        // An InputSelect has no `required` guard, so the blank option has to be caught here.
+        if (string.IsNullOrWhiteSpace(_model.Source))
+        {
+            _errors = ["A connector is required."];
+
+            return;
+        }
+
+        _model.ApplyTo(fileSource, DataProtectionProvider);
+
+        var validation = await Manager.ValidateAsync(fileSource);
+
+        if (!validation.Succeeded)
+        {
+            _errors = validation.Errors.Select(error => error.ErrorMessage).ToList();
+
+            return;
+        }
+
+        await Manager.UpdateAsync(fileSource);
+        await StoreCommitter.CommitAsync();
+        Navigation.NavigateTo("/filesources");
+    }
+
+    private async Task PopulateDropdownsAsync()
+    {
+        // Only the connectors the host registered are offered, so a connector that is not installed can
+        // never be saved onto a record.
+        _connectors = ConnectorOptions.Value.Connectors
+            .OrderBy(connector => connector.DisplayName.Value, StringComparer.OrdinalIgnoreCase)
+            .Select(connector => new KeyValuePair<string, string>(connector.Name, connector.DisplayName.Value))
+            .ToList();
+
+        // A file source only ever feeds a File data source; the bucket itself holds no file settings.
+        var dataSources = await DataSourceStore.GetAsync(AIDataSourceSourceTypes.File);
+
+        _dataSources = dataSources
+            .Select(dataSource => new KeyValuePair<string, string>(dataSource.ItemId, dataSource.DisplayText))
+            .ToList();
+    }
+}

@@ -10,6 +10,10 @@ using CrestApps.Core.AI.Claude;
 using CrestApps.Core.AI.Copilot;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Endpoints;
+using CrestApps.Core.AI.Documents.Tooling;
+using CrestApps.Core.AI.FileSources;
+using CrestApps.Core.AI.Ftp;
+using CrestApps.Core.AI.Sftp;
 using CrestApps.Core.AI.Documents.OpenXml;
 using CrestApps.Core.AI.Documents.Pdf;
 using CrestApps.Core.AI.Elasticsearch;
@@ -17,9 +21,8 @@ using CrestApps.Core.AI.Markdown;
 using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Tooling.Instances.DataSources;
 using CrestApps.Core.AI.Tooling.Instances.Documentation;
-using CrestApps.Core.AI.Mcp.Ftp;
+using CrestApps.Core.AI.Mcp.Knowledge;
 using CrestApps.Core.AI.Mcp.Models;
-using CrestApps.Core.AI.Mcp.Sftp;
 using CrestApps.Core.AI.Ollama;
 using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
@@ -160,12 +163,14 @@ builder.Services
             .AddHttpApiRequestSource()
             .AddDocumentationSearchSources()
             .AddDataSourceSearchSource()
+            .AddKnowledgeObjectSource()
             .AddYesSqlStores()
         )
         .AddMcpServer(mcpServer => mcpServer
             .AddYesSqlStores()
             .AddFtpResources()
             .AddSftpResources()
+            .AddKnowledgeResources()
         )
         .AddSignalR(addStoreCommitterFilter: true)
         .AddA2AHost()
@@ -202,6 +207,18 @@ builder.Services.ConfigureCrestAppsChatHubOptions<AIChatHub>();
 // Opt into the strategy-based web crawlers feature and its YesSql stores. Web crawlers scrape sites
 // (starting with sitemap discovery) into any "Web" AI data source.
 builder.Services.AddCoreWebCrawlers();
+
+// Continuous intake. Registering a connector grants nothing on its own: a local folder still has to
+// be added to FileSourceOptions.AllowedLocalRoots before anything under it can be read. Each protocol
+// connector ships in its own package, so a host that reads only local folders references neither
+// CrestApps.Core.AI.Ftp (FluentFTP) nor CrestApps.Core.AI.Sftp (SSH.NET).
+builder.Services
+    .AddCoreFileSources()
+    .AddCoreLocalFolderConnector()
+    .AddCoreFtpIngestionConnector()
+    .AddCoreSftpIngestionConnector();
+
+builder.Services.Configure<FileSourceOptions>(builder.Configuration.GetSection("CrestApps:Indexers"));
 builder.Services.AddCoreWebCrawlerStoresYesSql();
 
 builder.Services.Configure<A2AHostOptions>(
@@ -320,6 +337,8 @@ app.MapMcp("mcp");
 app.MapA2AHost();
 app.AddChatApiEndpoints()
     .AddDownloadAIDocumentEndpoint()
+    .AddDownloadKnowledgeFigureEndpoint()
+    .AddDownloadAIDocumentFigureEndpoint()
     .AddUploadChatInteractionDocumentEndpoint()
     .AddRemoveChatInteractionDocumentEndpoint()
     .AddUploadChatSessionDocumentEndpoint()

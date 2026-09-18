@@ -48,6 +48,11 @@ jobs:
     - name: Unit Tests
       run: |
         dotnet test -c Release --no-build ./tests/CrestApps.Core.Tests/CrestApps.Core.Tests.csproj
+    - name: Client Unit Tests
+      # The marker and citation rules are shared by three chat surfaces and have no .NET coverage, so
+      # nothing else in this workflow would notice them breaking. They need no npm install: the runner is
+      # built into Node and the tests read source files rather than importing a bundle.
+      run: npm run test:unit
     - name: Print Test Failure Details
       if: failure()
       shell: pwsh

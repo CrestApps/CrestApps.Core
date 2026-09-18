@@ -92,6 +92,73 @@ public sealed class SearchIndexProfileProvisioningServiceTests
         Assert.Contains(result.Errors, error => error.ErrorMessage.Contains("not configured", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Verifies that a provider which has no connection string says so, rather than reporting that the
+    /// existence check failed.
+    /// </summary>
+    /// <remarks>
+    /// Seen live: a sample host without a PostgreSQL connection string reported "Unable to validate whether
+    /// the remote index 'data-sources' already exists" on the first screen of setup. The provider had already
+    /// said exactly what was wrong — the message was replaced on the way out, turning a one-line configuration
+    /// fix into a search for a fault that was not there.
+    /// </remarks>
+    [Fact]
+    public async Task Create_WhenTheProviderIsNotConfigured_SaysSoInsteadOfBlamingTheCheck()
+    {
+        var remoteManager = new TestRemoteSearchIndexManager
+        {
+            ExistsException = new InvalidOperationException("PostgreSQL is not configured. A connection string is required."),
+        };
+
+        var service = CreateService(new TestSearchIndexProfileManager(), remoteManager);
+
+        var result = await service.CreateAsync(
+            new SearchIndexProfile
+            {
+                Name = "data-sources",
+                IndexName = "data-sources",
+                ProviderName = ElasticsearchConstants.ProviderName,
+                Type = IndexProfileTypes.Articles,
+            }, TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+
+        var message = Assert.Single(result.Errors).ErrorMessage;
+
+        // The provider's own words survive, and the message names what to go and configure.
+        Assert.Contains("A connection string is required", message, StringComparison.Ordinal);
+        Assert.Contains("configured for this host", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unable to validate", message, StringComparison.Ordinal);
+        Assert.Null(remoteManager.CreatedIndexName);
+    }
+
+    /// <summary>
+    /// Verifies that a failure which is not a configuration problem still reports as one that could not be
+    /// validated, rather than claiming the provider is unconfigured.
+    /// </summary>
+    [Fact]
+    public async Task Create_WhenTheCheckFailsForAnotherReason_StillSaysItCouldNotValidate()
+    {
+        var remoteManager = new TestRemoteSearchIndexManager
+        {
+            ExistsException = new TimeoutException("The server did not respond."),
+        };
+
+        var service = CreateService(new TestSearchIndexProfileManager(), remoteManager);
+
+        var result = await service.CreateAsync(
+            new SearchIndexProfile
+            {
+                Name = "data-sources",
+                IndexName = "data-sources",
+                ProviderName = ElasticsearchConstants.ProviderName,
+                Type = IndexProfileTypes.Articles,
+            }, TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("Unable to validate", Assert.Single(result.Errors).ErrorMessage, StringComparison.Ordinal);
+    }
+
     private static SearchIndexProfileProvisioningService CreateService(ISearchIndexProfileManager profileManager, TestRemoteSearchIndexManager remoteManager)
     {
         var services = new ServiceCollection();
@@ -107,6 +174,7 @@ public sealed class SearchIndexProfileProvisioningServiceTests
     private sealed class TestRemoteSearchIndexManager : ISearchIndexManager
     {
         public bool ExistsResult { get; set; }
+        public Exception ExistsException { get; set; }
         public string Prefix { get; set; }
         public string CreatedIndexName { get; private set; }
         public IReadOnlyCollection<SearchIndexField> CreatedFields { get; private set; }
@@ -118,6 +186,11 @@ public sealed class SearchIndexProfileProvisioningServiceTests
 
         public Task<bool> ExistsAsync(IIndexProfileInfo profile, CancellationToken cancellationToken = default)
         {
+            if (ExistsException is not null)
+            {
+                throw ExistsException;
+            }
+
             return Task.FromResult(ExistsResult);
         }
 

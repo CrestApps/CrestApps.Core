@@ -66,25 +66,37 @@ public sealed class SitemapWebCrawlerStrategy : IWebCrawlerStrategy
     /// <inheritdoc />
     public async Task<IReadOnlyList<CrawledPageRef>> DiscoverAsync(WebCrawler crawler, CancellationToken cancellationToken = default)
     {
+        return (await DiscoverDetailedAsync(crawler, cancellationToken)).Pages;
+    }
+
+    /// <inheritdoc />
+    public async Task<WebCrawlDiscovery> DiscoverDetailedAsync(WebCrawler crawler, CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(crawler);
 
         if (!SitemapWebCrawlerHelper.TryGetMetadata(crawler, out var metadata))
         {
-            return [];
+            return new WebCrawlDiscovery([], IsComplete: false, "The crawler has no sitemap settings.");
         }
 
         var client = _httpClientFactory.CreateClient(WebCrawlerConstants.HttpClientName);
         var filter = SitemapWebCrawlerHelper.CreateUrlFilter(metadata);
 
-        var discovered = await _sitemapCrawler.DiscoverAsync(
+        var discovered = await _sitemapCrawler.DiscoverDetailedAsync(
             client,
             SitemapWebCrawlerHelper.CreateCrawlRequest(metadata, _options),
             cancellationToken);
 
-        return discovered
+        var pages = discovered.Entries
             .Where(entry => filter(entry.Url))
             .Select(entry => new CrawledPageRef(entry.Url, entry.LastModifiedUtc, entry.ChangeFrequency))
             .ToArray();
+
+        // An empty crawl is never treated as a site with no pages: something went wrong, and removing every
+        // known page on the strength of it would empty the knowledge base.
+        var complete = discovered.IsComplete && pages.Length > 0;
+
+        return new WebCrawlDiscovery(pages, complete, discovered.Message);
     }
 
     /// <inheritdoc />

@@ -464,6 +464,7 @@ public sealed class PostSessionProcessingService
             .UseFunctionInvocation(_loggerFactory, c =>
             {
                 c.MaximumIterationsPerRequest = _defaultOptions.MaximumIterationsPerRequest;
+                c.UseTextToolResults();
             })
             .Build(_serviceProvider);
 

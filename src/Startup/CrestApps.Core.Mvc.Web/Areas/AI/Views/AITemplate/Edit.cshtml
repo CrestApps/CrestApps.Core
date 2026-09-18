@@ -605,6 +605,22 @@
                             <div class="form-text">Allow users to upload documents during chat sessions with profiles created from this template.</div>
                         </div>
 
+                        <div class="mb-3" id="max-indexable-characters-row">
+                            <label asp-for="MaxIndexableCharacters" class="form-label">Largest document that can be indexed</label>
+                            <input asp-for="MaxIndexableCharacters" type="number" class="form-control" min="0" placeholder="Use site default" />
+                            <div class="form-text">Characters of extracted text. A larger document is refused at upload rather than stored unsearchable. Leave empty to use the site&#39;s limit; 0 means no limit.</div>
+                        </div>
+
+                        <div class="mb-3" id="analyze-images-row">
+                            <label asp-for="DescribeFiguresInUploads" class="form-label">Describe figures in uploaded documents</label>
+                            <select asp-for="DescribeFiguresInUploads" class="form-select">
+                                <option value="">Use site default</option>
+                                <option value="true">Describe figures</option>
+                                <option value="false">Do not describe figures</option>
+                            </select>
+                            <div class="form-text">Describing figures uses a vision model and is the expensive part of ingestion. It needs a deployment in the Vision slot &ndash; with none configured nothing is described, and a figure keeps its caption either way.</div>
+                        </div>
+
                         <div class="mb-3">
                             <div class="form-check form-switch">
                                 <input asp-for="AllowSessionImageUploads" class="form-check-input" type="checkbox" />
@@ -943,6 +959,28 @@
 </form>
 
 @section Scripts {
+<script>
+    // The two ceilings only apply to documents uploaded in a session, so they follow that switch.
+    (function () {
+        var toggle = document.querySelector('[name="AllowSessionDocuments"]');
+        var rows = ['max-indexable-characters-row', 'analyze-images-row']
+            .map(function (id) { return document.getElementById(id); })
+            .filter(Boolean);
+
+        if (!toggle || rows.length === 0) {
+            return;
+        }
+
+        function sync() {
+            rows.forEach(function (row) { row.style.display = toggle.checked ? '' : 'none'; });
+        }
+
+        toggle.addEventListener('change', sync);
+        toggle.addEventListener('input', sync);
+        sync();
+    })();
+</script>
+
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             if (window.bootstrap && window.bootstrap.Tooltip) {

@@ -1,11 +1,17 @@
 @page "/webcrawlers"
 @attribute [Authorize(Policy = "Admin")]
 @using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.DataSources
+@using CrestApps.Core.AI.FileSources
 @using CrestApps.Core.AI.WebCrawlers
+@using CrestApps.Core.AI.WebCrawlers.Strategies
 @using CrestApps.Core.Services
+@using Microsoft.Extensions.Options
 @inject ISourceCatalogManager<WebCrawler> Manager
 @inject IWebCrawlerReindexPlanner ReindexPlanner
+@inject IWebCrawlStateStore StateStore
 @inject IStoreCommitter StoreCommitter
+@inject IOptions<WebCrawlerStrategyOptions> StrategyOptions
 @inject IJSRuntime JS
 @inject ToastNotificationService ToastNotifications
 
@@ -26,7 +32,7 @@ else if (_crawlers.Count == 0)
 {
     <div class="alert alert-info">
         <i class="fa-solid fa-circle-info"></i> No web crawlers found.
-        Create one to scrape a website into a Web data source.
+        Create one to crawl a website into a Web data source. A folder or a file server is set up under File Sources.
     </div>
 }
 else
@@ -38,7 +44,8 @@ else
                     <th>Title</th>
                     <th>Strategy</th>
                     <th>Enabled</th>
-                    <th style="width: 250px;">Actions</th>
+                    <th>Last run</th>
+                    <th style="width: 320px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -58,6 +65,22 @@ else
                             }
                         </td>
                         <td>
+                            @{
+                                var lastRun = DescribeLastRun(item);
+                            }
+                            @if (lastRun is null)
+                            {
+                                <span class="text-muted">Never</span>
+                            }
+                            else
+                            {
+                                <span class="small">@lastRun</span>
+                            }
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-warning" @onclick="() => ResetStateAsync(item.ItemId)">
+                                <i class="fa-solid fa-rotate-left"></i> Reset state
+                            </button>
                             <button type="button" class="btn btn-sm btn-outline-success" @onclick="() => SyncAsync(item.ItemId)">
                                 <i class="fa-solid fa-arrows-rotate"></i> Sync
                             </button>
@@ -87,14 +110,44 @@ else
     {
         var all = await Manager.GetAllAsync();
 
-        _crawlers = all.ToList();
+        // Only the strategy-backed records belong here. The connector-backed ones read files and are
+        // managed on the File Sources pages, even though both kinds share one store.
+        _crawlers = WebCrawlerSourceFilter.SelectCrawlStrategyRecords(all, StrategyOptions.Value.Strategies);
+    }
+
+    private static string DescribeLastRun(WebCrawler crawler)
+    {
+        if (!crawler.TryGet<IndexerRunSummary>(out var lastRun))
+        {
+            return null;
+        }
+
+        var note = lastRun.DiscoveryCompleted ? string.Empty : " (partial listing)";
+
+        return $"{lastRun.Status} — {lastRun.ItemsIndexed} indexed, {lastRun.ItemsDeleted} removed{note}";
+    }
+
+    private async Task ResetStateAsync(string id)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Forget what this indexer has read? The next run re-reads every item.");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        // Forgetting what was read, not what was stored.
+        await StateStore.DeleteByCrawlerIdAsync(id);
+        await StoreCommitter.CommitAsync();
+
+        ToastNotifications.ShowSuccess("Indexer state cleared. The next run will re-read every item.");
     }
 
     private async Task SyncAsync(string id)
     {
         var crawler = await Manager.FindByIdAsync(id);
 
-        if (crawler == null)
+        if (crawler == null || !WebCrawlerSourceFilter.IsCrawlStrategy(crawler.Source, StrategyOptions.Value.Strategies))
         {
             ToastNotifications.ShowError("Web crawler not found.");
 

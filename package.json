@@ -6,8 +6,9 @@
     "rebuild": "gulp rebuild",
     "watch": "gulp watch",
     "test:client": "playwright test",
-    "test:gate": "node --test tests/realtime-client/gate-decision.test.js",
-    "test": "npm run test:gate && npm run test:client"
+    "test:unit": "node --test tests/realtime-client/chart-markers.test.js tests/realtime-client/citation-markers.test.js tests/realtime-client/figure-markers.test.js tests/realtime-client/gate-decision.test.js tests/realtime-client/test-registration.test.js",
+    "test:gate": "npm run test:unit",
+    "test": "npm run test:unit && npm run test:client"
   },
   "devDependencies": {
     "@babel/core": "^7.22.11",

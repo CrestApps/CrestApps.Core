@@ -102,6 +102,7 @@ public sealed class CitationReferenceCollector
                     new Dictionary<string, object>
                     {
                         ["Title"] = reference.Title,
+                        ["DataSourceId"] = reference.DataSourceId,
                     });
             }
 
