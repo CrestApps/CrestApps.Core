@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>CrestApps.Core.AI.FileSources</RootNamespace>
-    <Title>CrestApps AI Indexers</Title>
+    <Title>CrestApps AI File Sources</Title>
     <Description>
       $(CrestAppsDescription)
 

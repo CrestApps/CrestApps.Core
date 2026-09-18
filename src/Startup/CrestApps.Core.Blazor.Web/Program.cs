@@ -208,12 +208,11 @@ builder.Services.AddCoreWebCrawlers();
 // connector ships in its own package, so a host that reads only local folders references neither
 // CrestApps.Core.AI.Ftp (FluentFTP) nor CrestApps.Core.AI.Sftp (SSH.NET).
 builder.Services
-    .AddCoreFileSources()
+    .AddCoreFileSources(builder.Configuration)
     .AddCoreLocalFolderConnector()
     .AddCoreFtpIngestionConnector()
     .AddCoreSftpIngestionConnector();
 
-builder.Services.Configure<FileSourceOptions>(builder.Configuration.GetSection("CrestApps:Indexers"));
 builder.Services.AddCoreWebCrawlerStoresEntityCore();
 
 builder.Services.Configure<A2AHostOptions>(
