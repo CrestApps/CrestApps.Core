@@ -11,8 +11,8 @@ public sealed class PdfTextNormalizerTests
     /// <param name="input">The extracted text.</param>
     /// <param name="expected">The normalized text.</param>
     [Theory]
-    [InlineData("Elektroﬁ lterekkel", "Elektrofilterekkel")]
-    [InlineData("Elektroﬁlterekkel", "Elektrofilterekkel")]
+    [InlineData("proﬁ lokkal", "profilokkal")]
+    [InlineData("proﬁlokkal", "profilokkal")]
     [InlineData("coﬀee", "coffee")]
     [InlineData("inﬂation", "inflation")]
     [InlineData("oﬃce", "office")]
@@ -49,9 +49,9 @@ public sealed class PdfTextNormalizerTests
     /// <param name="input">The extracted text.</param>
     /// <param name="expected">The normalized text.</param>
     [Theory]
-    [InlineData("Elektro-\nfilterekkel", "Elektrofilterekkel")]
-    [InlineData("Elektro­\nfilterekkel", "Elektrofilterekkel")]
-    [InlineData("Elektro‐\nfilterekkel", "Elektrofilterekkel")]
+    [InlineData("pro-\nfilokkal", "profilokkal")]
+    [InlineData("pro­\nfilokkal", "profilokkal")]
+    [InlineData("pro‐\nfilokkal", "profilokkal")]
     [InlineData("Waerme-\n  uebertragung", "Waermeuebertragung")]
     public void Normalize_HyphenatedAcrossALine_IsRejoined(string input, string expected)
     {
@@ -153,8 +153,8 @@ public sealed class PdfTextNormalizerTests
     /// </summary>
     /// <param name="input">The extracted text.</param>
     [Theory]
-    [InlineData("R² = 0,8858")]
-    [InlineData("y = 1,0892x")]
+    [InlineData("R² = 0,9412")]
+    [InlineData("y = 1,0451x")]
     [InlineData("1.234,56")]
     [InlineData("2,5 m³/h")]
     public void Normalize_Numbers_ArePreserved(string input)

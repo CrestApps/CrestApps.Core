@@ -315,17 +315,17 @@ public sealed class PdfIngestionDocumentReaderTests
         var reader = CreateReader();
         await using var source = new PdfFixtureBuilder()
             .Page(page => page
-                .Text("Elektroﬁ lterekkel javul a hatasfok. ", 40, 760, 11)
-                .Text("A meredekseg y = 1,0892x, a josag 0,8858. ", 40, 742, 11))
+                .Text("proﬁ lokkal javul a hatasfok. ", 40, 760, 11)
+                .Text("A meredekseg y = 1,0451x, a josag 0,9412. ", 40, 742, 11))
             .Build();
 
         var document = await reader.ReadAsync(source, "ligature.pdf", PdfMediaType, TestContext.Current.CancellationToken);
 
         var text = Flatten(document);
 
-        Assert.Contains("Elektrofilterekkel", text, StringComparison.Ordinal);
-        Assert.Contains("y = 1,0892x", text, StringComparison.Ordinal);
-        Assert.Contains("0,8858", text, StringComparison.Ordinal);
+        Assert.Contains("profilokkal", text, StringComparison.Ordinal);
+        Assert.Contains("y = 1,0451x", text, StringComparison.Ordinal);
+        Assert.Contains("0,9412", text, StringComparison.Ordinal);
     }
 
     /// <summary>

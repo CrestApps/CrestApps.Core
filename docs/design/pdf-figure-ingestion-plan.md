@@ -70,7 +70,7 @@ appears, build the affected projects individually to confirm the real state.
   older copy exists at `tests/CrestApps.Core.Tests/Helpers/DocumentReaders/PdfIngestionDocumentReaderTests.cs`.
   **Extend the `Core/Documents/Services` file; keep the `Helpers` file compiling.**
 - PDF fixtures are generated in-test with PdfPig's writer (`UglyToad.PdfPig.Writer.PdfDocumentBuilder`).
-  **Do not add PDFsharp to the test project and do not commit binary PDFs.** The reference document
+  **Do not add PDFsharp to the test project and do not commit binary PDFs.** The sample document
   used for the evidence in section 2 is third-party copyrighted material and, per repository policy,
   no customer or client material goes into the repository — fixtures are synthetic, always.
 - Web crawler behaviour is pinned by 23 tests in `tests/CrestApps.Core.Tests/Core/WebCrawlers/WebCrawlerTests.cs`
@@ -241,7 +241,7 @@ exact types and members are in Appendix A.1; the ones the reader rewrite is buil
 
 ---
 
-## 2. Evidence from the reference document
+## 2. Evidence from the sample document
 
 A Hungarian HVAC trade journal (23 pages), used throughout as the worked example.
 
@@ -257,11 +257,11 @@ A Hungarian HVAC trade journal (23 pages), used throughout as the worked example
 Findings that drive design decisions:
 
 1. **Figures carry the data.** p4 `1. ábra` is a scatter plot whose only quantitative payload
-   is `y = 1,0892x` / `R² = 0,8858`, rasterized into the JPEG. p8 `3. ábra` is a stacked bar
+   is `y = 1,0451x` / `R² = 0,9412`, rasterized into the JPEG. p8 `3. ábra` is a stacked bar
    chart with axis labels and a six-level legend, likewise pixels only. **None of it is in the
    text layer.**
 2. **The prose depends on them.** ~70 caption and cross-reference sites across 23 pages
-   (`a 4. ábra trendvonalai`, `az 5. ábra a MESP működését szemlélteti`).
+   (`a 4. ábra trendvonalai`, `az 5. ábra a rendszer működését szemlélteti`).
 3. **Caption direction is not uniform.** `N. ábra` (figure) sits *below*; `N. táblázat`
    (table) sits *above*. Same document, same publisher. Any fixed rule is wrong.
 4. **Most images are worthless.** p19 contains a stock photo of a sunny sky. Roughly 60 of
@@ -298,7 +298,7 @@ and stop.
 | # | Decision | Rationale |
 |---|---|---|
 | **D1** | Build on the `IngestionDocument` element model; do not invent a parallel figure model. | 1E — `IngestionDocumentImage.AlternativeText` and `IngestionDocumentProcessor` already exist. A second model forks us from the library forever. |
-| **D2** | Describe figures **at ingest**, never at query time. | Retrieval is a vector search over text. If `R² = 0,8858` is not text in the index, the row is never a candidate. |
+| **D2** | Describe figures **at ingest**, never at query time. | Retrieval is a vector search over text. If `R² = 0,9412` is not text in the index, the row is never a candidate. |
 | **D3** | Figures reach MCP clients as **`ResourceLinkBlock` in tool results** plus a **resource template**; never as entries in `resources/list`. | `resources/list` is a bounded set a human browses. A knowledge base's figures are an unbounded machine-selected set. |
 | **D4** | Caption association is a **scored assignment with a per-document learned prior**, not a fixed rule. | Evidence #3 — figure captions sit below, table captions above, in the same document. |
 | **D5** | Vision is gated by **capability AND per-image salience**, in three tiers, with an operator override. | Evidence #1 and #4 — some images are the whole answer, most are worthless. |
@@ -477,7 +477,7 @@ A static `PdfTextNormalizer` in the Pdf project, unit-tested on its own:
   ligature positions, normalize, then remove a single space immediately following each
   normalized ligature if the next character is a lowercase letter.
 - Collapse runs of whitespace to one space; trim.
-- Never touch digits, commas or periods (Hungarian decimals are `0,8858`).
+- Never touch digits, commas or periods (Hungarian decimals are `0,9412`).
 
 ### 5.5 Options and construction
 
@@ -516,8 +516,8 @@ wrapping `PdfDocumentBuilder` (Appendix A.1 has the writer API). Every fixture i
   pages (boilerplate) survives.
 - `ReadAsync_EveryElementHasTextAndPageNumber` — multi-page fixture; assert
   `document.EnumerateContent().All(e => e.PageNumber.HasValue && (e is IngestionDocumentImage || !string.IsNullOrWhiteSpace(e.Text)))`.
-- `ReadAsync_LigatureWord_IsNormalized` — text containing `Elektroﬁ lterekkel` yields
-  `Elektrofilterekkel`; and `R² = 0,8858` is preserved byte for byte.
+- `ReadAsync_LigatureWord_IsNormalized` — text containing `proﬁ lokkal` yields
+  `profilokkal`; and `R² = 0,9412` is preserved byte for byte.
 - `ReadAsync_LayoutAnalysisDisabled_MatchesLegacyOutput` — same fixture through both modes; the
   legacy mode yields one paragraph per page whose text equals `pdfPage.Text.Trim()`.
 - `ReadAsync_PageWithPngImage_EmitsImageElementWithHashAndBounds` (phase 2).
@@ -721,7 +721,7 @@ caption and context as text plus the image as `DataContent`, and parses the same
 
 The **figure-transcription prompt** asks for a *dense literal transcription*: chart type; axis
 titles and units; every tick label; series and legend entries; every printed number and
-equation verbatim (`y = 1,0892x`, `R² = 0,8858`); the trend in one sentence; for a diagram, every
+equation verbatim (`y = 1,0451x`, `R² = 0,9412`); the trend in one sentence; for a diagram, every
 label and the relationships; **in the document's language**; no interpretation, no rounding, no
 values that are not printed (D9). Cap the description at ~350 tokens by instruction.
 
@@ -933,7 +933,7 @@ of `KnowledgeObjectCatalogHandler` requires `CanonicalId`, `ObjectType`, `RootId
 
 ### 11.4 Charts — the correctness hazard (D9)
 
-Do **not** ask a vision model for `data: [[-50, 820], …]`. On the reference document's p4 scatter
+Do **not** ask a vision model for `data: [[-50, 820], …]`. On the sample document's p4 scatter
 there are ~1,500 overlapping points; on p8's stacked bars, reading 24 categories × 6 series off a
 raster to two significant figures is guesswork. A fabricated series stored as data answers *"what
 tensile strength at 150 °C?"* with a confident, specific, wrong number.
@@ -1165,7 +1165,7 @@ Rendering, appended after today's `Relevant content …` block and before `Refer
 Figures:
 [fig:1] 3. ábra — Stacked bar chart … (p. 8) crestapps://datasource/{dsId}/figure/{canonicalId}   values: descriptive — not machine-readable
 Tables:
-[tbl:1] 2. táblázat — columns: Anyag, Rm (MPa), T (°C) (p. 5)
+[tbl:1] 2. táblázat — columns: A oszlop, B oszlop (MPa), C oszlop (°C) (p. 5)
 ```
 
 Grouping: hits are grouped by `RootId` then `ParentId` so a figure and the paragraph that cites it
@@ -1708,12 +1708,12 @@ pass. Two categories deserve calling out:
 
 ### 20.3 Manual acceptance (not automated)
 
-On a developer machine with a vision deployment configured, against the reference document
+On a developer machine with a vision deployment configured, against the sample document
 (never committed):
 
 > "What is the correlation between the ÉKM and TNM specific heating primary-energy figures?"
 
-must retrieve p4 and answer with **R² = 0,8858**, cite the figure, and — over MCP — return a
+must retrieve p4 and answer with **R² = 0,9412**, cite the figure, and — over MCP — return a
 `ResourceLinkBlock` whose URI resolves to the correct JPEG. Expected salience on that document:
 ~60 skip, ~10 caption-only, ~30 describe.
 
@@ -1817,7 +1817,7 @@ Path: `IFormFile` → keyed reader → `EnumerateContent().Select(e => e.Text)` 
     useRenderingOrder: false)` instead of using `Instance`. *Rationale: content-stream order is exactly
     what cannot be trusted on a multi-column page; correct Appendix A.1 to name the constructor.*
 15. **The Standard-14 writer does not round-trip `U+00B2`.** `PdfDocumentBuilder` + Helvetica writes it
-    and PdfPig reads it back as a different glyph, so the `R² = 0,8858` half of
+    and PdfPig reads it back as a different glyph, so the `R² = 0,9412` half of
     `ReadAsync_LigatureWord_IsNormalized` (5.6) cannot be asserted from a generated fixture. Phase 1
     asserts the ligature expansion and the decimal-comma preservation in the reader test, and asserts
     superscript preservation in `PdfTextNormalizerTests` instead, which feeds the string straight in.

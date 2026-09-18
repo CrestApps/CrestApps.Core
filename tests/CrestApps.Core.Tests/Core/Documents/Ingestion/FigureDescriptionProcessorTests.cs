@@ -122,7 +122,7 @@ public sealed class FigureDescriptionProcessorTests
         Assert.Equal(AITemplateIds.FigureTranscription, request.TemplateId);
         Assert.Equal("image/png", request.ContentType);
 
-        Assert.Equal("A scatter plot.\nR2 = 0,8858", image.AlternativeText);
+        Assert.Equal("A scatter plot.\nR2 = 0,9412", image.AlternativeText);
         Assert.Equal("vision", image.GetMetadataString(FigureMetadataKeys.DescriptionSource));
         Assert.Equal(VisionDeploymentName, image.GetMetadataString(FigureMetadataKeys.DescriptionModel));
         Assert.Equal(
@@ -365,7 +365,7 @@ public sealed class FigureDescriptionProcessorTests
             return Task.FromResult(ImageAnalysisResult.Succeeded(
                 caption: "A scatter plot",
                 description: "A scatter plot.",
-                ocrText: "R2 = 0,8858",
+                ocrText: "R2 = 0,9412",
                 detectedEntities: "x axis, y axis",
                 rawAnalysis: "{}"));
         }

@@ -56,7 +56,7 @@ public sealed class DefaultImageAnalysisServiceTests
                 {
                   "caption": "A scatter plot",
                   "description": "Specific heating demand against the model.",
-                  "ocr_text": "y = 1,0892x",
+                  "ocr_text": "y = 1,0451x",
                   "detected_entities": "x axis, y axis"
                 }
                 """)));
@@ -95,7 +95,7 @@ public sealed class DefaultImageAnalysisServiceTests
 
         Assert.True(result.Success);
         Assert.Equal("Specific heating demand against the model.", result.Description);
-        Assert.Equal("y = 1,0892x", result.OcrText);
+        Assert.Equal("y = 1,0451x", result.OcrText);
 
         Assert.NotNull(captured);
         Assert.Equal(2, captured.Count);
