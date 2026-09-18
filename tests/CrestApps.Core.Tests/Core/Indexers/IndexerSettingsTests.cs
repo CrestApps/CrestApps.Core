@@ -92,7 +92,7 @@ public sealed class IndexerSettingsTests
         var indexer = new WebCrawler
         {
             ItemId = "indexer-1",
-            Source = "LocalFolder",
+            Source = "FileSystem",
             DisplayText = "The folder",
             AIDataSourceId = "data-source-1",
         };

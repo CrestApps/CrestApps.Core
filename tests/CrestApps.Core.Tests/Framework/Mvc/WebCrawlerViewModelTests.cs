@@ -142,7 +142,7 @@ public sealed class WebCrawlerViewModelTests
     /// Verifies that a folder indexer stores folder settings and no connection at all.
     /// </summary>
     [Fact]
-    public void ApplyTo_LocalFolderSource_StoresNoConnection()
+    public void ApplyTo_FileSystemSource_StoresNoConnection()
     {
         var provider = new EphemeralDataProtectionProvider();
         var crawler = new WebCrawler();
@@ -150,7 +150,7 @@ public sealed class WebCrawlerViewModelTests
         var model = new WebCrawlerViewModel
         {
             DisplayText = "Knowledge folder",
-            Source = LocalFolderIngestionConnector.ConnectorName,
+            Source = FileSystemIngestionConnector.ConnectorName,
             AIDataSourceId = "data-source-1",
             LocalRootPath = "D:\\knowledge",
             LocalSearchPattern = "*.pdf",

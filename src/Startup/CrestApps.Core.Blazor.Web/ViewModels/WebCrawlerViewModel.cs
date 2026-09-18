@@ -57,7 +57,7 @@ public sealed class WebCrawlerViewModel
 
     public string Language { get; set; }
 
-    // Local folder settings.
+    // File-system folder settings.
     public string LocalRootPath { get; set; }
 
     public string LocalSearchPattern { get; set; } = "*.*";
@@ -97,8 +97,8 @@ public sealed class WebCrawlerViewModel
 
     public bool SftpHasPassphrase { get; set; }
 
-    public bool IsLocalFolder
-        => string.Equals(Source, LocalFolderIngestionConnector.ConnectorName, StringComparison.OrdinalIgnoreCase);
+    public bool IsFileSystem
+        => string.Equals(Source, FileSystemIngestionConnector.ConnectorName, StringComparison.OrdinalIgnoreCase);
 
     public bool IsFtp
         => string.Equals(Source, FtpIngestionConnector.ConnectorName, StringComparison.OrdinalIgnoreCase);
@@ -211,7 +211,7 @@ public sealed class WebCrawlerViewModel
         crawler.Remove<LocalFolderIndexerMetadata>();
         crawler.Remove<RemoteFolderIndexerMetadata>();
 
-        if (IsLocalFolder)
+        if (IsFileSystem)
         {
             crawler.Put(new LocalFolderIndexerMetadata
             {

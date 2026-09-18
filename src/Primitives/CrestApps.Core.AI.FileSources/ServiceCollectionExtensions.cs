@@ -106,7 +106,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     /// <typeparam name="TConnector">The connector type.</typeparam>
     /// <param name="services">The service collection.</param>
-    /// <param name="name">The connector name, which is stored as an indexer's source.</param>
+    /// <param name="name">The connector name, which is stored as a file source's source.</param>
+    /// <param name="configure">An optional callback that shapes how the connector is presented.</param>
     public static IServiceCollection AddCoreIngestionConnector<TConnector>(
         this IServiceCollection services,
         string name,
@@ -140,23 +141,23 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds the local-folder connector, which reads files out of a folder on the host.
+    /// Adds the file-system connector, which reads files out of a folder on the host.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <remarks>
     /// A folder still has to be added to <see cref="FileSourceOptions.AllowedLocalRoots"/> before anything can
     /// be read: registering the connector grants nothing on its own.
     /// </remarks>
-    public static IServiceCollection AddCoreLocalFolderConnector(this IServiceCollection services)
+    public static IServiceCollection AddCoreFileSystemConnector(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        return services.AddCoreIngestionConnector<LocalFolderIngestionConnector>(
-            LocalFolderIngestionConnector.ConnectorName,
+        return services.AddCoreIngestionConnector<FileSystemIngestionConnector>(
+            FileSystemIngestionConnector.ConnectorName,
             descriptor =>
             {
-                descriptor.DisplayName = new LocalizedString("LocalFolder", "Local folder");
-                descriptor.Description = new LocalizedString("LocalFolder Description", "Reads files from a folder on the server, within the allowed roots.");
+                descriptor.DisplayName = new LocalizedString("FileSystem", "File system");
+                descriptor.Description = new LocalizedString("FileSystem Description", "Reads files from a folder on the server, within the allowed roots.");
             });
     }
 

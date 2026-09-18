@@ -154,7 +154,7 @@ public sealed class FileSourceViewModelTests
         Assert.True(fileSource.TryGet<SftpConnectionMetadata>(out _));
         Assert.True(fileSource.TryGet<RemoteFolderIndexerMetadata>(out _));
 
-        CreateLocalFolderModel().ApplyTo(fileSource, provider);
+        CreateFileSystemModel().ApplyTo(fileSource, provider);
 
         Assert.False(fileSource.TryGet<SftpConnectionMetadata>(out _));
         Assert.False(fileSource.TryGet<FtpConnectionMetadata>(out _));
@@ -166,12 +166,12 @@ public sealed class FileSourceViewModelTests
     /// Verifies that a folder file source stores folder settings and no connection at all.
     /// </summary>
     [Fact]
-    public void ApplyTo_LocalFolderConnector_StoresNoConnection()
+    public void ApplyTo_FileSystemConnector_StoresNoConnection()
     {
         var provider = new EphemeralDataProtectionProvider();
         var fileSource = new WebCrawler();
 
-        var model = CreateLocalFolderModel();
+        var model = CreateFileSystemModel();
         model.RemoteHost = "left over from another connector";
         model.RemotePassword = "left over too";
         model.ApplyTo(fileSource, provider);
@@ -217,21 +217,21 @@ public sealed class FileSourceViewModelTests
         var provider = new EphemeralDataProtectionProvider();
         var fileSource = new WebCrawler();
 
-        CreateLocalFolderModel().ApplyTo(fileSource, provider);
+        CreateFileSystemModel().ApplyTo(fileSource, provider);
 
-        Assert.Equal(LocalFolderIngestionConnector.ConnectorName, fileSource.Source);
+        Assert.Equal(FileSystemIngestionConnector.ConnectorName, fileSource.Source);
 
         CreateFtpModel(password: "pw").ApplyTo(fileSource, provider);
 
         Assert.Equal(FtpIngestionConnector.ConnectorName, fileSource.Source);
     }
 
-    private static FileSourceViewModel CreateLocalFolderModel()
+    private static FileSourceViewModel CreateFileSystemModel()
     {
         return new FileSourceViewModel
         {
             DisplayText = "Knowledge folder",
-            Source = LocalFolderIngestionConnector.ConnectorName,
+            Source = FileSystemIngestionConnector.ConnectorName,
             AIDataSourceId = "data-source-1",
             LocalRootPath = "D:\\knowledge",
             LocalSearchPattern = "*.pdf",

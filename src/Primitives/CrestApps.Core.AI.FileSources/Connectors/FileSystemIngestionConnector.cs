@@ -9,8 +9,13 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.AI.FileSources.Connectors;
 
 /// <summary>
-/// The settings a local-folder indexer carries.
+/// The settings a file-system file source carries.
 /// </summary>
+/// <remarks>
+/// The type keeps the name it is persisted under, alongside the other stored shapes this release left
+/// alone: it is written under its short type name, so renaming it would strand the settings of every file
+/// source already configured.
+/// </remarks>
 public sealed class LocalFolderIndexerMetadata
 {
     /// <summary>
@@ -35,7 +40,7 @@ public sealed class LocalFolderIndexerMetadata
 }
 
 /// <summary>
-/// Reads files out of a folder on the host.
+/// Reads files out of a folder on the host's file system.
 /// </summary>
 /// <remarks>
 /// This is the simplest possible source, and the one that makes every other part of the intake path testable
@@ -45,24 +50,24 @@ public sealed class LocalFolderIndexerMetadata
 /// indexer screen can read any file the host process can open.
 /// </para>
 /// </remarks>
-public sealed class LocalFolderIngestionConnector : IIngestionConnector
+public sealed class FileSystemIngestionConnector : IIngestionConnector
 {
     /// <summary>
-    /// The connector's registered name, stored as the indexer's source.
+    /// The connector's registered name, stored as the file source's source.
     /// </summary>
-    public const string ConnectorName = "LocalFolder";
+    public const string ConnectorName = "FileSystem";
 
     private readonly FileSourceOptions _options;
-    private readonly ILogger<LocalFolderIngestionConnector> _logger;
+    private readonly ILogger<FileSystemIngestionConnector> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="LocalFolderIngestionConnector"/> class.
+    /// Initializes a new instance of the <see cref="FileSystemIngestionConnector"/> class.
     /// </summary>
     /// <param name="options">The indexer options.</param>
     /// <param name="logger">The logger.</param>
-    public LocalFolderIngestionConnector(
+    public FileSystemIngestionConnector(
         IOptions<FileSourceOptions> options,
-        ILogger<LocalFolderIngestionConnector> logger)
+        ILogger<FileSystemIngestionConnector> logger)
     {
         _options = options.Value;
         _logger = logger;

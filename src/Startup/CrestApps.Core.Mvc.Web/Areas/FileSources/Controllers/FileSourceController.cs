@@ -253,7 +253,7 @@ public sealed class FileSourceController : Controller
             nameof(WebCrawler.DisplayText) => nameof(FileSourceViewModel.DisplayText),
             nameof(WebCrawler.AIDataSourceId) => nameof(FileSourceViewModel.AIDataSourceId),
             nameof(WebCrawler.Source) => nameof(FileSourceViewModel.Source),
-            nameof(LocalFolderIndexerMetadata.RootPath) => model.IsLocalFolder
+            nameof(LocalFolderIndexerMetadata.RootPath) => model.IsFileSystem
                 ? nameof(FileSourceViewModel.LocalRootPath)
                 : nameof(FileSourceViewModel.RemoteRootPath),
             nameof(FtpConnectionMetadata.Host) => nameof(FileSourceViewModel.RemoteHost),

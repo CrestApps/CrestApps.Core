@@ -2,7 +2,7 @@
 sidebar_label: File Sources
 sidebar_position: 7
 title: File Sources
-description: Feed a File AI data source from a local folder, an FTP server or an SFTP server, and store what each file contains as separately retrievable text, figure, chart and table objects.
+description: Feed a File AI data source from the host's file system, an FTP server or an SFTP server, and store what each file contains as separately retrievable text, figure, chart and table objects.
 ---
 
 # File Sources
@@ -16,7 +16,7 @@ description: Feed a File AI data source from a local folder, an FTP server or an
 A **File** data source is an inert target bucket. It holds no folder, no server and no credential, and no
 field mapping either, because everything that lands in it already carries its own key, title and content.
 
-A **file source** is the record that fills it. It chooses a **connector** — a local folder, an FTP server or
+A **file source** is the record that fills it. It chooses a **connector** — the host's file system, an FTP server or
 an SFTP server — configures that connector, and selects the File data source it feeds. Several file sources
 can feed one knowledge base, each on its own schedule.
 
@@ -25,7 +25,7 @@ two are deliberately the same: the data source is the thing an AI profile attach
 managed on its own.
 
 ```text
-File Source (local folder) ─┐
+File Source (file system)  ─┐
 File Source (FTP)          ─┼──▶  File AI Data Source  ──▶  Knowledge-base index (typed objects)
 File Source (SFTP)         ─┘
 ```
@@ -68,14 +68,14 @@ time instead of storing a second copy of it.
 
 | Connector | Package | Reads |
 | --- | --- | --- |
-| `LocalFolder` | `CrestApps.Core.AI.FileSources` | files in a folder on the host |
+| `FileSystem` | `CrestApps.Core.AI.FileSources` | files in a folder on the host |
 | `Ftp` | `CrestApps.Core.AI.Ftp` | files on an FTP or FTPS server |
 | `Sftp` | `CrestApps.Core.AI.Sftp` | files on an SFTP server |
 
 ```csharp
 builder.Services
     .AddCoreFileSources(builder.Configuration)
-    .AddCoreLocalFolderConnector()
+    .AddCoreFileSystemConnector()
     .AddCoreFtpIngestionConnector()
     .AddCoreSftpIngestionConnector();
 ```
@@ -83,9 +83,9 @@ builder.Services
 Only the connectors a host registers are offered, so a host that never adds the file-transfer package offers
 a folder and nothing else. See [File Source Connectors](./indexers.md) for the connector contract and for adding one.
 
-## Reading a local folder
+## Reading a folder on the host
 
-A local-folder source stores `{ RootPath, SearchPattern, Recursive, MaxItems }`, and the root has to sit
+A file-system source stores `{ RootPath, SearchPattern, Recursive, MaxItems }`, and the root has to sit
 inside a host-allow-listed folder:
 
 ```json
@@ -102,7 +102,7 @@ inside a host-allow-listed folder:
 ```
 
 :::warning
-**A local folder reads nothing until a root is allow-listed.** Registering the connector grants nothing:
+**The file-system connector reads nothing until a root is allow-listed.** Registering the connector grants nothing:
 until `CrestApps:AI:FileSources:AllowedLocalRoots` names a folder, every root is refused and the file source fails
 validation before it lists a single file. The empty default is the point, not an oversight — without it, an
 administrator with access to this screen could read any file the host process can open.
