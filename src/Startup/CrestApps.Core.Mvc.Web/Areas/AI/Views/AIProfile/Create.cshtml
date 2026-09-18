@@ -662,11 +662,6 @@
                                     <input asp-for="DocumentTopN" type="number" class="form-control" min="1" max="20" placeholder="Default: 3" />
                                     <div class="form-text">Number of top matching chunks or documents to include as AI context.</div>
                                 </div>
-                                <div class="mb-3">
-                                    <label asp-for="MaxIndexableCharacters" class="form-label">Largest document that can be indexed</label>
-                                    <input asp-for="MaxIndexableCharacters" type="number" class="form-control" min="0" placeholder="Use the site's limit" />
-                                    <div class="form-text">Characters of extracted text. Leave empty to use the site&#39;s limit; 0 means no limit.</div>
-                                </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
@@ -707,6 +702,12 @@
                             <label asp-for="AllowSessionDocuments" class="form-check-label">Allow session document uploads</label>
                         </div>
                         <div class="form-text">Allow users to upload documents during chat sessions with this profile.</div>
+                    </div>
+
+                    <div class="mb-3" id="max-indexable-characters-row">
+                        <label asp-for="MaxIndexableCharacters" class="form-label">Largest document that can be indexed</label>
+                        <input asp-for="MaxIndexableCharacters" type="number" class="form-control" min="0" placeholder="Use the site's limit" />
+                        <div class="form-text">Characters of extracted text. A larger document is refused at upload rather than stored unsearchable. Leave empty to use the site&#39;s limit; 0 means no limit.</div>
                     </div>
 
                     <div class="mb-3">
@@ -1010,6 +1011,27 @@
 </form>
 
 @section Scripts {
+<script>
+    // The ceiling only applies to documents uploaded in a session, so it is shown only when those are
+    // allowed. Bound on input as well as change so the row follows the switch immediately.
+    (function () {
+        var toggle = document.querySelector('[name="AllowSessionDocuments"]');
+        var row = document.getElementById('max-indexable-characters-row');
+
+        if (!toggle || !row) {
+            return;
+        }
+
+        function sync() {
+            row.style.display = toggle.checked ? '' : 'none';
+        }
+
+        toggle.addEventListener('change', sync);
+        toggle.addEventListener('input', sync);
+        sync();
+    })();
+</script>
+
     <script src="~/_content/CrestApps.AI.Resources/scripts/document-drop-zone.js" asp-append-version="true"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {

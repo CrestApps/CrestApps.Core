@@ -862,11 +862,6 @@
                                 <InputNumber class="form-control" @bind-Value="_model.DocumentTopN" min="1" max="20" placeholder="Default: 3" />
                                 <div class="form-text">Number of top matching chunks or documents to include as AI context.</div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Largest document that can be indexed</label>
-                                <InputNumber class="form-control" @bind-Value="_model.MaxIndexableCharacters" min="0" placeholder="Use the site's limit" />
-                                <div class="form-text">Characters of extracted text. Leave empty to use the site's limit; 0 means no limit.</div>
-                            </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -914,6 +909,15 @@
                         </div>
                         <div class="form-text">Allow users to upload documents during chat sessions with this profile.</div>
                     </div>
+
+                    @if (_model.AllowSessionDocuments)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Largest document that can be indexed</label>
+                            <InputNumber class="form-control" @bind-Value="_model.MaxIndexableCharacters" min="0" placeholder="Use the site's limit" />
+                            <div class="form-text">Characters of extracted text. A larger document is refused at upload rather than stored unsearchable. Leave empty to use the site's limit; 0 means no limit.</div>
+                        </div>
+                    }
 
                     <div class="mb-3">
                         <div class="form-check form-switch">

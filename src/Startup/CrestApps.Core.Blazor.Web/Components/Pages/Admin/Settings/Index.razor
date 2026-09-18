@@ -1301,6 +1301,11 @@ else
             _errors[nameof(_model.MaximumIterationsPerRequest)] = "Must be at least 1.";
         }
 
+        if (_model.MaxIndexableCharacters < 0)
+        {
+            _errors[nameof(_model.MaxIndexableCharacters)] = "Must be zero or more; zero means no limit.";
+        }
+
         if (_model.DocumentTopN < 1)
         {
             _errors[nameof(_model.DocumentTopN)] = "Must be at least 1.";
