@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.Azure.DocumentIntelligence</RootNamespace>
+    <Title>CrestApps Azure Document Intelligence</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      Reads documents on the CrestApps AI ingestion path through Azure AI Document Intelligence. The service
+      reports document structure - paragraph roles, reading order, tables and captioned figures - instead of
+      it being inferred locally, and it reads scanned pages the local readers cannot.
+    </Description>
+    <PackageTags>$(PackageTags) ai ingestion azure document-intelligence ocr layout</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.AI.DocumentIntelligence" />
+    <PackageReference Include="Azure.Identity" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CrestApps.Core.AI.Ingestion/CrestApps.Core.AI.Ingestion.csproj" />
+  </ItemGroup>
+
+</Project>

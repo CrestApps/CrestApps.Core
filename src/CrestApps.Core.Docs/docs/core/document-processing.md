@@ -43,6 +43,65 @@ At a high level, document processing lets your app:
 - route spreadsheets and CSV files through a structured tabular workflow
 - expose uploaded and generated files as downloads in chat
 
+## The ingestion path on its own
+
+Turning a file into knowledge and answering chat questions about an upload are two different jobs, and they
+live in two packages.
+
+`CrestApps.Core.AI.Ingestion` holds the first one: the readers that turn a file into a document, the processor
+pipeline that captions and describes its figures, and `IKnowledgeIngestionService`, which stores the result as
+the typed objects of an AI data source. `CrestApps.Core.AI.Documents` holds the second: uploads, tabular
+workspaces, generated files and the chat tool surface.
+
+`AddCoreAIDocumentProcessing()` calls `AddCoreAIDocumentIngestion()` for you, so a host that wants the chat
+experience carries on as before. A host that only reads files into a knowledge base registers the ingestion
+half on its own and none of the chat services come with it:
+
+```csharp
+builder.Services
+    .AddCoreAIServices()
+    .AddCoreAIDocumentIngestion(ingestion => ingestion
+        .AddPlainTextReader()
+        .AddFigureProcessing()
+        .AddFigureBackfill()
+        .AddPdf()
+    );
+```
+
+Only what cannot be left out is registered outright — the pipeline, the file store, and
+`IKnowledgeIngestionService`. Everything else is asked for:
+
+| Call | Registers | Leave it out when |
+| --- | --- | --- |
+| `AddPlainTextReader()` | the reader for `.txt`, `.csv`, `.md`, `.json`, `.xml`, `.html`, `.htm`, `.log`, `.yaml`, `.yml` | those file types never reach you |
+| `AddFigureProcessing()` | figure captioning, salience, and vision transcription | you ingest text you know has no figures, and want no vision calls |
+| `AddFigureBackfill()` | the hosted job that finishes figures an ingest left pending | you run ingests elsewhere, or want no background work in this process |
+| `AddPdf()` | the PDF reader, from `CrestApps.Core.AI.Ingestion.Pdf` | you read no PDFs |
+| `AddDocumentIntelligence()` | the Azure reader, from `CrestApps.Core.Azure.DocumentIntelligence` | you have no Azure endpoint, or the local readers are enough |
+
+:::caution Office documents still need document processing
+`.docx`, `.xlsx` and `.pptx` are read by `CrestApps.Core.AI.Documents.OpenXml`, which depends on
+`CrestApps.Core.AI.Documents`. That package is mostly tabular workspaces and the spreadsheet and Word
+writers, with the reader as one file of nine, so it was left whole rather than split the way PDF was. A host
+that ingests Office documents therefore still registers document processing. Text, PDFs and anything read
+through Azure need nothing from it.
+:::
+
+:::note
+`AddPdf()` on the **ingestion** builder registers the PDF *reader* only. `AddPdf()` on the document processing
+builder registers that same reader plus the writer that turns generated content into a downloadable PDF,
+which needs document processing. Reading a PDF and writing one are separate packages.
+:::
+
+In practice a file source host rarely calls this directly, because `AddCoreFileSources()` already registers
+the reader, the figure processors and the backfill — see [File Sources](../data-sources/indexers.md).
+
+:::note
+If you want both, call `AddDocumentProcessing()` **before** `AddCoreFileSources()`. Keyed readers resolve to
+the last registration, and the HTML reader file sources register has to win over the plain-text reader the
+ingestion path registers for `.html`, or a web page read from a folder or a server is indexed with its markup.
+:::
+
 ## Built-In Capabilities
 
 ### Document-aware chat
@@ -173,19 +232,27 @@ This lets you extend document support without changing the rest of the document-
 ## Reading Structure From A Service
 
 Everything above infers structure from where the glyphs sit. Where an operator has a document-understanding
-service, that inference can be replaced with fact. `AddDocumentIntelligence()` registers a reader backed by
-Azure AI Document Intelligence:
+service, that inference can be replaced with fact. `AddDocumentIntelligence()`, from
+`CrestApps.Core.Azure.DocumentIntelligence`, registers a reader backed by Azure AI Document Intelligence.
+It is a reader like any other, so it goes on the ingestion builder:
 
 ```csharp
-.AddDocumentProcessing(documentProcessing => documentProcessing
+builder.Services.AddCoreAIDocumentIngestion(ingestion => ingestion
+    .AddPlainTextReader()
+    .AddFigureProcessing()
+    .AddFigureBackfill()
     .AddPdf()
     .AddDocumentIntelligence(options =>
     {
         options.Endpoint = "https://my-resource.cognitiveservices.azure.com/";
         options.ApiKey = "...";   // omit to use the ambient Azure credential
     })
-)
+);
 ```
+
+Because it sits on the ingestion builder rather than on document processing, a host that only reads files
+into a knowledge base can use it without registering uploads, tabular workspaces or the chat tool surface.
+It also reads scanned pages, which the local readers cannot.
 
 The layout model reports, for any language, which paragraph is a heading, which is a running head, what
 order the page reads in, where the tables are and what their cells span, and which caption belongs to which

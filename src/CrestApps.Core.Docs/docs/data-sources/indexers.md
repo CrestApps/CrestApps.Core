@@ -181,8 +181,9 @@ The stream is always returned to where it was found.
 
 `AddCoreFileSources()` also registers the HTML reader for `.html`, `.htm` and `text/html`. A connector hands over
 whatever a folder or a server holds, and a web page read that way is HTML rather than the cleaned text a crawl
-strategy produces; the plain-text reader document processing registers for those keys would index the markup.
-Keyed readers resolve to the last registration, so call `AddCoreFileSources()` after `AddDocumentProcessing()`.
+strategy produces; the plain-text reader the ingestion path registers for those keys would index the markup.
+Keyed readers resolve to the last registration, so a host that also wants chat document processing calls
+`AddDocumentProcessing()` **before** `AddCoreFileSources()`.
 
 ## Running
 

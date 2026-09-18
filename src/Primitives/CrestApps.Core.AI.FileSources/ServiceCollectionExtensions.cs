@@ -1,8 +1,8 @@
-using CrestApps.Core.AI.Documents;
-using CrestApps.Core.AI.Documents.Knowledge;
 using CrestApps.Core.AI.FileSources.Connectors;
 using CrestApps.Core.AI.FileSources.Handlers;
 using CrestApps.Core.AI.Indexing;
+using CrestApps.Core.AI.Ingestion;
+using CrestApps.Core.AI.Ingestion.Knowledge;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Builders;
 using CrestApps.Core.DataIngestion;
@@ -10,8 +10,8 @@ using CrestApps.Core.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Localization;
 
 namespace CrestApps.Core.AI.FileSources;
 
@@ -72,13 +72,27 @@ public static class ServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <remarks>
-    /// Call this after <c>AddDocumentProcessing()</c>. Keyed readers resolve to the last registration, and
-    /// the HTML reader registered here has to win over the plain-text reader document processing registers
-    /// for <c>.html</c>, or a web page read from a folder or a server is indexed with its markup.
+    /// Registers the ingestion path itself, so a host that only reads files into a knowledge base needs
+    /// nothing from <c>CrestApps.Core.AI.Documents</c> and none of the chat, tabular and tool services that
+    /// come with it.
+    /// <para>
+    /// A host that wants chat document processing as well has to call <c>AddDocumentProcessing()</c>
+    /// <em>before</em> this one. Keyed readers resolve to the last registration, and the HTML reader
+    /// registered here has to win over the plain-text reader the ingestion path registers for
+    /// <c>.html</c>, or a web page read from a folder or a server is indexed with its markup.
+    /// </para>
     /// </remarks>
     public static IServiceCollection AddCoreFileSources(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        // A connector hands over whatever a folder or a server holds, so a file source needs the whole
+        // ingestion path: the plain-text reader, the figure processors, and the backfill that transcribes
+        // the figures a run left pending.
+        services.AddCoreAIDocumentIngestion(ingestion => ingestion
+            .AddPlainTextReader()
+            .AddFigureProcessing()
+            .AddFigureBackfill());
 
         services.AddOptions<FileSourceOptions>();
         services.AddOptions<IngestionConnectorOptions>();
@@ -97,6 +111,14 @@ public static class ServiceCollectionExtensions
         // by the model that indexer was configured with.
         services.Replace(ServiceDescriptor.Scoped<IKnowledgeVisionDeploymentResolver, FileSourceVisionDeploymentResolver>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, FileSourceBackgroundService>());
+
+        // The package that fills a knowledge data source is the one that offers it, the same way the web
+        // crawlers package offers its own. The description points at the area that configures it, so it is
+        // only true where that area exists.
+        services.Configure<AIDataSourceSourceOptions>(options => options.AddOrUpdate(
+            AIDataSourceSourceTypes.File,
+            new LocalizedString("File", "Files"),
+            new LocalizedString("File Source Description", "A target for file sources. Configure the folders and file servers to read in the File Sources area; text, figures, charts and tables are each stored as their own searchable object.")));
 
         return services;
     }

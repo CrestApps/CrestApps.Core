@@ -1,7 +1,6 @@
-using CrestApps.Core.AI.Documents.Ingestion;
-using CrestApps.Core.AI.Documents.Knowledge;
-using CrestApps.Core.AI.Documents.Knowledge.Structure;
-using CrestApps.Core.AI.Documents.Services;
+using CrestApps.Core.AI.Ingestion;
+using CrestApps.Core.AI.Ingestion.Knowledge;
+using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
 using CrestApps.Core.AI.Services;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;

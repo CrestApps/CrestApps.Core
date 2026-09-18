@@ -1,7 +1,6 @@
 using CrestApps.Core.AI;
-using CrestApps.Core.AI.Orchestration;
-using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Orchestration;
 
 namespace CrestApps.Core.Tests.Core.Orchestration;
 

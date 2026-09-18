@@ -1,6 +1,5 @@
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
-using CrestApps.Core.AI.Documents.Pdf.Services;
+using CrestApps.Core.AI.Ingestion.Pdf.Services;
 using Microsoft.Extensions.DataIngestion;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;

@@ -1,19 +1,17 @@
 using System.Text;
 using CrestApps.Core.AI;
-using CrestApps.Core.AI.Documents.Ingestion;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Tests.Support;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
 using Moq;
-
-using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.Tests.Core.Documents.Services;
 

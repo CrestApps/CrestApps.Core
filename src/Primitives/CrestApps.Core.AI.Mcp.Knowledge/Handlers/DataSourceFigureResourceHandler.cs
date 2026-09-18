@@ -1,5 +1,5 @@
 ﻿using CrestApps.Core.AI.DataSources;
-using CrestApps.Core.AI.Documents;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using Microsoft.Extensions.Logging;

@@ -1,12 +1,10 @@
-using System.Text;
 using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.FileSources.FileTransfer;
 using CrestApps.Core.AI.Ftp;
-using CrestApps.Core.AI.Sftp;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Sftp;
 using CrestApps.Core.Models;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

@@ -1,5 +1,5 @@
-using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Tabular;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

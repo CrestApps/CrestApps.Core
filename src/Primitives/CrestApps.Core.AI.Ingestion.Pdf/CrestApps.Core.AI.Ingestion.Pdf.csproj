@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.Ingestion.Pdf</RootNamespace>
+    <Title>CrestApps AI Ingestion PDF</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      Reads PDFs on the CrestApps AI ingestion path: text, tables, and the vector drawings that become
+      figures. Depends only on the ingestion package, so a host that reads PDFs into a knowledge base does
+      not take on document processing to do it.
+    </Description>
+    <PackageTags>$(PackageTags) ai pdf ingestion extraction reader</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PdfPig" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CrestApps.Core.AI.Ingestion/CrestApps.Core.AI.Ingestion.csproj" />
+  </ItemGroup>
+
+</Project>

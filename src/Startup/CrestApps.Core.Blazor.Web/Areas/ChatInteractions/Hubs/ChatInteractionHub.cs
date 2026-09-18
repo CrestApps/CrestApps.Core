@@ -8,7 +8,6 @@ using CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Models;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Hubs;
 

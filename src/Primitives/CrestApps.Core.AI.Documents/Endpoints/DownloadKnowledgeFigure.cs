@@ -1,4 +1,5 @@
 ﻿using CrestApps.Core.AI.DataSources;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using Microsoft.AspNetCore.Authorization;

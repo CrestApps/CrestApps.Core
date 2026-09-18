@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
-using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Crawling;
+using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.WebCrawlers.Strategies.Sitemap;
 

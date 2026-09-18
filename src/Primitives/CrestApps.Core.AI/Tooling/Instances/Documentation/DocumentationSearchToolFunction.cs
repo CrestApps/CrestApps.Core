@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
 using CrestApps.Core.AI.Extensions;
-using CrestApps.Core.AI.Tooling;
 using Cysharp.Text;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;

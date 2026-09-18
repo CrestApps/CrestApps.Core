@@ -1,13 +1,12 @@
 using System.Net;
 using System.Text;
+using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Realtime;
 using CrestApps.Core.AI.Realtime;
-using CrestApps.Core.AI.Chat;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Primitives;
 
 namespace CrestApps.Core.Tests.Core.Realtime;
 

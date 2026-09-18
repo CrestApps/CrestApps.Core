@@ -5,6 +5,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Endpoints;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Extensions;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Tooling;

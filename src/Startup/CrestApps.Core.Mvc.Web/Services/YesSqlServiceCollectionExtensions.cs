@@ -1,4 +1,4 @@
-﻿using System.Data.Common;
+using System.Data.Common;
 using System.Text.Json;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Chat;
@@ -18,9 +18,9 @@ using CrestApps.Core.Data.YesSql.Indexes.AIMemory;
 using CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
 using CrestApps.Core.Data.YesSql.Indexes.DataSources;
 using CrestApps.Core.Data.YesSql.Indexes.Indexing;
+using CrestApps.Core.Data.YesSql.Indexes.Knowledge;
 using CrestApps.Core.Data.YesSql.Indexes.Mcp;
 using CrestApps.Core.Data.YesSql.Indexes.Tooling;
-using CrestApps.Core.Data.YesSql.Indexes.Knowledge;
 using CrestApps.Core.Data.YesSql.Indexes.WebCrawlers;
 using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;

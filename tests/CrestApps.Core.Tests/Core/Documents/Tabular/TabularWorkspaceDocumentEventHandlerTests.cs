@@ -1,8 +1,8 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Handlers;
-using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Tabular;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;

@@ -1,5 +1,3 @@
-using CrestApps.Core;
-using CrestApps.Core.AI.Tooling;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;

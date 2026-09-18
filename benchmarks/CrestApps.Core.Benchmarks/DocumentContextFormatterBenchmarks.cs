@@ -1,10 +1,8 @@
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Models;
-using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.Benchmarks;

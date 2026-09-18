@@ -59,7 +59,8 @@ The quickest way to validate the setup is to use **Chat Interactions** first, th
 | Foundation | `CrestApps.Core` | Shared models, validation, catalog helpers, and host utilities |
 | AI runtime | `CrestApps.Core.AI` | Deployments, profiles, completions, orchestration, tools, and memory |
 | Chat | `CrestApps.Core.AI.Chat` | Chat sessions, widgets, handlers, and metrics |
-| Documents | `CrestApps.Core.AI.Documents` | Uploaded-document ingestion, processing, storage abstractions, and document RAG |
+| Ingestion | `CrestApps.Core.AI.Ingestion`, `CrestApps.Core.AI.Ingestion.Pdf`, `CrestApps.Core.Azure.DocumentIntelligence` | Document readers, the processor pipeline, and the knowledge ingestion service every knowledge producer shares |
+| Documents | `CrestApps.Core.AI.Documents` | Uploaded-document processing, tabular workspaces, generated files, and document RAG |
 | Templates | `CrestApps.Core.Templates` | Reusable prompts and template-driven profile composition |
 | Providers | Provider packages | OpenAI, Azure OpenAI, Azure AI Inference, and Ollama integrations |
 | Protocols | `CrestApps.Core.AI.Mcp`, `CrestApps.Core.AI.A2A` | MCP and A2A client/server building blocks |
@@ -75,6 +76,7 @@ The quickest way to validate the setup is to use **Chat Interactions** first, th
 | AI services | `AddCoreAIServices()` | `CrestApps.Core.AI` | [AI Core](./ai-core.md) |
 | Orchestration | `AddCoreAIOrchestration()` | `CrestApps.Core.AI` | [Orchestration Overview](../orchestration/index.md) |
 | Chat | `AddCoreAIChatInteractions()` | `CrestApps.Core.AI.Chat` | [Chat Interactions](./chat.md) |
+| Ingestion | `AddCoreAIDocumentIngestion()` | `CrestApps.Core.AI.Ingestion` | [Document Processing](./document-processing.md#the-ingestion-path-on-its-own) |
 | Documents | `AddCoreAIDocumentProcessing()` | `CrestApps.Core.AI.Documents` | [Document Processing](./document-processing.md) |
 | Templates | `AddTemplating()` | `CrestApps.Core.Templates` | [AI Templates](./ai-templates.md) |
 | Custom tools | `AddCoreAITool<T>()` | `CrestApps.Core.AI` | [Custom AI Tools](./tools.md) |

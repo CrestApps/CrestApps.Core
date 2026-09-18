@@ -1,6 +1,5 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
-using BenchmarkDotNet.Jobs;
 using CrestApps.Core.AI.OpenAI.Azure.Services;
 using Microsoft.Extensions.AI;
 using OpenAI.Chat;

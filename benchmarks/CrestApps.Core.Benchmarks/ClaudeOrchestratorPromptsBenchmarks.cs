@@ -1,7 +1,6 @@
 using System.Reflection;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
-using BenchmarkDotNet.Jobs;
 using CrestApps.Core.AI.Claude.Services;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.AI;

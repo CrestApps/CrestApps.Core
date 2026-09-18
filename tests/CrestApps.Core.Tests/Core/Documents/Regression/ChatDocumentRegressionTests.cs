@@ -1,11 +1,11 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using CrestApps.Core.AI;
-using CrestApps.Core.AI.Documents.Ingestion;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.OpenXml.Services;
-using CrestApps.Core.AI.Documents.Pdf.Services;
 using CrestApps.Core.AI.Documents.Services;
+using CrestApps.Core.AI.Ingestion;
+using CrestApps.Core.AI.Ingestion.Pdf.Services;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Tests.Support;
 using DocumentFormat.OpenXml;
@@ -16,9 +16,8 @@ using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using UglyToad.PdfPig;
-
 using Moq;
+using UglyToad.PdfPig;
 
 namespace CrestApps.Core.Tests.Core.Documents.Regression;
 

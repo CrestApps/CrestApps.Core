@@ -1,10 +1,10 @@
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Deployments;
-using CrestApps.Core.AI.Documents.Ingestion;
-using CrestApps.Core.AI.Documents.Ingestion.Processors;
 using CrestApps.Core.AI.Documents.Models;
-using CrestApps.Core.AI.Documents.Pdf.Services;
 using CrestApps.Core.AI.Documents.Services;
+using CrestApps.Core.AI.Ingestion;
+using CrestApps.Core.AI.Ingestion.Pdf.Services;
+using CrestApps.Core.AI.Ingestion.Processors;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Tests.Support;

@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 using CrestApps.Core.Elasticsearch.Services;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Support;

@@ -1,11 +1,11 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using CrestApps.Core.AI.Crawling;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.WebCrawlers;
-using CrestApps.Core.AI.Crawling;
 using CrestApps.Core.AI.WebCrawlers.Strategies;
 using CrestApps.Core.AI.WebCrawlers.Strategies.Sitemap;
 using CrestApps.Core.DataIngestion;
@@ -14,7 +14,6 @@ using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Xunit;
 
 namespace CrestApps.Core.Tests.Core.WebCrawlers;
 

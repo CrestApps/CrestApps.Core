@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Documents.Knowledge;
+using CrestApps.Core.AI.Ingestion.Knowledge;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 

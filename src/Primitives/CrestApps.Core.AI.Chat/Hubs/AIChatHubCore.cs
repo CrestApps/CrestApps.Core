@@ -4,20 +4,20 @@ using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Chat.Models;
+using CrestApps.Core.AI.Chat.Realtime;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Exceptions;
-using CrestApps.Core.AI.Chat.Realtime;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Realtime;
 using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.AI.Security;
-using CrestApps.Core.Security;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Extensions;
+using CrestApps.Core.Security;
 using CrestApps.Core.Services;
 using CrestApps.Core.Templates.Rendering;
 using CrestApps.Core.Templates.Services;
@@ -1310,7 +1310,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                         ChatSession = chatSession,
                         Voice = effectiveVoice,
                         SpeechLanguage = language,
-                    ReplyLanguage = RealtimeReplyLanguage.Resolve(language, Context.GetHttpContext()),
+                        ReplyLanguage = RealtimeReplyLanguage.Resolve(language, Context.GetHttpContext()),
                         OnUserUtteranceAsync = (text, _) =>
                         {
                             // Off the audio pump: see the WebSocket transport above for why this must not be awaited

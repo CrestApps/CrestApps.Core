@@ -1,6 +1,5 @@
 using System.Text;
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 using CrestApps.Core.AI.Chat.Services;
 
 namespace CrestApps.Core.Benchmarks;

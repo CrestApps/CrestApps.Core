@@ -1,12 +1,11 @@
 using System.Text.Json;
-using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Mcp;
+using CrestApps.Core.AI.Mcp.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
-using CrestApps.Core.AI.Mcp.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.AI;
