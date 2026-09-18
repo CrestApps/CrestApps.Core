@@ -6,8 +6,6 @@
 var _excluded = ["placeholder"];
 function _regenerator() { /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */ var e, t, r = "function" == typeof Symbol ? Symbol : {}, n = r.iterator || "@@iterator", o = r.toStringTag || "@@toStringTag"; function i(r, n, o, i) { var c = n && n.prototype instanceof Generator ? n : Generator, u = Object.create(c.prototype); return _regeneratorDefine2(u, "_invoke", function (r, n, o) { var i, c, u, f = 0, p = o || [], y = !1, G = { p: 0, n: 0, v: e, a: d, f: d.bind(e, 4), d: function d(t, r) { return i = t, c = 0, u = e, G.n = r, a; } }; function d(r, n) { for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) { var o, i = p[t], d = G.p, l = i[2]; r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0)); } if (o || r > 1) return a; throw y = !0, n; } return function (o, p, l) { if (f > 1) throw TypeError("Generator is already running"); for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) { i || (c ? c < 3 ? (c > 1 && (G.n = -1), d(c, u)) : G.n = u : G.v = u); try { if (f = 2, i) { if (c || (o = "next"), t = i[o]) { if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object"); if (!t.done) return t; u = t.value, c < 2 && (c = 0); } else 1 === c && (t = i["return"]) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1); i = e; } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break; } catch (t) { i = e, c = 1, u = t; } finally { f = 1; } } return { value: t, done: y }; }; }(r, o, i), !0), u; } var a = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} t = Object.getPrototypeOf; var c = [][n] ? t(t([][n]())) : (_regeneratorDefine2(t = {}, n, function () { return this; }), t), u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c); function f(e) { return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, _regeneratorDefine2(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e; } return GeneratorFunction.prototype = GeneratorFunctionPrototype, _regeneratorDefine2(u, "constructor", GeneratorFunctionPrototype), _regeneratorDefine2(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", _regeneratorDefine2(GeneratorFunctionPrototype, o, "GeneratorFunction"), _regeneratorDefine2(u), _regeneratorDefine2(u, o, "Generator"), _regeneratorDefine2(u, n, function () { return this; }), _regeneratorDefine2(u, "toString", function () { return "[object Generator]"; }), (_regenerator = function _regenerator() { return { w: i, m: f }; })(); }
 function _regeneratorDefine2(e, r, n, t) { var i = Object.defineProperty; try { i({}, "", {}); } catch (e) { i = 0; } _regeneratorDefine2 = function _regeneratorDefine(e, r, n, t) { function o(r, n) { _regeneratorDefine2(e, r, function (e) { return this._invoke(r, n, e); }); } r ? i ? i(e, r, { value: n, enumerable: !t, configurable: !t, writable: !t }) : e[r] = n : (o("next", 0), o("throw", 1), o("return", 2)); }, _regeneratorDefine2(e, r, n, t); }
-function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.value; } catch (n) { return void e(n); } i.done ? t(u) : Promise.resolve(u).then(r, o); }
-function _asyncToGenerator(n) { return function () { var t = this, e = arguments; return new Promise(function (r, o) { var a = n.apply(t, e); function _next(n) { asyncGeneratorStep(a, r, o, _next, _throw, "next", n); } function _throw(n) { asyncGeneratorStep(a, r, o, _next, _throw, "throw", n); } _next(void 0); }); }; }
 function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
 function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
 function _iterableToArray(r) { if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r); }
@@ -15,6 +13,8 @@ function _arrayWithoutHoles(r) { if (Array.isArray(r)) return _arrayLikeToArray(
 function _objectWithoutProperties(e, t) { if (null == e) return {}; var o, r, i = _objectWithoutPropertiesLoose(e, t); if (Object.getOwnPropertySymbols) { var n = Object.getOwnPropertySymbols(e); for (r = 0; r < n.length; r++) o = n[r], -1 === t.indexOf(o) && {}.propertyIsEnumerable.call(e, o) && (i[o] = e[o]); } return i; }
 function _objectWithoutPropertiesLoose(r, e) { if (null == r) return {}; var t = {}; for (var n in r) if ({}.hasOwnProperty.call(r, n)) { if (-1 !== e.indexOf(n)) continue; t[n] = r[n]; } return t; }
 function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t["return"] || t["return"](); } finally { if (u) throw o; } } }; }
+function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.value; } catch (n) { return void e(n); } i.done ? t(u) : Promise.resolve(u).then(r, o); }
+function _asyncToGenerator(n) { return function () { var t = this, e = arguments; return new Promise(function (r, o) { var a = n.apply(t, e); function _next(n) { asyncGeneratorStep(a, r, o, _next, _throw, "next", n); } function _throw(n) { asyncGeneratorStep(a, r, o, _next, _throw, "throw", n); } _next(void 0); }); }; }
 function _slicedToArray(r, e) { return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest(); }
 function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
 function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
@@ -187,6 +187,63 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
   }
 
   // Installed at the top of this file so it can be unit tested without a browser; see the comment there.
+
+  /*
+   * Reads a JSON response body, or explains why it is not JSON.
+   *
+   * fetch follows a redirect silently and reports the page it landed on as a success, so an endpoint that
+   * answers "forbidden" with a redirect to a sign-in page arrives here as response.ok with HTML in it.
+   * Calling response.json() on that throws "unexpected character at line 1 column 1", which is what the
+   * reader was shown instead of being told they are not allowed to upload.
+   *
+   * Returns { ok, data, message }. A caller shows message when ok is false; it is never a parser error.
+   */
+  function readJsonResponse(_x, _x2) {
+    return _readJsonResponse.apply(this, arguments);
+  }
+  function _readJsonResponse() {
+    _readJsonResponse = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee0(response, fallbackMessage) {
+      var contentType, message, _t6, _t7;
+      return _regenerator().w(function (_context0) {
+        while (1) switch (_context0.p = _context0.n) {
+          case 0:
+            contentType = response.headers && response.headers.get('content-type') || '';
+            if (!(contentType.toLowerCase().indexOf('json') < 0)) {
+              _context0.n = 1;
+              break;
+            }
+            // A redirect that landed somewhere else is the common case and worth naming, because the endpoint
+            // did not refuse -- something in front of it did.
+            message = response.redirected ? 'You may not be signed in, or you do not have permission for this. Please reload and try again.' : fallbackMessage;
+            return _context0.a(2, {
+              ok: false,
+              data: null,
+              message: message
+            });
+          case 1:
+            _context0.p = 1;
+            _context0.n = 2;
+            return response.json();
+          case 2:
+            _t6 = _context0.v;
+            return _context0.a(2, {
+              ok: true,
+              data: _t6,
+              message: null
+            });
+          case 3:
+            _context0.p = 3;
+            _t7 = _context0.v;
+            return _context0.a(2, {
+              ok: false,
+              data: null,
+              message: fallbackMessage
+            });
+        }
+      }, _callee0, null, [[1, 3]]);
+    }));
+    return _readJsonResponse.apply(this, arguments);
+  }
   var expandImageMarkers = window.CoreAIChatMarkers.expandImageMarkers;
   function getCitationLabel(reference, key) {
     return reference.title || reference.text || key;
@@ -892,7 +949,7 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
                   return _context3.a(2);
                 case 2:
                   return _context3.a(2, _this.queueDocumentOperation(/*#__PURE__*/_asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2() {
-                    var sessionId, profileId, formData, i, response, errorText, uploadError, result, _t, _t2;
+                    var sessionId, profileId, formData, i, response, errorText, uploadError, parsed, result, _t, _t2;
                     return _regenerator().w(function (_context2) {
                       while (1) switch (_context2.p = _context2.n) {
                         case 0:
@@ -965,9 +1022,24 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
                           return _context2.a(2);
                         case 9:
                           _context2.n = 10;
-                          return response.json();
+                          return readJsonResponse(response, 'Upload failed. Please try again.');
                         case 10:
-                          result = _context2.v;
+                          parsed = _context2.v;
+                          if (parsed.ok) {
+                            _context2.n = 11;
+                            break;
+                          }
+                          console.error('Upload failed: response was not JSON.', {
+                            status: response.status,
+                            redirected: response.redirected
+                          });
+                          _this.uploadErrors = [{
+                            fileName: '',
+                            error: parsed.message
+                          }];
+                          return _context2.a(2);
+                        case 11:
+                          result = parsed.data;
                           if (result.sessionId && result.sessionId !== _this.getSessionId()) {
                             _this.initializeSession(result.sessionId);
                           }
@@ -979,10 +1051,10 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
                           if (result.failed && result.failed.length > 0) {
                             _this.uploadErrors = result.failed;
                           }
-                          _context2.n = 12;
+                          _context2.n = 13;
                           break;
-                        case 11:
-                          _context2.p = 11;
+                        case 12:
+                          _context2.p = 12;
                           _t2 = _context2.v;
                           console.error('Upload error:', _t2);
                           _this.uploadErrors = [{
@@ -992,15 +1064,15 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
                           if (_this.getSessionId()) {
                             _this.reloadCurrentSession();
                           }
-                        case 12:
-                          _context2.p = 12;
+                        case 13:
+                          _context2.p = 13;
                           _this.isUploading = false;
                           _this.renderDocumentBar();
-                          return _context2.f(12);
-                        case 13:
+                          return _context2.f(13);
+                        case 14:
                           return _context2.a(2);
                       }
-                    }, _callee2, null, [[6, 11, 12, 13], [1, 3]]);
+                    }, _callee2, null, [[6, 12, 13, 14], [1, 3]]);
                   }))));
               }
             }, _callee3);
@@ -1019,7 +1091,7 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
                   return _context5.a(2);
                 case 1:
                   return _context5.a(2, _this2.queueDocumentOperation(/*#__PURE__*/_asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4() {
-                    var sessionId, response, result, idx, errorText, removeError, _t3;
+                    var sessionId, response, secondParsed, result, idx, errorText, removeError, _t3;
                     return _regenerator().w(function (_context4) {
                       while (1) switch (_context4.p = _context4.n) {
                         case 0:
@@ -1039,13 +1111,24 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
                         case 1:
                           response = _context4.v;
                           if (!response.ok) {
-                            _context4.n = 3;
+                            _context4.n = 4;
                             break;
                           }
                           _context4.n = 2;
-                          return response.json();
+                          return readJsonResponse(response, 'The request could not be completed.');
                         case 2:
-                          result = _context4.v;
+                          secondParsed = _context4.v;
+                          if (secondParsed.ok) {
+                            _context4.n = 3;
+                            break;
+                          }
+                          console.error('Response was not JSON.', {
+                            status: response.status,
+                            redirected: response.redirected
+                          });
+                          return _context4.a(2);
+                        case 3:
+                          result = secondParsed.data;
                           if (Array.isArray(result.documents)) {
                             _this2.documents = result.documents;
                           } else {
@@ -1054,12 +1137,12 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
                               _this2.documents.splice(idx, 1);
                             }
                           }
-                          _context4.n = 5;
+                          _context4.n = 6;
                           break;
-                        case 3:
-                          _context4.n = 4;
-                          return response.text();
                         case 4:
+                          _context4.n = 5;
+                          return response.text();
+                        case 5:
                           errorText = _context4.v;
                           removeError = _this2.extractReadableErrorMessage(errorText, 'Failed to remove document. Please try again.');
                           console.error('Failed to remove document:', response.status, errorText);
@@ -1071,11 +1154,11 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
                             _this2.reloadCurrentSession();
                           }
                           _this2.renderDocumentBar();
-                        case 5:
-                          _context4.n = 7;
-                          break;
                         case 6:
-                          _context4.p = 6;
+                          _context4.n = 8;
+                          break;
+                        case 7:
+                          _context4.p = 7;
                           _t3 = _context4.v;
                           console.error('Remove document error:', _t3);
                           _this2.uploadErrors = [{
@@ -1086,10 +1169,10 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
                             _this2.reloadCurrentSession();
                           }
                           _this2.renderDocumentBar();
-                        case 7:
+                        case 8:
                           return _context4.a(2);
                       }
-                    }, _callee4, null, [[0, 6]]);
+                    }, _callee4, null, [[0, 7]]);
                   }))));
               }
             }, _callee5);

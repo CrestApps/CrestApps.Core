@@ -144,7 +144,7 @@ public static class UploadChatSessionDocument
                 [AIChatDocumentOperations.ManageDocuments]);
             if (!authorization.Succeeded)
             {
-                return TypedResults.Forbid();
+                return TypedResults.Json(new { error = "You do not have permission to manage documents here." }, statusCode: StatusCodes.Status403Forbidden);
             }
 
             var deployment = await ResolveSessionDeploymentAsync(profile, deploymentManager);

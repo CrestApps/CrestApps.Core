@@ -147,6 +147,25 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
             text = string.Join('\n', textChunks);
         }
 
+        // Refused rather than accepted and quietly left unsearchable. A file past this ceiling used to upload
+        // successfully, appear attached, and then be skipped by embedding and by indexing -- so the reader was
+        // told their document was there while the model could not retrieve a word of it, and the only trace
+        // was a Debug line. Accepting a file is a promise to ingest it; when the promise cannot be kept, the
+        // upload has to say so while the reader can still do something about it.
+        if (embeddingGenerator is not null &&
+            options.EmbeddableFileExtensions.Contains(extension) &&
+            text.Length > MaxEmbeddingTotalChars * 2)
+        {
+            _logger.LogWarning(
+                "Rejected '{FileName}': {TextLength} characters of text exceeds the {Limit} that can be indexed.",
+                file.FileName,
+                text.Length,
+                MaxEmbeddingTotalChars * 2);
+
+            return DocumentProcessingResult.Failed(
+                $"This document holds about {text.Length:N0} characters of text, more than the {MaxEmbeddingTotalChars * 2:N0} that can be indexed for search. Split it into smaller files and upload those.");
+        }
+
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var document = new AIDocument
         {

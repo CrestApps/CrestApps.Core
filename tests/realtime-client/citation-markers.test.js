@@ -351,3 +351,46 @@ for (const surface of surfaces) {
             `${surface} still carries its own copy of the comma rule`);
     });
 }
+
+// A model asked for "[doc:1]" frequently writes "[doc:1, pages 13-15]" instead: it is being helpful, adding
+// the page it drew the claim from. Before this was read, the whole bracket failed to parse, so the reader met
+// those characters verbatim in the middle of a sentence. Seen in the admin widget against a real magazine.
+test('a citation carrying a page locator still resolves to its number', () => {
+    const cases = [
+        ['[doc:1, pages 13-15]', '[doc:1]'],
+        ['[doc:1, page 4]', '[doc:1]'],
+        ['[doc:2, pp. 3-5]', '[doc:2]'],
+        ['[doc:3, pg 7]', '[doc:3]'],
+        ['[doc:1,2, pages 4-9]', '[doc:1][doc:2]'],
+        ['see [doc:1, page 4] and [doc:2].', 'see [doc:1] and [doc:2].'],
+    ];
+
+    for (const [input, expected] of cases) {
+        assert.strictEqual(rules.splitCombinedCitations(input), expected, input);
+    }
+});
+
+// The locator is dropped rather than shown. The page a citation points at comes from the reference the number
+// resolves to -- what the host looked up -- not from what the model recalled about it.
+test('a bare citation is left exactly as written', () => {
+    assert.strictEqual(rules.splitCombinedCitations('[doc:1]'), '[doc:1]');
+    assert.strictEqual(rules.splitCombinedCitations('[doc:1][doc:2]'), '[doc:1][doc:2]');
+});
+
+// Tolerance has to stop somewhere, or an invented marker becomes a citation to whatever number it starts with.
+test('a bracket that names no document is still not a citation', () => {
+    for (const input of ['[doc:pages 3]', '[doc:abc]', '[doc:1, chapter 2]', '[doc:]']) {
+        assert.strictEqual(rules.splitCombinedCitations(input), input, input);
+    }
+});
+
+// The locator is read by scanning, not by a pattern that can backtrack: this is the same function CodeQL
+// raised js/redos on, and the rule it was rewritten under still has to hold.
+test('reading locators stays linear', () => {
+    const started = Date.now();
+
+    rules.splitCombinedCitations('[doc:1, pages 1-2]'.repeat(20000));
+    rules.splitCombinedCitations('[doc:' + '9, '.repeat(100000));
+
+    assert.ok(Date.now() - started < 2000, 'locator parsing is no longer linear');
+});

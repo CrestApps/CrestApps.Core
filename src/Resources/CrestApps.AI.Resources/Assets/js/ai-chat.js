@@ -247,6 +247,37 @@ window.coreAIChatManager = function () {
     }
 
     // Installed at the top of this file so it can be unit tested without a browser; see the comment there.
+
+    /*
+     * Reads a JSON response body, or explains why it is not JSON.
+     *
+     * fetch follows a redirect silently and reports the page it landed on as a success, so an endpoint that
+     * answers "forbidden" with a redirect to a sign-in page arrives here as response.ok with HTML in it.
+     * Calling response.json() on that throws "unexpected character at line 1 column 1", which is what the
+     * reader was shown instead of being told they are not allowed to upload.
+     *
+     * Returns { ok, data, message }. A caller shows message when ok is false; it is never a parser error.
+     */
+    async function readJsonResponse(response, fallbackMessage) {
+        const contentType = (response.headers && response.headers.get('content-type')) || '';
+
+        if (contentType.toLowerCase().indexOf('json') < 0) {
+            // A redirect that landed somewhere else is the common case and worth naming, because the endpoint
+            // did not refuse -- something in front of it did.
+            const message = response.redirected
+                ? 'You may not be signed in, or you do not have permission for this. Please reload and try again.'
+                : fallbackMessage;
+
+            return { ok: false, data: null, message: message };
+        }
+
+        try {
+            return { ok: true, data: await response.json(), message: null };
+        } catch (error) {
+            return { ok: false, data: null, message: fallbackMessage };
+        }
+    }
+
     const expandImageMarkers = window.CoreAIChatMarkers.expandImageMarkers;
 
     function getCitationLabel(reference, key) {
@@ -927,7 +958,16 @@ window.coreAIChatManager = function () {
                                 return;
                             }
 
-                            var result = await response.json();
+                            var parsed = await readJsonResponse(response, 'Upload failed. Please try again.');
+
+                            if (!parsed.ok) {
+                                console.error('Upload failed: response was not JSON.', { status: response.status, redirected: response.redirected });
+                                this.uploadErrors = [{ fileName: '', error: parsed.message }];
+
+                                return;
+                            }
+
+                            var result = parsed.data;
 
                             if (result.sessionId && result.sessionId !== this.getSessionId()) {
                                 this.initializeSession(result.sessionId);
@@ -968,7 +1008,15 @@ window.coreAIChatManager = function () {
                             });
 
                             if (response.ok) {
-                                var result = await response.json();
+                                var secondParsed = await readJsonResponse(response, 'The request could not be completed.');
+
+                                if (!secondParsed.ok) {
+                                    console.error('Response was not JSON.', { status: response.status, redirected: response.redirected });
+
+                                    return;
+                                }
+
+                                var result = secondParsed.data;
 
                                 if (Array.isArray(result.documents)) {
                                     this.documents = result.documents;

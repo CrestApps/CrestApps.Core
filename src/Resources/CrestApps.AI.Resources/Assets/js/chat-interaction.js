@@ -2260,6 +2260,14 @@ window.chatInteractionManager = function () {
 
                         try {
                             const response = await fetch(config.realtimeVoicesUrl + '?deploymentName=' + encodeURIComponent(deploymentName), { credentials: 'same-origin' });
+                            const contentType = (response.headers.get('content-type') || '').toLowerCase();
+
+                            // A sign-in redirect answers with HTML and response.ok, so this has to be checked
+                            // rather than parsed: the default voice is a fine outcome, a parser error is not.
+                            if (!response.ok || contentType.indexOf('json') < 0) {
+                                return;
+                            }
+
                             const result = await response.json();
                             if (!result || !Array.isArray(result.voices)) {
                                 return;
@@ -3205,6 +3213,15 @@ window.chatInteractionDocumentManager = function () {
                 if (!response.ok) {
                     console.error('Failed to remove document:', await response.text());
                     showUploadStatus('Failed to remove document.', 'text-danger');
+                    return;
+                }
+
+                if ((response.headers.get('content-type') || '').toLowerCase().indexOf('json') < 0) {
+                    console.error('Remove document: response was not JSON.', { status: response.status, redirected: response.redirected });
+                    showUploadStatus(response.redirected
+                        ? 'You may not be signed in, or you do not have permission for this. Please reload and try again.'
+                        : 'Failed to remove document.', 'text-danger');
+
                     return;
                 }
 

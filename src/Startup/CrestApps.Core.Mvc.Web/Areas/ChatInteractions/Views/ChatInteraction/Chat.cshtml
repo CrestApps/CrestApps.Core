@@ -793,6 +793,13 @@
 
                 try {
                     const response = await fetch(realtimeVoicesUrl + '?deploymentName=' + encodeURIComponent(deploymentName), { credentials: 'same-origin' });
+
+                    // A sign-in redirect answers with HTML and response.ok, so this is checked rather than
+                    // parsed: keeping the default voice is a fine outcome, a parser error is not.
+                    if (!response.ok || ((response.headers.get('content-type') || '').toLowerCase().indexOf('json') < 0)) {
+                        return;
+                    }
+
                     const result = await response.json();
                     if (!result || !Array.isArray(result.voices)) {
                         return;

@@ -270,16 +270,15 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
         continue;
       }
 
-      // One number is already a marker of its own and is left exactly as it is; the rewrite exists only
-      // for the several-in-one-bracket form.
-      if (numbers.length > 1) {
-        result += content.slice(from, start);
-        result += numbers.map(function (number) {
-          return citationMarkerPrefix + number + ']';
-        }).join('');
-      } else {
-        result += content.slice(from, end + 1);
-      }
+      // Rewritten whenever the bracket does not already read as the canonical marker: several numbers
+      // in one bracket, or a single number carrying a locator the model appended. A bare "[doc:1]"
+      // rewrites to itself, so it is passed through untouched rather than rebuilt.
+      var canonical = numbers.map(function (number) {
+        return citationMarkerPrefix + number + ']';
+      }).join('');
+      var original = content.slice(start, end + 1);
+      result += content.slice(from, start);
+      result += canonical === original ? original : canonical;
       from = end + 1;
     }
   }
@@ -297,6 +296,16 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
    * Splitting on the comma and checking each part on its own is linear, and each pattern below is anchored
    * over a single character class, so neither can backtrack at all.
    */
+  /*
+   * A locator a model appends to a citation instead of writing the bare marker it was asked for: "pages
+   * 13-15", "page 4", "pp. 3-5", "pg 7". It is not a citation number and the reference map holds nothing
+   * under it, so before this it made the whole marker unreadable and "[doc:1, pages 13-15]" reached the
+   * reader as those characters.
+   *
+   * Dropped rather than rendered. The page a citation points at is already carried by the reference the
+   * number resolves to, which is the one the host looked up rather than the one the model recalled.
+   */
+  var citationLocatorPattern = /^(?:pages?|pp?g?|pp)\.?\s*[\d\s‐-―,&+-]*$/i;
   function readCitationNumbers(interior) {
     var parts = interior.split(',');
     var numbers = [];
@@ -304,12 +313,19 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
       // Only the parts after the first may repeat the prefix: "[doc:1, doc:2]" and "[doc:1, 2]" are both
       // written by models, "[doc:doc:1]" is not.
       var part = index === 0 ? parts[index].trim() : parts[index].trim().replace(/^doc:\s*/, '');
-      if (!/^\d+$/.test(part)) {
-        return null;
+      if (/^\d+$/.test(part)) {
+        numbers.push(part);
+        continue;
       }
-      numbers.push(part);
+
+      // A locator is allowed only after a number has been read, so "[doc:pages 3]" is still not a
+      // citation -- something that names no document is not one whatever follows it.
+      if (numbers.length > 0 && citationLocatorPattern.test(part)) {
+        continue;
+      }
+      return null;
     }
-    return numbers;
+    return numbers.length > 0 ? numbers : null;
   }
 
   /*

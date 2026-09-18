@@ -2245,7 +2245,7 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
           }
           function _loadVoices() {
             _loadVoices = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4() {
-              var deploymentName, realtime, response, result, grouped, _iterator9, _step9, voice, groupName, _t2;
+              var deploymentName, realtime, response, contentType, result, grouped, _iterator9, _step9, voice, groupName, _t2;
               return _regenerator().w(function (_context4) {
                 while (1) switch (_context4.p = _context4.n) {
                   case 0:
@@ -2268,16 +2268,24 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
                     });
                   case 3:
                     response = _context4.v;
-                    _context4.n = 4;
-                    return response.json();
-                  case 4:
-                    result = _context4.v;
-                    if (!(!result || !Array.isArray(result.voices))) {
-                      _context4.n = 5;
+                    contentType = (response.headers.get('content-type') || '').toLowerCase(); // A sign-in redirect answers with HTML and response.ok, so this has to be checked
+                    // rather than parsed: the default voice is a fine outcome, a parser error is not.
+                    if (!(!response.ok || contentType.indexOf('json') < 0)) {
+                      _context4.n = 4;
                       break;
                     }
                     return _context4.a(2);
+                  case 4:
+                    _context4.n = 5;
+                    return response.json();
                   case 5:
+                    result = _context4.v;
+                    if (!(!result || !Array.isArray(result.voices))) {
+                      _context4.n = 6;
+                      break;
+                    }
+                    return _context4.a(2);
+                  case 6:
                     grouped = new Map();
                     _iterator9 = _createForOfIteratorHelper(result.voices);
                     try {
@@ -2308,15 +2316,15 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
                       });
                       voiceSelect.appendChild(optgroup);
                     });
-                    _context4.n = 7;
+                    _context4.n = 8;
                     break;
-                  case 6:
-                    _context4.p = 6;
-                    _t2 = _context4.v;
                   case 7:
+                    _context4.p = 7;
+                    _t2 = _context4.v;
+                  case 8:
                     return _context4.a(2);
                 }
-              }, _callee4, null, [[2, 6]]);
+              }, _callee4, null, [[2, 7]]);
             }));
             return _loadVoices.apply(this, arguments);
           }
@@ -3242,9 +3250,20 @@ window.chatInteractionDocumentManager = function () {
               showUploadStatus('Failed to remove document.', 'text-danger');
               return _context8.a(2);
             case 4:
-              _context8.n = 5;
-              return response.json();
+              if (!((response.headers.get('content-type') || '').toLowerCase().indexOf('json') < 0)) {
+                _context8.n = 5;
+                break;
+              }
+              console.error('Remove document: response was not JSON.', {
+                status: response.status,
+                redirected: response.redirected
+              });
+              showUploadStatus(response.redirected ? 'You may not be signed in, or you do not have permission for this. Please reload and try again.' : 'Failed to remove document.', 'text-danger');
+              return _context8.a(2);
             case 5:
+              _context8.n = 6;
+              return response.json();
+            case 6:
               result = _context8.v;
               serverDocuments = (Array.isArray(result.documents) ? result.documents : []).map(normalizeDocumentInfo).filter(function (document) {
                 return document && document.documentId;
@@ -3254,17 +3273,17 @@ window.chatInteractionDocumentManager = function () {
               });
               renderDocuments();
               showUploadStatus('Document removed.', 'text-success');
-              _context8.n = 7;
+              _context8.n = 8;
               break;
-            case 6:
-              _context8.p = 6;
+            case 7:
+              _context8.p = 7;
               _t6 = _context8.v;
               console.error('Remove failed:', _t6);
               showUploadStatus('Failed to remove document.', 'text-danger');
-            case 7:
+            case 8:
               return _context8.a(2);
           }
-        }, _callee8, null, [[1, 6]]);
+        }, _callee8, null, [[1, 7]]);
       }));
       return _removeDocument.apply(this, arguments);
     }

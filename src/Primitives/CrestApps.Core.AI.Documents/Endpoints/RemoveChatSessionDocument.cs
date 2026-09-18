@@ -87,7 +87,7 @@ public static class RemoveChatSessionDocument
                 [AIChatDocumentOperations.ManageDocuments]);
             if (!authorization.Succeeded)
             {
-                return TypedResults.Forbid();
+                return TypedResults.Json(new { error = "You do not have permission to manage documents here." }, statusCode: StatusCodes.Status403Forbidden);
             }
 
             var documentInfo = session.Documents?.FirstOrDefault(document => document.DocumentId == requestModel.DocumentId);
