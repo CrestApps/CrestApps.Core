@@ -114,7 +114,7 @@ public sealed class WebCrawlerViewModel
         {
             ItemId = crawler.ItemId,
             DisplayText = crawler.DisplayText,
-            Source = string.IsNullOrWhiteSpace(crawler.Source) ? WebCrawlerConstants.Strategies.Sitemap : FileSystemIngestionConnector.NormalizeSource(crawler.Source),
+            Source = string.IsNullOrWhiteSpace(crawler.Source) ? WebCrawlerConstants.Strategies.Sitemap : crawler.Source,
             AIDataSourceId = crawler.AIDataSourceId,
             Enabled = crawler.Enabled,
             ReindexIntervalMinutes = crawler.ReindexIntervalMinutes,

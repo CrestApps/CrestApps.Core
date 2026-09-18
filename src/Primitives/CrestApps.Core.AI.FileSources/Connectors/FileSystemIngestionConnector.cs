@@ -12,8 +12,9 @@ namespace CrestApps.Core.AI.FileSources.Connectors;
 /// The settings a file-system file source carries.
 /// </summary>
 /// <remarks>
-/// The type keeps its old name because it is persisted under its short type name: renaming it would strand
-/// the settings of every file source already configured.
+/// The type keeps the name it is persisted under, alongside the other stored shapes this release left
+/// alone: it is written under its short type name, so renaming it would strand the settings of every file
+/// source already configured.
 /// </remarks>
 public sealed class LocalFolderIndexerMetadata
 {
@@ -55,36 +56,6 @@ public sealed class FileSystemIngestionConnector : IIngestionConnector
     /// The connector's registered name, stored as the file source's source.
     /// </summary>
     public const string ConnectorName = "FileSystem";
-
-    /// <summary>
-    /// The name this connector was registered under before it was renamed.
-    /// </summary>
-    /// <remarks>
-    /// A file source stores its connector's name, so records written before the rename still say
-    /// <c>LocalFolder</c>. The connector stays resolvable under both names, and a record is rewritten with
-    /// the current name the next time it is saved.
-    /// </remarks>
-    public const string DeprecatedConnectorName = "LocalFolder";
-
-    /// <summary>
-    /// Maps a stored source onto the connector's current name.
-    /// </summary>
-    /// <param name="source">The stored source.</param>
-    /// <returns>
-    /// <see cref="ConnectorName"/> when the source names this connector under either name; otherwise the
-    /// source unchanged.
-    /// </returns>
-    /// <remarks>
-    /// A form reading a record written before the rename would otherwise offer a connector the picker has
-    /// no entry for, and saving it would quietly move the record to whichever connector the picker had
-    /// selected instead.
-    /// </remarks>
-    public static string NormalizeSource(string source)
-    {
-        return string.Equals(source, DeprecatedConnectorName, StringComparison.OrdinalIgnoreCase)
-            ? ConnectorName
-            : source;
-    }
 
     private readonly FileSourceOptions _options;
     private readonly ILogger<FileSystemIngestionConnector> _logger;

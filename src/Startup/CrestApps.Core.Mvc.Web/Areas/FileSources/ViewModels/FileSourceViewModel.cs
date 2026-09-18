@@ -120,7 +120,7 @@ public sealed class FileSourceViewModel
         {
             ItemId = fileSource.ItemId,
             DisplayText = fileSource.DisplayText,
-            Source = FileSystemIngestionConnector.NormalizeSource(fileSource.Source),
+            Source = fileSource.Source,
             AIDataSourceId = fileSource.AIDataSourceId,
             Enabled = fileSource.Enabled,
             ReindexIntervalMinutes = fileSource.ReindexIntervalMinutes,
