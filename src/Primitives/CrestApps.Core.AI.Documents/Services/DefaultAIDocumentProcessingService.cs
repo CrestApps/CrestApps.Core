@@ -25,7 +25,7 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
     private readonly IAITextNormalizer _textNormalizer;
     private readonly IDocumentFileStore _fileStore;
     private readonly IOptions<ChatDocumentsOptions> _extractorOptions;
-    private readonly IOptionsMonitor<InteractionDocumentSettings> _interactionDocumentOptions;
+    private readonly IOptionsMonitor<InteractionDocumentOptions> _interactionDocumentOptions;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DefaultAIDocumentProcessingService> _logger;
 
@@ -43,7 +43,7 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         IAITextNormalizer textNormalizer,
         IDocumentFileStore fileStore,
         IOptions<ChatDocumentsOptions> extractorOptions,
-        IOptionsMonitor<InteractionDocumentSettings> interactionDocumentOptions,
+        IOptionsMonitor<InteractionDocumentOptions> interactionDocumentOptions,
         TimeProvider timeProvider,
         ILogger<DefaultAIDocumentProcessingService> logger)
     {

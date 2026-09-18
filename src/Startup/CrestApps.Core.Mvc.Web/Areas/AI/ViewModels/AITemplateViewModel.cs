@@ -107,6 +107,19 @@ public sealed class AITemplateViewModel
     public bool AllowSessionImageUploads { get; set; }
 
     public int? DocumentTopN { get; set; }
+
+    /// <summary>
+    /// Gets or sets how much extracted text an uploaded document may hold and still be indexed, or
+    /// <see langword="null"/> to use the site's limit.
+    /// </summary>
+    public int? MaxIndexableCharacters { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether figures in an uploaded document are described by a vision model, or
+    /// <see langword="null"/> to follow the site's setting.
+    /// </summary>
+    public bool? DescribeFiguresInUploads { get; set; }
+
     public DocumentRetrievalMode? DocumentRetrievalMode { get; set; }
     public bool HasDocumentIndexConfiguration { get; set; }
     public string DocumentIndexProfileName { get; set; }
@@ -325,6 +338,8 @@ public sealed class AITemplateViewModel
             if (template.TryGet<DocumentsMetadata>(out var docMetadata))
             {
                 model.DocumentTopN = docMetadata.DocumentTopN;
+                model.MaxIndexableCharacters = docMetadata.MaxIndexableCharacters;
+                model.DescribeFiguresInUploads = docMetadata.DescribeFiguresInUploads;
                 model.DocumentRetrievalMode = docMetadata.RetrievalMode;
             }
 
@@ -544,6 +559,8 @@ public sealed class AITemplateViewModel
             {
                 DocumentTopN = DocumentTopN,
                 RetrievalMode = DocumentRetrievalMode,
+                MaxIndexableCharacters = MaxIndexableCharacters,
+                DescribeFiguresInUploads = DescribeFiguresInUploads,
             });
 
             template.Put(new AIProfileDataExtractionSettings

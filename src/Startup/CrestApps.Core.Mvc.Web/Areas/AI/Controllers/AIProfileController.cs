@@ -709,6 +709,29 @@ public sealed class AIProfileController : Controller
         {
             profile.Description = metadata.Description;
         }
+        // The template stores the session-document settings, but applying it dropped them: a profile
+        // built from a template came out with uploads switched off, so neither the ceiling nor the
+        // figure setting the template carried could ever take effect.
+        if (template.TryGet<AIProfileSessionDocumentsMetadata>(out var templateSessionDocuments))
+        {
+            profile.Put(new AIProfileSessionDocumentsMetadata
+            {
+                AllowSessionDocuments = templateSessionDocuments.AllowSessionDocuments,
+                AllowSessionImageUploads = templateSessionDocuments.AllowSessionImageUploads,
+            });
+        }
+
+        if (template.TryGet<DocumentsMetadata>(out var templateDocuments))
+        {
+            // Altering rather than replacing keeps any documents already attached to the profile.
+            profile.Alter<DocumentsMetadata>(documents =>
+            {
+                documents.DocumentTopN = templateDocuments.DocumentTopN;
+                documents.RetrievalMode = templateDocuments.RetrievalMode;
+                documents.MaxIndexableCharacters = templateDocuments.MaxIndexableCharacters;
+                documents.DescribeFiguresInUploads = templateDocuments.DescribeFiguresInUploads;
+            });
+        }
     }
 
     private async Task NormalizeDeploymentSelectorsAsync(AIProfileViewModel model)

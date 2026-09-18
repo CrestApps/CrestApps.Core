@@ -262,8 +262,8 @@ public sealed class DefaultAIDocumentProcessingServiceTests
             new DefaultAITextNormalizer(),
             new RecordingDocumentFileStore(),
             Options.Create(options),
-            Mock.Of<IOptionsMonitor<InteractionDocumentSettings>>(monitor =>
-                    monitor.CurrentValue == new InteractionDocumentSettings
+            Mock.Of<IOptionsMonitor<InteractionDocumentOptions>>(monitor =>
+                    monitor.CurrentValue == new InteractionDocumentOptions
                     {
                         MaxIndexableCharacters = siteLimit,
                         DescribeFiguresInUploads = siteDescribesFigures,

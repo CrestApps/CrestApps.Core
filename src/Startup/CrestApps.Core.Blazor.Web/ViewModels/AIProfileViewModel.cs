@@ -153,6 +153,33 @@ public sealed class AIProfileViewModel
     /// </summary>
     public bool? DescribeFiguresInUploads { get; set; }
 
+    /// <summary>
+    /// Gets or sets <see cref="DescribeFiguresInUploads"/> as a string.
+    /// </summary>
+    /// <remarks>
+    /// Binding the nullable bool straight to <c>InputSelect</c> renders a null value as "false", which
+    /// preselects "Do not describe figures" on a brand new profile instead of the site default. Every
+    /// other select on the form -- including the nullable enum beside this one -- lands on its empty
+    /// option correctly, so the fault is specific to <c>InputSelect&lt;bool?&gt;</c>. Going through a
+    /// string keeps the three states distinct.
+    /// </remarks>
+    public string DescribeFiguresInUploadsSelection
+    {
+        get => DescribeFiguresInUploads switch
+        {
+            true => "true",
+            false => "false",
+            _ => string.Empty,
+        };
+
+        set => DescribeFiguresInUploads = value switch
+        {
+            "true" => true,
+            "false" => false,
+            _ => null,
+        };
+    }
+
     public DocumentRetrievalMode? DocumentRetrievalMode { get; set; }
 
     public bool AllowSessionDocuments { get; set; }

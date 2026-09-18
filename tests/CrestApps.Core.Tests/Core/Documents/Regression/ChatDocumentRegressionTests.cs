@@ -129,8 +129,8 @@ public sealed class ChatDocumentRegressionTests
             new DefaultAITextNormalizer(),
             new RecordingDocumentFileStore(),
             Options.Create(options),
-            Mock.Of<IOptionsMonitor<InteractionDocumentSettings>>(monitor =>
-                    monitor.CurrentValue == new InteractionDocumentSettings { MaxIndexableCharacters = 0 }),
+            Mock.Of<IOptionsMonitor<InteractionDocumentOptions>>(monitor =>
+                    monitor.CurrentValue == new InteractionDocumentOptions { MaxIndexableCharacters = 0 }),
             TimeProvider.System,
             NullLogger<DefaultAIDocumentProcessingService>.Instance);
 

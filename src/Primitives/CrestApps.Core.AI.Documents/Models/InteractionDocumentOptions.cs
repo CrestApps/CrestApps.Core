@@ -32,4 +32,15 @@ public sealed class InteractionDocumentOptions
     /// When enabled, image uploads are processed using the global vision deployment.
     /// </summary>
     public bool AllowImageUploads { get; set; }
+
+    /// <summary>
+    /// Gets or sets how much extracted text an uploaded document may hold and still be indexed.
+    /// A larger document is refused at upload rather than stored unsearchable. Zero means no limit.
+    /// </summary>
+    public int MaxIndexableCharacters { get; set; } = 50000;
+
+    /// <summary>
+    /// Gets or sets whether figures in an uploaded document are described by a vision model.
+    /// </summary>
+    public bool DescribeFiguresInUploads { get; set; } = true;
 }

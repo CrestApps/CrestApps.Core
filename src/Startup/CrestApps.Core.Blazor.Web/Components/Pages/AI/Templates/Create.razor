@@ -516,6 +516,24 @@
                             <div class="form-text">Allow users to upload documents during chat sessions with profiles created from this template.</div>
                         </div>
 
+                        @if (_model.AllowSessionDocuments)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Largest document that can be indexed</label>
+                                <InputNumber class="form-control" @bind-Value="_model.MaxIndexableCharacters" min="0" placeholder="Use site default" />
+                                <div class="form-text">Characters of extracted text. A larger document is refused at upload rather than stored unsearchable. Leave empty to use the site's limit; 0 means no limit.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Describe figures in uploaded documents</label>
+                                <InputSelect class="form-select" @bind-Value="_model.DescribeFiguresInUploadsSelection">
+                                    <option value="">Use site default</option>
+                                    <option value="true">Describe figures</option>
+                                    <option value="false">Do not describe figures</option>
+                                </InputSelect>
+                                <div class="form-text">Describing figures uses a vision model and is the expensive part of ingestion. It needs a deployment in the Vision slot – with none configured nothing is described, and a figure keeps its caption either way.</div>
+                            </div>
+                        }
+
                         <div class="mb-3">
                             <div class="form-check form-switch">
                                 <InputCheckbox class="form-check-input" @bind-Value="_model.AllowSessionImageUploads" />
