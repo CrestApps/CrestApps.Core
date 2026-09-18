@@ -710,6 +710,16 @@
                         <div class="form-text">Characters of extracted text. A larger document is refused at upload rather than stored unsearchable. Leave empty to use the site&#39;s limit; 0 means no limit.</div>
                     </div>
 
+                    <div class="mb-3" id="analyze-images-row">
+                        <label asp-for="AnalyzeImagesAtUpload" class="form-label">Describe figures in uploaded documents</label>
+                        <select asp-for="AnalyzeImagesAtUpload" class="form-select">
+                            <option value="">Follow the host&#39;s setting</option>
+                            <option value="true">Describe figures</option>
+                            <option value="false">Do not describe figures</option>
+                        </select>
+                        <div class="form-text">Describing figures uses a vision model and is the expensive part of ingestion. Off still keeps each figure&#39;s caption. Leave unset to follow the host&#39;s setting.</div>
+                    </div>
+
                     <div class="mb-3">
                         <div class="form-check form-switch">
                             <input asp-for="AllowSessionImageUploads" class="form-check-input" type="checkbox" />
@@ -1016,14 +1026,16 @@
     // allowed. Bound on input as well as change so the row follows the switch immediately.
     (function () {
         var toggle = document.querySelector('[name="AllowSessionDocuments"]');
-        var row = document.getElementById('max-indexable-characters-row');
+        var rows = ['max-indexable-characters-row', 'analyze-images-row']
+            .map(function (id) { return document.getElementById(id); })
+            .filter(Boolean);
 
-        if (!toggle || !row) {
+        if (!toggle || rows.length === 0) {
             return;
         }
 
         function sync() {
-            row.style.display = toggle.checked ? '' : 'none';
+            rows.forEach(function (row) { row.style.display = toggle.checked ? '' : 'none'; });
         }
 
         toggle.addEventListener('change', sync);

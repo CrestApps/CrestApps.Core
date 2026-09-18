@@ -917,6 +917,16 @@
                             <InputNumber class="form-control" @bind-Value="_model.MaxIndexableCharacters" min="0" placeholder="Use the site's limit" />
                             <div class="form-text">Characters of extracted text. A larger document is refused at upload rather than stored unsearchable. Leave empty to use the site's limit; 0 means no limit.</div>
                         </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Describe figures in uploaded documents</label>
+                            <InputSelect class="form-select" @bind-Value="_model.AnalyzeImagesAtUpload">
+                                <option value="">Follow the host's setting</option>
+                                <option value="true">Describe figures</option>
+                                <option value="false">Do not describe figures</option>
+                            </InputSelect>
+                            <div class="form-text">Describing figures uses a vision model and is the expensive part of ingestion. Off still keeps each figure's caption. Leave unset to follow the host's setting.</div>
+                        </div>
                     }
 
                     <div class="mb-3">

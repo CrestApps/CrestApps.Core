@@ -68,7 +68,8 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         string referenceId,
         string referenceType,
         IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
-        int? maxIndexableCharacters = null)
+        int? maxIndexableCharacters = null,
+        bool? analyzeImagesAtUpload = null)
     {
         ArgumentNullException.ThrowIfNull(file);
         ArgumentException.ThrowIfNullOrEmpty(referenceId);
@@ -130,7 +131,8 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
                 mediaType,
                 new DocumentIngestionContext
                 {
-                    FigureMode = options.AnalyzeImagesAtUpload ? FigureProcessingMode.Auto : FigureProcessingMode.Off,
+                    // The profile's choice when it made one, the host's otherwise.
+                    FigureMode = (analyzeImagesAtUpload ?? options.AnalyzeImagesAtUpload) ? FigureProcessingMode.Auto : FigureProcessingMode.Off,
                     DescribeFiguresInline = true,
                 });
 

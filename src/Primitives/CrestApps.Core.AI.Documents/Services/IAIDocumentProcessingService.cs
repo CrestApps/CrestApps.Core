@@ -25,5 +25,6 @@ public interface IAIDocumentProcessingService
         string referenceId,
         string referenceType,
         IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
-        int? maxIndexableCharacters = null);
+        int? maxIndexableCharacters = null,
+        bool? analyzeImagesAtUpload = null);
 }

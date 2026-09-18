@@ -205,6 +205,46 @@ public sealed class DefaultAIDocumentProcessingServiceTests
         }
     }
 
+
+    // Describing figures is the expensive half of ingestion, and a profile serves many sessions, so the
+    // profile may answer for itself. Null means "whatever the host says", which is what every caller that
+    // has no opinion passes.
+    [Fact]
+    public async Task ProcessFileAsync_ProfileDeclinesFigureDescription_StillProcessesTheDocument()
+    {
+        var options = new ChatDocumentsOptions { AnalyzeImagesAtUpload = true };
+        options.Add(new ExtractorExtension(".log", embeddable: true, isTabular: false));
+        var service = CreateService(options);
+
+        var result = await service.ProcessFileAsync(
+            CreateFormFile("notes.log", "text/plain", "a short note about a chart"),
+            "ref-1",
+            AIReferenceTypes.Document.ChatInteraction,
+            embeddingGenerator: null,
+            maxIndexableCharacters: null,
+            analyzeImagesAtUpload: false);
+
+        // Turning description off is not turning ingestion off: the text is still read and stored.
+        Assert.True(result.Success);
+        Assert.NotEmpty(result.Chunks);
+    }
+
+    [Fact]
+    public async Task ProcessFileAsync_ProfileSaysNothing_FollowsTheHostSetting()
+    {
+        var options = new ChatDocumentsOptions { AnalyzeImagesAtUpload = false };
+        options.Add(new ExtractorExtension(".log", embeddable: true, isTabular: false));
+        var service = CreateService(options);
+
+        var result = await service.ProcessFileAsync(
+            CreateFormFile("notes.log", "text/plain", "a short note about a chart"),
+            "ref-1",
+            AIReferenceTypes.Document.ChatInteraction,
+            embeddingGenerator: null);
+
+        Assert.True(result.Success);
+    }
+
     private static DefaultAIDocumentProcessingService CreateService(ChatDocumentsOptions options, int siteLimit = 0)
     {
         var services = new ServiceCollection();

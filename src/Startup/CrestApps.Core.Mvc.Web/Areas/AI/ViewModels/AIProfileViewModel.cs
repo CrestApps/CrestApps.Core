@@ -145,6 +145,12 @@ public sealed class AIProfileViewModel
     /// <see langword="null"/> to use the site's limit.
     /// </summary>
     public int? MaxIndexableCharacters { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether figures in an uploaded document are described by a vision model, or
+    /// <see langword="null"/> to follow the host's setting.
+    /// </summary>
+    public bool? AnalyzeImagesAtUpload { get; set; }
     public DocumentRetrievalMode? DocumentRetrievalMode { get; set; }
 
     public bool AllowSessionDocuments { get; set; }
@@ -403,6 +409,7 @@ public sealed class AIProfileViewModel
         {
             vm.DocumentTopN = docMetadata.DocumentTopN;
             vm.MaxIndexableCharacters = docMetadata.MaxIndexableCharacters;
+            vm.AnalyzeImagesAtUpload = docMetadata.AnalyzeImagesAtUpload;
             vm.DocumentRetrievalMode = docMetadata.RetrievalMode;
             vm.AttachedDocuments = (docMetadata.Documents ?? []).Select(d => new DocumentItem
             {
@@ -640,6 +647,7 @@ public sealed class AIProfileViewModel
         {
             metadata.DocumentTopN = DocumentTopN;
             metadata.MaxIndexableCharacters = MaxIndexableCharacters;
+            metadata.AnalyzeImagesAtUpload = AnalyzeImagesAtUpload;
             metadata.RetrievalMode = DocumentRetrievalMode;
         });
 
