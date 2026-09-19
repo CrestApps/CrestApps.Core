@@ -39,7 +39,7 @@ public sealed class DocumentIngestionContext
 
     /// <summary>
     /// Gets a value indicating whether figures are described during this run rather than backfilled after it.
-    /// A chat upload describes inline because someone is waiting on the file; an indexer run does not,
+    /// A chat upload describes inline because someone is waiting on the file; a file source run does not,
     /// because vision latency must not gate how soon the text becomes searchable.
     /// </summary>
     public bool DescribeFiguresInline { get; init; } = true;

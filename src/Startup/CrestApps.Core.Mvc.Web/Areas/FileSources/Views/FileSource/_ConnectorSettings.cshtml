@@ -16,15 +16,9 @@
             <span asp-validation-for="LocalRootPath" class="text-danger"></span>
             <div class="form-text">Must sit inside a folder the application is configured to read. Ask an administrator to add it to the allowed roots otherwise.</div>
         </div>
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <label asp-for="LocalSearchPattern" class="form-label">File pattern</label>
-                <input asp-for="LocalSearchPattern" class="form-control" placeholder="*.*" />
-            </div>
-            <div class="col-md-6 mb-3 form-check mt-4">
-                <input asp-for="LocalRecursive" class="form-check-input" type="checkbox" />
-                <label asp-for="LocalRecursive" class="form-check-label">Include sub-folders</label>
-            </div>
+        <div class="mb-3 form-check">
+            <input asp-for="LocalRecursive" class="form-check-input" type="checkbox" />
+            <label asp-for="LocalRecursive" class="form-check-label">Include sub-folders</label>
         </div>
     </div>
 </div>

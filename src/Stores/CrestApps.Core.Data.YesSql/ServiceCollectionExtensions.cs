@@ -23,6 +23,7 @@ using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Data.YesSql.Indexes.Knowledge;
 using CrestApps.Core.Data.YesSql.Indexes.Mcp;
 using CrestApps.Core.Data.YesSql.Indexes.Tooling;
+using CrestApps.Core.Data.YesSql.Indexes.FileSources;
 using CrestApps.Core.Data.YesSql.Indexes.WebCrawlers;
 using CrestApps.Core.Data.YesSql.Services;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -528,6 +529,34 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, WebCrawlerIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, WebCrawlStateIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, KnowledgeObjectIndexProvider>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers YesSql-backed stores for the file-sources feature.
+    /// This includes <see cref="IFileSourceStore"/> and <see cref="IIngestionItemStateStore"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <remarks>
+    /// File sources are their own records in their own tables. They were once stored beside web crawlers and
+    /// told apart by whether their source happened to name a registered connector, which is why a host that
+    /// has run an older build needs <c>MigrateFileSourcesAsync</c> once.
+    /// </remarks>
+    public static IServiceCollection AddCoreFileSourceStoresYesSql(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddScoped<IFileSourceStore, YesSqlFileSourceStore>();
+        services.AddScoped<ICatalog<FileSource>>(sp => sp.GetRequiredService<IFileSourceStore>());
+        services.AddScoped<ISourceCatalog<FileSource>>(sp => sp.GetRequiredService<IFileSourceStore>());
+
+        services.TryAddScoped<IIngestionItemStateStore, YesSqlIngestionItemStateStore>();
+        services.AddScoped<ICatalog<IngestionItemState>>(sp => sp.GetRequiredService<IIngestionItemStateStore>());
+        services.AddScoped<ISourceCatalog<IngestionItemState>>(sp => sp.GetRequiredService<IIngestionItemStateStore>());
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, FileSourceIndexProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, IngestionItemStateIndexProvider>());
 
         return services;
     }

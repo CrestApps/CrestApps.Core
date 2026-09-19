@@ -525,7 +525,7 @@ public static class KnowledgeObjectBuilder
             Title = title,
             Content = content,
             Language = options.Language,
-            IndexerId = options.IndexerId,
+            FileSourceId = options.FileSourceId,
             SourceItemId = options.SourceItemId,
             Ordinal = ordinal,
             Status = KnowledgeObjectStatus.Ready,

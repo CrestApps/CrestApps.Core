@@ -3,7 +3,7 @@ using CrestApps.Core.AI.Models;
 namespace CrestApps.Core.AI.Ingestion.Knowledge;
 
 /// <summary>
-/// Turns a file into the typed knowledge objects of one AI data source. Manual uploads and indexers both go
+/// Turns a file into the typed knowledge objects of one AI data source. Manual uploads and file sources both go
 /// through here, so both produce exactly the same knowledge.
 /// </summary>
 public interface IKnowledgeIngestionService

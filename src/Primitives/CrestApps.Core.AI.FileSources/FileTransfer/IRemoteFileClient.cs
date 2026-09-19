@@ -1,3 +1,5 @@
+using CrestApps.Core.AI.Models;
+
 namespace CrestApps.Core.AI.FileSources.FileTransfer;
 
 /// <summary>
@@ -48,7 +50,7 @@ public interface IRemoteFileClient : IAsyncDisposable
 }
 
 /// <summary>
-/// Creates the client one indexer's settings describe.
+/// Creates the client one file source's settings describe.
 /// </summary>
 public interface IRemoteFileClientFactory
 {
@@ -58,10 +60,10 @@ public interface IRemoteFileClientFactory
     string ConnectorName { get; }
 
     /// <summary>
-    /// Creates a client for the supplied indexer.
+    /// Creates a client for the supplied source.
     /// </summary>
-    /// <param name="indexer">The configured indexer.</param>
+    /// <param name="source">The configured source.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The client.</returns>
-    Task<IRemoteFileClient> CreateAsync(CrestApps.Core.AI.Models.WebCrawler indexer, CancellationToken cancellationToken = default);
+    Task<IRemoteFileClient> CreateAsync(IngestionSource source, CancellationToken cancellationToken = default);
 }

@@ -15,9 +15,9 @@ namespace CrestApps.Core.Blazor.Web.ViewModels;
 /// The File Sources form: where the files come from, which data source receives them, and how they are read.
 /// </summary>
 /// <remarks>
-/// A file source is stored as a <see cref="WebCrawler"/> record whose source is an ingestion connector
-/// rather than a crawl strategy. The record type is what it is for history's sake; nothing on this form is
-/// about crawling a website.
+/// A file source is a <see cref="FileSource"/> record whose source names the ingestion connector that reads
+/// it. It was once stored as a web crawler, which is why the form and the record still share a shape with
+/// the Web Crawlers screens; nothing on this form is about crawling a website.
 /// </remarks>
 public sealed class FileSourceViewModel
 {
@@ -50,8 +50,6 @@ public sealed class FileSourceViewModel
 
     // File-system folder settings.
     public string LocalRootPath { get; set; }
-
-    public string LocalSearchPattern { get; set; } = "*.*";
 
     public bool LocalRecursive { get; set; } = true;
 
@@ -102,7 +100,7 @@ public sealed class FileSourceViewModel
     /// </summary>
     /// <param name="fileSource">The record to read.</param>
     /// <returns>The populated form.</returns>
-    public static FileSourceViewModel FromFileSource(WebCrawler fileSource)
+    public static FileSourceViewModel FromFileSource(FileSource fileSource)
     {
         ArgumentNullException.ThrowIfNull(fileSource);
 
@@ -116,24 +114,23 @@ public sealed class FileSourceViewModel
             RunIntervalMinutes = fileSource.ReindexIntervalMinutes,
         };
 
-        if (fileSource.TryGet<IndexerMetadata>(out var indexer))
+        if (fileSource.TryGet<FileSourceMetadata>(out var source))
         {
-            model.FigureMode = indexer.FigureMode;
-            model.VisionDeploymentName = indexer.VisionDeploymentName;
-            model.UtilityDeploymentName = indexer.UtilityDeploymentName;
-            model.MaxFigureDescriptionsPerDocument = indexer.MaxFigureDescriptionsPerDocument;
-            model.MaxItemsPerRun = indexer.MaxItemsPerRun;
-            model.Language = indexer.Language;
+            model.FigureMode = source.FigureMode;
+            model.VisionDeploymentName = source.VisionDeploymentName;
+            model.UtilityDeploymentName = source.UtilityDeploymentName;
+            model.MaxFigureDescriptionsPerDocument = source.MaxFigureDescriptionsPerDocument;
+            model.MaxItemsPerRun = source.MaxItemsPerRun;
+            model.Language = source.Language;
         }
 
-        if (fileSource.TryGet<LocalFolderIndexerMetadata>(out var local))
+        if (fileSource.TryGet<FileSystemFileSourceMetadata>(out var local))
         {
             model.LocalRootPath = local.RootPath;
-            model.LocalSearchPattern = local.SearchPattern;
             model.LocalRecursive = local.Recursive;
         }
 
-        if (fileSource.TryGet<RemoteFolderIndexerMetadata>(out var remote))
+        if (fileSource.TryGet<RemoteFileSourceMetadata>(out var remote))
         {
             model.RemoteRootPath = remote.RootPath;
             model.RemoteRecursive = remote.Recursive;
@@ -170,7 +167,7 @@ public sealed class FileSourceViewModel
     /// <param name="dataProtectionProvider">
     /// Encrypts the file-server secrets with the same purpose the connectors decrypt them with.
     /// </param>
-    public void ApplyTo(WebCrawler fileSource, IDataProtectionProvider dataProtectionProvider)
+    public void ApplyTo(FileSource fileSource, IDataProtectionProvider dataProtectionProvider)
     {
         ArgumentNullException.ThrowIfNull(fileSource);
         ArgumentNullException.ThrowIfNull(dataProtectionProvider);
@@ -181,7 +178,7 @@ public sealed class FileSourceViewModel
         fileSource.Enabled = Enabled;
         fileSource.ReindexIntervalMinutes = RunIntervalMinutes;
 
-        fileSource.Put(new IndexerMetadata
+        fileSource.Put(new FileSourceMetadata
         {
             FigureMode = FigureMode,
             VisionDeploymentName = Trim(VisionDeploymentName),
@@ -191,15 +188,14 @@ public sealed class FileSourceViewModel
             Language = Trim(Language),
         });
 
-        fileSource.Remove<LocalFolderIndexerMetadata>();
-        fileSource.Remove<RemoteFolderIndexerMetadata>();
+        fileSource.Remove<FileSystemFileSourceMetadata>();
+        fileSource.Remove<RemoteFileSourceMetadata>();
 
         if (IsFileSystem)
         {
-            fileSource.Put(new LocalFolderIndexerMetadata
+            fileSource.Put(new FileSystemFileSourceMetadata
             {
                 RootPath = Trim(LocalRootPath),
-                SearchPattern = string.IsNullOrWhiteSpace(LocalSearchPattern) ? "*.*" : LocalSearchPattern.Trim(),
                 Recursive = LocalRecursive,
                 MaxItems = MaxItemsPerRun,
             });
@@ -207,7 +203,7 @@ public sealed class FileSourceViewModel
 
         if (IsFtp || IsSftp)
         {
-            fileSource.Put(new RemoteFolderIndexerMetadata
+            fileSource.Put(new RemoteFileSourceMetadata
             {
                 RootPath = string.IsNullOrWhiteSpace(RemoteRootPath) ? "/" : RemoteRootPath.Trim(),
                 Recursive = RemoteRecursive,

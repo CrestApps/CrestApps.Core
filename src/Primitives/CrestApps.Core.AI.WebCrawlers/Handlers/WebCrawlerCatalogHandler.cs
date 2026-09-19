@@ -2,7 +2,6 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI.DataSources;
-using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.WebCrawlers.Strategies;
@@ -20,10 +19,13 @@ namespace CrestApps.Core.AI.WebCrawlers.Handlers;
 /// base aligned by queueing a full synchronization when a crawler changes.
 /// </summary>
 /// <remarks>
-/// A record's <see cref="WebCrawler.Source"/> names either a crawl strategy or an ingestion connector. A
-/// crawl strategy may feed a <c>Web</c> data source (through the re-index planner) or an <c>Ingested</c>
-/// one (through the indexer run service); a connector that is not also a strategy can only feed an
-/// <c>Ingested</c> data source, because nothing else knows how to read the objects it produces.
+/// A crawler's <see cref="CrestApps.Core.Models.SourceCatalogEntry.Source"/> names a crawl strategy, which
+/// may feed a <c>Web</c> data source (through the re-index planner) or an <c>Ingested</c> one (through the
+/// file source run service, because every strategy is also presented as an ingestion connector).
+/// <para>
+/// A source that names a connector but no strategy is a file source, which is a separate record in a
+/// separate store with its own handler. It was once stored here, which is why this used to accept one.
+/// </para>
 /// </remarks>
 internal sealed class WebCrawlerCatalogHandler : CatalogEntryHandlerBase<WebCrawler>
 {
@@ -33,7 +35,6 @@ internal sealed class WebCrawlerCatalogHandler : CatalogEntryHandlerBase<WebCraw
     private readonly IAIDataSourceIndexingQueue _indexingQueue;
     private readonly IWebCrawlStateStore _crawlStateStore;
     private readonly IWebCrawlerStrategyResolver _strategyResolver;
-    private readonly IIngestionConnectorResolver _connectorResolver;
     private readonly ILogger<WebCrawlerCatalogHandler> _logger;
 
     /// <summary>
@@ -45,7 +46,6 @@ internal sealed class WebCrawlerCatalogHandler : CatalogEntryHandlerBase<WebCraw
     /// <param name="indexingQueue">The data source indexing queue.</param>
     /// <param name="crawlStateStore">The crawl-state store.</param>
     /// <param name="strategyResolver">The strategy resolver.</param>
-    /// <param name="connectorResolver">The ingestion connector resolver.</param>
     /// <param name="logger">The logger.</param>
     public WebCrawlerCatalogHandler(
         IHttpContextAccessor httpContextAccessor,
@@ -54,7 +54,6 @@ internal sealed class WebCrawlerCatalogHandler : CatalogEntryHandlerBase<WebCraw
         IAIDataSourceIndexingQueue indexingQueue,
         IWebCrawlStateStore crawlStateStore,
         IWebCrawlerStrategyResolver strategyResolver,
-        IIngestionConnectorResolver connectorResolver,
         ILogger<WebCrawlerCatalogHandler> logger)
     {
         _httpContextAccessor = httpContextAccessor;
@@ -63,7 +62,6 @@ internal sealed class WebCrawlerCatalogHandler : CatalogEntryHandlerBase<WebCraw
         _indexingQueue = indexingQueue;
         _crawlStateStore = crawlStateStore;
         _strategyResolver = strategyResolver;
-        _connectorResolver = connectorResolver;
         _logger = logger;
     }
 
@@ -111,47 +109,37 @@ internal sealed class WebCrawlerCatalogHandler : CatalogEntryHandlerBase<WebCraw
 
         if (string.IsNullOrWhiteSpace(crawler.Source))
         {
-            context.Result.Fail(new ValidationResult("A crawl strategy or connector is required.", [nameof(WebCrawler.Source)]));
+            context.Result.Fail(new ValidationResult("A crawl strategy is required.", [nameof(WebCrawler.Source)]));
 
             return;
         }
 
         var strategy = _strategyResolver.Get(crawler.Source);
-        var connector = strategy is null ? _connectorResolver.Get(crawler.Source) : null;
 
-        if (strategy is null && connector is null)
+        if (strategy is null)
         {
-            context.Result.Fail(new ValidationResult("The selected crawl strategy or connector is not supported.", [nameof(WebCrawler.Source)]));
+            context.Result.Fail(new ValidationResult("The selected crawl strategy is not supported.", [nameof(WebCrawler.Source)]));
 
             return;
         }
 
-        await ValidateDataSourceAsync(crawler, strategy is not null, context.Result, cancellationToken);
+        await ValidateDataSourceAsync(crawler, context.Result, cancellationToken);
 
-        if (strategy is not null)
-        {
-            await strategy.ValidateAsync(crawler, context.Result, cancellationToken);
-
-            return;
-        }
-
-        await connector.ValidateAsync(crawler, context.Result, cancellationToken);
+        await strategy.ValidateAsync(crawler, context.Result, cancellationToken);
     }
 
     /// <summary>
-    /// Checks that the record feeds a data source of a kind its source can actually fill.
+    /// Checks that the crawler feeds a data source of a kind a crawl strategy can actually fill.
     /// </summary>
     /// <param name="crawler">The record being validated.</param>
-    /// <param name="isStrategy">Whether the source is a crawl strategy rather than a bare connector.</param>
     /// <param name="result">The validation result to add failures to.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <remarks>
-    /// A connector produces typed knowledge objects, and only an <c>Ingested</c> data source reads those. A
-    /// crawl strategy can also feed a <c>Web</c> data source, which reads crawled pages directly.
+    /// A <c>Web</c> data source reads crawled pages directly; an <c>Ingested</c> one reads the typed
+    /// knowledge objects the ingestion pipeline produces from the same pages. A strategy can fill either.
     /// </remarks>
     private async Task ValidateDataSourceAsync(
         WebCrawler crawler,
-        bool isStrategy,
         ValidationResultDetails result,
         CancellationToken cancellationToken)
     {
@@ -174,15 +162,13 @@ internal sealed class WebCrawlerCatalogHandler : CatalogEntryHandlerBase<WebCraw
             return;
         }
 
-        if (isStrategy && string.Equals(dataSource.Source, AIDataSourceSourceTypes.Web, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(dataSource.Source, AIDataSourceSourceTypes.Web, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
         result.Fail(new ValidationResult(
-            isStrategy
-                ? "A crawl strategy can only feed a Web or an Ingested data source."
-                : "A file connector can only feed an Ingested data source.",
+            "A crawl strategy can only feed a Web or an Ingested data source.",
             [nameof(WebCrawler.AIDataSourceId)]));
     }
 

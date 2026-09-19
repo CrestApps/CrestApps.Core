@@ -69,9 +69,9 @@ public static class ServiceCollectionExtensions
         // A crawl strategy is an ingestion connector with Web in its name. Presenting it as one lets a
         // folder, a blob container and a website reach the same reader and the same store. Which path a
         // crawler record actually takes is decided by the data source it feeds: an Ingested data source is
-        // filled through the indexer run service, a Web data source through the re-index planner.
+        // filled through the file source run service, a Web data source through the re-index planner.
         // Connectors are scoped, so the resolver has to be too: a singleton holding the root provider cannot
-        // resolve a keyed scoped service and throws the first time an indexer runs.
+        // resolve a keyed scoped service and throws the first time a source runs.
         services.TryAddScoped<IIngestionConnectorResolver, KeyedIngestionConnectorResolver>();
         services.TryAddKeyedScoped<IIngestionConnector>(
             WebCrawlerConstants.Strategies.Sitemap,

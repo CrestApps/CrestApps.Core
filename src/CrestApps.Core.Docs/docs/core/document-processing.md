@@ -94,7 +94,7 @@ which needs document processing. Reading a PDF and writing one are separate pack
 :::
 
 In practice a file source host rarely calls this directly, because `AddCoreFileSources()` already registers
-the reader, the figure processors and the backfill — see [File Sources](../data-sources/indexers.md).
+the reader, the figure processors and the backfill — see [File Sources](../data-sources/file-source-connectors.md).
 
 :::note
 If you want both, call `AddDocumentProcessing()` **before** `AddCoreFileSources()`. Keyed readers resolve to

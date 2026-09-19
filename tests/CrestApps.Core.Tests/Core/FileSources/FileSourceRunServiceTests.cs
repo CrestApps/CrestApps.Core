@@ -1,3 +1,4 @@
+using CrestApps.Core.Services;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.FileSources.Connectors;
@@ -9,22 +10,22 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 
-namespace CrestApps.Core.Tests.Core.Indexers;
+namespace CrestApps.Core.Tests.Core.FileSources;
 
 /// <summary>
 /// Covers what a run records, how much of a source one run takes on, and how the next one picks up where it
 /// left off.
 /// </summary>
-public sealed class IndexerRunServiceTests : IDisposable
+public sealed class FileSourceRunServiceTests : IDisposable
 {
     private const string DataSourceId = "data-source-1";
 
     private readonly string _root;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="IndexerRunServiceTests"/> class.
+    /// Initializes a new instance of the <see cref="FileSourceRunServiceTests"/> class.
     /// </summary>
-    public IndexerRunServiceTests()
+    public FileSourceRunServiceTests()
     {
         _root = Path.Combine(Path.GetTempPath(), "crestapps-runservice-" + Guid.NewGuid().ToString("N"));
 
@@ -47,22 +48,22 @@ public sealed class IndexerRunServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies that what a run did is recorded on the indexer, because an unattended job that says nothing
+    /// Verifies that what a run did is recorded on the source, because an unattended job that says nothing
     /// about itself cannot be operated.
     /// </summary>
     [Fact]
-    public async Task RunSummary_IsPersistedOnIndexer()
+    public async Task RunSummary_IsPersistedOnSource()
     {
         await WriteAsync("first.txt", "The first file.");
 
         var harness = new Harness(_root);
-        var indexer = harness.CreateIndexer();
+        var source = harness.CreateFileSource();
 
-        await harness.Service.RunAsync(indexer, TestContext.Current.CancellationToken);
+        await harness.Service.RunAsync(source, TestContext.Current.CancellationToken);
 
         var saved = harness.Saved[^1];
 
-        Assert.True(saved.TryGet<IndexerRunSummary>(out var summary));
+        Assert.True(saved.TryGet<FileSourceRunSummary>(out var summary));
         Assert.Equal(FileSourceRunStatus.Succeeded, summary.Status);
         Assert.Equal(1, summary.ItemsDiscovered);
         Assert.Equal(1, summary.ItemsIndexed);
@@ -81,7 +82,7 @@ public sealed class IndexerRunServiceTests : IDisposable
             ResolveConnector = false,
         };
 
-        var summary = await harness.Service.RunAsync(harness.CreateIndexer(), TestContext.Current.CancellationToken);
+        var summary = await harness.Service.RunAsync(harness.CreateFileSource(), TestContext.Current.CancellationToken);
 
         Assert.Equal(FileSourceRunStatus.Failed, summary.Status);
         Assert.Contains("connector", summary.Error, StringComparison.OrdinalIgnoreCase);
@@ -100,9 +101,9 @@ public sealed class IndexerRunServiceTests : IDisposable
         }
 
         var harness = new Harness(_root);
-        var indexer = harness.CreateIndexer(maxItems: 2);
+        var source = harness.CreateFileSource(maxItems: 2);
 
-        var summary = await harness.Service.RunAsync(indexer, TestContext.Current.CancellationToken);
+        var summary = await harness.Service.RunAsync(source, TestContext.Current.CancellationToken);
 
         Assert.Equal(FileSourceRunStatus.PartiallyCompleted, summary.Status);
         Assert.False(summary.DiscoveryCompleted);
@@ -125,12 +126,12 @@ public sealed class IndexerRunServiceTests : IDisposable
         }
 
         var harness = new Harness(_root);
-        var indexer = harness.CreateIndexer(maxItems: 10);
+        var source = harness.CreateFileSource(maxItems: 10);
         var indexed = 0;
 
         for (var run = 0; run < 4; run++)
         {
-            var summary = await harness.Service.RunAsync(indexer, TestContext.Current.CancellationToken);
+            var summary = await harness.Service.RunAsync(source, TestContext.Current.CancellationToken);
 
             indexed += summary.ItemsIndexed;
 
@@ -154,9 +155,9 @@ public sealed class IndexerRunServiceTests : IDisposable
         await WriteAsync("report.txt", "The first version of the report.");
 
         var harness = new Harness(_root);
-        var indexer = harness.CreateIndexer();
+        var source = harness.CreateFileSource();
 
-        await harness.Service.RunAsync(indexer, TestContext.Current.CancellationToken);
+        await harness.Service.RunAsync(source, TestContext.Current.CancellationToken);
 
         var firstRoot = Assert.Single(harness.Store.All, entry => entry.ObjectType == KnowledgeObjectTypes.Document).RootId;
 
@@ -164,7 +165,7 @@ public sealed class IndexerRunServiceTests : IDisposable
         await Task.Delay(20, TestContext.Current.CancellationToken);
         await WriteAsync("report.txt", "The second, revised version of the report with more words in it.");
 
-        var summary = await harness.Service.RunAsync(indexer, TestContext.Current.CancellationToken);
+        var summary = await harness.Service.RunAsync(source, TestContext.Current.CancellationToken);
 
         Assert.Equal(1, summary.ItemsIndexed);
 
@@ -191,9 +192,9 @@ public sealed class IndexerRunServiceTests : IDisposable
         await WriteAsync("report.txt", "The only version of the report.");
 
         var harness = new Harness(_root);
-        var indexer = harness.CreateIndexer();
+        var source = harness.CreateFileSource();
 
-        await harness.Service.RunAsync(indexer, TestContext.Current.CancellationToken);
+        await harness.Service.RunAsync(source, TestContext.Current.CancellationToken);
 
         var firstRoot = Assert.Single(harness.Store.All, entry => entry.ObjectType == KnowledgeObjectTypes.Document).RootId;
 
@@ -201,7 +202,7 @@ public sealed class IndexerRunServiceTests : IDisposable
         File.Delete(Path.Combine(_root, "report.txt"));
         await WriteAsync("archive-report.txt", "The only version of the report.");
 
-        await harness.Service.RunAsync(indexer, TestContext.Current.CancellationToken);
+        await harness.Service.RunAsync(source, TestContext.Current.CancellationToken);
 
         var documents = harness.Store.All.Where(entry => entry.ObjectType == KnowledgeObjectTypes.Document).ToList();
 
@@ -210,7 +211,7 @@ public sealed class IndexerRunServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies that an indexer pointed at a data source of another kind does not run. The objects a run
+    /// Verifies that a file source pointed at a data source of another kind does not run. The objects a run
     /// produces are read back only by the Ingested source handler; filling a Web data source with them would
     /// store knowledge nothing ever indexes.
     /// </summary>
@@ -224,7 +225,7 @@ public sealed class IndexerRunServiceTests : IDisposable
             DataSourceType = AIDataSourceSourceTypes.Web,
         };
 
-        var summary = await harness.Service.RunAsync(harness.CreateIndexer(), TestContext.Current.CancellationToken);
+        var summary = await harness.Service.RunAsync(harness.CreateFileSource(), TestContext.Current.CancellationToken);
 
         Assert.Equal(FileSourceRunStatus.Failed, summary.Status);
         Assert.Contains("Ingested", summary.Error, StringComparison.Ordinal);
@@ -238,7 +239,7 @@ public sealed class IndexerRunServiceTests : IDisposable
 
     /// <summary>
     /// Runs the real local-folder connector and ingestion pipeline against an in-memory store, recording what
-    /// gets written back onto the indexer.
+    /// gets written back onto the source.
     /// </summary>
     private sealed class Harness
     {
@@ -248,11 +249,12 @@ public sealed class IndexerRunServiceTests : IDisposable
         {
             _root = root;
 
-            var options = new FileSourceOptions();
+            var options = new FileSystemConnectorOptions();
 
-            options.AllowedLocalRoots.Add(root);
+            options.AllowedRoots.Add(root);
 
             Connector = new FileSystemIngestionConnector(
+                Options.Create(new FileSourceOptions()),
                 Options.Create(options),
                 NullLogger<FileSystemIngestionConnector>.Instance);
         }
@@ -261,9 +263,9 @@ public sealed class IndexerRunServiceTests : IDisposable
 
         public InMemoryKnowledgeObjectStore Store { get; } = new();
 
-        public InMemoryWebCrawlStateStore StateStore { get; } = new();
+        public InMemoryIngestionItemStateStore StateStore { get; } = new();
 
-        public List<WebCrawler> Saved { get; } = [];
+        public List<FileSource> Saved { get; } = [];
 
         public bool ResolveConnector { get; init; } = true;
 
@@ -272,23 +274,23 @@ public sealed class IndexerRunServiceTests : IDisposable
         public DefaultFileSourceRunService Service => Build();
 
         /// <summary>
-        /// Builds an indexer pointed at the folder. The same instance is reused across runs, which is how the
+        /// Builds a file source pointed at the folder. The same instance is reused across runs, which is how the
         /// cursor from one run reaches the next.
         /// </summary>
         /// <param name="maxItems">The per-run ceiling, when the test sets one.</param>
-        /// <returns>The indexer.</returns>
-        public WebCrawler CreateIndexer(int? maxItems = null)
+        /// <returns>The source.</returns>
+        public FileSource CreateFileSource(int? maxItems = null)
         {
-            var indexer = new WebCrawler
+            var source = new FileSource
             {
-                ItemId = "indexer-1",
+                ItemId = "file-source-1",
                 Source = FileSystemIngestionConnector.ConnectorName,
                 DisplayText = "The folder",
                 AIDataSourceId = DataSourceId,
                 Enabled = true,
             };
 
-            indexer.Put(new LocalFolderIndexerMetadata
+            source.Put(new FileSystemFileSourceMetadata
             {
                 RootPath = _root,
                 MaxItems = maxItems,
@@ -296,18 +298,18 @@ public sealed class IndexerRunServiceTests : IDisposable
 
             if (maxItems.HasValue)
             {
-                indexer.Put(new IndexerMetadata
+                source.Put(new FileSourceMetadata
                 {
                     MaxItemsPerRun = maxItems,
                 });
             }
 
-            return indexer;
+            return source;
         }
 
         private DefaultFileSourceRunService Build()
         {
-            var ingestionService = IndexerTestPipeline.Create(Store);
+            var ingestionService = FileSourceTestPipeline.Create(Store);
 
             var dataSourceStore = new Mock<IAIDataSourceStore>();
             dataSourceStore
@@ -324,16 +326,19 @@ public sealed class IndexerRunServiceTests : IDisposable
                 .Setup(instance => instance.Get(It.IsAny<string>()))
                 .Returns(ResolveConnector ? Connector : null);
 
-            var indexerStore = new Mock<IWebCrawlerStore>();
-            indexerStore
-                .Setup(store => store.UpdateAsync(It.IsAny<WebCrawler>(), It.IsAny<CancellationToken>()))
-                .Callback((WebCrawler indexer, CancellationToken _) => Saved.Add(indexer))
+            var fileSourceStore = new Mock<ICatalog<FileSource>>();
+            fileSourceStore
+                .Setup(store => store.UpdateAsync(It.IsAny<FileSource>(), It.IsAny<CancellationToken>()))
+                .Callback((FileSource fileSource, CancellationToken _) => Saved.Add(fileSource))
                 .Returns(ValueTask.CompletedTask);
+
+            var webCrawlerStore = new Mock<ICatalog<WebCrawler>>();
 
             return new DefaultFileSourceRunService(
                 resolver.Object,
                 StateStore,
-                indexerStore.Object,
+                fileSourceStore.Object,
+                webCrawlerStore.Object,
                 ingestionService,
                 dataSourceStore.Object,
                 Options.Create(new FileSourceOptions()),

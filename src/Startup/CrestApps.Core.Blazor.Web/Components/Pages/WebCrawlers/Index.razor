@@ -117,7 +117,7 @@ else
 
     private static string DescribeLastRun(WebCrawler crawler)
     {
-        if (!crawler.TryGet<IndexerRunSummary>(out var lastRun))
+        if (!crawler.TryGet<FileSourceRunSummary>(out var lastRun))
         {
             return null;
         }
@@ -129,7 +129,7 @@ else
 
     private async Task ResetStateAsync(string id)
     {
-        var confirmed = await JS.InvokeAsync<bool>("confirm", "Forget what this indexer has read? The next run re-reads every item.");
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Forget what this source has read? The next run re-reads every item.");
 
         if (!confirmed)
         {
@@ -140,7 +140,7 @@ else
         await StateStore.DeleteByCrawlerIdAsync(id);
         await StoreCommitter.CommitAsync();
 
-        ToastNotifications.ShowSuccess("Indexer state cleared. The next run will re-read every item.");
+        ToastNotifications.ShowSuccess("Source state cleared. The next run will re-read every item.");
     }
 
     private async Task SyncAsync(string id)

@@ -164,7 +164,7 @@
         }
 
         var crawler = await Manager.NewAsync(_model.Source);
-        _model.ApplyTo(crawler, DataProtectionProvider);
+        _model.ApplyTo(crawler);
 
         var validation = await Manager.ValidateAsync(crawler);
 

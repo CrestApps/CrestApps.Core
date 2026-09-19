@@ -30,7 +30,7 @@ public sealed class FileSourceViewModelTests
     public void ApplyTo_FtpPassword_IsEncryptedUnderTheConnectorsPurpose()
     {
         var provider = new EphemeralDataProtectionProvider();
-        var fileSource = new WebCrawler();
+        var fileSource = new FileSource();
 
         CreateFtpModel(password: "correct horse").ApplyTo(fileSource, provider);
 
@@ -52,7 +52,7 @@ public sealed class FileSourceViewModelTests
     public void ApplyTo_BlankFtpPassword_KeepsTheStoredSecret()
     {
         var provider = new EphemeralDataProtectionProvider();
-        var fileSource = new WebCrawler();
+        var fileSource = new FileSource();
 
         CreateFtpModel(password: "original").ApplyTo(fileSource, provider);
 
@@ -77,7 +77,7 @@ public sealed class FileSourceViewModelTests
     public void FromFileSource_StoredSecrets_AreReportedButNeverExposed()
     {
         var provider = new EphemeralDataProtectionProvider();
-        var fileSource = new WebCrawler();
+        var fileSource = new FileSource();
 
         var saved = CreateSftpModel(password: "pw", privateKey: "-----BEGIN KEY-----", passphrase: "phrase");
         saved.ApplyTo(fileSource, provider);
@@ -102,7 +102,7 @@ public sealed class FileSourceViewModelTests
     public void ApplyTo_SftpKeyMaterial_IsEncryptedAndReusedWhenBlank()
     {
         var provider = new EphemeralDataProtectionProvider();
-        var fileSource = new WebCrawler();
+        var fileSource = new FileSource();
 
         CreateSftpModel(password: null, privateKey: "-----BEGIN KEY-----", passphrase: "phrase").ApplyTo(fileSource, provider);
 
@@ -127,7 +127,7 @@ public sealed class FileSourceViewModelTests
     public void ApplyTo_SwitchingConnector_DropsTheOtherConnection()
     {
         var provider = new EphemeralDataProtectionProvider();
-        var fileSource = new WebCrawler();
+        var fileSource = new FileSource();
 
         CreateFtpModel(password: "ftp-secret").ApplyTo(fileSource, provider);
 
@@ -147,19 +147,19 @@ public sealed class FileSourceViewModelTests
     public void ApplyTo_SwitchingToFolder_DropsTheFileServerSettings()
     {
         var provider = new EphemeralDataProtectionProvider();
-        var fileSource = new WebCrawler();
+        var fileSource = new FileSource();
 
         CreateSftpModel(password: "sftp-secret", privateKey: null, passphrase: null).ApplyTo(fileSource, provider);
 
         Assert.True(fileSource.TryGet<SftpConnectionMetadata>(out _));
-        Assert.True(fileSource.TryGet<RemoteFolderIndexerMetadata>(out _));
+        Assert.True(fileSource.TryGet<RemoteFileSourceMetadata>(out _));
 
         CreateFileSystemModel().ApplyTo(fileSource, provider);
 
         Assert.False(fileSource.TryGet<SftpConnectionMetadata>(out _));
         Assert.False(fileSource.TryGet<FtpConnectionMetadata>(out _));
-        Assert.False(fileSource.TryGet<RemoteFolderIndexerMetadata>(out _));
-        Assert.True(fileSource.TryGet<LocalFolderIndexerMetadata>(out _));
+        Assert.False(fileSource.TryGet<RemoteFileSourceMetadata>(out _));
+        Assert.True(fileSource.TryGet<FileSystemFileSourceMetadata>(out _));
     }
 
     /// <summary>
@@ -169,21 +169,20 @@ public sealed class FileSourceViewModelTests
     public void ApplyTo_FileSystemConnector_StoresNoConnection()
     {
         var provider = new EphemeralDataProtectionProvider();
-        var fileSource = new WebCrawler();
+        var fileSource = new FileSource();
 
         var model = CreateFileSystemModel();
         model.RemoteHost = "left over from another connector";
         model.RemotePassword = "left over too";
         model.ApplyTo(fileSource, provider);
 
-        Assert.True(fileSource.TryGet<LocalFolderIndexerMetadata>(out var folder));
+        Assert.True(fileSource.TryGet<FileSystemFileSourceMetadata>(out var folder));
         Assert.Equal("D:\\knowledge", folder.RootPath);
-        Assert.Equal("*.pdf", folder.SearchPattern);
         Assert.False(folder.Recursive);
 
         Assert.False(fileSource.TryGet<FtpConnectionMetadata>(out _));
         Assert.False(fileSource.TryGet<SftpConnectionMetadata>(out _));
-        Assert.False(fileSource.TryGet<RemoteFolderIndexerMetadata>(out _));
+        Assert.False(fileSource.TryGet<RemoteFileSourceMetadata>(out _));
     }
 
     /// <summary>
@@ -193,7 +192,7 @@ public sealed class FileSourceViewModelTests
     public void ApplyTo_FileServerConnector_StoresTheRemoteFolder()
     {
         var provider = new EphemeralDataProtectionProvider();
-        var fileSource = new WebCrawler();
+        var fileSource = new FileSource();
 
         var model = CreateFtpModel(password: "pw");
         model.RemoteRootPath = "/exports";
@@ -201,7 +200,7 @@ public sealed class FileSourceViewModelTests
         model.MaxItemsPerRun = 25;
         model.ApplyTo(fileSource, provider);
 
-        Assert.True(fileSource.TryGet<RemoteFolderIndexerMetadata>(out var folder));
+        Assert.True(fileSource.TryGet<RemoteFileSourceMetadata>(out var folder));
         Assert.Equal("/exports", folder.RootPath);
         Assert.False(folder.Recursive);
         Assert.Equal(25, folder.MaxItems);
@@ -215,7 +214,7 @@ public sealed class FileSourceViewModelTests
     public void ApplyTo_Connector_IsStoredAsTheRecordsSource()
     {
         var provider = new EphemeralDataProtectionProvider();
-        var fileSource = new WebCrawler();
+        var fileSource = new FileSource();
 
         CreateFileSystemModel().ApplyTo(fileSource, provider);
 
@@ -234,7 +233,6 @@ public sealed class FileSourceViewModelTests
             Source = FileSystemIngestionConnector.ConnectorName,
             AIDataSourceId = "data-source-1",
             LocalRootPath = "D:\\knowledge",
-            LocalSearchPattern = "*.pdf",
             LocalRecursive = false,
         };
     }

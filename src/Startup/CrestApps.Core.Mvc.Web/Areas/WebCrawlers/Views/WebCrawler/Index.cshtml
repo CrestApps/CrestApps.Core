@@ -47,7 +47,7 @@ else
                             }
                         </td>
                         <td>
-                            @if (item.TryGet<CrestApps.Core.AI.FileSources.IndexerRunSummary>(out var lastRun))
+                            @if (item.TryGet<CrestApps.Core.AI.FileSources.FileSourceRunSummary>(out var lastRun))
                             {
                                 <span class="badge @(lastRun.Status == CrestApps.Core.AI.FileSources.FileSourceRunStatus.Succeeded ? "bg-success" : lastRun.Status == CrestApps.Core.AI.FileSources.FileSourceRunStatus.Failed ? "bg-danger" : "bg-warning text-dark")">@lastRun.Status</span>
                                 <div class="small text-muted">
@@ -75,7 +75,7 @@ else
                                   method="post" class="d-inline">
                                 @Html.AntiForgeryToken()
                                 <button type="submit" class="btn btn-sm btn-outline-warning"
-                                        onclick="return confirm('Forget what this indexer has read? The next run re-reads every item.')">
+                                        onclick="return confirm('Forget what this source has read? The next run re-reads every item.')">
                                     <i class="fa-solid fa-rotate-left"></i> Reset state
                                 </button>
                             </form>

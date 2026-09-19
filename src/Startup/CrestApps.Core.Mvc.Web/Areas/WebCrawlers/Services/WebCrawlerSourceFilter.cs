@@ -4,10 +4,13 @@ using CrestApps.Core.AI.WebCrawlers.Strategies;
 namespace CrestApps.Core.Mvc.Web.Areas.WebCrawlers.Services;
 
 /// <summary>
-/// Decides which records belong on the Web Crawlers screens. A record's source is either a crawl strategy or
-/// an ingestion connector, and that is the only thing separating the two kinds: a strategy-backed record
-/// crawls a website, while a connector-backed record reads files and is managed on the File Sources screens.
+/// Decides which records the Web Crawlers screens can act on: those whose crawl strategy is still registered.
 /// </summary>
+/// <remarks>
+/// File sources are their own records in their own store, so this no longer has to tell the two kinds apart.
+/// What is left is the case it always also covered: whatever registered a strategy may be gone, and a record
+/// naming one cannot be run or meaningfully edited.
+/// </remarks>
 public static class WebCrawlerSourceFilter
 {
     /// <summary>
@@ -25,8 +28,8 @@ public static class WebCrawlerSourceFilter
             return false;
         }
 
-        // An unregistered source belongs to neither screen, so it is left out rather than shown here by
-        // default. Whatever registered it is gone, and the record cannot be run either way.
+        // A source naming no registered strategy is left out: whatever registered it is gone, and the
+        // record cannot be run either way.
         foreach (var strategy in strategies)
         {
             if (string.Equals(strategy.Strategy, source, StringComparison.OrdinalIgnoreCase))

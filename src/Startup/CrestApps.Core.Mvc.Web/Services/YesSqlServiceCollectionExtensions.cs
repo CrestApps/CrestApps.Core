@@ -5,6 +5,7 @@ using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Copilot;
 using CrestApps.Core.AI.Copilot.Services;
 using CrestApps.Core.AI.Documents;
+using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
@@ -17,6 +18,7 @@ using CrestApps.Core.Data.YesSql.Indexes.AIChat;
 using CrestApps.Core.Data.YesSql.Indexes.AIMemory;
 using CrestApps.Core.Data.YesSql.Indexes.ChatInteractions;
 using CrestApps.Core.Data.YesSql.Indexes.DataSources;
+using CrestApps.Core.Data.YesSql.Indexes.FileSources;
 using CrestApps.Core.Data.YesSql.Indexes.Indexing;
 using CrestApps.Core.Data.YesSql.Indexes.Knowledge;
 using CrestApps.Core.Data.YesSql.Indexes.Mcp;
@@ -165,6 +167,8 @@ internal static class YesSqlServiceCollectionExtensions
         await TryCreateTableAsync(() => schemaBuilder.CreateAIDataSourceIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateWebCrawlerIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateWebCrawlStateIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateFileSourceIndexSchemaAsync(storeOptions));
+        await TryCreateTableAsync(() => schemaBuilder.CreateIngestionItemStateIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateKnowledgeObjectIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateAIMemoryEntryIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateChatInteractionIndexSchemaAsync(storeOptions));
@@ -175,6 +179,10 @@ internal static class YesSqlServiceCollectionExtensions
         await transaction.CommitAsync();
 
         await MigrateLegacyExtractedDataRecordsAsync(services, storeOptions, logger);
+
+        // File sources used to be stored as web crawlers whose source named a connector. Moving them is
+        // idempotent, so it runs on every start and finds nothing once it has run.
+        await services.MigrateFileSourcesAsync();
     }
 
     private static async Task InitializeCollectionsAsync(IStore store, YesSqlStoreOptions storeOptions)

@@ -30,8 +30,9 @@ File Source (FTP)          ─┼──▶  File AI Data Source  ──▶  Know
 File Source (SFTP)         ─┘
 ```
 
-Each screen shows only what belongs to it. **File Sources** lists the connector-backed records, **Web
-Crawlers** lists the crawl-strategy ones, and a record's source is what decides which of the two it is.
+A file source and a web crawler are separate kinds of record, kept in separate stores, on separate screens.
+What they share is the connector contract and the pipeline behind it, so a folder, a file server and a
+website reach the same reader, the same enrichment and the same knowledge base.
 
 ## Creating one
 
@@ -81,47 +82,81 @@ builder.Services
 ```
 
 Only the connectors a host registers are offered, so a host that never adds the file-transfer package offers
-a folder and nothing else. See [File Source Connectors](./indexers.md) for the connector contract and for adding one.
+a folder and nothing else. See [File Source Connectors](./file-source-connectors.md) for the connector contract and for adding one.
 
 ## Reading a folder on the host
 
-A file-system source stores `{ RootPath, SearchPattern, Recursive, MaxItems }`, and the root has to sit
-inside a host-allow-listed folder:
+A file-system source stores `{ RootPath, Recursive, MaxItems }`. The folder it reads has to
+sit inside a folder the **host** allows:
 
 ```json
 {
   "CrestApps": {
     "AI": {
       "FileSources": {
-        "AllowedLocalRoots": [ "D:\\knowledge" ],
-        "MaxItemsPerRun": 200
+        "FileSystem": {
+          "AllowedRoots": [ "App_Data/file-sources" ]
+        }
       }
     }
   }
 }
 ```
 
+That is the whole of what the host decides. Which folder inside the boundary to read, and whether to
+recurse, belong to the file source, which cannot widen the boundary whatever it asks for.
+
+A path is absolute, or relative to the **content root** — never to the process's current directory, which is
+not the content root under IIS, a Windows service, or `dotnet run` from another folder.
+
 :::warning
-**The file-system connector reads nothing until a root is allow-listed.** Registering the connector grants nothing:
-until `CrestApps:AI:FileSources:AllowedLocalRoots` names a folder, every root is refused and the file source fails
-validation before it lists a single file. The empty default is the point, not an oversight — without it, an
-administrator with access to this screen could read any file the host process can open.
+**The file-system connector reads nothing until a root is allowed.** Registering the connector grants
+nothing: until `CrestApps:AI:FileSources:FileSystem:AllowedRoots` names a folder, every root is refused and
+the file source fails validation before it lists a single file. The empty default is the point, not an
+oversight — without it, an administrator with access to this screen could read any file the host process can
+open.
 :::
 
-Neither sample host ships a root, so cloning the repository grants nothing. Both carry the section in
-`appsettings.Development.json` with the array empty and the shape beside it in a comment. For local
-development, name the root in user secrets instead — a path from your own machine belongs in neither this
-repository nor any configuration file that is committed:
+Both sample hosts allow `App_Data/file-sources` and create it at startup, so dropping files there is enough
+to try a file source out. Nothing above it is reachable.
+
+To allow a folder elsewhere for local development, name it in user secrets rather than in a committed file —
+a path from your own machine belongs in neither this repository nor any configuration file that is checked
+in:
 
 ```bash
 cd src/Startup/CrestApps.Core.Mvc.Web
-dotnet user-secrets set "CrestApps:AI:FileSources:AllowedLocalRoots:0" "D:\your-folder"
+dotnet user-secrets set "CrestApps:AI:FileSources:FileSystem:AllowedRoots:0" "D:\your-folder"
 ```
 
 Both hosts already declare a `UserSecretsId`, so there is nothing to initialize first. The array is indexed,
 so a second root is `:1`, and an environment variable spells the same key
-`CrestApps__AI__FileSources__AllowedLocalRoots__0`. An item identifier that resolves outside the root is refused
-when it is fetched as well as when it is listed, because identifiers also arrive from stored state.
+`CrestApps__AI__FileSources__FileSystem__AllowedRoots__0`.
+
+### Staying inside the boundary
+
+Three things are checked, and each refuses on its own:
+
+- **A `..` is refused outright**, in a configured folder and in an item identifier alike, before any path is
+  combined. Checking containment alone would accept `App_Data/file-sources/../../secrets` whenever it
+  happened to land back inside a root, and a path that climbs out and returns is never what someone meant to
+  type.
+- **Containment is compared by path segment**, not by string prefix, so `App_Data/file-sources` does not
+  admit `App_Data/file-sources-private`, and a folder legitimately named `..archive` is not mistaken for an
+  escape.
+- **An item identifier is re-checked when it is fetched**, not only when it is listed, because identifiers
+  also arrive from stored state.
+
+The refusal says which of these applies, since a bare "not allowed" sends an administrator to the
+allowed-roots list when the real problem was a `..` they typed.
+
+`Recursive` is measured from the file source's own folder, never from the allowed root above it: a source
+pointed at `App_Data/file-sources/test` reads `test` and, when recursive, everything under `test` — and when
+not recursive, only the files sitting directly in `test`.
+
+Every file is listed, whatever its extension. Which of them can be read is the
+[reader resolver](./file-source-connectors.md#reader-resolution)'s business, so narrowing intake is a matter of which
+readers a host registers rather than a glob typed into a form.
 
 ## Reading a file server
 
@@ -135,8 +170,8 @@ encrypted with the same data protector the [MCP resource types](../mcp/resource-
 same one the connectors decrypt with; a mismatch there would read back as no credential at all rather than
 as an error.
 
-Changing a record from one protocol to the other, or to a crawl strategy, takes the previous connection with
-it. A record never keeps a credential for a server it no longer reads.
+Changing a record from one protocol to the other takes the previous connection with it. A record never keeps
+a credential for a server it no longer reads.
 
 Accepting any TLS certificate is offered for FTP because self-signed certificates on internal file servers
 are ordinary, but it turns validation off for that record. Use it only against a server you control.
@@ -149,7 +184,7 @@ Two actions sit beside each file source:
 - **Reset state** forgets what has been read — not what was stored — so the next run re-reads every item.
 
 A hosted job runs the sources that are due on their own schedule, and each run stores an
-`IndexerRunSummary` on the record: status, timings, how many items were seen, indexed, left unchanged,
+`FileSourceRunSummary` on the record: status, timings, how many items were seen, indexed, left unchanged,
 removed and failed, how many figures were stored and how many still await transcription, and whether the
 listing was complete. Removals happen **only** when the listing was complete, so a dropped connection or a
 source larger than one run will take on never deletes what it failed to see.
@@ -158,7 +193,7 @@ An item whose content changes produces a new document, because a document's iden
 The run removes the document the item produced before — unless another item of the same file source still
 produces it, since the same file placed twice is one document by design.
 
-[File Source Connectors](./indexers.md) covers the rest of the run machinery: change tokens, discovery cursors, reader
+[File Source Connectors](./file-source-connectors.md) covers the rest of the run machinery: change tokens, discovery cursors, reader
 resolution, and the per-record model and figure settings.
 
 ## Typed columns and filtering

@@ -22,25 +22,6 @@ public sealed class WebCrawlerCatalogHandlerTests
     private const string IngestedDataSourceId = "ingested-ds";
 
     /// <summary>
-    /// Verifies that a record naming a connector that is not also a crawl strategy is accepted, and that the
-    /// connector's own validation runs. Before this, every such indexer was refused as an unsupported
-    /// strategy, so no folder or file-server indexer could be saved at all.
-    /// </summary>
-    [Fact]
-    public async Task Validating_ConnectorSource_IsAcceptedAndValidatedByTheConnector()
-    {
-        var connector = new Mock<IIngestionConnector>();
-        var context = CreateContext("FileSystem", IngestedDataSourceId);
-
-        await CreateHandler(connector: connector.Object).ValidatingAsync(context, TestContext.Current.CancellationToken);
-
-        Assert.True(context.Result.Succeeded);
-        connector.Verify(
-            instance => instance.ValidateAsync(context.Model, context.Result, It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    /// <summary>
     /// Verifies that a source nothing is registered under is still refused.
     /// </summary>
     [Fact]
@@ -52,21 +33,6 @@ public sealed class WebCrawlerCatalogHandlerTests
 
         Assert.False(context.Result.Succeeded);
         Assert.Contains(context.Result.Errors, error => error.MemberNames.Contains(nameof(WebCrawler.Source)));
-    }
-
-    /// <summary>
-    /// Verifies that a connector pointed at a Web data source is refused. The objects a connector produces
-    /// are read back only by the Ingested source handler, so nothing would ever index them.
-    /// </summary>
-    [Fact]
-    public async Task Validating_ConnectorFeedingWebDataSource_IsRefused()
-    {
-        var context = CreateContext("FileSystem", WebDataSourceId);
-
-        await CreateHandler(connector: Mock.Of<IIngestionConnector>()).ValidatingAsync(context, TestContext.Current.CancellationToken);
-
-        Assert.False(context.Result.Succeeded);
-        Assert.Contains(context.Result.Errors, error => error.MemberNames.Contains(nameof(WebCrawler.AIDataSourceId)));
     }
 
     /// <summary>
@@ -104,14 +70,14 @@ public sealed class WebCrawlerCatalogHandlerTests
     {
         return new ValidatingContext<WebCrawler>(new WebCrawler
         {
-            ItemId = "indexer-1",
-            DisplayText = "The indexer",
+            ItemId = "file-source-1",
+            DisplayText = "The source",
             Source = source,
             AIDataSourceId = dataSourceId,
         });
     }
 
-    private static WebCrawlerCatalogHandler CreateHandler(IWebCrawlerStrategy strategy = null, IIngestionConnector connector = null)
+    private static WebCrawlerCatalogHandler CreateHandler(IWebCrawlerStrategy strategy = null)
     {
         var dataSources = new Dictionary<string, AIDataSource>(StringComparer.Ordinal)
         {
@@ -129,11 +95,6 @@ public sealed class WebCrawlerCatalogHandlerTests
             .Setup(resolver => resolver.Get(It.IsAny<string>()))
             .Returns((string name) => name == "Sitemap" ? strategy : null);
 
-        var connectorResolver = new Mock<IIngestionConnectorResolver>();
-        connectorResolver
-            .Setup(resolver => resolver.Get(It.IsAny<string>()))
-            .Returns((string name) => name == "FileSystem" ? connector : null);
-
         return new WebCrawlerCatalogHandler(
             Mock.Of<IHttpContextAccessor>(),
             TimeProvider.System,
@@ -141,7 +102,6 @@ public sealed class WebCrawlerCatalogHandlerTests
             Mock.Of<IAIDataSourceIndexingQueue>(),
             Mock.Of<IWebCrawlStateStore>(),
             strategyResolver.Object,
-            connectorResolver.Object,
             NullLogger<WebCrawlerCatalogHandler>.Instance);
     }
 }

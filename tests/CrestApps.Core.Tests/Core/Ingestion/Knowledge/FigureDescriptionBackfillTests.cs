@@ -15,7 +15,7 @@ public sealed class FigureDescriptionBackfillTests
 {
     private const string DataSourceId = "data-source-1";
     private const string VisionDeploymentName = "gpt-vision";
-    private const string IndexerVisionDeploymentName = "indexer-vision";
+    private const string FileSourceVisionDeploymentName = "file-source-vision";
 
     /// <summary>
     /// Verifies that a figure ingestion left pending is transcribed, becomes findable by what the
@@ -181,16 +181,16 @@ public sealed class FigureDescriptionBackfillTests
     }
 
     /// <summary>
-    /// Verifies that a figure an indexer produced is transcribed by the model that indexer was configured
-    /// with, so a per-indexer choice takes effect for the one thing it exists to control.
+    /// Verifies that a figure a file source produced is transcribed by the model that source was configured
+    /// with, so a per-source choice takes effect for the one thing it exists to control.
     /// </summary>
     [Fact]
-    public async Task Backfill_UsesIndexerVisionDeploymentWhenSet()
+    public async Task Backfill_UsesFileSourceVisionDeploymentWhenSet()
     {
         var harness = new Harness();
 
         var figure = CreatePendingFigure("figure:key:1:0", "hash-1");
-        figure.IndexerId = "indexer-1";
+        figure.FileSourceId = "file-source-1";
 
         harness.Store.Seed(figure);
         harness.Analysis.Result = ImageAnalysisResult.Succeeded(null, "A figure.", null, null, null);
@@ -200,11 +200,11 @@ public sealed class FigureDescriptionBackfillTests
         var entry = Assert.Single(harness.Store.All);
 
         Assert.True(entry.TryGet<FigureDetails>(out var details));
-        Assert.Equal(IndexerVisionDeploymentName, details.DescriptionModel);
+        Assert.Equal(FileSourceVisionDeploymentName, details.DescriptionModel);
     }
 
     /// <summary>
-    /// Verifies that a manual upload, which has no indexer, is transcribed by the host's own model.
+    /// Verifies that a manual upload, which has no source, is transcribed by the host's own model.
     /// </summary>
     [Fact]
     public async Task Backfill_ManualUpload_UsesTheHostVisionDeployment()
@@ -223,19 +223,19 @@ public sealed class FigureDescriptionBackfillTests
     }
 
     /// <summary>
-    /// Verifies that an indexer whose vision deployment was deleted still gets its figures transcribed, by
+    /// Verifies that a file source whose vision deployment was deleted still gets its figures transcribed, by
     /// the application's own model. A model choice that disappeared must cost a setting, not the work.
     /// </summary>
     [Fact]
-    public async Task Backfill_DeletedIndexerVisionDeployment_FallsBackToTheSlot()
+    public async Task Backfill_DeletedFileSourceVisionDeployment_FallsBackToTheSlot()
     {
         var harness = new Harness
         {
-            IndexerVisionDeploymentExists = false,
+            FileSourceVisionDeploymentExists = false,
         };
 
         var figure = CreatePendingFigure("figure:key:1:0", "hash-1");
-        figure.IndexerId = "indexer-1";
+        figure.FileSourceId = "file-source-1";
 
         harness.Store.Seed(figure);
         harness.Analysis.Result = ImageAnalysisResult.Succeeded(null, "A figure.", null, null, null);
@@ -339,7 +339,7 @@ public sealed class FigureDescriptionBackfillTests
 
         public bool HasVisionDeployment { get; init; } = true;
 
-        public bool IndexerVisionDeploymentExists { get; init; } = true;
+        public bool FileSourceVisionDeploymentExists { get; init; } = true;
 
         public DefaultFigureDescriptionBackfillService Service => CreateService();
 
@@ -361,13 +361,13 @@ public sealed class FigureDescriptionBackfillTests
                 Features = [AIDeploymentFeatureNames.ImageInput],
             });
 
-            var indexerDeployment = new AIDeployment
+            var sourceDeployment = new AIDeployment
             {
                 ItemId = "deployment-2",
-                Name = IndexerVisionDeploymentName,
+                Name = FileSourceVisionDeploymentName,
             };
 
-            indexerDeployment.Put(new AIDeploymentMetadata
+            sourceDeployment.Put(new AIDeploymentMetadata
             {
                 Features = [AIDeploymentFeatureNames.ImageInput],
             });
@@ -382,15 +382,15 @@ public sealed class FigureDescriptionBackfillTests
                     It.IsAny<CancellationToken>()))
                 .ReturnsAsync(HasVisionDeployment ? deployment : null);
             deploymentManager
-                .Setup(manager => manager.FindByNameAsync(IndexerVisionDeploymentName, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(IndexerVisionDeploymentExists ? indexerDeployment : null);
+                .Setup(manager => manager.FindByNameAsync(FileSourceVisionDeploymentName, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(FileSourceVisionDeploymentExists ? sourceDeployment : null);
 
             return new DefaultFigureDescriptionBackfillService(
                 dataSourceStore.Object,
                 Store,
                 FileStore,
                 deploymentManager.Object,
-                new StubVisionDeploymentResolver { DeploymentName = IndexerVisionDeploymentName },
+                new StubVisionDeploymentResolver { DeploymentName = FileSourceVisionDeploymentName },
                 Analysis,
                 Queue,
                 Options.Create(new KnowledgeIngestionOptions()),
@@ -399,15 +399,15 @@ public sealed class FigureDescriptionBackfillTests
     }
 
     /// <summary>
-    /// Answers with the deployment a test says an indexer chose.
+    /// Answers with the deployment a test says a file source chose.
     /// </summary>
     private sealed class StubVisionDeploymentResolver : IKnowledgeVisionDeploymentResolver
     {
         public string DeploymentName { get; init; }
 
-        public Task<string> ResolveAsync(string indexerId, CancellationToken cancellationToken = default)
+        public Task<string> ResolveAsync(string fileSourceId, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(string.IsNullOrEmpty(indexerId) ? null : DeploymentName);
+            return Task.FromResult(string.IsNullOrEmpty(fileSourceId) ? null : DeploymentName);
         }
     }
 

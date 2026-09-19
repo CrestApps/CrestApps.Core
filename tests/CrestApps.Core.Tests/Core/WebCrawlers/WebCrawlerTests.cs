@@ -367,7 +367,7 @@ public sealed class WebCrawlerTests
     }
 
     [Fact]
-    public async Task ReindexService_CrawlerFeedingIngestedDataSource_IsLeftToTheIndexerService()
+    public async Task ReindexService_CrawlerFeedingIngestedDataSource_IsLeftToTheSourceService()
     {
         var crawlerStore = new InMemoryCrawlerStore();
         crawlerStore.Items.Add(new WebCrawler { ItemId = "web", Source = WebCrawlerConstants.Strategies.Sitemap, AIDataSourceId = "web-ds", Enabled = true });
@@ -389,7 +389,7 @@ public sealed class WebCrawlerTests
 
         await service.ReindexAllAsync(Ct);
 
-        // The crawler that feeds an Ingested data source is an indexer, run by the indexer service with its
+        // The crawler that feeds an Ingested data source is a file source, run by the source service with its
         // own per-item state. Planning it here too would run it twice and overwrite that state.
         Assert.Contains("web", planner.Reindexed);
         Assert.DoesNotContain("ingested", planner.Reindexed);

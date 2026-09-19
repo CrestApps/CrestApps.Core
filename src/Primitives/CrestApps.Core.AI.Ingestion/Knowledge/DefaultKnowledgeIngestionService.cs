@@ -164,7 +164,7 @@ public sealed class DefaultKnowledgeIngestionService : IKnowledgeIngestionServic
                 DataSourceId = dataSource.ItemId,
                 Title = fileName,
                 Language = options.Language,
-                IndexerId = options.IndexerId,
+                FileSourceId = options.FileSourceId,
                 SourceItemId = options.SourceItemId,
                 ContentHash = contentHash,
                 Structure = structure,

@@ -1,22 +1,24 @@
 namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
-/// Host-wide limits on what an indexer may reach and how hard it may work.
+/// Host-wide limits on what a file source may reach and how hard it may work.
 /// </summary>
 /// <remarks>
-/// An indexer is configured by an administrator and runs unattended. These are the boundaries the host sets
+/// A file source is configured by an administrator and runs unattended. These are the boundaries the host sets
 /// around that: which folders may be read at all, how much one run may take on, and how many things it may
 /// do at once.
 /// </remarks>
 public sealed class FileSourceOptions
 {
     /// <summary>
-    /// Gets the folders a local-folder indexer may read from. A root outside every entry is refused.
+    /// Gets the folders the file-system connector may read from.
     /// </summary>
     /// <remarks>
-    /// The path is configured by an administrator through the admin UI, so without this an indexer is a way
-    /// to read any file the host process can open. Empty means no local folder may be indexed at all, which
-    /// is the safe default for a host that has not thought about it.
+    /// Superseded by <c>FileSystemConnectorOptions.AllowedRoots</c>, which is where the connector's own
+    /// settings live and which also takes paths relative to the content root. Entries set here are still
+    /// carried over into it, because this key lives in places this repository cannot see — user secrets,
+    /// environment variables, a deployed <c>appsettings.json</c> — and dropping it would take a host's
+    /// allowed roots away silently.
     /// </remarks>
     public IList<string> AllowedLocalRoots { get; } = [];
 
@@ -35,20 +37,24 @@ public sealed class FileSourceOptions
     public int MaxConcurrentFetches { get; set; } = 2;
 
     /// <summary>
-    /// Gets or sets how often, in minutes, the background service wakes to check whether an indexer is due.
+    /// Gets or sets how often, in minutes, the background service wakes to check whether a source is due.
     /// </summary>
     public int RunCheckIntervalMinutes { get; set; } = 15;
 
     /// <summary>
-    /// Gets or sets the default interval, in minutes, between runs of an indexer that does not set its own.
+    /// Gets or sets the default interval, in minutes, between runs of a file source that does not set its own.
     /// </summary>
     public int DefaultRunIntervalMinutes { get; set; } = (int)(24 * 60);
 
     /// <summary>
-    /// Determines whether the supplied folder is one an indexer may read.
+    /// Determines whether the supplied folder is one a file source may read.
     /// </summary>
     /// <param name="rootPath">The folder.</param>
     /// <returns><see langword="true"/> when the folder sits inside an allowed root.</returns>
+    /// <remarks>
+    /// Superseded by <c>FileSystemConnectorOptions.TryResolveRoot</c>, which resolves relative paths against
+    /// the content root, refuses a <c>..</c> outright, and says why it refused.
+    /// </remarks>
     public bool IsAllowedLocalRoot(string rootPath)
     {
         if (string.IsNullOrWhiteSpace(rootPath) || AllowedLocalRoots.Count == 0)

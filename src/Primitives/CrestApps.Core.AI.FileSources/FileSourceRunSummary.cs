@@ -1,7 +1,7 @@
 namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
-/// How one indexer run ended.
+/// How one source run ended.
 /// </summary>
 public enum FileSourceRunStatus
 {
@@ -33,14 +33,14 @@ public enum FileSourceRunStatus
 }
 
 /// <summary>
-/// What one indexer run did. Stored on the indexer record, so the last run is visible without a log.
+/// What one source run did. Stored on the source record, so the last run is visible without a log.
 /// </summary>
 /// <remarks>
-/// An indexer runs unattended, so this is the only account anyone gets of what it did. In particular it
+/// A file source runs unattended, so this is the only account anyone gets of what it did. In particular it
 /// records whether the listing was complete, because that is the difference between "these files are gone"
 /// and "I could not see them this time".
 /// </remarks>
-public sealed class IndexerRunSummary
+public sealed class FileSourceRunSummary
 {
     /// <summary>
     /// Gets or sets when the run started.

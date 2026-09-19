@@ -96,12 +96,14 @@ internal static class CatalogRecordFactory
                 record.CreatedUtc = knowledgeObject.CreatedUtc;
                 record.UpdatedUtc = knowledgeObject.ModifiedUtc;
                 break;
-            case WebCrawler crawler:
-                // The strategy is the crawler's Source (auto-mapped above); the target data source id is
-                // denormalized into the generic reference column so crawlers can be queried per data source.
-                record.ReferenceId = crawler.AIDataSourceId;
-                record.CreatedUtc = crawler.CreatedUtc;
-                record.UpdatedUtc = crawler.ModifiedUtc;
+            case IngestionSource ingestionSource:
+                // The crawl strategy or the connector is the record's Source (auto-mapped above); the target
+                // data source id is denormalized into the generic reference column so web crawlers and file
+                // sources alike can be queried per data source. Both kinds are stored in their own catalogs
+                // and told apart by EntityType, so one case here serves both.
+                record.ReferenceId = ingestionSource.AIDataSourceId;
+                record.CreatedUtc = ingestionSource.CreatedUtc;
+                record.UpdatedUtc = ingestionSource.ModifiedUtc;
                 break;
         }
 

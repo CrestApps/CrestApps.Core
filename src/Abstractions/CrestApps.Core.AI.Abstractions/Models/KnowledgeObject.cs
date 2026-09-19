@@ -1,4 +1,4 @@
-﻿using CrestApps.Core.Models;
+using CrestApps.Core.Models;
 using CrestApps.Core.Services;
 
 namespace CrestApps.Core.AI.Models;
@@ -44,9 +44,9 @@ public sealed class KnowledgeObject : SourceCatalogEntry, IModifiedUtcAwareModel
     public string ParentId { get; set; }
 
     /// <summary>
-    /// Gets or sets the indexer that produced this, or <see langword="null"/> for a manual upload.
+    /// Gets or sets the source that produced this, or <see langword="null"/> for a manual upload.
     /// </summary>
-    public string IndexerId { get; set; }
+    public string FileSourceId { get; set; }
 
     /// <summary>
     /// Gets or sets the identifier the connector knows the source item by, such as a URL, a blob name or a
@@ -135,7 +135,7 @@ public sealed class KnowledgeObject : SourceCatalogEntry, IModifiedUtcAwareModel
             ObjectType = ObjectType,
             RootId = RootId,
             ParentId = ParentId,
-            IndexerId = IndexerId,
+            FileSourceId = FileSourceId,
             SourceItemId = SourceItemId,
             Title = Title,
             Content = Content,

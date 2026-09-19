@@ -18,15 +18,9 @@
                     <InputText @bind-Value="Model.LocalRootPath" class="form-control font-monospace" placeholder="D:\knowledge" />
                     <div class="form-text">Must sit inside a folder the application is configured to read.</div>
                 </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">File pattern</label>
-                        <InputText @bind-Value="Model.LocalSearchPattern" class="form-control" placeholder="*.*" />
-                    </div>
-                    <div class="col-md-6 mb-3 mt-4 form-check">
-                        <InputCheckbox @bind-Value="Model.LocalRecursive" class="form-check-input" />
-                        <label class="form-check-label">Include sub-folders</label>
-                    </div>
+                <div class="mb-3 form-check">
+                    <InputCheckbox @bind-Value="Model.LocalRecursive" class="form-check-input" />
+                    <label class="form-check-label">Include sub-folders</label>
                 </div>
             </div>
         </div>
@@ -82,7 +76,7 @@
                 <div class="form-check form-switch">
                     <InputCheckbox @bind-Value="Model.FtpValidateAnyCertificate" class="form-check-input" />
                     <label class="form-check-label">Accept any SSL/TLS certificate</label>
-                    <div class="form-text">Turns off certificate validation for this indexer. Use it only against a server you control.</div>
+                    <div class="form-text">Turns off certificate validation for this source. Use it only against a server you control.</div>
                 </div>
             </div>
         </div>
@@ -197,7 +191,7 @@
     private List<string> _utilityDeployments = [];
 
     /// <summary>
-    /// Gets or sets the indexer being edited.
+    /// Gets or sets the source being edited.
     /// </summary>
     [Parameter]
     public FileSourceViewModel Model { get; set; }

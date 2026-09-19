@@ -29,9 +29,9 @@ public sealed class KnowledgeObjectBuildOptions
     public string Language { get; set; }
 
     /// <summary>
-    /// Gets or sets the indexer that produced the file, or <see langword="null"/> for a manual upload.
+    /// Gets or sets the source that produced the file, or <see langword="null"/> for a manual upload.
     /// </summary>
-    public string IndexerId { get; set; }
+    public string FileSourceId { get; set; }
 
     /// <summary>
     /// Gets or sets the identifier the connector knows the source item by, or <see langword="null"/> for a

@@ -8,7 +8,6 @@ using CrestApps.Core.Mvc.Web.Areas.WebCrawlers.Services;
 using CrestApps.Core.Mvc.Web.Areas.WebCrawlers.ViewModels;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Options;
@@ -24,7 +23,6 @@ public sealed class WebCrawlerController : Controller
     private readonly IWebCrawlerReindexPlanner _reindexPlanner;
     private readonly IWebCrawlStateStore _stateStore;
     private readonly IAIDeploymentManager _deploymentManager;
-    private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IReadOnlyList<WebCrawlerStrategyDescriptor> _strategies;
 
     public WebCrawlerController(
@@ -33,7 +31,6 @@ public sealed class WebCrawlerController : Controller
         IWebCrawlerReindexPlanner reindexPlanner,
         IWebCrawlStateStore stateStore,
         IAIDeploymentManager deploymentManager,
-        IDataProtectionProvider dataProtectionProvider,
         IOptions<WebCrawlerStrategyOptions> strategyOptions)
     {
         _manager = manager;
@@ -41,7 +38,6 @@ public sealed class WebCrawlerController : Controller
         _reindexPlanner = reindexPlanner;
         _stateStore = stateStore;
         _deploymentManager = deploymentManager;
-        _dataProtectionProvider = dataProtectionProvider;
         _strategies = strategyOptions.Value.Strategies
             .OrderBy(strategy => strategy.DisplayName.Value, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -77,7 +73,7 @@ public sealed class WebCrawlerController : Controller
         }
 
         var crawler = await _manager.NewAsync(model.Source, cancellationToken: HttpContext.RequestAborted);
-        model.ApplyTo(crawler, _dataProtectionProvider);
+        model.ApplyTo(crawler);
 
         await ValidateAsync(crawler);
 
@@ -122,7 +118,7 @@ public sealed class WebCrawlerController : Controller
             return NotFound();
         }
 
-        model.ApplyTo(crawler, _dataProtectionProvider);
+        model.ApplyTo(crawler);
 
         await ValidateAsync(crawler);
 
@@ -196,7 +192,7 @@ public sealed class WebCrawlerController : Controller
         // it, which is how an operator recovers from a bad run without deleting the data source.
         await _stateStore.DeleteByCrawlerIdAsync(crawler.ItemId, HttpContext.RequestAborted);
 
-        TempData["SuccessMessage"] = "Indexer state cleared. The next run will re-read every item.";
+        TempData["SuccessMessage"] = "Source state cleared. The next run will re-read every item.";
 
         return RedirectToAction(nameof(Index));
     }

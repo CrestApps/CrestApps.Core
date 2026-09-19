@@ -27,6 +27,31 @@ IIngestionConnector  ──▶  IngestionDocumentReader  ──▶  ingestion pr
 Each layer is independently pluggable: a new source is one class and one registration, a new file type is one
 reader and one registration, and neither touches retrieval.
 
+## Records and stores
+
+A file source and a web crawler are different things, so they are different records in different stores:
+
+| Record | Store | Configures |
+| --- | --- | --- |
+| `FileSource` | `IFileSourceStore` | a folder or a file server, read by an ingestion connector |
+| `WebCrawler` | `IWebCrawlerStore` | a website, read by a crawl strategy |
+
+Both derive from `IngestionSource`, which is the shape everything downstream works against: a `Source`
+naming what reads it, the data source it fills, whether it is enabled, how often it runs, and its own
+settings. That is what a connector is handed, and it is the only thing the two kinds share.
+
+Per-item state is separated the same way. A run records what it read in `IIngestionItemStateStore` as
+`IngestionItemState` — an item key, the connector's opaque change token, and the document the item produced.
+`IWebCrawlStateStore` is the crawl-specific state the re-index service keeps for a crawler feeding a `Web`
+data source.
+
+Register the stores for the backend the host uses:
+
+```csharp
+builder.Services.AddCoreFileSourceStoresYesSql();      // YesSql
+// builder.Services.AddCoreFileSourceStoresEntityCore(); // EntityFramework Core
+```
+
 ## Connectors
 
 A connector answers two questions and nothing else — what is there, and give me that one:
@@ -35,11 +60,15 @@ A connector answers two questions and nothing else — what is there, and give m
 public interface IIngestionConnector
 {
     string Name { get; }
-    ValueTask ValidateAsync(WebCrawler settings, ValidationResultDetails result, CancellationToken ct = default);
-    Task<IngestionDiscoveryResult> DiscoverAsync(WebCrawler settings, string continuationToken = null, CancellationToken ct = default);
-    Task<IngestionItemContent> FetchAsync(WebCrawler settings, string itemId, CancellationToken ct = default);
+    ValueTask ValidateAsync(IngestionSource settings, ValidationResultDetails result, CancellationToken ct = default);
+    Task<IngestionDiscoveryResult> DiscoverAsync(IngestionSource settings, string continuationToken = null, CancellationToken ct = default);
+    Task<IngestionItemContent> FetchAsync(IngestionSource settings, string itemId, CancellationToken ct = default);
 }
 ```
+
+It is handed an `IngestionSource` — the shape a configured source has, whichever kind it is — rather than one
+particular record type, so the same connector reads for a `FileSource` and for a `WebCrawler` without knowing
+which it was given.
 
 | Connector | Package | Reads |
 | --- | --- | --- |
@@ -70,30 +99,31 @@ apart from a genuine deletion.
 
 ## Reading a folder on the host
 
-A file-system source stores `{ RootPath, SearchPattern, Recursive, MaxItems }`, and the root has to sit
-inside a host-allow-listed folder:
+A file-system source stores `{ RootPath, Recursive, MaxItems }`, and the folder it names has to sit inside a
+folder the host allows:
 
 ```json
 {
   "CrestApps": {
     "AI": {
       "FileSources": {
-        "AllowedLocalRoots": [ "D:\\knowledge" ],
-        "MaxItemsPerRun": 200
+        "FileSystem": {
+          "AllowedRoots": [ "App_Data/file-sources" ]
+        }
       }
     }
   }
 }
 ```
 
-Empty means no folder may be read at all, which is the default. Without it, an administrator with
-access to the File Sources screen can read any file the host process can open. An item identifier that
-resolves outside the root is refused when it is fetched as well as when it is listed, because identifiers
-also arrive from stored state.
+Empty means no folder may be read at all, which is the default. Without it, an administrator with access to
+the File Sources screen can read any file the host process can open. A `..` is refused outright — in a
+configured folder and in an item identifier alike — and an item identifier is re-checked when it is fetched
+as well as when it is listed, because identifiers also arrive from stored state.
 
-Registering the connector grants nothing, and neither sample host ships a root, so cloning the repository
-grants nothing either. [File Sources](./file.md#reading-a-folder-on-the-host) has the whole rule and how to name a
-root for local development without committing it.
+Registering the connector grants nothing on its own.
+[File Sources](./file.md#reading-a-folder-on-the-host) has the whole rule, what the sample hosts allow, and
+how to name a root for local development without committing it.
 
 ## Reading a file server
 
@@ -108,8 +138,8 @@ password. Secrets are encrypted with the same data protector the
 [MCP resource types](../mcp/resource-types.md) use, which is the same one the connectors decrypt
 with; a mismatch there would read back as no credential at all rather than as an error.
 
-Changing a record from one protocol to the other, or to a crawl strategy, takes the previous
-connection with it. A record never keeps a credential for a server it no longer reads.
+Changing a record from one protocol to the other takes the previous connection with it. A record
+never keeps a credential for a server it no longer reads.
 
 Accepting any TLS certificate is offered for FTP because self-signed certificates on internal file
 servers are ordinary, but it turns validation off for that record. Use it only against a server you
@@ -125,7 +155,7 @@ evidence of change" is not evidence of no change.
 ## Per-record ingestion settings
 
 Figure transcription is the expensive part of ingestion, and how much of it is worth paying for depends on
-the corpus. `IndexerMetadata` carries `FigureMode`, `VisionDeploymentName`, `UtilityDeploymentName`,
+the corpus. `FileSourceMetadata` carries `FigureMode`, `VisionDeploymentName`, `UtilityDeploymentName`,
 `EmbeddingDeploymentName`, `MaxFigureDescriptionsPerDocument`, `MaxItemsPerRun` and `Language`, so a folder
 of scanned datasheets and a folder of meeting minutes can sit side by side under different settings. They are
 edited on the record's own screen in both sample hosts.
@@ -138,7 +168,7 @@ application's own is used and the run carries on.
 
 ## What a run records
 
-`IFileSourceRunService.RunAsync` returns an `IndexerRunSummary` and stores it on the record, so the last run is
+`IFileSourceRunService.RunAsync` returns an `FileSourceRunSummary` and stores it on the record, so the last run is
 visible without reading a log: status, when it started and finished, how many items were seen, indexed, left
 unchanged, removed and failed, how many figures were stored and how many still await transcription, and
 whether the listing was complete.
@@ -187,15 +217,39 @@ Keyed readers resolve to the last registration, so a host that also wants chat d
 
 ## Running
 
-A hosted job runs the records that are due every `FileSourceOptions.RunCheckIntervalMinutes`; a host that
-prefers its own scheduling calls `IFileSourceRunService` directly. Whether a record is due is read from the run
-summary stored on it, so the schedule survives a restart.
+Two services, so a host can take either half:
 
-Only records that feed a **File** data source run here. A crawler that feeds a **Web** data source is
-driven by the web-crawler re-index service, and that service in turn leaves records feeding a File data
-source alone — each record runs on exactly one path, decided by the kind of data source it fills. The crawler
-catalog handler enforces the pairing when a record is saved: a connector that is not also a crawl strategy can
-only feed a File data source, and a crawl strategy can feed either kind.
+| Service | Does |
+| --- | --- |
+| `IFileSourceRunService` | one run of one source, and returns what it did |
+| `IFileSourceScheduler` | finds everything that is due and runs it |
+
+`FileSourceBackgroundService` is a timer and nothing else: every
+`FileSourceOptions.RunCheckIntervalMinutes` it opens a scope and calls `IFileSourceScheduler.RunDueAsync`. A
+host that schedules its own work — Orchard Core's background tasks, a cron job, a queue worker, an operator
+pressing a button — resolves the scheduler and calls it, and gets the same behaviour without taking the
+hosted service or its timer with it:
+
+```csharp
+// Inside a scope the host already owns.
+var scheduler = scope.ServiceProvider.GetRequiredService<IFileSourceScheduler>();
+var result = await scheduler.RunDueAsync(cancellationToken);
+
+// Or spread the work over the host's own workers.
+var due = await scheduler.GetDueAsync(DateTimeOffset.UtcNow, cancellationToken);
+```
+
+The scheduler is **scoped and creates no scope of its own**, so the caller's scope — a shell scope, a
+request, a unit of work — is the one the reads and writes happen in. A host that does its own scheduling
+should leave `FileSourceBackgroundService` unregistered, or the same sources are driven twice.
+
+Whether a source is due is read from the run summary stored on it, so the schedule survives a restart. One
+source that throws is logged and skipped; the others still get their turn, and the result says how many were
+considered, ran and failed.
+
+Every file source is the scheduler's. A web crawler is its too, but only when it feeds a **File** data
+source: one feeding a **Web** data source is driven by the re-index service instead, and running it here as
+well would run it twice and overwrite the crawl state that service keeps.
 
 Each background pass commits the transactional store once it finishes, the same way the indexing queue does,
 so the knowledge objects, the per-item state and the run summary a run wrote are actually kept.

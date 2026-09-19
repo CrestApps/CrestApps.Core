@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.FileSources;
 
@@ -33,7 +34,13 @@ public static class ServiceCollectionExtensions
     /// secrets, environment variables, a deployed <c>appsettings.json</c>. Dropping it would take a host's
     /// allowed roots away silently, and a file source whose root is not allowed simply refuses every folder.
     /// </remarks>
-    public const string DeprecatedConfigurationSectionName = "CrestApps:Indexers";
+    public const string DeprecatedConfigurationSectionName = "CrestApps:File sources";
+
+    /// <summary>
+    /// The sub-section of <see cref="ConfigurationSectionName"/> that
+    /// <see cref="FileSystemConnectorOptions"/> is read from.
+    /// </summary>
+    public const string FileSystemConnectorConfigurationSectionName = "FileSystem";
 
     /// <summary>
     /// Adds the file source subsystem and binds <see cref="FileSourceOptions"/> from configuration.
@@ -63,6 +70,10 @@ public static class ServiceCollectionExtensions
 
         services.AddCoreFileSources();
         services.Configure<FileSourceOptions>(section);
+
+        // Where the file-system connector may look is its own decision, not the subsystem's, so it reads its
+        // own sub-section. A host says it once, in configuration, rather than in code.
+        services.Configure<FileSystemConnectorOptions>(section.GetSection(FileSystemConnectorConfigurationSectionName));
 
         return services;
     }
@@ -97,19 +108,33 @@ public static class ServiceCollectionExtensions
         services.AddOptions<FileSourceOptions>();
         services.AddOptions<IngestionConnectorOptions>();
         // Connectors are scoped, so the resolver has to be too: a singleton holding the root provider cannot
-        // resolve a keyed scoped service and throws the first time an indexer runs.
+        // resolve a keyed scoped service and throws the first time a source runs.
         services.TryAddScoped<IIngestionConnectorResolver, KeyedIngestionConnectorResolver>();
         services.TryAddScoped<IFileSourceRunService, DefaultFileSourceRunService>();
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<WebCrawler>, FileSourceSettingsCatalogHandler>());
+
+        // Deciding what is due and running it is the whole of the periodic work, and it is registered on its
+        // own so a host with its own scheduling drives it without taking the hosted service below.
+        services.TryAddScoped<IFileSourceScheduler, DefaultFileSourceScheduler>();
+
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<FileSource>, FileSourceCatalogHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<FileSource>, FileSourceSettingsCatalogHandler<FileSource>>());
+
+        // A web crawler pointed at an ingested data source carries the same ingestion settings and is run by
+        // the same pipeline, so the same validation has to reach it. Its own catalog handler lives in the
+        // web crawlers package and validates the crawl strategy.
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<WebCrawler>, FileSourceSettingsCatalogHandler<WebCrawler>>());
 
         // A connector hands over whatever a folder or a server holds, and a web page read that way is HTML
         // rather than the cleaned text a crawl strategy produces. The HTML reader takes those keys over from
         // the plain-text reader, which would otherwise index the markup.
         services.AddCoreAIIngestionDocumentReader<HtmlIngestionDocumentReader>(".html", ".htm");
 
-        // Replaces the default that answers nothing, so a figure produced by an indexer is transcribed
-        // by the model that indexer was configured with.
+        // Replaces the default that answers nothing, so a figure produced by a source is transcribed
+        // by the model that source was configured with.
         services.Replace(ServiceDescriptor.Scoped<IKnowledgeVisionDeploymentResolver, FileSourceVisionDeploymentResolver>());
+
+        // The timer, and nothing else. A host that schedules its own work leaves this out and calls
+        // IFileSourceScheduler itself, or the same sources are driven twice.
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, FileSourceBackgroundService>());
 
         // The package that fills a knowledge data source is the one that offers it, the same way the web
@@ -174,6 +199,9 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddOptions<FileSystemConnectorOptions>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<FileSystemConnectorOptions>, FileSystemConnectorOptionsConfiguration>());
+
         return services.AddCoreIngestionConnector<FileSystemIngestionConnector>(
             FileSystemIngestionConnector.ConnectorName,
             descriptor =>
@@ -184,11 +212,11 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds the indexer subsystem.
+    /// Adds the file source subsystem.
     /// </summary>
     /// <param name="builder">The AI suite builder.</param>
     /// <param name="configure">An optional callback that registers connectors.</param>
-    public static CrestAppsAISuiteBuilder AddIndexers(this CrestAppsAISuiteBuilder builder, Action<IServiceCollection> configure = null)
+    public static CrestAppsAISuiteBuilder AddFileSources(this CrestAppsAISuiteBuilder builder, Action<IServiceCollection> configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
 

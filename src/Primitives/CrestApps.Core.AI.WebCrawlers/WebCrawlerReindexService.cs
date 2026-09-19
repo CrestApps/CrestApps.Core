@@ -49,8 +49,8 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
     /// <param name="crawlStateStore">The crawl-state store.</param>
     /// <param name="planner">The re-index planner.</param>
     /// <param name="dataSourceStore">
-    /// The data source store, used to leave crawlers that feed an <c>Ingested</c> data source to the indexer
-    /// run service. <see langword="null"/> re-indexes every enabled crawler.
+    /// The data source store, used to leave crawlers that feed an <c>Ingested</c> data source to the file
+    /// source run service. <see langword="null"/> re-indexes every enabled crawler.
     /// </param>
     /// <param name="options">The web-crawler options.</param>
     /// <param name="timeProvider">The time provider.</param>
@@ -98,8 +98,8 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // A crawler pointed at an Ingested data source is an indexer: its pages become typed knowledge
-            // objects through the indexer run service, which keeps its own per-item state. Planning it here
+            // A crawler pointed at an Ingested data source is a file source: its pages become typed knowledge
+            // objects through the file source run service, which keeps its own per-item state. Planning it here
             // as well would run it twice and overwrite that state with the planner's.
             if (await FeedsIngestedDataSourceAsync(crawler, cancellationToken))
             {

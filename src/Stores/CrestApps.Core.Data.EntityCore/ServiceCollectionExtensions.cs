@@ -312,6 +312,31 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers EntityCore-backed stores for the file-sources feature.
+    /// This includes <see cref="IFileSourceStore"/> and <see cref="IIngestionItemStateStore"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <remarks>
+    /// File sources are their own records, told apart from web crawlers by the catalog record's entity type.
+    /// They were once stored as web crawlers whose source happened to name a registered connector, which is
+    /// why a host that has run an older build needs <c>MigrateFileSourcesAsync</c> once.
+    /// </remarks>
+    public static IServiceCollection AddCoreFileSourceStoresEntityCore(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.Replace(ServiceDescriptor.Scoped<IFileSourceStore, EntityCoreFileSourceStore>());
+        services.AddScoped<ICatalog<FileSource>>(sp => sp.GetRequiredService<IFileSourceStore>());
+        services.AddScoped<ISourceCatalog<FileSource>>(sp => sp.GetRequiredService<IFileSourceStore>());
+
+        services.Replace(ServiceDescriptor.Scoped<IIngestionItemStateStore, EntityCoreIngestionItemStateStore>());
+        services.AddScoped<ICatalog<IngestionItemState>>(sp => sp.GetRequiredService<IIngestionItemStateStore>());
+        services.AddScoped<ISourceCatalog<IngestionItemState>>(sp => sp.GetRequiredService<IIngestionItemStateStore>());
+
+        return services;
+    }
+
+    /// <summary>
     /// Registers EntityCore-backed stores for the AI memory feature.
     /// This includes <see cref="IAIMemoryStore"/>.
     /// </summary>
