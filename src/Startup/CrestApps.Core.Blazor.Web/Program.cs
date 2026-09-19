@@ -257,10 +257,6 @@ var app = builder.Build();
 // Initialize the sample backing store before serving requests.
 await app.Services.InitializeEntityCoreSchemaAsync();
 
-// File sources used to be stored as web crawlers whose source named a connector. Moving them is
-// idempotent, so it runs on every start and finds nothing once it has run.
-await app.Services.MigrateFileSourcesAsync();
-
 // Seed the article records shown throughout the sample UI.
 await app.Services.SeedArticlesAsync();
 if (!app.Environment.IsDevelopment())

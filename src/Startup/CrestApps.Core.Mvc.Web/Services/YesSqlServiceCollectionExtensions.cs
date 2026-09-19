@@ -179,10 +179,6 @@ internal static class YesSqlServiceCollectionExtensions
         await transaction.CommitAsync();
 
         await MigrateLegacyExtractedDataRecordsAsync(services, storeOptions, logger);
-
-        // File sources used to be stored as web crawlers whose source named a connector. Moving them is
-        // idempotent, so it runs on every start and finds nothing once it has run.
-        await services.MigrateFileSourcesAsync();
     }
 
     private static async Task InitializeCollectionsAsync(IStore store, YesSqlStoreOptions storeOptions)

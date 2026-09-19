@@ -540,8 +540,8 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <remarks>
     /// File sources are their own records in their own tables. They were once stored beside web crawlers and
-    /// told apart by whether their source happened to name a registered connector, which is why a host that
-    /// has run an older build needs <c>MigrateFileSourcesAsync</c> once.
+    /// told apart by whether their source happened to name a registered connector, so a host that has run an
+    /// older build owns moving those records across.
     /// </remarks>
     public static IServiceCollection AddCoreFileSourceStoresYesSql(this IServiceCollection services)
     {

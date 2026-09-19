@@ -318,8 +318,8 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <remarks>
     /// File sources are their own records, told apart from web crawlers by the catalog record's entity type.
-    /// They were once stored as web crawlers whose source happened to name a registered connector, which is
-    /// why a host that has run an older build needs <c>MigrateFileSourcesAsync</c> once.
+    /// They were once stored as web crawlers whose source happened to name a registered connector, so a host
+    /// that has run an older build owns moving those records across.
     /// </remarks>
     public static IServiceCollection AddCoreFileSourceStoresEntityCore(this IServiceCollection services)
     {
