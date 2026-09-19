@@ -2,6 +2,7 @@ using System.Net;
 using CrestApps.Core.AI.Crawling;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Indexing;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.WebCrawlers.Connectors;
@@ -69,10 +70,16 @@ public static class ServiceCollectionExtensions
         // A crawl strategy is an ingestion connector with Web in its name. Presenting it as one lets a
         // folder, a blob container and a website reach the same reader and the same store. Which path a
         // crawler record actually takes is decided by the data source it feeds: an Ingested data source is
-        // filled through the file source run service, a Web data source through the re-index planner.
-        // Connectors are scoped, so the resolver has to be too: a singleton holding the root provider cannot
-        // resolve a keyed scoped service and throws the first time a source runs.
-        services.TryAddScoped<IIngestionConnectorResolver, KeyedIngestionConnectorResolver>();
+        // read by the ingestion run service, a Web data source by the re-index planner. Both paths belong to
+        // this feature, which is why it needs no help from the file sources feature to run either.
+        services.AddCoreAIIngestionRuntime();
+
+        // How the ingestion pipeline reaches a crawler record, without it having to know this store exists.
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IIngestionSourceProvider, WebCrawlerIngestionSourceProvider>());
+
+        // A crawler pointed at an ingested data source carries the same ingestion settings as a file source
+        // and is read by the same pipeline, so the same validation has to reach it.
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<WebCrawler>, IngestionSourceSettingsCatalogHandler<WebCrawler>>());
         services.TryAddKeyedScoped<IIngestionConnector>(
             WebCrawlerConstants.Strategies.Sitemap,
             (sp, key) => new WebIngestionConnector(sp.GetRequiredKeyedService<IWebCrawlerStrategy>(key)));

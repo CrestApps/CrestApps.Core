@@ -5,7 +5,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
 
-namespace CrestApps.Core.AI.FileSources.Handlers;
+namespace CrestApps.Core.AI.Ingestion;
 
 /// <summary>
 /// Refuses ingestion settings that would silently do nothing.
@@ -25,18 +25,18 @@ namespace CrestApps.Core.AI.FileSources.Handlers;
 /// one screen from being validated and the other not.
 /// </para>
 /// </remarks>
-public sealed class FileSourceSettingsCatalogHandler<T> : CatalogEntryHandlerBase<T>
+public sealed class IngestionSourceSettingsCatalogHandler<T> : CatalogEntryHandlerBase<T>
     where T : IngestionSource
 {
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIDeploymentCapabilityService _capabilityService;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="FileSourceSettingsCatalogHandler{T}"/> class.
+    /// Initializes a new instance of the <see cref="IngestionSourceSettingsCatalogHandler{T}"/> class.
     /// </summary>
     /// <param name="deploymentManager">The deployment manager.</param>
     /// <param name="capabilityService">The capability service.</param>
-    public FileSourceSettingsCatalogHandler(
+    public IngestionSourceSettingsCatalogHandler(
         IAIDeploymentManager deploymentManager,
         IAIDeploymentCapabilityService capabilityService)
     {

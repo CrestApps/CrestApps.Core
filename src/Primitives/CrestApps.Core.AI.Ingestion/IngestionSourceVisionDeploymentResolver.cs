@@ -1,9 +1,8 @@
-using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Ingestion.Knowledge;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.AI.FileSources;
+namespace CrestApps.Core.AI.Ingestion;
 
 /// <summary>
 /// Answers with the vision deployment the figure's own source was configured with.
@@ -13,29 +12,26 @@ namespace CrestApps.Core.AI.FileSources;
 /// record that produced it. Without this the per-source choice would take effect for everything except the
 /// one thing it exists to control.
 /// <para>
-/// The identifier names a <see cref="FileSource"/> in almost every case, but a <see cref="WebCrawler"/>
-/// pointed at an ingested data source produces figures the same way, so both stores are asked.
+/// Which kind of record that identifier names is not this resolver's concern: it asks each contributed
+/// <see cref="IIngestionSourceProvider"/> in turn, so a host that enabled one feature and not the other
+/// resolves the sources it has and is not asked for a store it never registered.
 /// </para>
 /// </remarks>
-public sealed class FileSourceVisionDeploymentResolver : IKnowledgeVisionDeploymentResolver
+public sealed class IngestionSourceVisionDeploymentResolver : IKnowledgeVisionDeploymentResolver
 {
-    private readonly IFileSourceStore _fileSourceStore;
-    private readonly IWebCrawlerStore _webCrawlerStore;
-    private readonly ILogger<FileSourceVisionDeploymentResolver> _logger;
+    private readonly IEnumerable<IIngestionSourceProvider> _sourceProviders;
+    private readonly ILogger<IngestionSourceVisionDeploymentResolver> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="FileSourceVisionDeploymentResolver"/> class.
+    /// Initializes a new instance of the <see cref="IngestionSourceVisionDeploymentResolver"/> class.
     /// </summary>
-    /// <param name="fileSourceStore">The store file sources live in.</param>
-    /// <param name="webCrawlerStore">The store web crawlers live in.</param>
+    /// <param name="sourceProviders">The contributed access to each feature's own source records.</param>
     /// <param name="logger">The logger.</param>
-    public FileSourceVisionDeploymentResolver(
-        IFileSourceStore fileSourceStore,
-        IWebCrawlerStore webCrawlerStore,
-        ILogger<FileSourceVisionDeploymentResolver> logger)
+    public IngestionSourceVisionDeploymentResolver(
+        IEnumerable<IIngestionSourceProvider> sourceProviders,
+        ILogger<IngestionSourceVisionDeploymentResolver> logger)
     {
-        _fileSourceStore = fileSourceStore;
-        _webCrawlerStore = webCrawlerStore;
+        _sourceProviders = sourceProviders;
         _logger = logger;
     }
 
@@ -49,9 +45,17 @@ public sealed class FileSourceVisionDeploymentResolver : IKnowledgeVisionDeploym
 
         try
         {
-            IngestionSource ingestionSource = await _fileSourceStore.FindByIdAsync(fileSourceId, cancellationToken);
+            IngestionSource ingestionSource = null;
 
-            ingestionSource ??= await _webCrawlerStore.FindByIdAsync(fileSourceId, cancellationToken);
+            foreach (var provider in _sourceProviders)
+            {
+                ingestionSource = await provider.FindByIdAsync(fileSourceId, cancellationToken);
+
+                if (ingestionSource is not null)
+                {
+                    break;
+                }
+            }
 
             if (ingestionSource is null || !ingestionSource.TryGet<FileSourceMetadata>(out var metadata))
             {

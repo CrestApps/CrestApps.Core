@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Localization;
 
-namespace CrestApps.Core.AI.FileSources;
+namespace CrestApps.Core.AI.Ingestion;
 
 /// <summary>
 /// The connectors an administrator may choose between.

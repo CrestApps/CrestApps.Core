@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.DataSources;
+using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Ingestion.Knowledge;
 using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
 using CrestApps.Core.AI.Ingestion.Processors;
@@ -20,6 +21,35 @@ namespace CrestApps.Core.AI.Ingestion;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Registers the services that run an ingestion source, shared by every feature that owns such records.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <remarks>
+    /// File sources and web crawlers are separate features with separate stores, and either may be enabled
+    /// without the other. What they have in common is the run itself: resolve a connector, list what the
+    /// source holds, ingest what changed, record what happened. That lives here so neither feature has to
+    /// depend on the other to get at it. Registration is idempotent, so both may call it.
+    /// </remarks>
+    public static IServiceCollection AddCoreAIIngestionRuntime(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddOptions<FileSourceOptions>();
+        services.AddOptions<IngestionConnectorOptions>();
+
+        // Connectors are scoped, so the resolver has to be too: a singleton holding the root provider cannot
+        // resolve a keyed scoped service and throws the first time a source runs.
+        services.TryAddScoped<IIngestionConnectorResolver, KeyedIngestionConnectorResolver>();
+        services.TryAddScoped<IIngestionRunService, DefaultIngestionRunService>();
+
+        // Replaces the default that answers nothing, so a figure produced by a source is transcribed by the
+        // model that source was configured with, whichever feature owns the record.
+        services.Replace(ServiceDescriptor.Scoped<IKnowledgeVisionDeploymentResolver, IngestionSourceVisionDeploymentResolver>());
+
+        return services;
+    }
+
     /// <summary>
     /// Registers an <see cref="IngestionDocumentReader"/> implementation as a keyed singleton
     /// for each supported file extension.

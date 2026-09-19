@@ -506,6 +506,29 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers YesSql-backed stores for the knowledge objects an ingestion run produces.
+    /// This includes <see cref="IKnowledgeObjectStore"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <remarks>
+    /// Knowledge objects are where ingested text, figures, charts and tables land, so every feature that
+    /// runs the ingestion pipeline needs this store: both the web crawlers and the file sources call it.
+    /// It is safe to call twice, which is why the catalog registrations go through <c>TryAdd</c>.
+    /// </remarks>
+    public static IServiceCollection AddCoreKnowledgeStoresYesSql(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddScoped<IKnowledgeObjectStore, YesSqlKnowledgeObjectStore>();
+        services.TryAddScoped<ICatalog<KnowledgeObject>>(sp => sp.GetRequiredService<IKnowledgeObjectStore>());
+        services.TryAddScoped<ISourceCatalog<KnowledgeObject>>(sp => sp.GetRequiredService<IKnowledgeObjectStore>());
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, KnowledgeObjectIndexProvider>());
+
+        return services;
+    }
+
+    /// <summary>
     /// Registers YesSql-backed stores for the web-crawlers feature.
     /// This includes <see cref="IWebCrawlerStore"/> and <see cref="IWebCrawlStateStore"/>.
     /// </summary>
@@ -518,17 +541,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICatalog<WebCrawler>>(sp => sp.GetRequiredService<IWebCrawlerStore>());
         services.AddScoped<ISourceCatalog<WebCrawler>>(sp => sp.GetRequiredService<IWebCrawlerStore>());
 
-        services.TryAddScoped<IKnowledgeObjectStore, YesSqlKnowledgeObjectStore>();
-        services.AddScoped<ICatalog<KnowledgeObject>>(sp => sp.GetRequiredService<IKnowledgeObjectStore>());
-        services.AddScoped<ISourceCatalog<KnowledgeObject>>(sp => sp.GetRequiredService<IKnowledgeObjectStore>());
-
         services.TryAddScoped<IWebCrawlStateStore, YesSqlWebCrawlStateStore>();
         services.AddScoped<ICatalog<WebCrawlState>>(sp => sp.GetRequiredService<IWebCrawlStateStore>());
         services.AddScoped<ISourceCatalog<WebCrawlState>>(sp => sp.GetRequiredService<IWebCrawlStateStore>());
 
+        services.AddCoreKnowledgeStoresYesSql();
+
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, WebCrawlerIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, WebCrawlStateIndexProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, KnowledgeObjectIndexProvider>());
 
         return services;
     }
@@ -540,8 +560,8 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <remarks>
     /// File sources are their own records in their own tables. They were once stored beside web crawlers and
-    /// told apart by whether their source happened to name a registered connector, which is why a host that
-    /// has run an older build needs <c>MigrateFileSourcesAsync</c> once.
+    /// told apart by whether their source happened to name a registered connector, so a host that has run an
+    /// older build owns moving those records across.
     /// </remarks>
     public static IServiceCollection AddCoreFileSourceStoresYesSql(this IServiceCollection services)
     {
@@ -554,6 +574,8 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IIngestionItemStateStore, YesSqlIngestionItemStateStore>();
         services.AddScoped<ICatalog<IngestionItemState>>(sp => sp.GetRequiredService<IIngestionItemStateStore>());
         services.AddScoped<ISourceCatalog<IngestionItemState>>(sp => sp.GetRequiredService<IIngestionItemStateStore>());
+
+        services.AddCoreKnowledgeStoresYesSql();
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, FileSourceIndexProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, IngestionItemStateIndexProvider>());

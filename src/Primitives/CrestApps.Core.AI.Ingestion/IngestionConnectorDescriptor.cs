@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Localization;
 
-namespace CrestApps.Core.AI.FileSources;
+namespace CrestApps.Core.AI.Ingestion;
 
 /// <summary>
 /// How one registered connector is presented to whoever configures a file source.

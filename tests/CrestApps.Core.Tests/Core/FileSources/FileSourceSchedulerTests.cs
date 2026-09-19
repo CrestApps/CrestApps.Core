@@ -1,7 +1,9 @@
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.Indexing;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -97,38 +99,6 @@ public sealed class FileSourceSchedulerTests
     }
 
     /// <summary>
-    /// Verifies that a web crawler pointed at an ingested data source is picked up, because it is run by the
-    /// same pipeline as a file source even though it lives in a different store.
-    /// </summary>
-    [Fact]
-    public async Task CrawlerFeedingAnIngestedDataSource_IsDue()
-    {
-        var harness = new Harness();
-
-        harness.WebCrawlers.Add(CreateCrawler("wc-1", IngestedDataSourceId));
-
-        var due = await harness.Scheduler.GetDueAsync(DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
-
-        Assert.Equal(["wc-1"], due.Select(source => source.ItemId));
-    }
-
-    /// <summary>
-    /// Verifies that a web crawler pointed at a Web data source is left to the re-index service.
-    /// </summary>
-    /// <remarks>
-    /// Running it here as well would run it twice and overwrite the crawl state the re-index service keeps.
-    /// </remarks>
-    [Fact]
-    public async Task CrawlerFeedingAWebDataSource_IsLeftAlone()
-    {
-        var harness = new Harness();
-
-        harness.WebCrawlers.Add(CreateCrawler("wc-1", WebDataSourceId));
-
-        Assert.Empty(await harness.Scheduler.GetDueAsync(DateTimeOffset.UtcNow, TestContext.Current.CancellationToken));
-    }
-
-    /// <summary>
     /// Verifies that everything due is run, and that the pass reports what it did.
     /// </summary>
     [Fact]
@@ -138,14 +108,13 @@ public sealed class FileSourceSchedulerTests
 
         harness.FileSources.Add(CreateFileSource("fs-1"));
         harness.FileSources.Add(CreateFileSource("fs-2"));
-        harness.WebCrawlers.Add(CreateCrawler("wc-1", IngestedDataSourceId));
 
         var result = await harness.Scheduler.RunDueAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(3, result.Considered);
-        Assert.Equal(3, result.Ran);
+        Assert.Equal(2, result.Considered);
+        Assert.Equal(2, result.Ran);
         Assert.Equal(0, result.Failed);
-        Assert.Equal(["fs-1", "fs-2", "wc-1"], harness.Ran.Select(source => source.ItemId).Order());
+        Assert.Equal(["fs-1", "fs-2"], harness.Ran.Select(source => source.ItemId).Order());
     }
 
     /// <summary>
@@ -170,6 +139,34 @@ public sealed class FileSourceSchedulerTests
         Assert.Equal(["fs-2"], harness.Ran.Select(source => source.ItemId));
     }
 
+    /// <summary>
+    /// Verifies that the container can build the scheduler on a host that never registered anything
+    /// belonging to the web crawlers feature.
+    /// </summary>
+    /// <remarks>
+    /// The harness constructs the scheduler directly, which would still compile if a crawler dependency came
+    /// back. This resolves it the way a host does, so it fails if one does.
+    /// </remarks>
+    [Fact]
+    public void Scheduler_ResolvesWithNothingFromTheWebCrawlersFeature()
+    {
+        var services = new ServiceCollection();
+
+        services.AddLogging();
+        services.AddOptions<FileSourceOptions>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(Mock.Of<IFileSourceStore>());
+        services.AddSingleton(Mock.Of<IAIDataSourceStore>());
+        services.AddSingleton(Mock.Of<IIngestionConnectorResolver>());
+        services.AddSingleton(Mock.Of<IIngestionRunService>());
+        services.AddSingleton<DefaultFileSourceScheduler>();
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Null(provider.GetService<IWebCrawlerStore>());
+        Assert.NotNull(provider.GetRequiredService<DefaultFileSourceScheduler>());
+    }
+
     private static FileSource CreateFileSource(string id, string source = "FileSystem", int? intervalMinutes = null)
     {
         return new FileSource
@@ -180,18 +177,6 @@ public sealed class FileSourceSchedulerTests
             AIDataSourceId = IngestedDataSourceId,
             Enabled = true,
             ReindexIntervalMinutes = intervalMinutes,
-        };
-    }
-
-    private static WebCrawler CreateCrawler(string id, string dataSourceId)
-    {
-        return new WebCrawler
-        {
-            ItemId = id,
-            Source = "Sitemap",
-            DisplayText = id,
-            AIDataSourceId = dataSourceId,
-            Enabled = true,
         };
     }
 
@@ -206,11 +191,6 @@ public sealed class FileSourceSchedulerTests
             fileSourceStore
                 .Setup(store => store.GetAllAsync(It.IsAny<CancellationToken>()))
                 .Returns(() => ValueTask.FromResult<IReadOnlyCollection<FileSource>>(FileSources));
-
-            var webCrawlerStore = new Mock<IWebCrawlerStore>();
-            webCrawlerStore
-                .Setup(store => store.GetAllAsync(It.IsAny<CancellationToken>()))
-                .Returns(() => ValueTask.FromResult<IReadOnlyCollection<WebCrawler>>(WebCrawlers));
 
             var dataSources = new Dictionary<string, AIDataSource>(StringComparer.Ordinal)
             {
@@ -228,7 +208,7 @@ public sealed class FileSourceSchedulerTests
                 .Setup(resolver => resolver.Get(It.IsAny<string>()))
                 .Returns((string name) => name is "FileSystem" or "Sitemap" ? Mock.Of<IIngestionConnector>() : null);
 
-            var runService = new Mock<IFileSourceRunService>();
+            var runService = new Mock<IIngestionRunService>();
             runService
                 .Setup(service => service.RunAsync(It.IsAny<IngestionSource>(), It.IsAny<CancellationToken>()))
                 .Returns((IngestionSource source, CancellationToken _) =>
@@ -245,7 +225,6 @@ public sealed class FileSourceSchedulerTests
 
             Scheduler = new DefaultFileSourceScheduler(
                 fileSourceStore.Object,
-                webCrawlerStore.Object,
                 dataSourceStore.Object,
                 connectorResolver.Object,
                 runService.Object,
@@ -255,8 +234,6 @@ public sealed class FileSourceSchedulerTests
         }
 
         public List<FileSource> FileSources { get; } = [];
-
-        public List<WebCrawler> WebCrawlers { get; } = [];
 
         public List<IngestionSource> Ran { get; } = [];
 

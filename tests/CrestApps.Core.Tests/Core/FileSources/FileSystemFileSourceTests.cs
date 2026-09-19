@@ -408,19 +408,15 @@ public sealed class FileSystemFileSourceTests : IDisposable
             var resolver = new Mock<IIngestionConnectorResolver>();
             resolver.Setup(instance => instance.Get(It.IsAny<string>())).Returns(Connector);
 
-            var fileSourceStore = new Mock<ICatalog<FileSource>>();
-            var webCrawlerStore = new Mock<ICatalog<WebCrawler>>();
-
-            Service = new DefaultFileSourceRunService(
+            Service = new DefaultIngestionRunService(
                 resolver.Object,
                 StateStore,
-                fileSourceStore.Object,
-                webCrawlerStore.Object,
+                [new RecordingIngestionSourceProvider()],
                 ingestionService,
                 dataSourceStore.Object,
                 Options.Create(new FileSourceOptions()),
                 TimeProvider.System,
-                NullLogger<DefaultFileSourceRunService>.Instance);
+                NullLogger<DefaultIngestionRunService>.Instance);
         }
 
         public OverridableConnector Connector { get; }
@@ -433,7 +429,7 @@ public sealed class FileSystemFileSourceTests : IDisposable
 
         public InMemoryIngestionItemStateStore StateStore { get; } = new();
 
-        public DefaultFileSourceRunService Service { get; }
+        public DefaultIngestionRunService Service { get; }
 
         public Task<FileSourceRunSummary> RunAsync()
         {

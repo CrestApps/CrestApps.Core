@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.FileSources;
+namespace CrestApps.Core.AI.Ingestion;
 
 /// <summary>
 /// What one source run did. Stored on the source record, so the last run is visible without a log.

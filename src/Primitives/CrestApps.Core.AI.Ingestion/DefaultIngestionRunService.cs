@@ -7,7 +7,7 @@ using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.AI.FileSources;
+namespace CrestApps.Core.AI.Ingestion;
 
 /// <summary>
 /// Runs one ingestion source against its connector and keeps its data source in step with it.
@@ -18,51 +18,47 @@ namespace CrestApps.Core.AI.FileSources;
 /// though it had been deletes every item it failed to see, and nothing downstream can tell that apart from a
 /// genuine deletion.
 /// <para>
-/// What it is handed is an <see cref="IngestionSource"/>, not one particular kind of record: a
-/// <see cref="FileSource"/> reading a folder or a file server, or a <see cref="WebCrawler"/> whose strategy
-/// feeds an ingested data source. The two live in separate stores, so the only place that has to know which
-/// it was given is where the run summary is written back.
+/// What it is handed is an <see cref="IngestionSource"/>, not one particular kind of record. The records
+/// live in separate stores owned by separate features, and this service names none of them: writing the run
+/// summary back goes through the <see cref="IIngestionSourceProvider"/> each feature contributes, so a host
+/// that enabled only one of them still runs.
 /// </para>
 /// </remarks>
-public sealed class DefaultFileSourceRunService : IFileSourceRunService
+public sealed class DefaultIngestionRunService : IIngestionRunService
 {
     private readonly IIngestionConnectorResolver _connectorResolver;
     private readonly IIngestionItemStateStore _stateStore;
-    private readonly ICatalog<FileSource> _fileSourceStore;
-    private readonly ICatalog<WebCrawler> _webCrawlerStore;
+    private readonly IEnumerable<IIngestionSourceProvider> _sourceProviders;
     private readonly IKnowledgeIngestionService _ingestionService;
     private readonly IAIDataSourceStore _dataSourceStore;
     private readonly FileSourceOptions _options;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger<DefaultFileSourceRunService> _logger;
+    private readonly ILogger<DefaultIngestionRunService> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DefaultFileSourceRunService"/> class.
+    /// Initializes a new instance of the <see cref="DefaultIngestionRunService"/> class.
     /// </summary>
     /// <param name="connectorResolver">The connector resolver.</param>
     /// <param name="stateStore">The per-item state store.</param>
-    /// <param name="fileSourceStore">The store file sources live in.</param>
-    /// <param name="webCrawlerStore">The store web crawlers live in.</param>
+    /// <param name="sourceProviders">The contributed access to each feature's own source records.</param>
     /// <param name="ingestionService">The knowledge ingestion service.</param>
     /// <param name="dataSourceStore">The data source store.</param>
     /// <param name="options">The file source options.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
-    public DefaultFileSourceRunService(
+    public DefaultIngestionRunService(
         IIngestionConnectorResolver connectorResolver,
         IIngestionItemStateStore stateStore,
-        ICatalog<FileSource> fileSourceStore,
-        ICatalog<WebCrawler> webCrawlerStore,
+        IEnumerable<IIngestionSourceProvider> sourceProviders,
         IKnowledgeIngestionService ingestionService,
         IAIDataSourceStore dataSourceStore,
         IOptions<FileSourceOptions> options,
         TimeProvider timeProvider,
-        ILogger<DefaultFileSourceRunService> logger)
+        ILogger<DefaultIngestionRunService> logger)
     {
         _connectorResolver = connectorResolver;
         _stateStore = stateStore;
-        _fileSourceStore = fileSourceStore;
-        _webCrawlerStore = webCrawlerStore;
+        _sourceProviders = sourceProviders;
         _ingestionService = ingestionService;
         _dataSourceStore = dataSourceStore;
         _options = options.Value;
@@ -637,20 +633,24 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
         {
             ingestionSource.Put(summary);
 
-            switch (ingestionSource)
+            var saved = false;
+
+            foreach (var provider in _sourceProviders)
             {
-                case FileSource fileSource:
-                    await _fileSourceStore.UpdateAsync(fileSource, cancellationToken);
+                if (await provider.TryUpdateAsync(ingestionSource, cancellationToken))
+                {
+                    saved = true;
+
                     break;
-                case WebCrawler crawler:
-                    await _webCrawlerStore.UpdateAsync(crawler, cancellationToken);
-                    break;
-                default:
-                    _logger.LogWarning(
-                        "No store is registered for ingestion source '{SourceId}' of type '{SourceType}', so its run summary was not recorded.",
-                        ingestionSource.ItemId,
-                        ingestionSource.GetType().Name);
-                    break;
+                }
+            }
+
+            if (!saved)
+            {
+                _logger.LogWarning(
+                    "No store is registered for ingestion source '{SourceId}' of type '{SourceType}', so its run summary was not recorded.",
+                    ingestionSource.ItemId,
+                    ingestionSource.GetType().Name);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Indexing;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging;
@@ -11,19 +12,16 @@ namespace CrestApps.Core.AI.FileSources;
 /// The default <see cref="IFileSourceScheduler"/>.
 /// </summary>
 /// <remarks>
-/// It reads two stores. Every <see cref="FileSource"/> is a candidate, because reading files into a
-/// knowledge base is the only thing a file source does. A <see cref="WebCrawler"/> is a candidate only when
-/// it feeds an ingested data source: a crawler pointed at a <c>Web</c> data source is driven by the
-/// re-index service instead, and running it here as well would run it twice and overwrite its crawl state
-/// with this service's.
+/// Every <see cref="FileSource"/> is a candidate, because reading files into a knowledge base is the only
+/// thing a file source does. It reads one store and knows about one kind of record: web crawlers are the
+/// web crawlers feature's to schedule, including the ones it reads through the same ingestion pipeline.
 /// </remarks>
 public sealed class DefaultFileSourceScheduler : IFileSourceScheduler
 {
     private readonly IFileSourceStore _fileSourceStore;
-    private readonly IWebCrawlerStore _webCrawlerStore;
     private readonly IAIDataSourceStore _dataSourceStore;
     private readonly IIngestionConnectorResolver _connectorResolver;
-    private readonly IFileSourceRunService _runService;
+    private readonly IIngestionRunService _runService;
     private readonly IStoreCommitter _committer;
     private readonly FileSourceOptions _options;
     private readonly TimeProvider _timeProvider;
@@ -33,7 +31,6 @@ public sealed class DefaultFileSourceScheduler : IFileSourceScheduler
     /// Initializes a new instance of the <see cref="DefaultFileSourceScheduler"/> class.
     /// </summary>
     /// <param name="fileSourceStore">The file source store.</param>
-    /// <param name="webCrawlerStore">The web crawler store.</param>
     /// <param name="dataSourceStore">The data source store.</param>
     /// <param name="connectorResolver">The connector resolver.</param>
     /// <param name="runService">The run service.</param>
@@ -46,17 +43,15 @@ public sealed class DefaultFileSourceScheduler : IFileSourceScheduler
     /// </param>
     public DefaultFileSourceScheduler(
         IFileSourceStore fileSourceStore,
-        IWebCrawlerStore webCrawlerStore,
         IAIDataSourceStore dataSourceStore,
         IIngestionConnectorResolver connectorResolver,
-        IFileSourceRunService runService,
+        IIngestionRunService runService,
         IOptions<FileSourceOptions> options,
         TimeProvider timeProvider,
         ILogger<DefaultFileSourceScheduler> logger,
         IStoreCommitter committer = null)
     {
         _fileSourceStore = fileSourceStore;
-        _webCrawlerStore = webCrawlerStore;
         _dataSourceStore = dataSourceStore;
         _connectorResolver = connectorResolver;
         _runService = runService;
@@ -161,21 +156,6 @@ public sealed class DefaultFileSourceScheduler : IFileSourceScheduler
             }
         }
 
-        foreach (var crawler in await _webCrawlerStore.GetAllAsync(cancellationToken))
-        {
-            if (!IsRunnable(crawler))
-            {
-                continue;
-            }
-
-            // A crawler reaches the ingestion pipeline only by pointing at an ingested data source. One
-            // pointed at a Web data source belongs to the re-index service and is left alone here.
-            if (await FeedsIngestedDataSourceAsync(crawler, cancellationToken))
-            {
-                candidates.Add(crawler);
-            }
-        }
-
         return candidates;
     }
 
@@ -193,26 +173,5 @@ public sealed class DefaultFileSourceScheduler : IFileSourceScheduler
 
         // Whatever registered the connector may be gone. The record is still stored, but nothing can read it.
         return _connectorResolver.Get(ingestionSource.Source) is not null;
-    }
-
-    private async Task<bool> FeedsIngestedDataSourceAsync(IngestionSource ingestionSource, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var dataSource = await _dataSourceStore.FindByIdAsync(ingestionSource.AIDataSourceId, cancellationToken);
-
-            return dataSource is not null &&
-                string.Equals(dataSource.Source, AIDataSourceSourceTypes.File, StringComparison.OrdinalIgnoreCase);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to read the data source of '{SourceId}'.", ingestionSource.ItemId);
-
-            return false;
-        }
     }
 }

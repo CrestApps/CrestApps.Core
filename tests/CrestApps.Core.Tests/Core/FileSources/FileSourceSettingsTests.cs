@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.FileSources.Handlers;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Models;
 using Moq;
@@ -62,7 +63,7 @@ public sealed class FileSourceSettingsTests
             .Setup(manager => manager.FindByNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AIDeployment)null);
 
-        var handler = new FileSourceSettingsCatalogHandler<FileSource>(deploymentManager.Object, Mock.Of<IAIDeploymentCapabilityService>());
+        var handler = new IngestionSourceSettingsCatalogHandler<FileSource>(deploymentManager.Object, Mock.Of<IAIDeploymentCapabilityService>());
 
         await handler.ValidatingAsync(context, TestContext.Current.CancellationToken);
 
@@ -102,7 +103,7 @@ public sealed class FileSourceSettingsTests
         return new ValidatingContext<FileSource>(source);
     }
 
-    private static FileSourceSettingsCatalogHandler<FileSource> CreateHandler(bool imageInput, bool textEmbedding)
+    private static IngestionSourceSettingsCatalogHandler<FileSource> CreateHandler(bool imageInput, bool textEmbedding)
     {
         var deployment = new AIDeployment
         {
@@ -123,6 +124,6 @@ public sealed class FileSourceSettingsTests
             .Setup(service => service.SupportsFeatureOrUnconstrained(It.IsAny<AIDeployment>(), AIDeploymentFeatureNames.TextEmbedding))
             .Returns(textEmbedding);
 
-        return new FileSourceSettingsCatalogHandler<FileSource>(deploymentManager.Object, capabilityService.Object);
+        return new IngestionSourceSettingsCatalogHandler<FileSource>(deploymentManager.Object, capabilityService.Object);
     }
 }

@@ -105,33 +105,24 @@ public static class ServiceCollectionExtensions
             .AddFigureProcessing()
             .AddFigureBackfill());
 
-        services.AddOptions<FileSourceOptions>();
-        services.AddOptions<IngestionConnectorOptions>();
-        // Connectors are scoped, so the resolver has to be too: a singleton holding the root provider cannot
-        // resolve a keyed scoped service and throws the first time a source runs.
-        services.TryAddScoped<IIngestionConnectorResolver, KeyedIngestionConnectorResolver>();
-        services.TryAddScoped<IFileSourceRunService, DefaultFileSourceRunService>();
+        // Running a source is shared with the web crawlers feature, which owns records the same pipeline
+        // reads. Neither feature depends on the other for it.
+        services.AddCoreAIIngestionRuntime();
+
+        // How the pipeline reaches a file source record, without it having to know this store exists.
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IIngestionSourceProvider, FileSourceIngestionSourceProvider>());
 
         // Deciding what is due and running it is the whole of the periodic work, and it is registered on its
         // own so a host with its own scheduling drives it without taking the hosted service below.
         services.TryAddScoped<IFileSourceScheduler, DefaultFileSourceScheduler>();
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<FileSource>, FileSourceCatalogHandler>());
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<FileSource>, FileSourceSettingsCatalogHandler<FileSource>>());
-
-        // A web crawler pointed at an ingested data source carries the same ingestion settings and is run by
-        // the same pipeline, so the same validation has to reach it. Its own catalog handler lives in the
-        // web crawlers package and validates the crawl strategy.
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<WebCrawler>, FileSourceSettingsCatalogHandler<WebCrawler>>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<FileSource>, IngestionSourceSettingsCatalogHandler<FileSource>>());
 
         // A connector hands over whatever a folder or a server holds, and a web page read that way is HTML
         // rather than the cleaned text a crawl strategy produces. The HTML reader takes those keys over from
         // the plain-text reader, which would otherwise index the markup.
         services.AddCoreAIIngestionDocumentReader<HtmlIngestionDocumentReader>(".html", ".htm");
-
-        // Replaces the default that answers nothing, so a figure produced by a source is transcribed
-        // by the model that source was configured with.
-        services.Replace(ServiceDescriptor.Scoped<IKnowledgeVisionDeploymentResolver, FileSourceVisionDeploymentResolver>());
 
         // The timer, and nothing else. A host that schedules its own work leaves this out and calls
         // IFileSourceScheduler itself, or the same sources are driven twice.
