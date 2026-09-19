@@ -28,15 +28,3 @@ public sealed class McpConnectionSelectionItem
 
     public List<McpToolSelectionItem> Tools { get; set; } = [];
 }
-
-/// <summary>
-/// One tool exposed by an MCP connection, as offered for selection on a profile.
-/// </summary>
-public sealed class McpToolSelectionItem
-{
-    public string Name { get; set; }
-
-    public string Description { get; set; }
-
-    public bool IsSelected { get; set; }
-}

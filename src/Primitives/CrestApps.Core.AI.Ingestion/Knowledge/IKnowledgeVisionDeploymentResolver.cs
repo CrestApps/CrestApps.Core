@@ -22,15 +22,3 @@ public interface IKnowledgeVisionDeploymentResolver
     /// <returns>The deployment name, or <see langword="null"/> to use the host's own.</returns>
     Task<string> ResolveAsync(string fileSourceId, CancellationToken cancellationToken = default);
 }
-
-/// <summary>
-/// Answers nothing, so the host's vision deployment is used.
-/// </summary>
-internal sealed class NullKnowledgeVisionDeploymentResolver : IKnowledgeVisionDeploymentResolver
-{
-    /// <inheritdoc />
-    public Task<string> ResolveAsync(string fileSourceId, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult<string>(null);
-    }
-}

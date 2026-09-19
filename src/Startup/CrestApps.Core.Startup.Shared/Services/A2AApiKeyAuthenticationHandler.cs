@@ -96,12 +96,3 @@ public sealed class A2AApiKeyAuthenticationHandler : AuthenticationHandler<A2AAp
         return CryptographicOperations.FixedTimeEquals(aBytes, bBytes);
     }
 }
-
-public sealed class A2AApiKeyAuthenticationOptions : AuthenticationSchemeOptions
-{
-}
-
-public static class A2AApiKeyAuthenticationDefaults
-{
-    public const string AuthenticationScheme = "A2AApiKey";
-}

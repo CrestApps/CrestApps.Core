@@ -1,22 +1,4 @@
-using CrestApps.Core.AI.Models;
-
 namespace CrestApps.Core.AI.FileSources.FileTransfer;
-
-/// <summary>
-/// One file on a remote server.
-/// </summary>
-/// <param name="Path">The path, relative to the indexed folder.</param>
-/// <param name="SizeBytes">How large the file is, when the server reports it.</param>
-/// <param name="LastModifiedUtc">When the file last changed, when the server reports it.</param>
-public sealed record RemoteFile(string Path, long? SizeBytes = null, DateTimeOffset? LastModifiedUtc = null);
-
-/// <summary>
-/// What a remote listing found, and whether it found everything.
-/// </summary>
-/// <param name="Files">The files.</param>
-/// <param name="IsComplete">Whether the listing is the whole of what the server holds under the folder.</param>
-/// <param name="Message">Why the listing was incomplete, when it was.</param>
-public sealed record RemoteListing(IReadOnlyList<RemoteFile> Files, bool IsComplete, string Message = null);
 
 /// <summary>
 /// The two things an ingestion connector needs from a file server.
@@ -47,23 +29,4 @@ public interface IRemoteFileClient : IAsyncDisposable
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The content, or <see langword="null"/> when the file is gone.</returns>
     Task<Stream> OpenReadAsync(string rootPath, string path, CancellationToken cancellationToken = default);
-}
-
-/// <summary>
-/// Creates the client one file source's settings describe.
-/// </summary>
-public interface IRemoteFileClientFactory
-{
-    /// <summary>
-    /// Gets the connector name the factory serves.
-    /// </summary>
-    string ConnectorName { get; }
-
-    /// <summary>
-    /// Creates a client for the supplied source.
-    /// </summary>
-    /// <param name="source">The configured source.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The client.</returns>
-    Task<IRemoteFileClient> CreateAsync(IngestionSource source, CancellationToken cancellationToken = default);
 }

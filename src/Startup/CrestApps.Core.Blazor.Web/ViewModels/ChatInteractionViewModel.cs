@@ -109,26 +109,3 @@ public sealed class ChatInteractionViewModel
     /// </summary>
     public Dictionary<string, string> UtilityModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
-
-public sealed class SelectOption
-{
-    public string Text { get; set; }
-
-    public string Value { get; set; }
-
-    public bool Selected { get; set; }
-
-    public SelectOption()
-    {
-    }
-
-    public SelectOption(
-        string text,
-        string value,
-        bool selected = false)
-    {
-        Text = text;
-        Value = value;
-        Selected = selected;
-    }
-}

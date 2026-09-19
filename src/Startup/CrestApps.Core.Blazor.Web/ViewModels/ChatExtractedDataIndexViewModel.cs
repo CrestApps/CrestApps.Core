@@ -16,12 +16,3 @@ public sealed class ChatExtractedDataIndexViewModel
 
     public bool ShowReport { get; set; }
 }
-
-public sealed class ChatExtractedDataRowViewModel
-{
-    public DateTime SessionStartedUtc { get; set; }
-
-    public string SessionId { get; set; }
-
-    public IReadOnlyDictionary<string, string> Values { get; set; } = new Dictionary<string, string>();
-}
