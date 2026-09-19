@@ -1,10 +1,10 @@
-using CrestApps.Core.Services;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.FileSources.Connectors;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing;
+using CrestApps.Core.Services;
 using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

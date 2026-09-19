@@ -2,7 +2,6 @@ using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;

@@ -1,7 +1,7 @@
 using Azure.AI.DocumentIntelligence;
-using CrestApps.Core.Azure.DocumentIntelligence.Services;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Ingestion.Processors;
+using CrestApps.Core.Azure.DocumentIntelligence.Services;
 using Microsoft.Extensions.DataIngestion;
 
 namespace CrestApps.Core.Tests.Core.Azure.DocumentIntelligence;

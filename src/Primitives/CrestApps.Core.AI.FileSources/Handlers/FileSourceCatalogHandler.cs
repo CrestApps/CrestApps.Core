@@ -19,7 +19,7 @@ namespace CrestApps.Core.AI.FileSources.Handlers;
 /// the target data source's knowledge base aligned by queueing a full synchronization when a source changes.
 /// </summary>
 /// <remarks>
-/// A file source's <see cref="CrestApps.Core.Models.SourceCatalogEntry.Source"/> names an ingestion
+/// A file source's <see cref="SourceCatalogEntry.Source"/> names an ingestion
 /// connector, and a connector produces typed knowledge objects that only an ingested data source reads. That
 /// is the whole of the difference from <c>WebCrawlerCatalogHandler</c>, which validates a crawl strategy and
 /// allows the <c>Web</c> data sources a strategy can also fill.
