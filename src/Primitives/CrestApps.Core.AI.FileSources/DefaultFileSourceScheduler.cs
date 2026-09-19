@@ -11,20 +11,23 @@ namespace CrestApps.Core.AI.FileSources;
 /// The default <see cref="IFileSourceScheduler"/>.
 /// </summary>
 /// <remarks>
-/// It reads two stores. Every <see cref="FileSource"/> is a candidate, because reading files into a
-/// knowledge base is the only thing a file source does. A <see cref="WebCrawler"/> is a candidate only when
-/// it feeds an ingested data source: a crawler pointed at a <c>Web</c> data source is driven by the
-/// re-index service instead, and running it here as well would run it twice and overwrite its crawl state
-/// with this service's.
+/// Every <see cref="FileSource"/> is a candidate, because reading files into a knowledge base is the only
+/// thing a file source does. A <see cref="WebCrawler"/> is a candidate only when it feeds an ingested data
+/// source: a crawler pointed at a <c>Web</c> data source is driven by the re-index service instead, and
+/// running it here as well would run it twice and overwrite its crawl state with this service's.
+/// <para>
+/// The web crawler store is optional, so a host that enabled file sources without the web crawlers feature
+/// can still construct this. Without it there are no crawlers to sweep, only file sources.
+/// </para>
 /// </remarks>
 public sealed class DefaultFileSourceScheduler : IFileSourceScheduler
 {
     private readonly IFileSourceStore _fileSourceStore;
-    private readonly IWebCrawlerStore _webCrawlerStore;
     private readonly IAIDataSourceStore _dataSourceStore;
     private readonly IIngestionConnectorResolver _connectorResolver;
     private readonly IFileSourceRunService _runService;
     private readonly IStoreCommitter _committer;
+    private readonly IWebCrawlerStore _webCrawlerStore;
     private readonly FileSourceOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DefaultFileSourceScheduler> _logger;
@@ -33,7 +36,6 @@ public sealed class DefaultFileSourceScheduler : IFileSourceScheduler
     /// Initializes a new instance of the <see cref="DefaultFileSourceScheduler"/> class.
     /// </summary>
     /// <param name="fileSourceStore">The file source store.</param>
-    /// <param name="webCrawlerStore">The web crawler store.</param>
     /// <param name="dataSourceStore">The data source store.</param>
     /// <param name="connectorResolver">The connector resolver.</param>
     /// <param name="runService">The run service.</param>
@@ -44,16 +46,19 @@ public sealed class DefaultFileSourceScheduler : IFileSourceScheduler
     /// The store committer, when the host has one. A request commits through its own filter; a background
     /// pass has no filter, so what a run wrote is flushed here or it is lost.
     /// </param>
+    /// <param name="webCrawlerStore">
+    /// The web crawler store, when the host enabled that feature. Without it only file sources are swept.
+    /// </param>
     public DefaultFileSourceScheduler(
         IFileSourceStore fileSourceStore,
-        IWebCrawlerStore webCrawlerStore,
         IAIDataSourceStore dataSourceStore,
         IIngestionConnectorResolver connectorResolver,
         IFileSourceRunService runService,
         IOptions<FileSourceOptions> options,
         TimeProvider timeProvider,
         ILogger<DefaultFileSourceScheduler> logger,
-        IStoreCommitter committer = null)
+        IStoreCommitter committer = null,
+        IWebCrawlerStore webCrawlerStore = null)
     {
         _fileSourceStore = fileSourceStore;
         _webCrawlerStore = webCrawlerStore;
@@ -159,6 +164,11 @@ public sealed class DefaultFileSourceScheduler : IFileSourceScheduler
             {
                 candidates.Add(fileSource);
             }
+        }
+
+        if (_webCrawlerStore is null)
+        {
+            return candidates;
         }
 
         foreach (var crawler in await _webCrawlerStore.GetAllAsync(cancellationToken))

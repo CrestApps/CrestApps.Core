@@ -288,6 +288,27 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers EntityCore-backed stores for the knowledge objects an ingestion run produces.
+    /// This includes <see cref="IKnowledgeObjectStore"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <remarks>
+    /// Knowledge objects are where ingested text, figures, charts and tables land, so every feature that
+    /// runs the ingestion pipeline needs this store: both the web crawlers and the file sources call it.
+    /// It is safe to call twice, which is why the catalog registrations go through <c>TryAdd</c>.
+    /// </remarks>
+    public static IServiceCollection AddCoreKnowledgeStoresEntityCore(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.Replace(ServiceDescriptor.Scoped<IKnowledgeObjectStore, EntityCoreKnowledgeObjectStore>());
+        services.TryAddScoped<ICatalog<KnowledgeObject>>(sp => sp.GetRequiredService<IKnowledgeObjectStore>());
+        services.TryAddScoped<ISourceCatalog<KnowledgeObject>>(sp => sp.GetRequiredService<IKnowledgeObjectStore>());
+
+        return services;
+    }
+
+    /// <summary>
     /// Registers EntityCore-backed stores for the web-crawlers feature.
     /// This includes <see cref="IWebCrawlerStore"/> and <see cref="IWebCrawlStateStore"/>.
     /// </summary>
@@ -300,13 +321,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICatalog<WebCrawler>>(sp => sp.GetRequiredService<IWebCrawlerStore>());
         services.AddScoped<ISourceCatalog<WebCrawler>>(sp => sp.GetRequiredService<IWebCrawlerStore>());
 
-        services.Replace(ServiceDescriptor.Scoped<IKnowledgeObjectStore, EntityCoreKnowledgeObjectStore>());
-        services.AddScoped<ICatalog<KnowledgeObject>>(sp => sp.GetRequiredService<IKnowledgeObjectStore>());
-        services.AddScoped<ISourceCatalog<KnowledgeObject>>(sp => sp.GetRequiredService<IKnowledgeObjectStore>());
-
         services.Replace(ServiceDescriptor.Scoped<IWebCrawlStateStore, EntityCoreWebCrawlStateStore>());
         services.AddScoped<ICatalog<WebCrawlState>>(sp => sp.GetRequiredService<IWebCrawlStateStore>());
         services.AddScoped<ISourceCatalog<WebCrawlState>>(sp => sp.GetRequiredService<IWebCrawlStateStore>());
+
+        services.AddCoreKnowledgeStoresEntityCore();
 
         return services;
     }
@@ -332,6 +351,8 @@ public static class ServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Scoped<IIngestionItemStateStore, EntityCoreIngestionItemStateStore>());
         services.AddScoped<ICatalog<IngestionItemState>>(sp => sp.GetRequiredService<IIngestionItemStateStore>());
         services.AddScoped<ISourceCatalog<IngestionItemState>>(sp => sp.GetRequiredService<IIngestionItemStateStore>());
+
+        services.AddCoreKnowledgeStoresEntityCore();
 
         return services;
     }

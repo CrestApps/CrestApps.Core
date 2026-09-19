@@ -2,6 +2,7 @@ using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Models;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -170,6 +171,57 @@ public sealed class FileSourceSchedulerTests
         Assert.Equal(["fs-2"], harness.Ran.Select(source => source.ItemId));
     }
 
+    /// <summary>
+    /// Verifies that a host that enabled file sources without the web crawlers feature still schedules its
+    /// file sources.
+    /// </summary>
+    /// <remarks>
+    /// The web crawler store is the other feature's, so it is not registered on such a host. Requiring it
+    /// meant the scheduler could not be constructed at all, which took file sources down with it.
+    /// </remarks>
+    [Fact]
+    public async Task FileSourcesOnlyHost_WithNoWebCrawlerStore_StillRunsFileSources()
+    {
+        var harness = new Harness(withWebCrawlerStore: false);
+
+        harness.FileSources.Add(CreateFileSource("fs-1"));
+
+        var result = await harness.Scheduler.RunDueAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, result.Considered);
+        Assert.Equal(1, result.Ran);
+        Assert.Equal(0, result.Failed);
+        Assert.Equal(["fs-1"], harness.Ran.Select(source => source.ItemId));
+    }
+
+    /// <summary>
+    /// Verifies that the container can build the scheduler on a host that never registered
+    /// <see cref="IWebCrawlerStore"/>.
+    /// </summary>
+    /// <remarks>
+    /// The harness constructs the scheduler directly, which would still compile if the dependency were
+    /// required. This resolves it the way a host does, so it fails if the parameter stops being optional.
+    /// </remarks>
+    [Fact]
+    public void Scheduler_ResolvesWithoutAWebCrawlerStoreRegistered()
+    {
+        var services = new ServiceCollection();
+
+        services.AddLogging();
+        services.AddOptions<FileSourceOptions>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(Mock.Of<IFileSourceStore>());
+        services.AddSingleton(Mock.Of<IAIDataSourceStore>());
+        services.AddSingleton(Mock.Of<IIngestionConnectorResolver>());
+        services.AddSingleton(Mock.Of<IFileSourceRunService>());
+        services.AddSingleton<DefaultFileSourceScheduler>();
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Null(provider.GetService<IWebCrawlerStore>());
+        Assert.NotNull(provider.GetRequiredService<DefaultFileSourceScheduler>());
+    }
+
     private static FileSource CreateFileSource(string id, string source = "FileSystem", int? intervalMinutes = null)
     {
         return new FileSource
@@ -200,7 +252,10 @@ public sealed class FileSourceSchedulerTests
     /// </summary>
     private sealed class Harness
     {
-        public Harness()
+        /// <param name="withWebCrawlerStore">
+        /// Whether the host enabled the web crawlers feature. A file-sources-only host has no such store.
+        /// </param>
+        public Harness(bool withWebCrawlerStore = true)
         {
             var fileSourceStore = new Mock<IFileSourceStore>();
             fileSourceStore
@@ -245,13 +300,13 @@ public sealed class FileSourceSchedulerTests
 
             Scheduler = new DefaultFileSourceScheduler(
                 fileSourceStore.Object,
-                webCrawlerStore.Object,
                 dataSourceStore.Object,
                 connectorResolver.Object,
                 runService.Object,
                 Options.Create(new FileSourceOptions()),
                 TimeProvider.System,
-                NullLogger<DefaultFileSourceScheduler>.Instance);
+                NullLogger<DefaultFileSourceScheduler>.Instance,
+                webCrawlerStore: withWebCrawlerStore ? webCrawlerStore.Object : null);
         }
 
         public List<FileSource> FileSources { get; } = [];
