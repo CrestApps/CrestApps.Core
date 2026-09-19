@@ -12,12 +12,3 @@ public sealed class ArticleIndexViewModel
 
     public int TotalPages => PageSize > 0 ? (int)Math.Ceiling((double)TotalCount / PageSize) : 1;
 }
-
-public sealed class ArticleListEntry
-{
-    public string ItemId { get; set; }
-
-    public string Title { get; set; }
-
-    public DateTime CreatedUtc { get; set; }
-}

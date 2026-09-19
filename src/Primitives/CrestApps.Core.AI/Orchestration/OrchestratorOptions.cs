@@ -24,31 +24,3 @@ public sealed class OrchestratorOptions
             StringComparer.OrdinalIgnoreCase);
     }
 }
-
-/// <summary>
-/// Describes a registered orchestrator including its implementation type and optional display title.
-/// </summary>
-public sealed class OrchestratorEntry
-{
-    /// <summary>
-    /// Gets or sets the orchestrator implementation type.
-    /// </summary>
-    public Type Type { get; set; }
-
-    /// <summary>
-    /// Gets or sets the optional localized display title for this orchestrator.
-    /// When <see langword="null"/> or empty, the orchestrator name is used in the UI.
-    /// </summary>
-    public string Title { get; set; }
-}
-
-/// <summary>
-/// Public descriptor for a registered orchestrator, exposing only metadata.
-/// </summary>
-public sealed class OrchestratorDescriptor
-{
-    /// <summary>
-    /// Gets or sets the display title. When <see langword="null"/>, the name should be used.
-    /// </summary>
-    public string Title { get; set; }
-}

@@ -1,6 +1,4 @@
 using CrestApps.Core.AI.Models;
-using Microsoft.Extensions.Options;
-using YesSql.Indexes;
 
 namespace CrestApps.Core.Data.YesSql.Indexes.AI;
 
@@ -19,35 +17,4 @@ public sealed class AIProfileTemplateIndex : CatalogItemIndex, INameAwareIndex, 
     /// Gets or sets the source or provider name of the AI profile template.
     /// </summary>
     public string Source { get; set; }
-}
-
-/// <summary>
-/// YesSql index provider that maps <see cref="AIProfileTemplate"/> documents
-/// to <see cref="AIProfileTemplateIndex"/> entries in the AI collection.
-/// </summary>
-public sealed class AIProfileTemplateIndexProvider : IndexProvider<AIProfileTemplate>
-{
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AIProfileTemplateIndexProvider"/> class.
-    /// </summary>
-    /// <param name="options">The options.</param>
-    public AIProfileTemplateIndexProvider(IOptions<YesSqlStoreOptions> options)
-    {
-        CollectionName = options.Value.AICollectionName;
-    }
-
-    /// <summary>
-    /// Describes the operation.
-    /// </summary>
-    /// <param name="context">The context.</param>
-    public override void Describe(DescribeContext<AIProfileTemplate> context)
-    {
-        context.For<AIProfileTemplateIndex>()
-            .Map(template => new AIProfileTemplateIndex
-            {
-                ItemId = template.ItemId,
-                Name = template.Name,
-                Source = template.Source,
-            });
-    }
 }

@@ -189,38 +189,3 @@ public sealed class SettingsViewModel
 
     public List<KeyValuePair<string, string>> AnthropicAvailableModels { get; set; } = [];
 }
-
-public sealed class McpServerToolSelectionItem
-{
-    public string Name { get; set; }
-
-    public string Title { get; set; }
-
-    public string Description { get; set; }
-
-    public string Category { get; set; }
-
-    public bool IsSelected { get; set; }
-}
-
-public sealed class McpServerAgentSelectionItem
-{
-    public string Name { get; set; }
-
-    public string Description { get; set; }
-
-    public bool IsSelected { get; set; }
-}
-
-public sealed class McpServerToolInstanceSelectionItem
-{
-    public string ItemId { get; set; }
-
-    public string Name { get; set; }
-
-    public string Description { get; set; }
-
-    public string Source { get; set; }
-
-    public bool IsSelected { get; set; }
-}

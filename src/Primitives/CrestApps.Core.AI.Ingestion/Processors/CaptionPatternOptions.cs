@@ -3,43 +3,6 @@ using System.Text.RegularExpressions;
 namespace CrestApps.Core.AI.Ingestion.Processors;
 
 /// <summary>
-/// Which direction a caption sits relative to what it captions.
-/// </summary>
-public enum CaptionDirection
-{
-    /// <summary>
-    /// Not known.
-    /// </summary>
-    Unknown = 0,
-
-    /// <summary>
-    /// The caption sits above.
-    /// </summary>
-    Above = 1,
-
-    /// <summary>
-    /// The caption sits below.
-    /// </summary>
-    Below = 2,
-}
-
-/// <summary>
-/// One caption pattern and the family it identifies.
-/// </summary>
-public sealed class CaptionPattern
-{
-    /// <summary>
-    /// Gets the expression a caption paragraph must match.
-    /// </summary>
-    public Regex Expression { get; init; }
-
-    /// <summary>
-    /// Gets the caption family the match identifies. See <see cref="CaptionBuckets"/>.
-    /// </summary>
-    public string Bucket { get; init; }
-}
-
-/// <summary>
 /// Controls how captions are recognized and matched to what they caption.
 /// </summary>
 /// <remarks>

@@ -48,7 +48,3 @@ public sealed class A2AHostAuthorizationHandler : AuthorizationHandler<A2AHostAu
         return Task.CompletedTask;
     }
 }
-
-public sealed class A2AHostAuthorizationRequirement : IAuthorizationRequirement
-{
-}

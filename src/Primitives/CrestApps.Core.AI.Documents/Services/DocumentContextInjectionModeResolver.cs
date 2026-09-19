@@ -3,12 +3,6 @@ using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Documents.Services;
 
-internal enum DocumentContextInjectionMode
-{
-    Search = 0,
-    FullUserDocuments = 1,
-}
-
 internal static partial class DocumentContextInjectionModeResolver
 {
     /// <summary>
