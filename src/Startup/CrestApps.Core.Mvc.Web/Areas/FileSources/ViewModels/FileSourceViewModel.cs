@@ -19,8 +19,7 @@ public sealed class FileSourceViewModel
 
     public string DisplayText { get; set; }
 
-    // The connector that reads the files. It is stored as the record's source, which is also what tells a
-    // file source apart from a web crawler.
+    // The connector that reads the files, stored as the record's source.
     public string Source { get; set; }
 
     public string AIDataSourceId { get; set; }
@@ -45,8 +44,6 @@ public sealed class FileSourceViewModel
 
     // File-system folder settings.
     public string LocalRootPath { get; set; }
-
-    public string LocalSearchPattern { get; set; } = "*.*";
 
     public bool LocalRecursive { get; set; } = true;
 
@@ -84,7 +81,7 @@ public sealed class FileSourceViewModel
     public bool SftpHasPassphrase { get; set; }
 
     [BindNever]
-    public IndexerRunSummary LastRun { get; set; }
+    public FileSourceRunSummary LastRun { get; set; }
 
     [BindNever]
     public IEnumerable<SelectListItem> Connectors { get; set; } = [];
@@ -112,7 +109,7 @@ public sealed class FileSourceViewModel
     /// </summary>
     /// <param name="fileSource">The stored record.</param>
     /// <returns>The populated form.</returns>
-    public static FileSourceViewModel FromFileSource(WebCrawler fileSource)
+    public static FileSourceViewModel FromFileSource(FileSource fileSource)
     {
         ArgumentNullException.ThrowIfNull(fileSource);
 
@@ -126,7 +123,7 @@ public sealed class FileSourceViewModel
             ReindexIntervalMinutes = fileSource.ReindexIntervalMinutes,
         };
 
-        if (fileSource.TryGet<IndexerMetadata>(out var ingestion))
+        if (fileSource.TryGet<FileSourceMetadata>(out var ingestion))
         {
             model.FigureMode = ingestion.FigureMode;
             model.VisionDeploymentName = ingestion.VisionDeploymentName;
@@ -136,14 +133,13 @@ public sealed class FileSourceViewModel
             model.Language = ingestion.Language;
         }
 
-        if (fileSource.TryGet<LocalFolderIndexerMetadata>(out var local))
+        if (fileSource.TryGet<FileSystemFileSourceMetadata>(out var local))
         {
             model.LocalRootPath = local.RootPath;
-            model.LocalSearchPattern = local.SearchPattern;
             model.LocalRecursive = local.Recursive;
         }
 
-        if (fileSource.TryGet<RemoteFolderIndexerMetadata>(out var remote))
+        if (fileSource.TryGet<RemoteFileSourceMetadata>(out var remote))
         {
             model.RemoteRootPath = remote.RootPath;
             model.RemoteRecursive = remote.Recursive;
@@ -170,7 +166,7 @@ public sealed class FileSourceViewModel
             model.SftpHasPassphrase = !string.IsNullOrEmpty(sftp.Passphrase);
         }
 
-        if (fileSource.TryGet<IndexerRunSummary>(out var lastRun))
+        if (fileSource.TryGet<FileSourceRunSummary>(out var lastRun))
         {
             model.LastRun = lastRun;
         }
@@ -185,7 +181,7 @@ public sealed class FileSourceViewModel
     /// <param name="dataProtectionProvider">
     /// Encrypts the file-server secrets with the same purpose the connectors decrypt them with.
     /// </param>
-    public void ApplyTo(WebCrawler fileSource, IDataProtectionProvider dataProtectionProvider)
+    public void ApplyTo(FileSource fileSource, IDataProtectionProvider dataProtectionProvider)
     {
         ArgumentNullException.ThrowIfNull(fileSource);
         ArgumentNullException.ThrowIfNull(dataProtectionProvider);
@@ -196,7 +192,7 @@ public sealed class FileSourceViewModel
         fileSource.Enabled = Enabled;
         fileSource.ReindexIntervalMinutes = ReindexIntervalMinutes;
 
-        fileSource.Put(new IndexerMetadata
+        fileSource.Put(new FileSourceMetadata
         {
             FigureMode = FigureMode,
             VisionDeploymentName = Trim(VisionDeploymentName),
@@ -206,15 +202,14 @@ public sealed class FileSourceViewModel
             Language = Trim(Language),
         });
 
-        fileSource.Remove<LocalFolderIndexerMetadata>();
-        fileSource.Remove<RemoteFolderIndexerMetadata>();
+        fileSource.Remove<FileSystemFileSourceMetadata>();
+        fileSource.Remove<RemoteFileSourceMetadata>();
 
         if (IsFileSystem)
         {
-            fileSource.Put(new LocalFolderIndexerMetadata
+            fileSource.Put(new FileSystemFileSourceMetadata
             {
                 RootPath = Trim(LocalRootPath),
-                SearchPattern = string.IsNullOrWhiteSpace(LocalSearchPattern) ? "*.*" : LocalSearchPattern.Trim(),
                 Recursive = LocalRecursive,
                 MaxItems = MaxItemsPerRun,
             });
@@ -222,7 +217,7 @@ public sealed class FileSourceViewModel
 
         if (IsFtp || IsSftp)
         {
-            fileSource.Put(new RemoteFolderIndexerMetadata
+            fileSource.Put(new RemoteFileSourceMetadata
             {
                 RootPath = string.IsNullOrWhiteSpace(RemoteRootPath) ? "/" : RemoteRootPath.Trim(),
                 Recursive = RemoteRecursive,

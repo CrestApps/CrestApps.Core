@@ -61,7 +61,7 @@ public sealed class FileAIDataSourceSourceHandler : IAIDataSourceSourceHandler
     /// <inheritdoc />
     public ValueTask ValidateAsync(AIDataSource dataSource, ValidationResultDetails result, CancellationToken cancellationToken = default)
     {
-        // The data source is a bucket. What goes into it is decided by the uploads and indexers pointing at
+        // The data source is a bucket. What goes into it is decided by the uploads and file sources pointing at
         // it, so there is nothing on the record itself to validate.
         return ValueTask.CompletedTask;
     }
@@ -151,7 +151,7 @@ public sealed class FileAIDataSourceSourceHandler : IAIDataSourceSourceHandler
         AddIfPresent(fields, DataSourceConstants.ColumnNames.RootId, entry.RootId);
         AddIfPresent(fields, DataSourceConstants.ColumnNames.ParentId, entry.ParentId);
         AddIfPresent(fields, "folio", entry.Folio);
-        AddIfPresent(fields, "indexerId", entry.IndexerId);
+        AddIfPresent(fields, "fileSourceId", entry.FileSourceId);
         AddIfPresent(fields, "language", entry.Language);
         AddIfPresent(fields, "mediaType", entry.MediaType);
 

@@ -3,15 +3,15 @@ using CrestApps.Core.AI.Ingestion;
 namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
-/// The ingestion settings one indexer applies to everything it reads.
+/// The ingestion settings one source applies to everything it reads.
 /// </summary>
 /// <remarks>
 /// Figure transcription is the expensive part of ingestion, and how much of it is worth paying for depends
 /// entirely on the corpus. A folder of scanned datasheets is worth describing every figure in; a folder of
-/// meeting minutes is not. Settings live on the indexer rather than on the host so those two can sit side by
+/// meeting minutes is not. Settings live on the source rather than on the host so those two can sit side by
 /// side.
 /// </remarks>
-public sealed class IndexerMetadata
+public sealed class FileSourceMetadata
 {
     /// <summary>
     /// Gets or sets how far figure enrichment is taken.
@@ -40,7 +40,7 @@ public sealed class IndexerMetadata
     public string UtilityDeploymentName { get; set; }
 
     /// <summary>
-    /// Gets or sets the most items one run of this indexer may read, or <see langword="null"/> for the host
+    /// Gets or sets the most items one run of this source may read, or <see langword="null"/> for the host
     /// default.
     /// </summary>
     public int? MaxItemsPerRun { get; set; }

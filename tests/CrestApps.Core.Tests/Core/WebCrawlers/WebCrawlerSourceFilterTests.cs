@@ -22,8 +22,8 @@ public sealed class WebCrawlerSourceFilterTests
         var records = new[]
         {
             CreateRecord("crawler-1", WebCrawlerConstants.Strategies.Sitemap),
-            CreateRecord("indexer-1", FileSystemIngestionConnector.ConnectorName),
-            CreateRecord("indexer-2", SftpIngestionConnector.ConnectorName),
+            CreateRecord("file-source-1", FileSystemIngestionConnector.ConnectorName),
+            CreateRecord("source-2", SftpIngestionConnector.ConnectorName),
         };
 
         var kept = MvcWebCrawlerSourceFilter.SelectCrawlStrategyRecords(records, CreateStrategies());
@@ -37,8 +37,8 @@ public sealed class WebCrawlerSourceFilterTests
         var records = new[]
         {
             CreateRecord("crawler-1", WebCrawlerConstants.Strategies.Sitemap),
-            CreateRecord("indexer-1", FileSystemIngestionConnector.ConnectorName),
-            CreateRecord("indexer-2", SftpIngestionConnector.ConnectorName),
+            CreateRecord("file-source-1", FileSystemIngestionConnector.ConnectorName),
+            CreateRecord("source-2", SftpIngestionConnector.ConnectorName),
         };
 
         var kept = BlazorWebCrawlerSourceFilter.SelectCrawlStrategyRecords(records, CreateStrategies());

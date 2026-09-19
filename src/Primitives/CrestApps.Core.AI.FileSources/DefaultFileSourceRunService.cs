@@ -3,25 +3,33 @@ using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Ingestion.Knowledge;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing;
+using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
-/// Runs one indexer against its connector and keeps its data source in step with the source.
+/// Runs one ingestion source against its connector and keeps its data source in step with it.
 /// </summary>
 /// <remarks>
 /// The whole subsystem turns on one rule: removals happen only when the connector said its listing was
 /// complete. Everything else here is bookkeeping. A source that could not be fully listed and was treated as
 /// though it had been deletes every item it failed to see, and nothing downstream can tell that apart from a
 /// genuine deletion.
+/// <para>
+/// What it is handed is an <see cref="IngestionSource"/>, not one particular kind of record: a
+/// <see cref="FileSource"/> reading a folder or a file server, or a <see cref="WebCrawler"/> whose strategy
+/// feeds an ingested data source. The two live in separate stores, so the only place that has to know which
+/// it was given is where the run summary is written back.
+/// </para>
 /// </remarks>
 public sealed class DefaultFileSourceRunService : IFileSourceRunService
 {
     private readonly IIngestionConnectorResolver _connectorResolver;
-    private readonly IWebCrawlStateStore _stateStore;
-    private readonly IWebCrawlerStore _indexerStore;
+    private readonly IIngestionItemStateStore _stateStore;
+    private readonly ICatalog<FileSource> _fileSourceStore;
+    private readonly ICatalog<WebCrawler> _webCrawlerStore;
     private readonly IKnowledgeIngestionService _ingestionService;
     private readonly IAIDataSourceStore _dataSourceStore;
     private readonly FileSourceOptions _options;
@@ -33,16 +41,18 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
     /// </summary>
     /// <param name="connectorResolver">The connector resolver.</param>
     /// <param name="stateStore">The per-item state store.</param>
-    /// <param name="indexerStore">The store the run summary is recorded on.</param>
+    /// <param name="fileSourceStore">The store file sources live in.</param>
+    /// <param name="webCrawlerStore">The store web crawlers live in.</param>
     /// <param name="ingestionService">The knowledge ingestion service.</param>
     /// <param name="dataSourceStore">The data source store.</param>
-    /// <param name="options">The indexer options.</param>
+    /// <param name="options">The file source options.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
     public DefaultFileSourceRunService(
         IIngestionConnectorResolver connectorResolver,
-        IWebCrawlStateStore stateStore,
-        IWebCrawlerStore indexerStore,
+        IIngestionItemStateStore stateStore,
+        ICatalog<FileSource> fileSourceStore,
+        ICatalog<WebCrawler> webCrawlerStore,
         IKnowledgeIngestionService ingestionService,
         IAIDataSourceStore dataSourceStore,
         IOptions<FileSourceOptions> options,
@@ -51,7 +61,8 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
     {
         _connectorResolver = connectorResolver;
         _stateStore = stateStore;
-        _indexerStore = indexerStore;
+        _fileSourceStore = fileSourceStore;
+        _webCrawlerStore = webCrawlerStore;
         _ingestionService = ingestionService;
         _dataSourceStore = dataSourceStore;
         _options = options.Value;
@@ -60,53 +71,53 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
     }
 
     /// <inheritdoc />
-    public async Task<IndexerRunSummary> RunAsync(WebCrawler indexer, CancellationToken cancellationToken = default)
+    public async Task<FileSourceRunSummary> RunAsync(IngestionSource ingestionSource, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(indexer);
+        ArgumentNullException.ThrowIfNull(ingestionSource);
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var previous = indexer.TryGet<IndexerRunSummary>(out var last) ? last : null;
-        var summary = new IndexerRunSummary
+        var previous = ingestionSource.TryGet<FileSourceRunSummary>(out var last) ? last : null;
+        var summary = new FileSourceRunSummary
         {
             StartedUtc = now,
             Status = FileSourceRunStatus.Running,
         };
 
-        if (!indexer.Enabled || string.IsNullOrWhiteSpace(indexer.AIDataSourceId))
+        if (!ingestionSource.Enabled || string.IsNullOrWhiteSpace(ingestionSource.AIDataSourceId))
         {
-            return await FailAsync(indexer, summary, "The indexer is disabled or has no data source.", cancellationToken);
+            return await FailAsync(ingestionSource, summary, "The source is disabled or has no data source.", cancellationToken);
         }
 
-        var connector = _connectorResolver.Get(indexer.Source);
+        var connector = _connectorResolver.Get(ingestionSource.Source);
 
         if (connector is null)
         {
-            return await FailAsync(indexer, summary, $"No connector named '{indexer.Source}' is registered.", cancellationToken);
+            return await FailAsync(ingestionSource, summary, $"No connector named '{ingestionSource.Source}' is registered.", cancellationToken);
         }
 
-        var dataSource = await _dataSourceStore.FindByIdAsync(indexer.AIDataSourceId, cancellationToken);
+        var dataSource = await _dataSourceStore.FindByIdAsync(ingestionSource.AIDataSourceId, cancellationToken);
 
         if (dataSource is null)
         {
-            return await FailAsync(indexer, summary, "The indexer's data source no longer exists.", cancellationToken);
+            return await FailAsync(ingestionSource, summary, "The source's data source no longer exists.", cancellationToken);
         }
 
         // The objects a run produces are read back only by the Ingested source handler. Filling any other
         // kind of data source would store knowledge nothing ever indexes.
         if (!string.Equals(dataSource.Source, AIDataSourceSourceTypes.File, StringComparison.OrdinalIgnoreCase))
         {
-            return await FailAsync(indexer, summary, "The indexer's data source is not an Ingested data source.", cancellationToken);
+            return await FailAsync(ingestionSource, summary, "The source's data source is not an Ingested data source.", cancellationToken);
         }
 
         // The record says a run is in progress before the work starts, so a long run is visible rather than
-        // looking like an indexer that has not run since yesterday.
-        await SaveSummaryAsync(indexer, summary, cancellationToken);
+        // looking like a source that has not run since yesterday.
+        await SaveSummaryAsync(ingestionSource, summary, cancellationToken);
 
         IngestionDiscoveryResult discovery;
 
         try
         {
-            discovery = await connector.DiscoverAsync(indexer, previous?.DiscoveryCursor, cancellationToken);
+            discovery = await connector.DiscoverAsync(ingestionSource, previous?.DiscoveryCursor, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -114,9 +125,9 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Discovery failed for indexer '{IndexerId}'.", indexer.ItemId);
+            _logger.LogWarning(ex, "Discovery failed for source '{SourceId}'.", ingestionSource.ItemId);
 
-            return await FailAsync(indexer, summary, "Discovery failed. Nothing was ingested and nothing was removed.", cancellationToken);
+            return await FailAsync(ingestionSource, summary, "Discovery failed. Nothing was ingested and nothing was removed.", cancellationToken);
         }
 
         summary.ItemsDiscovered = discovery.Items.Count;
@@ -124,11 +135,11 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
         summary.DiscoveryCursor = discovery.DiscoveryCursor;
         summary.Error = discovery.Message;
 
-        var existing = await _stateStore.GetAsync(indexer.ItemId, cancellationToken);
-        var states = existing.ToDictionary(state => state.Url, StringComparer.Ordinal);
+        var existing = await _stateStore.GetAsync(ingestionSource.ItemId, cancellationToken);
+        var states = existing.ToDictionary(state => state.ItemKey, StringComparer.Ordinal);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var candidates = new List<Candidate>();
-        var budget = ResolveBudget(indexer);
+        var budget = ResolveBudget(ingestionSource);
 
         foreach (var item in discovery.Items)
         {
@@ -155,17 +166,17 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
             candidates.Add(new Candidate(item, state));
         }
 
-        await ProcessAsync(connector, indexer, dataSource, candidates, states, summary, now, cancellationToken);
+        await ProcessAsync(connector, ingestionSource, dataSource, candidates, states, summary, now, cancellationToken);
 
         if (discovery.IsComplete)
         {
-            summary.ItemsDeleted = await RemoveMissingAsync(indexer, dataSource, states, seen, cancellationToken);
+            summary.ItemsDeleted = await RemoveMissingAsync(ingestionSource, dataSource, states, seen, cancellationToken);
         }
         else if (_logger.IsEnabled(LogLevel.Information))
         {
             _logger.LogInformation(
-                "Indexer '{IndexerId}' listed its source only partially, so nothing was removed. {Message}",
-                indexer.ItemId,
+                "Source '{SourceId}' listed its contents only partially, so nothing was removed. {Message}",
+                ingestionSource.ItemId,
                 discovery.Message);
         }
 
@@ -174,7 +185,7 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
             ? FileSourceRunStatus.PartiallyCompleted
             : FileSourceRunStatus.Succeeded;
 
-        await SaveSummaryAsync(indexer, summary, cancellationToken);
+        await SaveSummaryAsync(ingestionSource, summary, cancellationToken);
 
         return summary;
     }
@@ -183,10 +194,10 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
     /// Fetches the selected items, several at a time, and ingests them one at a time.
     /// </summary>
     /// <param name="connector">The connector.</param>
-    /// <param name="indexer">The configured indexer.</param>
+    /// <param name="ingestionSource">The configured source.</param>
     /// <param name="dataSource">The target data source.</param>
     /// <param name="candidates">The items that need reading.</param>
-    /// <param name="states">Everything recorded for this indexer, keyed by item.</param>
+    /// <param name="states">Everything recorded for this source, keyed by item.</param>
     /// <param name="summary">The run summary being filled in.</param>
     /// <param name="now">The run timestamp.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -198,11 +209,11 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
     /// </remarks>
     private async Task ProcessAsync(
         IIngestionConnector connector,
-        WebCrawler indexer,
+        IngestionSource ingestionSource,
         AIDataSource dataSource,
         List<Candidate> candidates,
-        Dictionary<string, WebCrawlState> states,
-        IndexerRunSummary summary,
+        Dictionary<string, IngestionItemState> states,
+        FileSourceRunSummary summary,
         DateTime now,
         CancellationToken cancellationToken)
     {
@@ -225,12 +236,12 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
                 {
                     var candidate = candidates[index++];
 
-                    inFlight.Enqueue((candidate, FetchAsync(connector, indexer, candidate.Item.ItemId, cancellationToken)));
+                    inFlight.Enqueue((candidate, FetchAsync(connector, ingestionSource, candidate.Item.ItemId, cancellationToken)));
                 }
 
                 var (next, fetch) = inFlight.Dequeue();
 
-                if (await IngestAsync(indexer, dataSource, next, fetch, states, summary, now, cancellationToken))
+                if (await IngestAsync(ingestionSource, dataSource, next, fetch, states, summary, now, cancellationToken))
                 {
                     summary.ItemsIndexed++;
                 }
@@ -274,19 +285,19 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
     /// Fetches one item, turning a failure into no content rather than a faulted task.
     /// </summary>
     /// <param name="connector">The connector.</param>
-    /// <param name="indexer">The configured indexer.</param>
+    /// <param name="ingestionSource">The configured source.</param>
     /// <param name="itemId">The item to fetch.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The content, or <see langword="null"/>.</returns>
     private async Task<IngestionItemContent> FetchAsync(
         IIngestionConnector connector,
-        WebCrawler indexer,
+        IngestionSource ingestionSource,
         string itemId,
         CancellationToken cancellationToken)
     {
         try
         {
-            return await connector.FetchAsync(indexer, itemId, cancellationToken);
+            return await connector.FetchAsync(ingestionSource, itemId, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -294,7 +305,7 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to fetch '{ItemId}' for indexer '{IndexerId}'.", itemId, indexer.ItemId);
+            _logger.LogWarning(ex, "Failed to fetch '{ItemId}' for source '{SourceId}'.", itemId, ingestionSource.ItemId);
 
             return null;
         }
@@ -303,22 +314,22 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
     /// <summary>
     /// Turns one fetched item into knowledge.
     /// </summary>
-    /// <param name="indexer">The configured indexer.</param>
+    /// <param name="ingestionSource">The configured source.</param>
     /// <param name="dataSource">The target data source.</param>
     /// <param name="candidate">The item and what was recorded about it last run.</param>
     /// <param name="fetch">The fetch already under way.</param>
-    /// <param name="states">Everything recorded for this indexer, keyed by item.</param>
+    /// <param name="states">Everything recorded for this source, keyed by item.</param>
     /// <param name="summary">The run summary being filled in.</param>
     /// <param name="now">The run timestamp.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns><see langword="true"/> when the item was ingested.</returns>
     private async Task<bool> IngestAsync(
-        WebCrawler indexer,
+        IngestionSource ingestionSource,
         AIDataSource dataSource,
         Candidate candidate,
         Task<IngestionItemContent> fetch,
-        Dictionary<string, WebCrawlState> states,
-        IndexerRunSummary summary,
+        Dictionary<string, IngestionItemState> states,
+        FileSourceRunSummary summary,
         DateTime now,
         CancellationToken cancellationToken)
     {
@@ -338,7 +349,7 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
                 content.Content,
                 string.IsNullOrWhiteSpace(content.FileName) ? candidate.Item.ItemId : content.FileName,
                 content.MediaType,
-                BuildIngestionOptions(indexer, candidate.Item),
+                BuildIngestionOptions(ingestionSource, candidate.Item),
                 cancellationToken);
 
             if (!result.Success)
@@ -349,9 +360,9 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
             summary.FiguresDiscovered += result.FigureCount;
             summary.FiguresPendingDescription += result.PendingDescriptionCount;
 
-            var previousRootId = candidate.State?.ContentHash;
+            var previousRootId = candidate.State?.DocumentRootId;
 
-            await SaveStateAsync(indexer, candidate.Item, candidate.State, result.RootId, now, states, cancellationToken);
+            await SaveStateAsync(ingestionSource, candidate.Item, candidate.State, result.RootId, now, states, cancellationToken);
             await RemoveSupersededDocumentAsync(dataSource, previousRootId, result.RootId, states, cancellationToken);
 
             return true;
@@ -364,7 +375,7 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
         {
             // One item that cannot be read is one item. The run continues, because stopping would leave
             // every later item unindexed because of a single bad file.
-            _logger.LogWarning(ex, "Failed to ingest '{ItemId}' for indexer '{IndexerId}'.", candidate.Item.ItemId, indexer.ItemId);
+            _logger.LogWarning(ex, "Failed to ingest '{ItemId}' for source '{SourceId}'.", candidate.Item.ItemId, ingestionSource.ItemId);
 
             return false;
         }
@@ -384,18 +395,18 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
     /// <param name="dataSource">The target data source.</param>
     /// <param name="previousRootId">The document the item produced last run, or <see langword="null"/>.</param>
     /// <param name="rootId">The document the item produced this run.</param>
-    /// <param name="states">Everything recorded for this indexer, keyed by item.</param>
+    /// <param name="states">Everything recorded for this source, keyed by item.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <remarks>
     /// A document's identifier comes from its bytes, so a revised file is a new document, and the old one
     /// would otherwise stay searchable beside it forever. The old document is kept when another item of
-    /// this indexer still produces it, because the same file placed twice is one document by design.
+    /// this source still produces it, because the same file placed twice is one document by design.
     /// </remarks>
     private async Task RemoveSupersededDocumentAsync(
         AIDataSource dataSource,
         string previousRootId,
         string rootId,
-        Dictionary<string, WebCrawlState> states,
+        Dictionary<string, IngestionItemState> states,
         CancellationToken cancellationToken)
     {
         if (!IsDocumentRootId(previousRootId) || string.Equals(previousRootId, rootId, StringComparison.Ordinal))
@@ -403,7 +414,7 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
             return;
         }
 
-        if (states.Values.Any(state => string.Equals(state.ContentHash, previousRootId, StringComparison.Ordinal)))
+        if (states.Values.Any(state => string.Equals(state.DocumentRootId, previousRootId, StringComparison.Ordinal)))
         {
             return;
         }
@@ -436,18 +447,18 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
     }
 
     /// <summary>
-    /// Builds the per-run ingestion options from what the indexer was configured with.
+    /// Builds the per-run ingestion options from what the source was configured with.
     /// </summary>
-    /// <param name="indexer">The configured indexer.</param>
+    /// <param name="ingestionSource">The configured source.</param>
     /// <param name="item">The item being ingested.</param>
     /// <returns>The options.</returns>
-    private static KnowledgeIngestionOptions BuildIngestionOptions(WebCrawler indexer, IngestionItemRef item)
+    private static KnowledgeIngestionOptions BuildIngestionOptions(IngestionSource ingestionSource, IngestionItemRef item)
     {
-        var metadata = indexer.GetOrCreate<IndexerMetadata>();
+        var metadata = ingestionSource.GetOrCreate<FileSourceMetadata>();
 
         return new KnowledgeIngestionOptions
         {
-            IndexerId = indexer.ItemId,
+            FileSourceId = ingestionSource.ItemId,
             SourceItemId = item.ItemId,
             FigureMode = metadata.FigureMode,
             VisionDeploymentName = metadata.VisionDeploymentName,
@@ -457,13 +468,13 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
     }
 
     /// <summary>
-    /// Resolves how many items this run may read, preferring the indexer's own ceiling.
+    /// Resolves how many items this run may read, preferring the source's own ceiling.
     /// </summary>
-    /// <param name="indexer">The configured indexer.</param>
+    /// <param name="ingestionSource">The configured source.</param>
     /// <returns>The budget.</returns>
-    private int ResolveBudget(WebCrawler indexer)
+    private int ResolveBudget(IngestionSource ingestionSource)
     {
-        var configured = indexer.GetOrCreate<IndexerMetadata>().MaxItemsPerRun;
+        var configured = ingestionSource.GetOrCreate<FileSourceMetadata>().MaxItemsPerRun;
 
         return Math.Max(1, configured is > 0 ? configured.Value : _options.MaxItemsPerRun);
     }
@@ -471,20 +482,20 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
     /// <summary>
     /// Removes the items the source no longer holds.
     /// </summary>
-    /// <param name="indexer">The configured indexer.</param>
+    /// <param name="ingestionSource">The configured source.</param>
     /// <param name="dataSource">The target data source.</param>
-    /// <param name="states">Everything recorded for this indexer.</param>
+    /// <param name="states">Everything recorded for this source.</param>
     /// <param name="seen">Everything the source reported this run.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>How many items were removed.</returns>
     private async Task<int> RemoveMissingAsync(
-        WebCrawler indexer,
+        IngestionSource ingestionSource,
         AIDataSource dataSource,
-        Dictionary<string, WebCrawlState> states,
+        Dictionary<string, IngestionItemState> states,
         HashSet<string> seen,
         CancellationToken cancellationToken)
     {
-        var missing = states.Values.Where(state => !seen.Contains(state.Url)).ToList();
+        var missing = states.Values.Where(state => !seen.Contains(state.ItemKey)).ToList();
 
         if (missing.Count == 0)
         {
@@ -492,8 +503,8 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
         }
 
         var remaining = states.Values
-            .Where(state => seen.Contains(state.Url))
-            .Select(state => state.ContentHash)
+            .Where(state => seen.Contains(state.ItemKey))
+            .Select(state => state.DocumentRootId)
             .Where(IsDocumentRootId)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -502,13 +513,13 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
             cancellationToken.ThrowIfCancellationRequested();
 
             // The same file placed twice is one document. It goes when the last item that produces it goes.
-            if (IsDocumentRootId(state.ContentHash) && !remaining.Contains(state.ContentHash))
+            if (IsDocumentRootId(state.DocumentRootId) && !remaining.Contains(state.DocumentRootId))
             {
-                await _ingestionService.RemoveAsync(dataSource, state.ContentHash, cancellationToken);
+                await _ingestionService.RemoveAsync(dataSource, state.DocumentRootId, cancellationToken);
             }
         }
 
-        await _stateStore.DeleteByUrlsAsync(indexer.ItemId, missing.Select(state => state.Url), cancellationToken);
+        await _stateStore.DeleteByItemKeysAsync(ingestionSource.ItemId, missing.Select(state => state.ItemKey), cancellationToken);
 
         return missing.Count;
     }
@@ -524,32 +535,32 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
     /// size for another, and what it means is the connector's business. An item with no token is re-read,
     /// because "no evidence of change" is not evidence of no change.
     /// </remarks>
-    private static bool HasChanged(WebCrawlState state, IngestionItemRef item)
+    private static bool HasChanged(IngestionItemState state, IngestionItemRef item)
     {
         if (string.IsNullOrEmpty(item.ChangeToken))
         {
             return true;
         }
 
-        return !string.Equals(state.ChangeFrequency, item.ChangeToken, StringComparison.Ordinal);
+        return !string.Equals(state.ChangeToken, item.ChangeToken, StringComparison.Ordinal);
     }
 
     private async Task SaveStateAsync(
-        WebCrawler indexer,
+        IngestionSource ingestionSource,
         IngestionItemRef item,
-        WebCrawlState state,
+        IngestionItemState state,
         string rootId,
         DateTime now,
-        Dictionary<string, WebCrawlState> states,
+        Dictionary<string, IngestionItemState> states,
         CancellationToken cancellationToken)
     {
         if (state is null)
         {
-            state = new WebCrawlState
+            state = new IngestionItemState
             {
                 ItemId = UniqueId.GenerateId(),
-                Source = indexer.ItemId,
-                Url = item.ItemId,
+                Source = ingestionSource.ItemId,
+                ItemKey = item.ItemId,
             };
 
             Apply(state, item, rootId, now);
@@ -560,7 +571,7 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
             // bytes, so the new path produces the document the old path produced; leaving the new state out
             // of the snapshot makes the old path look like the last item that produced it, and the run then
             // deletes the document it has just finished ingesting.
-            states[state.Url] = state;
+            states[state.ItemKey] = state;
 
             return;
         }
@@ -570,18 +581,17 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
         await _stateStore.UpdateAsync(state, cancellationToken);
     }
 
-    private static void Apply(WebCrawlState state, IngestionItemRef item, string rootId, DateTime now)
+    private static void Apply(IngestionItemState state, IngestionItemRef item, string rootId, DateTime now)
     {
-        // ChangeFrequency carries the connector's opaque token, and ContentHash the identifier of the
-        // document the item produced, which is what a removal has to name.
-        state.ChangeFrequency = item.ChangeToken;
+        state.ChangeToken = item.ChangeToken;
+        state.SizeBytes = item.SizeBytes;
         state.LastModifiedUtc = item.LastModifiedUtc?.UtcDateTime;
-        state.ContentHash = rootId;
-        state.LastIndexedUtc = now;
+        state.DocumentRootId = rootId;
+        state.LastIngestedUtc = now;
         state.LastSeenUtc = now;
     }
 
-    private async Task TouchAsync(WebCrawlState state, DateTime now, CancellationToken cancellationToken)
+    private async Task TouchAsync(IngestionItemState state, DateTime now, CancellationToken cancellationToken)
     {
         state.LastSeenUtc = now;
 
@@ -591,14 +601,14 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
     /// <summary>
     /// Ends a run that could not do its work, recording why.
     /// </summary>
-    /// <param name="indexer">The configured indexer.</param>
+    /// <param name="ingestionSource">The configured source.</param>
     /// <param name="summary">The run summary.</param>
     /// <param name="error">What stopped the run.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The summary.</returns>
-    private async Task<IndexerRunSummary> FailAsync(
-        WebCrawler indexer,
-        IndexerRunSummary summary,
+    private async Task<FileSourceRunSummary> FailAsync(
+        IngestionSource ingestionSource,
+        FileSourceRunSummary summary,
         string error,
         CancellationToken cancellationToken)
     {
@@ -606,24 +616,42 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
         summary.Status = FileSourceRunStatus.Failed;
         summary.Error = error;
 
-        await SaveSummaryAsync(indexer, summary, cancellationToken);
+        await SaveSummaryAsync(ingestionSource, summary, cancellationToken);
 
         return summary;
     }
 
     /// <summary>
-    /// Records the summary on the indexer, so the last run is visible without reading a log.
+    /// Records the summary on the source, so the last run is visible without reading a log.
     /// </summary>
-    /// <param name="indexer">The configured indexer.</param>
+    /// <param name="ingestionSource">The configured source.</param>
     /// <param name="summary">The run summary.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    private async Task SaveSummaryAsync(WebCrawler indexer, IndexerRunSummary summary, CancellationToken cancellationToken)
+    /// <remarks>
+    /// This is the one place a run has to know which kind of record it was handed, because each kind is
+    /// saved to its own store.
+    /// </remarks>
+    private async Task SaveSummaryAsync(IngestionSource ingestionSource, FileSourceRunSummary summary, CancellationToken cancellationToken)
     {
         try
         {
-            indexer.Put(summary);
+            ingestionSource.Put(summary);
 
-            await _indexerStore.UpdateAsync(indexer, cancellationToken);
+            switch (ingestionSource)
+            {
+                case FileSource fileSource:
+                    await _fileSourceStore.UpdateAsync(fileSource, cancellationToken);
+                    break;
+                case WebCrawler crawler:
+                    await _webCrawlerStore.UpdateAsync(crawler, cancellationToken);
+                    break;
+                default:
+                    _logger.LogWarning(
+                        "No store is registered for ingestion source '{SourceId}' of type '{SourceType}', so its run summary was not recorded.",
+                        ingestionSource.ItemId,
+                        ingestionSource.GetType().Name);
+                    break;
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -632,9 +660,9 @@ public sealed class DefaultFileSourceRunService : IFileSourceRunService
         catch (Exception ex)
         {
             // Failing to record what a run did must not fail the run: the knowledge is already stored.
-            _logger.LogWarning(ex, "Failed to record the run summary for indexer '{IndexerId}'.", indexer.ItemId);
+            _logger.LogWarning(ex, "Failed to record the run summary for source '{SourceId}'.", ingestionSource.ItemId);
         }
     }
 
-    private readonly record struct Candidate(IngestionItemRef Item, WebCrawlState State);
+    private readonly record struct Candidate(IngestionItemRef Item, IngestionItemState State);
 }

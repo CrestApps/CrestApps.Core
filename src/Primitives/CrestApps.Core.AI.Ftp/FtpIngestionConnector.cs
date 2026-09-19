@@ -16,7 +16,7 @@ namespace CrestApps.Core.AI.Ftp;
 public sealed class FtpIngestionConnector : RemoteFileIngestionConnector
 {
     /// <summary>
-    /// The connector's registered name, stored as the indexer's source.
+    /// The connector's registered name, stored as the file source's source.
     /// </summary>
     public const string ConnectorName = "Ftp";
 
@@ -31,7 +31,7 @@ public sealed class FtpIngestionConnector : RemoteFileIngestionConnector
     }
 
     /// <inheritdoc />
-    public override ValueTask ValidateAsync(WebCrawler settings, ValidationResultDetails result, CancellationToken cancellationToken = default)
+    public override ValueTask ValidateAsync(IngestionSource settings, ValidationResultDetails result, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(result);
@@ -48,7 +48,7 @@ public sealed class FtpIngestionConnector : RemoteFileIngestionConnector
 }
 
 /// <summary>
-/// Opens FTP connections from an indexer's stored settings.
+/// Opens FTP connections from a file source's stored settings.
 /// </summary>
 public sealed class FtpRemoteFileClientFactory : IRemoteFileClientFactory
 {
@@ -72,11 +72,11 @@ public sealed class FtpRemoteFileClientFactory : IRemoteFileClientFactory
     public string ConnectorName => FtpIngestionConnector.ConnectorName;
 
     /// <inheritdoc />
-    public async Task<IRemoteFileClient> CreateAsync(WebCrawler indexer, CancellationToken cancellationToken = default)
+    public async Task<IRemoteFileClient> CreateAsync(IngestionSource source, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(indexer);
+        ArgumentNullException.ThrowIfNull(source);
 
-        var metadata = indexer.GetOrCreate<FtpConnectionMetadata>();
+        var metadata = source.GetOrCreate<FtpConnectionMetadata>();
         var client = new AsyncFtpClient(metadata.Host, metadata.Port ?? 21);
 
         if (!string.IsNullOrEmpty(metadata.Username))
@@ -84,7 +84,7 @@ public sealed class FtpRemoteFileClientFactory : IRemoteFileClientFactory
             client.Credentials = new NetworkCredential
             {
                 UserName = metadata.Username,
-                Password = Unprotect(metadata.Password, indexer.ItemId),
+                Password = Unprotect(metadata.Password, source.ItemId),
             };
         }
 
@@ -100,7 +100,7 @@ public sealed class FtpRemoteFileClientFactory : IRemoteFileClientFactory
 
         if (metadata.ValidateAnyCertificate)
         {
-            _logger.LogWarning("Indexer '{IndexerId}' accepts any FTP certificate. This disables TLS validation.", indexer.ItemId);
+            _logger.LogWarning("File source '{FileSourceId}' accepts any FTP certificate. This disables TLS validation.", source.ItemId);
             client.ValidateCertificate += (_, args) => args.Accept = true;
         }
 
@@ -131,7 +131,7 @@ public sealed class FtpRemoteFileClientFactory : IRemoteFileClientFactory
         return new FtpRemoteFileClient(client);
     }
 
-    private string Unprotect(string value, string indexerId)
+    private string Unprotect(string value, string sourceId)
     {
         if (string.IsNullOrEmpty(value))
         {
@@ -144,7 +144,7 @@ public sealed class FtpRemoteFileClientFactory : IRemoteFileClientFactory
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to decrypt the FTP password for indexer '{IndexerId}'.", indexerId);
+            _logger.LogWarning(ex, "Failed to decrypt the FTP password for file source '{FileSourceId}'.", sourceId);
 
             return null;
         }

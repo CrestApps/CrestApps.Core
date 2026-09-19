@@ -190,7 +190,7 @@ else
             return;
         }
 
-        _model.ApplyTo(crawler, DataProtectionProvider);
+        _model.ApplyTo(crawler);
 
         var validation = await Manager.ValidateAsync(crawler);
 

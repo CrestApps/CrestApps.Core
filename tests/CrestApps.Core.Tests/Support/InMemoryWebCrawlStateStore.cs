@@ -6,7 +6,7 @@ using CrestApps.Core.Models;
 namespace CrestApps.Core.Tests.Support;
 
 /// <summary>
-/// Keeps per-item indexer state in memory so a run can be exercised without a database.
+/// Keeps per-item source state in memory so a run can be exercised without a database.
 /// </summary>
 internal sealed class InMemoryWebCrawlStateStore : IWebCrawlStateStore
 {

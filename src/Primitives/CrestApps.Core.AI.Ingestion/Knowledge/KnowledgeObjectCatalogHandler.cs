@@ -98,7 +98,7 @@ internal sealed class KnowledgeObjectCatalogHandler : CatalogEntryHandlerBase<Kn
         node.TryUpdateTrimmedStringValue(nameof(KnowledgeObject.ObjectType), value => model.ObjectType = value);
         node.TryUpdateTrimmedStringValue(nameof(KnowledgeObject.RootId), value => model.RootId = value);
         node.TryUpdateTrimmedStringValue(nameof(KnowledgeObject.ParentId), value => model.ParentId = value);
-        node.TryUpdateTrimmedStringValue(nameof(KnowledgeObject.IndexerId), value => model.IndexerId = value);
+        node.TryUpdateTrimmedStringValue(nameof(KnowledgeObject.FileSourceId), value => model.FileSourceId = value);
         node.TryUpdateTrimmedStringValue(nameof(KnowledgeObject.SourceItemId), value => model.SourceItemId = value);
         node.TryUpdateTrimmedStringValue(nameof(KnowledgeObject.Title), value => model.Title = value);
         node.TryUpdateTrimmedStringValue(nameof(KnowledgeObject.Content), value => model.Content = value);

@@ -208,10 +208,11 @@ builder.Services.ConfigureCrestAppsChatHubOptions<AIChatHub>();
 // (starting with sitemap discovery) into any "Web" AI data source.
 builder.Services.AddCoreWebCrawlers();
 
-// Continuous intake. Registering a connector grants nothing on its own: a local folder still has to
-// be added to FileSourceOptions.AllowedLocalRoots before anything under it can be read. Each protocol
-// connector ships in its own package, so a host that reads only local folders references neither
-// CrestApps.Core.AI.Ftp (FluentFTP) nor CrestApps.Core.AI.Sftp (SSH.NET).
+// Continuous intake. Registering a connector grants nothing on its own: the folders the file-system
+// connector may read come from CrestApps:AI:FileSources:FileSystem:AllowedRoots in appsettings.json, which
+// this sample points at App_Data/file-sources. Each protocol connector ships in its own package, so a host
+// that reads only local folders references neither CrestApps.Core.AI.Ftp (FluentFTP) nor
+// CrestApps.Core.AI.Sftp (SSH.NET).
 builder.Services
     .AddCoreFileSources(builder.Configuration)
     .AddCoreFileSystemConnector()
@@ -219,6 +220,7 @@ builder.Services
     .AddCoreSftpIngestionConnector();
 
 builder.Services.AddCoreWebCrawlerStoresYesSql();
+builder.Services.AddCoreFileSourceStoresYesSql();
 
 builder.Services.Configure<A2AHostOptions>(
      builder.Configuration.GetSection(nameof(A2AHostOptions)));

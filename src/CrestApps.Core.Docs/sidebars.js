@@ -61,7 +61,7 @@ const sidebars = {
                         'data-sources/elasticsearch',
                         'data-sources/postgresql',
                         'data-sources/file',
-                        'data-sources/indexers',
+                        'data-sources/file-source-connectors',
                         'data-sources/web-crawlers',
                     ],
                 },

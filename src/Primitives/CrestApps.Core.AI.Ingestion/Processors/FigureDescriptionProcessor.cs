@@ -82,7 +82,7 @@ public sealed class FigureDescriptionProcessor : AIDocumentIngestionProcessor
 
         if (!context.DescribeFiguresInline)
         {
-            // The indexer path backfills descriptions after the text is already searchable, so vision latency
+            // The source path backfills descriptions after the text is already searchable, so vision latency
             // never gates how soon a document can be found. The backfill resolves its own deployment, so
             // nothing is looked up here for a run that will not use it.
             return document;

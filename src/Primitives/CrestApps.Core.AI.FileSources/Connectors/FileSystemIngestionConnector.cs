@@ -9,45 +9,15 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.AI.FileSources.Connectors;
 
 /// <summary>
-/// The settings a file-system file source carries.
-/// </summary>
-/// <remarks>
-/// The type keeps the name it is persisted under, alongside the other stored shapes this release left
-/// alone: it is written under its short type name, so renaming it would strand the settings of every file
-/// source already configured.
-/// </remarks>
-public sealed class LocalFolderIndexerMetadata
-{
-    /// <summary>
-    /// Gets or sets the folder to read.
-    /// </summary>
-    public string RootPath { get; set; }
-
-    /// <summary>
-    /// Gets or sets the file pattern to match.
-    /// </summary>
-    public string SearchPattern { get; set; } = "*.*";
-
-    /// <summary>
-    /// Gets or sets a value indicating whether sub-folders are read too.
-    /// </summary>
-    public bool Recursive { get; set; } = true;
-
-    /// <summary>
-    /// Gets or sets the most files the indexer will list, or <see langword="null"/> for the host default.
-    /// </summary>
-    public int? MaxItems { get; set; }
-}
-
-/// <summary>
 /// Reads files out of a folder on the host's file system.
 /// </summary>
 /// <remarks>
 /// This is the simplest possible source, and the one that makes every other part of the intake path testable
 /// end to end: point it at a folder, and its files become typed knowledge the same way an upload does.
 /// <para>
-/// The folder has to sit inside a host-allow-listed root. Without that, an administrator with access to the
-/// indexer screen can read any file the host process can open.
+/// Where it may look comes from <see cref="FileSystemConnectorOptions"/>: a host sets that boundary once,
+/// and a file source picks a folder inside it. Without the boundary, an administrator with access to the
+/// file source screen can read any file the host process can open.
 /// </para>
 /// </remarks>
 public sealed class FileSystemIngestionConnector : IIngestionConnector
@@ -57,18 +27,22 @@ public sealed class FileSystemIngestionConnector : IIngestionConnector
     /// </summary>
     public const string ConnectorName = "FileSystem";
 
-    private readonly FileSourceOptions _options;
+    private readonly FileSourceOptions _fileSourceOptions;
+    private readonly FileSystemConnectorOptions _options;
     private readonly ILogger<FileSystemIngestionConnector> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FileSystemIngestionConnector"/> class.
     /// </summary>
-    /// <param name="options">The indexer options.</param>
+    /// <param name="fileSourceOptions">The file source options.</param>
+    /// <param name="options">The file-system connector options.</param>
     /// <param name="logger">The logger.</param>
     public FileSystemIngestionConnector(
-        IOptions<FileSourceOptions> options,
+        IOptions<FileSourceOptions> fileSourceOptions,
+        IOptions<FileSystemConnectorOptions> options,
         ILogger<FileSystemIngestionConnector> logger)
     {
+        _fileSourceOptions = fileSourceOptions.Value;
         _options = options.Value;
         _logger = logger;
     }
@@ -77,27 +51,29 @@ public sealed class FileSystemIngestionConnector : IIngestionConnector
     public string Name => ConnectorName;
 
     /// <inheritdoc />
-    public ValueTask ValidateAsync(WebCrawler settings, ValidationResultDetails result, CancellationToken cancellationToken = default)
+    public ValueTask ValidateAsync(IngestionSource source, ValidationResultDetails result, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(result);
 
-        var metadata = settings.GetOrCreate<LocalFolderIndexerMetadata>();
+        var metadata = source.GetOrCreate<FileSystemFileSourceMetadata>();
 
         if (string.IsNullOrWhiteSpace(metadata.RootPath))
         {
             result.Fail(new System.ComponentModel.DataAnnotations.ValidationResult(
                 "A folder is required.",
-                [nameof(LocalFolderIndexerMetadata.RootPath)]));
+                [nameof(FileSystemFileSourceMetadata.RootPath)]));
 
             return ValueTask.CompletedTask;
         }
 
-        if (!_options.IsAllowedLocalRoot(metadata.RootPath))
+        // The refusal says which of the several reasons applies, because a bare "not allowed" sends an
+        // administrator to the allowed-roots list when the real problem was a '..' they typed.
+        if (!_options.TryResolveRoot(metadata.RootPath, out _, out var reason))
         {
             result.Fail(new System.ComponentModel.DataAnnotations.ValidationResult(
-                "That folder is not one this application is configured to read. Ask an administrator to add it to the allowed roots.",
-                [nameof(LocalFolderIndexerMetadata.RootPath)]));
+                reason,
+                [nameof(FileSystemFileSourceMetadata.RootPath)]));
         }
 
         return ValueTask.CompletedTask;
@@ -109,30 +85,35 @@ public sealed class FileSystemIngestionConnector : IIngestionConnector
     /// that resumed saw only a window onto the folder, so it is never complete and never deletes anything:
     /// deciding something is gone needs a listing of the whole folder in one pass.
     /// </remarks>
-    public Task<IngestionDiscoveryResult> DiscoverAsync(WebCrawler settings, string continuationToken = null, CancellationToken cancellationToken = default)
+    public Task<IngestionDiscoveryResult> DiscoverAsync(IngestionSource settings, string continuationToken = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(settings);
 
-        var metadata = settings.GetOrCreate<LocalFolderIndexerMetadata>();
+        var metadata = settings.GetOrCreate<FileSystemFileSourceMetadata>();
 
         if (!TryResolveRoot(metadata, out var root, out var reason))
         {
             return Task.FromResult(new IngestionDiscoveryResult([], IsComplete: false, reason));
         }
 
-        var pattern = string.IsNullOrWhiteSpace(metadata.SearchPattern) ? "*.*" : metadata.SearchPattern;
+        // Relative to this file source's own folder, which is what `root` already is: a file source pointed
+        // at file-sources/test reads test and, when recursive, everything under test -- never the allowed
+        // root it happens to sit in.
         var search = metadata.Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
-        var limit = metadata.MaxItems ?? _options.MaxItemsPerRun;
+        var limit = metadata.MaxItems ?? _fileSourceOptions.MaxItemsPerRun;
         var resumed = !string.IsNullOrEmpty(continuationToken);
         var items = new List<IngestionItemRef>();
         string cursor = null;
 
         try
         {
+            // Every file is listed. Which of them can be read is the reader resolver's business, not a glob
+            // the connector guesses at.
+            //
             // Ordered, because a cursor is only meaningful against a stable order. The framework promises
             // nothing about enumeration order, so the promise is made here.
-            var paths = Directory.EnumerateFiles(root, pattern, search)
-                .Select(path => (Path: path, ItemId: System.IO.Path.GetRelativePath(root, path).Replace('\\', '/')))
+            var paths = Directory.EnumerateFiles(root, "*", search)
+                .Select(path => (Path: path, ItemId: Path.GetRelativePath(root, path).Replace('\\', '/')))
                 .OrderBy(entry => entry.ItemId, StringComparer.Ordinal);
 
             foreach (var entry in paths)
@@ -184,25 +165,31 @@ public sealed class FileSystemIngestionConnector : IIngestionConnector
     }
 
     /// <inheritdoc />
-    public Task<IngestionItemContent> FetchAsync(WebCrawler settings, string itemId, CancellationToken cancellationToken = default)
+    public Task<IngestionItemContent> FetchAsync(IngestionSource settings, string itemId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentException.ThrowIfNullOrEmpty(itemId);
 
-        var metadata = settings.GetOrCreate<LocalFolderIndexerMetadata>();
+        var metadata = settings.GetOrCreate<FileSystemFileSourceMetadata>();
 
         if (!TryResolveRoot(metadata, out var root, out _))
         {
             return Task.FromResult<IngestionItemContent>(null);
         }
 
+        // The item id came out of a listing, but it also arrives from stored state, so it is checked rather
+        // than trusted. A '..' is refused before the path is combined, so one that climbs out and lands back
+        // inside the root is refused too rather than quietly accepted by the containment check below.
+        if (FileSystemConnectorOptions.HasParentTraversal(itemId) || Path.IsPathRooted(itemId))
+        {
+            _logger.LogWarning("Refused to read '{ItemId}' because it is not a path relative to the indexed folder.", itemId);
+
+            return Task.FromResult<IngestionItemContent>(null);
+        }
+
         var path = Path.GetFullPath(Path.Combine(root, itemId));
 
-        // The item id came out of a listing, but it also arrives from stored state, so it is checked rather
-        // than trusted: a relative path that climbs out of the root must never open a file.
-        var relative = Path.GetRelativePath(root, path);
-
-        if (relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative))
+        if (!FileSystemConnectorOptions.Contains(root, path))
         {
             _logger.LogWarning("Refused to read '{ItemId}' because it resolves outside the indexed folder.", itemId);
 
@@ -234,26 +221,14 @@ public sealed class FileSystemIngestionConnector : IIngestionConnector
         }
     }
 
-    private bool TryResolveRoot(LocalFolderIndexerMetadata metadata, out string root, out string reason)
+    private bool TryResolveRoot(FileSystemFileSourceMetadata metadata, out string root, out string reason)
     {
-        root = null;
-        reason = null;
-
-        if (string.IsNullOrWhiteSpace(metadata.RootPath))
+        if (!_options.TryResolveRoot(metadata.RootPath, out root, out reason))
         {
-            reason = "No folder is configured.";
+            root = null;
 
             return false;
         }
-
-        if (!_options.IsAllowedLocalRoot(metadata.RootPath))
-        {
-            reason = "The configured folder is not an allowed root.";
-
-            return false;
-        }
-
-        root = Path.GetFullPath(metadata.RootPath);
 
         if (!Directory.Exists(root))
         {

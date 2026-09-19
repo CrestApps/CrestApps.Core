@@ -9,10 +9,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace CrestApps.Core.Tests.Support;
 
 /// <summary>
-/// Builds the real ingestion pipeline over in-memory stores, so an indexer test exercises the code that runs
+/// Builds the real ingestion pipeline over in-memory stores, so a file source test exercises the code that runs
 /// in production rather than a stand-in for it.
 /// </summary>
-internal static class IndexerTestPipeline
+internal static class FileSourceTestPipeline
 {
     /// <summary>
     /// Creates the ingestion service.

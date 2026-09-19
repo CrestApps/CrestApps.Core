@@ -5,10 +5,10 @@
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.Services
 @using Microsoft.Extensions.Options
-@inject ISourceCatalogManager<WebCrawler> Manager
+@inject ISourceCatalogManager<FileSource> Manager
 @inject IFileSourceRunService RunService
 @inject IAIDataSourceStore DataSourceStore
-@inject IWebCrawlStateStore StateStore
+@inject IIngestionItemStateStore StateStore
 @inject IStoreCommitter StoreCommitter
 @inject IOptions<IngestionConnectorOptions> ConnectorOptions
 @inject IJSRuntime JS
@@ -117,14 +117,14 @@ else
 }
 
 @code {
-    private List<WebCrawler> _fileSources;
+    private List<FileSource> _fileSources;
     private Dictionary<string, string> _connectorNames = [];
     private Dictionary<string, string> _targets = [];
 
     protected override async Task OnInitializedAsync()
     {
-        // Which sources belong on this screen is decided by what the host registered, never by a list of
-        // connector names written here.
+        // How a connector is labelled comes from what the host registered, never from a list of names
+        // written here.
         _connectorNames = ConnectorOptions.Value.Connectors
             .ToDictionary(connector => connector.Name, connector => connector.DisplayName.Value, StringComparer.OrdinalIgnoreCase);
 
@@ -137,11 +137,10 @@ else
 
         _targets = dataSources.ToDictionary(dataSource => dataSource.ItemId, dataSource => dataSource.DisplayText, StringComparer.OrdinalIgnoreCase);
 
-        var all = await Manager.GetAllAsync();
-
-        // Only the connector-backed records belong here. The strategy-backed ones crawl websites and are
-        // managed on the Web Crawlers pages, even though both kinds share one store.
-        _fileSources = FileSourceFilter.SelectFileSourceRecords(all, ConnectorOptions.Value.Connectors);
+        // File sources are their own records in their own store, so nothing has to be filtered out. A
+        // record whose connector is no longer registered is still listed, because hiding it would leave an
+        // operator with something they cannot see, edit or delete.
+        _fileSources = (await Manager.GetAllAsync()).ToList();
     }
 
     private string DescribeSource(string source)
@@ -159,9 +158,9 @@ else
         return _targets.TryGetValue(dataSourceId, out var displayText) ? displayText : dataSourceId;
     }
 
-    private static string DescribeLastRun(WebCrawler fileSource)
+    private static string DescribeLastRun(FileSource fileSource)
     {
-        if (!fileSource.TryGet<IndexerRunSummary>(out var lastRun))
+        if (!fileSource.TryGet<FileSourceRunSummary>(out var lastRun))
         {
             return null;
         }
@@ -181,7 +180,7 @@ else
         }
 
         // Forgetting what was read, not what was stored.
-        await StateStore.DeleteByCrawlerIdAsync(id);
+        await StateStore.DeleteBySourceIdAsync(id);
         await StoreCommitter.CommitAsync();
 
         ToastNotifications.ShowSuccess("File source state cleared. The next run will re-read every file.");
@@ -191,7 +190,7 @@ else
     {
         var fileSource = await Manager.FindByIdAsync(id);
 
-        if (fileSource == null || !FileSourceFilter.IsIngestionConnector(fileSource.Source, ConnectorOptions.Value.Connectors))
+        if (fileSource == null)
         {
             ToastNotifications.ShowError("File source not found.");
 
@@ -230,7 +229,7 @@ else
 
         var fileSource = await Manager.FindByIdAsync(id);
 
-        if (fileSource == null || !FileSourceFilter.IsIngestionConnector(fileSource.Source, ConnectorOptions.Value.Connectors))
+        if (fileSource == null)
         {
             ToastNotifications.ShowError("File source not found.");
 

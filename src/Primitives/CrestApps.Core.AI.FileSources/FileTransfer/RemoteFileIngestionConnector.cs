@@ -8,27 +8,6 @@ using Microsoft.Extensions.Logging;
 namespace CrestApps.Core.AI.FileSources.FileTransfer;
 
 /// <summary>
-/// The folder settings a file-server indexer carries.
-/// </summary>
-public sealed class RemoteFolderIndexerMetadata
-{
-    /// <summary>
-    /// Gets or sets the folder on the server to read.
-    /// </summary>
-    public string RootPath { get; set; } = "/";
-
-    /// <summary>
-    /// Gets or sets a value indicating whether sub-folders are read too.
-    /// </summary>
-    public bool Recursive { get; set; } = true;
-
-    /// <summary>
-    /// Gets or sets the most files the indexer will list, or <see langword="null"/> for the host default.
-    /// </summary>
-    public int? MaxItems { get; set; }
-}
-
-/// <summary>
 /// Reads files off a file server.
 /// </summary>
 /// <remarks>
@@ -60,18 +39,18 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
     public string Name => _clientFactory.ConnectorName;
 
     /// <inheritdoc />
-    public abstract ValueTask ValidateAsync(WebCrawler settings, ValidationResultDetails result, CancellationToken cancellationToken = default);
+    public abstract ValueTask ValidateAsync(IngestionSource source, ValidationResultDetails result, CancellationToken cancellationToken = default);
 
     /// <inheritdoc />
-    public async Task<IngestionDiscoveryResult> DiscoverAsync(WebCrawler settings, string continuationToken = null, CancellationToken cancellationToken = default)
+    public async Task<IngestionDiscoveryResult> DiscoverAsync(IngestionSource source, string continuationToken = null, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(source);
 
-        var folder = settings.GetOrCreate<RemoteFolderIndexerMetadata>();
+        var folder = source.GetOrCreate<RemoteFileSourceMetadata>();
 
         try
         {
-            await using var client = await _clientFactory.CreateAsync(settings, cancellationToken);
+            await using var client = await _clientFactory.CreateAsync(source, cancellationToken);
 
             var listing = await client.ListAsync(
                 string.IsNullOrWhiteSpace(folder.RootPath) ? "/" : folder.RootPath,
@@ -98,19 +77,19 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to list '{RootPath}' for indexer '{IndexerId}'.", folder.RootPath, settings.ItemId);
+            _logger.LogWarning(ex, "Failed to list '{RootPath}' for source '{FileSourceId}'.", folder.RootPath, source.ItemId);
 
             return new IngestionDiscoveryResult([], IsComplete: false, "The folder could not be listed.");
         }
     }
 
     /// <inheritdoc />
-    public async Task<IngestionItemContent> FetchAsync(WebCrawler settings, string itemId, CancellationToken cancellationToken = default)
+    public async Task<IngestionItemContent> FetchAsync(IngestionSource settings, string itemId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentException.ThrowIfNullOrEmpty(itemId);
 
-        var folder = settings.GetOrCreate<RemoteFolderIndexerMetadata>();
+        var folder = settings.GetOrCreate<RemoteFileSourceMetadata>();
 
         if (itemId.Contains("..", StringComparison.Ordinal))
         {
@@ -162,7 +141,7 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to read '{ItemId}' for indexer '{IndexerId}'.", itemId, settings.ItemId);
+            _logger.LogWarning(ex, "Failed to read '{ItemId}' for source '{FileSourceId}'.", itemId, settings.ItemId);
 
             if (client is not null)
             {

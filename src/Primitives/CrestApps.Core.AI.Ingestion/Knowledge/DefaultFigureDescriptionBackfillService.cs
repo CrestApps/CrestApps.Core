@@ -41,7 +41,7 @@ public sealed class DefaultFigureDescriptionBackfillService : IFigureDescription
     /// <param name="store">The knowledge object store.</param>
     /// <param name="fileStore">The store the figure bytes were written to.</param>
     /// <param name="deploymentManager">The deployment manager used to resolve the vision deployment.</param>
-    /// <param name="visionDeploymentResolver">The resolver that says which deployment an indexer chose.</param>
+    /// <param name="visionDeploymentResolver">The resolver that says which deployment a file source chose.</param>
     /// <param name="imageAnalysisService">The service that calls the vision model.</param>
     /// <param name="indexingQueue">The indexing queue.</param>
     /// <param name="options">The knowledge ingestion options.</param>
@@ -182,7 +182,7 @@ public sealed class DefaultFigureDescriptionBackfillService : IFigureDescription
 
     /// <summary>
     /// Gathers everything one figure needs before any model is called: its details, the deployment its
-    /// indexer chose, a description already produced from identical bytes, and its picture.
+    /// source chose, a description already produced from identical bytes, and its picture.
     /// </summary>
     /// <param name="entry">The pending figure.</param>
     /// <param name="fallback">The host's vision deployment.</param>
@@ -195,8 +195,8 @@ public sealed class DefaultFigureDescriptionBackfillService : IFigureDescription
             details = new FigureDetails();
         }
 
-        // The figure's own indexer may have chosen a different model from the host's. Resolved per figure
-        // because two indexers can feed one data source.
+        // The figure's own source may have chosen a different model from the host's. Resolved per figure
+        // because two file sources can feed one data source.
         var deployment = await ResolveFigureDeploymentAsync(entry, fallback, cancellationToken);
         var item = new FigureWork(entry, details, deployment);
 
@@ -396,15 +396,15 @@ public sealed class DefaultFigureDescriptionBackfillService : IFigureDescription
     }
 
     /// <summary>
-    /// Resolves the deployment for one figure, preferring the one its indexer chose.
+    /// Resolves the deployment for one figure, preferring the one its source chose.
     /// </summary>
     /// <param name="entry">The figure.</param>
-    /// <param name="fallback">The deployment to use when the indexer chose none or its choice cannot read images.</param>
+    /// <param name="fallback">The deployment to use when the source chose none or its choice cannot read images.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The deployment.</returns>
     private async Task<AIDeployment> ResolveFigureDeploymentAsync(KnowledgeObject entry, AIDeployment fallback, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(entry.IndexerId))
+        if (string.IsNullOrWhiteSpace(entry.FileSourceId))
         {
             return fallback;
         }
@@ -413,7 +413,7 @@ public sealed class DefaultFigureDescriptionBackfillService : IFigureDescription
 
         try
         {
-            configured = await _visionDeploymentResolver.ResolveAsync(entry.IndexerId, cancellationToken);
+            configured = await _visionDeploymentResolver.ResolveAsync(entry.FileSourceId, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -421,7 +421,7 @@ public sealed class DefaultFigureDescriptionBackfillService : IFigureDescription
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to read the vision deployment configured for indexer '{IndexerId}'.", entry.IndexerId);
+            _logger.LogWarning(ex, "Failed to read the vision deployment configured for source '{FileSourceId}'.", entry.FileSourceId);
 
             return fallback;
         }

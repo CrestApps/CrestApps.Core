@@ -1,4 +1,4 @@
-@model IReadOnlyCollection<CrestApps.Core.AI.Models.WebCrawler>
+@model IReadOnlyCollection<CrestApps.Core.AI.Models.FileSource>
 @{
     ViewData["Title"] = "File Sources";
 }
@@ -47,7 +47,7 @@ else
                             }
                         </td>
                         <td>
-                            @if (item.TryGet<CrestApps.Core.AI.FileSources.IndexerRunSummary>(out var lastRun))
+                            @if (item.TryGet<CrestApps.Core.AI.FileSources.FileSourceRunSummary>(out var lastRun))
                             {
                                 <span class="badge @(lastRun.Status == CrestApps.Core.AI.FileSources.FileSourceRunStatus.Succeeded ? "bg-success" : lastRun.Status == CrestApps.Core.AI.FileSources.FileSourceRunStatus.Failed ? "bg-danger" : "bg-warning text-dark")">@lastRun.Status</span>
                                 <div class="small text-muted">

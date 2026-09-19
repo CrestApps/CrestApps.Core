@@ -20,6 +20,11 @@ public static class SharedWebApplicationBuilderExtensions
     private const string AppDataPathConfigurationKey = "CrestApps:AppDataPath";
 
     /// <summary>
+    /// The folder under <c>App_Data</c> that the sample hosts allow the file-system connector to read.
+    /// </summary>
+    private const string FileSourcesFolderName = "file-sources";
+
+    /// <summary>
     /// Applies the shared sample-host infrastructure used by the MVC and Blazor
     /// sample applications and returns the resolved <c>App_Data</c> path.
     /// </summary>
@@ -48,6 +53,12 @@ public static class SharedWebApplicationBuilderExtensions
         var projectAppDataPath = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
 
         Directory.CreateDirectory(appDataPath);
+
+        // The sandbox the file-system connector is pointed at in appsettings.json. It is created under the
+        // content root's App_Data rather than a redirected one, because the configured allowed root is a
+        // content-root-relative path and that is what the connector resolves. A host that moves App_Data
+        // moves this entry too.
+        Directory.CreateDirectory(Path.Combine(projectAppDataPath, FileSourcesFolderName));
 
         var keysDirectory = new DirectoryInfo(Path.Combine(appDataPath, "DataProtection-Keys"));
         builder.Services.AddDataProtection()

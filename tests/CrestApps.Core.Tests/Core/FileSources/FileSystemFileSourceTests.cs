@@ -9,6 +9,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Models;
+using CrestApps.Core.Services;
 using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,24 +17,24 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 
-namespace CrestApps.Core.Tests.Core.Indexers;
+namespace CrestApps.Core.Tests.Core.FileSources;
 
 /// <summary>
 /// Covers continuous intake from a folder on the host: what it lists, what it refuses to read, and the one
 /// rule the whole subsystem turns on — a partial listing never deletes anything.
 /// </summary>
-public sealed class FileSystemIndexerTests : IDisposable
+public sealed class FileSystemFileSourceTests : IDisposable
 {
     private const string DataSourceId = "data-source-1";
 
     private readonly string _root;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="FileSystemIndexerTests"/> class.
+    /// Initializes a new instance of the <see cref="FileSystemFileSourceTests"/> class.
     /// </summary>
-    public FileSystemIndexerTests()
+    public FileSystemFileSourceTests()
     {
-        _root = Path.Combine(Path.GetTempPath(), "crestapps-indexer-" + Guid.NewGuid().ToString("N"));
+        _root = Path.Combine(Path.GetTempPath(), "crestapps-file-source-" + Guid.NewGuid().ToString("N"));
 
         Directory.CreateDirectory(_root);
     }
@@ -54,7 +55,7 @@ public sealed class FileSystemIndexerTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies that a folder nobody allowed is refused, so the indexer screen is not a way to read any file
+    /// Verifies that a folder nobody allowed is refused, so the File Sources screen is not a way to read any file
     /// the host process can open.
     /// </summary>
     [Fact]
@@ -62,14 +63,14 @@ public sealed class FileSystemIndexerTests : IDisposable
     {
         var connector = CreateConnector(allowed: false);
 
-        var result = await connector.DiscoverAsync(CreateIndexer(), cancellationToken: TestContext.Current.CancellationToken);
+        var result = await connector.DiscoverAsync(CreateFileSource(), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.False(result.IsComplete);
         Assert.Empty(result.Items);
 
         var validation = new ValidationResultDetails();
 
-        await connector.ValidateAsync(CreateIndexer(), validation, TestContext.Current.CancellationToken);
+        await connector.ValidateAsync(CreateFileSource(), validation, TestContext.Current.CancellationToken);
 
         Assert.False(validation.Succeeded);
     }
@@ -84,7 +85,7 @@ public sealed class FileSystemIndexerTests : IDisposable
         await File.WriteAllTextAsync(Path.Combine(_root, "second.txt"), "The second file.", TestContext.Current.CancellationToken);
 
         var connector = CreateConnector();
-        var result = await connector.DiscoverAsync(CreateIndexer(), cancellationToken: TestContext.Current.CancellationToken);
+        var result = await connector.DiscoverAsync(CreateFileSource(), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsComplete);
         Assert.Equal(2, result.Items.Count);
@@ -94,7 +95,7 @@ public sealed class FileSystemIndexerTests : IDisposable
 
         await File.WriteAllTextAsync(Path.Combine(_root, "first.txt"), "The first file, revised and longer.", TestContext.Current.CancellationToken);
 
-        var after = await connector.DiscoverAsync(CreateIndexer(), cancellationToken: TestContext.Current.CancellationToken);
+        var after = await connector.DiscoverAsync(CreateFileSource(), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotEqual(before, after.Items.Single(item => item.ItemId == "first.txt").ChangeToken);
     }
@@ -108,7 +109,57 @@ public sealed class FileSystemIndexerTests : IDisposable
     {
         var connector = CreateConnector();
 
-        var content = await connector.FetchAsync(CreateIndexer(), "../../secrets.txt", TestContext.Current.CancellationToken);
+        var content = await connector.FetchAsync(CreateFileSource(), "../../secrets.txt", TestContext.Current.CancellationToken);
+
+        Assert.Null(content);
+    }
+
+    /// <summary>
+    /// Verifies that a stored folder containing a <c>..</c> reads nothing, even though it was never
+    /// validated.
+    /// </summary>
+    /// <remarks>
+    /// Validation runs when a record is saved, but a record can reach the store without it — a caller that
+    /// skips it, a row written by hand, a settings blob edited outside the screens. The connector is the
+    /// boundary that does not depend on any of that, so it re-checks what it was handed on every run.
+    /// </remarks>
+    [Fact]
+    public async Task Discover_StoredRootWithParentTraversal_ReadsNothing()
+    {
+        var fileSource = CreateFileSource();
+
+        // Never validated: written straight onto the record, the way an unvalidated save would leave it.
+        // It normalizes to a folder inside the allowed root, so containment alone would admit it.
+        fileSource.Put(new FileSystemFileSourceMetadata
+        {
+            RootPath = Path.Combine(_root, "..", Path.GetFileName(_root)),
+        });
+
+        var discovery = await CreateConnector().DiscoverAsync(fileSource, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Empty(discovery.Items);
+
+        // Never complete, so nothing the record had already indexed is treated as deleted.
+        Assert.False(discovery.IsComplete);
+        Assert.Contains("'..'", discovery.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that the same stored folder cannot be read one file at a time either.
+    /// </summary>
+    [Fact]
+    public async Task Fetch_StoredRootWithParentTraversal_ReadsNothing()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_root, "report.txt"), "The rig was measured.", TestContext.Current.CancellationToken);
+
+        var fileSource = CreateFileSource();
+
+        fileSource.Put(new FileSystemFileSourceMetadata
+        {
+            RootPath = Path.Combine(_root, "..", Path.GetFileName(_root)),
+        });
+
+        var content = await CreateConnector().FetchAsync(fileSource, "report.txt", TestContext.Current.CancellationToken);
 
         Assert.Null(content);
     }
@@ -137,7 +188,7 @@ public sealed class FileSystemIndexerTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies that a second run over unchanged files ingests nothing again, so an indexer is cheap to run
+    /// Verifies that a second run over unchanged files ingests nothing again, so a source is cheap to run
     /// often.
     /// </summary>
     [Fact]
@@ -203,37 +254,107 @@ public sealed class FileSystemIndexerTests : IDisposable
         Assert.Equal(stored, harness.Store.All.Count);
     }
 
+    /// <summary>
+    /// Verifies that a file source reads its own folder and everything beneath it, and nothing beside it,
+    /// even though the folder it may read is only a sub-folder of the host's allowed root.
+    /// </summary>
+    [Fact]
+    public async Task Discover_Recursive_ReadsTheFileSourcesOwnFolderAndBelow()
+    {
+        var wanted = Path.Combine(_root, "test");
+
+        Directory.CreateDirectory(Path.Combine(wanted, "nested"));
+        await File.WriteAllTextAsync(Path.Combine(wanted, "a.txt"), "a", TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(wanted, "nested", "b.txt"), "b", TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(_root, "beside.txt"), "beside", TestContext.Current.CancellationToken);
+
+        var fileSource = CreateFileSource();
+
+        fileSource.Put(new FileSystemFileSourceMetadata { RootPath = wanted, Recursive = true });
+
+        var discovery = await CreateConnector().DiscoverAsync(fileSource, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["a.txt", "nested/b.txt"], discovery.Items.Select(item => item.ItemId).Order());
+    }
+
+    /// <summary>
+    /// Verifies that a file source that is not recursive reads only the files sitting directly in its own
+    /// folder. "Top directory" is that folder, never the allowed root above it.
+    /// </summary>
+    [Fact]
+    public async Task Discover_NotRecursive_ReadsOnlyTheFileSourcesOwnFolder()
+    {
+        var wanted = Path.Combine(_root, "test");
+
+        Directory.CreateDirectory(Path.Combine(wanted, "nested"));
+        await File.WriteAllTextAsync(Path.Combine(wanted, "a.txt"), "a", TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(wanted, "nested", "b.txt"), "b", TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(_root, "beside.txt"), "beside", TestContext.Current.CancellationToken);
+
+        var fileSource = CreateFileSource();
+
+        fileSource.Put(new FileSystemFileSourceMetadata { RootPath = wanted, Recursive = false });
+
+        var discovery = await CreateConnector().DiscoverAsync(fileSource, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["a.txt"], discovery.Items.Select(item => item.ItemId));
+    }
+
+    /// <summary>
+    /// Verifies that every file in the folder is listed, whatever its extension. Which of them can be read
+    /// is the reader resolver's business, not a glob the connector guesses at.
+    /// </summary>
+    [Fact]
+    public async Task Discover_ListsEveryFileWhateverItsExtension()
+    {
+        var wanted = Path.Combine(_root, "test");
+
+        Directory.CreateDirectory(wanted);
+        await File.WriteAllTextAsync(Path.Combine(wanted, "a.txt"), "a", TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(wanted, "b.md"), "b", TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(wanted, "c"), "c", TestContext.Current.CancellationToken);
+
+        var fileSource = CreateFileSource();
+
+        fileSource.Put(new FileSystemFileSourceMetadata { RootPath = wanted });
+
+        var discovery = await CreateConnector().DiscoverAsync(fileSource, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["a.txt", "b.md", "c"], discovery.Items.Select(item => item.ItemId).Order());
+    }
+
     private FileSystemIngestionConnector CreateConnector(bool allowed = true)
     {
-        var options = new FileSourceOptions();
+        var options = new FileSystemConnectorOptions();
 
         if (allowed)
         {
-            options.AllowedLocalRoots.Add(_root);
+            options.AllowedRoots.Add(_root);
         }
 
         return new FileSystemIngestionConnector(
+            Options.Create(new FileSourceOptions()),
             Options.Create(options),
             NullLogger<FileSystemIngestionConnector>.Instance);
     }
 
-    private WebCrawler CreateIndexer()
+    private FileSource CreateFileSource()
     {
-        var indexer = new WebCrawler
+        var source = new FileSource
         {
-            ItemId = "indexer-1",
+            ItemId = "file-source-1",
             Source = FileSystemIngestionConnector.ConnectorName,
             DisplayText = "The folder",
             AIDataSourceId = DataSourceId,
             Enabled = true,
         };
 
-        indexer.Put(new LocalFolderIndexerMetadata
+        source.Put(new FileSystemFileSourceMetadata
         {
             RootPath = _root,
         });
 
-        return indexer;
+        return source;
     }
 
     /// <summary>
@@ -247,11 +368,12 @@ public sealed class FileSystemIndexerTests : IDisposable
         {
             _root = root;
 
-            var options = new FileSourceOptions();
+            var options = new FileSystemConnectorOptions();
 
-            options.AllowedLocalRoots.Add(root);
+            options.AllowedRoots.Add(root);
 
             Connector = new OverridableConnector(new FileSystemIngestionConnector(
+                Options.Create(new FileSourceOptions()),
                 Options.Create(options),
                 NullLogger<FileSystemIngestionConnector>.Instance));
 
@@ -286,12 +408,14 @@ public sealed class FileSystemIndexerTests : IDisposable
             var resolver = new Mock<IIngestionConnectorResolver>();
             resolver.Setup(instance => instance.Get(It.IsAny<string>())).Returns(Connector);
 
-            var indexerStore = new Mock<IWebCrawlerStore>();
+            var fileSourceStore = new Mock<ICatalog<FileSource>>();
+            var webCrawlerStore = new Mock<ICatalog<WebCrawler>>();
 
             Service = new DefaultFileSourceRunService(
                 resolver.Object,
                 StateStore,
-                indexerStore.Object,
+                fileSourceStore.Object,
+                webCrawlerStore.Object,
                 ingestionService,
                 dataSourceStore.Object,
                 Options.Create(new FileSourceOptions()),
@@ -307,27 +431,27 @@ public sealed class FileSystemIndexerTests : IDisposable
 
         public RecordingIndexingQueue Queue { get; } = new();
 
-        public InMemoryWebCrawlStateStore StateStore { get; } = new();
+        public InMemoryIngestionItemStateStore StateStore { get; } = new();
 
         public DefaultFileSourceRunService Service { get; }
 
-        public Task<IndexerRunSummary> RunAsync()
+        public Task<FileSourceRunSummary> RunAsync()
         {
-            var indexer = new WebCrawler
+            var source = new WebCrawler
             {
-                ItemId = "indexer-1",
+                ItemId = "file-source-1",
                 Source = FileSystemIngestionConnector.ConnectorName,
                 DisplayText = "The folder",
                 AIDataSourceId = DataSourceId,
                 Enabled = true,
             };
 
-            indexer.Put(new LocalFolderIndexerMetadata
+            source.Put(new FileSystemFileSourceMetadata
             {
                 RootPath = _root,
             });
 
-            return Service.RunAsync(indexer, TestContext.Current.CancellationToken);
+            return Service.RunAsync(source, TestContext.Current.CancellationToken);
         }
     }
 
@@ -347,19 +471,19 @@ public sealed class FileSystemIndexerTests : IDisposable
 
         public string Name => _inner.Name;
 
-        public ValueTask ValidateAsync(WebCrawler settings, ValidationResultDetails result, CancellationToken cancellationToken = default)
+        public ValueTask ValidateAsync(IngestionSource settings, ValidationResultDetails result, CancellationToken cancellationToken = default)
         {
             return _inner.ValidateAsync(settings, result, cancellationToken);
         }
 
-        public Task<IngestionDiscoveryResult> DiscoverAsync(WebCrawler settings, string continuationToken = null, CancellationToken cancellationToken = default)
+        public Task<IngestionDiscoveryResult> DiscoverAsync(IngestionSource settings, string continuationToken = null, CancellationToken cancellationToken = default)
         {
             return Override is not null
                 ? Task.FromResult(Override)
                 : _inner.DiscoverAsync(settings, continuationToken, cancellationToken);
         }
 
-        public Task<IngestionItemContent> FetchAsync(WebCrawler settings, string itemId, CancellationToken cancellationToken = default)
+        public Task<IngestionItemContent> FetchAsync(IngestionSource settings, string itemId, CancellationToken cancellationToken = default)
         {
             return _inner.FetchAsync(settings, itemId, cancellationToken);
         }

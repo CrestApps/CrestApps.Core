@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.Tests.Core.Indexers;
+namespace CrestApps.Core.Tests.Core.FileSources;
 
 /// <summary>
 /// Covers the rules a file-server connector has to get right, none of which are about the protocol: what
@@ -41,7 +41,7 @@ public sealed class RemoteFileConnectorTests
 
         var connector = new TestRemoteConnector(client);
 
-        var first = await connector.DiscoverAsync(CreateIndexer(), cancellationToken: TestContext.Current.CancellationToken);
+        var first = await connector.DiscoverAsync(CreateFileSource(), cancellationToken: TestContext.Current.CancellationToken);
         var item = Assert.Single(first.Items);
 
         Assert.Equal("reports/first.pdf", item.ItemId);
@@ -53,7 +53,7 @@ public sealed class RemoteFileConnectorTests
         ],
         IsComplete: true);
 
-        var second = await connector.DiscoverAsync(CreateIndexer(), cancellationToken: TestContext.Current.CancellationToken);
+        var second = await connector.DiscoverAsync(CreateFileSource(), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotEqual(item.ChangeToken, Assert.Single(second.Items).ChangeToken);
     }
@@ -70,7 +70,7 @@ public sealed class RemoteFileConnectorTests
             Listing = new RemoteListing([new RemoteFile("notes.txt")], IsComplete: true),
         });
 
-        var result = await connector.DiscoverAsync(CreateIndexer(), cancellationToken: TestContext.Current.CancellationToken);
+        var result = await connector.DiscoverAsync(CreateFileSource(), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Null(Assert.Single(result.Items).ChangeToken);
     }
@@ -90,7 +90,7 @@ public sealed class RemoteFileConnectorTests
                 "The connection dropped."),
         });
 
-        var result = await connector.DiscoverAsync(CreateIndexer(), cancellationToken: TestContext.Current.CancellationToken);
+        var result = await connector.DiscoverAsync(CreateFileSource(), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.False(result.IsComplete);
         Assert.Single(result.Items);
@@ -108,7 +108,7 @@ public sealed class RemoteFileConnectorTests
             Throw = new IOException("The connection was reset."),
         });
 
-        var result = await connector.DiscoverAsync(CreateIndexer(), cancellationToken: TestContext.Current.CancellationToken);
+        var result = await connector.DiscoverAsync(CreateFileSource(), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.False(result.IsComplete);
         Assert.Empty(result.Items);
@@ -127,7 +127,7 @@ public sealed class RemoteFileConnectorTests
 
         var connector = new TestRemoteConnector(client);
 
-        await using var content = await connector.FetchAsync(CreateIndexer(), "reports/first.pdf", TestContext.Current.CancellationToken);
+        await using var content = await connector.FetchAsync(CreateFileSource(), "reports/first.pdf", TestContext.Current.CancellationToken);
 
         Assert.NotNull(content);
         Assert.Equal("application/pdf", content.MediaType);
@@ -144,7 +144,7 @@ public sealed class RemoteFileConnectorTests
         var client = new FakeRemoteFileClient();
         var connector = new TestRemoteConnector(client);
 
-        var content = await connector.FetchAsync(CreateIndexer(), "../../etc/passwd", TestContext.Current.CancellationToken);
+        var content = await connector.FetchAsync(CreateFileSource(), "../../etc/passwd", TestContext.Current.CancellationToken);
 
         Assert.Null(content);
         Assert.Equal(0, client.OpenCount);
@@ -163,7 +163,7 @@ public sealed class RemoteFileConnectorTests
 
         var connector = new TestRemoteConnector(client);
 
-        var content = await connector.FetchAsync(CreateIndexer(), "notes.txt", TestContext.Current.CancellationToken);
+        var content = await connector.FetchAsync(CreateFileSource(), "notes.txt", TestContext.Current.CancellationToken);
 
         Assert.False(client.Disposed);
 
@@ -263,23 +263,23 @@ public sealed class RemoteFileConnectorTests
             .ToArray();
     }
 
-    private static WebCrawler CreateIndexer()
+    private static WebCrawler CreateFileSource()
     {
-        var indexer = new WebCrawler
+        var source = new WebCrawler
         {
-            ItemId = "indexer-1",
+            ItemId = "file-source-1",
             Source = "TestRemote",
             DisplayText = "The server",
             AIDataSourceId = "data-source-1",
             Enabled = true,
         };
 
-        indexer.Put(new RemoteFolderIndexerMetadata
+        source.Put(new RemoteFileSourceMetadata
         {
             RootPath = "/reports",
         });
 
-        return indexer;
+        return source;
     }
 
     /// <summary>
@@ -292,7 +292,7 @@ public sealed class RemoteFileConnectorTests
         {
         }
 
-        public override ValueTask ValidateAsync(WebCrawler settings, ValidationResultDetails result, CancellationToken cancellationToken = default)
+        public override ValueTask ValidateAsync(IngestionSource settings, ValidationResultDetails result, CancellationToken cancellationToken = default)
         {
             return ValueTask.CompletedTask;
         }
@@ -308,7 +308,7 @@ public sealed class RemoteFileConnectorTests
 
             public string ConnectorName => "TestRemote";
 
-            public Task<IRemoteFileClient> CreateAsync(WebCrawler indexer, CancellationToken cancellationToken = default)
+            public Task<IRemoteFileClient> CreateAsync(IngestionSource source, CancellationToken cancellationToken = default)
             {
                 return Task.FromResult<IRemoteFileClient>(_client);
             }

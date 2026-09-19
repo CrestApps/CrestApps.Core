@@ -19,19 +19,19 @@ namespace CrestApps.Core.Mvc.Web.Areas.FileSources.Controllers;
 [Authorize(Policy = "Admin")]
 public sealed class FileSourceController : Controller
 {
-    private readonly ISourceCatalogManager<WebCrawler> _manager;
+    private readonly ISourceCatalogManager<FileSource> _manager;
     private readonly IAIDataSourceStore _dataSourceStore;
     private readonly IFileSourceRunService _runService;
-    private readonly IWebCrawlStateStore _stateStore;
+    private readonly IIngestionItemStateStore _stateStore;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IngestionConnectorDescriptor[] _connectors;
 
     public FileSourceController(
-        ISourceCatalogManager<WebCrawler> manager,
+        ISourceCatalogManager<FileSource> manager,
         IAIDataSourceStore dataSourceStore,
         IFileSourceRunService runService,
-        IWebCrawlStateStore stateStore,
+        IIngestionItemStateStore stateStore,
         IAIDeploymentManager deploymentManager,
         IDataProtectionProvider dataProtectionProvider,
         IOptions<IngestionConnectorOptions> connectorOptions)
@@ -49,16 +49,12 @@ public sealed class FileSourceController : Controller
 
     public async Task<IActionResult> Index()
     {
-        var records = await _manager.GetAllAsync();
+        // File sources are their own records in their own store, so nothing has to be filtered out of
+        // this list. A record whose connector is no longer registered is still shown, because hiding it
+        // would leave an operator with something they cannot see, edit or delete.
+        var fileSources = await _manager.GetAllAsync();
 
-        // A record's source is either a crawl strategy or an ingestion connector, and that is the only
-        // thing separating a web crawler from a file source. Anything not backed by a registered connector
-        // belongs on the Web Crawlers screen.
-        var fileSources = records
-            .Where(record => IsRegisteredConnector(record.Source))
-            .ToList();
-
-        return View(fileSources);
+        return View(fileSources.ToList());
     }
 
     public async Task<IActionResult> Create()
@@ -107,7 +103,7 @@ public sealed class FileSourceController : Controller
     {
         var fileSource = await _manager.FindByIdAsync(id);
 
-        if (fileSource == null || !IsRegisteredConnector(fileSource.Source))
+        if (fileSource == null)
         {
             return NotFound();
         }
@@ -124,7 +120,7 @@ public sealed class FileSourceController : Controller
     {
         var fileSource = await _manager.FindByIdAsync(model.ItemId);
 
-        if (fileSource == null || !IsRegisteredConnector(fileSource.Source))
+        if (fileSource == null)
         {
             return NotFound();
         }
@@ -160,7 +156,7 @@ public sealed class FileSourceController : Controller
     {
         var fileSource = await _manager.FindByIdAsync(id);
 
-        if (fileSource != null && IsRegisteredConnector(fileSource.Source))
+        if (fileSource != null)
         {
             await _manager.DeleteAsync(fileSource);
             TempData["SuccessMessage"] = "File source deleted successfully. Knowledge-base cleanup has been queued.";
@@ -175,7 +171,7 @@ public sealed class FileSourceController : Controller
     {
         var fileSource = await _manager.FindByIdAsync(id);
 
-        if (fileSource == null || !IsRegisteredConnector(fileSource.Source))
+        if (fileSource == null)
         {
             return NotFound();
         }
@@ -205,14 +201,14 @@ public sealed class FileSourceController : Controller
     {
         var fileSource = await _manager.FindByIdAsync(id);
 
-        if (fileSource == null || !IsRegisteredConnector(fileSource.Source))
+        if (fileSource == null)
         {
             return NotFound();
         }
 
         // Forgetting what was read, not what was stored. The next run sees every file as new and re-reads
         // it, which is how an operator recovers from a bad run without deleting the data source.
-        await _stateStore.DeleteByCrawlerIdAsync(fileSource.ItemId, HttpContext.RequestAborted);
+        await _stateStore.DeleteBySourceIdAsync(fileSource.ItemId, HttpContext.RequestAborted);
 
         TempData["SuccessMessage"] = "Stored progress cleared. The next run will re-read every file.";
 
@@ -220,10 +216,10 @@ public sealed class FileSourceController : Controller
     }
 
     /// <summary>
-    /// Tells a file source's connector apart from a crawl strategy. The connectors are whatever the host
-    /// registered, so this screen never carries a list of its own.
+    /// Checks that a submitted source names a connector this host actually registered. The connectors are
+    /// whatever the host registered, so this screen never carries a list of its own.
     /// </summary>
-    /// <param name="source">The record's stored source.</param>
+    /// <param name="source">The submitted source.</param>
     /// <returns><see langword="true"/> when the source names a registered connector.</returns>
     private bool IsRegisteredConnector(string source)
     {
@@ -231,7 +227,7 @@ public sealed class FileSourceController : Controller
             _connectors.Any(connector => string.Equals(connector.Name, source, StringComparison.OrdinalIgnoreCase));
     }
 
-    private async Task ValidateAsync(FileSourceViewModel model, WebCrawler fileSource)
+    private async Task ValidateAsync(FileSourceViewModel model, FileSource fileSource)
     {
         var validation = await _manager.ValidateAsync(fileSource);
 
@@ -250,10 +246,10 @@ public sealed class FileSourceController : Controller
     {
         return memberName switch
         {
-            nameof(WebCrawler.DisplayText) => nameof(FileSourceViewModel.DisplayText),
-            nameof(WebCrawler.AIDataSourceId) => nameof(FileSourceViewModel.AIDataSourceId),
-            nameof(WebCrawler.Source) => nameof(FileSourceViewModel.Source),
-            nameof(LocalFolderIndexerMetadata.RootPath) => model.IsFileSystem
+            nameof(FileSource.DisplayText) => nameof(FileSourceViewModel.DisplayText),
+            nameof(FileSource.AIDataSourceId) => nameof(FileSourceViewModel.AIDataSourceId),
+            nameof(FileSource.Source) => nameof(FileSourceViewModel.Source),
+            nameof(FileSystemFileSourceMetadata.RootPath) => model.IsFileSystem
                 ? nameof(FileSourceViewModel.LocalRootPath)
                 : nameof(FileSourceViewModel.RemoteRootPath),
             nameof(FtpConnectionMetadata.Host) => nameof(FileSourceViewModel.RemoteHost),

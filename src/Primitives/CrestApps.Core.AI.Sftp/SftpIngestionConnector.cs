@@ -16,7 +16,7 @@ namespace CrestApps.Core.AI.Sftp;
 public sealed class SftpIngestionConnector : RemoteFileIngestionConnector
 {
     /// <summary>
-    /// The connector's registered name, stored as the indexer's source.
+    /// The connector's registered name, stored as the file source's source.
     /// </summary>
     public const string ConnectorName = "Sftp";
 
@@ -31,7 +31,7 @@ public sealed class SftpIngestionConnector : RemoteFileIngestionConnector
     }
 
     /// <inheritdoc />
-    public override ValueTask ValidateAsync(WebCrawler settings, ValidationResultDetails result, CancellationToken cancellationToken = default)
+    public override ValueTask ValidateAsync(IngestionSource settings, ValidationResultDetails result, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(result);
@@ -60,7 +60,7 @@ public sealed class SftpIngestionConnector : RemoteFileIngestionConnector
 }
 
 /// <summary>
-/// Opens SFTP connections from an indexer's stored settings.
+/// Opens SFTP connections from a file source's stored settings.
 /// </summary>
 public sealed class SftpRemoteFileClientFactory : IRemoteFileClientFactory
 {
@@ -84,19 +84,19 @@ public sealed class SftpRemoteFileClientFactory : IRemoteFileClientFactory
     public string ConnectorName => SftpIngestionConnector.ConnectorName;
 
     /// <inheritdoc />
-    public Task<IRemoteFileClient> CreateAsync(WebCrawler indexer, CancellationToken cancellationToken = default)
+    public Task<IRemoteFileClient> CreateAsync(IngestionSource source, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(indexer);
+        ArgumentNullException.ThrowIfNull(source);
 
-        var metadata = indexer.GetOrCreate<SftpConnectionMetadata>();
-        var password = Unprotect(metadata.Password, indexer.ItemId);
-        var privateKey = Unprotect(metadata.PrivateKey, indexer.ItemId);
+        var metadata = source.GetOrCreate<SftpConnectionMetadata>();
+        var password = Unprotect(metadata.Password, source.ItemId);
+        var privateKey = Unprotect(metadata.PrivateKey, source.ItemId);
 
         ConnectionInfo connectionInfo;
 
         if (!string.IsNullOrEmpty(privateKey))
         {
-            var passphrase = Unprotect(metadata.Passphrase, indexer.ItemId);
+            var passphrase = Unprotect(metadata.Passphrase, source.ItemId);
 
             using var keyStream = new MemoryStream(Encoding.UTF8.GetBytes(privateKey));
 
@@ -143,7 +143,7 @@ public sealed class SftpRemoteFileClientFactory : IRemoteFileClientFactory
         return Task.FromResult<IRemoteFileClient>(new SftpRemoteFileClient(client));
     }
 
-    private string Unprotect(string value, string indexerId)
+    private string Unprotect(string value, string sourceId)
     {
         if (string.IsNullOrEmpty(value))
         {
@@ -156,7 +156,7 @@ public sealed class SftpRemoteFileClientFactory : IRemoteFileClientFactory
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to decrypt an SFTP secret for indexer '{IndexerId}'.", indexerId);
+            _logger.LogWarning(ex, "Failed to decrypt an SFTP secret for file source '{FileSourceId}'.", sourceId);
 
             return null;
         }

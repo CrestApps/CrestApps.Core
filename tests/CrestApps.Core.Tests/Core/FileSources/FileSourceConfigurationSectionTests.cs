@@ -3,14 +3,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace CrestApps.Core.Tests.Core.Indexers;
+namespace CrestApps.Core.Tests.Core.FileSources;
 
 /// <summary>
 /// Covers which configuration section <see cref="FileSourceOptions"/> is read from.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The section was renamed from <c>CrestApps:Indexers</c> to <c>CrestApps:AI:FileSources</c> when the
+/// The section was renamed from <c>CrestApps:File sources</c> to <c>CrestApps:AI:FileSources</c> when the
 /// package was renamed. A configuration key lives in places this repository cannot see -- user secrets,
 /// environment variables, a deployed <c>appsettings.json</c> -- so the old spelling is still read.
 /// </para>
@@ -40,7 +40,7 @@ public sealed class FileSourceConfigurationSectionTests
     {
         var options = Resolve(new()
         {
-            ["CrestApps:Indexers:AllowedLocalRoots:0"] = "/srv/legacy",
+            ["CrestApps:File sources:AllowedLocalRoots:0"] = "/srv/legacy",
         });
 
         Assert.Equal(["/srv/legacy"], options.AllowedLocalRoots);
@@ -51,8 +51,8 @@ public sealed class FileSourceConfigurationSectionTests
     {
         var options = Resolve(new()
         {
-            ["CrestApps:Indexers:AllowedLocalRoots:0"] = "/srv/legacy-first",
-            ["CrestApps:Indexers:AllowedLocalRoots:1"] = "/srv/legacy-second",
+            ["CrestApps:File sources:AllowedLocalRoots:0"] = "/srv/legacy-first",
+            ["CrestApps:File sources:AllowedLocalRoots:1"] = "/srv/legacy-second",
             ["CrestApps:AI:FileSources:AllowedLocalRoots:0"] = "/srv/current",
         });
 

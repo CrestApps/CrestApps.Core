@@ -7,7 +7,7 @@
 @using CrestApps.Core.Services
 @using Microsoft.AspNetCore.DataProtection
 @using Microsoft.Extensions.Options
-@inject ISourceCatalogManager<WebCrawler> Manager
+@inject ISourceCatalogManager<FileSource> Manager
 @inject IAIDataSourceStore DataSourceStore
 @inject IStoreCommitter StoreCommitter
 @inject NavigationManager Navigation
@@ -111,9 +111,7 @@ else
     {
         var fileSource = await Manager.FindByIdAsync(Id);
 
-        // A strategy-backed record is a web crawler, and this screen refuses to edit one as if it read
-        // files. It is managed on the Web Crawlers pages instead.
-        if (fileSource == null || !FileSourceFilter.IsIngestionConnector(fileSource.Source, ConnectorOptions.Value.Connectors))
+        if (fileSource == null)
         {
             _notFound = true;
 

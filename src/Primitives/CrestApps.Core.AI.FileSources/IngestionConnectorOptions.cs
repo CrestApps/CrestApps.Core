@@ -3,12 +3,12 @@ using Microsoft.Extensions.Localization;
 namespace CrestApps.Core.AI.FileSources;
 
 /// <summary>
-/// How one registered connector is presented to whoever configures an indexer.
+/// How one registered connector is presented to whoever configures a file source.
 /// </summary>
 public sealed class IngestionConnectorDescriptor
 {
     /// <summary>
-    /// Gets or sets the connector name, which is stored as the indexer's source.
+    /// Gets or sets the connector name, which is stored as the file source's source.
     /// </summary>
     public string Name { get; set; }
 

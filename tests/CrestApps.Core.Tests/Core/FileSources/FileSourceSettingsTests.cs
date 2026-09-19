@@ -6,13 +6,13 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.Models;
 using Moq;
 
-namespace CrestApps.Core.Tests.Core.Indexers;
+namespace CrestApps.Core.Tests.Core.FileSources;
 
 /// <summary>
-/// Covers the settings an indexer carries, and the ones it refuses to carry. A deployment that cannot do the
-/// job it was chosen for is not a cheaper option: it is a setting that silently does nothing.
+/// Covers the ingestion settings a file source carries, and the ones it refuses to carry. A deployment that
+/// cannot do the job it was chosen for is not a cheaper option: it is a setting that silently does nothing.
 /// </summary>
-public sealed class IndexerSettingsTests
+public sealed class FileSourceSettingsTests
 {
     /// <summary>
     /// Verifies that a deployment that cannot accept an image is refused as the vision deployment, at the
@@ -21,7 +21,7 @@ public sealed class IndexerSettingsTests
     [Fact]
     public async Task Handler_VisionDeploymentWithoutImageInput_IsRejected()
     {
-        var context = CreateContext(new IndexerMetadata
+        var context = CreateContext(new FileSourceMetadata
         {
             VisionDeploymentName = "text-only",
         });
@@ -39,7 +39,7 @@ public sealed class IndexerSettingsTests
     [Fact]
     public async Task Handler_NullDeployments_AreValid()
     {
-        var context = CreateContext(new IndexerMetadata());
+        var context = CreateContext(new FileSourceMetadata());
 
         await CreateHandler(imageInput: false, textEmbedding: false).ValidatingAsync(context, TestContext.Current.CancellationToken);
 
@@ -52,7 +52,7 @@ public sealed class IndexerSettingsTests
     [Fact]
     public async Task Handler_DeletedDeployment_IsRejected()
     {
-        var context = CreateContext(new IndexerMetadata
+        var context = CreateContext(new FileSourceMetadata
         {
             VisionDeploymentName = "deleted",
         });
@@ -62,7 +62,7 @@ public sealed class IndexerSettingsTests
             .Setup(manager => manager.FindByNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AIDeployment)null);
 
-        var handler = new FileSourceSettingsCatalogHandler(deploymentManager.Object, Mock.Of<IAIDeploymentCapabilityService>());
+        var handler = new FileSourceSettingsCatalogHandler<FileSource>(deploymentManager.Object, Mock.Of<IAIDeploymentCapabilityService>());
 
         await handler.ValidatingAsync(context, TestContext.Current.CancellationToken);
 
@@ -70,16 +70,16 @@ public sealed class IndexerSettingsTests
     }
 
     /// <summary>
-    /// Verifies that an indexer carrying no ingestion settings at all validates, so every crawler that
-    /// existed before these settings did keeps saving.
+    /// Verifies that a record carrying no ingestion settings at all validates, so one that existed before
+    /// these settings did keeps saving.
     /// </summary>
     [Fact]
-    public async Task Handler_NoIndexerSettings_IsValid()
+    public async Task Handler_NoSourceSettings_IsValid()
     {
-        var context = new ValidatingContext<WebCrawler>(new WebCrawler
+        var context = new ValidatingContext<FileSource>(new FileSource
         {
-            ItemId = "indexer-1",
-            Source = "Sitemap",
+            ItemId = "file-source-1",
+            Source = "FileSystem",
         });
 
         await CreateHandler(imageInput: false, textEmbedding: false).ValidatingAsync(context, TestContext.Current.CancellationToken);
@@ -87,22 +87,22 @@ public sealed class IndexerSettingsTests
         Assert.True(context.Result.Succeeded);
     }
 
-    private static ValidatingContext<WebCrawler> CreateContext(IndexerMetadata metadata)
+    private static ValidatingContext<FileSource> CreateContext(FileSourceMetadata metadata)
     {
-        var indexer = new WebCrawler
+        var source = new FileSource
         {
-            ItemId = "indexer-1",
+            ItemId = "file-source-1",
             Source = "FileSystem",
             DisplayText = "The folder",
             AIDataSourceId = "data-source-1",
         };
 
-        indexer.Put(metadata);
+        source.Put(metadata);
 
-        return new ValidatingContext<WebCrawler>(indexer);
+        return new ValidatingContext<FileSource>(source);
     }
 
-    private static FileSourceSettingsCatalogHandler CreateHandler(bool imageInput, bool textEmbedding)
+    private static FileSourceSettingsCatalogHandler<FileSource> CreateHandler(bool imageInput, bool textEmbedding)
     {
         var deployment = new AIDeployment
         {
@@ -123,6 +123,6 @@ public sealed class IndexerSettingsTests
             .Setup(service => service.SupportsFeatureOrUnconstrained(It.IsAny<AIDeployment>(), AIDeploymentFeatureNames.TextEmbedding))
             .Returns(textEmbedding);
 
-        return new FileSourceSettingsCatalogHandler(deploymentManager.Object, capabilityService.Object);
+        return new FileSourceSettingsCatalogHandler<FileSource>(deploymentManager.Object, capabilityService.Object);
     }
 }
