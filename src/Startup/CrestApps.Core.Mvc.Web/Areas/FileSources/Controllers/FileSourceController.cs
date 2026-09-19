@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.FileSources.Connectors;
 using CrestApps.Core.AI.Ftp.Models;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Sftp.Models;
 using CrestApps.Core.Mvc.Web.Areas.FileSources.ViewModels;
@@ -21,7 +22,7 @@ public sealed class FileSourceController : Controller
 {
     private readonly ISourceCatalogManager<FileSource> _manager;
     private readonly IAIDataSourceStore _dataSourceStore;
-    private readonly IFileSourceRunService _runService;
+    private readonly IIngestionRunService _runService;
     private readonly IIngestionItemStateStore _stateStore;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IDataProtectionProvider _dataProtectionProvider;
@@ -30,7 +31,7 @@ public sealed class FileSourceController : Controller
     public FileSourceController(
         ISourceCatalogManager<FileSource> manager,
         IAIDataSourceStore dataSourceStore,
-        IFileSourceRunService runService,
+        IIngestionRunService runService,
         IIngestionItemStateStore stateStore,
         IAIDeploymentManager deploymentManager,
         IDataProtectionProvider dataProtectionProvider,

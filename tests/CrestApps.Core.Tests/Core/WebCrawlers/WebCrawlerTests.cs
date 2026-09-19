@@ -1,3 +1,5 @@
+using CrestApps.Core.AI.Ingestion;
+using Moq;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -367,7 +369,7 @@ public sealed class WebCrawlerTests
     }
 
     [Fact]
-    public async Task ReindexService_CrawlerFeedingIngestedDataSource_IsLeftToTheSourceService()
+    public async Task ReindexService_CrawlerFeedingIngestedDataSource_IsNotPlannedAsAWebCrawl()
     {
         var crawlerStore = new InMemoryCrawlerStore();
         crawlerStore.Items.Add(new WebCrawler { ItemId = "web", Source = WebCrawlerConstants.Strategies.Sitemap, AIDataSourceId = "web-ds", Enabled = true });
@@ -389,8 +391,58 @@ public sealed class WebCrawlerTests
 
         await service.ReindexAllAsync(Ct);
 
-        // The crawler that feeds an Ingested data source is a file source, run by the source service with its
-        // own per-item state. Planning it here too would run it twice and overwrite that state.
+        // A crawler feeding an Ingested data source takes the ingestion path and keeps per-item state.
+        // Planning it as a Web crawl too would read it twice and overwrite that state. No run service was
+        // supplied here, so it is left alone entirely rather than planned.
+        Assert.Contains("web", planner.Reindexed);
+        Assert.DoesNotContain("ingested", planner.Reindexed);
+    }
+
+    /// <summary>
+    /// Verifies that the web crawlers feature runs its own crawlers that feed an ingested data source,
+    /// rather than leaving them to the file sources feature.
+    /// </summary>
+    /// <remarks>
+    /// Every crawler record belongs to this feature, whichever pipeline reads it. When the file sources
+    /// feature owned this sweep, a host that enabled web crawlers without it silently never ran them.
+    /// </remarks>
+    [Fact]
+    public async Task ReindexService_CrawlerFeedingIngestedDataSource_IsRunThroughTheIngestionPipeline()
+    {
+        var crawlerStore = new InMemoryCrawlerStore();
+        crawlerStore.Items.Add(new WebCrawler { ItemId = "web", Source = WebCrawlerConstants.Strategies.Sitemap, AIDataSourceId = "web-ds", Enabled = true });
+        crawlerStore.Items.Add(new WebCrawler { ItemId = "ingested", Source = WebCrawlerConstants.Strategies.Sitemap, AIDataSourceId = "ingested-ds", Enabled = true });
+
+        var dataSourceStore = new InMemoryDataSourceStore();
+        dataSourceStore.Items.Add(new AIDataSource { ItemId = "web-ds", Source = AIDataSourceSourceTypes.Web });
+        dataSourceStore.Items.Add(new AIDataSource { ItemId = "ingested-ds", Source = AIDataSourceSourceTypes.File });
+
+        var ran = new List<string>();
+        var runService = new Mock<IIngestionRunService>();
+        runService
+            .Setup(service => service.RunAsync(It.IsAny<IngestionSource>(), It.IsAny<CancellationToken>()))
+            .Returns((IngestionSource source, CancellationToken _) =>
+            {
+                ran.Add(source.ItemId);
+
+                return Task.FromResult(new FileSourceRunSummary());
+            });
+
+        var planner = new RecordingPlanner();
+        var service = new WebCrawlerReindexService(
+            crawlerStore,
+            new InMemoryCrawlStateStore(),
+            planner,
+            dataSourceStore,
+            Options.Create(new WebCrawlerOptions()),
+            TimeProvider.System,
+            NullLogger<WebCrawlerReindexService>.Instance,
+            runService.Object);
+
+        await service.ReindexAllAsync(Ct);
+
+        // Each record takes exactly one path, and this feature drives both.
+        Assert.Equal(["ingested"], ran);
         Assert.Contains("web", planner.Reindexed);
         Assert.DoesNotContain("ingested", planner.Reindexed);
     }

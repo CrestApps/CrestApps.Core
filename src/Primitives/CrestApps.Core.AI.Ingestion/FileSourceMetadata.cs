@@ -1,6 +1,6 @@
 using CrestApps.Core.AI.Ingestion;
 
-namespace CrestApps.Core.AI.FileSources;
+namespace CrestApps.Core.AI.Ingestion;
 
 /// <summary>
 /// The ingestion settings one source applies to everything it reads.

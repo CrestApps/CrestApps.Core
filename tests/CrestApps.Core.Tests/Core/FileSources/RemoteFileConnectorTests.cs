@@ -2,6 +2,7 @@ using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.FileSources.FileTransfer;
 using CrestApps.Core.AI.Ftp;
 using CrestApps.Core.AI.Indexing;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Sftp;
 using CrestApps.Core.Models;

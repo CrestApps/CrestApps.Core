@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.FileSources;
+namespace CrestApps.Core.AI.Ingestion;
 
 /// <summary>
 /// Host-wide limits on what a file source may reach and how hard it may work.

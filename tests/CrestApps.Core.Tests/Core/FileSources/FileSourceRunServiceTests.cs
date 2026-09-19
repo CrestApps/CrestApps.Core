@@ -2,6 +2,7 @@ using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.FileSources.Connectors;
 using CrestApps.Core.AI.Indexing;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Services;
@@ -265,13 +266,15 @@ public sealed class FileSourceRunServiceTests : IDisposable
 
         public InMemoryIngestionItemStateStore StateStore { get; } = new();
 
-        public List<FileSource> Saved { get; } = [];
+        public List<FileSource> Saved => [.. SourceProvider.Saved.OfType<FileSource>()];
+
+        public RecordingIngestionSourceProvider SourceProvider { get; } = new();
 
         public bool ResolveConnector { get; init; } = true;
 
         public string DataSourceType { get; init; } = AIDataSourceSourceTypes.File;
 
-        public DefaultFileSourceRunService Service => Build();
+        public DefaultIngestionRunService Service => Build();
 
         /// <summary>
         /// Builds a file source pointed at the folder. The same instance is reused across runs, which is how the
@@ -307,7 +310,7 @@ public sealed class FileSourceRunServiceTests : IDisposable
             return source;
         }
 
-        private DefaultFileSourceRunService Build()
+        private DefaultIngestionRunService Build()
         {
             var ingestionService = FileSourceTestPipeline.Create(Store);
 
@@ -326,24 +329,15 @@ public sealed class FileSourceRunServiceTests : IDisposable
                 .Setup(instance => instance.Get(It.IsAny<string>()))
                 .Returns(ResolveConnector ? Connector : null);
 
-            var fileSourceStore = new Mock<ICatalog<FileSource>>();
-            fileSourceStore
-                .Setup(store => store.UpdateAsync(It.IsAny<FileSource>(), It.IsAny<CancellationToken>()))
-                .Callback((FileSource fileSource, CancellationToken _) => Saved.Add(fileSource))
-                .Returns(ValueTask.CompletedTask);
-
-            var webCrawlerStore = new Mock<ICatalog<WebCrawler>>();
-
-            return new DefaultFileSourceRunService(
+            return new DefaultIngestionRunService(
                 resolver.Object,
                 StateStore,
-                fileSourceStore.Object,
-                webCrawlerStore.Object,
+                [SourceProvider],
                 ingestionService,
                 dataSourceStore.Object,
                 Options.Create(new FileSourceOptions()),
                 TimeProvider.System,
-                NullLogger<DefaultFileSourceRunService>.Instance);
+                NullLogger<DefaultIngestionRunService>.Instance);
         }
     }
 }

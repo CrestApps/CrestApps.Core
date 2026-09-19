@@ -1,6 +1,6 @@
 using CrestApps.Core.AI.Models;
 
-namespace CrestApps.Core.AI.FileSources;
+namespace CrestApps.Core.AI.Ingestion;
 
 /// <summary>
 /// Runs one ingestion source: list what it holds, ingest what is new or changed, and remove what is gone.
@@ -10,7 +10,7 @@ namespace CrestApps.Core.AI.FileSources;
 /// same for a <see cref="FileSource"/> reading a folder and for a <see cref="WebCrawler"/> whose strategy
 /// feeds an ingested data source. Which store the record came from is not its concern.
 /// </remarks>
-public interface IFileSourceRunService
+public interface IIngestionRunService
 {
     /// <summary>
     /// Runs one ingestion source.

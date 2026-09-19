@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.DataSources;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,12 +12,20 @@ namespace CrestApps.Core.AI.WebCrawlers;
 /// derived from the persisted crawl state (the most recent time a page was seen), so the decision survives
 /// restarts and does not depend on the caller keeping any state.
 /// </summary>
+/// <remarks>
+/// Every crawler is this feature's to run, whichever pipeline reads it. One pointed at a <c>Web</c> data
+/// source goes to the re-index planner. One pointed at an ingested data source is read by the shared
+/// ingestion run service, which turns its pages into typed knowledge objects and keeps its own per-item
+/// state; that path is shared with file sources, but the record is still ours, so a host may enable this
+/// feature without the file sources feature and have both kinds of crawler run.
+/// </remarks>
 public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
 {
     private readonly IWebCrawlerStore _crawlerStore;
     private readonly IWebCrawlStateStore _crawlStateStore;
     private readonly IWebCrawlerReindexPlanner _planner;
     private readonly IAIDataSourceStore _dataSourceStore;
+    private readonly IIngestionRunService _ingestionRunService;
     private readonly WebCrawlerOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<WebCrawlerReindexService> _logger;
@@ -38,7 +47,7 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
         IOptions<WebCrawlerOptions> options,
         TimeProvider timeProvider,
         ILogger<WebCrawlerReindexService> logger)
-        : this(crawlerStore, crawlStateStore, planner, null, options, timeProvider, logger)
+        : this(crawlerStore, crawlStateStore, planner, null, options, timeProvider, logger, null)
     {
     }
 
@@ -49,12 +58,17 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
     /// <param name="crawlStateStore">The crawl-state store.</param>
     /// <param name="planner">The re-index planner.</param>
     /// <param name="dataSourceStore">
-    /// The data source store, used to leave crawlers that feed an <c>Ingested</c> data source to the file
-    /// source run service. <see langword="null"/> re-indexes every enabled crawler.
+    /// The data source store, used to tell a crawler that feeds an <c>Ingested</c> data source from one that
+    /// feeds a <c>Web</c> data source. <see langword="null"/> plans every enabled crawler as a Web one.
     /// </param>
     /// <param name="options">The web-crawler options.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="ingestionRunService">
+    /// The shared ingestion run service, which reads a crawler that feeds an ingested data source.
+    /// <see langword="null"/> leaves those crawlers alone rather than planning them as Web ones, which would
+    /// overwrite the per-item state the ingestion pipeline keeps.
+    /// </param>
     public WebCrawlerReindexService(
         IWebCrawlerStore crawlerStore,
         IWebCrawlStateStore crawlStateStore,
@@ -62,8 +76,10 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
         IAIDataSourceStore dataSourceStore,
         IOptions<WebCrawlerOptions> options,
         TimeProvider timeProvider,
-        ILogger<WebCrawlerReindexService> logger)
+        ILogger<WebCrawlerReindexService> logger,
+        IIngestionRunService ingestionRunService = null)
     {
+        _ingestionRunService = ingestionRunService;
         _crawlerStore = crawlerStore;
         _crawlStateStore = crawlStateStore;
         _planner = planner;
@@ -98,22 +114,33 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // A crawler pointed at an Ingested data source is a file source: its pages become typed knowledge
-            // objects through the file source run service, which keeps its own per-item state. Planning it here
-            // as well would run it twice and overwrite that state with the planner's.
-            if (await FeedsIngestedDataSourceAsync(crawler, cancellationToken))
+            // A crawler pointed at an Ingested data source takes the ingestion path instead of the planner:
+            // its pages become typed knowledge objects and its progress is kept as per-item state. Planning
+            // it as a Web crawler as well would read it twice and overwrite that state.
+            var ingested = await FeedsIngestedDataSourceAsync(crawler, cancellationToken);
+
+            if (ingested && _ingestionRunService is null)
             {
                 continue;
             }
 
-            if (dueOnly && !await IsDueAsync(crawler, now, cancellationToken))
+            if (dueOnly && !(ingested
+                ? IsIngestionDue(crawler, now)
+                : await IsDueAsync(crawler, now, cancellationToken)))
             {
                 continue;
             }
 
             try
             {
-                await _planner.PlanAndEnqueueAsync(crawler, cancellationToken);
+                if (ingested)
+                {
+                    await _ingestionRunService.RunAsync(crawler, cancellationToken);
+                }
+                else
+                {
+                    await _planner.PlanAndEnqueueAsync(crawler, cancellationToken);
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -152,6 +179,26 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
 
             return false;
         }
+    }
+
+    /// <summary>
+    /// Determines whether a crawler read by the ingestion pipeline is due again.
+    /// </summary>
+    /// <param name="crawler">The crawler.</param>
+    /// <param name="now">The current time.</param>
+    /// <returns><see langword="true"/> when its interval has elapsed since the last run started.</returns>
+    /// <remarks>
+    /// The ingestion path keeps no crawl state, so being due is read from the run summary the run service
+    /// writes back, which is the same rule the file sources feature applies to its own records.
+    /// </remarks>
+    private bool IsIngestionDue(WebCrawler crawler, DateTimeOffset now)
+    {
+        if (!crawler.TryGet<FileSourceRunSummary>(out var last) || last.StartedUtc == default)
+        {
+            return true;
+        }
+
+        return now - new DateTimeOffset(last.StartedUtc, TimeSpan.Zero) >= ResolveReindexInterval(crawler.ReindexIntervalMinutes);
     }
 
     private async Task<bool> IsDueAsync(WebCrawler crawler, DateTimeOffset now, CancellationToken cancellationToken)

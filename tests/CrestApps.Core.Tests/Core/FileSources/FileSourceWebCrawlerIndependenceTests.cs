@@ -1,4 +1,6 @@
 using CrestApps.Core.AI.DataSources;
+using CrestApps.Core.AI.Indexing;
+using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Data.EntityCore;
 using CrestApps.Core.Services;
@@ -7,18 +9,19 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CrestApps.Core.Tests.Core.FileSources;
 
 /// <summary>
-/// Covers what each feature's store registration has to bring with it.
+/// Covers the rule that the file-sources feature and the web-crawlers feature do not depend on each other.
 /// </summary>
 /// <remarks>
-/// The file-sources feature and the web-crawlers feature are enabled independently, so neither may rely on
-/// the other having been registered. These assert against the service collection rather than a built
+/// Either may be enabled without the other, so neither may reach for a store, a handler or a service the
+/// other registers. What they share — running an ingestion source — belongs to the ingestion package that
+/// both depend on, never to one of them. These assert against the service collection rather than a built
 /// provider, because constructing an EntityCore store needs a database and the question here is only which
 /// services a host is offered.
 /// </remarks>
-public sealed class FileSourceStoreRegistrationTests
+public sealed class FileSourceWebCrawlerIndependenceTests
 {
     /// <summary>
-    /// Verifies that enabling file sources on its own registers the knowledge object store.
+    /// Verifies that enabling file source stores on their own registers the knowledge object store.
     /// </summary>
     /// <remarks>
     /// Knowledge objects are where an ingestion run puts the text, figures, charts and tables it read, so a
@@ -38,7 +41,7 @@ public sealed class FileSourceStoreRegistrationTests
     }
 
     /// <summary>
-    /// Verifies that enabling file sources on its own does not drag the web crawler stores in with it.
+    /// Verifies that enabling file source stores on their own does not drag the web crawler stores in.
     /// </summary>
     [Fact]
     public void FileSourceStores_DoNotRegisterTheWebCrawlerStores()
@@ -82,5 +85,43 @@ public sealed class FileSourceStoreRegistrationTests
         Assert.Single(services, service => service.ServiceType == typeof(IKnowledgeObjectStore));
         Assert.Single(services, service => service.ServiceType == typeof(ICatalog<KnowledgeObject>));
         Assert.Single(services, service => service.ServiceType == typeof(ISourceCatalog<KnowledgeObject>));
+    }
+
+    /// <summary>
+    /// Verifies that the shared ingestion runtime is safe for both features to register.
+    /// </summary>
+    /// <remarks>
+    /// Running a source is the one thing the two features have in common, so both call this. Registering the
+    /// run service twice would leave the container resolving whichever descriptor came last.
+    /// </remarks>
+    [Fact]
+    public void IngestionRuntime_IsRegisteredOnceWhenBothFeaturesAskForIt()
+    {
+        var services = new ServiceCollection();
+
+        services.AddCoreAIIngestionRuntime();
+        services.AddCoreAIIngestionRuntime();
+
+        Assert.Single(services, service => service.ServiceType == typeof(IIngestionRunService));
+        Assert.Single(services, service => service.ServiceType == typeof(IIngestionConnectorResolver));
+    }
+
+    /// <summary>
+    /// Verifies that the shared ingestion runtime names neither feature's records.
+    /// </summary>
+    /// <remarks>
+    /// The pipeline reaches a source record only through a contributed <see cref="IIngestionSourceProvider"/>,
+    /// so the package both features share must not register a provider of its own for either record type.
+    /// </remarks>
+    [Fact]
+    public void IngestionRuntime_ContributesNoSourceProviderOfItsOwn()
+    {
+        var services = new ServiceCollection();
+
+        services.AddCoreAIIngestionRuntime();
+
+        Assert.DoesNotContain(services, service => service.ServiceType == typeof(IIngestionSourceProvider));
+        Assert.DoesNotContain(services, service => service.ServiceType == typeof(IWebCrawlerStore));
+        Assert.DoesNotContain(services, service => service.ServiceType == typeof(IFileSourceStore));
     }
 }
