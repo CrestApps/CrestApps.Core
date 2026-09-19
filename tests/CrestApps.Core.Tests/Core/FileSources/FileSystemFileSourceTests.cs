@@ -115,6 +115,56 @@ public sealed class FileSystemFileSourceTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that a stored folder containing a <c>..</c> reads nothing, even though it was never
+    /// validated.
+    /// </summary>
+    /// <remarks>
+    /// Validation runs when a record is saved, but a record can reach the store without it — a caller that
+    /// skips it, a row written by hand, a settings blob edited outside the screens. The connector is the
+    /// boundary that does not depend on any of that, so it re-checks what it was handed on every run.
+    /// </remarks>
+    [Fact]
+    public async Task Discover_StoredRootWithParentTraversal_ReadsNothing()
+    {
+        var fileSource = CreateFileSource();
+
+        // Never validated: written straight onto the record, the way an unvalidated save would leave it.
+        // It normalizes to a folder inside the allowed root, so containment alone would admit it.
+        fileSource.Put(new FileSystemFileSourceMetadata
+        {
+            RootPath = Path.Combine(_root, "..", Path.GetFileName(_root)),
+        });
+
+        var discovery = await CreateConnector().DiscoverAsync(fileSource, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Empty(discovery.Items);
+
+        // Never complete, so nothing the record had already indexed is treated as deleted.
+        Assert.False(discovery.IsComplete);
+        Assert.Contains("'..'", discovery.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that the same stored folder cannot be read one file at a time either.
+    /// </summary>
+    [Fact]
+    public async Task Fetch_StoredRootWithParentTraversal_ReadsNothing()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_root, "report.txt"), "The rig was measured.", TestContext.Current.CancellationToken);
+
+        var fileSource = CreateFileSource();
+
+        fileSource.Put(new FileSystemFileSourceMetadata
+        {
+            RootPath = Path.Combine(_root, "..", Path.GetFileName(_root)),
+        });
+
+        var content = await CreateConnector().FetchAsync(fileSource, "report.txt", TestContext.Current.CancellationToken);
+
+        Assert.Null(content);
+    }
+
+    /// <summary>
     /// Verifies that a folder of files becomes typed knowledge in the data source, end to end, through the
     /// real pipeline.
     /// </summary>
