@@ -136,8 +136,26 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
         try
         {
             var folios = CaptureFolios(document);
-            var (seeds, tocPageIndex) = ReadTableOfContents(document);
             var labels = CaptureSectionLabels(document);
+
+            // A document that states its own structure has already answered the question. Everything below
+            // this point infers structure from how a page looks, and inference can be wrong about a layout
+            // nobody anticipated; an outline cannot.
+            var outlined = BuildFromOutline(ReadOutline(document), pageCount);
+
+            if (outlined.Count > 0)
+            {
+                Stamp(document, outlined, folios, labels);
+
+                return new DocumentStructure
+                {
+                    Articles = outlined,
+                    Folios = folios,
+                    IsInferred = true,
+                };
+            }
+
+            var (seeds, tocPageIndex) = ReadTableOfContents(document);
 
             var boundaries = seeds.Count == 0
                 ? []
@@ -188,6 +206,113 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// </summary>
     /// <param name="document">The ingested document.</param>
     /// <returns>The titles it lists, in the order it lists them.</returns>
+    /// <summary>
+    /// Reads the outline a reader captured, when there is one.
+    /// </summary>
+    /// <param name="document">The ingested document.</param>
+    /// <returns>The outline in document order, or an empty list.</returns>
+    /// <remarks>
+    /// The outline is recorded on the first section because an <c>IngestionDocument</c> carries no metadata
+    /// of its own. A reader that cannot see an outline — anything reading a format that has none, or a
+    /// provider-backed reader — records nothing and the analyzer carries on to the signals it can read.
+    /// </remarks>
+    private static IReadOnlyList<DocumentOutlineEntry> ReadOutline(IngestionDocument document)
+    {
+        if (document.Sections.Count == 0 || !document.Sections[0].HasMetadata)
+        {
+            return [];
+        }
+
+        if (!document.Sections[0].Metadata.TryGetValue(ElementMetadataKeys.Outline, out var value))
+        {
+            return [];
+        }
+
+        return value as IReadOnlyList<DocumentOutlineEntry> ?? [];
+    }
+
+    /// <summary>
+    /// Turns an outline into the divisions it describes.
+    /// </summary>
+    /// <param name="entries">The outline entries, in document order.</param>
+    /// <param name="pageCount">How many pages the document has.</param>
+    /// <returns>The divisions, nested, or none when the outline says nothing usable.</returns>
+    /// <remarks>
+    /// A division runs until the next one at its own level or shallower, which is what makes a chapter span
+    /// its own sections rather than stopping at the first of them. The levels an outline declares are not
+    /// always a tidy sequence — an outline may step from the first level to the third — so nesting is taken
+    /// from the order the levels appear in rather than from their values.
+    /// <para>
+    /// Deeper divisions are emitted after the ones containing them, which is what makes the innermost
+    /// division own a page the two of them share, and so keeps a chapter's text from being stored twice.
+    /// </para>
+    /// </remarks>
+    private static List<DocumentArticle> BuildFromOutline(IReadOnlyList<DocumentOutlineEntry> entries, int pageCount)
+    {
+        if (entries.Count == 0 || pageCount <= 0)
+        {
+            return [];
+        }
+
+        var ordered = entries
+            .Where(entry => entry.PageNumber > 0 && !string.IsNullOrWhiteSpace(entry.Title))
+            .Select((entry, index) => (Entry: entry, Index: index))
+            .OrderBy(pair => pair.Entry.PageNumber)
+            .ThenBy(pair => pair.Index)
+            .Select(pair => pair.Entry)
+            .ToList();
+
+        if (ordered.Count == 0)
+        {
+            return [];
+        }
+
+        var articles = new List<DocumentArticle>(ordered.Count);
+        var open = new List<(int Level, int Ordinal)>();
+
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            var entry = ordered[index];
+
+            while (open.Count > 0 && open[^1].Level >= entry.Level)
+            {
+                open.RemoveAt(open.Count - 1);
+            }
+
+            var ordinal = index + 1;
+            var pageEnd = pageCount;
+
+            for (var next = index + 1; next < ordered.Count; next++)
+            {
+                if (ordered[next].Level <= entry.Level)
+                {
+                    pageEnd = Math.Max(entry.PageNumber, ordered[next].PageNumber - 1);
+
+                    break;
+                }
+            }
+
+            // Whatever precedes the first entry is front matter the outline does not name. It belongs to the
+            // first division rather than to nothing, because an element owned by no division is an element
+            // whose text is never stored.
+            var pageStart = index == 0 ? 1 : entry.PageNumber;
+
+            articles.Add(new DocumentArticle
+            {
+                Ordinal = ordinal,
+                Depth = open.Count + 1,
+                ParentOrdinal = open.Count > 0 ? open[^1].Ordinal : 0,
+                Title = entry.Title,
+                PageStart = Math.Min(pageStart, pageCount),
+                PageEnd = Math.Min(Math.Max(pageEnd, pageStart), pageCount),
+            });
+
+            open.Add((entry.Level, ordinal));
+        }
+
+        return articles;
+    }
+
     private static (List<TocSeed> Seeds, int PageIndex) ReadTableOfContents(IngestionDocument document)
     {
         var best = new List<TocSeed>();

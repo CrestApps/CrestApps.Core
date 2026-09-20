@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -10,6 +11,7 @@ using UglyToad.PdfPig.DocumentLayoutAnalysis;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.PageSegmenter;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.ReadingOrderDetector;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.WordExtractor;
+using UglyToad.PdfPig.Outline;
 using UglyToad.PdfPig.Tokens;
 
 namespace CrestApps.Core.AI.Ingestion.Pdf.Services;
@@ -161,7 +163,7 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
     /// <param name="identifier">The document identifier.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The document.</returns>
-    private static IngestionDocument ReadRawPageText(PdfDocument pdf, string identifier, CancellationToken cancellationToken)
+    private IngestionDocument ReadRawPageText(PdfDocument pdf, string identifier, CancellationToken cancellationToken)
     {
         var document = new IngestionDocument(identifier);
 
@@ -189,6 +191,8 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
 
             document.Sections.Add(section);
         }
+
+        CaptureOutline(pdf, document, identifier);
 
         return document;
     }
@@ -297,7 +301,120 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
             }
         }
 
+        CaptureOutline(pdf, document, identifier);
+
         return document;
+    }
+
+    /// <summary>
+    /// Records the document's own outline, when it has one.
+    /// </summary>
+    /// <param name="pdf">The opened document.</param>
+    /// <param name="document">The document being built.</param>
+    /// <param name="identifier">The document identifier, used only for logging.</param>
+    /// <remarks>
+    /// An outline is the document stating its own structure, which beats anything that can be inferred from
+    /// how a page looks. Manuals, reports and books carry one almost without exception; magazines and
+    /// newspapers rarely do, and they fall through to the signals that suit them.
+    /// <para>
+    /// Nothing here may fail a read. A malformed outline is a document without one, which is exactly what
+    /// the analyzer already copes with.
+    /// </para>
+    /// </remarks>
+    private void CaptureOutline(PdfDocument pdf, IngestionDocument document, string identifier)
+    {
+        if (document.Sections.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!pdf.TryGetBookmarks(out var bookmarks) || bookmarks.Roots.Count == 0)
+            {
+                return;
+            }
+
+            var entries = new List<DocumentOutlineEntry>();
+
+            foreach (var root in bookmarks.Roots)
+            {
+                CollectOutline(root, entries);
+            }
+
+            if (entries.Count == 0)
+            {
+                return;
+            }
+
+            // The outline describes the whole file, and an IngestionDocument carries no metadata of its own,
+            // so the first section is where it has to live.
+            document.Sections[0].Metadata[ElementMetadataKeys.Outline] = entries;
+        }
+        catch (Exception ex)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(ex, "Could not read the outline of '{Identifier}'. The document is treated as having none.", identifier);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Flattens one outline node and its descendants into document order.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <param name="entries">The entries collected so far.</param>
+    /// <remarks>
+    /// A node that groups others without pointing anywhere itself — a part that is only a heading over its
+    /// chapters — takes the page of the first descendant that does point somewhere. Dropping it instead
+    /// would flatten its children up a level and lose the nesting the document went to the trouble of
+    /// stating.
+    /// </remarks>
+    private static void CollectOutline(BookmarkNode node, List<DocumentOutlineEntry> entries)
+    {
+        var page = node is DocumentBookmarkNode document ? document.PageNumber : FindFirstPage(node);
+        var title = node.Title?.Trim();
+
+        if (page > 0 && !string.IsNullOrEmpty(title))
+        {
+            entries.Add(new DocumentOutlineEntry
+            {
+                Title = title,
+                Level = node.Level,
+                PageNumber = page,
+            });
+        }
+
+        foreach (var child in node.Children)
+        {
+            CollectOutline(child, entries);
+        }
+    }
+
+    /// <summary>
+    /// Finds the first page any descendant of a node points at.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <returns>The page, or zero when nothing beneath it points anywhere.</returns>
+    private static int FindFirstPage(BookmarkNode node)
+    {
+        foreach (var child in node.Children)
+        {
+            if (child is DocumentBookmarkNode document)
+            {
+                return document.PageNumber;
+            }
+
+            var page = FindFirstPage(child);
+
+            if (page > 0)
+            {
+                return page;
+            }
+        }
+
+        return 0;
     }
 
     /// <summary>

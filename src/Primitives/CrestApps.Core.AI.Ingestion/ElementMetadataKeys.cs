@@ -63,4 +63,17 @@ public static class ElementMetadataKeys
     /// The page height in user-space units, recorded on the section alongside the width.
     /// </summary>
     public const string PageHeight = "crestapps.pageHeight";
+
+    /// <summary>
+    /// The document's own outline, as an
+    /// <see cref="IReadOnlyList{T}"/> of <see cref="Knowledge.Structure.DocumentOutlineEntry"/> in document
+    /// order.
+    /// </summary>
+    /// <remarks>
+    /// Recorded on the <em>first</em> section rather than per page, because it describes the whole file and
+    /// splitting it across the pages it points at would mean reassembling an order the document already
+    /// stated. An <c>IngestionDocument</c> carries no metadata of its own — only its sections and elements
+    /// do — so the first section is where a document-wide fact has to live.
+    /// </remarks>
+    public const string Outline = "crestapps.outline";
 }
