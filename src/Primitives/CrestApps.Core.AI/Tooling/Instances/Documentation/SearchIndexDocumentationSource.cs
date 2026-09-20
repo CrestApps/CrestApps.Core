@@ -54,8 +54,37 @@ public sealed class SearchIndexDocumentationSource : CachingDocumentationSource
             var client = _httpClientFactory.CreateClient(DocumentationToolConstants.HttpClientName);
             var index = await client.GetFromJsonAsync<SearchIndexDocument>(indexUrl, _serializerOptions, cancellationToken);
 
-            if (index?.Docs is null || index.Docs.Count == 0)
+            // Every way this can go wrong ends in an empty corpus, and an empty corpus reads to the caller as
+            // "your query matched nothing". Each one is logged with the URL it came from, or a misconfigured
+            // index is indistinguishable from a site that genuinely has no answer.
+            if (index is null)
             {
+                _logger.LogWarning(
+                    "Search index '{IndexUrl}' for documentation source '{SourceName}' returned no JSON body.",
+                    indexUrl,
+                    _site.Name);
+
+                return new DocumentationCorpus([]);
+            }
+
+            if (index.Docs is null)
+            {
+                _logger.LogWarning(
+                    "Search index '{IndexUrl}' for documentation source '{SourceName}' has no 'docs' array, so it is " +
+                    "not a MkDocs-style search index. Nothing can be read from it.",
+                    indexUrl,
+                    _site.Name);
+
+                return new DocumentationCorpus([]);
+            }
+
+            if (index.Docs.Count == 0)
+            {
+                _logger.LogWarning(
+                    "Search index '{IndexUrl}' for documentation source '{SourceName}' contains no documents.",
+                    indexUrl,
+                    _site.Name);
+
                 return new DocumentationCorpus([]);
             }
 
@@ -69,6 +98,18 @@ public sealed class SearchIndexDocumentationSource : CachingDocumentationSource
                 }
 
                 entries.Add(new DocumentationCorpus.Entry(ResolveUrl(doc.Location), doc.Title, doc.Text));
+            }
+
+            // A shape that parses but carries none of the fields searched on is the same dead end as an empty
+            // index, and is what an index built for a different tool usually looks like.
+            if (entries.Count == 0)
+            {
+                _logger.LogWarning(
+                    "Search index '{IndexUrl}' for documentation source '{SourceName}' has {DocumentCount} document(s), " +
+                    "but none carry both a location and text.",
+                    indexUrl,
+                    _site.Name,
+                    index.Docs.Count);
             }
 
             return new DocumentationCorpus(entries);
