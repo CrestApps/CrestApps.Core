@@ -106,12 +106,36 @@ Advertisements left the general path with this. A page carrying no article and n
 something in a magazine and nothing in a manual, so `SplitAdvertisements` runs only on the
 table-of-contents rung rather than on every document that reaches `BuildArticles`.
 
+### What real documents taught it
+
+Running actual publications through the pipeline found two defects that no synthetic fixture would
+ever have shown, because both come from how type is set rather than from how a document is
+structured.
+
+**A headline that wraps is one headline.** Its second line is another run of type at the same size
+directly beneath the first, and the rule that lets a newspaper page carry four stories was reading
+it as a fifth. The article was split in two, the first half titled with half a sentence, and the
+pages given to the half that said least. Two lines now merge when they share a size, sit within
+ordinary leading of each other, and overlap across the measure — all three, because same size alone
+would swallow a standfirst and adjacency alone would swallow the first line of body text.
+
+**Display type is routinely set twice.** A slight offset fakes a weight the font does not have, and
+both runs are real text, so every word of the headline is read twice:
+`COMMAND COMMAND & & CONQUER`. A word repeated immediately after itself is now collapsed, in
+headings only.
+
+Measured on a fifteen page research paper, a seventy page magazine and a twenty-three page trade
+journal: structure came from the outline where one existed and from type size where none did, no
+element in any of the three ended up belonging to no division, and figures, charts and tables were
+separated and captioned. The two fixes took the magazines from thirty-nine and twenty-eight
+divisions to twenty-seven and twenty.
+
 ### What is still open
 
-**Fixtures are synthetic.** Every test builds the document it reads — a bookmarked manual, a Word
-file with heading styles, an HTML page, a page carrying three stories. That proves the algorithms
-against documents written the way the specifications say. It proves nothing about a real magazine
-whose contents page is set as a picture, a manual whose outline points at the wrong pages, a
-newspaper whose headlines are set in the same size as its standfirsts, or a PDF that claims tags it
-does not honour. Real documents are where the next class of failure lives, and measuring against
-them is what would turn this from correct into trustworthy.
+**Covers and advertising pages still produce divisions.** Type-size inference has no way to tell a
+masthead, a strapline or an advertisement from a headline, so the opening pages of a magazine yield
+divisions that are not articles. The contents-page rung handles this properly where a contents page
+can be read; where one cannot, this is the cost of inferring.
+
+**Overprinted type can still fragment.** Where the two runs land far enough apart to segment
+separately, they survive as two blocks, and the second becomes a short division of its own.

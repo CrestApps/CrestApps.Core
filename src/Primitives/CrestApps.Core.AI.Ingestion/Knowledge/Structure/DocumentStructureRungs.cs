@@ -707,6 +707,7 @@ internal static partial class DocumentStructureRungs
             var pageHeight = GetDouble(section, ElementMetadataKeys.PageHeight) ?? 0;
             var page = GetPageNumber(document, index);
             var onThisPage = 0;
+            IngestionDocumentElement previous = null;
 
             foreach (var element in section.Elements)
             {
@@ -747,7 +748,25 @@ internal static partial class DocumentStructureRungs
                     continue;
                 }
 
+                // A headline that wraps is one headline. Its second line is the same size, directly beneath
+                // the first and overlapping it across the page, and opening a division at it would file the
+                // article under half a sentence and leave the other half titling nothing.
+                if (onThisPage > 0 && ContinuesHeading(previous, element, size.Value))
+                {
+                    var merged = boundaries[^1];
+
+                    boundaries[^1] = merged with
+                    {
+                        Seed = merged.Seed with { Title = CollapseHeading($"{merged.Seed.Title} {text}") },
+                    };
+
+                    previous = element;
+
+                    continue;
+                }
+
                 onThisPage++;
+                previous = element;
                 boundaries.Add(new Boundary(page, new TocSeed(text, null, page), position));
             }
         }
@@ -760,6 +779,100 @@ internal static partial class DocumentStructureRungs
     /// </summary>
     /// <param name="element">The element.</param>
     /// <returns>The top coordinate, or <see langword="null"/> when the element carries no bounds.</returns>
+    /// <summary>
+    /// How much bigger or smaller a block may be than the line above it and still be the same headline.
+    /// </summary>
+    internal const double HeadingContinuationSizeTolerance = 0.12;
+
+    /// <summary>
+    /// How far below a headline its next line may begin, as a multiple of the type size.
+    /// </summary>
+    /// <remarks>
+    /// Leading is close to the type size in display setting and rarely more than twice it. A gap larger than
+    /// this is a different piece of type, not the rest of this one.
+    /// </remarks>
+    internal const double HeadingContinuationLeading = 2.0;
+
+    /// <summary>
+    /// Decides whether a block is the next line of the heading above it rather than a heading of its own.
+    /// </summary>
+    /// <param name="previous">The block accepted as a heading immediately before this one.</param>
+    /// <param name="element">The block being considered.</param>
+    /// <param name="size">The block's type size.</param>
+    /// <returns><see langword="true"/> when the block continues the heading above it.</returns>
+    /// <remarks>
+    /// A headline that wraps produces two blocks the segmenter has no reason to join: they are separate runs
+    /// of type at the same size, one directly beneath the other, overlapping across the measure. Treating
+    /// the second as a heading of its own splits one article into two, titles the first with half a sentence
+    /// and gives the article's pages to the half that says least.
+    /// <para>
+    /// All three conditions are required. Same size alone would join a headline to the standfirst beneath
+    /// it; adjacency alone would join a headline to the first line of body text set large.
+    /// </para>
+    /// </remarks>
+    internal static bool ContinuesHeading(IngestionDocumentElement previous, IngestionDocumentElement element, double size)
+    {
+        if (previous is null)
+        {
+            return false;
+        }
+
+        var previousSize = GetDouble(previous, ElementMetadataKeys.ModalPointSize);
+
+        if (previousSize is null || previousSize.Value <= 0)
+        {
+            return false;
+        }
+
+        if (Math.Abs(size - previousSize.Value) > previousSize.Value * HeadingContinuationSizeTolerance)
+        {
+            return false;
+        }
+
+        var above = GetBounds(previous);
+        var below = GetBounds(element);
+
+        if (above is null || below is null)
+        {
+            return false;
+        }
+
+        // The next line sits below the one above it, by no more than ordinary leading.
+        var gap = above.Value.Bottom - below.Value.Top;
+
+        if (gap < -previousSize.Value || gap > previousSize.Value * HeadingContinuationLeading)
+        {
+            return false;
+        }
+
+        // And beneath it rather than beside it: two headlines in adjacent columns are the same size and the
+        // same height, and are two headlines.
+        var overlap = Math.Min(above.Value.Right, below.Value.Right) - Math.Max(above.Value.Left, below.Value.Left);
+        var narrowest = Math.Min(above.Value.Right - above.Value.Left, below.Value.Right - below.Value.Left);
+
+        return narrowest > 0 && overlap > narrowest / 2;
+    }
+
+    /// <summary>
+    /// Reads an element's bounds.
+    /// </summary>
+    /// <param name="element">The element.</param>
+    /// <returns>The bounds, or <see langword="null"/> when the element carries none.</returns>
+    internal static (double Left, double Bottom, double Right, double Top)? GetBounds(IngestionDocumentElement element)
+    {
+        if (!element.HasMetadata || !element.Metadata.TryGetValue(ElementMetadataKeys.BoundingBox, out var value))
+        {
+            return null;
+        }
+
+        if (value is not double[] { Length: 4 } bounds)
+        {
+            return null;
+        }
+
+        return (bounds[0], bounds[1], bounds[2], bounds[3]);
+    }
+
     internal static double? GetTop(IngestionDocumentElement element)
     {
         if (!element.HasMetadata ||
@@ -784,11 +897,58 @@ internal static partial class DocumentStructureRungs
             return string.Empty;
         }
 
-        var collapsed = WhitespaceRun().Replace(text, " ").Trim();
+        var collapsed = CollapseOverprint(WhitespaceRun().Replace(text, " ").Trim());
 
         return collapsed.Length <= MaxInferredTitleCharacters
             ? collapsed
             : collapsed[..MaxInferredTitleCharacters].TrimEnd();
+    }
+
+    /// <summary>
+    /// Collapses a word repeated immediately after itself.
+    /// </summary>
+    /// <param name="text">The heading text.</param>
+    /// <returns>The heading with overprinting removed.</returns>
+    /// <remarks>
+    /// Display type is routinely set twice, slightly offset, to fake a weight the font does not have. Both
+    /// runs are real text, so a reader that takes a page at its word reads every headline word twice:
+    /// "COMMAND COMMAND &amp; &amp; CONQUER". Nothing downstream can tell that from a title, and it is the
+    /// title a reader of the knowledge base sees.
+    /// <para>
+    /// Only an immediate repeat is collapsed, and only in a heading. English headings that legitimately
+    /// repeat a word next to itself are vanishingly rare, and body text is left alone entirely.
+    /// </para>
+    /// </remarks>
+    internal static string CollapseOverprint(string text)
+    {
+        if (text.Length == 0 || !text.Contains(' ', StringComparison.Ordinal))
+        {
+            return text;
+        }
+
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        if (words.Length < 2)
+        {
+            return text;
+        }
+
+        var kept = new List<string>(words.Length) { words[0] };
+        var collapsed = false;
+
+        for (var index = 1; index < words.Length; index++)
+        {
+            if (string.Equals(words[index], kept[^1], StringComparison.Ordinal))
+            {
+                collapsed = true;
+
+                continue;
+            }
+
+            kept.Add(words[index]);
+        }
+
+        return collapsed ? string.Join(' ', kept) : text;
     }
 
     internal static List<DocumentArticle> BuildArticles(
