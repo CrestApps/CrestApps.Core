@@ -80,7 +80,8 @@ public static class DocumentationToolInstanceServiceCollectionExtensions
             entry.DisplayName = new LocalizedString(DocumentationToolConstants.SearchIndexSourceName, "Documentation search (search index)");
             entry.Description = new LocalizedString(
                 DocumentationToolConstants.SearchIndexSourceName,
-                "Searches a documentation site that publishes a prebuilt JSON search index (for example MkDocs Material).");
+                "Searches a documentation site that publishes a prebuilt JSON search index. MkDocs and Docusaurus (Lunr) " +
+                "indexes are both understood, and which one a site publishes is detected, so there is no format to choose.");
             entry.Category = new LocalizedString(DocumentationToolConstants.Category, DocumentationToolConstants.Category);
 
             configure?.Invoke(entry);
