@@ -155,6 +155,23 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
                 };
             }
 
+            // A format that names its own headings — a Word style, an h2, a tagged PDF, a layout service —
+            // states the nesting outright. That outranks a contents page, which has to be matched to the
+            // headings it lists before it says anything.
+            var headed = BuildFromHeadingLevels(document, pageCount);
+
+            if (headed.Count > 0)
+            {
+                Stamp(document, headed, folios, labels);
+
+                return new DocumentStructure
+                {
+                    Articles = headed,
+                    Folios = folios,
+                    IsInferred = true,
+                };
+            }
+
             var (seeds, tocPageIndex) = ReadTableOfContents(document);
 
             var boundaries = seeds.Count == 0
@@ -311,6 +328,131 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
         }
 
         return articles;
+    }
+
+    /// <summary>
+    /// How many stated headings a document needs before they are taken as divisions.
+    /// </summary>
+    /// <remarks>
+    /// One heading is a title. Dividing a document at its title produces one division covering all of it,
+    /// which is the answer the analyzer already gives when it finds nothing.
+    /// </remarks>
+    private const int MinimumStatedHeadings = 2;
+
+    /// <summary>
+    /// Divides a document by the heading levels its elements state.
+    /// </summary>
+    /// <param name="document">The ingested document.</param>
+    /// <param name="pageCount">How many pages the document has.</param>
+    /// <returns>The divisions, nested, or none when nothing states a heading level.</returns>
+    /// <remarks>
+    /// Unlike every signal below it, this reads a level the document declared rather than one worked out
+    /// from type size and position. A Word paragraph styled <c>Heading 2</c> is a second-level heading
+    /// because the document says so, and the same is true of an <c>h2</c>, a tagged PDF's <c>H2</c> and a
+    /// layout service's section heading. Whichever reader produced them, the levels mean the same thing.
+    /// <para>
+    /// Divisions are bounded by element rather than by page, so three headings on one page produce three
+    /// divisions. A page-bounded answer would merge them and store the page's text under whichever came
+    /// last.
+    /// </para>
+    /// </remarks>
+    private static List<DocumentArticle> BuildFromHeadingLevels(IngestionDocument document, int pageCount)
+    {
+        if (pageCount <= 0)
+        {
+            return [];
+        }
+
+        var headings = new List<(int Level, string Title, int Page, int ElementIndex)>();
+        var elementIndex = 0;
+
+        for (var sectionIndex = 0; sectionIndex < document.Sections.Count; sectionIndex++)
+        {
+            var section = document.Sections[sectionIndex];
+            var page = GetPageNumber(document, sectionIndex);
+
+            foreach (var element in section.Elements)
+            {
+                var level = GetHeadingLevel(element);
+                var text = level > 0 ? CollapseHeading(element.GetSemanticText()) : null;
+
+                if (level > 0 && !string.IsNullOrEmpty(text))
+                {
+                    headings.Add((level, text, page, elementIndex));
+                }
+
+                elementIndex++;
+            }
+        }
+
+        if (headings.Count < MinimumStatedHeadings)
+        {
+            return [];
+        }
+
+        var articles = new List<DocumentArticle>(headings.Count);
+        var open = new List<(int Level, int Ordinal)>();
+
+        for (var index = 0; index < headings.Count; index++)
+        {
+            var heading = headings[index];
+
+            while (open.Count > 0 && open[^1].Level >= heading.Level)
+            {
+                open.RemoveAt(open.Count - 1);
+            }
+
+            var pageEnd = pageCount;
+
+            for (var next = index + 1; next < headings.Count; next++)
+            {
+                if (headings[next].Level <= heading.Level)
+                {
+                    pageEnd = Math.Max(heading.Page, headings[next].Page);
+
+                    break;
+                }
+            }
+
+            // Whatever precedes the first heading belongs to the first division, for the same reason front
+            // matter does: an element owned by no division is one whose text is never stored.
+            var isFirst = index == 0;
+
+            articles.Add(new DocumentArticle
+            {
+                Ordinal = index + 1,
+                Depth = open.Count + 1,
+                ParentOrdinal = open.Count > 0 ? open[^1].Ordinal : 0,
+                Title = heading.Title,
+                ElementStart = isFirst ? 0 : heading.ElementIndex,
+                PageStart = isFirst ? 1 : heading.Page,
+                PageEnd = Math.Min(Math.Max(pageEnd, heading.Page), pageCount),
+            });
+
+            open.Add((heading.Level, index + 1));
+        }
+
+        return articles;
+    }
+
+    /// <summary>
+    /// Reads the heading level an element states, if it states one.
+    /// </summary>
+    /// <param name="element">The element.</param>
+    /// <returns>The one-based level, or zero.</returns>
+    private static int GetHeadingLevel(IngestionDocumentElement element)
+    {
+        if (!element.HasMetadata || !element.Metadata.TryGetValue(ElementMetadataKeys.HeadingLevel, out var value))
+        {
+            return 0;
+        }
+
+        return value switch
+        {
+            int level when level > 0 => level,
+            long level when level > 0 => (int)level,
+            _ => 0,
+        };
     }
 
     private static (List<TocSeed> Seeds, int PageIndex) ReadTableOfContents(IngestionDocument document)
@@ -933,6 +1075,15 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
         Dictionary<int, string> folios,
         Dictionary<int, string> labels)
     {
+        // A division that knows which element opens it is bounded by that element, so several divisions can
+        // share a page. Everything that only knows a page keeps the page-bounded behaviour.
+        if (articles.Exists(article => article.ElementStart >= 0))
+        {
+            StampByElement(document, articles, folios, labels);
+
+            return;
+        }
+
         var byPage = new Dictionary<int, DocumentArticle>();
 
         foreach (var article in articles)
@@ -969,6 +1120,68 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
             {
                 element.Metadata[ElementMetadataKeys.ArticleOrdinal] = article.Ordinal;
             }
+        }
+    }
+
+    /// <summary>
+    /// Assigns every element to the division that opens at or before it.
+    /// </summary>
+    /// <param name="document">The ingested document.</param>
+    /// <param name="articles">The divisions, in document order.</param>
+    /// <param name="folios">The folios by page.</param>
+    /// <param name="labels">The section labels by page.</param>
+    /// <remarks>
+    /// Walking the elements once and carrying the division forward is what gives a page with three headings
+    /// on it three divisions. A section keeps the division its last element belongs to, because a section's
+    /// own metadata describes the page and a page that spans a boundary belongs to whichever division is
+    /// still open at its end.
+    /// </remarks>
+    private static void StampByElement(
+        IngestionDocument document,
+        List<DocumentArticle> articles,
+        Dictionary<int, string> folios,
+        Dictionary<int, string> labels)
+    {
+        var starts = new Dictionary<int, DocumentArticle>();
+
+        foreach (var article in articles)
+        {
+            if (article.ElementStart >= 0)
+            {
+                starts[article.ElementStart] = article;
+            }
+        }
+
+        var current = articles[0];
+        var elementIndex = 0;
+
+        for (var sectionIndex = 0; sectionIndex < document.Sections.Count; sectionIndex++)
+        {
+            var page = GetPageNumber(document, sectionIndex);
+            var section = document.Sections[sectionIndex];
+
+            if (folios.TryGetValue(page, out var folio))
+            {
+                section.Metadata[ElementMetadataKeys.Folio] = folio;
+            }
+
+            if (labels.TryGetValue(page, out var label))
+            {
+                section.Metadata[ElementMetadataKeys.SectionLabel] = label;
+            }
+
+            foreach (var element in section.Elements)
+            {
+                if (starts.TryGetValue(elementIndex, out var opened))
+                {
+                    current = opened;
+                }
+
+                element.Metadata[ElementMetadataKeys.ArticleOrdinal] = current.Ordinal;
+                elementIndex++;
+            }
+
+            section.Metadata[ElementMetadataKeys.ArticleOrdinal] = current.Ordinal;
         }
     }
 

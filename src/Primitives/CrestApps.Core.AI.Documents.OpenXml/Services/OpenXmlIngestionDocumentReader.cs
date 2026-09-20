@@ -1,4 +1,5 @@
 using System.Text;
+using CrestApps.Core.AI.Ingestion;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.Extensions.DataIngestion;
@@ -100,14 +101,74 @@ public sealed class OpenXmlIngestionDocumentReader : IngestionDocumentReader
 
             if (!string.IsNullOrWhiteSpace(paragraphText))
             {
-                section.Elements.Add(new IngestionDocumentParagraph(paragraphText)
+                var element = new IngestionDocumentParagraph(paragraphText)
                 {
                     Text = paragraphText,
-                });
+                };
+
+                var headingLevel = GetHeadingLevel(paragraph);
+
+                if (headingLevel > 0)
+                {
+                    element.Metadata[ElementMetadataKeys.HeadingLevel] = headingLevel;
+                }
+
+                section.Elements.Add(element);
             }
         }
 
         return section.Elements.Count > 0 ? section : null;
+    }
+
+    /// <summary>
+    /// Reads the heading level a paragraph states, if it states one.
+    /// </summary>
+    /// <param name="paragraph">The paragraph.</param>
+    /// <returns>The one-based heading level, or zero when the paragraph is not a heading.</returns>
+    /// <remarks>
+    /// A word processor records what a paragraph <em>is</em>, which is the thing every other reader in this
+    /// library has to infer from how the text looks. Two places say it, and both are read: the outline level
+    /// a paragraph carries directly, and the built-in <c>Heading N</c> style it is formatted with. The
+    /// outline level is preferred because a document may restyle its headings and keep the level, and a
+    /// custom style built on <c>Heading 2</c> carries the level without carrying the name.
+    /// </remarks>
+    private static int GetHeadingLevel(DocumentFormat.OpenXml.Wordprocessing.Paragraph paragraph)
+    {
+        var properties = paragraph.ParagraphProperties;
+
+        if (properties is null)
+        {
+            return 0;
+        }
+
+        // Word stores the outline level zero-based, where zero is the outermost heading and nine means
+        // body text.
+        var outlineLevel = properties.OutlineLevel?.Val?.Value;
+
+        if (outlineLevel is >= 0 and < 9)
+        {
+            return outlineLevel.Value + 1;
+        }
+
+        var styleId = properties.ParagraphStyleId?.Val?.Value;
+
+        if (string.IsNullOrEmpty(styleId))
+        {
+            return 0;
+        }
+
+        // The built-in styles are "Heading1".."Heading9"; a document localized at authoring time keeps the
+        // identifier in English even where the name shown to the author is translated.
+        const string HeadingPrefix = "Heading";
+
+        if (!styleId.StartsWith(HeadingPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        var suffix = styleId.AsSpan(HeadingPrefix.Length).Trim();
+
+        return int.TryParse(suffix, out var level) && level is > 0 and <= 9 ? level : 0;
     }
 
     private static IngestionDocumentSection ExtractExcel(Stream stream, CancellationToken cancellationToken)

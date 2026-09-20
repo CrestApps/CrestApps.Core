@@ -34,6 +34,17 @@ public static class KnowledgeObjectTypes
     public const string Article = "article";
 
     /// <summary>
+    /// One division nested inside an article: a chapter's section, a manual's procedure, a paper's Methods.
+    /// </summary>
+    /// <remarks>
+    /// A section exists only where a document states its own nesting, because nothing that infers structure
+    /// from how a page looks can tell a section from an article. It is a separate type rather than another
+    /// article so that retrieval can be asked for the part rather than the whole — "the Methods section of
+    /// that paper" is a different answer from the paper.
+    /// </remarks>
+    public const string Section = "section";
+
+    /// <summary>
     /// One chunk of article text. This is what every row written before typed knowledge existed is read as.
     /// </summary>
     public const string Text = "text";

@@ -76,4 +76,20 @@ public static class ElementMetadataKeys
     /// do — so the first section is where a document-wide fact has to live.
     /// </remarks>
     public const string Outline = "crestapps.outline";
+
+    /// <summary>
+    /// The heading level an element states it is, as a one-based <see cref="int"/> where one is the
+    /// outermost heading.
+    /// </summary>
+    /// <remarks>
+    /// This is for formats that name their own headings rather than implying them with type size: a Word
+    /// paragraph styled <c>Heading 2</c>, an <c>h2</c> element, a tagged PDF's <c>H2</c>, a layout service
+    /// reporting a section heading. One key for all of them is what lets a single strategy divide a
+    /// document without knowing which reader produced it.
+    /// <para>
+    /// A stated level is never guessed at. A reader that cannot tell a heading from body text writes
+    /// nothing here, and the analyzer falls through to the signals it can read.
+    /// </para>
+    /// </remarks>
+    public const string HeadingLevel = "crestapps.headingLevel";
 }

@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
+using CrestApps.Core.AI.Ingestion;
 using Microsoft.Extensions.DataIngestion;
 
 namespace CrestApps.Core.DataIngestion;
@@ -17,6 +18,10 @@ namespace CrestApps.Core.DataIngestion;
 /// </summary>
 public sealed partial class HtmlIngestionDocumentReader : IngestionDocumentReader
 {
+    // The elements a page is written in, as opposed to the ones it is laid out with. A div wraps; a
+    // paragraph, a list item or a heading says something, and each becomes one element of the document.
+    private const string BlockSelector = "h1, h2, h3, h4, h5, h6, p, li, blockquote, pre, figcaption, td, th, dd, dt";
+
     // Elements whose text content must never be indexed. Their nodes (and everything inside them) are
     // removed before any text is read, so executable or presentational payloads cannot leak through.
     private const string NonContentSelector = "script, style, noscript, template, iframe, object, embed, svg, canvas, head";
@@ -53,6 +58,34 @@ public sealed partial class HtmlIngestionDocumentReader : IngestionDocumentReade
     public static IngestionDocument Read(string html, string identifier)
     {
         var document = new IngestionDocument(identifier);
+        var blocks = ExtractBlocks(html);
+
+        if (blocks.Count > 0)
+        {
+            var section = new IngestionDocumentSection();
+
+            foreach (var block in blocks)
+            {
+                var element = new IngestionDocumentParagraph(block.Text)
+                {
+                    Text = block.Text,
+                };
+
+                if (block.HeadingLevel > 0)
+                {
+                    element.Metadata[ElementMetadataKeys.HeadingLevel] = block.HeadingLevel;
+                }
+
+                section.Elements.Add(element);
+            }
+
+            document.Sections.Add(section);
+
+            return document;
+        }
+
+        // A page with no block structure at all -- a fragment, or a body of bare text nodes -- still has
+        // text worth reading, and losing it to a stricter walk would be a regression.
         var text = ExtractText(html);
 
         if (!string.IsNullOrWhiteSpace(text))
@@ -67,6 +100,87 @@ public sealed partial class HtmlIngestionDocumentReader : IngestionDocumentReade
         }
 
         return document;
+    }
+
+    /// <summary>
+    /// Splits a page into the blocks it is written in, marking the ones that are headings.
+    /// </summary>
+    /// <param name="html">The raw HTML.</param>
+    /// <returns>The blocks in document order.</returns>
+    /// <remarks>
+    /// HTML states which of its text is a heading and how deeply that heading nests, which is the thing a
+    /// PDF has to be interrogated about. Reading the page as one run of text threw that away and made every
+    /// crawled page one undivided article no matter how it was written.
+    /// <para>
+    /// Only the blocks that carry text of their own are emitted. Walking every element would emit a section
+    /// wrapping a heading and the heading again, and the page's text would be stored as many times as it is
+    /// nested deep.
+    /// </para>
+    /// </remarks>
+    private static List<(string Text, int HeadingLevel)> ExtractBlocks(string html)
+    {
+        var blocks = new List<(string Text, int HeadingLevel)>();
+
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return blocks;
+        }
+
+        var parser = new HtmlParser();
+        using var document = parser.ParseDocument(html);
+
+        foreach (var node in document.QuerySelectorAll(NonContentSelector).ToArray())
+        {
+            node.Remove();
+        }
+
+        var root = document.Body ?? document.DocumentElement;
+
+        if (root is null)
+        {
+            return blocks;
+        }
+
+        foreach (var element in root.QuerySelectorAll(BlockSelector))
+        {
+            // An element that contains another block is a wrapper around it; the block itself is emitted
+            // when the walk reaches it.
+            if (element.QuerySelector(BlockSelector) is not null)
+            {
+                continue;
+            }
+
+            var text = CollapseWhitespace(element.TextContent);
+
+            if (string.IsNullOrEmpty(text))
+            {
+                continue;
+            }
+
+            blocks.Add((text, GetHeadingLevel(element.LocalName)));
+        }
+
+        return blocks;
+    }
+
+    /// <summary>
+    /// Reads the heading level a tag states.
+    /// </summary>
+    /// <param name="localName">The tag name.</param>
+    /// <returns>The one-based level, or zero when the tag is not a heading.</returns>
+    private static int GetHeadingLevel(string localName)
+    {
+        if (string.IsNullOrEmpty(localName) || localName.Length != 2)
+        {
+            return 0;
+        }
+
+        if (localName[0] is not ('h' or 'H'))
+        {
+            return 0;
+        }
+
+        return localName[1] is >= '1' and <= '6' ? localName[1] - '0' : 0;
     }
 
     /// <summary>

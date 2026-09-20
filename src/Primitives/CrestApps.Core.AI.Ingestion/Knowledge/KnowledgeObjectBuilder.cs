@@ -76,18 +76,39 @@ public static class KnowledgeObjectBuilder
             Create(options, rootId, rootId, null, KnowledgeObjectTypes.Document, title, BuildDocumentContent(title, documentText), 0),
         };
 
-        foreach (var entry in ResolveArticles(options, document, pages, title))
+        // A division nested inside another is stored as a section, and hangs off the division containing it
+        // rather than off the document. The identifier carries the type, so the two are told apart by what
+        // they are rather than by where they happen to sit.
+        var divisions = ResolveArticles(options, document, pages, title);
+        var idsByOrdinal = divisions.ToDictionary(
+            division => division.Ordinal,
+            division => $"{(division.Depth > 1 ? KnowledgeObjectTypes.Section : KnowledgeObjectTypes.Article)}:{fileKey}:{division.Ordinal}",
+            EqualityComparer<int>.Default);
+
+        foreach (var entry in divisions)
         {
-            var articleId = $"{KnowledgeObjectTypes.Article}:{fileKey}:{entry.Ordinal}";
+            var isSection = entry.Depth > 1;
+            var articleId = idsByOrdinal[entry.Ordinal];
             var articleSegments = segments.Where(segment => segment.ArticleOrdinal == entry.Ordinal).ToList();
             var articleText = string.Join('\n', articleSegments.Select(segment => segment.Text));
             var articleTitle = ResolveArticleTitle(entry.Title, title, document);
+            var parentId = entry.ParentOrdinal > 0 && idsByOrdinal.TryGetValue(entry.ParentOrdinal, out var ancestor)
+                ? ancestor
+                : rootId;
 
             // An advertisement is kept so the document stays complete and excluded so it can never be
             // returned as an answer to a question about the document's subject.
             var isExcluded = entry.Type == KnowledgeArticleTypes.Advertisement;
 
-            var article = Create(options, articleId, rootId, rootId, KnowledgeObjectTypes.Article, articleTitle, BuildArticleContent(articleTitle, articleText), entry.Ordinal);
+            var article = Create(
+                options,
+                articleId,
+                rootId,
+                parentId,
+                isSection ? KnowledgeObjectTypes.Section : KnowledgeObjectTypes.Article,
+                articleTitle,
+                BuildArticleContent(articleTitle, articleText),
+                entry.Ordinal);
 
             article.PageStart = entry.PageStart > 0 ? entry.PageStart : null;
             article.PageEnd = entry.PageEnd > 0 ? entry.PageEnd : null;

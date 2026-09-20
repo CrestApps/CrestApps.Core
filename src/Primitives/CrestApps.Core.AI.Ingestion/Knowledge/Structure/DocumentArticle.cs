@@ -36,6 +36,19 @@ public sealed class DocumentArticle
     public int ParentOrdinal { get; init; }
 
     /// <summary>
+    /// Gets the position, in the document's elements read in order, where this division begins, or -1 when
+    /// the division is bounded by pages instead.
+    /// </summary>
+    /// <remarks>
+    /// A page is too coarse for a document that puts three headings on one of them, which is ordinary in a
+    /// manual and in anything converted from a word processor. Where the source states exactly which element
+    /// opens a division, that position is kept and the division is bounded by it; where it only states a
+    /// page — an outline entry points at a page, not a paragraph — this stays -1 and
+    /// <see cref="PageStart"/> does the work.
+    /// </remarks>
+    public int ElementStart { get; init; } = -1;
+
+    /// <summary>
     /// Gets the article's title.
     /// </summary>
     public string Title { get; init; }
