@@ -279,7 +279,12 @@ public sealed class SearchIndexDocumentationSource : CachingDocumentationSource
 
     private string ResolveUrl(string location)
     {
-        if (Uri.TryCreate(location, UriKind.Absolute, out _))
+        // Only an http(s) URL is already absolute. Asking Uri.TryCreate alone is not enough: on Unix a rooted
+        // path parses as an absolute file URI, so "/docs/ai/" would be handed back unchanged there while being
+        // resolved against the base URL on Windows. MkDocs locations are relative and never showed it; a
+        // Lunr index states them rooted, so the same index resolved differently per platform.
+        if (Uri.TryCreate(location, UriKind.Absolute, out var absolute) &&
+            (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps))
         {
             return location;
         }

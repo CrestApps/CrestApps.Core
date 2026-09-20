@@ -91,6 +91,31 @@ public sealed class SearchIndexDocumentationDiagnosticsTests
     }
 
     /// <summary>
+    /// Verifies that a rooted location is resolved against the base URL, and an http one is left alone.
+    /// </summary>
+    /// <remarks>
+    /// Asking <see cref="Uri.TryCreate(string, UriKind, out Uri)"/> whether a location is absolute is not
+    /// enough: on Unix a rooted path parses as an absolute file URI, so "/docs/ai/" is handed back unchanged
+    /// there while being joined to the base URL on Windows. MkDocs states its locations relative and never
+    /// showed this; a Lunr index states them rooted, so the same index produced different links per platform.
+    /// </remarks>
+    [Theory]
+    [InlineData("/docs/ai/", "https://docs.test/docs/ai/")]
+    [InlineData("docs/ai/", "https://docs.test/docs/ai/")]
+    [InlineData("https://elsewhere.test/docs/ai/", "https://elsewhere.test/docs/ai/")]
+    public async Task Location_IsResolvedAgainstTheBaseUrlUnlessItIsAlreadyHttp(string location, string expected)
+    {
+        var source = CreateSource(new CapturingLogger(), $$"""
+            {"docs":[{"location":"{{location}}","title":"Alpha","text":"content types are defined here"}]}
+            """);
+
+        var results = await SearchAsync(source, "content types");
+
+        Assert.Single(results);
+        Assert.Equal(expected, results[0].Url);
+    }
+
+    /// <summary>
     /// Verifies that an index from an unsupported generator is reported rather than read as an empty site.
     /// </summary>
     /// <remarks>
