@@ -250,9 +250,11 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
             section.Metadata[ElementMetadataKeys.PageWidth] = page.Width;
             section.Metadata[ElementMetadataKeys.PageHeight] = page.Height;
 
+            var taggedHeadings = ReadTaggedHeadings(page, identifier);
+
             foreach (var block in pages[pageIndex])
             {
-                var element = CreateElement(block, pageNumber, decoration.Contains(block), heights[pageIndex]);
+                var element = CreateElement(block, pageNumber, decoration.Contains(block), heights[pageIndex], taggedHeadings);
 
                 if (element != null)
                 {
@@ -921,7 +923,110 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
         return !TextSegmentation.ContainsSentenceBoundary(text);
     }
 
-    private IngestionDocumentElement CreateElement(TextBlock block, int pageNumber, bool isDecoration, double pageHeight)
+    /// <summary>
+    /// Reads the headings a tagged PDF marks, keyed by the text they carry.
+    /// </summary>
+    /// <param name="page">The page.</param>
+    /// <param name="identifier">The document identifier, used only for logging.</param>
+    /// <returns>The heading level of each marked heading, or an empty map for an untagged page.</returns>
+    /// <remarks>
+    /// A tagged PDF says which of its text is a heading and at what rank, which is the thing every other
+    /// signal in this reader has to infer. Accessible documents — anything published under a policy that
+    /// requires it, which is most government and much corporate output — carry these tags.
+    /// <para>
+    /// Marked content and the blocks layout analysis produces are two different views of a page, and the
+    /// honest way to join them is the text they carry: a block whose text is a marked heading's text is that
+    /// heading. Matching on geometry would mean reconciling two sets of bounds that were never meant to
+    /// agree.
+    /// </para>
+    /// </remarks>
+    private Dictionary<string, int> ReadTaggedHeadings(Page page, string identifier)
+    {
+        var headings = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        try
+        {
+            foreach (var content in page.GetMarkedContents())
+            {
+                CollectTaggedHeadings(content, headings);
+            }
+        }
+        catch (Exception ex)
+        {
+            // A page whose marked content cannot be read is a page without tags, which is the ordinary case.
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(ex, "Could not read the marked content of '{Identifier}'. The page is treated as untagged.", identifier);
+            }
+        }
+
+        return headings;
+    }
+
+    /// <summary>
+    /// Collects one marked-content element and its descendants.
+    /// </summary>
+    /// <param name="content">The marked content.</param>
+    /// <param name="headings">The headings collected so far.</param>
+    private static void CollectTaggedHeadings(MarkedContentElement content, Dictionary<string, int> headings)
+    {
+        if (!content.IsArtifact)
+        {
+            var level = GetTagHeadingLevel(content.Tag);
+
+            if (level > 0)
+            {
+                // ActualText is what the document says the content reads as, which is what a tag exists to
+                // provide when the glyphs themselves do not spell it.
+                var text = PdfTextNormalizer.Normalize(
+                    string.IsNullOrWhiteSpace(content.ActualText)
+                        ? string.Concat(content.Letters.Select(letter => letter.Value))
+                        : content.ActualText);
+
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    headings[text] = level;
+                }
+            }
+        }
+
+        foreach (var child in content.Children)
+        {
+            CollectTaggedHeadings(child, headings);
+        }
+    }
+
+    /// <summary>
+    /// Reads the heading level a structure tag names.
+    /// </summary>
+    /// <param name="tag">The tag.</param>
+    /// <returns>The one-based level, or zero when the tag is not a heading.</returns>
+    /// <remarks>
+    /// <c>H1</c> to <c>H6</c> state their rank. A bare <c>H</c> is a heading whose rank the document leaves
+    /// to its position in the structure tree; it is taken as the outermost, which is what it is in the
+    /// documents that use it at all.
+    /// </remarks>
+    private static int GetTagHeadingLevel(string tag)
+    {
+        if (string.IsNullOrEmpty(tag) || tag[0] is not ('h' or 'H'))
+        {
+            return 0;
+        }
+
+        if (tag.Length == 1)
+        {
+            return 1;
+        }
+
+        return tag.Length == 2 && tag[1] is >= '1' and <= '6' ? tag[1] - '0' : 0;
+    }
+
+    private IngestionDocumentElement CreateElement(
+        TextBlock block,
+        int pageNumber,
+        bool isDecoration,
+        double pageHeight,
+        Dictionary<string, int> taggedHeadings)
     {
         var text = PdfTextNormalizer.Normalize(block.Text);
 
@@ -958,6 +1063,13 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
         var bounds = block.BoundingBox;
 
         element.Metadata[ElementMetadataKeys.BoundingBox] = new[] { bounds.Left, bounds.Bottom, bounds.Right, bounds.Top };
+
+        // A rank the document tagged outranks anything measured from type size, and it is the only structural
+        // signal a heading set in body-sized type ever carries.
+        if (!isDecoration && taggedHeadings.Count > 0 && taggedHeadings.TryGetValue(text, out var headingLevel))
+        {
+            element.Metadata[ElementMetadataKeys.HeadingLevel] = headingLevel;
+        }
 
         var modalPointSize = GetModalPointSize(block);
 

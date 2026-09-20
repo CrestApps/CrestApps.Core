@@ -762,17 +762,19 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
         }
 
         var gate = bodySize * HeadingSizeRatio;
+        var elementIndex = 0;
 
         for (var index = 0; index < document.Sections.Count; index++)
         {
             var section = document.Sections[index];
             var pageHeight = GetDouble(section, ElementMetadataKeys.PageHeight) ?? 0;
-
-            string title = null;
-            var highest = double.MinValue;
+            var page = GetPageNumber(document, index);
+            var onThisPage = 0;
 
             foreach (var element in section.Elements)
             {
+                var position = elementIndex++;
+
                 if (IsDecoration(element))
                 {
                     continue;
@@ -794,26 +796,23 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
 
                 var top = GetTop(element);
 
-                if (top is null || (pageHeight > 0 && top.Value < pageHeight * HeadingTopBand))
+                if (top is null)
                 {
                     continue;
                 }
 
-                if (top.Value > highest)
+                // The first heading on a page has to sit near its top, which is what keeps a pull quote
+                // halfway down a magazine feature from opening an article. A page that has already opened
+                // one takes later headings wherever they fall: a newspaper page carries four or five
+                // stories, and every headline after the first is somewhere below the fold.
+                if (onThisPage == 0 && pageHeight > 0 && top.Value < pageHeight * HeadingTopBand)
                 {
-                    highest = top.Value;
-                    title = text;
+                    continue;
                 }
+
+                onThisPage++;
+                boundaries.Add(new Boundary(page, new TocSeed(text, null, page), position));
             }
-
-            if (title is null)
-            {
-                continue;
-            }
-
-            var page = GetPageNumber(document, index);
-
-            boundaries.Add(new Boundary(page, new TocSeed(title, null, page)));
         }
 
         return boundaries.Count >= MinimumInferredArticles ? boundaries : [];
@@ -866,12 +865,18 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
         for (var index = 0; index < boundaries.Count; index++)
         {
             var boundary = boundaries[index];
-            var pageEnd = index + 1 < boundaries.Count ? boundaries[index + 1].Page - 1 : pageCount;
+
+            // Two articles can open on one page, which is ordinary in a newspaper. The one that opens first
+            // still ends on that page; only the last of them carries on to the next boundary's page.
+            var pageEnd = index + 1 < boundaries.Count
+                ? (boundaries[index + 1].Page == boundary.Page ? boundary.Page : boundaries[index + 1].Page - 1)
+                : pageCount;
 
             titled.Add(new DocumentArticle
             {
                 Title = boundary.Seed.Title,
                 Authors = boundary.Seed.Author is null ? [] : [boundary.Seed.Author],
+                ElementStart = boundary.ElementStart,
                 PageStart = boundary.Page,
                 PageEnd = Math.Max(boundary.Page, pageEnd),
                 SectionLabel = labels.TryGetValue(boundary.Page, out var label) ? label : null,
@@ -889,6 +894,10 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
             articles.Insert(0, new DocumentArticle
             {
                 Title = document.Identifier,
+
+                // Front matter opens at the document's first element whenever anything else is bounded by
+                // one, so that stamping has somewhere to start.
+                ElementStart = boundaries[0].ElementStart >= 0 ? 0 : -1,
                 PageStart = 1,
                 PageEnd = boundaries[0].Page - 1,
                 SectionLabel = labels.TryGetValue(1, out var frontLabel) ? frontLabel : null,
@@ -1053,10 +1062,17 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
         return new DocumentArticle
         {
             Ordinal = ordinal,
+            Depth = article.Depth,
+            ParentOrdinal = article.ParentOrdinal,
             Title = article.Title,
             Authors = article.Authors,
             SectionLabel = article.SectionLabel,
             Type = type,
+
+            // A rewrite moves an article's page range; it does not move where the article opens. Dropping
+            // this would leave an element-bounded article with no opening element, and stamping would give
+            // its text to whichever article was still open.
+            ElementStart = pageStart == article.PageStart ? article.ElementStart : -1,
             PageStart = pageStart,
             PageEnd = pageEnd,
         };
@@ -1375,5 +1391,5 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
 
     private readonly record struct TocSeed(string Title, string Author, int PrintedPage);
 
-    private readonly record struct Boundary(int Page, TocSeed Seed);
+    private readonly record struct Boundary(int Page, TocSeed Seed, int ElementStart = -1);
 }
