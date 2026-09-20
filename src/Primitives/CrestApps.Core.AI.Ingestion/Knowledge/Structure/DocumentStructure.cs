@@ -30,4 +30,13 @@ public sealed class DocumentStructure
     /// treated as one article because nothing could be.
     /// </summary>
     public bool IsInferred { get; init; }
+
+    /// <summary>
+    /// Gets what the structure was worked out from. See <see cref="DocumentStructureSources"/>.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="IsInferred"/> says whether anything was found; this says what found it. The two are not
+    /// the same question, and the second is the one worth asking when a document comes out divided wrongly.
+    /// </remarks>
+    public string Source { get; init; } = DocumentStructureSources.Whole;
 }

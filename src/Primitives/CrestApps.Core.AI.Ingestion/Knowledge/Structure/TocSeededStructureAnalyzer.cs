@@ -138,75 +138,39 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
             var folios = CaptureFolios(document);
             var labels = CaptureSectionLabels(document);
 
-            // A document that states its own structure has already answered the question. Everything below
-            // this point infers structure from how a page looks, and inference can be wrong about a layout
-            // nobody anticipated; an outline cannot.
-            var outlined = BuildFromOutline(ReadOutline(document), pageCount);
-
-            if (outlined.Count > 0)
+            // The rungs in order of authority. The first three are the document stating its own structure,
+            // and the last infers it from how a page looks; a stated answer is never passed over for an
+            // inferred one. Each rung returns nothing when it has nothing to say, and the ladder ends at one
+            // division covering everything, which is the answer that is never wrong.
+            var ladder = new (string Source, Func<List<DocumentArticle>> Divide)[]
             {
-                Stamp(document, outlined, folios, labels);
-
-                return new DocumentStructure
-                {
-                    Articles = outlined,
-                    Folios = folios,
-                    IsInferred = true,
-                };
-            }
-
-            // A format that names its own headings — a Word style, an h2, a tagged PDF, a layout service —
-            // states the nesting outright. That outranks a contents page, which has to be matched to the
-            // headings it lists before it says anything.
-            var headed = BuildFromHeadingLevels(document, pageCount);
-
-            if (headed.Count > 0)
-            {
-                Stamp(document, headed, folios, labels);
-
-                return new DocumentStructure
-                {
-                    Articles = headed,
-                    Folios = folios,
-                    IsInferred = true,
-                };
-            }
-
-            var (seeds, tocPageIndex) = ReadTableOfContents(document);
-
-            var boundaries = seeds.Count == 0
-                ? []
-                : MatchHeadings(document, seeds, tocPageIndex);
-
-            // A contents page is the answer key, not a precondition. Plenty of publications have none that
-            // can be read — the page is laid out so that no title and page number share a line, or what
-            // looks like a contents page is a parts list — and answering "one article" for a
-            // twenty-three page magazine is a worse answer than reading its own headings.
-            if (boundaries.Count == 0)
-            {
-                boundaries = InferHeadingBoundaries(document);
-            }
-
-            if (boundaries.Count == 0)
-            {
-                return Single(document, pageCount, folios);
-            }
-
-            var articles = BuildArticles(document, boundaries, labels, pageCount);
-
-            if (articles.Count == 0)
-            {
-                return Single(document, pageCount, folios);
-            }
-
-            Stamp(document, articles, folios, labels);
-
-            return new DocumentStructure
-            {
-                Articles = articles,
-                Folios = folios,
-                IsInferred = true,
+                (DocumentStructureSources.Outline, () => BuildFromOutline(ReadOutline(document), pageCount)),
+                (DocumentStructureSources.StatedHeadings, () => BuildFromHeadingLevels(document, pageCount)),
+                (DocumentStructureSources.TableOfContents, () => BuildFromTableOfContents(document, labels, pageCount)),
+                (DocumentStructureSources.InferredHeadings, () => BuildFromInferredHeadings(document, labels, pageCount)),
             };
+
+            foreach (var rung in ladder)
+            {
+                var articles = rung.Divide();
+
+                if (articles.Count == 0)
+                {
+                    continue;
+                }
+
+                Stamp(document, articles, folios, labels);
+
+                return new DocumentStructure
+                {
+                    Articles = articles,
+                    Folios = folios,
+                    IsInferred = true,
+                    Source = rung.Source,
+                };
+            }
+
+            return Single(document, pageCount, folios);
         }
         catch (Exception ex)
         {
@@ -223,6 +187,58 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// </summary>
     /// <param name="document">The ingested document.</param>
     /// <returns>The titles it lists, in the order it lists them.</returns>
+    /// <summary>
+    /// Divides a document by the contents page it carries.
+    /// </summary>
+    /// <param name="document">The ingested document.</param>
+    /// <param name="labels">The section labels by page.</param>
+    /// <param name="pageCount">How many pages the document has.</param>
+    /// <returns>The divisions, or none when there is no contents page the headings can be matched to.</returns>
+    /// <remarks>
+    /// A contents page states the titles and the pages they are on, which turns "where does an article
+    /// begin" from a judgement into a fuzzy string match. It is still only as good as the match: a document
+    /// whose printed headings resemble nothing it lists yields nothing here.
+    /// </remarks>
+    private static List<DocumentArticle> BuildFromTableOfContents(
+        IngestionDocument document,
+        Dictionary<int, string> labels,
+        int pageCount)
+    {
+        var (seeds, tocPageIndex) = ReadTableOfContents(document);
+
+        if (seeds.Count == 0)
+        {
+            return [];
+        }
+
+        var boundaries = MatchHeadings(document, seeds, tocPageIndex);
+
+        return boundaries.Count == 0 ? [] : BuildArticles(document, boundaries, labels, pageCount);
+    }
+
+    /// <summary>
+    /// Divides a document by the headings its type size implies.
+    /// </summary>
+    /// <param name="document">The ingested document.</param>
+    /// <param name="labels">The section labels by page.</param>
+    /// <param name="pageCount">How many pages the document has.</param>
+    /// <returns>The divisions, or none when nothing on the page reads as a heading.</returns>
+    /// <remarks>
+    /// The last rung before giving up, and the only one that guesses. A contents page is the answer key, not
+    /// a precondition: plenty of publications have none that can be read — the page is laid out so no title
+    /// and page number share a line, or what looks like one is a parts list — and answering "one article"
+    /// for a twenty-three page magazine is a worse answer than reading its own headings.
+    /// </remarks>
+    private static List<DocumentArticle> BuildFromInferredHeadings(
+        IngestionDocument document,
+        Dictionary<int, string> labels,
+        int pageCount)
+    {
+        var boundaries = InferHeadingBoundaries(document);
+
+        return boundaries.Count == 0 ? [] : BuildArticles(document, boundaries, labels, pageCount);
+    }
+
     /// <summary>
     /// Reads the outline a reader captured, when there is one.
     /// </summary>

@@ -50,38 +50,54 @@ Azure Document Intelligence is a third: its layout model already reports paragra
 `title` and `sectionHeading`, and works on scans. `DocumentIntelligenceDocumentMapper` currently
 drops that role information.
 
-## Proposed shape
+## The shape it took
 
-Replace the single analyzer with a ladder of strategies behind the existing
-`IDocumentStructureAnalyzer`, each one authoritative over the next, each degrading to the one below.
-The contract that nothing may fail an ingest is kept: the last rung is still one article.
+`IDocumentStructureAnalyzer` now runs a ladder, each rung authoritative over the next and each
+degrading to the one below. The contract that nothing may fail an ingest is kept: the last rung is
+still one division covering everything.
 
-| Rung | Source | Authority | Covers |
+| Rung | `DocumentStructureSources` | Authority | Covers |
 | --- | --- | --- | --- |
-| 1 | Tagged content roles | stated | accessible PDFs of any genre |
-| 2 | PDF outline / bookmarks | stated | manuals, reports, books, most white papers |
-| 3 | Provider roles (Document Intelligence) | stated | scans, and anything the service reads |
-| 4 | Table of contents | stated, fuzzy-matched | magazines, journals |
-| 5 | Heading inference | inferred | anything with type-size contrast |
-| 6 | Single article | none | the answer that is never wrong |
+| 1 | `Outline` | stated | manuals, reports, books, most white papers |
+| 2 | `StatedHeadings` | stated | Word, HTML, tagged PDFs, anything Document Intelligence read |
+| 3 | `TableOfContents` | stated, fuzzy-matched | magazines, journals |
+| 4 | `InferredHeadings` | inferred | anything with type-size contrast |
+| 5 | `Whole` | none | the answer that is never wrong |
 
-Rung 5 is where newspapers are won or lost, and it needs two changes: allow **several boundaries per
-page** rather than one, and use the block geometry the reader already produces to order them by
-column rather than by height alone.
+Rung 2 collapsed what were going to be three separate rungs. A Word paragraph styled `Heading 2`, an
+`h2`, a tagged PDF's `H2` and a layout service's section heading are one fact written four ways, so
+`ElementMetadataKeys.HeadingLevel` carries it from every reader and one rung divides on it. Adding a
+format means teaching its reader to write that key, not writing another strategy.
+
+### What each reader now states
+
+| Reader | Writes |
+| --- | --- |
+| PDF | the outline, and `H1`–`H6` from marked content on tagged pages |
+| Word | the paragraph's outline level, else its `Heading N` style |
+| HTML | `h1`–`h6`, and the blocks a page is written in rather than one run of its text |
+| Document Intelligence | `Title` and `SectionHeading` as levels one and two |
 
 ### Model changes
 
-- `DocumentStructure` becomes a tree. A node carries a title, a depth, an ordinal, a page range and
-  its children. An article is a depth-1 node; a manual's chapter and its procedures are depth 1 and 2.
-- A `section` value joins `KnowledgeObjectTypes`. This is additive — the existing values are written
-  into stored rows and read back verbatim, so they are pinned, but adding one is safe.
-- Genre-specific notions leave the general path. `Advertisement` and section-banner capture belong to
-  a magazine strategy, not to every document.
+- `DocumentArticle` carries `Depth` and `ParentOrdinal`, so a chapter and its sections are one
+  ordered list with the nesting recorded on each. Every consumer that walks a document in reading
+  order keeps working without knowing nesting exists.
+- `ElementStart` bounds a division by element rather than by page, which is what lets several
+  divisions share a page — three headings on one page in a manual, four stories on a newspaper page.
+  Sources that only state a page, such as an outline, leave it unset.
+- `KnowledgeObjectTypes.Section` stores a nested division as what it is, hanging off the division
+  containing it rather than off the document.
+- `DocumentStructure.Source` reports which rung answered.
 
-### Keeping it honest
+### What is still open
 
-Each strategy reports what it relied on, so a wrong split can be explained rather than guessed at,
-and `DocumentStructure.IsInferred` grows into "which rung answered". Fixtures for each genre —
-magazine, newspaper, research paper, user manual, technical report — are what make this measurable
-instead of anecdotal; the current behaviour was measured against one document and silently produced
-a single article for everything laid out differently.
+- **Genre-specific notions sit in the general path.** `KnowledgeArticleTypes.Advertisement` and
+  section-banner capture are magazine concepts every document is measured against.
+- **The rungs are private methods, not public strategies.** The ladder is explicit and adding one is
+  a line, but a host cannot contribute a rung of its own.
+- **Fixtures are synthetic.** Every test builds the document it reads — a bookmarked manual, a
+  Word file with heading styles, a page carrying three stories. That proves the algorithm and proves
+  nothing about a real magazine whose contents page is set as a picture, or a manual whose outline
+  points at the wrong pages. Measuring against real documents is what would turn this from correct
+  into trustworthy.
