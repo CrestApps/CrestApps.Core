@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
 using CrestApps.Core.AI.Ingestion.Pdf.Services;
+using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.Logging.Abstractions;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Fonts.Standard14Fonts;
@@ -106,7 +107,7 @@ public sealed class OutlineStructureTests
                 new OutlineFixture("Section 2.1", 2, 5)));
 
         var document = await ReadAsync(pdf);
-        new TocSeededStructureAnalyzer(NullLogger<TocSeededStructureAnalyzer>.Instance).Analyze(document);
+        StructureAnalyzers.Default().Analyze(document);
 
         var structure = await AnalyzeAsync(pdf);
         var byTitle = structure.Articles.ToDictionary(article => article.Title, StringComparer.Ordinal);
@@ -151,7 +152,7 @@ public sealed class OutlineStructureTests
     {
         var document = await ReadAsync(pdf);
 
-        return new TocSeededStructureAnalyzer(NullLogger<TocSeededStructureAnalyzer>.Instance).Analyze(document);
+        return StructureAnalyzers.Default().Analyze(document);
     }
 
     private static async Task<Microsoft.Extensions.DataIngestion.IngestionDocument> ReadAsync(byte[] pdf)

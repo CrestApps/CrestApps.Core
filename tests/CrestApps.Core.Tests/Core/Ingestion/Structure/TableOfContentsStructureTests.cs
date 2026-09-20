@@ -1,3 +1,4 @@
+using CrestApps.Core.Tests.Support;
 ﻿using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Ingestion.Knowledge;
 using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
@@ -6,14 +7,14 @@ using CrestApps.Core.Infrastructure.Indexing;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace CrestApps.Core.Tests.Core.Ingestion.Knowledge;
+namespace CrestApps.Core.Tests.Core.Ingestion.Structure;
 
 /// <summary>
 /// Covers splitting a document into the articles it is actually made of. A magazine indexed as one document
 /// answers every question with a blend of thirty unrelated subjects; split correctly, each article answers
 /// for itself.
 /// </summary>
-public sealed class TocSeededStructureAnalyzerTests
+public sealed class TableOfContentsStructureTests
 {
     private const double BodySize = 10;
     private const double HeadingSize = 20;
@@ -533,7 +534,7 @@ public sealed class TocSeededStructureAnalyzerTests
 
     private static DocumentStructure Analyze(IngestionDocument document)
     {
-        return new TocSeededStructureAnalyzer(NullLogger<TocSeededStructureAnalyzer>.Instance).Analyze(document);
+        return StructureAnalyzers.Default().Analyze(document);
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
 using CrestApps.Core.AI.Ingestion.Pdf.Services;
+using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.Logging.Abstractions;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
@@ -48,7 +49,7 @@ public sealed class MultiStoryPageTests
             new Story("Library extends its hours", 260));
 
         var document = await ReadAsync(pdf);
-        var structure = new TocSeededStructureAnalyzer(NullLogger<TocSeededStructureAnalyzer>.Instance).Analyze(document);
+        var structure = StructureAnalyzers.Default().Analyze(document);
 
         // Every story shares one page, so a page-bounded answer would file all of this under whichever
         // headline came last.
@@ -75,7 +76,7 @@ public sealed class MultiStoryPageTests
 
     private static async Task<DocumentStructure> AnalyzeAsync(byte[] pdf)
     {
-        return new TocSeededStructureAnalyzer(NullLogger<TocSeededStructureAnalyzer>.Instance).Analyze(await ReadAsync(pdf));
+        return StructureAnalyzers.Default().Analyze(await ReadAsync(pdf));
     }
 
     private static async Task<Microsoft.Extensions.DataIngestion.IngestionDocument> ReadAsync(byte[] pdf)

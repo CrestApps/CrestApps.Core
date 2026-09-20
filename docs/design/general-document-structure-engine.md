@@ -90,14 +90,28 @@ format means teaching its reader to write that key, not writing another strategy
   containing it rather than off the document.
 - `DocumentStructure.Source` reports which rung answered.
 
+### The ladder is open
+
+`DocumentStructureAnalyzer` asks every registered `IDocumentStructureStrategy` in `Order`, so a host
+adds a rung by registering one rather than by replacing the analyzer and losing the built-in four
+with it. The built-in orders leave gaps — 100, 200, 300, 400 — so a rung can be placed between two
+of them without renumbering anything.
+
+A corpus with a convention nobody outside the business knows, a form series whose first line names
+the section, a ledger split by its own rule: those are strategies belonging to that host. A strategy
+that throws is logged and treated as having declined, because one rung failing is not the document's
+fault and the rung below it may well have an answer.
+
+Advertisements left the general path with this. A page carrying no article and no running head means
+something in a magazine and nothing in a manual, so `SplitAdvertisements` runs only on the
+table-of-contents rung rather than on every document that reaches `BuildArticles`.
+
 ### What is still open
 
-- **Genre-specific notions sit in the general path.** `KnowledgeArticleTypes.Advertisement` and
-  section-banner capture are magazine concepts every document is measured against.
-- **The rungs are private methods, not public strategies.** The ladder is explicit and adding one is
-  a line, but a host cannot contribute a rung of its own.
-- **Fixtures are synthetic.** Every test builds the document it reads — a bookmarked manual, a
-  Word file with heading styles, a page carrying three stories. That proves the algorithm and proves
-  nothing about a real magazine whose contents page is set as a picture, or a manual whose outline
-  points at the wrong pages. Measuring against real documents is what would turn this from correct
-  into trustworthy.
+**Fixtures are synthetic.** Every test builds the document it reads — a bookmarked manual, a Word
+file with heading styles, an HTML page, a page carrying three stories. That proves the algorithms
+against documents written the way the specifications say. It proves nothing about a real magazine
+whose contents page is set as a picture, a manual whose outline points at the wrong pages, a
+newspaper whose headlines are set in the same size as its standfirsts, or a PDF that claims tags it
+does not honour. Real documents are where the next class of failure lives, and measuring against
+them is what would turn this from correct into trustworthy.

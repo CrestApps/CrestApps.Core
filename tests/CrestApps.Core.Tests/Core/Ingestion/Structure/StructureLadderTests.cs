@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
 using CrestApps.Core.DataIngestion;
+using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -106,6 +107,6 @@ public sealed class StructureLadderTests
 
     private static DocumentStructure Analyze(IngestionDocument document)
     {
-        return new TocSeededStructureAnalyzer(NullLogger<TocSeededStructureAnalyzer>.Instance).Analyze(document);
+        return StructureAnalyzers.Default().Analyze(document);
     }
 }

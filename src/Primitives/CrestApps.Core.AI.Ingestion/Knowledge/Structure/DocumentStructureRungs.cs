@@ -5,20 +5,18 @@ using Microsoft.Extensions.Logging;
 namespace CrestApps.Core.AI.Ingestion.Knowledge.Structure;
 
 /// <summary>
-/// Splits a document into articles using its own table of contents as the answer key.
+/// The work the built-in strategies do, and the primitives they share.
 /// </summary>
 /// <remarks>
-/// Deciding where one article ends and the next begins from headings alone is guesswork: a big line of type
-/// might be a title, a pull quote or an advertisement. A table of contents states the answer — these are the
-/// titles, in this order, on these printed pages — so the only remaining question is which page carries
-/// which title, and that is a fuzzy string match rather than a judgement call.
+/// This is one class rather than four because the strategies share more than they differ: reading a page
+/// number off a page, deciding whether a block is a running head, measuring how far one title is from
+/// another. Splitting those across four files would mean a fifth file holding what all four need, and every
+/// change to a shared rule would land in whichever file it was least expected.
 /// <para>
-/// Every step degrades to the step before it. No table of contents, no headings big enough to be titles, or
-/// anything at all going wrong, and the document is one article — which is exactly what it was before any of
-/// this existed.
+/// What a caller sees is the strategies, which are small and separate. This is the library they call into.
 /// </para>
 /// </remarks>
-public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnalyzer
+internal static partial class DocumentStructureRungs
 {
     /// <summary>
     /// How many leading pages may hold the table of contents. Past that it is a list inside an article, not
@@ -37,24 +35,24 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// then match nothing falls back to one article anyway.
     /// </para>
     /// </remarks>
-    private const int MaxTocPageIndex = 10;
+    internal const int MaxTocPageIndex = 10;
 
     /// <summary>
     /// How many "title ... page" lines a page needs before it is believed to be a table of contents. One or
     /// two such lines happen by accident in ordinary prose; five do not.
     /// </summary>
-    private const int MinimumTocEntries = 5;
+    internal const int MinimumTocEntries = 5;
 
     /// <summary>
     /// How much bigger than the body a line has to be before it is treated as a heading.
     /// </summary>
-    private const double HeadingSizeRatio = 1.5;
+    internal const double HeadingSizeRatio = 1.5;
 
     /// <summary>
     /// How different a heading may be from a table-of-contents title and still be taken as the same title.
     /// Printed headings drop subtitles, change case and hyphenate, so an exact match finds almost nothing.
     /// </summary>
-    private const double MaxTitleDistance = 0.3;
+    internal const double MaxTitleDistance = 0.3;
 
     /// <summary>
     /// How much of what a prefix match left out still counts against it, as a fraction of that difference.
@@ -68,30 +66,30 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// is forgiven at all — and large enough that a title printed in full always beats one that merely starts
     /// the same way.
     /// </remarks>
-    private const double PrefixPenalty = 0.5;
+    internal const double PrefixPenalty = 0.5;
 
     /// <summary>
     /// How near an edge a number has to be printed before it is taken for the page number rather than for
     /// part of the text, as a fraction of the page height.
     /// </summary>
-    private const double EdgeBand = 0.12;
+    internal const double EdgeBand = 0.12;
 
     /// <summary>
     /// How far down a page an article's opening heading may sit, as a fraction of the page height measured
     /// from the bottom. A title opens a page; a heading halfway down it is a subheading inside one.
     /// </summary>
-    private const double HeadingTopBand = 0.7;
+    internal const double HeadingTopBand = 0.7;
 
     /// <summary>
     /// How many headed pages a document needs before its headings alone are taken as article boundaries.
     /// Below this the document is barely divided, and one article is the safer answer.
     /// </summary>
-    private const int MinimumInferredArticles = 3;
+    internal const int MinimumInferredArticles = 3;
 
     /// <summary>
     /// The longest a heading may be and still be stored as an article title.
     /// </summary>
-    private const int MaxInferredTitleCharacters = 200;
+    internal const int MaxInferredTitleCharacters = 200;
 
     /// <summary>
     /// What share of the pages inside articles have to carry a running head before the absence of one on a
@@ -108,85 +106,8 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// matter carries no running head by convention and would otherwise drag every document under the bar.
     /// </para>
     /// </remarks>
-    private const double MinLabelledPageRatio = 0.6;
+    internal const double MinLabelledPageRatio = 0.6;
 
-    private readonly ILogger<TocSeededStructureAnalyzer> _logger;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="TocSeededStructureAnalyzer"/> class.
-    /// </summary>
-    /// <param name="logger">The logger.</param>
-    public TocSeededStructureAnalyzer(ILogger<TocSeededStructureAnalyzer> logger)
-    {
-        _logger = logger;
-    }
-
-    /// <inheritdoc />
-    public DocumentStructure Analyze(IngestionDocument document)
-    {
-        ArgumentNullException.ThrowIfNull(document);
-
-        var pageCount = document.Sections.Count;
-
-        if (pageCount == 0)
-        {
-            return Single(document, 0);
-        }
-
-        try
-        {
-            var folios = CaptureFolios(document);
-            var labels = CaptureSectionLabels(document);
-
-            // The rungs in order of authority. The first three are the document stating its own structure,
-            // and the last infers it from how a page looks; a stated answer is never passed over for an
-            // inferred one. Each rung returns nothing when it has nothing to say, and the ladder ends at one
-            // division covering everything, which is the answer that is never wrong.
-            var ladder = new (string Source, Func<List<DocumentArticle>> Divide)[]
-            {
-                (DocumentStructureSources.Outline, () => BuildFromOutline(ReadOutline(document), pageCount)),
-                (DocumentStructureSources.StatedHeadings, () => BuildFromHeadingLevels(document, pageCount)),
-                (DocumentStructureSources.TableOfContents, () => BuildFromTableOfContents(document, labels, pageCount)),
-                (DocumentStructureSources.InferredHeadings, () => BuildFromInferredHeadings(document, labels, pageCount)),
-            };
-
-            foreach (var rung in ladder)
-            {
-                var articles = rung.Divide();
-
-                if (articles.Count == 0)
-                {
-                    continue;
-                }
-
-                Stamp(document, articles, folios, labels);
-
-                return new DocumentStructure
-                {
-                    Articles = articles,
-                    Folios = folios,
-                    IsInferred = true,
-                    Source = rung.Source,
-                };
-            }
-
-            return Single(document, pageCount, folios);
-        }
-        catch (Exception ex)
-        {
-            // A document that could not be understood is still a document. One article is the answer that is
-            // never wrong, only less useful.
-            _logger.LogWarning(ex, "Structure analysis failed for '{Identifier}'. The document is treated as one article.", document.Identifier);
-
-            return Single(document, pageCount);
-        }
-    }
-
-    /// <summary>
-    /// Reads the table of contents, when the document has one in its front matter.
-    /// </summary>
-    /// <param name="document">The ingested document.</param>
-    /// <returns>The titles it lists, in the order it lists them.</returns>
     /// <summary>
     /// Divides a document by the contents page it carries.
     /// </summary>
@@ -199,9 +120,9 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// begin" from a judgement into a fuzzy string match. It is still only as good as the match: a document
     /// whose printed headings resemble nothing it lists yields nothing here.
     /// </remarks>
-    private static List<DocumentArticle> BuildFromTableOfContents(
+    internal static List<DocumentArticle> BuildFromTableOfContents(
         IngestionDocument document,
-        Dictionary<int, string> labels,
+        IReadOnlyDictionary<int, string> labels,
         int pageCount)
     {
         var (seeds, tocPageIndex) = ReadTableOfContents(document);
@@ -213,7 +134,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
 
         var boundaries = MatchHeadings(document, seeds, tocPageIndex);
 
-        return boundaries.Count == 0 ? [] : BuildArticles(document, boundaries, labels, pageCount);
+        return boundaries.Count == 0 ? [] : BuildArticles(document, boundaries, labels, pageCount, splitAdvertisements: true);
     }
 
     /// <summary>
@@ -229,14 +150,14 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// and page number share a line, or what looks like one is a parts list — and answering "one article"
     /// for a twenty-three page magazine is a worse answer than reading its own headings.
     /// </remarks>
-    private static List<DocumentArticle> BuildFromInferredHeadings(
+    internal static List<DocumentArticle> BuildFromInferredHeadings(
         IngestionDocument document,
-        Dictionary<int, string> labels,
+        IReadOnlyDictionary<int, string> labels,
         int pageCount)
     {
         var boundaries = InferHeadingBoundaries(document);
 
-        return boundaries.Count == 0 ? [] : BuildArticles(document, boundaries, labels, pageCount);
+        return boundaries.Count == 0 ? [] : BuildArticles(document, boundaries, labels, pageCount, splitAdvertisements: false);
     }
 
     /// <summary>
@@ -249,7 +170,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// of its own. A reader that cannot see an outline — anything reading a format that has none, or a
     /// provider-backed reader — records nothing and the analyzer carries on to the signals it can read.
     /// </remarks>
-    private static IReadOnlyList<DocumentOutlineEntry> ReadOutline(IngestionDocument document)
+    internal static IReadOnlyList<DocumentOutlineEntry> ReadOutline(IngestionDocument document)
     {
         if (document.Sections.Count == 0 || !document.Sections[0].HasMetadata)
         {
@@ -280,7 +201,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// division own a page the two of them share, and so keeps a chapter's text from being stored twice.
     /// </para>
     /// </remarks>
-    private static List<DocumentArticle> BuildFromOutline(IReadOnlyList<DocumentOutlineEntry> entries, int pageCount)
+    internal static List<DocumentArticle> BuildFromOutline(IReadOnlyList<DocumentOutlineEntry> entries, int pageCount)
     {
         if (entries.Count == 0 || pageCount <= 0)
         {
@@ -353,7 +274,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// One heading is a title. Dividing a document at its title produces one division covering all of it,
     /// which is the answer the analyzer already gives when it finds nothing.
     /// </remarks>
-    private const int MinimumStatedHeadings = 2;
+    internal const int MinimumStatedHeadings = 2;
 
     /// <summary>
     /// Divides a document by the heading levels its elements state.
@@ -372,7 +293,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// last.
     /// </para>
     /// </remarks>
-    private static List<DocumentArticle> BuildFromHeadingLevels(IngestionDocument document, int pageCount)
+    internal static List<DocumentArticle> BuildFromHeadingLevels(IngestionDocument document, int pageCount)
     {
         if (pageCount <= 0)
         {
@@ -456,7 +377,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// </summary>
     /// <param name="element">The element.</param>
     /// <returns>The one-based level, or zero.</returns>
-    private static int GetHeadingLevel(IngestionDocumentElement element)
+    internal static int GetHeadingLevel(IngestionDocumentElement element)
     {
         if (!element.HasMetadata || !element.Metadata.TryGetValue(ElementMetadataKeys.HeadingLevel, out var value))
         {
@@ -471,7 +392,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
         };
     }
 
-    private static (List<TocSeed> Seeds, int PageIndex) ReadTableOfContents(IngestionDocument document)
+    internal static (List<TocSeed> Seeds, int PageIndex) ReadTableOfContents(IngestionDocument document)
     {
         var best = new List<TocSeed>();
         var bestIndex = -1;
@@ -527,7 +448,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// </summary>
     /// <param name="line">The line.</param>
     /// <returns>The title and the author, which may be <see langword="null"/>.</returns>
-    private static (string Title, string Author) SplitAuthor(string line)
+    internal static (string Title, string Author) SplitAuthor(string line)
     {
         var separator = line.LastIndexOfAny(['–', '—']);
 
@@ -554,7 +475,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// </summary>
     /// <param name="document">The ingested document.</param>
     /// <returns>The folio of each page, keyed by the page's position in the file.</returns>
-    private static Dictionary<int, string> CaptureFolios(IngestionDocument document)
+    internal static Dictionary<int, string> CaptureFolios(IngestionDocument document)
     {
         var folios = new Dictionary<int, string>();
 
@@ -607,7 +528,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// A label recurring on one page only is a title that happens to be set in capitals. Two pages is the
     /// smallest number that makes it a running head.
     /// </remarks>
-    private static Dictionary<int, string> CaptureSectionLabels(IngestionDocument document)
+    internal static Dictionary<int, string> CaptureSectionLabels(IngestionDocument document)
     {
         var candidates = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
 
@@ -668,7 +589,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// whichever of the entries it resembled happened to be listed earliest, and a heading that matched one
     /// entry exactly was filed under another.
     /// </remarks>
-    private static List<Boundary> MatchHeadings(IngestionDocument document, List<TocSeed> seeds, int tocPageIndex)
+    internal static List<Boundary> MatchHeadings(IngestionDocument document, List<TocSeed> seeds, int tocPageIndex)
     {
         var bodySize = GetBodyPointSize(document);
         var boundaries = new List<Boundary>();
@@ -767,7 +688,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// produced — yields nothing here and stays one article.
     /// </para>
     /// </remarks>
-    private static List<Boundary> InferHeadingBoundaries(IngestionDocument document)
+    internal static List<Boundary> InferHeadingBoundaries(IngestionDocument document)
     {
         var boundaries = new List<Boundary>();
         var bodySize = GetBodyPointSize(document);
@@ -839,7 +760,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// </summary>
     /// <param name="element">The element.</param>
     /// <returns>The top coordinate, or <see langword="null"/> when the element carries no bounds.</returns>
-    private static double? GetTop(IngestionDocumentElement element)
+    internal static double? GetTop(IngestionDocumentElement element)
     {
         if (!element.HasMetadata ||
             !element.Metadata.TryGetValue(ElementMetadataKeys.BoundingBox, out var raw) ||
@@ -856,7 +777,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// </summary>
     /// <param name="text">The heading text.</param>
     /// <returns>The collapsed title, trimmed to a storable length.</returns>
-    private static string CollapseHeading(string text)
+    internal static string CollapseHeading(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -870,11 +791,12 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
             : collapsed[..MaxInferredTitleCharacters].TrimEnd();
     }
 
-    private static List<DocumentArticle> BuildArticles(
+    internal static List<DocumentArticle> BuildArticles(
         IngestionDocument document,
         List<Boundary> boundaries,
-        Dictionary<int, string> labels,
-        int pageCount)
+        IReadOnlyDictionary<int, string> labels,
+        int pageCount,
+        bool splitAdvertisements)
     {
         var titled = new List<DocumentArticle>();
 
@@ -900,7 +822,9 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
             });
         }
 
-        var articles = SplitAdvertisements(titled, boundaries, labels, pageCount);
+        var articles = splitAdvertisements
+            ? SplitAdvertisements(titled, boundaries, labels, pageCount)
+            : titled;
 
         // Whatever comes before the first matched title is front matter: the cover, the contents, the
         // masthead. It is one article, and it is never an advertisement - a contents page carries no
@@ -944,10 +868,10 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// rule arms on the share of pages that carry a label rather than on whether any page does.
     /// </para>
     /// </remarks>
-    private static List<DocumentArticle> SplitAdvertisements(
+    internal static List<DocumentArticle> SplitAdvertisements(
         List<DocumentArticle> articles,
         List<Boundary> boundaries,
-        Dictionary<int, string> labels,
+        IReadOnlyDictionary<int, string> labels,
         int pageCount)
     {
         if (!LabelsPagesConsistently(articles, labels))
@@ -1011,7 +935,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// </summary>
     /// <param name="articles">The articles.</param>
     /// <returns>The numbered articles.</returns>
-    private static List<DocumentArticle> Number(List<DocumentArticle> articles)
+    internal static List<DocumentArticle> Number(List<DocumentArticle> articles)
     {
         var ordinal = 1;
 
@@ -1040,14 +964,14 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// Everything downstream, a figure's page above all, carries the real page number, so keying anything by
     /// position silently shifts every article boundary, running head and folio after the first missing page.
     /// </remarks>
-    private static int GetPageNumber(IngestionDocument document, int index)
+    internal static int GetPageNumber(IngestionDocument document, int index)
     {
         var pageNumber = document.Sections[index].PageNumber;
 
         return pageNumber is > 0 ? pageNumber.Value : index + 1;
     }
 
-    private static bool LabelsPagesConsistently(List<DocumentArticle> articles, Dictionary<int, string> labels)
+    internal static bool LabelsPagesConsistently(List<DocumentArticle> articles, IReadOnlyDictionary<int, string> labels)
     {
         if (labels.Count == 0)
         {
@@ -1073,7 +997,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
         return covered > 0 && labelled >= covered * MinLabelledPageRatio;
     }
 
-    private static DocumentArticle Rewrite(DocumentArticle article, int pageStart, int pageEnd, string type, int ordinal = 0)
+    internal static DocumentArticle Rewrite(DocumentArticle article, int pageStart, int pageEnd, string type, int ordinal = 0)
     {
         return new DocumentArticle
         {
@@ -1101,7 +1025,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// <param name="articles">The articles.</param>
     /// <param name="folios">The folio of each page.</param>
     /// <param name="labels">The running-head label on each page.</param>
-    private static void Stamp(
+    internal static void Stamp(
         IngestionDocument document,
         List<DocumentArticle> articles,
         Dictionary<int, string> folios,
@@ -1168,7 +1092,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// own metadata describes the page and a page that spans a boundary belongs to whichever division is
     /// still open at its end.
     /// </remarks>
-    private static void StampByElement(
+    internal static void StampByElement(
         IngestionDocument document,
         List<DocumentArticle> articles,
         Dictionary<int, string> folios,
@@ -1224,7 +1148,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// <param name="pageCount">How many pages the document has.</param>
     /// <param name="folios">The folios, when they were read before the analysis gave up.</param>
     /// <returns>One article covering the whole document.</returns>
-    private static DocumentStructure Single(IngestionDocument document, int pageCount, Dictionary<int, string> folios = null)
+    internal static DocumentStructure Single(IngestionDocument document, int pageCount, Dictionary<int, string> folios = null)
     {
         return new DocumentStructure
         {
@@ -1249,7 +1173,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// </summary>
     /// <param name="document">The ingested document.</param>
     /// <returns>The body point size, or zero when nothing recorded one.</returns>
-    private static double GetBodyPointSize(IngestionDocument document)
+    internal static double GetBodyPointSize(IngestionDocument document)
     {
         var weights = new Dictionary<double, int>();
 
@@ -1276,7 +1200,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
         return weights.Count == 0 ? 0 : weights.MaxBy(entry => entry.Value).Key;
     }
 
-    private static bool IsNearEdge(IngestionDocumentElement element, double pageHeight)
+    internal static bool IsNearEdge(IngestionDocumentElement element, double pageHeight)
     {
         if (!element.HasMetadata ||
             !element.Metadata.TryGetValue(ElementMetadataKeys.BoundingBox, out var raw) ||
@@ -1290,12 +1214,12 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
         return box[1] <= band || box[3] >= pageHeight - band;
     }
 
-    private static bool IsDecoration(IngestionDocumentElement element)
+    internal static bool IsDecoration(IngestionDocumentElement element)
     {
         return IngestionDocumentElementExtensions.IsDecoration(element);
     }
 
-    private static double? GetDouble(IngestionDocumentElement element, string key)
+    internal static double? GetDouble(IngestionDocumentElement element, string key)
     {
         if (!element.HasMetadata || !element.Metadata.TryGetValue(key, out var value))
         {
@@ -1317,7 +1241,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// </summary>
     /// <param name="value">The title.</param>
     /// <returns>The folded title.</returns>
-    private static string Normalize(string value)
+    internal static string Normalize(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -1350,7 +1274,7 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     /// two apart, at the <see cref="PrefixPenalty"/> discount, so a heading spelled out in full always
     /// outscores one that only begins the same way.
     /// </remarks>
-    private static double Distance(string left, string right)
+    internal static double Distance(string left, string right)
     {
         if (left.Length == 0 || right.Length == 0)
         {
@@ -1392,20 +1316,20 @@ public sealed partial class TocSeededStructureAnalyzer : IDocumentStructureAnaly
     }
 
     [GeneratedRegex(@"^(.+?)[\s.·…]+(\d{1,3})$", RegexOptions.CultureInvariant)]
-    private static partial Regex TocLine();
+    internal static partial Regex TocLine();
 
     [GeneratedRegex(@"^\D*(\d{1,3})\D*$", RegexOptions.CultureInvariant)]
-    private static partial Regex FolioToken();
+    internal static partial Regex FolioToken();
 
     // Uppercase letters and spaces in any script, so this reads a Hungarian, Greek or Cyrillic running head
     // as readily as a Latin one.
     [GeneratedRegex(@"^[\p{Lu}\p{Lm}\p{Lo}][\p{Lu}\p{Lm}\p{Lo}\s'’\-]{5,}$", RegexOptions.CultureInvariant)]
-    private static partial Regex SectionLabel();
+    internal static partial Regex SectionLabel();
 
     [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
-    private static partial Regex WhitespaceRun();
+    internal static partial Regex WhitespaceRun();
 
-    private readonly record struct TocSeed(string Title, string Author, int PrintedPage);
+    internal readonly record struct TocSeed(string Title, string Author, int PrintedPage);
 
-    private readonly record struct Boundary(int Page, TocSeed Seed, int ElementStart = -1);
+    internal readonly record struct Boundary(int Page, TocSeed Seed, int ElementStart = -1);
 }

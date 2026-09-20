@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Documents.OpenXml.Services;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
 using CrestApps.Core.DataIngestion;
+using CrestApps.Core.Tests.Support;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -137,7 +138,7 @@ public sealed class StatedHeadingStructureTests
 
     private static DocumentStructure Analyze(IngestionDocument document)
     {
-        return new TocSeededStructureAnalyzer(NullLogger<TocSeededStructureAnalyzer>.Instance).Analyze(document);
+        return StructureAnalyzers.Default().Analyze(document);
     }
 
     private static int GetHeadingLevel(IngestionDocumentElement element)

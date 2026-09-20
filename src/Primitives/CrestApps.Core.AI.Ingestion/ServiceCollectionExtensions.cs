@@ -168,7 +168,16 @@ public static class ServiceCollectionExtensions
         // Typed knowledge: an ingested file becomes separate, individually retrievable objects in an
         // AI data source.
         services.AddOptions<KnowledgeIngestionOptions>();
-        services.TryAddSingleton<IDocumentStructureAnalyzer, TocSeededStructureAnalyzer>();
+        // The ladder, in the order of authority the strategies declare. A host adds a rung of its own by
+        // registering another IDocumentStructureStrategy; it does not have to replace the analyzer to do it.
+        services.TryAddSingleton<IDocumentStructureAnalyzer, DocumentStructureAnalyzer>();
+        services.TryAddEnumerable(
+        [
+            ServiceDescriptor.Singleton<IDocumentStructureStrategy, OutlineStructureStrategy>(),
+            ServiceDescriptor.Singleton<IDocumentStructureStrategy, StatedHeadingStructureStrategy>(),
+            ServiceDescriptor.Singleton<IDocumentStructureStrategy, TableOfContentsStructureStrategy>(),
+            ServiceDescriptor.Singleton<IDocumentStructureStrategy, InferredHeadingStructureStrategy>(),
+        ]);
         services.TryAddScoped<IPublicationMetadataExtractor, DefaultPublicationMetadataExtractor>();
         services.TryAddScoped<IKnowledgeIngestionService, DefaultKnowledgeIngestionService>();
         services.TryAddScoped<IKnowledgeVisionDeploymentResolver, NullKnowledgeVisionDeploymentResolver>();

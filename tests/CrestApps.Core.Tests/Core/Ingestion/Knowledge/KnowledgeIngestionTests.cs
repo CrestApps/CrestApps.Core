@@ -512,7 +512,7 @@ public sealed class KnowledgeIngestionTests
             store,
             fileStore,
             new DefaultAITextNormalizer(),
-            structureAnalyzer ?? new TocSeededStructureAnalyzer(NullLogger<TocSeededStructureAnalyzer>.Instance),
+            structureAnalyzer ?? StructureAnalyzers.Default(),
             publicationMetadataExtractor ?? new NullPublicationMetadataExtractor(),
             indexingQueue,
             NullLogger<DefaultKnowledgeIngestionService>.Instance);
