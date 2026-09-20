@@ -7,87 +7,135 @@ using Microsoft.Extensions.Logging;
 namespace CrestApps.Core.Tests.Core.Tools;
 
 /// <summary>
-/// Covers what the search-index source says when it cannot read an index.
+/// Covers which published index formats the search-index source understands, and what it says when it
+/// cannot read one.
 /// </summary>
 /// <remarks>
-/// Every failure here ends in an empty corpus, and an empty corpus reaches the caller as "no results were
-/// found" — the same words a site with no matching page produces. A misconfigured index URL, an index
-/// published in another tool's format and a genuinely empty site are indistinguishable from the outside,
-/// so the only way to tell them apart is the log. These assert that the log actually says which happened.
+/// "A prebuilt JSON search index" is not one format, so the shape is detected rather than configured. When
+/// detection fails the corpus is empty, and an empty corpus reaches the caller as "no results were found" —
+/// the same words a site with no matching page produces. A misconfigured index URL, an index published by a
+/// generator that is not supported, and a genuinely empty site are indistinguishable from the outside, so
+/// the only way to tell them apart is the log.
 /// </remarks>
 public sealed class SearchIndexDocumentationDiagnosticsTests
 {
     private const string IndexUrl = "https://docs.test/search/search_index.json";
 
     /// <summary>
-    /// Verifies that an index in another tool's format is reported, rather than read as an empty site.
+    /// Verifies that a MkDocs index is read, and that a healthy read stays quiet.
     /// </summary>
     /// <remarks>
-    /// This is the case that used to pass silently: the payload is valid JSON and deserializes, it simply
-    /// carries its entries under a different name, so nothing threw and nothing was logged.
+    /// A diagnostic that fires on success is noise, so silence on the happy path is part of the contract.
     /// </remarks>
     [Fact]
-    public async Task IndexWithoutADocsArray_IsReportedAsNotASearchIndex()
+    public async Task MkDocsIndex_IsRead()
+    {
+        var logger = new CapturingLogger();
+        var source = CreateSource(logger, """
+            {"config":{},"docs":[{"location":"reference/content-types/","title":"Content Types","text":"A content type is composed of content parts."}]}
+            """);
+
+        var results = await SearchAsync(source, "content type");
+
+        Assert.Single(results);
+        Assert.Equal("Content Types", results[0].Title);
+        Assert.Equal("https://docs.test/reference/content-types/", results[0].Url);
+        Assert.Empty(logger.Warnings);
+    }
+
+    /// <summary>
+    /// Verifies that a Lunr/Docusaurus index is read, which is an array of blocks rather than an object.
+    /// </summary>
+    /// <remarks>
+    /// This shape used to fail before it was even inspected: deserializing an array into the MkDocs type threw
+    /// at the first character. A page-title entry names itself in <c>t</c> and carries breadcrumbs, so the
+    /// last breadcrumb is the page it belongs to.
+    /// </remarks>
+    [Fact]
+    public async Task LunrIndex_IsRead()
+    {
+        var logger = new CapturingLogger();
+        var source = CreateSource(logger, """
+            [{"documents":[{"i":1,"t":"Artificial Intelligence Suite","u":"/docs/ai/","b":["Docs","Modules"]}],"index":{"version":"2.3.9"}}]
+            """);
+
+        var results = await SearchAsync(source, "artificial intelligence");
+
+        Assert.Single(results);
+        Assert.Equal("Modules", results[0].Title);
+        Assert.Equal("https://docs.test/docs/ai/", results[0].Url);
+        Assert.Empty(logger.Warnings);
+    }
+
+    /// <summary>
+    /// Verifies that a Lunr passage entry is titled by its page and linked to its heading.
+    /// </summary>
+    /// <remarks>
+    /// The generator emits several kinds of block and they all use <c>t</c>, so for a passage that field is
+    /// prose rather than a name. Titling such an entry with <c>t</c> puts a whole paragraph where a page name
+    /// belongs, and dropping <c>h</c> cites the top of the page instead of the section that answered.
+    /// </remarks>
+    [Fact]
+    public async Task LunrPassageEntry_IsTitledByItsPageAndLinkedToItsHeading()
+    {
+        var logger = new CapturingLogger();
+        var source = CreateSource(logger, """
+            [{"documents":[{"i":2,"t":"Provider connections describe how the site reaches a model.","u":"/docs/ai/overview","h":"#provider-connections","s":"AI Overview","p":1}],"index":{}}]
+            """);
+
+        var results = await SearchAsync(source, "provider connections");
+
+        Assert.Single(results);
+        Assert.Equal("AI Overview", results[0].Title);
+        Assert.Equal("https://docs.test/docs/ai/overview#provider-connections", results[0].Url);
+    }
+
+    /// <summary>
+    /// Verifies that an index from an unsupported generator is reported rather than read as an empty site.
+    /// </summary>
+    /// <remarks>
+    /// This is the case that used to pass silently: the payload is valid JSON and deserialized without error,
+    /// it simply carried its entries under a name the reader does not know, so nothing threw and nothing was
+    /// logged.
+    /// </remarks>
+    [Fact]
+    public async Task UnrecognizedIndexFormat_IsReported()
     {
         var logger = new CapturingLogger();
         var source = CreateSource(logger, """{"site":"gallery","count":2,"items":[{"title":"A"},{"title":"B"}]}""");
 
-        var results = await source.SearchAsync(new DocumentationSearchRequest("anything") { MaxResults = 5 }, TestContext.Current.CancellationToken);
-
-        Assert.Empty(results);
-        Assert.Contains(logger.Warnings, w => w.Contains("no 'docs' array", StringComparison.Ordinal) && w.Contains(IndexUrl, StringComparison.Ordinal));
+        Assert.Empty(await SearchAsync(source, "anything"));
+        Assert.Contains(logger.Warnings, w => w.Contains("not in a recognized format", StringComparison.Ordinal) && w.Contains(IndexUrl, StringComparison.Ordinal));
     }
 
     /// <summary>
-    /// Verifies that an index holding no documents is reported.
+    /// Verifies that a recognized index carrying nothing usable is reported.
     /// </summary>
     [Fact]
-    public async Task IndexWithNoDocuments_IsReported()
-    {
-        var logger = new CapturingLogger();
-        var source = CreateSource(logger, """{"docs":[]}""");
-
-        var results = await source.SearchAsync(new DocumentationSearchRequest("anything") { MaxResults = 5 }, TestContext.Current.CancellationToken);
-
-        Assert.Empty(results);
-        Assert.Contains(logger.Warnings, w => w.Contains("contains no documents", StringComparison.Ordinal));
-    }
-
-    /// <summary>
-    /// Verifies that documents missing the fields the search reads are reported rather than silently dropped.
-    /// </summary>
-    [Fact]
-    public async Task DocumentsWithoutLocationOrText_AreReported()
+    public async Task RecognizedIndexWithNoUsableEntries_IsReported()
     {
         var logger = new CapturingLogger();
         var source = CreateSource(logger, """{"docs":[{"title":"A"},{"title":"B"}]}""");
 
-        var results = await source.SearchAsync(new DocumentationSearchRequest("anything") { MaxResults = 5 }, TestContext.Current.CancellationToken);
-
-        Assert.Empty(results);
-        Assert.Contains(logger.Warnings, w => w.Contains("none carry both a location and text", StringComparison.Ordinal));
+        Assert.Empty(await SearchAsync(source, "anything"));
+        Assert.Contains(logger.Warnings, w => w.Contains("no entry carried", StringComparison.Ordinal));
     }
 
     /// <summary>
-    /// Verifies that an unreachable index is still reported, and that a readable one stays quiet.
+    /// Verifies that an unreachable index is reported.
     /// </summary>
     [Fact]
-    public async Task UnreachableIndexWarns_AndAReadableOneDoesNot()
+    public async Task UnreachableIndex_IsReported()
     {
-        var missing = new CapturingLogger();
-        var missingSource = CreateSource(missing, body: null);
+        var logger = new CapturingLogger();
+        var source = CreateSource(logger, body: null);
 
-        Assert.Empty(await missingSource.SearchAsync(new DocumentationSearchRequest("anything") { MaxResults = 5 }, TestContext.Current.CancellationToken));
-        Assert.NotEmpty(missing.Warnings);
-
-        var healthy = new CapturingLogger();
-        var healthySource = CreateSource(healthy, """{"docs":[{"location":"a/","title":"Alpha","text":"content types are defined here"}]}""");
-
-        var results = await healthySource.SearchAsync(new DocumentationSearchRequest("content types") { MaxResults = 5 }, TestContext.Current.CancellationToken);
-
-        Assert.NotEmpty(results);
-        Assert.Empty(healthy.Warnings);
+        Assert.Empty(await SearchAsync(source, "anything"));
+        Assert.Contains(logger.Warnings, w => w.Contains("Failed to read search index", StringComparison.Ordinal));
     }
+
+    private static async Task<IReadOnlyList<DocumentationSearchResult>> SearchAsync(SearchIndexDocumentationSource source, string query)
+        => await source.SearchAsync(new DocumentationSearchRequest(query) { MaxResults = 5 }, TestContext.Current.CancellationToken);
 
     private static SearchIndexDocumentationSource CreateSource(ILogger logger, string body)
     {
