@@ -155,8 +155,14 @@
                             <div class="col-md-4" id="templateChatModeCol">
                                 <div class="mb-3">
                                     <label asp-for="ChatMode" class="form-label">Chat mode</label>
-                                    <select asp-for="ChatMode" class="form-select" asp-items="Html.GetEnumSelectList<ChatMode>()">
+                                    @* The options are written out rather than generated because the script below
+                                       compares this value against the mode's name. Html.GetEnumSelectList emits the
+                                       numeric value, which never matches, and the conversation fields stay hidden. *@
+                                    <select asp-for="ChatMode" class="form-select">
                                         <option value="">Use default chat mode</option>
+                                        <option value="@ChatMode.TextInput">Text input</option>
+                                        <option value="@ChatMode.AudioInput">Audio input</option>
+                                        <option value="@ChatMode.Conversation">Conversation</option>
                                     </select>
                                     <div class="form-text">Text input only, microphone dictation, or a two-way voice conversation the user can switch on and off while typing.</div>
                                 </div>

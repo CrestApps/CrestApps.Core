@@ -691,6 +691,11 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
           isConversationMode: false,
           // Realtime (speech-to-speech) controller from the shared CoreAIRealtime module.
           realtimeController: null,
+          realtimeButton: null,
+          // Whether a realtime deployment actually resolved. The controller is attached whenever the
+          // module is loaded, so its presence says nothing about which transport carries the
+          // conversation -- only this flag does.
+          realtimeEnabled: config.realtimeEnabled === true,
           notifications: [],
           notificationDismissTimers: {},
           copyTitle: config.copyTitle,
@@ -1494,6 +1499,39 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
             return _this12.updateTtsPlaybackButtons();
           });
         },
+        // A live voice session takes the message box away and puts the audio settings in its place; ending
+        // the session gives it back. Sending a typed message already ends the session first, so the box was
+        // never a way to say something *during* one -- hiding it only makes that honest, and frees the row
+        // for the gear. Both transports land here: realtime through the module's onActivate, the
+        // speech-to-text cascade through startConversationMode.
+        setVoiceSessionLive: function setVoiceSessionLive(live) {
+          if (this.inputElement) {
+            this.inputElement.hidden = live;
+          }
+          if (this.buttonElement) {
+            this.buttonElement.hidden = live;
+          }
+
+          // With the message box gone the live button would otherwise sit at its natural width in an
+          // empty row, so it takes the space the box left behind. Whichever transport is carrying the
+          // conversation owns a different button, and the hidden one is unaffected by the class.
+          [this.realtimeButton, this.conversationButton].forEach(function (button) {
+            if (button) {
+              button.classList.toggle('flex-grow-1', live);
+            }
+          });
+
+          // The gear is built by the realtime module directly after the button it was handed, and only
+          // in realtime mode, so it is absent on the cascade. It belongs to a live session rather than
+          // to the surface. The module hard-codes its element id and a page can host two chat clients
+          // at once -- this one and the admin widget -- so it is found next to this client's own button
+          // rather than by id.
+          var next = this.realtimeButton && this.realtimeButton.nextElementSibling;
+          var audioSettings = next && next.id === 'realtime-audio-settings' ? next : null;
+          if (audioSettings) {
+            audioSettings.hidden = !live;
+          }
+        },
         toggleConversationMode: function toggleConversationMode() {
           if (this.isConversationMode) {
             this.stopConversationMode();
@@ -2146,6 +2184,8 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
           // module owns the mic capture, playback, echo guard, push-to-talk and audio settings; the
           // callbacks below plug it into this app's connection and conversation-transcript display.
           if (window.CoreAIRealtime && config.realtimeButtonElementSelector) {
+            // Kept so the voice settings popover can be found next to this client's own button.
+            this.realtimeButton = document.querySelector(config.realtimeButtonElementSelector);
             this.realtimeController = window.CoreAIRealtime.attach({
               connection: this.connection,
               ensureConnected: function ensureConnected() {
@@ -2179,6 +2219,12 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
                 realtimeButton: config.realtimeButtonElementSelector,
                 micButton: config.micButtonElementSelector,
                 conversationButton: config.conversationButtonElementSelector
+              },
+              // The module owns whether a session is live, so the message box follows its flag
+              // rather than this app's copy of it. Losing one of these events used to leave the
+              // box hidden under a button that had already gone back to "Start speaking".
+              onSessionStateChanged: function onSessionStateChanged(active) {
+                _this18.setVoiceSessionLive(active);
               },
               onActivate: function onActivate() {
                 _this18.isConversationMode = true;
@@ -2239,6 +2285,11 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
               }
             });
             this.setupRealtimeVoicePicker(config);
+
+            // The module reveals the gear as soon as the surface enters realtime mode, but it belongs
+            // to a live session. The watcher that would hide it only runs on a change, so the idle
+            // state has to be stated once here.
+            this.setVoiceSessionLive(false);
           }
         },
         // Populates the per-interaction realtime voice picker from the selected realtime deployment's
@@ -2665,11 +2716,14 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
             this.micButton.style.display = active ? 'none' : this.speechToTextEnabled ? '' : 'none';
           }
 
-          // The message box and the send button stay: typing is how the user ends the conversation
-          // and continues in text, and both kinds of turn land in the same thread. The box is only
-          // de-emphasised, never disabled, so that remains possible.
-          if (this.inputElement) {
-            this.inputElement.classList.toggle('opacity-75', active);
+          // The message box and the send button give way to the voice settings while the conversation
+          // runs, and come back when it ends. Both kinds of turn still land in the same thread; what
+          // they cannot do is overlap.
+          //
+          // Only the cascade is driven from here. Realtime follows the module's own session flag
+          // (onSessionStateChanged), so the two never disagree about whether a session is live.
+          if (!this.realtimeEnabled) {
+            this.setVoiceSessionLive(active);
           }
         },
         copiedMessageIndex: function copiedMessageIndex() {

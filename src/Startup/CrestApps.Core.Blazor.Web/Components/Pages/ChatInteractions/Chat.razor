@@ -572,6 +572,14 @@ else
                                           rows="1"
                                           placeholder="Type a message..."
                                           data-item-id="@Id"></textarea>
+                                @* Send sits with the message box it belongs to. The voice controls follow on
+                                   the right, and the realtime module inserts its settings popover after the
+                                   realtime button, which puts the gear on the far right of the row. *@
+                                <button type="button" id="send-btn" class="btn btn-primary"
+                                        data-start-icon="<i class='fa-solid fa-paper-plane'></i>"
+                                        data-stop-icon="<i class='fa-solid fa-stop'></i>">
+                                    <i class="fa-solid fa-paper-plane"></i>
+                                </button>
                                 @if (_model.SpeechToTextEnabled)
                                 {
                                     <button type="button" id="chat-mic-btn" class="btn btn-outline-secondary" title="Voice input" style="display: none;">
@@ -591,11 +599,6 @@ else
                                         <i class="fa-solid fa-wave-square"></i>
                                     </button>
                                 }
-                                <button type="button" id="send-btn" class="btn btn-primary"
-                                        data-start-icon="<i class='fa-solid fa-paper-plane'></i>"
-                                        data-stop-icon="<i class='fa-solid fa-stop'></i>">
-                                    <i class="fa-solid fa-paper-plane"></i>
-                                </button>
                                 @* Realtime (speech-to-speech) toggle. Rendered hidden and shown by the client when
                                    the conversation deployment resolves to a realtime model. The text input above
                                    stays: a voice session and a typed message share one thread. *@
@@ -603,13 +606,16 @@ else
                                         id="realtime-btn"
                                         class="btn btn-outline-dark"
                                         title="Start speaking"
+                                        aria-label="Start speaking"
                                         data-start-title="Start speaking"
                                         data-end-title="End Conversation"
-                                        data-start-html="<i class='fa-solid fa-wave-square me-1'></i> Start speaking"
+                                        data-start-html="<i class='fa-solid fa-wave-square'></i>"
                                         data-end-html="<i class='fa-solid fa-stop me-1'></i> End Conversation"
                                         hidden>
-                                    <i class="fa-solid fa-wave-square me-1"></i>
-                                    <span>Start speaking</span>
+                                    @* Idle is the soundwave on its own; the title and aria-label carry the
+                                       meaning. The end state keeps its words because stopping a live
+                                       conversation should be unmistakable. *@
+                                    <i class="fa-solid fa-wave-square"></i>
                                 </button>
                             </div>
                         </div>

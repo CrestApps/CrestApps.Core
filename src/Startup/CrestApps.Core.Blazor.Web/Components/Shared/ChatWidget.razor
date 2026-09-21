@@ -182,6 +182,12 @@
                           rows="1"
                           data-session-id=""
                           data-profile-id="@_profile.ItemId"></textarea>
+                @* Send sits with the message box it belongs to. The voice controls follow on the right, and
+                   the realtime module inserts its settings popover after the voice button, which puts the gear
+                   on the far right of the row. *@
+                <button type="button" id="widget-send-btn">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
                 @if (_dictationEnabled)
                 {
                     <button type="button" id="widget-mic-btn" class="btn btn-outline-secondary btn-sm" title="Voice input" style="display: none;">
@@ -194,24 +200,16 @@
                             id="widget-conversation-btn"
                             class="btn btn-outline-dark btn-sm"
                             title="@(_isRealtime ? "Start speaking" : "Start Conversation")"
+                            aria-label="@(_isRealtime ? "Start speaking" : "Start Conversation")"
                             data-start-title="@(_isRealtime ? "Start speaking" : "Start Conversation")"
                             data-end-title="End Conversation"
-                            data-start-html="@(_isRealtime ? "<i class='fa-solid fa-wave-square me-1'></i> Start speaking" : "<i class='fa-solid fa-wave-square'></i>")"
+                            data-start-html="<i class='fa-solid fa-wave-square'></i>"
                             data-end-html="<i class='fa-solid fa-stop me-1'></i> End Conversation">
-                        @if (_isRealtime)
-                        {
-                            <i class="fa-solid fa-wave-square me-1"></i>
-                            <span>Start speaking</span>
-                        }
-                        else
-                        {
-                            <i class="fa-solid fa-wave-square"></i>
-                        }
+                        @* Idle is the soundwave on its own; the title and aria-label carry the meaning. The end
+                           state keeps its words because stopping a live conversation should be unmistakable. *@
+                        <i class="fa-solid fa-wave-square"></i>
                     </button>
                 }
-                <button type="button" id="widget-send-btn">
-                    <i class="fa-solid fa-paper-plane"></i>
-                </button>
             </div>
         </div>
     </div>

@@ -132,6 +132,12 @@ else
                                   placeholder="Type a message..."
                                   data-session-id="@_sessionId"
                                   data-profile-id="@_profile.ItemId"></textarea>
+                        @* Send sits with the message box it belongs to. The voice controls follow on the
+                           right, and the realtime module inserts its settings popover after the voice button,
+                           which puts the gear on the far right of the row. *@
+                        <button type="button" id="send-btn" class="btn btn-primary" data-start-icon="<i class='fa-solid fa-paper-plane'></i>" data-stop-icon="<i class='fa-solid fa-stop'></i>">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
                         @if (_dictationEnabled)
                         {
                             <button type="button" id="chat-mic-btn" class="btn btn-outline-secondary" title="Voice input" style="display: none;">
@@ -144,31 +150,24 @@ else
                                     id="chat-conversation-btn"
                                     class="btn btn-outline-dark"
                                     title="@(_isRealtime ? "Start speaking" : "Start Conversation")"
+                                    aria-label="@(_isRealtime ? "Start speaking" : "Start Conversation")"
                                     data-start-title="@(_isRealtime ? "Start speaking" : "Start Conversation")"
                                     data-end-title="End Conversation"
-                                    data-start-html="@(_isRealtime ? "<i class='fa-solid fa-wave-square me-1'></i> Start speaking" : "<i class='fa-solid fa-wave-square'></i>")"
+                                    data-start-html="<i class='fa-solid fa-wave-square'></i>"
                                     data-end-html="<i class='fa-solid fa-stop me-1'></i> End Conversation">
-                                @if (_isRealtime)
-                                {
-                                    <i class="fa-solid fa-wave-square me-1"></i>
-                                    <span>Start speaking</span>
-                                }
-                                else
-                                {
-                                    <i class="fa-solid fa-wave-square"></i>
-                                }
+                                @* Idle is the soundwave on its own; the title and aria-label carry the meaning.
+                                   The end state keeps its words because stopping a live conversation should be
+                                   unmistakable. *@
+                                <i class="fa-solid fa-wave-square"></i>
                             </button>
                         }
-                        <button type="button" id="send-btn" class="btn btn-primary" data-start-icon="<i class='fa-solid fa-paper-plane'></i>" data-stop-icon="<i class='fa-solid fa-stop'></i>">
-                            <i class="fa-solid fa-paper-plane"></i>
-                        </button>
                     </div>
                     @if (_isRealtime)
                     {
                         @* Shown only while a voice session is live: the old copy announced a voice-only
                            profile, which is exactly what this is not any more. *@
                         <div class="form-text mt-2 text-center d-none" id="chat-realtime-hint">
-                            <i class="fa-solid fa-circle-info"></i> Speaking. Use headphones to avoid echo — or type a message to end the conversation and continue in text.
+                            <i class="fa-solid fa-circle-info"></i> Speaking. Use headphones to avoid echo — end the conversation to go back to typing.
                         </div>
                     }
                 </div>
