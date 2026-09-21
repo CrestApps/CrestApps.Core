@@ -9,6 +9,8 @@ public sealed class ChatInteractionViewModel
 
     public string ChatDeploymentName { get; set; }
 
+    public string ConversationDeploymentName { get; set; }
+
     public string UtilityDeploymentName { get; set; }
 
     public string OrchestratorName { get; set; }
@@ -90,6 +92,11 @@ public sealed class ChatInteractionViewModel
 
     public List<SelectOption> DataSources { get; set; } = [];
     public List<SelectOption> Deployments { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the deployments that can carry a voice conversation — the realtime slot.
+    /// </summary>
+    public List<SelectOption> ConversationDeployments { get; set; } = [];
     public List<SelectOption> UtilityDeployments { get; set; } = [];
     public List<SelectOption> Orchestrators { get; set; } = [];
     public List<SelectOption> CopilotAvailableModels { get; set; } = [];

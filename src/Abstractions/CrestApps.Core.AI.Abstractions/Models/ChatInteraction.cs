@@ -37,6 +37,19 @@ public sealed class ChatInteraction : CatalogItem, IModifiedUtcAwareModel
     public string UtilityDeploymentName { get; set; }
 
     /// <summary>
+    /// Gets or sets the technical name of the deployment that carries a <see cref="ChatMode.Conversation"/>
+    /// conversation for this interaction. When not set, the realtime slot's own default applies -- the site's
+    /// default realtime deployment, and failing that the first realtime-capable one.
+    /// </summary>
+    /// <remarks>
+    /// The chat mode for interactions is a site setting, but the model that carries the conversation is
+    /// per-interaction, the same way <see cref="RealtimeVoiceName"/> already is. This names the model, never
+    /// how it speaks: whether the resolved deployment is native speech-to-speech or a cascade of three other
+    /// deployments is read off the deployment itself.
+    /// </remarks>
+    public string ConversationDeploymentName { get; set; }
+
+    /// <summary>
     /// Gets or sets the realtime (speech-to-speech) voice for this interaction.
     /// When not set, falls back to the site's default realtime voice.
     /// </summary>

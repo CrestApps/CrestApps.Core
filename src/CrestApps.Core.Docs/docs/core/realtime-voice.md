@@ -11,7 +11,9 @@ description: How CrestApps.Core runs realtime speech-to-speech voice chat over W
 
 ## Overview
 
-When a profile's chat mode is **Realtime** and its deployment is a realtime (speech-to-speech) model, the chat UI switches from text input to a live voice session. The browser captures the microphone, streams it to the server, and plays the assistant's spoken reply back — continuously, so the user can interrupt (barge-in) mid-sentence.
+When a profile's chat mode is **Conversation** and a realtime (speech-to-speech) deployment resolves for it, the chat UI offers a voice toggle beside its ordinary message box. Starting a session hands the turn to speech: the browser captures the microphone, streams it to the server, and plays the assistant's spoken reply back — continuously, so the user can interrupt (barge-in) mid-sentence. Ending it gives the message box back, and both kinds of turn land in the same thread.
+
+The deployment no longer decides this on its own. Chat mode says *whether* the profile can hold a spoken conversation, and the conversation deployment says *which model carries it*; the chat deployment means only the text model the profile talks to. See [Conversation mode](#conversation-mode-and-the-realtime-slot) below.
 
 Two transports carry that audio. The application selects between them automatically; **there is no user-facing transport switch**:
 
@@ -19,6 +21,31 @@ Two transports carry that audio. The application selects between them automatica
 | --- | --- | --- |
 | **WebRTC** (server-relay) | Primary — whenever the server advertises it and the browser supports `RTCPeerConnection`, and the peer connects | The browser's acoustic echo canceller (AEC) keeps the mic open (full-duplex) |
 | **WebSocket** (PCM over SignalR) | Fallback — when WebRTC can't connect (blocked UDP, no TURN, unsupported browser) | Browser AEC still applies to the played-back audio; barge-in off additionally mutes the mic while the assistant speaks |
+
+## Conversation mode and the realtime slot
+
+A profile holds a spoken conversation when its chat mode is **Conversation**. How that conversation is carried
+is resolved, not stored:
+
+1. the **conversation deployment** named on the profile or the chat interaction, if any;
+2. otherwise the site's default realtime deployment;
+3. otherwise the first deployment whose model declares the `realtime` capability.
+
+If none of those answers, the conversation falls back to the client-driven **speech-to-text plus
+text-to-speech cascade**, which needs both a speech-to-text and a text-to-speech deployment configured for the
+site. Failing that it degrades to microphone dictation, and failing that to plain typing.
+
+Because step 3 accepts *any* realtime-capable deployment, an installation that has one will use it for
+conversation mode even when nothing is named and no site default is set. There is deliberately no per-profile
+switch back to the cascade: the transport is not a stored property of a profile or an interaction. To keep the
+cascade, have no deployment declare `realtime`; to speak without a speech-to-speech model, use a
+[cascaded realtime deployment](#providers-without-a-speech-to-speech-model).
+
+A deployment named as the conversation deployment that cannot serve realtime is reported rather than quietly
+replaced, so a typo does not silently move the conversation to a different model.
+
+A **chat interaction** has no chat mode of its own — the site holds it — so naming a conversation deployment on
+the interaction is itself how it asks to speak.
 
 ## Providers without a speech-to-speech model
 
@@ -441,11 +468,26 @@ Both reasons are reported to the browser, which releases the microphone, explain
 
 ## User controls
 
-A realtime session is audio-only, so the controller hides the host's message box, send button, and
-speech-to-text microphone button while one is running, leaving **Start speaking** as the only way in. It hides
-whatever the host hands it: pass `input`, `sendButton`, and `micButton` in `selectors` alongside
-`realtimeButton`, and a host that renders its own realtime surface can hide them server-side too, which avoids
-showing them for the instant before the page's script runs.
+Typing and speaking take turns rather than running together, so the message box and the send button are hidden
+for the duration of a live session and come back when it ends; the voice settings take their place and the
+button widens into the row. Sending a typed message ends the session first, which is why the box was never a
+way to say something *during* one.
+
+Between sessions the message box has the row, with send beside it and the voice toggle on the right:
+
+![A chat surface in conversation mode: a wide message box, a send button, and a soundwave toggle](/img/docs/conversation-mode-idle.png)
+
+While a session runs, the toggle takes the row and the voice settings sit at its right-hand end:
+
+![The same surface while speaking: a full-width End Conversation button and a settings gear, with the message box gone](/img/docs/conversation-mode-speaking.png)
+
+The controller hides whatever the host hands it in `selectors`, and it hides that for as long as the surface is
+in realtime mode — not just while a session runs. A host that keeps typing available between sessions therefore
+passes only `realtimeButton` and `micButton`, and drives its own controls from `onSessionStateChanged(active)`,
+which reports the session state on every repaint. Read that flag rather than tracking the session separately:
+the activate and deactivate events are not reliably paired (the WebRTC-to-WebSocket fallback deactivates one
+transport and activates the other), so a host counting those can end up showing **Start speaking** over a
+message box that is still hidden.
 
 The settings popover is deliberately short. A user should be able to press **Start speaking** and talk, in any
 room, without first understanding acoustics; everything that used to be a knob (echo margins, gate modes,

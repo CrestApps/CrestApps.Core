@@ -289,12 +289,26 @@
                         </select>
                     </div>
 
+                    @* Shown only when chat interactions are set to conversation mode: the model that carries
+                       the voice conversation, separate from the text model above. *@
+                    <div class="mb-2@(Model.ConversationModeEnabled ? string.Empty : " d-none")" id="setting-conversationDeployment-group">
+                        <label class="form-label">Conversation deployment</label>
+                        <select class="form-select setting-input" id="setting-conversationDeployment" data-setting="conversationDeploymentName">
+                            <option value="">Use the site's default realtime deployment</option>
+                            @foreach (var d in Model.ConversationDeployments)
+                            {
+                                <option value="@d.Value" selected="@(d.Value == Model.ConversationDeploymentName ? "selected" : null)">@d.Text</option>
+                            }
+                        </select>
+                        <div class="form-text">The model that speaks. Leave blank to inherit the site default; with none available, conversation mode falls back to speech-to-text plus text-to-speech.</div>
+                    </div>
+
                     <div class="mb-2 d-none" id="setting-realtimeVoice-group">
                         <label class="form-label">Voice</label>
                         <select class="form-select setting-input" id="setting-realtimeVoice" data-setting="realtimeVoiceName">
                             <option value="">Default voice</option>
                         </select>
-                        <div class="form-text">Voice for realtime (speech-to-speech), from the selected realtime model.</div>
+                        <div class="form-text">Voice for realtime (speech-to-speech), from the resolved conversation deployment.</div>
                     </div>
 
                     <partial name="_ChatInteractionModelParameters" model="Model.ModelParameterEditor" view-data='new ViewDataDictionary(ViewData) {
@@ -755,6 +769,12 @@
                           rows="1"
                           placeholder="Type a message..."
                           data-item-id="@Model.ItemId"></textarea>
+                @* Send sits with the message box it belongs to. The voice controls follow on the right, and
+                   the realtime module inserts its settings popover after the realtime button, which puts the
+                   gear on the far right of the row. *@
+                <button type="button" id="send-btn" class="btn btn-primary">
+                    <i class="fa-solid fa-paper-plane"></i> Send
+                </button>
                 @if (Model.SpeechToTextEnabled)
                 {
                     <button type="button" id="mic-btn" class="btn btn-outline-secondary" title="Record audio">
@@ -774,23 +794,22 @@
                         <i class="fa-solid fa-wave-square"></i>
                     </button>
                 }
-                <button type="button" id="send-btn" class="btn btn-primary">
-                    <i class="fa-solid fa-paper-plane"></i> Send
-                </button>
-                @* Realtime (speech-to-speech) toggle. Rendered hidden and shown by the client when the selected
-                   deployment is a realtime model, in which case the text input above is hidden (audio-only).
-                   Styled to match the AI Chat session's realtime button. *@
+                @* Realtime (speech-to-speech) toggle. Rendered hidden and shown by the client when the
+                   conversation deployment resolves to a realtime model. The text input above stays: a voice
+                   session and a typed message share one thread. *@
                 <button type="button"
                         id="realtime-btn"
-                        class="btn btn-outline-dark flex-grow-1"
+                        class="btn btn-outline-dark"
                         title="Start speaking"
+                        aria-label="Start speaking"
                         data-start-title="Start speaking"
                         data-end-title="End Conversation"
-                        data-start-html="<i class='fa-solid fa-wave-square me-1'></i> Start speaking"
+                        data-start-html="<i class='fa-solid fa-wave-square'></i>"
                         data-end-html="<i class='fa-solid fa-stop me-1'></i> End Conversation"
                         hidden>
-                    <i class="fa-solid fa-wave-square me-1"></i>
-                    <span>Start speaking</span>
+                    @* Idle is the soundwave on its own; the title and aria-label carry the meaning. The end
+                       state keeps its words because stopping a live conversation should be unmistakable. *@
+                    <i class="fa-solid fa-wave-square"></i>
                 </button>
             </div>
         </div>
@@ -837,8 +856,10 @@
             var realtimeCapableDeployments = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RealtimeCapableDeploymentNames))
                 .map(function (name) { return (name || '').toLowerCase(); });
             var deploymentSelect = document.getElementById('setting-deployment');
+            var conversationDeploymentSelect = document.getElementById('setting-conversationDeployment');
+            var defaultRealtimeDeploymentName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DefaultRealtimeDeploymentName ?? string.Empty));
 
-            // --- Realtime voice picker (per-interaction, populated from the selected realtime model) ---
+            // --- Realtime voice picker (per-interaction, populated from the resolved conversation model) ---
             var realtimeVoiceSelect = document.getElementById('setting-realtimeVoice');
             var realtimeVoiceGroup = document.getElementById('setting-realtimeVoice-group');
             var realtimeVoicesUrl = '@Url.Action("GetRealtimeVoices", "Settings", new { area = "Admin" })';
@@ -847,13 +868,27 @@
                 return name && realtimeCapableDeployments.indexOf(name.toLowerCase()) !== -1;
             }
 
+            // Mirrors the realtime slot's chain on the server: the interaction's own choice, then the site
+            // default, then the first realtime-capable deployment. Only conversation mode reaches it.
+            function resolvedConversationDeploymentName() {
+                if (!conversationModeEnabled) {
+                    return '';
+                }
+
+                var name = (conversationDeploymentSelect && conversationDeploymentSelect.value)
+                    || defaultRealtimeDeploymentName
+                    || (realtimeCapableDeployments.length ? realtimeCapableDeployments[0] : '');
+
+                return isRealtimeCapableDeployment(name) ? name : '';
+            }
+
             async function loadInteractionRealtimeVoices() {
                 if (!realtimeVoiceSelect) {
                     return;
                 }
 
-                var deploymentName = deploymentSelect ? deploymentSelect.value : '';
-                var realtime = isRealtimeCapableDeployment(deploymentName);
+                var deploymentName = resolvedConversationDeploymentName();
+                var realtime = !!deploymentName;
                 if (realtimeVoiceGroup) {
                     realtimeVoiceGroup.classList.toggle('d-none', !realtime);
                 }
@@ -903,8 +938,8 @@
                 }
             }
 
-            if (deploymentSelect) {
-                deploymentSelect.addEventListener('change', loadInteractionRealtimeVoices);
+            if (conversationDeploymentSelect) {
+                conversationDeploymentSelect.addEventListener('change', loadInteractionRealtimeVoices);
             }
             loadInteractionRealtimeVoices();
 
@@ -2272,14 +2307,35 @@
                 }
             }
 
+            // The send button stays visible while a voice conversation runs: typing is always available, and a
+            // typed message ends the session and is sent as an ordinary text turn. Only the dictation
+            // microphone is hidden, because the conversation already owns the microphone.
             function updateConversationInputButtons() {
                 var micBtn = document.getElementById('mic-btn');
                 if (micBtn) {
                     micBtn.hidden = isConversationMode;
                 }
 
-                if (sendBtn) {
-                    sendBtn.hidden = isConversationMode;
+                // Only the cascade is driven from here. Realtime follows the module's own session flag
+                // (onSessionStateChanged), so the two never disagree about whether a session is live. The
+                // controller is attached whenever the module is loaded, so its presence says nothing about
+                // which transport carries the conversation -- only this flag does.
+                if (!realtimeEnabled) {
+                    setVoiceSessionLive(isConversationMode);
+                }
+            }
+
+            // Two writers into one session would interleave, so the voice session ends before the typed turn
+            // starts rather than running alongside it.
+            function endActiveVoiceSession() {
+                if (realtimeController && realtimeController.isActive()) {
+                    realtimeController.stop();
+
+                    return;
+                }
+
+                if (isConversationMode) {
+                    stopConversationMode();
                 }
             }
 
@@ -2542,13 +2598,37 @@
             var documentUploadInput = document.getElementById('chat-doc-upload');
             var placeholder = document.getElementById('chat-placeholder');
 
-            function sendMessage() {
-                if (isConversationMode) {
-                    return;
-                }
+            // A live voice session takes the message box away and puts the audio settings in its place; ending
+            // the session gives it back. Sending a typed message already ends the session first, so the box was
+            // never a way to say something *during* one -- hiding it only makes that honest, and frees the row
+            // for the gear. This page wires the realtime module itself rather than going through the chat client,
+            // so it carries its own copy of this rule.
+            function setVoiceSessionLive(live) {
+                if (inputEl) { inputEl.hidden = live; }
+                if (sendBtn) { sendBtn.hidden = live; }
 
+                // With the message box gone the live button would otherwise sit at its natural width in an empty
+                // row, so it takes the space the box left behind. Whichever transport is carrying the
+                // conversation owns a different button, and the hidden one is unaffected by the class.
+                ['realtime-btn', 'conversation-btn'].forEach(function (id) {
+                    var button = document.getElementById(id);
+                    if (button) { button.classList.toggle('flex-grow-1', live); }
+                });
+
+                // The gear is built by the realtime module directly after the button it was handed, so it only
+                // exists once realtime mode is on. It belongs to a live session rather than to the surface. The
+                // module hard-codes its element id and this page also hosts the admin chat widget, so it is found
+                // next to this page's own button rather than by id.
+                var realtimeBtn = document.getElementById('realtime-btn');
+                var audioSettings = realtimeBtn && realtimeBtn.nextElementSibling;
+                if (audioSettings && audioSettings.id === 'realtime-audio-settings') { audioSettings.hidden = !live; }
+            }
+
+            function sendMessage() {
                 var prompt = inputEl.value.trim();
                 if (!prompt || isSending) return;
+
+                endActiveVoiceSession();
 
                 audioInputSent = true;
                 isSending = true;
@@ -2833,13 +2913,23 @@
                     },
                     capableDeployments: realtimeCapableDeployments,
                     realtimeEnabled: realtimeEnabled,
+                    // input and sendButton are deliberately not handed over. The module hides every control it
+                    // is given when realtime takes over, and typing has to stay available during a voice
+                    // conversation -- that is the whole feature.
+                    //
+                    // deploymentSelect is not handed over either: it would read the raw select value, and an
+                    // empty conversation deployment means "use the site default", which still resolves. The
+                    // host resolves it (see resolvedConversationDeploymentName) and calls applyMode itself.
                     selectors: {
                         realtimeButton: '#realtime-btn',
-                        input: '#chat-input',
-                        sendButton: '#send-btn',
                         micButton: '#mic-btn',
-                        conversationButton: '#conversation-btn',
-                        deploymentSelect: '#setting-deployment'
+                        conversationButton: '#conversation-btn'
+                    },
+                    // The module owns whether a session is live, so the message box follows its flag rather than
+                    // this page's copy of it. Losing one of these events used to leave the box hidden under a
+                    // button that had already gone back to "Start speaking".
+                    onSessionStateChanged: function (active) {
+                        setVoiceSessionLive(active);
                     },
                     onActivate: function () {
                         isConversationMode = true;
@@ -2877,6 +2967,19 @@
                         if (at >= 0) { vm.messages.splice(at, 1); }
                     }
                 });
+
+                // The module reveals the gear as soon as the surface enters realtime mode, but it belongs to a
+                // live session, so the idle state has to be stated once here.
+                setVoiceSessionLive(false);
+
+                // Changing the conversation deployment switches the voice toggle on or off without a reload.
+                // The host resolves the name because an empty selection still inherits the site default.
+                if (conversationDeploymentSelect) {
+                    conversationDeploymentSelect.addEventListener('change', function () {
+                        realtimeController.applyMode(!!resolvedConversationDeploymentName());
+                        setVoiceSessionLive(false);
+                    });
+                }
             }
             if (documentUploadInput) {
                 documentUploadInput.addEventListener('change', function () {
@@ -2886,11 +2989,6 @@
                 });
             }
             inputEl.addEventListener('keydown', function (e) {
-                if (isConversationMode) {
-                    e.preventDefault();
-                    return;
-                }
-
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     sendMessage();

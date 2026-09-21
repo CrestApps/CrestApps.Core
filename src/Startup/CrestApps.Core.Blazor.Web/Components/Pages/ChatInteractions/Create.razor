@@ -81,7 +81,19 @@
                                 <option value="@d.Value">@d.Text</option>
                             }
                         </InputSelect>
-                        <div class="form-text">The AI model deployment to use for this chat.</div>
+                        <div class="form-text">The text model this chat talks to.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="conversationDeployment" class="form-label">Conversation deployment</label>
+                        <InputSelect id="conversationDeployment" class="form-select" @bind-Value="_model.ConversationDeploymentName">
+                            <option value="">Use the site's default realtime deployment</option>
+                            @foreach (var d in _model.ConversationDeployments)
+                            {
+                                <option value="@d.Value">@d.Text</option>
+                            }
+                        </InputSelect>
+                        <div class="form-text">The model that carries the voice conversation, when chat interactions are set to conversation mode. Leave blank to inherit the site default.</div>
                     </div>
 
                     <div class="mb-3">
@@ -519,7 +531,14 @@
 
     private async Task PopulateDropdownsAsync()
     {
-        _model.Deployments = (await DeploymentManager.GetConversationalDeploymentsAsync())
+        // The chat deployment is the text model the interaction talks to, so the picker offers the chat slot
+        // only. A speech-to-speech model belongs in the conversation deployment picker.
+        _model.Deployments = (await DeploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Chat))
+            .Select(d => new SelectOption(
+                string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})",
+                d.Name))
+            .ToList();
+        _model.ConversationDeployments = (await DeploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Realtime))
             .Select(d => new SelectOption(
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})",
                 d.Name))
@@ -691,6 +710,7 @@
         interaction.OwnerId = userName;
         interaction.Author = userName;
         interaction.ChatDeploymentName = _model.ChatDeploymentName;
+        interaction.ConversationDeploymentName = _model.ConversationDeploymentName;
         interaction.UtilityDeploymentName = _model.UtilityDeploymentName;
         interaction.OrchestratorName = _model.OrchestratorName;
         interaction.SystemMessage = _model.SystemMessage;

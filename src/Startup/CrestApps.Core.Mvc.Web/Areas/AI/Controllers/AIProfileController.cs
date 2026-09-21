@@ -279,35 +279,38 @@ public sealed class AIProfileController : Controller
 
     /// <summary>
     /// Validates that the selected deployments can perform the roles the profile assigns them: the chat
-    /// deployment (used for text turns) must be able to hold a text conversation, and a realtime profile's
-    /// realtime deployment must declare the realtime capability. This prevents a speech-to-speech-only model
-    /// from being used for text, which would otherwise fail silently at request time.
+    /// deployment serves text turns, and the conversation deployment runs the voice session. A model that
+    /// cannot do the job it was picked for would otherwise fail silently at request time.
     /// </summary>
     private async Task ValidateDeploymentCapabilitiesAsync(AIProfileViewModel model)
     {
-        // The chat deployment is the model this profile converses with, in text or in voice. Both are valid,
-        // and the picker only offers deployments that can do one or the other, so the only thing worth
-        // rejecting is a stored name that can do neither.
-        if (string.IsNullOrWhiteSpace(model.ChatDeploymentName))
-        {
-            return;
-        }
-
         var deployments = await _deploymentCatalog.GetAllAsync();
-        var chatDeployment = deployments.FirstOrDefault(deployment => string.Equals(deployment.Name, model.ChatDeploymentName, StringComparison.OrdinalIgnoreCase));
 
-        if (chatDeployment is null)
+        // The chat deployment is the text model this profile talks to. A speech-to-speech model cannot answer a
+        // typed turn, which is exactly why the conversation deployment is a separate field.
+        var chatDeployment = FindDeployment(deployments, model.ChatDeploymentName);
+
+        if (chatDeployment is not null
+            && (!_capabilityService.SupportsFeatureOrUnconstrained(chatDeployment, AIDeploymentFeatureNames.TextGeneration)
+                || _capabilityService.GetCapabilities(chatDeployment).SupportsFeature(AIDeploymentFeatureNames.Realtime)))
         {
-            return;
+            ModelState.AddModelError(nameof(model.ChatDeploymentName), "The selected chat deployment cannot hold a text conversation. Choose a deployment whose model declares text generation, and name a speech-to-speech model as the conversation deployment instead.");
         }
 
-        var isTextCapable = _capabilityService.SupportsFeatureOrUnconstrained(chatDeployment, AIDeploymentFeatureNames.TextGeneration);
-        var isRealtimeCapable = _capabilityService.GetCapabilities(chatDeployment).SupportsFeature(AIDeploymentFeatureNames.Realtime);
+        var conversationDeployment = FindDeployment(deployments, model.ConversationDeploymentName);
 
-        if (!isTextCapable && !isRealtimeCapable)
+        if (conversationDeployment is not null
+            && !_capabilityService.GetCapabilities(conversationDeployment).SupportsFeature(AIDeploymentFeatureNames.Realtime))
         {
-            ModelState.AddModelError(nameof(model.ChatDeploymentName), "The selected chat deployment can neither hold a text conversation nor run a realtime voice session. Choose a deployment whose model declares text generation or the realtime capability.");
+            ModelState.AddModelError(nameof(model.ConversationDeploymentName), "The selected conversation deployment does not declare the 'realtime' capability. Choose a realtime-capable deployment, or clear the selection to use the site default.");
         }
+    }
+
+    private static AIDeployment FindDeployment(IEnumerable<AIDeployment> deployments, string name)
+    {
+        return string.IsNullOrWhiteSpace(name)
+            ? null
+            : deployments.FirstOrDefault(deployment => string.Equals(deployment.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task PopulateDropdownsAsync(AIProfileViewModel model)
@@ -320,9 +323,11 @@ public sealed class AIProfileController : Controller
             elementPrefix: "utilityModelParameters",
             title: "Utility model parameters");
 
-        model.ChatDeployments = (await _deploymentManager.GetConversationalDeploymentsAsync()).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        // The chat deployment is the text model the profile talks to, so the picker offers the chat slot only.
+        // A speech-to-speech model belongs in the conversation deployment picker below it.
+        model.ChatDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.UtilityDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
-        model.RealtimeDeployments = (await _capabilityService.GetDeploymentsWithFeatureAsync(AIDeploymentFeatureNames.Realtime)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        model.RealtimeDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Realtime)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
         var hasAnthropicOptions = _anthropicOptions.TryGetValidValue(out var anthropicOptions);
         model.Orchestrators = orchestrators.Select(o => new SelectListItem(o.Value.Title ?? o.Key, o.Key)).ToList();
@@ -568,22 +573,34 @@ public sealed class AIProfileController : Controller
         }
 
         // A template written before realtime became a model capability named its speech-to-speech model
-        // separately. That model is simply the chat deployment now.
+        // separately. That model is the conversation deployment now, and naming one is what makes the profile
+        // a voice profile.
 #pragma warning disable CS0618 // Type or member is obsolete
-        if (string.IsNullOrWhiteSpace(profile.ChatDeploymentName) && !string.IsNullOrWhiteSpace(metadata.RealtimeDeploymentName))
-        {
-            profile.ChatDeploymentName = metadata.RealtimeDeploymentName;
-        }
+        var conversationDeploymentName = !string.IsNullOrWhiteSpace(metadata.ConversationDeploymentName)
+            ? metadata.ConversationDeploymentName
+            : metadata.RealtimeDeploymentName;
 #pragma warning restore CS0618 // Type or member is obsolete
 
-        // Carry the chat mode (and its voice/TTS options) so a template can seed a realtime voice profile.
-        if (metadata.ChatMode.HasValue || !string.IsNullOrWhiteSpace(metadata.VoiceName) || metadata.EnableTextToSpeechPlayback.HasValue)
+        // Carry the chat mode (and its voice/TTS options) so a template can seed a voice profile.
+        if (metadata.ChatMode.HasValue || !string.IsNullOrWhiteSpace(conversationDeploymentName) || !string.IsNullOrWhiteSpace(metadata.VoiceName) || metadata.EnableTextToSpeechPlayback.HasValue)
         {
             profile.AlterSettings<ChatModeProfileSettings>(chatModeSettings =>
             {
                 if (metadata.ChatMode.HasValue)
                 {
                     chatModeSettings.ChatMode = metadata.ChatMode.Value;
+                }
+
+                if (!string.IsNullOrWhiteSpace(conversationDeploymentName))
+                {
+                    chatModeSettings.ConversationDeploymentName = conversationDeploymentName;
+
+                    // A template that names a model to speak with is asking for a spoken conversation. Without
+                    // this the profile would carry the deployment and never use it.
+                    if (!metadata.ChatMode.HasValue)
+                    {
+                        chatModeSettings.ChatMode = ChatMode.Conversation;
+                    }
                 }
 
                 if (!string.IsNullOrWhiteSpace(metadata.VoiceName))
@@ -738,6 +755,25 @@ public sealed class AIProfileController : Controller
     {
         model.ChatDeploymentName = await NormalizeDeploymentSelectorAsync(model.ChatDeploymentName);
         model.UtilityDeploymentName = await NormalizeDeploymentSelectorAsync(model.UtilityDeploymentName);
+        model.ConversationDeploymentName = await NormalizeDeploymentSelectorAsync(model.ConversationDeploymentName);
+
+        // A profile stored before the conversation deployment existed names its speech-to-speech model as its
+        // chat deployment, and the chat picker no longer offers it. Show it where it now belongs, so saving the
+        // profile writes the current shape. The fold cannot happen while deserializing -- only the deployment's
+        // own capability distinguishes such a profile, and that needs the catalog.
+        var conversation = await _deploymentManager.ResolveConversationModeAsync(
+            model.ChatMode,
+            model.ConversationDeploymentName,
+            model.ChatDeploymentName,
+            hasSpeechToText: false,
+            hasTextToSpeech: false);
+
+        if (conversation.FoldedFromChatDeployment)
+        {
+            model.ConversationDeploymentName = conversation.RequestedDeploymentName;
+            model.ChatMode = ChatMode.Conversation;
+            model.ChatDeploymentName = null;
+        }
     }
 
     private async Task<string> NormalizeDeploymentSelectorAsync(string selector)

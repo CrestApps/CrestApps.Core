@@ -62,24 +62,22 @@ public static class AIDeploymentManagerExtensions
     }
 
     /// <summary>
-    /// Gets every deployment a user may pick as the model a profile or interaction converses with — the
-    /// text-capable deployments and the realtime (speech-to-speech) ones together.
+    /// Gets the union of the text-capable deployments and the realtime (speech-to-speech) ones, as the
+    /// editors' single "what can this profile talk to" picker used to offer them.
     /// </summary>
     /// <param name="deploymentManager">The deployment manager.</param>
     /// <param name="clientName">The optional client name to further filter results.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <remarks>
     /// <para>
-    /// This is deliberately a union of two slots rather than a slot of its own, because it answers a
-    /// different question from either. The <see cref="AIDeploymentSlotNames.Chat"/> slot answers "what can
-    /// serve a text completion", and it excludes realtime deployments precisely because they cannot. The
-    /// picker answers "what can this profile talk to", and a realtime deployment obviously can — it just
-    /// speaks instead of typing.
+    /// This describes the pre-split picker. A profile once answered "text or voice?" by which deployment it
+    /// named, so one picker had to offer both kinds. It no longer does: the chat mode decides whether the
+    /// conversation is spoken, the chat deployment means only "the text model this profile talks to" — the
+    /// <see cref="AIDeploymentSlotNames.Chat"/> slot, which excludes realtime deployments because they cannot
+    /// serve a text completion — and the conversation deployment names the model that carries a spoken one.
     /// </para>
     /// <para>
-    /// Which of the two a selection turns out to be is then read back from the deployment's own
-    /// capabilities, so the editors never have to ask the operator a second question they could answer
-    /// inconsistently.
+    /// Kept because it is public API on an abstractions package. No editor calls it.
     /// </para>
     /// </remarks>
     public static async ValueTask<IEnumerable<AIDeployment>> GetConversationalDeploymentsAsync(

@@ -123,8 +123,9 @@
                         </div>
                     </div>
 
-                    @* The chat deployment comes first: it is what decides whether the voice and chat mode
-                       fields below it apply at all. *@
+                    @* The chat mode comes first: it decides whether the conversation and voice fields beside it
+                       apply at all. The chat deployment no longer does — it is the text model, and a profile
+                       that speaks still types. *@
                     <div class="row">
                         <div class="col-md-4" id="profileChatDeploymentCol">
                             <div class="mb-3">
@@ -132,20 +133,11 @@
                                 <select asp-for="ChatDeploymentName" class="form-select" asp-items="Model.ChatDeployments">
                                     <option value="">Use default chat deployment</option>
                                 </select>
-                                <div class="form-text">The model this profile converses with. A realtime model makes it a speech-to-speech profile.</div>
+                                <div class="form-text">The text model this profile talks to. It answers typed messages, including those typed during a voice conversation.</div>
                             </div>
                             @* Directly under the picker it belongs to: the parameters a deployment exposes
                                are part of choosing it, so they appear where the choice is made. *@
                             <partial name="_ModelParameters" model="Model.ModelParameterEditor" />
-                        </div>
-                        <div class="col-md-4 profile-type profile-type-chat@(Model.Type != CrestApps.Core.AI.Models.AIProfileType.Chat ? " d-none" : "")" id="profileVoiceSelectorGroup">
-                            <div class="mb-3">
-                                <label asp-for="VoiceName" class="form-label">Voice</label>
-                                <select asp-for="VoiceName" class="form-select">
-                                    <option value="">Default voice</option>
-                                </select>
-                                <div class="form-text">Select a voice for conversation or realtime mode. Leave this empty to use the site's default voice.</div>
-                            </div>
                         </div>
                         <div class="col-md-4 profile-type profile-type-chat@(Model.Type != CrestApps.Core.AI.Models.AIProfileType.Chat ? " d-none" : "")" id="profileChatModeCol">
                             <div class="mb-3">
@@ -155,7 +147,28 @@
                                     <option value="@ChatMode.AudioInput">Audio input</option>
                                     <option value="@ChatMode.Conversation">Conversation</option>
                                 </select>
-                                <div class="form-text">Controls whether this profile uses text input only, microphone dictation, or two-way conversation (speech-to-text + text-to-speech). A realtime chat deployment speaks natively and ignores this.</div>
+                                <div class="form-text">Text input only, microphone dictation, or a two-way voice conversation the user can switch on and off while typing.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 profile-type profile-type-chat@(Model.Type != CrestApps.Core.AI.Models.AIProfileType.Chat ? " d-none" : "")" id="profileConversationDeploymentCol">
+                            <div class="mb-3">
+                                <label asp-for="ConversationDeploymentName" class="form-label">Conversation deployment</label>
+                                <select asp-for="ConversationDeploymentName" class="form-select" asp-items="Model.RealtimeDeployments" id="profileConversationDeploymentSelector">
+                                    <option value="">Use the site's default realtime deployment</option>
+                                </select>
+                                <div class="form-text">The model that carries the voice conversation. Leave this empty to inherit the site default. With no realtime deployment available, conversation mode falls back to speech-to-text plus text-to-speech.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 profile-type profile-type-chat@(Model.Type != CrestApps.Core.AI.Models.AIProfileType.Chat ? " d-none" : "")" id="profileVoiceSelectorGroup">
+                            <div class="mb-3">
+                                <label asp-for="VoiceName" class="form-label">Voice</label>
+                                <select asp-for="VoiceName" class="form-select">
+                                    <option value="">Default voice</option>
+                                </select>
+                                <div class="form-text">The voice this profile speaks with. Leave this empty to use the site's default voice.</div>
                             </div>
                         </div>
                     </div>
@@ -1136,14 +1149,31 @@
             var selectedProfileVoiceId = '@(Model.VoiceName ?? string.Empty)';
             var defaultTextToSpeechDeploymentName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(defaultTextToSpeechDeploymentName));
             var defaultRealtimeDeploymentName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(defaultRealtimeDeploymentName));
-            // Realtime is a property of the selected chat deployment, not a separate mode or field.
-            var profileChatDeploymentSelector = document.getElementById('@Html.IdFor(m => m.ChatDeploymentName)');
+            var profileConversationDeploymentSelector = document.getElementById('profileConversationDeploymentSelector');
             var realtimeDeploymentNames = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RealtimeDeployments.Select(d => d.Value)));
             var profileChatModeCol = document.getElementById('profileChatModeCol');
+            var profileConversationDeploymentCol = document.getElementById('profileConversationDeploymentCol');
             var profileTtsPlaybackGroup = document.getElementById('profileTtsPlaybackGroup');
 
+            function isConversationMode() {
+                return profileChatModeSelector && profileChatModeSelector.value === '@nameof(ChatMode.Conversation)';
+            }
+
+            // Mirrors the realtime slot's chain on the server: the profile's own choice, then the site default,
+            // then the first realtime-capable deployment. Empty means the conversation falls back to the
+            // speech-to-text plus text-to-speech cascade, which uses a different set of voices.
+            function resolvedConversationDeploymentName() {
+                if (!isConversationMode()) {
+                    return '';
+                }
+
+                return (profileConversationDeploymentSelector && profileConversationDeploymentSelector.value)
+                    || defaultRealtimeDeploymentName
+                    || (realtimeDeploymentNames.length ? realtimeDeploymentNames[0] : '');
+            }
+
             function isRealtimeMode() {
-                return profileChatDeploymentSelector && realtimeDeploymentNames.indexOf(profileChatDeploymentSelector.value) >= 0;
+                return !!resolvedConversationDeploymentName();
             }
 
             function toggleProfileVoiceField() {
@@ -1152,27 +1182,26 @@
                 }
 
                 var isChatType = getSelectedProfileTypeClassName() === 'profile-type-chat';
-                var isConversationMode = profileChatModeSelector.value === '@nameof(ChatMode.Conversation)';
-                var isRealtime = isRealtimeMode();
+                var conversation = isConversationMode();
 
-                // The chat deployment picker is the control that decides all of this, so it always stays
-                // visible. Hiding it would remove the only way back out of a realtime selection.
+                // The chat mode is the control that decides all of this, so it always stays visible for a chat
+                // profile. The chat deployment does too — a profile that speaks still answers typed messages.
 
-                // The chat mode layers speech-to-text and text-to-speech over a text model, so it applies
-                // only when the selected deployment is not already a speech-to-speech one.
-                if (profileChatModeCol) {
-                    profileChatModeCol.classList.toggle('d-none', isRealtime || !isChatType);
+                // The conversation deployment qualifies conversation mode and means nothing without it.
+                if (profileConversationDeploymentCol) {
+                    profileConversationDeploymentCol.classList.toggle('d-none', !conversation || !isChatType);
                 }
 
-                // Voice applies to a realtime deployment (its own voices) and to conversation mode (the
-                // text-to-speech voices).
+                // One voice question, whichever path answers it: a realtime deployment's own voices, or the
+                // text-to-speech voices when the conversation runs as the cascade.
                 if (profileVoiceSelectorGroup) {
-                    profileVoiceSelectorGroup.classList.toggle('d-none', !(isConversationMode || isRealtime) || !isChatType);
+                    profileVoiceSelectorGroup.classList.toggle('d-none', !conversation || !isChatType);
                 }
 
-                // A realtime deployment speaks its answer, so playing the assistant text back adds nothing.
+                // Playback reads an assistant message aloud on demand, which is a text-chat affordance. A live
+                // voice conversation has already spoken it.
                 if (profileTtsPlaybackGroup) {
-                    profileTtsPlaybackGroup.classList.toggle('d-none', isRealtime || !isChatType);
+                    profileTtsPlaybackGroup.classList.toggle('d-none', !isChatType);
                 }
 
                 loadVoiceOptions();
@@ -1199,10 +1228,11 @@
                 // would be listed once per overlapping load.
                 var token = ++voiceLoadToken;
 
-                var realtime = isRealtimeMode();
-                var deploymentName = realtime
-                    ? (profileChatDeploymentSelector && profileChatDeploymentSelector.value)
-                    : defaultTextToSpeechDeploymentName;
+                // Whichever path carries the conversation owns the voice list: a realtime deployment offers its
+                // own voices, the cascade offers the text-to-speech deployment's.
+                var resolvedConversationDeployment = resolvedConversationDeploymentName();
+                var realtime = !!resolvedConversationDeployment;
+                var deploymentName = realtime ? resolvedConversationDeployment : defaultTextToSpeechDeploymentName;
 
                 if (!deploymentName) {
                     return;
@@ -1253,8 +1283,8 @@
             if (profileChatModeSelector) {
                 profileChatModeSelector.addEventListener('change', toggleProfileVoiceField);
             }
-            if (profileChatDeploymentSelector) {
-                profileChatDeploymentSelector.addEventListener('change', toggleProfileVoiceField);
+            if (profileConversationDeploymentSelector) {
+                profileConversationDeploymentSelector.addEventListener('change', toggleProfileVoiceField);
             }
             if (profileTypeSelect) {
                 profileTypeSelect.addEventListener('change', toggleProfileVoiceField);
