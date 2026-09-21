@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
+using CrestApps.Core.Ingestion;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -10,6 +12,7 @@ using UglyToad.PdfPig.DocumentLayoutAnalysis;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.PageSegmenter;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.ReadingOrderDetector;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.WordExtractor;
+using UglyToad.PdfPig.Outline;
 using UglyToad.PdfPig.Tokens;
 
 namespace CrestApps.Core.AI.Ingestion.Pdf.Services;
@@ -161,7 +164,7 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
     /// <param name="identifier">The document identifier.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The document.</returns>
-    private static IngestionDocument ReadRawPageText(PdfDocument pdf, string identifier, CancellationToken cancellationToken)
+    private IngestionDocument ReadRawPageText(PdfDocument pdf, string identifier, CancellationToken cancellationToken)
     {
         var document = new IngestionDocument(identifier);
 
@@ -189,6 +192,8 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
 
             document.Sections.Add(section);
         }
+
+        CaptureOutline(pdf, document, identifier);
 
         return document;
     }
@@ -246,9 +251,11 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
             section.Metadata[ElementMetadataKeys.PageWidth] = page.Width;
             section.Metadata[ElementMetadataKeys.PageHeight] = page.Height;
 
+            var taggedHeadings = ReadTaggedHeadings(page, identifier);
+
             foreach (var block in pages[pageIndex])
             {
-                var element = CreateElement(block, pageNumber, decoration.Contains(block), heights[pageIndex]);
+                var element = CreateElement(block, pageNumber, decoration.Contains(block), heights[pageIndex], taggedHeadings);
 
                 if (element != null)
                 {
@@ -297,7 +304,120 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
             }
         }
 
+        CaptureOutline(pdf, document, identifier);
+
         return document;
+    }
+
+    /// <summary>
+    /// Records the document's own outline, when it has one.
+    /// </summary>
+    /// <param name="pdf">The opened document.</param>
+    /// <param name="document">The document being built.</param>
+    /// <param name="identifier">The document identifier, used only for logging.</param>
+    /// <remarks>
+    /// An outline is the document stating its own structure, which beats anything that can be inferred from
+    /// how a page looks. Manuals, reports and books carry one almost without exception; magazines and
+    /// newspapers rarely do, and they fall through to the signals that suit them.
+    /// <para>
+    /// Nothing here may fail a read. A malformed outline is a document without one, which is exactly what
+    /// the analyzer already copes with.
+    /// </para>
+    /// </remarks>
+    private void CaptureOutline(PdfDocument pdf, IngestionDocument document, string identifier)
+    {
+        if (document.Sections.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!pdf.TryGetBookmarks(out var bookmarks) || bookmarks.Roots.Count == 0)
+            {
+                return;
+            }
+
+            var entries = new List<DocumentOutlineEntry>();
+
+            foreach (var root in bookmarks.Roots)
+            {
+                CollectOutline(root, entries);
+            }
+
+            if (entries.Count == 0)
+            {
+                return;
+            }
+
+            // The outline describes the whole file, and an IngestionDocument carries no metadata of its own,
+            // so the first section is where it has to live.
+            document.Sections[0].Metadata[ElementMetadataKeys.Outline] = entries;
+        }
+        catch (Exception ex)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(ex, "Could not read the outline of '{Identifier}'. The document is treated as having none.", identifier);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Flattens one outline node and its descendants into document order.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <param name="entries">The entries collected so far.</param>
+    /// <remarks>
+    /// A node that groups others without pointing anywhere itself — a part that is only a heading over its
+    /// chapters — takes the page of the first descendant that does point somewhere. Dropping it instead
+    /// would flatten its children up a level and lose the nesting the document went to the trouble of
+    /// stating.
+    /// </remarks>
+    private static void CollectOutline(BookmarkNode node, List<DocumentOutlineEntry> entries)
+    {
+        var page = node is DocumentBookmarkNode document ? document.PageNumber : FindFirstPage(node);
+        var title = node.Title?.Trim();
+
+        if (page > 0 && !string.IsNullOrEmpty(title))
+        {
+            entries.Add(new DocumentOutlineEntry
+            {
+                Title = title,
+                Level = node.Level,
+                PageNumber = page,
+            });
+        }
+
+        foreach (var child in node.Children)
+        {
+            CollectOutline(child, entries);
+        }
+    }
+
+    /// <summary>
+    /// Finds the first page any descendant of a node points at.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <returns>The page, or zero when nothing beneath it points anywhere.</returns>
+    private static int FindFirstPage(BookmarkNode node)
+    {
+        foreach (var child in node.Children)
+        {
+            if (child is DocumentBookmarkNode document)
+            {
+                return document.PageNumber;
+            }
+
+            var page = FindFirstPage(child);
+
+            if (page > 0)
+            {
+                return page;
+            }
+        }
+
+        return 0;
     }
 
     /// <summary>
@@ -804,7 +924,110 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
         return !TextSegmentation.ContainsSentenceBoundary(text);
     }
 
-    private IngestionDocumentElement CreateElement(TextBlock block, int pageNumber, bool isDecoration, double pageHeight)
+    /// <summary>
+    /// Reads the headings a tagged PDF marks, keyed by the text they carry.
+    /// </summary>
+    /// <param name="page">The page.</param>
+    /// <param name="identifier">The document identifier, used only for logging.</param>
+    /// <returns>The heading level of each marked heading, or an empty map for an untagged page.</returns>
+    /// <remarks>
+    /// A tagged PDF says which of its text is a heading and at what rank, which is the thing every other
+    /// signal in this reader has to infer. Accessible documents — anything published under a policy that
+    /// requires it, which is most government and much corporate output — carry these tags.
+    /// <para>
+    /// Marked content and the blocks layout analysis produces are two different views of a page, and the
+    /// honest way to join them is the text they carry: a block whose text is a marked heading's text is that
+    /// heading. Matching on geometry would mean reconciling two sets of bounds that were never meant to
+    /// agree.
+    /// </para>
+    /// </remarks>
+    private Dictionary<string, int> ReadTaggedHeadings(Page page, string identifier)
+    {
+        var headings = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        try
+        {
+            foreach (var content in page.GetMarkedContents())
+            {
+                CollectTaggedHeadings(content, headings);
+            }
+        }
+        catch (Exception ex)
+        {
+            // A page whose marked content cannot be read is a page without tags, which is the ordinary case.
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug(ex, "Could not read the marked content of '{Identifier}'. The page is treated as untagged.", identifier);
+            }
+        }
+
+        return headings;
+    }
+
+    /// <summary>
+    /// Collects one marked-content element and its descendants.
+    /// </summary>
+    /// <param name="content">The marked content.</param>
+    /// <param name="headings">The headings collected so far.</param>
+    private static void CollectTaggedHeadings(MarkedContentElement content, Dictionary<string, int> headings)
+    {
+        if (!content.IsArtifact)
+        {
+            var level = GetTagHeadingLevel(content.Tag);
+
+            if (level > 0)
+            {
+                // ActualText is what the document says the content reads as, which is what a tag exists to
+                // provide when the glyphs themselves do not spell it.
+                var text = PdfTextNormalizer.Normalize(
+                    string.IsNullOrWhiteSpace(content.ActualText)
+                        ? string.Concat(content.Letters.Select(letter => letter.Value))
+                        : content.ActualText);
+
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    headings[text] = level;
+                }
+            }
+        }
+
+        foreach (var child in content.Children)
+        {
+            CollectTaggedHeadings(child, headings);
+        }
+    }
+
+    /// <summary>
+    /// Reads the heading level a structure tag names.
+    /// </summary>
+    /// <param name="tag">The tag.</param>
+    /// <returns>The one-based level, or zero when the tag is not a heading.</returns>
+    /// <remarks>
+    /// <c>H1</c> to <c>H6</c> state their rank. A bare <c>H</c> is a heading whose rank the document leaves
+    /// to its position in the structure tree; it is taken as the outermost, which is what it is in the
+    /// documents that use it at all.
+    /// </remarks>
+    private static int GetTagHeadingLevel(string tag)
+    {
+        if (string.IsNullOrEmpty(tag) || tag[0] is not ('h' or 'H'))
+        {
+            return 0;
+        }
+
+        if (tag.Length == 1)
+        {
+            return 1;
+        }
+
+        return tag.Length == 2 && tag[1] is >= '1' and <= '6' ? tag[1] - '0' : 0;
+    }
+
+    private IngestionDocumentElement CreateElement(
+        TextBlock block,
+        int pageNumber,
+        bool isDecoration,
+        double pageHeight,
+        Dictionary<string, int> taggedHeadings)
     {
         var text = PdfTextNormalizer.Normalize(block.Text);
 
@@ -841,6 +1064,13 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
         var bounds = block.BoundingBox;
 
         element.Metadata[ElementMetadataKeys.BoundingBox] = new[] { bounds.Left, bounds.Bottom, bounds.Right, bounds.Top };
+
+        // A rank the document tagged outranks anything measured from type size, and it is the only structural
+        // signal a heading set in body-sized type ever carries.
+        if (!isDecoration && taggedHeadings.Count > 0 && taggedHeadings.TryGetValue(text, out var headingLevel))
+        {
+            element.Metadata[ElementMetadataKeys.HeadingLevel] = headingLevel;
+        }
 
         var modalPointSize = GetModalPointSize(block);
 

@@ -1,9 +1,15 @@
-namespace CrestApps.Core.AI.Ingestion;
+namespace CrestApps.Core.Ingestion;
 
 /// <summary>
-/// The metadata keys readers and processors use on any <see cref="Microsoft.Extensions.DataIngestion.IngestionDocumentElement"/>.
-/// Every key is written and read through these constants so no string literal can drift.
+/// The metadata keys readers and processors use on an ingestion document's sections and elements. Every key
+/// is written and read through these constants so no string literal can drift.
 /// </summary>
+/// <remarks>
+/// These live at the bottom of the stack because every reader writes them, whatever it reads and whatever it
+/// is read for. A reader that turns HTML into text needs the key for a heading level and nothing else about
+/// AI ingestion; holding the keys any higher would mean that reader taking the whole AI stack to spell one
+/// constant.
+/// </remarks>
 public static class ElementMetadataKeys
 {
     /// <summary>
@@ -63,4 +69,32 @@ public static class ElementMetadataKeys
     /// The page height in user-space units, recorded on the section alongside the width.
     /// </summary>
     public const string PageHeight = "crestapps.pageHeight";
+
+    /// <summary>
+    /// The document's own outline, as an <see cref="IReadOnlyList{T}"/> of
+    /// <c>CrestApps.Core.AI.Ingestion.Knowledge.Structure.DocumentOutlineEntry</c> in document order.
+    /// </summary>
+    /// <remarks>
+    /// Recorded on the <em>first</em> section rather than per page, because it describes the whole file and
+    /// splitting it across the pages it points at would mean reassembling an order the document already
+    /// stated. An <c>IngestionDocument</c> carries no metadata of its own — only its sections and elements
+    /// do — so the first section is where a document-wide fact has to live.
+    /// </remarks>
+    public const string Outline = "crestapps.outline";
+
+    /// <summary>
+    /// The heading level an element states it is, as a one-based <see cref="int"/> where one is the
+    /// outermost heading.
+    /// </summary>
+    /// <remarks>
+    /// This is for formats that name their own headings rather than implying them with type size: a Word
+    /// paragraph styled <c>Heading 2</c>, an <c>h2</c> element, a tagged PDF's <c>H2</c>, a layout service
+    /// reporting a section heading. One key for all of them is what lets a single strategy divide a
+    /// document without knowing which reader produced it.
+    /// <para>
+    /// A stated level is never guessed at. A reader that cannot tell a heading from body text writes
+    /// nothing here, and the analyzer falls through to the signals it can read.
+    /// </para>
+    /// </remarks>
+    public const string HeadingLevel = "crestapps.headingLevel";
 }

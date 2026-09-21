@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Ingestion.Pdf;
 using CrestApps.Core.AI.Ingestion.Pdf.Services;
+using CrestApps.Core.Ingestion;
 using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.Options;

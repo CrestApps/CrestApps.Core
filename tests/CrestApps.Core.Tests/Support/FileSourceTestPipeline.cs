@@ -40,7 +40,7 @@ internal static class FileSourceTestPipeline
             store,
             fileStore ?? new RecordingDocumentFileStore(),
             new DefaultAITextNormalizer(),
-            new TocSeededStructureAnalyzer(NullLogger<TocSeededStructureAnalyzer>.Instance),
+            StructureAnalyzers.Default(),
             new NullPublicationMetadataExtractor(),
             queue ?? new RecordingIndexingQueue(),
             NullLogger<DefaultKnowledgeIngestionService>.Instance);

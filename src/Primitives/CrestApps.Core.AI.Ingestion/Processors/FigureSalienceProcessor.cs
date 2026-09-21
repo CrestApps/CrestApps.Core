@@ -1,3 +1,4 @@
+using CrestApps.Core.Ingestion;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.Options;
 

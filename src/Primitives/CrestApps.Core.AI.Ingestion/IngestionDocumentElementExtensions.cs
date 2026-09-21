@@ -1,4 +1,5 @@
 using System.Text;
+using CrestApps.Core.Ingestion;
 using Microsoft.Extensions.DataIngestion;
 
 namespace CrestApps.Core.AI.Ingestion;

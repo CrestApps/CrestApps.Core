@@ -390,7 +390,7 @@ public sealed class FileSystemFileSourceTests : IDisposable
                 Store,
                 FileStore,
                 new DefaultAITextNormalizer(),
-                new TocSeededStructureAnalyzer(NullLogger<TocSeededStructureAnalyzer>.Instance),
+                StructureAnalyzers.Default(),
                 new NullPublicationMetadataExtractor(),
                 Queue,
                 NullLogger<DefaultKnowledgeIngestionService>.Instance);

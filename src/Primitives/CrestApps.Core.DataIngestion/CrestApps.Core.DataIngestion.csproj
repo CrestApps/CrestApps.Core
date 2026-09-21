@@ -17,4 +17,8 @@
     <PackageReference Include="Microsoft.Extensions.DataIngestion" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../../Abstractions/CrestApps.Core.Abstractions/CrestApps.Core.Abstractions.csproj" />
+  </ItemGroup>
+
 </Project>

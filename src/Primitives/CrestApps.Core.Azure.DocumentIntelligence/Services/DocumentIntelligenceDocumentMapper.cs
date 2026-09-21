@@ -3,6 +3,7 @@ using System.Text;
 using Azure.AI.DocumentIntelligence;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Ingestion.Processors;
+using CrestApps.Core.Ingestion;
 using Microsoft.Extensions.DataIngestion;
 
 namespace CrestApps.Core.Azure.DocumentIntelligence.Services;
@@ -206,6 +207,12 @@ internal static class DocumentIntelligenceDocumentMapper
             if (role == ParagraphRole.Title || role == ParagraphRole.SectionHeading)
             {
                 element.Metadata[ElementMetadataKeys.SectionLabel] = paragraph.Content;
+
+                // The service names two ranks and no more: the thing the document is called, and a heading
+                // within it. Recording them as levels one and two is what lets a scanned document be divided
+                // at all -- nothing else the analyzer reads survives a scan, because a page of pixels states
+                // no type size for the heading tier to measure.
+                element.Metadata[ElementMetadataKeys.HeadingLevel] = role == ParagraphRole.Title ? 1 : 2;
             }
 
             if (role == ParagraphRole.PageNumber)

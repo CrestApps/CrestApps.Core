@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Ingestion.Processors;
+using CrestApps.Core.Ingestion;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.Options;
 
