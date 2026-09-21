@@ -85,6 +85,7 @@ internal sealed class TabularDataAgentProvider : IAIProfileProvider
                 SystemToolNames.GetDocumentMetadata,
                 TabularToolNames.ListTabularData,
                 TabularToolNames.QueryTabularData,
+                TabularToolNames.PreviewTabularData,
                 TabularToolNames.ExecuteTabularCommand,
                 TabularToolNames.FillEmptyTabularCells,
                 TabularToolNames.FormatTabularData,

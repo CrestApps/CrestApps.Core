@@ -24,6 +24,77 @@
 <link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/document-drop-zone.css" asp-append-version="true" />
 
 <style>
+    /* A tabular preview is drawn about a thousand pixels tall, and the shared rules bound it to 60vh so a
+       stack of sheets does not push the conversation off screen. That bound is what makes it a thumbnail:
+       a spreadsheet grid lands at roughly half size, which reads as a picture of a table rather than a
+       table. Zooming lifts the bound for the one picture being looked at, so the same drawing is shown at
+       the size it was drawn for, and the cells become legible. */
+    .generated-image-container img {
+        cursor: zoom-in;
+    }
+
+    /* The opened picture is a copy the library appends outside the figure, so it is matched on its own
+       class rather than through the container -- a rule written as a descendant of the figure never
+       reaches it. The copy carries the thumbnail's classes, so the frame is taken off here: its padding
+       and white ground are scaled up with the drawing and would otherwise ring the picture with a broad
+       white border. The bound is lifted for the same reason, and only here, so the thumbnail sitting in
+       the conversation is left exactly as it was. */
+    img.medium-zoom-image--opened {
+        max-width: none !important;
+        max-height: none !important;
+        padding: 0;
+        border: 0;
+        background: none;
+    }
+
+    /* The figure is the positioning context for the download that sits inside it. */
+    .generated-image-container {
+        position: relative;
+    }
+
+    /* Over the picture's lower corner rather than below it, so a figure costs only the height of the
+       picture. It is drawn on a ground of its own because it sits on whatever the drawing happens to put
+       in that corner, which for a tabular preview is the last row of cells. */
+    .generated-image-container .ai-download-image {
+        position: absolute;
+        right: 0.5rem;
+        bottom: 0.5rem;
+        z-index: 2;
+        opacity: 0;
+        color: #1f2933;
+        background-color: rgba(255, 255, 255, 0.92);
+        border-color: rgba(0, 0, 0, 0.15);
+        transition: opacity 0.15s ease-in-out;
+    }
+
+    /* The outline button this is built from inverts on hover: it fills itself with its own colour and
+       turns its label white. Against the pale ground kept here that leaves a white icon on white -- the
+       button is still there and still works, but there is nothing to see. Both colours are therefore
+       stated for every state the button can be in rather than only the resting one. */
+    .generated-image-container .ai-download-image:hover,
+    .generated-image-container .ai-download-image:focus,
+    .generated-image-container .ai-download-image:focus-visible,
+    .generated-image-container .ai-download-image:active {
+        color: #1f2933;
+        background-color: #ffffff;
+        border-color: rgba(0, 0, 0, 0.35);
+    }
+
+    /* Revealed by pointing at the figure. focus-within is what keeps it reachable by keyboard: the button
+       is invisible until it takes focus, and an invisible control that cannot be brought into view cannot
+       be used at all. */
+    .generated-image-container:hover .ai-download-image,
+    .generated-image-container:focus-within .ai-download-image {
+        opacity: 1;
+    }
+
+    /* A touch screen has no hover to reveal it with, so there it is simply always shown. */
+    @@media (hover: none) {
+        .generated-image-container .ai-download-image {
+            opacity: 1;
+        }
+    }
+
     .chat-page-wrapper {
         display: flex;
         flex-direction: column;
@@ -737,6 +808,7 @@
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/medium-zoom/1.1.0/medium-zoom.min.js"></script>
     <script src="~/_content/CrestApps.AI.Resources/scripts/realtime-audio.js" asp-append-version="true"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -853,13 +925,18 @@
                 // browser closes the <p> at the first one, so the sentence is torn into fragments and the
                 // commas between the markers are left stranded on their own lines. Inline-block keeps the
                 // figure looking exactly the same while remaining something a paragraph can legally contain.
+                // The download sits over the picture's lower corner rather than on a line of its own
+                // beneath it. A row of its own cost a band of vertical space under every figure, which a
+                // stack of sheet previews pays for once per sheet. The link itself is unchanged -- same
+                // address, same attributes, same download -- only where it is drawn.
                 return '<span class="generated-image-container">'
                     + '<img src="' + src + '" alt="' + alt + '" class="img-thumbnail" style="max-width: 400px; height: auto;" />'
-                    + '<span class="mt-2 d-block">'
-                    + '<a href="' + src + '" target="_blank" download="' + alt + '" title="Download image" class="btn btn-sm btn-outline-secondary ai-download-image">'
+                    // No download attribute: the saved name is chosen by the conversion below, and on the
+                    // fallback path the server's own Content-Disposition names the file. Naming it from the
+                    // alt text instead saved the drawing under the spreadsheet's name, ".xlsx" and all.
+                    + '<a href="' + src + '" target="_blank" title="Download image" class="btn btn-sm btn-outline-secondary ai-download-image">'
                     + '<i class="fa-solid fa-download"></i>'
                     + '</a>'
-                    + '</span>'
                     + '</span>';
             };
             marked.setOptions({
@@ -969,9 +1046,129 @@
 
                 if (typeof requestAnimationFrame === 'function') {
                     requestAnimationFrame(wireBrokenImageHandlers);
+                    requestAnimationFrame(wireImageZoom);
+                    requestAnimationFrame(wireImageDownload);
                 }
 
                 return html;
+            }
+
+            // A picture arrives after this markup is handed back -- Vue writes it, and a streamed answer
+            // rewrites it on every chunk -- so zooming cannot be attached once at load. It is attached on
+            // the same pass as the broken-image handler above, and the attribute marks a picture already
+            // attached so a re-render does not bind it a second time.
+            function wireImageZoom() {
+                if (typeof mediumZoom !== 'function') {
+                    // Without the library the picture is still shown and still downloadable; only the
+                    // enlarging is missing, so this is not worth failing the render over.
+                    return;
+                }
+
+                var images = document.querySelectorAll('.generated-image-container img:not([data-zoom-wired])');
+
+                if (images.length === 0) {
+                    return;
+                }
+
+                for (var i = 0; i < images.length; i++) {
+                    images[i].setAttribute('data-zoom-wired', 'true');
+                }
+
+                mediumZoom(images, {
+                    // The drawing is bounded by the window rather than by this margin, so the margin is
+                    // kept small: a tabular preview is read cell by cell and every pixel given away here
+                    // comes off the size the figures are read at.
+                    margin: 16,
+                    background: 'rgba(15, 15, 15, 0.92)',
+                });
+            }
+
+            // The picture is drawn as SVG because that is what stays sharp when it is enlarged, but a file
+            // someone saves is going somewhere SVG is unwelcome -- a mail, a document, a chat message. The
+            // saved copy is therefore a PNG, converted here from the picture the page has ALREADY loaded:
+            // the drawing is never fetched a second time, and nothing is converted for a picture nobody
+            // saves. Both are why this hangs off the click rather than off the render.
+            function wireImageDownload() {
+                var links = document.querySelectorAll('.generated-image-container .ai-download-image:not([data-download-wired])');
+
+                for (var i = 0; i < links.length; i++) {
+                    links[i].setAttribute('data-download-wired', 'true');
+                    links[i].addEventListener('click', convertImageDownloadToPng);
+                }
+            }
+
+            function convertImageDownloadToPng(event) {
+                var link = event.currentTarget;
+                var container = link.closest('.generated-image-container');
+                var image = container ? container.querySelector('img') : null;
+
+                // Every path that cannot convert returns without preventing the default, so the link
+                // downloads the SVG the server holds. A saved SVG is worse than a saved PNG; no file at
+                // all is worse than both.
+                if (!image || !image.complete || !image.naturalWidth || typeof HTMLCanvasElement === 'undefined') {
+                    return;
+                }
+
+                var canvas = document.createElement('canvas');
+
+                if (typeof canvas.toBlob !== 'function') {
+                    return;
+                }
+
+                // Drawn at the size it was drawn for. Scaling up would only enlarge the same vector text
+                // while multiplying the bytes of the file being saved.
+                canvas.width = image.naturalWidth;
+                canvas.height = image.naturalHeight;
+
+                var context = canvas.getContext('2d');
+
+                if (!context) {
+                    return;
+                }
+
+                try {
+                    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+                } catch (error) {
+                    return;
+                }
+
+                event.preventDefault();
+
+                var fileName = buildImageDownloadName(image.alt);
+
+                try {
+                    canvas.toBlob(function (blob) {
+                        if (!blob) {
+                            window.location.href = link.href;
+
+                            return;
+                        }
+
+                        var url = URL.createObjectURL(blob);
+                        var temporary = document.createElement('a');
+                        temporary.href = url;
+                        temporary.download = fileName;
+                        document.body.appendChild(temporary);
+                        temporary.click();
+                        temporary.remove();
+
+                        // Released once the browser has taken the blob, not before: revoking straight away
+                        // can cancel the save it was handed to.
+                        setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+                    }, 'image/png');
+                } catch (error) {
+                    window.location.href = link.href;
+                }
+            }
+
+            // The alt text names the sheet and then, after a dash, the file it came from; only the sheet
+            // belongs in a file name. What is left is reduced to characters every filesystem accepts.
+            function buildImageDownloadName(alt) {
+                var base = (alt || '').split('—')[0];
+
+                base = base.replace(/[^A-Za-z0-9._ -]+/g, '').trim().replace(/\s+/g, '_');
+
+                return (base || 'preview') + '_preview.png';
             }
 
             function wireBrokenImageHandlers() {
@@ -1024,6 +1221,8 @@
                 normalized.title = normalized.title ?? normalized.Title ?? null;
                 normalized.link = sanitizeUrl(normalized.link ?? normalized.Link ?? null);
                 normalized.referenceType = normalized.referenceType ?? normalized.ReferenceType ?? null;
+                normalized.isGenerated = (normalized.isGenerated ?? normalized.IsGenerated) === true;
+                normalized.isImage = (normalized.isImage ?? normalized.IsImage) === true;
 
                 return normalized;
             }
@@ -1088,7 +1287,12 @@
 
             function getDownloadReferences(messageReferences) {
                 return Object.entries(messageReferences).filter(function (entry) {
-                    return isDownloadCitationReference(entry[1]);
+                    // A picture is shown where its marker sits; it is never a file offered underneath the
+                    // answer. One served from the document address carries the same reference type and the
+                    // same link shape as a download, so without this it is swept up by the heuristic below,
+                    // appended to the text as a citation, and the reader is given a numbered link where the
+                    // image should have been.
+                    return !entry[1].isImage && isDownloadCitationReference(entry[1]);
                 });
             }
 

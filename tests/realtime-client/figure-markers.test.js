@@ -225,16 +225,21 @@ const figureRenderingSurfaces = [
 for (const surface of figureRenderingSurfaces) {
     test(`${path.basename(surface)} wraps a figure in something a paragraph can contain`, () => {
         const source = fs.readFileSync(path.join(__dirname, '../../', surface), 'utf8');
-        const start = source.indexOf('generated-image-container');
 
-        assert.ok(start > 0, `${surface} no longer renders figures`);
+        // The name appears in the stylesheet and in the selectors that wire the figures up as well as in
+        // the markup, so the opening tag is what is searched for rather than the first mention of the
+        // name. Reading the first mention instead makes this pass or fail on whether a rule happens to be
+        // written above the markup, which is not what it is here to check.
+        const opening = /<(\w+) class="generated-image-container/g;
+        const tags = [...source.matchAll(opening)].map(match => match[1]);
 
-        // The wrapper's own tag, read back from the markup that builds it.
-        const before = source.slice(Math.max(0, start - 30), start);
+        assert.ok(tags.length > 0, `${surface} no longer renders figures`);
 
-        assert.ok(!/<div class="$/.test(before),
-            `${surface} wraps figures in a <div>; a marker written mid-sentence will break the paragraph`);
-        assert.ok(/<span class="$/.test(before),
-            `${surface} should wrap figures in a <span>`);
+        for (const tag of tags) {
+            assert.notEqual(tag, 'div',
+                `${surface} wraps figures in a <div>; a marker written mid-sentence will break the paragraph`);
+            assert.equal(tag, 'span',
+                `${surface} should wrap figures in a <span>, found <${tag}>`);
+        }
     });
 }

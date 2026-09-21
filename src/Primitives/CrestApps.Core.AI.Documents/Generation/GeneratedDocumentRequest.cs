@@ -49,4 +49,15 @@ public sealed class GeneratedDocumentRequest
     /// Gets the content to write to the generated file.
     /// </summary>
     public GeneratedFileContent Content { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether the created document is registered on the active invocation as a
+    /// citable download. Defaults to <see langword="true"/>.
+    /// </summary>
+    /// <remarks>
+    /// A caller that presents the file some other way turns this off and registers its own reference — a
+    /// preview image, for instance, is shown where its marker sits rather than listed underneath the
+    /// answer. Leaving it on would offer the same file a second time as a download nobody asked for.
+    /// </remarks>
+    public bool RegisterDownloadReference { get; init; } = true;
 }

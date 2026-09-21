@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Documents.Endpoints;
 
@@ -43,8 +44,11 @@ public static class DownloadAIDocument
         [FromServices] IAuthorizationService authorizationService,
         [FromServices] ICatalogManager<ChatInteraction> interactionManager,
         [FromServices] IAIChatSessionManager sessionManager,
-        [FromServices] IAIProfileManager profileManager)
+        [FromServices] IAIProfileManager profileManager,
+        [FromServices] ILoggerFactory loggerFactory)
     {
+        var logger = loggerFactory.CreateLogger(typeof(DownloadAIDocument).FullName);
+
         if (string.IsNullOrWhiteSpace(documentId))
         {
             return Results.BadRequest();
@@ -52,8 +56,25 @@ public static class DownloadAIDocument
 
         var document = await documentStore.FindByIdAsync(documentId);
 
-        if (document is null || string.IsNullOrWhiteSpace(document.StoredFilePath))
+        // Each reason is reported separately. A bare 404 says only that the address did not resolve, which
+        // is the same answer for a document that was never created, one whose row has not been committed
+        // yet, and one whose bytes are missing — three different faults that need three different fixes.
+        if (document is null)
         {
+            logger.LogWarning(
+                "Download of AI document '{DocumentId}' returned 404: no document with that id is readable. If it was created during the request that produced this link, its row may not be committed yet.",
+                documentId);
+
+            return Results.NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(document.StoredFilePath))
+        {
+            logger.LogWarning(
+                "Download of AI document '{DocumentId}' ('{FileName}') returned 404: the document record carries no stored file path.",
+                documentId,
+                document.FileName);
+
             return Results.NotFound();
         }
 
@@ -74,7 +95,23 @@ public static class DownloadAIDocument
 
         if (stream is null)
         {
+            logger.LogWarning(
+                "Download of AI document '{DocumentId}' ('{FileName}') returned 404: no file exists at '{StoredFilePath}'.",
+                documentId,
+                document.FileName,
+                document.StoredFilePath);
+
             return Results.NotFound();
+        }
+
+        if (logger.IsEnabled(LogLevel.Debug))
+        {
+            logger.LogDebug(
+                "Serving AI document '{DocumentId}' ('{FileName}') as '{ContentType}', {FileSize} bytes.",
+                documentId,
+                document.FileName,
+                document.ContentType,
+                document.FileSize);
         }
 
         return Results.File(

@@ -39,6 +39,7 @@ public static class MediaTypeHelper
             ".html" or ".htm" => "text/html",
             ".json" => "application/json",
             ".webp" => "image/webp",
+            ".svg" => "image/svg+xml",
             ".xml" => "application/xml",
             ".csv" => "text/csv",
             ".yaml" or ".yml" => "text/yaml",
