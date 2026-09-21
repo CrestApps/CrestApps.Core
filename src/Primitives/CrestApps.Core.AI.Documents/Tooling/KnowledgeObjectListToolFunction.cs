@@ -27,8 +27,6 @@ namespace CrestApps.Core.AI.Documents.Tooling;
 /// </remarks>
 public sealed class KnowledgeObjectListToolFunction : AIFunction
 {
-    private const string FigureLabelPrefix = "[fig:";
-
     private const string ParentRelation = "parent";
     private const string SiblingsRelation = "siblings";
 
@@ -369,7 +367,7 @@ public sealed class KnowledgeObjectListToolFunction : AIFunction
     private KnowledgeObjectListToolResult Render(Listing listing, IServiceProvider services, ILogger logger)
     {
         var invocationContext = AIInvocationScope.Current;
-        var nextLabel = NextFigureLabelIndex(invocationContext);
+        var nextLabel = FigureReferenceMarker.NextIndex(invocationContext);
         var entries = new List<KnowledgeObjectListEntry>(listing.Objects.Count);
         var unshowable = new List<string>();
 
@@ -389,7 +387,7 @@ public sealed class KnowledgeObjectListToolFunction : AIFunction
                     // Registered under the very marker printed below, so what the model is shown and what the
                     // host looks up cannot drift apart. This is the mechanism a [doc:n] citation already
                     // uses, with the client substituting a picture for the marker.
-                    label = $"{FigureLabelPrefix}{nextLabel}]";
+                    label = FigureReferenceMarker.Format(nextLabel);
 
                     invocationContext.ToolReferences[label] = new AICompletionReference
                     {
@@ -571,44 +569,6 @@ public sealed class KnowledgeObjectListToolFunction : AIFunction
             // geometry says so explicitly, so if nothing says so they are treated as read off by eye.
             builder.Append("   values: unconfirmed - do not quote as exact");
         }
-    }
-
-    /// <summary>
-    /// Works out where this listing's figure markers should start counting from.
-    /// </summary>
-    /// <param name="context">The active invocation, or <see langword="null"/> when there is none.</param>
-    /// <returns>The first free marker number.</returns>
-    /// <remarks>
-    /// Markers are handed out from one run of numbers across everything registered in an invocation.
-    /// Restarting at one would collide with a figures block that retrieval already registered, and the
-    /// collision is silent - the first registration wins - so the picture shown under a marker would be one
-    /// this listing never named.
-    /// </remarks>
-    private static int NextFigureLabelIndex(AIInvocationContext context)
-    {
-        if (context is null)
-        {
-            return 1;
-        }
-
-        var highest = 0;
-
-        foreach (var key in context.ToolReferences.Keys)
-        {
-            if (key.Length <= FigureLabelPrefix.Length + 1 ||
-                !key.StartsWith(FigureLabelPrefix, StringComparison.OrdinalIgnoreCase) ||
-                key[^1] != ']')
-            {
-                continue;
-            }
-
-            if (int.TryParse(key.AsSpan(FigureLabelPrefix.Length, key.Length - FigureLabelPrefix.Length - 1), out var index) && index > highest)
-            {
-                highest = index;
-            }
-        }
-
-        return highest + 1;
     }
 
     /// <summary>

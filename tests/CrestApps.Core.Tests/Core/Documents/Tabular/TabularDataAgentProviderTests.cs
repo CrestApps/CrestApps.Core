@@ -57,6 +57,7 @@ public class TabularDataAgentProviderTests
                 SystemToolNames.GetDocumentMetadata,
                 TabularToolNames.ListTabularData,
                 TabularToolNames.QueryTabularData,
+                TabularToolNames.PreviewTabularData,
                 TabularToolNames.ExecuteTabularCommand,
                 TabularToolNames.FillEmptyTabularCells,
                 TabularToolNames.FormatTabularData,

@@ -18,6 +18,12 @@ public static class TabularToolNames
     public const string QueryTabularData = "query_tabular_data";
 
     /// <summary>
+    /// The tool that shows the tabular data to the reader as a picture of a spreadsheet, or as a written
+    /// table where the host cannot show a picture.
+    /// </summary>
+    public const string PreviewTabularData = "preview_tabular_data";
+
+    /// <summary>
     /// The tool that runs a manipulation or schema statement against the tabular workspace.
     /// </summary>
     public const string ExecuteTabularCommand = "execute_tabular_command";

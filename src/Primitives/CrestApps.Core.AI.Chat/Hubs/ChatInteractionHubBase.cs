@@ -1,5 +1,6 @@
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using CrestApps.Core.AI.Capabilities;
@@ -1657,6 +1658,8 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
             CollectStreamingReferences(services, handlerContext, references, contentItemIds);
 
+            string lastResponseId = null;
+
             await foreach (var chunk in handlerResult.ResponseStream.WithCancellation(cancellationToken))
             {
                 if (string.IsNullOrEmpty(chunk.Text))
@@ -1665,6 +1668,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 }
 
                 builder.Append(chunk.Text);
+                lastResponseId = chunk.ResponseId;
                 CollectStreamingReferences(services, handlerContext, references, contentItemIds);
 
                 var partialMessage = new CompletionPartialMessage
@@ -1681,6 +1685,33 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             }
 
             CollectStreamingReferences(services, handlerContext, references, contentItemIds);
+
+            // A picture the host has already drawn and stored must not depend on the model remembering to
+            // write its marker. This is the rule generated downloads already follow — IsGenerated exists so
+            // an exported file reaches the reader whether or not it was cited — applied to an image, which
+            // is shown where its marker sits rather than listed underneath. Observed repeatedly: the answer
+            // says "the previews are shown above" and writes no marker, so the reader is told about images
+            // that were built, stored and served, and sees none of them.
+            var trailingImageMarkers = BuildUncitedImageMarkers(builder.AsSpan(), references);
+
+            if (!string.IsNullOrEmpty(trailingImageMarkers))
+            {
+                // Streamed as one more chunk rather than only appended to the stored text, so the images
+                // appear in the answer being read now as well as after a reload.
+                builder.Append(trailingImageMarkers);
+
+                await writer.WriteAsync(
+                    new CompletionPartialMessage
+                    {
+                        SessionId = interaction.ItemId,
+                        MessageId = assistantPrompt.ItemId,
+                        ResponseId = lastResponseId,
+                        Content = trailingImageMarkers,
+                        References = references,
+                        Appearance = handlerContext.AssistantAppearance,
+                    },
+                    cancellationToken);
+            }
 
             if (builder.Length > 0)
             {
@@ -2114,6 +2145,67 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Returns the markers for every servable picture the answer did not name, ready to be appended to it.
+    /// </summary>
+    /// <remarks>
+    /// Only a reference the host can actually turn into a picture is added: one flagged as an image and
+    /// carrying an address this host serves. A marker without a picture behind it would reach the reader as
+    /// the few characters the host typed, which is worse than the omission it was meant to repair.
+    /// <para>
+    /// Ordered by the reference index so the pictures appear in the order the tool produced them rather
+    /// than in whatever order the map happens to enumerate.
+    /// </para>
+    /// </remarks>
+    /// <param name="text">The answer as written.</param>
+    /// <param name="references">The references collected for the answer.</param>
+    /// <returns>The text to append, or <see langword="null"/> when every picture was named.</returns>
+    private static string BuildUncitedImageMarkers(
+        ReadOnlySpan<char> text,
+        Dictionary<string, AICompletionReference> references)
+    {
+        if (references is null || references.Count == 0)
+        {
+            return null;
+        }
+
+        List<KeyValuePair<string, AICompletionReference>> uncited = null;
+
+        foreach (var reference in references)
+        {
+            if (reference.Value?.IsImage != true ||
+                string.IsNullOrWhiteSpace(reference.Value.Link) ||
+                string.IsNullOrEmpty(reference.Key) ||
+                text.Contains(reference.Key, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            (uncited ??= []).Add(reference);
+        }
+
+        if (uncited is null)
+        {
+            return null;
+        }
+
+        uncited.Sort((left, right) => left.Value.Index.CompareTo(right.Value.Index));
+
+        var builder = new StringBuilder(Environment.NewLine + Environment.NewLine);
+
+        for (var index = 0; index < uncited.Count; index++)
+        {
+            if (index > 0)
+            {
+                builder.Append(' ');
+            }
+
+            builder.Append(uncited[index].Key);
+        }
+
+        return builder.ToString();
     }
 
     private static async Task<Dictionary<string, AICompletionReference>> GetPromptReferencesAsync(

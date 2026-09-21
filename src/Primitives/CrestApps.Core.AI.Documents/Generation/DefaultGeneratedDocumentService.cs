@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.Services;
 
 namespace CrestApps.Core.AI.Documents.Generation;
 
@@ -25,6 +26,7 @@ public sealed class DefaultGeneratedDocumentService : IGeneratedDocumentService
     private readonly IAIDocumentStore _documentStore;
     private readonly IDocumentFileStore _fileStore;
     private readonly TimeProvider _timeProvider;
+    private readonly IStoreCommitter _committer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DefaultGeneratedDocumentService"/> class.
@@ -33,16 +35,19 @@ public sealed class DefaultGeneratedDocumentService : IGeneratedDocumentService
     /// <param name="documentStore">The document metadata store.</param>
     /// <param name="fileStore">The document file store.</param>
     /// <param name="timeProvider">The time provider.</param>
+    /// <param name="committer">The store committer, when the host registered one.</param>
     public DefaultGeneratedDocumentService(
         IGeneratedFileWriterResolver writerResolver,
         IAIDocumentStore documentStore,
         IDocumentFileStore fileStore,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IStoreCommitter committer = null)
     {
         _writerResolver = writerResolver;
         _documentStore = documentStore;
         _fileStore = fileStore;
         _timeProvider = timeProvider;
+        _committer = committer;
     }
 
     /// <summary>
@@ -91,7 +96,20 @@ public sealed class DefaultGeneratedDocumentService : IGeneratedDocumentService
 
         await _documentStore.CreateAsync(document, cancellationToken);
 
-        var referenceToken = AddDownloadReference(document);
+        // The file is about to be handed out as an address, so the row that address resolves through has to
+        // be readable by the request that follows it. Staged in this request's session it is not: the
+        // conversation commits when the turn ends, and a preview image embedded in the answer is fetched by
+        // the browser the moment the message renders — measured here at 78 ms before that commit, which the
+        // endpoint answered with 404 for every image. A download link survives only because a person takes
+        // seconds to click it.
+        if (_committer is not null)
+        {
+            await _committer.CommitAsync(cancellationToken);
+        }
+
+        var referenceToken = request.RegisterDownloadReference
+            ? AddDownloadReference(document)
+            : null;
 
         return new GeneratedDocumentResult(document, referenceToken);
     }

@@ -60,6 +60,7 @@ public static class ServiceCollectionExtensions
 
         // Per-prompt tabular workspace options + the system tabular data agent that queries it.
         services.AddOptions<TabularWorkspaceOptions>();
+        services.AddOptions<TabularPreviewOptions>();
         services.TryAddSingleton<ITabularDocumentArtifactStore, DocumentFileStoreTabularDocumentArtifactStore>();
         services.TryAddScoped<TabularDocumentArtifactFactory>();
         services.AddTemplatesFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
@@ -82,6 +83,13 @@ public static class ServiceCollectionExtensions
             ".yaml",
             ".yml",
             ".log");
+
+        // A drawn preview is markup, so the text writer already knows how to store it, and registering the
+        // extension is what gives the stored file its image content type. It is deliberately NOT requestable:
+        // the preview this host draws is markup it escaped itself, whereas generate_file writes its content
+        // argument verbatim, and the same extension reached that way would serve model-supplied markup from
+        // this origin.
+        services.AddGeneratedFileWriter<PlainTextGeneratedFileWriter>(requestable: false, ".svg");
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DocumentChatInteractionSettingsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, DocumentOrchestrationHandler>());
@@ -115,6 +123,12 @@ public static class ServiceCollectionExtensions
         services.AddCoreAITool<QueryTabularDataTool>(QueryTabularDataTool.TheName)
             .WithTitle("Query Tabular Data")
             .WithDescription("Runs a read-only SQL query against uploaded tabular data and returns a compact result.")
+            .WithCategory("Tabular Data")
+            .Hidden();
+
+        services.AddCoreAITool<PreviewTabularDataTool>(PreviewTabularDataTool.TheName)
+            .WithTitle("Preview Tabular Data")
+            .WithDescription("Shows the uploaded tabular data as a picture of a spreadsheet, truncated to the first rows and columns.")
             .WithCategory("Tabular Data")
             .Hidden();
 

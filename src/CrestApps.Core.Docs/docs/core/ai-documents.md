@@ -63,6 +63,31 @@ This is the recommended path for tasks such as:
 
 Under the hood, tabular workflows are handled by the built-in **Tabular Data Agent**. It is a code-defined, always-available **system agent** that stays hidden from the AI Profile and Chat Interaction agent pickers, yet still participates in orchestration and is exposed through the A2A host for remote clients.
 
+#### Seeing the data
+
+Everything else the agent does answers a question *about* the data. The hidden `preview_tabular_data` tool shows the data itself: a picture of the sheet, with its header row, lettered columns, numbered rows and numbers aligned right, drawn from the first rows and columns of whatever is currently loaded.
+
+It is what lets a user check for themselves that the right worksheet was read and the header row was found where they expect it, rather than taking the answer's word for it. The agent calls it whenever the user asks to see, view or preview a table, once after the first question about a newly uploaded file, and — given a `sql` argument — to show what an export will contain before the file is created.
+
+The picture is written as SVG and served through the same authorized document download endpoint as any other generated file, so it needs no drawing library, no fonts on the host, and no extra registration. The tool returns one `[fig:N]` marker per table, which the chat surfaces replace with the picture.
+
+Previews are bounded on purpose and say what they left out — *"Showing 50 of 4,812 rows and 12 of 20 columns"* — because a grid large enough to hold everything is scaled down by the chat surface until none of it is readable. The limits are configurable:
+
+```csharp
+builder.Services.Configure<TabularPreviewOptions>(options =>
+{
+    options.MaxRows = 50;
+    options.MaxColumns = 15;
+    options.MaxCellCharacters = 32;
+    options.MaxTables = 4;
+    options.MaxImageWidth = 1100;
+});
+```
+
+A host with no document download endpoint registered cannot serve the picture, and one with no writer registered for the preview format cannot write it; in either case the tool falls back to a Markdown table of the same window of the same data. The user can also ask for the text form directly.
+
+The preview format is registered as a writer the host can resolve but **not** as a format a caller may request, so `generate_file` and `export_tabular_data` will not produce one. A preview is markup this host generated and escaped; the same extension reached through a tool whose `content` argument is written verbatim would serve model-supplied markup from your origin.
+
 #### Spreadsheet formatting
 
 Exported `.xlsx` files are written with real cell types: a numeric column becomes numbers and a date column becomes date serials, so the recipient can sum, sort, filter, and chart the result rather than receiving a sheet of text. A column whose leading zeros matter — a postal code or an account number — is detected and kept as text.
