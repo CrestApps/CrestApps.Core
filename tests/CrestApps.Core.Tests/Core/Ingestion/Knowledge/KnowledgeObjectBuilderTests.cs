@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
 using CrestApps.Core.AI.Ingestion.Processors;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing;
+using CrestApps.Core.Ingestion;
 using Microsoft.Extensions.DataIngestion;
 
 namespace CrestApps.Core.Tests.Core.Ingestion.Knowledge;

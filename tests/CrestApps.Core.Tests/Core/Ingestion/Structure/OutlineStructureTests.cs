@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
 using CrestApps.Core.AI.Ingestion.Pdf.Services;
+using CrestApps.Core.Ingestion;
 using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.Logging.Abstractions;
 using UglyToad.PdfPig.Content;
@@ -115,7 +116,7 @@ public sealed class OutlineStructureTests
         // Page 2 belongs to both Chapter 1 and Section 1.1. Storing its text against both would store it
         // twice, so the innermost division owns it.
         var page2 = document.Sections.Single(section => section.PageNumber == 2);
-        var ordinal = Assert.IsType<int>(page2.Metadata[CrestApps.Core.AI.Ingestion.ElementMetadataKeys.ArticleOrdinal]);
+        var ordinal = Assert.IsType<int>(page2.Metadata[ElementMetadataKeys.ArticleOrdinal]);
 
         Assert.Equal(byTitle["Section 1.1"].Ordinal, ordinal);
     }

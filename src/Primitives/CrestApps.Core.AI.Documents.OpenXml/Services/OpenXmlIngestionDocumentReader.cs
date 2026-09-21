@@ -1,5 +1,6 @@
 using System.Text;
 using CrestApps.Core.AI.Ingestion;
+using CrestApps.Core.Ingestion;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.Extensions.DataIngestion;

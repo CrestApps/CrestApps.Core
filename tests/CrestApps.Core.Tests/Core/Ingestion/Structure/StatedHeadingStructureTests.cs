@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Documents.OpenXml.Services;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
 using CrestApps.Core.DataIngestion;
+using CrestApps.Core.Ingestion;
 using CrestApps.Core.Tests.Support;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;

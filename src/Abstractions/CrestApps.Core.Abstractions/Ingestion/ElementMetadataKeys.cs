@@ -1,9 +1,15 @@
-namespace CrestApps.Core.AI.Ingestion;
+namespace CrestApps.Core.Ingestion;
 
 /// <summary>
-/// The metadata keys readers and processors use on any <see cref="Microsoft.Extensions.DataIngestion.IngestionDocumentElement"/>.
-/// Every key is written and read through these constants so no string literal can drift.
+/// The metadata keys readers and processors use on an ingestion document's sections and elements. Every key
+/// is written and read through these constants so no string literal can drift.
 /// </summary>
+/// <remarks>
+/// These live at the bottom of the stack because every reader writes them, whatever it reads and whatever it
+/// is read for. A reader that turns HTML into text needs the key for a heading level and nothing else about
+/// AI ingestion; holding the keys any higher would mean that reader taking the whole AI stack to spell one
+/// constant.
+/// </remarks>
 public static class ElementMetadataKeys
 {
     /// <summary>
@@ -65,9 +71,8 @@ public static class ElementMetadataKeys
     public const string PageHeight = "crestapps.pageHeight";
 
     /// <summary>
-    /// The document's own outline, as an
-    /// <see cref="IReadOnlyList{T}"/> of <see cref="Knowledge.Structure.DocumentOutlineEntry"/> in document
-    /// order.
+    /// The document's own outline, as an <see cref="IReadOnlyList{T}"/> of
+    /// <c>CrestApps.Core.AI.Ingestion.Knowledge.Structure.DocumentOutlineEntry</c> in document order.
     /// </summary>
     /// <remarks>
     /// Recorded on the <em>first</em> section rather than per page, because it describes the whole file and

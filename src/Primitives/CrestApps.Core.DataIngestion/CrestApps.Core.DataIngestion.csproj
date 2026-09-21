@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../CrestApps.Core.AI.Ingestion/CrestApps.Core.AI.Ingestion.csproj" />
+    <ProjectReference Include="../../Abstractions/CrestApps.Core.Abstractions/CrestApps.Core.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

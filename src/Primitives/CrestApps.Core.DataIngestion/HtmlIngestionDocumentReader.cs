@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
-using CrestApps.Core.AI.Ingestion;
+using CrestApps.Core.Ingestion;
 using Microsoft.Extensions.DataIngestion;
 
 namespace CrestApps.Core.DataIngestion;

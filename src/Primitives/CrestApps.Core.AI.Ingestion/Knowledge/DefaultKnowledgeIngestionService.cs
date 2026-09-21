@@ -5,6 +5,7 @@ using CrestApps.Core.AI.Ingestion.Processors;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure.Indexing;
+using CrestApps.Core.Ingestion;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.Logging;
 

@@ -3,6 +3,7 @@ using System.Text;
 using Azure.AI.DocumentIntelligence;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Ingestion.Processors;
+using CrestApps.Core.Ingestion;
 using Microsoft.Extensions.DataIngestion;
 
 namespace CrestApps.Core.Azure.DocumentIntelligence.Services;

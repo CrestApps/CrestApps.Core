@@ -1,3 +1,4 @@
+using CrestApps.Core.Ingestion;
 using CrestApps.Core.Tests.Support;
 ﻿using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Ingestion.Knowledge;

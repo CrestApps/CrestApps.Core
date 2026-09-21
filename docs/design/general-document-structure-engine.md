@@ -69,6 +69,21 @@ Rung 2 collapsed what were going to be three separate rungs. A Word paragraph st
 `ElementMetadataKeys.HeadingLevel` carries it from every reader and one rung divides on it. Adding a
 format means teaching its reader to write that key, not writing another strategy.
 
+### Where the keys live, and why it is not here
+
+`ElementMetadataKeys` sits in `CrestApps.Core.Abstractions`, not in the ingestion package, because
+every reader writes them and not every reader is about AI. `CrestApps.Core.DataIngestion` turns HTML
+into text; it needs the key for a heading level and nothing else in this document.
+
+Holding the keys in the ingestion package meant that reader referencing it for one `const string`,
+and taking with it eight CrestApps assemblies, Lucene, ZString and a framework reference to
+ASP.NET Core — to spell a constant. Its dependency closure is now itself and one abstractions
+assembly.
+
+The general rule this follows: what every reader must agree on is a contract, and a contract belongs
+below the things that implement it. A reader should be able to state that a line is a heading without
+taking on the machinery that later decides what to do about it.
+
 ### What each reader now states
 
 | Reader | Writes |

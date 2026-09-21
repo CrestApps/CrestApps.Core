@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Ingestion.Knowledge.Structure;
 using CrestApps.Core.AI.Ingestion.Pdf.Services;
+using CrestApps.Core.Ingestion;
 using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.Logging.Abstractions;
 using UglyToad.PdfPig.Content;
@@ -55,7 +56,7 @@ public sealed class MultiStoryPageTests
         // headline came last.
         var ordinals = document.Sections
             .SelectMany(section => section.Elements)
-            .Select(element => (int)element.Metadata[CrestApps.Core.AI.Ingestion.ElementMetadataKeys.ArticleOrdinal])
+            .Select(element => (int)element.Metadata[ElementMetadataKeys.ArticleOrdinal])
             .Distinct()
             .ToList();
 
