@@ -33,15 +33,22 @@ public sealed class ProfileTemplateMetadata
     public string UtilityDeploymentName { get; set; }
 
     /// <summary>
+    /// Gets or sets the conversation deployment to pre-fill — the model that carries a
+    /// <see cref="Models.ChatMode.Conversation"/> chat as a speech-to-speech session.
+    /// </summary>
+    public string ConversationDeploymentName { get; set; }
+
+    /// <summary>
     /// Gets or sets the legacy realtime deployment identifier used by templates written before realtime
     /// became a model capability.
     /// </summary>
     /// <remarks>
-    /// A template now pre-fills <see cref="ChatDeploymentName"/> with whatever model the profile converses
-    /// with, voice or text. This is kept only so an existing template still applies: when set, it supplies
-    /// the chat deployment.
+    /// This is kept only so an existing template still applies: when set, it supplies
+    /// <see cref="ConversationDeploymentName"/> and puts the profile in
+    /// <see cref="Models.ChatMode.Conversation"/>. It briefly supplied the chat deployment instead, which is
+    /// what made such a profile voice-only.
     /// </remarks>
-    [Obsolete("Set ChatDeploymentName to the realtime deployment instead. Retained so existing templates keep applying.")]
+    [Obsolete("Set ConversationDeploymentName instead. Retained so existing templates keep applying.")]
     public string RealtimeDeploymentName { get; set; }
 
     /// <summary>

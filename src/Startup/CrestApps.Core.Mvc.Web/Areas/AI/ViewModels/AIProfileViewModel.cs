@@ -60,8 +60,8 @@ public sealed class AIProfileViewModel
 
     public bool EnableTextToSpeechPlayback { get; set; }
 
-    // Realtime (speech-to-speech) fields — used when ChatMode is Realtime.
-    public string RealtimeDeploymentName { get; set; }
+    // The model that carries a Conversation-mode chat. Empty inherits the site's default realtime deployment.
+    public string ConversationDeploymentName { get; set; }
 
     // AI Parameters (from AIProfileMetadata)
     public string SystemMessage { get; set; }
@@ -289,6 +289,7 @@ public sealed class AIProfileViewModel
             Description = profile.Description,
             TitleType = profile.TitleType,
             ChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput,
+            ConversationDeploymentName = chatModeSettings?.ConversationDeploymentName,
             VoiceName = chatModeSettings?.VoiceName,
             EnableTextToSpeechPlayback = chatModeSettings?.EnableTextToSpeechPlayback ?? false,
             LockSystemMessage = settings.LockSystemMessage,
@@ -548,6 +549,11 @@ public sealed class AIProfileViewModel
         profile.AlterSettings<ChatModeProfileSettings>(settings =>
         {
             settings.ChatMode = ChatMode;
+            // Never written with the resolved value. Empty means "use the site default", and storing what that
+            // resolved to today would pin the profile to a model the operator has since replaced.
+            settings.ConversationDeploymentName = string.IsNullOrWhiteSpace(ConversationDeploymentName)
+                ? null
+                : ConversationDeploymentName.Trim();
             settings.VoiceName = ChatMode == ChatMode.Conversation || !string.IsNullOrWhiteSpace(VoiceName)
                 ? VoiceName?.Trim()
                 : null;

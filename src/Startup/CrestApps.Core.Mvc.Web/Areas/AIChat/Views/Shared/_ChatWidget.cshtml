@@ -1,7 +1,7 @@
 ﻿@using CrestApps.Core
 @using CrestApps.Core.AI
 @using CrestApps.Core.AI.Documents.Models
-@using CrestApps.Core.AI.Capabilities
+@using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
 @using CrestApps.Core.Mvc.Web.Areas.AIChat.Models
@@ -10,7 +10,7 @@
 @inject IAIProfileManager ProfileManager
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject CrestApps.Core.Startup.Shared.Services.SiteSettingsStore SiteSettings
-@inject CrestApps.Core.AI.Capabilities.IAIDeploymentCapabilityService CapabilityService
+@inject CrestApps.Core.AI.Deployments.IAIDeploymentManager DeploymentManager
 
 @{
     var adminWidgetSettings = SiteSettings.Get<AIChatAdminWidgetSettings>();
@@ -21,6 +21,7 @@
         : await ProfileManager.FindByIdAsync(adminWidgetSettings.ProfileId);
 
     var configuredChatMode = ChatMode.TextInput;
+    string conversationDeploymentName = null;
     var hasTtsDeployment = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultTextToSpeechDeploymentName);
     var textToSpeechEnabled = false;
     var ttsVoiceName = defaultDeploymentSettings.DefaultTextToSpeechVoiceId;
@@ -29,6 +30,7 @@
     if (selectedProfile?.TryGetSettings<ChatModeProfileSettings>(out var profileChatModeSettings) == true)
     {
         configuredChatMode = profileChatModeSettings.ChatMode;
+        conversationDeploymentName = profileChatModeSettings.ConversationDeploymentName;
         textToSpeechEnabled = (profileChatModeSettings?.EnableTextToSpeechPlayback ?? false) && hasTtsDeployment;
 
         if (!string.IsNullOrEmpty(profileChatModeSettings?.VoiceName))
@@ -39,23 +41,24 @@
         }
     }
 
-    // The profile's own chat deployment decides whether this is a voice conversation, which keeps the
-    // widget's realtime UI in step with the hub's capability gate.
-    var realtimeEnabled = await CapabilityService.IsRealtimeDeploymentAsync(selectedProfile?.ChatDeploymentName);
-
     var speechToTextEnabled = !string.IsNullOrWhiteSpace(defaultDeploymentSettings.DefaultSpeechToTextDeploymentName);
 
-    // The chat mode layers speech-to-text and text-to-speech over a text model, so it does not apply to a
-    // realtime deployment, which speaks natively.
-    var effectiveChatMode = realtimeEnabled
-        ? ChatMode.TextInput
-        : configuredChatMode switch
-        {
-            ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
-            ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
-            ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
-            _ => ChatMode.TextInput,
-        };
+    // Conversation mode decides how the conversation is carried, and the conversation deployment names the
+    // model that carries it. One resolution shared with the hub, so the toggle the user sees and the session
+    // the hub will start cannot disagree.
+    var conversation = await DeploymentManager.ResolveConversationModeAsync(
+        configuredChatMode,
+        conversationDeploymentName,
+        selectedProfile?.ChatDeploymentName,
+        speechToTextEnabled,
+        hasTtsDeployment);
+
+    var realtimeEnabled = conversation.RealtimeEnabled;
+    var effectiveChatMode = conversation.ChatMode;
+
+    // A realtime session captures the microphone itself, so the dictation button would be a second microphone
+    // doing something different. Suppress it while realtime carries the conversation.
+    var dictationEnabled = !realtimeEnabled && effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation;
 
     var allowImageUploads = false;
     var allowSessionDocuments = false;
@@ -255,32 +258,31 @@
 
         <div id="widget-chat-document-bar" class="border-top bg-light d-none"></div>
 
-        @{
-            var widgetIsRealtime = realtimeEnabled;
-        }
         <div class="ai-chat-widget-input">
-            @* The input and send button stay in the DOM even for realtime (voice-only) because the client
-               reads the profile/session ids from the input; they are only hidden visually. *@
+            @* Typing stays available whatever the voice toggle is doing: a typed message ends the voice
+               session and is sent as an ordinary text turn into the same thread. *@
             <textarea id="widget-chat-input"
-                      class="@(widgetIsRealtime ? "d-none" : null)"
                       placeholder="Type a message..."
                       rows="1"
                       data-session-id=""
                       data-profile-id="@profile.id"></textarea>
-            <button type="button" id="widget-mic-btn" class="btn btn-outline-secondary btn-sm" title="Voice input" style="display: none;">
-                <i class="fa-solid fa-microphone"></i>
-            </button>
-            @if (profile.chatMode == nameof(ChatMode.Conversation) || widgetIsRealtime)
+            @if (dictationEnabled)
+            {
+                <button type="button" id="widget-mic-btn" class="btn btn-outline-secondary btn-sm" title="Voice input" style="display: none;">
+                    <i class="fa-solid fa-microphone"></i>
+                </button>
+            }
+            @if (profile.chatMode == nameof(ChatMode.Conversation))
             {
                 <button type="button"
                         id="widget-conversation-btn"
-                        class="btn btn-outline-dark btn-sm@(widgetIsRealtime ? " flex-grow-1" : "")"
-                        title="@(widgetIsRealtime ? "Start speaking" : "Start Conversation")"
-                        data-start-title="@(widgetIsRealtime ? "Start speaking" : "Start Conversation")"
+                        class="btn btn-outline-dark btn-sm"
+                        title="@(realtimeEnabled ? "Start speaking" : "Start Conversation")"
+                        data-start-title="@(realtimeEnabled ? "Start speaking" : "Start Conversation")"
                         data-end-title="End Conversation"
-                        data-start-html="@(widgetIsRealtime ? "<i class='fa-solid fa-wave-square me-1'></i> Start speaking" : "<i class='fa-solid fa-wave-square'></i>")"
+                        data-start-html="@(realtimeEnabled ? "<i class='fa-solid fa-wave-square me-1'></i> Start speaking" : "<i class='fa-solid fa-wave-square'></i>")"
                         data-end-html="<i class='fa-solid fa-stop me-1'></i> End Conversation">
-                    @if (widgetIsRealtime)
+                    @if (realtimeEnabled)
                     {
                         <i class="fa-solid fa-wave-square me-1"></i>
                         <span>Start speaking</span>
@@ -291,7 +293,7 @@
                     }
                 </button>
             }
-            <button type="button" id="widget-send-btn" class="@(widgetIsRealtime ? "d-none" : null)">
+            <button type="button" id="widget-send-btn">
                 <i class="fa-solid fa-paper-plane"></i>
             </button>
         </div>

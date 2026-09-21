@@ -114,12 +114,28 @@ else
                                                             Title="Model parameters"
                                                             Values="_modelParameterValues" />
 
+                @* Shown only when chat interactions are set to conversation mode: the model that carries
+                   the voice conversation, separate from the text model above. *@
+                                <div class="mb-3@(_model.ConversationModeEnabled ? string.Empty : " d-none")" id="chat-setting-conversationDeployment-group">
+                                    <label class="form-label" for="chat-setting-conversationDeployment">Conversation deployment</label>
+                                    <select id="chat-setting-conversationDeployment" class="form-select setting-input" data-setting="conversationDeploymentName">
+                                        <option value="">Use the site's default realtime deployment</option>
+                                        @foreach (var deployment in _model.ConversationDeployments)
+                                        {
+                                            <option value="@deployment.Value" selected="@(string.Equals(_model.ConversationDeploymentName, deployment.Value, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">
+                                                @deployment.Text
+                                            </option>
+                                        }
+                                    </select>
+                                    <div class="form-text">The model that speaks. Leave blank to inherit the site default; with none available, conversation mode falls back to speech-to-text plus text-to-speech.</div>
+                                </div>
+
                                 <div class="mb-3 d-none" id="chat-setting-realtimeVoice-group">
                                     <label class="form-label" for="chat-setting-realtimeVoice">Voice</label>
                                     <select id="chat-setting-realtimeVoice" class="form-select setting-input" data-setting="realtimeVoiceName">
                                         <option value="">Default voice</option>
                                     </select>
-                                    <div class="form-text">Voice for realtime (speech-to-speech), from the selected realtime model.</div>
+                                    <div class="form-text">Voice for realtime (speech-to-speech), from the resolved conversation deployment.</div>
                                 </div>
 
                                 <div class="mb-3">
@@ -580,11 +596,12 @@ else
                                         data-stop-icon="<i class='fa-solid fa-stop'></i>">
                                     <i class="fa-solid fa-paper-plane"></i>
                                 </button>
-                                @* Realtime (speech-to-speech) toggle. Rendered hidden and shown by the client when the
-                                   selected deployment is a realtime model, in which case the text input is hidden. *@
+                                @* Realtime (speech-to-speech) toggle. Rendered hidden and shown by the client when
+                                   the conversation deployment resolves to a realtime model. The text input above
+                                   stays: a voice session and a typed message share one thread. *@
                                 <button type="button"
                                         id="realtime-btn"
-                                        class="btn btn-outline-dark flex-grow-1"
+                                        class="btn btn-outline-dark"
                                         title="Start speaking"
                                         data-start-title="Start speaking"
                                         data-end-title="End Conversation"
@@ -654,29 +671,25 @@ else
         var hasTextToSpeech = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
 
         // Every deployment whose model declares the realtime (speech-to-speech) capability. The chat client
-        // uses this to switch the input to audio-only when the user selects a realtime deployment.
+        // uses this to turn the voice toggle on and off as the conversation deployment changes in the settings
+        // panel, without a round trip.
         var realtimeDeployments = await CapabilityService.GetDeploymentsWithFeatureAsync(AIDeploymentFeatureNames.Realtime);
         var realtimeDeploymentNames = realtimeDeployments
             .Select(deployment => deployment.Name)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToArray();
 
-        // The interaction's own selected deployment takes precedence: when it is a realtime model the
-        // conversation must run in realtime mode, because such a model cannot handle a text turn.
-        var selectedDeploymentIsRealtime = !string.IsNullOrWhiteSpace(interaction.ChatDeploymentName)
-            && realtimeDeploymentNames.Contains(interaction.ChatDeploymentName, StringComparer.OrdinalIgnoreCase);
+        // Conversation mode — a site setting for interactions — decides whether this is a voice conversation,
+        // and the interaction's own conversation deployment names the model that carries it.
+        var conversation = await DeploymentManager.ResolveConversationModeAsync(
+            settings.ChatMode,
+            interaction.ConversationDeploymentName,
+            interaction.ChatDeploymentName,
+            hasSpeechToText,
+            hasTextToSpeech,
+            chatModeIsSiteWide: true);
 
-        // The chat mode layers speech-to-text and text-to-speech over a text model, so it does not apply to a
-        // realtime deployment, which speaks natively.
-        var effectiveChatMode = selectedDeploymentIsRealtime
-            ? ChatMode.TextInput
-            : settings.ChatMode switch
-            {
-                ChatMode.Conversation when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
-                ChatMode.Conversation when hasSpeechToText => ChatMode.AudioInput,
-                ChatMode.AudioInput when hasSpeechToText => ChatMode.AudioInput,
-                _ => ChatMode.TextInput,
-            };
+        var effectiveChatMode = conversation.ChatMode;
 
         var storedDocuments = await DocumentStore.GetDocumentsAsync(interaction.ItemId, AIReferenceTypes.Document.ChatInteraction);
         var visibleDocuments = (interaction.Documents ?? [])
@@ -697,7 +710,10 @@ else
             ItemId = interaction.ItemId,
             Title = interaction.Title,
             SystemMessage = interaction.SystemMessage,
-            ChatDeploymentName = interaction.ChatDeploymentName,
+            ChatDeploymentName = conversation.FoldedFromChatDeployment ? null : interaction.ChatDeploymentName,
+            ConversationDeploymentName = conversation.FoldedFromChatDeployment
+                ? conversation.RequestedDeploymentName
+                : interaction.ConversationDeploymentName,
             UtilityDeploymentName = interaction.UtilityDeploymentName,
             OrchestratorName = string.Equals(interaction.OrchestratorName, OrchestratorOptionsAccessor.Value.DefaultOrchestratorName, StringComparison.OrdinalIgnoreCase)
                 ? string.Empty
@@ -728,14 +744,17 @@ else
             }).ToList() ?? [],
             Documents = visibleDocuments,
             ChatMode = effectiveChatMode,
-            SpeechToTextEnabled = effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation,
+            // A realtime session captures the microphone itself, so the dictation button would be a second
+            // microphone doing something different. Suppress it while realtime carries the conversation.
+            SpeechToTextEnabled = !conversation.RealtimeEnabled && effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation,
             ConversationModeEnabled = effectiveChatMode == ChatMode.Conversation,
-            RealtimeEnabled = selectedDeploymentIsRealtime,
+            RealtimeEnabled = conversation.RealtimeEnabled,
             RealtimeWebRtcEnabled = CrestApps.Core.AI.Chat.Realtime.RealtimeTransportSettings.IsWebRtcEnabled(ServiceProvider),
             TextToSpeechEnabled = settings.EnableTextToSpeechPlayback && hasTextToSpeech,
             TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
             RealtimeVoiceName = interaction.RealtimeVoiceName,
             RealtimeCapableDeploymentNames = realtimeDeploymentNames,
+            DefaultRealtimeDeploymentName = deploymentDefaults.DefaultRealtimeDeploymentName,
         };
 
         var documentSettings = SiteSettingsStore.Get<InteractionDocumentSettings>();
@@ -806,7 +825,8 @@ else
             realtimeWebRtcEnabled = _model.RealtimeWebRtcEnabled,
             realtimeVoiceName = _model.RealtimeVoiceName,
             realtimeButtonElementSelector = "#realtime-btn",
-            deploymentSelectElementSelector = "#chat-setting-deployment",
+            conversationDeploymentSelectElementSelector = "#chat-setting-conversationDeployment",
+            defaultRealtimeDeploymentName = _model.DefaultRealtimeDeploymentName,
             realtimeCapableDeployments = _model.RealtimeCapableDeploymentNames,
             realtimeVoiceSelectElementSelector = "#chat-setting-realtimeVoice",
             realtimeVoiceGroupElementSelector = "#chat-setting-realtimeVoice-group",
@@ -816,8 +836,16 @@ else
 
     private async Task PopulateChatDropdownsAsync(ChatInteractionChatViewModel model, ChatInteractionSettings settings)
     {
-        // Only deployments this interaction could actually converse with — text-capable or realtime.
-        model.Deployments = (await DeploymentManager.GetConversationalDeploymentsAsync())
+        // The chat deployment is the text model the interaction talks to, so the picker offers the chat slot
+        // only. A speech-to-speech model belongs in the conversation deployment picker.
+        model.Deployments = (await DeploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Chat))
+            .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(d => new SelectOption(
+                string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})",
+                d.Name))
+            .ToList();
+
+        model.ConversationDeployments = (await DeploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Realtime))
             .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
             .Select(d => new SelectOption(
                 string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.ModelName})",

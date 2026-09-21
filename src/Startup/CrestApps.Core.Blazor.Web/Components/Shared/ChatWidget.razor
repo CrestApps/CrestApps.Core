@@ -1,5 +1,5 @@
 @using CrestApps.Core.AI
-@using CrestApps.Core.AI.Capabilities
+@using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Profiles
@@ -13,7 +13,7 @@
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject SiteSettingsStore SiteSettings
 @inject NavigationManager NavigationManager
-@inject IAIDeploymentCapabilityService CapabilityService
+@inject IAIDeploymentManager DeploymentManager
 @inject SiteSettingsChangedNotifier SettingsChangedNotifier
 
 @if (_profile != null)
@@ -175,22 +175,24 @@
             <div id="widget-chat-document-bar" class="border-top bg-light d-none"></div>
 
             <div class="ai-chat-widget-input">
-                @* The input and send button stay in the DOM even for realtime (voice-only) because the client
-                   reads the profile/session ids from the input; they are only hidden visually. *@
+                @* Typing stays available whatever the voice toggle is doing: a typed message ends the voice
+                   session and is sent as an ordinary text turn into the same thread. *@
                 <textarea id="widget-chat-input"
-                          class="@(_isRealtime ? "d-none" : null)"
                           placeholder="Type a message..."
                           rows="1"
                           data-session-id=""
                           data-profile-id="@_profile.ItemId"></textarea>
-                <button type="button" id="widget-mic-btn" class="btn btn-outline-secondary btn-sm" title="Voice input" style="display: none;">
-                    <i class="fa-solid fa-microphone"></i>
-                </button>
-                @if (_chatMode == ChatMode.Conversation || _isRealtime)
+                @if (_dictationEnabled)
+                {
+                    <button type="button" id="widget-mic-btn" class="btn btn-outline-secondary btn-sm" title="Voice input" style="display: none;">
+                        <i class="fa-solid fa-microphone"></i>
+                    </button>
+                }
+                @if (_chatMode == ChatMode.Conversation)
                 {
                     <button type="button"
                             id="widget-conversation-btn"
-                            class="btn btn-outline-dark btn-sm@(_isRealtime ? " flex-grow-1" : "")"
+                            class="btn btn-outline-dark btn-sm"
                             title="@(_isRealtime ? "Start speaking" : "Start Conversation")"
                             data-start-title="@(_isRealtime ? "Start speaking" : "Start Conversation")"
                             data-end-title="End Conversation"
@@ -207,7 +209,7 @@
                         }
                     </button>
                 }
-                <button type="button" id="widget-send-btn" class="@(_isRealtime ? "d-none" : null)">
+                <button type="button" id="widget-send-btn">
                     <i class="fa-solid fa-paper-plane"></i>
                 </button>
             </div>
@@ -223,8 +225,13 @@
     private string _widgetShellStyle = "visibility:hidden;";
     private ChatMode _chatMode = ChatMode.TextInput;
 
-    // Whether the profile's chat deployment is a realtime (speech-to-speech) model.
+    // Whether conversation mode is carried by a realtime (speech-to-speech) session rather than by the
+    // client-driven speech-to-text plus text-to-speech cascade.
     private bool _isRealtime;
+
+    // A realtime session captures the microphone itself, so the dictation button would be a second microphone
+    // doing something different. Suppressed while realtime carries the conversation.
+    private bool _dictationEnabled;
     private bool _metricsEnabled;
     private bool _allowSessionDocuments;
     private bool _textToSpeechEnabled;
@@ -307,21 +314,19 @@
 
         var configuredChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput;
 
-        // The profile's own chat deployment decides whether this is a voice conversation, which keeps the
-        // widget's realtime UI in step with the hub's capability gate.
-        _isRealtime = await CapabilityService.IsRealtimeDeploymentAsync(selectedProfile.ChatDeploymentName);
+        // Conversation mode decides how the conversation is carried, and the conversation deployment names
+        // the model that carries it. One resolution shared with the hub, so the toggle the user sees and the
+        // session the hub will start cannot disagree.
+        var conversation = await DeploymentManager.ResolveConversationModeAsync(
+            configuredChatMode,
+            chatModeSettings?.ConversationDeploymentName,
+            selectedProfile.ChatDeploymentName,
+            speechToTextEnabled,
+            hasTtsDeployment);
 
-        // The chat mode layers speech-to-text and text-to-speech over a text model, so it does not apply to
-        // a realtime deployment, which speaks natively.
-        _chatMode = _isRealtime
-            ? ChatMode.TextInput
-            : configuredChatMode switch
-            {
-                ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
-                ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
-                ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
-                _ => ChatMode.TextInput,
-            };
+        _isRealtime = conversation.RealtimeEnabled;
+        _chatMode = conversation.ChatMode;
+        _dictationEnabled = !_isRealtime && _chatMode is ChatMode.AudioInput or ChatMode.Conversation;
 
         _metricsEnabled = selectedProfile.TryGet<AnalyticsMetadata>(out var analyticsMetadata) && analyticsMetadata.EnableSessionMetrics;
         _allowSessionDocuments = selectedProfile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMeta) && sessionDocMeta.AllowSessionDocuments;

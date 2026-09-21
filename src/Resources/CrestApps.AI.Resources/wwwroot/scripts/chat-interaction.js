@@ -1095,6 +1095,11 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
                   }
                   return _context2.a(2);
                 case 1:
+                  // A live voice session and a typed turn are two writers into one interaction, and they
+                  // would interleave. End the session first; the turns it already produced are persisted, so
+                  // the typed message simply continues the same thread.
+                  _this4.endActiveVoiceSession();
+
                   // Stop any active recording before sending.
                   if (_this4.isRecording) {
                     _this4.stopRecording();
@@ -1494,6 +1499,17 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
             this.stopConversationMode();
           } else {
             this.startConversationMode();
+          }
+        },
+        // Two writers into one interaction would interleave, so the voice session ends before the typed
+        // turn starts rather than running alongside it.
+        endActiveVoiceSession: function endActiveVoiceSession() {
+          if (this.realtimeController && this.realtimeController.isActive()) {
+            this.realtimeController.stop();
+            return;
+          }
+          if (this.isConversationMode) {
+            this.stopConversationMode();
           }
         },
         startConversationMode: function startConversationMode() {
@@ -2152,13 +2168,17 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
               },
               capableDeployments: config.realtimeCapableDeployments || [],
               realtimeEnabled: config.realtimeEnabled === true,
+              // input and sendButton are deliberately not handed over. The module hides every
+              // control it is given when realtime takes over, and typing has to stay available
+              // during a voice conversation -- that is the whole feature.
+              //
+              // deploymentSelect is not handed over either: it would read the raw select value,
+              // and an empty conversation deployment means "use the site default", which still
+              // resolves. The host resolves it and calls applyMode itself (see below).
               selectors: {
                 realtimeButton: config.realtimeButtonElementSelector,
-                input: config.inputElementSelector,
-                sendButton: config.sendButtonElementSelector,
                 micButton: config.micButtonElementSelector,
-                conversationButton: config.conversationButtonElementSelector,
-                deploymentSelect: config.deploymentSelectElementSelector
+                conversationButton: config.conversationButtonElementSelector
               },
               onActivate: function onActivate() {
                 _this18.isConversationMode = true;
@@ -2232,13 +2252,25 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
             return;
           }
           var voiceGroup = config.realtimeVoiceGroupElementSelector ? document.querySelector(config.realtimeVoiceGroupElementSelector) : null;
-          var deploymentSelect = config.deploymentSelectElementSelector ? document.querySelector(config.deploymentSelectElementSelector) : null;
+          var conversationSelect = config.conversationDeploymentSelectElementSelector ? document.querySelector(config.conversationDeploymentSelectElementSelector) : null;
           var capable = (config.realtimeCapableDeployments || []).map(function (n) {
             return (n || '').toLowerCase();
           });
           var savedVoiceId = config.realtimeVoiceName || '';
+          var self = this;
           function isRealtimeDeployment(name) {
             return name && capable.indexOf(name.toLowerCase()) !== -1;
+          }
+
+          // Mirrors the realtime slot's chain on the server: the interaction's own choice, then the
+          // site default, then the first realtime-capable deployment. Only conversation mode reaches
+          // it -- an interaction that is not in conversation mode never speaks.
+          function resolveConversationDeployment() {
+            if (!self.conversationModeEnabled) {
+              return '';
+            }
+            var name = conversationSelect && conversationSelect.value || config.defaultRealtimeDeploymentName || (capable.length ? capable[0] : '');
+            return isRealtimeDeployment(name) ? name : '';
           }
           function loadVoices() {
             return _loadVoices.apply(this, arguments);
@@ -2249,10 +2281,16 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
               return _regenerator().w(function (_context4) {
                 while (1) switch (_context4.p = _context4.n) {
                   case 0:
-                    deploymentName = deploymentSelect ? deploymentSelect.value : '';
-                    realtime = isRealtimeDeployment(deploymentName);
+                    deploymentName = resolveConversationDeployment();
+                    realtime = !!deploymentName;
                     if (voiceGroup) {
                       voiceGroup.classList.toggle('d-none', !realtime);
+                    }
+
+                    // Changing the conversation deployment switches the voice toggle on or off without a
+                    // reload.
+                    if (self.realtimeController) {
+                      self.realtimeController.applyMode(realtime);
                     }
                     if (realtime) {
                       _context4.n = 1;
@@ -2328,8 +2366,8 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
             }));
             return _loadVoices.apply(this, arguments);
           }
-          if (deploymentSelect) {
-            deploymentSelect.addEventListener('change', loadVoices);
+          if (conversationSelect) {
+            conversationSelect.addEventListener('change', loadVoices);
           }
           loadVoices();
         },
@@ -2621,17 +2659,17 @@ window.chatInteractionManager = function (_window$CoreAIChatMar, _window$CoreAIC
           // no longer mutes tracks; browser echo cancellation handles echo.
         },
         isConversationMode: function isConversationMode(active) {
+          // The dictation microphone is hidden while a voice conversation runs: the conversation
+          // already owns the microphone, and a second one would mean something different.
           if (this.micButton) {
             this.micButton.style.display = active ? 'none' : this.speechToTextEnabled ? '' : 'none';
           }
-          if (this.buttonElement) {
-            this.buttonElement.style.display = active ? 'none' : '';
-          }
+
+          // The message box and the send button stay: typing is how the user ends the conversation
+          // and continues in text, and both kinds of turn land in the same thread. The box is only
+          // de-emphasised, never disabled, so that remains possible.
           if (this.inputElement) {
-            this.inputElement.disabled = active;
-            if (active) {
-              this.inputElement.placeholder = '';
-            }
+            this.inputElement.classList.toggle('opacity-75', active);
           }
         },
         copiedMessageIndex: function copiedMessageIndex() {

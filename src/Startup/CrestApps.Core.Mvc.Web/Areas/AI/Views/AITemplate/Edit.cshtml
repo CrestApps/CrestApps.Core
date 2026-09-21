@@ -157,7 +157,16 @@
                                     <select asp-for="ChatMode" class="form-select" asp-items="Html.GetEnumSelectList<ChatMode>()">
                                         <option value="">Use default chat mode</option>
                                     </select>
-                                    <div class="form-text">Layers speech-to-text and text-to-speech over a text model. A realtime chat deployment speaks natively and ignores this.</div>
+                                    <div class="form-text">Text input only, microphone dictation, or a two-way voice conversation the user can switch on and off while typing.</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4" id="templateConversationDeploymentGroup">
+                                <div class="mb-3">
+                                    <label asp-for="ConversationDeploymentName" class="form-label">Conversation deployment</label>
+                                    <select asp-for="ConversationDeploymentName" class="form-select" asp-items="Model.RealtimeDeployments" id="templateConversationDeploymentSelector">
+                                        <option value="">Use the site's default realtime deployment</option>
+                                    </select>
+                                    <div class="form-text">The model that carries the voice conversation. Leave this empty to inherit the site default.</div>
                                 </div>
                             </div>
                             <div class="col-md-4" id="templateVoiceGroup">
@@ -166,7 +175,7 @@
                                     <select asp-for="VoiceName" class="form-select">
                                         <option value="">Default voice</option>
                                     </select>
-                                    <div class="form-text">Voice for the Realtime chat mode, from the selected realtime deployment. Leave empty to use the site's default voice.</div>
+                                    <div class="form-text">The voice the conversation speaks with, from the resolved conversation deployment. Leave empty to use the site's default voice.</div>
                                 </div>
                             </div>
                         </div>
@@ -994,7 +1003,7 @@
             var systemPromptFields = document.getElementById('systemPromptFields');
             var dataSourceSelect = document.getElementById('@Html.IdFor(m => m.DataSourceId)');
 
-            // --- Realtime voice loading (based on the selected realtime deployment) ---
+            // --- Conversation voice loading (based on the resolved conversation deployment) ---
             var templateChatModeSelector = document.getElementById('@Html.IdFor(m => m.ChatMode)');
             var templateChatModeCol = document.getElementById('templateChatModeCol');
             var templateVoiceSelector = document.getElementById('@Html.IdFor(m => m.VoiceName)');
@@ -1002,27 +1011,38 @@
             var templateRealtimeVoicesUrl = '@Url.Action("GetRealtimeVoices", "Settings", new { area = "Admin" })';
             var templateSelectedVoiceId = '@(Model.VoiceName ?? string.Empty)';
             var templateDefaultRealtimeDeploymentName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(defaultRealtimeDeploymentName));
-        var templateChatDeploymentSelector = document.getElementById('@Html.IdFor(m => m.ChatDeploymentName)');
-        var templateRealtimeDeploymentNames = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RealtimeDeployments.Select(d => d.Value)));
+            var templateConversationDeploymentSelector = document.getElementById('templateConversationDeploymentSelector');
+            var templateConversationDeploymentGroup = document.getElementById('templateConversationDeploymentGroup');
+            var templateRealtimeDeploymentNames = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RealtimeDeployments.Select(d => d.Value)));
 
-            function isTemplateRealtimeMode() {
-                // Realtime is a property of the selected chat deployment, not a separate mode.
-            return templateChatDeploymentSelector && templateRealtimeDeploymentNames.indexOf(templateChatDeploymentSelector.value) >= 0;
+            function isTemplateConversationMode() {
+                return templateChatModeSelector && templateChatModeSelector.value === '@nameof(ChatMode.Conversation)';
+            }
+
+            // Mirrors the realtime slot's chain on the server: the template's own choice, then the site default,
+            // then the first realtime-capable deployment.
+            function resolvedTemplateConversationDeploymentName() {
+                if (!isTemplateConversationMode()) {
+                    return '';
+                }
+
+                return (templateConversationDeploymentSelector && templateConversationDeploymentSelector.value)
+                    || templateDefaultRealtimeDeploymentName
+                    || (templateRealtimeDeploymentNames.length ? templateRealtimeDeploymentNames[0] : '');
             }
 
             function toggleTemplateVoiceField() {
-                var realtime = isTemplateRealtimeMode();
-                
-                // The chat mode layers speech-to-text and text-to-speech over a text model, so it applies only
-                // when the selected chat deployment is not already a speech-to-speech one.
-                if (templateChatModeCol) {
-                    templateChatModeCol.classList.toggle("d-none", realtime);
+                var conversation = isTemplateConversationMode();
+
+                // The conversation deployment and the voice qualify conversation mode and mean nothing without it.
+                if (templateConversationDeploymentGroup) {
+                    templateConversationDeploymentGroup.classList.toggle('d-none', !conversation);
                 }
 
                 if (templateVoiceGroup) {
-                    templateVoiceGroup.classList.toggle('d-none', !realtime);
+                    templateVoiceGroup.classList.toggle('d-none', !conversation);
                 }
-                if (realtime) {
+                if (conversation) {
                     loadTemplateVoiceOptions();
                 }
             }
@@ -1034,7 +1054,7 @@
 
                 templateVoiceSelector.innerHTML = '<option value="">Default voice</option>';
 
-                var deploymentName = (templateChatDeploymentSelector && templateChatDeploymentSelector.value) || templateDefaultRealtimeDeploymentName;
+                var deploymentName = resolvedTemplateConversationDeploymentName();
                 if (!deploymentName) {
                     return;
                 }
@@ -1075,12 +1095,8 @@
             if (templateChatModeSelector) {
                 templateChatModeSelector.addEventListener('change', toggleTemplateVoiceField);
             }
-            if (templateChatDeploymentSelector) {
-                templateChatDeploymentSelector.addEventListener('change', function () {
-                    if (isTemplateRealtimeMode()) {
-                        loadTemplateVoiceOptions();
-                    }
-                });
+            if (templateConversationDeploymentSelector) {
+                templateConversationDeploymentSelector.addEventListener('change', loadTemplateVoiceOptions);
             }
             toggleTemplateVoiceField();
 

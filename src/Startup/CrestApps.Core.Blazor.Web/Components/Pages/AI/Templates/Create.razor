@@ -173,7 +173,7 @@
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">Chat deployment</label>
-                                    <InputSelect class="form-select" @bind-Value="_model.ChatDeploymentName" @bind-Value:after="OnChatDeploymentChangedAsync">
+                                    <InputSelect class="form-select" @bind-Value="_model.ChatDeploymentName">
                                         <option value="">Use default chat deployment</option>
                                         @foreach (var d in _model.ChatDeployments)
                                         {
@@ -218,10 +218,6 @@
                         </div>
 
                         <div class="row">
-                            @* The chat mode layers speech-to-text and text-to-speech over a text model, so it only
-                               applies when the chat deployment is not already a speech-to-speech one. *@
-                            @if (!_chatDeploymentIsRealtime)
-                            {
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">Chat mode</label>
@@ -232,13 +228,26 @@
                                             <option value="@mode">@mode</option>
                                         }
                                     </InputSelect>
-                                    <div class="form-text">Layers speech-to-text and text-to-speech over a text model. A realtime chat deployment speaks natively and ignores this.</div>
+                                    <div class="form-text">Text input only, microphone dictation, or a two-way voice conversation the user can switch on and off while typing.</div>
                                 </div>
                             </div>
-                            }
-                            @* A realtime chat deployment speaks natively and offers its own voices. *@
-                            @if (_chatDeploymentIsRealtime)
+                            @* The conversation deployment and the voice qualify conversation mode and mean
+                               nothing without it. *@
+                            @if (_model.ChatMode == ChatMode.Conversation)
                             {
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Conversation deployment</label>
+                                        <InputSelect class="form-select" @bind-Value="_model.ConversationDeploymentName" @bind-Value:after="OnConversationDeploymentChangedAsync">
+                                            <option value="">Use the site's default realtime deployment</option>
+                                            @foreach (var d in _model.RealtimeDeployments)
+                                            {
+                                                <option value="@d.Value">@d.Key</option>
+                                            }
+                                        </InputSelect>
+                                        <div class="form-text">The model that carries the voice conversation. Leave this empty to inherit the site default.</div>
+                                    </div>
+                                </div>
                                 <div class="col-md-4">
                                     <div class="mb-3">
                                         <label class="form-label">Voice</label>
@@ -254,7 +263,7 @@
                                                 </optgroup>
                                             }
                                         </InputSelect>
-                                        <div class="form-text">Voice for the Realtime chat mode, from the selected realtime deployment. Leave empty to use the site's default voice.</div>
+                                        <div class="form-text">The voice the conversation speaks with, from the resolved conversation deployment. Leave empty to use the site's default voice.</div>
                                     </div>
                                 </div>
                             }
@@ -669,14 +678,17 @@
     private bool _nameWasManuallyEdited;
     private IReadOnlyList<CrestApps.Core.AI.Models.SpeechVoice> _realtimeVoices = [];
 
-    // Whether the selected chat deployment is a realtime (speech-to-speech) model.
-    private bool _chatDeploymentIsRealtime;
+    // Whether conversation mode resolves to a realtime (speech-to-speech) deployment.
+    private bool _conversationIsRealtime;
+
+    // The deployment conversation mode resolved to, which may be the site default rather than a named choice.
+    private string _realtimeDeploymentName;
 
     protected override async Task OnInitializedAsync()
     {
         await PopulateDropdownsAsync();
 
-        await OnChatDeploymentChangedAsync();
+        await OnConversationDeploymentChangedAsync();
     }
 
     // Resolves the realtime voices for the selected realtime deployment (or the site default) via
@@ -707,16 +719,24 @@
 
     private Task OnChatModeChangedAsync()
     {
-        return Task.CompletedTask;
+        return OnConversationDeploymentChangedAsync();
     }
 
-    // Recomputes whether the selected chat deployment is a realtime model. That single answer decides
-    // whether the chat mode applies at all, and which voices the template offers.
-    private async Task OnChatDeploymentChangedAsync()
+    // Recomputes whether conversation mode resolves to a realtime (speech-to-speech) deployment, which is what
+    // decides which voices the template offers.
+    private async Task OnConversationDeploymentChangedAsync()
     {
-        _chatDeploymentIsRealtime = await CapabilityService.IsRealtimeDeploymentAsync(_model.ChatDeploymentName);
+        var conversation = await DeploymentManager.ResolveConversationModeAsync(
+            _model.ChatMode ?? ChatMode.TextInput,
+            _model.ConversationDeploymentName,
+            _model.ChatDeploymentName,
+            hasSpeechToText: false,
+            hasTextToSpeech: false);
 
-        if (_chatDeploymentIsRealtime)
+        _conversationIsRealtime = conversation.RealtimeEnabled;
+        _realtimeDeploymentName = conversation.RealtimeDeploymentName;
+
+        if (_conversationIsRealtime)
         {
             await LoadRealtimeVoicesAsync();
         }
@@ -817,7 +837,9 @@
     private async Task PopulateDropdownsAsync()
     {
         var allDeployments = await DeploymentCatalog.GetAllAsync();
-        _model.ChatDeployments = (await DeploymentManager.GetConversationalDeploymentsAsync()).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
+        // The chat deployment is the text model the profile talks to, so the picker offers the chat slot only.
+        _model.ChatDeployments = (await DeploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Chat)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
+        _model.RealtimeDeployments = (await DeploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Realtime)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
         _model.UtilityDeployments = (await DeploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility)).Select(d => new KeyValuePair<string, string>(BuildLabel(d), d.Name)).ToList();
         _model.Orchestrators = OrchestratorOpts.Value.GetOrchestratorDescriptors().Select(o => new KeyValuePair<string, string>(o.Value.Title ?? o.Key, o.Key)).ToList();
 

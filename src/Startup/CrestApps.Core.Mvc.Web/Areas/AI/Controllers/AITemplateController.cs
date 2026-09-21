@@ -228,14 +228,14 @@ public sealed class AITemplateController : Controller
             ModelState.AddModelError(nameof(model.ChatDeploymentName), "The selected chat deployment is a speech-to-speech-only model and cannot hold a text conversation. Choose a text-capable chat deployment.");
         }
 
-        // A realtime deployment, when set, must declare the realtime capability (matches the AI Profile editor).
-        if (!string.IsNullOrWhiteSpace(model.RealtimeDeploymentName))
+        // A conversation deployment, when set, must declare the realtime capability (matches the AI Profile editor).
+        if (!string.IsNullOrWhiteSpace(model.ConversationDeploymentName))
         {
-            var realtimeDeployment = deployments.FirstOrDefault(deployment => string.Equals(deployment.Name, model.RealtimeDeploymentName, StringComparison.OrdinalIgnoreCase));
+            var conversationDeployment = deployments.FirstOrDefault(deployment => string.Equals(deployment.Name, model.ConversationDeploymentName, StringComparison.OrdinalIgnoreCase));
 
-            if (realtimeDeployment is not null && !_capabilityService.GetCapabilities(realtimeDeployment).SupportsFeature(AIDeploymentFeatureNames.Realtime))
+            if (conversationDeployment is not null && !_capabilityService.GetCapabilities(conversationDeployment).SupportsFeature(AIDeploymentFeatureNames.Realtime))
             {
-                ModelState.AddModelError(nameof(model.RealtimeDeploymentName), "The selected realtime deployment does not declare the 'Realtime' capability. Enable it on the deployment's capabilities, or choose a realtime-capable deployment.");
+                ModelState.AddModelError(nameof(model.ConversationDeploymentName), "The selected conversation deployment does not declare the 'realtime' capability. Choose a realtime-capable deployment, or clear the selection to use the site default.");
             }
         }
     }
@@ -251,7 +251,8 @@ public sealed class AITemplateController : Controller
             elementPrefix: "utilityModelParameters",
             title: "Utility model parameters");
 
-        model.ChatDeployments = (await _deploymentManager.GetConversationalDeploymentsAsync()).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        // The chat deployment is the text model the profile talks to, so the picker offers the chat slot only.
+        model.ChatDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.UtilityDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.RealtimeDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Realtime))
             .Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name))

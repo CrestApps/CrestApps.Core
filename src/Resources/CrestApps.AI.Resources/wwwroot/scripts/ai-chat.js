@@ -811,8 +811,10 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
           mediaRecorder: null,
           preRecordingPrompt: '',
           micButton: null,
-          speechToTextEnabled: config.chatMode === 'AudioInput' || config.chatMode === 'Conversation',
-          textToSpeechEnabled: config.chatMode === 'Conversation' || !!config.textToSpeechEnabled,
+          // Conversation mode is carried either by a realtime session or by the speech-to-text plus
+          // text-to-speech cascade, never both. Dictation and spoken playback belong to the cascade.
+          speechToTextEnabled: !config.realtimeEnabled && (config.chatMode === 'AudioInput' || config.chatMode === 'Conversation'),
+          textToSpeechEnabled: !config.realtimeEnabled && config.chatMode === 'Conversation' || !!config.textToSpeechEnabled,
           ttsVoiceName: config.ttsVoiceName || null,
           audioChunks: [],
           audioPlayQueue: [],
@@ -835,6 +837,7 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
           realtimeWebRtcIceServers: Array.isArray(config.realtimeWebRtcIceServers) && config.realtimeWebRtcIceServers.length ? config.realtimeWebRtcIceServers : null,
           realtimeVoiceName: config.realtimeVoiceName || null,
           conversationButton: null,
+          realtimeHintElement: config.realtimeHintElementSelector ? document.querySelector(config.realtimeHintElementSelector) : null,
           isConversationMode: false,
           notificationDismissTimers: {},
           pendingSessionPromise: null,
@@ -1827,6 +1830,11 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
             return;
           }
 
+          // A live voice session and a typed turn are two writers into one chat session, and they
+          // would interleave. End the session first; the turns it already produced are persisted, so
+          // the typed message simply continues the same thread.
+          this.forceStopActiveVoice();
+
           // Stop any active recording before sending.
           if (this.isRecording) {
             this.stopRecording();
@@ -2399,6 +2407,17 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
             return _this16.updateTtsPlaybackButtons();
           });
         },
+        // While a voice session is live the message box is de-emphasised rather than disabled: typing
+        // is still how the user ends the session and continues in text. The hint says so.
+        setVoiceSessionLive: function setVoiceSessionLive(live) {
+          if (this.inputElement) {
+            this.inputElement.classList.toggle('opacity-75', live);
+          }
+          var hint = this.realtimeHintElement;
+          if (hint) {
+            hint.classList.toggle('d-none', !live);
+          }
+        },
         toggleConversationMode: function toggleConversationMode() {
           if (this.realtimeEnabled) {
             // Realtime is driven by the shared module, which owns the button; this only exists for
@@ -2474,17 +2493,17 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
             },
             realtimeEnabled: true,
             // The conversation button doubles as the realtime button on this host; the module owns its
-            // click, label and state from here on. The text controls are handed over too so the module
-            // hides them: realtime is audio-only, and a message box that plays no part in a spoken
-            // conversation only invites the user to type into it.
+            // click, label and state from here on.
             //
-            // conversationButton is deliberately not passed. It is the same element as the realtime
+            // input and sendButton are deliberately not handed over. The module hides every control it
+            // is given when realtime takes over, and typing has to stay available during a voice
+            // conversation -- that is the whole feature.
+            //
+            // conversationButton is not handed over either. It is the same element as the realtime
             // button here, and the module hides the conversation button before showing the realtime
             // one -- naming it twice would ask it to hide the control it then has to show.
             selectors: {
               realtimeButton: config.conversationButtonElementSelector,
-              input: config.inputElementSelector,
-              sendButton: config.sendButtonElementSelector,
               micButton: config.micButtonElementSelector
             },
             onActivate: function onActivate() {
@@ -3322,23 +3341,16 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
           });
         },
         isConversationMode: function isConversationMode(active) {
-          // Hide/show mic button.
+          // The dictation microphone is hidden while a voice conversation runs: the conversation
+          // already owns the microphone, and a second one would mean something different.
           if (this.micButton) {
             this.micButton.style.display = active ? 'none' : this.speechToTextEnabled ? '' : 'none';
           }
 
-          // Hide/show send button.
-          if (this.buttonElement) {
-            this.buttonElement.style.display = active ? 'none' : '';
-          }
-
-          // Disable/enable textarea.
-          if (this.inputElement) {
-            this.inputElement.disabled = active;
-            if (active) {
-              this.inputElement.placeholder = '';
-            }
-          }
+          // The message box and the send button stay: typing is how the user ends the conversation
+          // and continues in text, and both kinds of turn land in the same thread. The box is only
+          // de-emphasised, never disabled, so that remains possible.
+          this.setVoiceSessionLive(active);
         }
       },
       mounted: function mounted() {
@@ -3450,6 +3462,7 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
       chatMode: getAttributeValue(element, 'data-coreai-chat-mode'),
       micButtonElementSelector: getAttributeValue(element, 'data-coreai-chat-mic-button-element-selector'),
       conversationButtonElementSelector: getAttributeValue(element, 'data-coreai-chat-conversation-button-element-selector'),
+      realtimeHintElementSelector: getAttributeValue(element, 'data-coreai-chat-realtime-hint-element-selector'),
       ttsVoiceName: getAttributeValue(element, 'data-coreai-chat-tts-voice-name'),
       realtimeVoiceName: getAttributeValue(element, 'data-coreai-chat-realtime-voice-name'),
       documentBarSelector: getAttributeValue(element, 'data-coreai-chat-document-bar-selector'),

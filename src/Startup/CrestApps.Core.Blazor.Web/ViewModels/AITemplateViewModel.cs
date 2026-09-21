@@ -37,7 +37,7 @@ public sealed class AITemplateViewModel
 
     public string UtilityDeploymentName { get; set; }
 
-    public string RealtimeDeploymentName { get; set; }
+    public string ConversationDeploymentName { get; set; }
 
     public ChatMode? ChatMode { get; set; }
 
@@ -229,6 +229,9 @@ public sealed class AITemplateViewModel
 
     public List<KeyValuePair<string, string>> UtilityDeployments { get; set; } = [];
 
+    /// <summary>
+    /// Gets or sets the deployments that can carry a voice conversation — the realtime slot.
+    /// </summary>
     public List<KeyValuePair<string, string>> RealtimeDeployments { get; set; } = [];
 
     public List<KeyValuePair<string, string>> Orchestrators { get; set; } = [];
@@ -292,15 +295,19 @@ public sealed class AITemplateViewModel
                 model.SystemMessage = metadata.SystemMessage;
                 model.ChatDeploymentName = metadata.ChatDeploymentName;
                 model.UtilityDeploymentName = metadata.UtilityDeploymentName;
+                model.ConversationDeploymentName = metadata.ConversationDeploymentName;
+                model.ChatMode = metadata.ChatMode;
+
                 // A template written before realtime became a capability named its speech-to-speech model
-                // separately. That model is simply the chat deployment now.
+                // separately. That model is the conversation deployment now, and a template that names one is
+                // asking for a spoken conversation.
 #pragma warning disable CS0618 // Type or member is obsolete
-                if (string.IsNullOrWhiteSpace(model.ChatDeploymentName))
+                if (string.IsNullOrWhiteSpace(model.ConversationDeploymentName) && !string.IsNullOrWhiteSpace(metadata.RealtimeDeploymentName))
                 {
-                    model.ChatDeploymentName = metadata.RealtimeDeploymentName;
+                    model.ConversationDeploymentName = metadata.RealtimeDeploymentName;
+                    model.ChatMode ??= CrestApps.Core.AI.Models.ChatMode.Conversation;
                 }
 #pragma warning restore CS0618 // Type or member is obsolete
-                model.ChatMode = metadata.ChatMode;
                 model.VoiceName = metadata.VoiceName;
                 model.OrchestratorName = metadata.OrchestratorName;
                 model.TitleType = metadata.TitleType;
@@ -488,6 +495,7 @@ public sealed class AITemplateViewModel
                 SystemMessage = SystemMessage,
                 ChatDeploymentName = ChatDeploymentName,
                 UtilityDeploymentName = UtilityDeploymentName,
+                ConversationDeploymentName = ConversationDeploymentName,
                 ChatMode = ChatMode,
                 VoiceName = VoiceName,
                 OrchestratorName = OrchestratorName,
