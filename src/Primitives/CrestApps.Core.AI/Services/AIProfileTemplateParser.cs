@@ -67,8 +67,13 @@ public static class AIProfileTemplateParser
             profileMetadata.UtilityDeploymentName = utilityDeploymentName;
         }
 
+        if (props.TryGetValue(nameof(ProfileTemplateMetadata.ConversationDeploymentName), out var conversationDeploymentName))
+        {
+            profileMetadata.ConversationDeploymentName = conversationDeploymentName;
+        }
+
         // A template written before realtime became a model capability named its speech-to-speech model
-        // separately. That model is simply the chat deployment now, so the legacy value supplies it when the
+        // separately. That model is the conversation deployment now, so the legacy value supplies it when the
         // template does not name one of its own.
 #pragma warning disable CS0618 // Type or member is obsolete
         if (props.TryGetValue(nameof(ProfileTemplateMetadata.RealtimeDeploymentName), out var realtimeDeploymentName) &&
@@ -76,9 +81,9 @@ public static class AIProfileTemplateParser
         {
             profileMetadata.RealtimeDeploymentName = realtimeDeploymentName;
 
-            if (string.IsNullOrWhiteSpace(profileMetadata.ChatDeploymentName))
+            if (string.IsNullOrWhiteSpace(profileMetadata.ConversationDeploymentName))
             {
-                profileMetadata.ChatDeploymentName = realtimeDeploymentName;
+                profileMetadata.ConversationDeploymentName = realtimeDeploymentName;
             }
         }
 #pragma warning restore CS0618 // Type or member is obsolete

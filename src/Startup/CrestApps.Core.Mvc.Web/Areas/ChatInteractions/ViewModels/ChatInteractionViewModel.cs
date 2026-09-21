@@ -16,6 +16,8 @@ public sealed class ChatInteractionViewModel
 
     public string ChatDeploymentName { get; set; }
 
+    public string ConversationDeploymentName { get; set; }
+
     public string UtilityDeploymentName { get; set; }
 
     public string OrchestratorName { get; set; }
@@ -108,6 +110,12 @@ public sealed class ChatInteractionViewModel
 
     [BindNever]
     public IEnumerable<SelectListItem> Deployments { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the deployments that can carry a voice conversation — the realtime slot.
+    /// </summary>
+    [BindNever]
+    public IEnumerable<SelectListItem> ConversationDeployments { get; set; } = [];
 
     [BindNever]
     public IEnumerable<SelectListItem> UtilityDeployments { get; set; } = [];

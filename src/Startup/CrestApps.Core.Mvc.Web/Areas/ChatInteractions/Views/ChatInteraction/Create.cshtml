@@ -77,7 +77,15 @@
                         <select asp-for="ChatDeploymentName" class="form-select" asp-items="Model.Deployments">
                             <option value="">Select deployment</option>
                         </select>
-                        <div class="form-text">The AI model deployment to use for this chat.</div>
+                        <div class="form-text">The text model this chat talks to.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="ConversationDeploymentName" class="form-label">Conversation deployment</label>
+                        <select asp-for="ConversationDeploymentName" class="form-select" asp-items="Model.ConversationDeployments">
+                            <option value="">Use the site's default realtime deployment</option>
+                        </select>
+                        <div class="form-text">The model that carries the voice conversation, when chat interactions are set to conversation mode. Leave blank to inherit the site default.</div>
                     </div>
 
                     <div class="mb-3">

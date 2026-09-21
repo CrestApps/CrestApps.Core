@@ -418,6 +418,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         interaction.ChatDeploymentName = JsonHelper.GetString(settings, "deploymentName")
             ?? JsonHelper.GetString(settings, "deploymentId");
         interaction.UtilityDeploymentName = JsonHelper.GetString(settings, "utilityDeploymentName");
+        interaction.ConversationDeploymentName = JsonHelper.GetString(settings, "conversationDeploymentName");
         interaction.RealtimeVoiceName = JsonHelper.GetString(settings, "realtimeVoiceName");
         interaction.SystemMessage = JsonHelper.GetString(settings, "systemMessage");
         interaction.Temperature = JsonHelper.GetFloat(settings, "temperature");
@@ -1101,32 +1102,28 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             return null;
         }
 
-        var capabilityService = services.GetRequiredService<IAIDeploymentCapabilityService>();
+        // Conversation mode — a site setting for interactions — decides that this is a voice conversation, and
+        // the interaction's own conversation deployment names the model that carries it. The chat deployment is
+        // only the text model, so typed and spoken turns share one interaction.
+        var conversation = await ResolveInteractionConversationModeAsync(services, interaction, cancellationToken);
 
-        // The interaction's selected deployment is the only thing that decides this. Choosing a realtime
-        // (speech-to-speech) model is what makes the interaction a voice conversation; there is no separate
-        // site mode that could say otherwise.
-        if (!await capabilityService.IsRealtimeDeploymentAsync(interaction.ChatDeploymentName, cancellationToken))
+        if (conversation.ChatMode != ChatMode.Conversation)
         {
             await Clients.Caller.ReceiveError(GetConversationNotEnabledMessage());
 
             return null;
         }
 
-        var realtimeDeployment = await services.GetRequiredService<IAIDeploymentManager>()
-            .ResolveSlotAsync(
-                AIDeploymentSlotNames.Realtime,
-                interaction.ChatDeploymentName,
-                cancellationToken: cancellationToken);
-
-        if (realtimeDeployment is null)
+        if (!conversation.RealtimeEnabled)
         {
-            await Clients.Caller.ReceiveError(GetNoRealtimeDeploymentMessage());
+            await Clients.Caller.ReceiveError(conversation.IsMisconfigured
+                ? GetConversationDeploymentNotRealtimeMessage(conversation.RequestedDeploymentName)
+                : GetNoRealtimeDeploymentMessage());
 
             return null;
         }
 
-        var realtimeDeploymentName = realtimeDeployment.Name;
+        var realtimeDeploymentName = conversation.RealtimeDeploymentName;
 
         await Groups.AddToGroupAsync(Context.ConnectionId, GetInteractionGroupName(interaction.ItemId), cancellationToken);
 
@@ -1214,7 +1211,50 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// </summary>
     protected virtual string GetNoRealtimeDeploymentMessage()
     {
-        return "No realtime deployment is available. Set a default realtime deployment under Settings, or configure a chat AI deployment whose model declares the 'realtime' capability.";
+        return "No realtime deployment is available. Set a default realtime deployment under Settings, or configure an AI deployment whose model declares the 'realtime' capability.";
+    }
+
+    /// <summary>
+    /// Gets the message returned when the interaction names a conversation deployment that cannot run a
+    /// realtime session.
+    /// </summary>
+    /// <param name="deploymentName">The deployment the interaction named.</param>
+    /// <remarks>
+    /// Naming the deployment matters. The realtime slot falls through to the site default when the name it is
+    /// given does not qualify, so without this the user would get a working conversation on a model they did
+    /// not choose and no indication that their choice was ignored.
+    /// </remarks>
+    protected virtual string GetConversationDeploymentNotRealtimeMessage(string deploymentName)
+    {
+        return $"The conversation deployment '{deploymentName}' is not available for realtime (speech-to-speech) conversations. Choose a deployment whose model declares the 'realtime' capability, or clear the selection to use the site default.";
+    }
+
+    /// <summary>
+    /// Resolves how an interaction carries its conversation, so both realtime transports and the chat
+    /// surfaces agree on the answer.
+    /// </summary>
+    /// <param name="services">The scoped service provider.</param>
+    /// <param name="interaction">The interaction.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    protected virtual async ValueTask<ConversationModeResolution> ResolveInteractionConversationModeAsync(
+        IServiceProvider services,
+        ChatInteraction interaction,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(interaction);
+
+        var chatMode = await GetChatModeAsync(services);
+        var deploymentSettings = await GetDeploymentSettingsAsync(services);
+
+        return await services.GetRequiredService<IAIDeploymentManager>().ResolveConversationModeAsync(
+            chatMode,
+            interaction.ConversationDeploymentName,
+            interaction.ChatDeploymentName,
+            !string.IsNullOrWhiteSpace(deploymentSettings.DefaultSpeechToTextDeploymentName),
+            !string.IsNullOrWhiteSpace(deploymentSettings.DefaultTextToSpeechDeploymentName),
+            chatModeIsSiteWide: true,
+            cancellationToken);
     }
 
     /// <summary>

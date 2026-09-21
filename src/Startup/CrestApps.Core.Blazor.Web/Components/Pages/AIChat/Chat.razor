@@ -3,7 +3,7 @@
 @attribute [Authorize(Policy = "Admin")]
 @using System.Text.Json
 @using CrestApps.Core.AI
-@using CrestApps.Core.AI.Capabilities
+@using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Chat
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Models
@@ -16,7 +16,7 @@
 @inject IAIChatSessionPromptStore PromptStore
 @inject NavigationManager Navigation
 @inject SiteSettingsStore SiteSettings
-@inject IAIDeploymentCapabilityService CapabilityService
+@inject IAIDeploymentManager DeploymentManager
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 
 <PageTitle>Chat - @(_profileDisplayText ?? "AI Chat") - Blazor AI Integration Sample</PageTitle>
@@ -86,6 +86,7 @@ else
          data-coreai-chat-metrics-enabled="@_metricsEnabled.ToString().ToLowerInvariant()"
          data-coreai-chat-mode="@_chatMode"
          data-coreai-chat-realtime-enabled="@_isRealtime.ToString().ToLowerInvariant()"
+         data-coreai-chat-realtime-hint-element-selector="#chat-realtime-hint"
          data-coreai-chat-realtime-webrtc-enabled="@(CrestApps.Core.AI.Chat.Realtime.RealtimeTransportSettings.IsWebRtcEnabled(ServiceProvider).ToString().ToLowerInvariant())"
          data-coreai-chat-mic-button-element-selector="#chat-mic-btn"
          data-coreai-chat-conversation-button-element-selector="#chat-conversation-btn"
@@ -123,49 +124,50 @@ else
 
                 <div class="border-top p-3 flex-shrink-0">
                     <div class="d-flex gap-2">
-                        @* The input and send button stay in the DOM even for realtime (voice-only) because the
-                           client reads the profile/session ids from the input; they are only hidden visually. *@
+                        @* Typing stays available whatever the voice toggle is doing: a typed message ends the
+                           voice session and is sent as an ordinary text turn into the same thread. *@
                         <textarea id="chat-input"
-                                  class="form-control@(_isRealtime ? " d-none" : "")"
+                                  class="form-control"
                                   rows="1"
                                   placeholder="Type a message..."
                                   data-session-id="@_sessionId"
                                   data-profile-id="@_profile.ItemId"></textarea>
-                        @if (!_isRealtime)
+                        @* Send sits with the message box it belongs to. The voice controls follow on the
+                           right, and the realtime module inserts its settings popover after the voice button,
+                           which puts the gear on the far right of the row. *@
+                        <button type="button" id="send-btn" class="btn btn-primary" data-start-icon="<i class='fa-solid fa-paper-plane'></i>" data-stop-icon="<i class='fa-solid fa-stop'></i>">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                        @if (_dictationEnabled)
                         {
                             <button type="button" id="chat-mic-btn" class="btn btn-outline-secondary" title="Voice input" style="display: none;">
                                 <i class="fa-solid fa-microphone"></i>
                             </button>
                         }
-                        @if (_chatMode == ChatMode.Conversation || _isRealtime)
+                        @if (_chatMode == ChatMode.Conversation)
                         {
                             <button type="button"
                                     id="chat-conversation-btn"
-                                    class="btn btn-outline-dark@(_isRealtime ? " flex-grow-1" : "")"
+                                    class="btn btn-outline-dark"
                                     title="@(_isRealtime ? "Start speaking" : "Start Conversation")"
+                                    aria-label="@(_isRealtime ? "Start speaking" : "Start Conversation")"
                                     data-start-title="@(_isRealtime ? "Start speaking" : "Start Conversation")"
                                     data-end-title="End Conversation"
-                                    data-start-html="@(_isRealtime ? "<i class='fa-solid fa-wave-square me-1'></i> Start speaking" : "<i class='fa-solid fa-wave-square'></i>")"
+                                    data-start-html="<i class='fa-solid fa-wave-square'></i>"
                                     data-end-html="<i class='fa-solid fa-stop me-1'></i> End Conversation">
-                                @if (_isRealtime)
-                                {
-                                    <i class="fa-solid fa-wave-square me-1"></i>
-                                    <span>Start speaking</span>
-                                }
-                                else
-                                {
-                                    <i class="fa-solid fa-wave-square"></i>
-                                }
+                                @* Idle is the soundwave on its own; the title and aria-label carry the meaning.
+                                   The end state keeps its words because stopping a live conversation should be
+                                   unmistakable. *@
+                                <i class="fa-solid fa-wave-square"></i>
                             </button>
                         }
-                        <button type="button" id="send-btn" class="btn btn-primary@(_isRealtime ? " d-none" : "")" data-start-icon="<i class='fa-solid fa-paper-plane'></i>" data-stop-icon="<i class='fa-solid fa-stop'></i>">
-                            <i class="fa-solid fa-paper-plane"></i>
-                        </button>
                     </div>
                     @if (_isRealtime)
                     {
-                        <div class="form-text mt-2 text-center">
-                            <i class="fa-solid fa-circle-info"></i> This is a realtime voice profile. Click <strong>Start speaking</strong>, allow microphone access, and talk. Use headphones to avoid echo.
+                        @* Shown only while a voice session is live: the old copy announced a voice-only
+                           profile, which is exactly what this is not any more. *@
+                        <div class="form-text mt-2 text-center d-none" id="chat-realtime-hint">
+                            <i class="fa-solid fa-circle-info"></i> Speaking. Use headphones to avoid echo — end the conversation to go back to typing.
                         </div>
                     }
                 </div>
@@ -193,9 +195,14 @@ else
     private string _realtimeVoiceName;
     private ChatMode _chatMode;
 
-    // Whether the profile's chat deployment is a realtime (speech-to-speech) model. This replaced a stored
+    // Whether conversation mode is carried by a realtime (speech-to-speech) session rather than by the
+    // client-driven speech-to-text plus text-to-speech cascade. This replaced a stored
     // chat mode so the UI and the hub read one source of truth.
     private bool _isRealtime;
+
+    // A realtime session captures the microphone itself, so the dictation button would be a second microphone
+    // doing something different. Suppressed while realtime carries the conversation.
+    private bool _dictationEnabled;
     private string _supportedExtensionsAccept;
     private string _supportedExtensionsDisplay;
     private IReadOnlyList<ChatDocumentInfo> _existingDocuments = Array.Empty<ChatDocumentInfo>();
@@ -258,21 +265,19 @@ else
         _ttsVoiceName = chatModeSettings?.VoiceName ?? deploymentDefaults.DefaultTextToSpeechVoiceId;
         _realtimeVoiceName = chatModeSettings?.VoiceName ?? deploymentDefaults.DefaultRealtimeVoiceId;
 
-        // The profile's own chat deployment decides whether this is a voice conversation, which keeps the
-        // client's realtime UI in step with the hub's capability gate.
-        _isRealtime = await CapabilityService.IsRealtimeDeploymentAsync(_profile.ChatDeploymentName);
+        // Conversation mode decides how the conversation is carried, and the conversation deployment names
+        // the model that carries it. One resolution shared with the hub, so the toggle the user sees and the
+        // session the hub will start cannot disagree.
+        var conversation = await DeploymentManager.ResolveConversationModeAsync(
+            configuredChatMode,
+            chatModeSettings?.ConversationDeploymentName,
+            _profile.ChatDeploymentName,
+            speechToTextEnabled,
+            hasTtsDeployment);
 
-        // The chat mode layers speech-to-text and text-to-speech over a text model, so it does not apply to
-        // a realtime deployment, which speaks natively.
-        _chatMode = _isRealtime
-            ? ChatMode.TextInput
-            : configuredChatMode switch
-            {
-                ChatMode.Conversation when speechToTextEnabled && hasTtsDeployment => ChatMode.Conversation,
-                ChatMode.AudioInput when speechToTextEnabled => ChatMode.AudioInput,
-                ChatMode.Conversation when speechToTextEnabled => ChatMode.AudioInput,
-                _ => ChatMode.TextInput,
-            };
+        _isRealtime = conversation.RealtimeEnabled;
+        _chatMode = conversation.ChatMode;
+        _dictationEnabled = !_isRealtime && _chatMode is ChatMode.AudioInput or ChatMode.Conversation;
 
         _allowImageUploads = sessionDocMeta?.AllowSessionImageUploads == true
             && !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultVisionDeploymentName);

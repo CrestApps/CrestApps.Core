@@ -19,6 +19,8 @@ internal sealed class ChatInteractionChatViewModel
 
     public string ChatDeploymentName { get; set; }
 
+    public string ConversationDeploymentName { get; set; }
+
     public string UtilityDeploymentName { get; set; }
 
     public string OrchestratorName { get; set; }
@@ -136,17 +138,30 @@ internal sealed class ChatInteractionChatViewModel
 
     /// <summary>
     /// Gets or sets the technical names of the deployments whose model declares the realtime (speech-to-speech)
-    /// capability. The chat client uses this to switch the input to audio-only when the user selects a realtime
-    /// deployment.
+    /// capability. The chat client uses this to turn the voice toggle on and off as the user changes the
+    /// conversation deployment in the settings panel, without a round trip.
     /// </summary>
     [BindNever]
     public string[] RealtimeCapableDeploymentNames { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the site's default realtime deployment, which an interaction that names no conversation
+    /// deployment of its own inherits.
+    /// </summary>
+    [BindNever]
+    public string DefaultRealtimeDeploymentName { get; set; }
 
     [BindNever]
     public IEnumerable<SelectListItem> DataSources { get; set; } = [];
 
     [BindNever]
     public IEnumerable<SelectListItem> Deployments { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the deployments that can carry a voice conversation — the realtime slot.
+    /// </summary>
+    [BindNever]
+    public IEnumerable<SelectListItem> ConversationDeployments { get; set; } = [];
 
     [BindNever]
     public IEnumerable<SelectListItem> UtilityDeployments { get; set; } = [];

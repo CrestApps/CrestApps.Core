@@ -51,8 +51,8 @@ public sealed class AIProfileViewModel
 
     public string VoiceName { get; set; }
 
-    // Realtime (speech-to-speech) fields — used when ChatMode is Realtime.
-    public string RealtimeDeploymentName { get; set; }
+    // The model that carries a Conversation-mode chat. Empty inherits the site's default realtime deployment.
+    public string ConversationDeploymentName { get; set; }
 
     public bool EnableTextToSpeechPlayback { get; set; }
 
@@ -257,6 +257,11 @@ public sealed class AIProfileViewModel
 
     public List<KeyValuePair<string, string>> ChatDeployments { get; set; } = [];
 
+    /// <summary>
+    /// Gets or sets the deployments that can carry a voice conversation — the realtime slot.
+    /// </summary>
+    public List<KeyValuePair<string, string>> ConversationDeployments { get; set; } = [];
+
     public List<KeyValuePair<string, string>> UtilityDeployments { get; set; } = [];
 
     public List<KeyValuePair<string, string>> RealtimeDeployments { get; set; } = [];
@@ -306,6 +311,7 @@ public sealed class AIProfileViewModel
             TitleType = profile.TitleType,
 
             ChatMode = chatModeSettings?.ChatMode ?? ChatMode.TextInput,
+            ConversationDeploymentName = chatModeSettings?.ConversationDeploymentName,
             VoiceName = chatModeSettings?.VoiceName,
             EnableTextToSpeechPlayback = chatModeSettings?.EnableTextToSpeechPlayback ?? false,
 
@@ -536,6 +542,11 @@ public sealed class AIProfileViewModel
         profile.AlterSettings<ChatModeProfileSettings>(settings =>
         {
             settings.ChatMode = ChatMode;
+            // Never written with the resolved value. Empty means "use the site default", and storing what that
+            // resolved to today would pin the profile to a model the operator has since replaced.
+            settings.ConversationDeploymentName = string.IsNullOrWhiteSpace(ConversationDeploymentName)
+                ? null
+                : ConversationDeploymentName.Trim();
             settings.VoiceName = ChatMode == ChatMode.Conversation || !string.IsNullOrWhiteSpace(VoiceName)
                 ? VoiceName?.Trim()
                 : null;

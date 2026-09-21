@@ -167,6 +167,7 @@ public sealed class ChatInteractionController : Controller
         interaction.OwnerId = User.Identity?.Name ?? "anonymous";
         interaction.Author = User.Identity?.Name ?? "anonymous";
         interaction.ChatDeploymentName = model.ChatDeploymentName;
+        interaction.ConversationDeploymentName = model.ConversationDeploymentName;
         interaction.UtilityDeploymentName = model.UtilityDeploymentName;
         interaction.OrchestratorName = model.OrchestratorName;
         interaction.SystemMessage = model.SystemMessage;
@@ -223,35 +224,33 @@ public sealed class ChatInteractionController : Controller
         var hasTextToSpeech = !string.IsNullOrWhiteSpace(deploymentDefaults.DefaultTextToSpeechDeploymentName);
 
         // Every deployment whose model declares the realtime (speech-to-speech) capability. The chat client uses
-        // this to switch the input to audio-only when the user selects a realtime deployment.
+        // this to turn the voice toggle on and off as the conversation deployment changes in the settings panel.
         var realtimeDeployments = await _capabilityService.GetDeploymentsWithFeatureAsync(AIDeploymentFeatureNames.Realtime);
         var realtimeDeploymentNames = realtimeDeployments
             .Select(deployment => deployment.Name)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToArray();
 
-        // The interaction's own selected deployment takes precedence: when it is a realtime (speech-to-speech)
-        // model the conversation must run in realtime mode, because such a model cannot handle a text turn.
-        var selectedDeploymentIsRealtime = !string.IsNullOrWhiteSpace(interaction.ChatDeploymentName)
-            && realtimeDeploymentNames.Contains(interaction.ChatDeploymentName, StringComparer.OrdinalIgnoreCase);
+        // Conversation mode — a site setting for interactions — decides whether this is a voice conversation,
+        // and the interaction's own conversation deployment names the model that carries it.
+        var conversation = await _deploymentManager.ResolveConversationModeAsync(
+            chatMode,
+            interaction.ConversationDeploymentName,
+            interaction.ChatDeploymentName,
+            hasSpeechToText,
+            hasTextToSpeech,
+            chatModeIsSiteWide: true);
 
-        // The chat mode layers speech-to-text and text-to-speech over a text model, so it does not apply to a
-        // realtime deployment, which speaks natively.
-        var effectiveChatMode = selectedDeploymentIsRealtime
-            ? ChatMode.TextInput
-            : chatMode switch
-            {
-                ChatMode.Conversation when hasSpeechToText && hasTextToSpeech => ChatMode.Conversation,
-                ChatMode.Conversation when hasSpeechToText => ChatMode.AudioInput,
-                ChatMode.AudioInput when hasSpeechToText => ChatMode.AudioInput,
-                _ => ChatMode.TextInput,
-            };
+        var effectiveChatMode = conversation.ChatMode;
 
         var model = new ChatInteractionChatViewModel
         {
             ItemId = interaction.ItemId,
             Title = interaction.Title,
-            ChatDeploymentName = interaction.ChatDeploymentName,
+            ChatDeploymentName = conversation.FoldedFromChatDeployment ? null : interaction.ChatDeploymentName,
+            ConversationDeploymentName = conversation.FoldedFromChatDeployment
+                ? conversation.RequestedDeploymentName
+                : interaction.ConversationDeploymentName,
             UtilityDeploymentName = interaction.UtilityDeploymentName,
             OrchestratorName = interaction.OrchestratorName,
             SystemMessage = interaction.SystemMessage,
@@ -291,14 +290,17 @@ public sealed class ChatInteractionController : Controller
                 .Select(m => new { role = m.Role.Value, content = m.Text, id = m.ItemId, references = m.References })
                 .ToArray(),
             ChatMode = effectiveChatMode,
-            SpeechToTextEnabled = effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation,
+            // A realtime session captures the microphone itself, so the dictation button would be a second
+            // microphone doing something different. Suppress it while realtime carries the conversation.
+            SpeechToTextEnabled = !conversation.RealtimeEnabled && effectiveChatMode is ChatMode.AudioInput or ChatMode.Conversation,
             ConversationModeEnabled = effectiveChatMode == ChatMode.Conversation,
-            RealtimeEnabled = selectedDeploymentIsRealtime,
+            RealtimeEnabled = conversation.RealtimeEnabled,
             RealtimeWebRtcEnabled = CrestApps.Core.AI.Chat.Realtime.RealtimeTransportSettings.IsWebRtcEnabled(HttpContext.RequestServices),
             TextToSpeechEnabled = chatInteractionSettings.EnableTextToSpeechPlayback && hasTextToSpeech,
             TextToSpeechVoiceName = deploymentDefaults.DefaultTextToSpeechVoiceId,
             RealtimeVoiceName = interaction.RealtimeVoiceName,
             RealtimeCapableDeploymentNames = realtimeDeploymentNames,
+            DefaultRealtimeDeploymentName = deploymentDefaults.DefaultRealtimeDeploymentName,
         };
 
         await PopulateChatDropdownsAsync(model);
@@ -339,6 +341,13 @@ public sealed class ChatInteractionController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    private static string BuildDeploymentLabel(AIDeployment deployment)
+    {
+        return string.Equals(deployment.Name, deployment.ModelName, StringComparison.OrdinalIgnoreCase)
+            ? deployment.Name
+            : $"{deployment.Name} ({deployment.ModelName})";
+    }
+
     private async Task PopulateDropdownsAsync(ChatInteractionViewModel model)
     {
         model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(
@@ -350,19 +359,16 @@ public sealed class ChatInteractionController : Controller
             elementPrefix: "utilityModelParameters",
             title: "Utility model parameters");
 
-        model.Deployments = (await _deploymentManager.GetConversationalDeploymentsAsync())
-            .Select(d => new SelectListItem(
-                string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
-        ? d.Name
-        : $"{d.Name} ({d.ModelName})",
-        d.Name))
+        // The chat deployment is the text model the interaction talks to, so the picker offers the chat slot
+        // only. A speech-to-speech model belongs in the conversation deployment picker.
+        model.Deployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Chat))
+            .Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name))
+            .ToList();
+        model.ConversationDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Realtime))
+            .Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name))
             .ToList();
         model.UtilityDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility))
-            .Select(d => new SelectListItem(
-                string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
-        ? d.Name
-        : $"{d.Name} ({d.ModelName})",
-        d.Name))
+            .Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name))
             .ToList();
         var interactionDocSettings = _siteSettings.Get<InteractionDocumentSettings>();
         model.AllowImageUploads = interactionDocSettings.AllowImageUploads
@@ -509,13 +515,13 @@ public sealed class ChatInteractionController : Controller
 
     private async Task PopulateChatDropdownsAsync(ChatInteractionChatViewModel model)
     {
-        model.Deployments = (await _deploymentManager.GetConversationalDeploymentsAsync())
-            .Select(d => new SelectListItem(
-                string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase)
-        ? d.Name
-
-        : $"{d.Name} ({d.ModelName})",
-        d.Name))
+        // The chat deployment is the text model the interaction talks to, so the picker offers the chat slot
+        // only. A speech-to-speech model belongs in the conversation deployment picker.
+        model.Deployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Chat))
+            .Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name))
+            .ToList();
+        model.ConversationDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Realtime))
+            .Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name))
             .ToList();
 
         // Background work is text-only, so the utility slot never offers a realtime deployment.

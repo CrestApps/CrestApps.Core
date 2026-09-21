@@ -25,7 +25,16 @@ public sealed class RealtimeChatSessionRunnerTests
     [Fact]
     public async Task RunAsync_PersistsUserAndAssistantTurnsAndForwardsToSink()
     {
-        var profile = new AIProfile { Type = AIProfileType.Chat, ChatDeploymentName = "rt-deploy" };
+        // The chat deployment is the text model the profile types to; the conversation deployment is what
+        // speaks. They are different models now, so the runner must forward the one it was given rather than
+        // the profile's own chat deployment.
+        var profile = new AIProfile { Type = AIProfileType.Chat, ChatDeploymentName = "text-deploy" };
+        profile.AlterSettings<ChatModeProfileSettings>(settings =>
+        {
+            settings.ChatMode = ChatMode.Conversation;
+            settings.ConversationDeploymentName = "rt-deploy";
+        });
+
         var session = new AIChatSession { SessionId = "session-1" };
 
         var conversation = new FakeConversation(
@@ -51,7 +60,7 @@ public sealed class RealtimeChatSessionRunnerTests
             {
                 Resource = profile,
                 SessionId = session.SessionId,
-                RealtimeDeploymentName = profile.ChatDeploymentName,
+                RealtimeDeploymentName = profile.GetOrCreateSettings<ChatModeProfileSettings>().ConversationDeploymentName,
                 PromptTitle = profile.PromptSubject,
                 ChatSession = session,
                 Voice = "cedar",
@@ -62,9 +71,12 @@ public sealed class RealtimeChatSessionRunnerTests
             sink,
             TestContext.Current.CancellationToken);
 
-        // The orchestrator received the resource, deployment, session, and voice.
+        // The orchestrator received the resource, deployment, session, and voice. The deployment is the
+        // conversation deployment, not the chat one -- this assertion used to read the other way round, when a
+        // single field answered both questions.
         Assert.Equal(profile, orchestrator.LastRequest!.Resource);
         Assert.Equal("rt-deploy", orchestrator.LastRequest!.RealtimeDeploymentName);
+        Assert.NotEqual(profile.ChatDeploymentName, orchestrator.LastRequest!.RealtimeDeploymentName);
         Assert.Equal(session, orchestrator.LastRequest!.ChatSession);
         Assert.Equal("cedar", orchestrator.LastRequest!.Voice);
 

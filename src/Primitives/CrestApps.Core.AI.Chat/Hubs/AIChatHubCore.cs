@@ -1045,19 +1045,21 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     return;
                 }
 
-                // The profile's own chat deployment decides this: a realtime model means a voice
-                // conversation, anything else is a text profile. There is no separate mode to disagree.
-                profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings);
+                // Conversation mode decides that this is a voice conversation, and the conversation deployment
+                // names the model that carries it. The chat deployment is only the text model the profile types
+                // to, so the same thread can hold both kinds of turn.
+                var chatModeSettings = profile.GetOrCreateSettings<ChatModeProfileSettings>();
+                var deploymentSettings = await GetDeploymentSettingsAsync(services);
+                var conversation = await ResolveProfileConversationModeAsync(services, profile, chatModeSettings, deploymentSettings, cancellationToken);
 
-                var capabilityService = services.GetRequiredService<IAIDeploymentCapabilityService>();
-                var realtimeDeploymentName = profile.ChatDeploymentName;
-
-                if (!await capabilityService.IsRealtimeDeploymentAsync(realtimeDeploymentName, cancellationToken))
+                if (!conversation.RealtimeEnabled)
                 {
-                    await Clients.Caller.ReceiveError(GetNoRealtimeDeploymentMessage());
+                    await Clients.Caller.ReceiveError(GetRealtimeUnavailableMessage(conversation));
 
                     return;
                 }
+
+                var realtimeDeploymentName = conversation.RealtimeDeploymentName;
 
                 AIChatSession chatSession;
                 try
@@ -1073,7 +1075,6 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
                 await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
 
-                var deploymentSettings = await GetDeploymentSettingsAsync(services);
                 var effectiveVoice = !string.IsNullOrWhiteSpace(voice)
                     ? voice
                     : !string.IsNullOrWhiteSpace(chatModeSettings.VoiceName)
@@ -1222,19 +1223,21 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     return;
                 }
 
-                // The profile's own chat deployment decides this: a realtime model means a voice
-                // conversation, anything else is a text profile. There is no separate mode to disagree.
-                profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings);
+                // Conversation mode decides that this is a voice conversation, and the conversation deployment
+                // names the model that carries it. The chat deployment is only the text model the profile types
+                // to, so the same thread can hold both kinds of turn.
+                var chatModeSettings = profile.GetOrCreateSettings<ChatModeProfileSettings>();
+                var deploymentSettings = await GetDeploymentSettingsAsync(services);
+                var conversation = await ResolveProfileConversationModeAsync(services, profile, chatModeSettings, deploymentSettings, cancellationToken);
 
-                var capabilityService = services.GetRequiredService<IAIDeploymentCapabilityService>();
-                var realtimeDeploymentName = profile.ChatDeploymentName;
-
-                if (!await capabilityService.IsRealtimeDeploymentAsync(realtimeDeploymentName, cancellationToken))
+                if (!conversation.RealtimeEnabled)
                 {
-                    await Clients.Caller.ReceiveError(GetNoRealtimeDeploymentMessage());
+                    await Clients.Caller.ReceiveError(GetRealtimeUnavailableMessage(conversation));
 
                     return;
                 }
+
+                var realtimeDeploymentName = conversation.RealtimeDeploymentName;
 
                 AIChatSession chatSession;
                 try
@@ -1250,7 +1253,6 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
                 await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
 
-                var deploymentSettings = await GetDeploymentSettingsAsync(services);
                 var effectiveVoice = !string.IsNullOrWhiteSpace(voice)
                     ? voice
                     : !string.IsNullOrWhiteSpace(chatModeSettings.VoiceName)
@@ -1510,15 +1512,65 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// </summary>
     protected virtual string GetNoRealtimeDeploymentMessage()
     {
-        return "No realtime deployment is available. Configure a chat AI deployment whose model declares the 'realtime' capability and assign it to the profile.";
+        return "No realtime deployment is available. Configure an AI deployment whose model declares the 'realtime' capability and assign it to the profile's conversation deployment.";
     }
 
     /// <summary>
-    /// Gets the message returned when a typed message is sent to a realtime (voice-only) profile.
+    /// Gets the message returned when the profile names a conversation deployment that cannot run a realtime
+    /// session.
     /// </summary>
-    protected virtual string GetRealtimeTextNotSupportedMessage()
+    /// <param name="deploymentName">The deployment the profile named.</param>
+    /// <remarks>
+    /// Naming the deployment matters. The realtime slot falls through to the site default when the name it is
+    /// given does not qualify, so without this the user would get a working conversation on a model they did
+    /// not choose and no indication that their choice was ignored.
+    /// </remarks>
+    protected virtual string GetConversationDeploymentNotRealtimeMessage(string deploymentName)
     {
-        return "This profile uses realtime speech-to-speech and is voice-only. Start a voice conversation instead of typing.";
+        return $"The conversation deployment '{deploymentName}' is not available for realtime (speech-to-speech) conversations. Choose a deployment whose model declares the 'realtime' capability, or clear the selection to use the site default.";
+    }
+
+    /// <summary>
+    /// Gets the message explaining why a realtime conversation could not start.
+    /// </summary>
+    /// <param name="conversation">The resolved conversation mode.</param>
+    protected string GetRealtimeUnavailableMessage(ConversationModeResolution conversation)
+    {
+        ArgumentNullException.ThrowIfNull(conversation);
+
+        return conversation.IsMisconfigured
+            ? GetConversationDeploymentNotRealtimeMessage(conversation.RequestedDeploymentName)
+            : GetNoRealtimeDeploymentMessage();
+    }
+
+    /// <summary>
+    /// Resolves how a profile carries its conversation, so both realtime transports and the chat surfaces
+    /// agree on the answer.
+    /// </summary>
+    /// <param name="services">The scoped service provider.</param>
+    /// <param name="profile">The profile.</param>
+    /// <param name="chatModeSettings">The profile's chat mode settings.</param>
+    /// <param name="deploymentSettings">The site's default deployment settings.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    protected virtual ValueTask<ConversationModeResolution> ResolveProfileConversationModeAsync(
+        IServiceProvider services,
+        AIProfile profile,
+        ChatModeProfileSettings chatModeSettings,
+        DefaultAIDeploymentSettings deploymentSettings,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(chatModeSettings);
+        ArgumentNullException.ThrowIfNull(deploymentSettings);
+
+        return services.GetRequiredService<IAIDeploymentManager>().ResolveConversationModeAsync(
+            chatModeSettings.ChatMode,
+            chatModeSettings.ConversationDeploymentName,
+            profile.ChatDeploymentName,
+            !string.IsNullOrWhiteSpace(deploymentSettings.DefaultSpeechToTextDeploymentName),
+            !string.IsNullOrWhiteSpace(deploymentSettings.DefaultTextToSpeechDeploymentName),
+            cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -1759,15 +1811,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 return;
             }
 
-            // A realtime (speech-to-speech) profile is voice-only; it has no text chat model and cannot
-            // answer typed messages. Return a clear message instead of a generic completion failure.
-            if (await services.GetRequiredService<IAIDeploymentCapabilityService>()
-                    .IsRealtimeDeploymentAsync(profile.ChatDeploymentName, cancellationToken))
-            {
-                await Clients.Caller.ReceiveError(GetRealtimeTextNotSupportedMessage());
-
-                return;
-            }
+            // A typed message used to be rejected here, because the profile's chat deployment was also its
+            // realtime model and a speech-to-speech model cannot answer text. The chat deployment means only
+            // "the text model this profile talks to" now — the conversation deployment carries the voice — so
+            // there is nothing left to guard against and a typed turn flows on exactly as it does for a
+            // text-only profile.
 
             // Validate prompt security before processing chat messages.
             if (!string.IsNullOrWhiteSpace(prompt))

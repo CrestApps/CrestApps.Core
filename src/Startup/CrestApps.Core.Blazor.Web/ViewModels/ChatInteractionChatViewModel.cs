@@ -12,6 +12,8 @@ public sealed class ChatInteractionChatViewModel
 
     public string ChatDeploymentName { get; set; }
 
+    public string ConversationDeploymentName { get; set; }
+
     public string UtilityDeploymentName { get; set; }
 
     public string OrchestratorName { get; set; }
@@ -106,8 +108,19 @@ public sealed class ChatInteractionChatViewModel
     public string RealtimeVoiceName { get; set; }
     public string[] RealtimeCapableDeploymentNames { get; set; } = [];
 
+    /// <summary>
+    /// Gets or sets the site's default realtime deployment, which an interaction that names no conversation
+    /// deployment of its own inherits.
+    /// </summary>
+    public string DefaultRealtimeDeploymentName { get; set; }
+
     public List<SelectOption> DataSources { get; set; } = [];
     public List<SelectOption> Deployments { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the deployments that can carry a voice conversation — the realtime slot.
+    /// </summary>
+    public List<SelectOption> ConversationDeployments { get; set; } = [];
 
     public List<SelectOption> UtilityDeployments { get; set; } = [];
     public List<SelectOption> Orchestrators { get; set; } = [];
