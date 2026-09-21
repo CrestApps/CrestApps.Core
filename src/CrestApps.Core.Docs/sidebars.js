@@ -103,6 +103,7 @@ const sidebars = {
                 'changelog/index',
                 'changelog/2.0.0',
                 'changelog/1.3.0',
+                'changelog/1.2.1',
                 'changelog/1.2.0',
                 'changelog/1.1.0',
                 'changelog/1.0.0',
