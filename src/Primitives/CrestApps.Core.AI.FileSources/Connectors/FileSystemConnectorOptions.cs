@@ -21,6 +21,10 @@ public sealed class FileSystemConnectorOptions
     /// An entry may be absolute, or relative to <see cref="BasePath"/> — <c>App_Data/file-sources</c> is the
     /// usual shape, which keeps everything readable inside one folder the host owns. Empty means no folder
     /// may be read at all, which is the safe default for a host that has not thought about it.
+    /// <para>
+    /// A single entry is also the folder a file source that names none reads, so the usual host -- one
+    /// allowed root -- gets a working file source out of a name and a data source alone.
+    /// </para>
     /// </remarks>
     public IList<string> AllowedRoots { get; } = [];
 
@@ -38,7 +42,7 @@ public sealed class FileSystemConnectorOptions
     /// <summary>
     /// Resolves a configured folder to a full path, if the host allows reading it.
     /// </summary>
-    /// <param name="rootPath">The folder a file source was configured with.</param>
+    /// <param name="rootPath">The folder a file source was configured with, or blank for the allowed root.</param>
     /// <param name="resolved">The full path, when it is allowed.</param>
     /// <param name="reason">Why it was refused, when it was.</param>
     /// <returns><see langword="true"/> when the folder sits inside an allowed root.</returns>
@@ -52,11 +56,12 @@ public sealed class FileSystemConnectorOptions
         resolved = null;
         reason = null;
 
+        // Naming a folder is optional. A file source that names none reads the folder the host allows it to
+        // read, which is the one obvious default: refusing it made the simplest configuration anyone could
+        // arrive at -- leave the box empty -- the one that silently ingested nothing.
         if (string.IsNullOrWhiteSpace(rootPath))
         {
-            reason = "No folder is configured.";
-
-            return false;
+            return TryResolveDefaultRoot(out resolved, out reason);
         }
 
         if (HasParentTraversal(rootPath))
@@ -125,6 +130,61 @@ public sealed class FileSystemConnectorOptions
     public bool IsAllowedRoot(string rootPath)
     {
         return TryResolveRoot(rootPath, out _, out _);
+    }
+
+    /// <summary>
+    /// Resolves the folder a file source that named none reads.
+    /// </summary>
+    /// <param name="resolved">The full path, when there is one to default to.</param>
+    /// <param name="reason">Why there is not, when there is not.</param>
+    /// <returns><see langword="true"/> when a default folder could be decided.</returns>
+    /// <remarks>
+    /// Only a single allowed root is a default. With several there is no "the" folder, and picking one of
+    /// them -- the first, say -- would quietly read files nobody pointed the source at.
+    /// </remarks>
+    private bool TryResolveDefaultRoot(out string resolved, out string reason)
+    {
+        resolved = null;
+        reason = null;
+
+        string only = null;
+
+        foreach (var allowed in AllowedRoots)
+        {
+            if (string.IsNullOrWhiteSpace(allowed))
+            {
+                continue;
+            }
+
+            if (only is not null)
+            {
+                reason = "No folder is named, and this application is configured to read more than one folder, so there is no single one to fall back to. Name the folder to read.";
+
+                return false;
+            }
+
+            only = allowed;
+        }
+
+        if (only is null)
+        {
+            reason = "This application is not configured to read any folder. Ask an administrator to add one to the allowed roots.";
+
+            return false;
+        }
+
+        try
+        {
+            resolved = Resolve(only);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            reason = "The folder this application is configured to read is not a valid path.";
+
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>

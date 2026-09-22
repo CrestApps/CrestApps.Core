@@ -323,6 +323,32 @@ public sealed class FileSystemFileSourceTests : IDisposable
         Assert.Equal(["a.txt", "b.md", "c"], discovery.Items.Select(item => item.ItemId).Order());
     }
 
+    /// <summary>
+    /// Verifies that a source naming no folder reads the folder the host allows, rather than being treated
+    /// as unconfigured and quietly ingesting nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task Discover_NoFolderNamed_ReadsTheAllowedRoot(string rootPath)
+    {
+        await File.WriteAllTextAsync(Path.Combine(_root, "first.txt"), "The first file.", TestContext.Current.CancellationToken);
+
+        var connector = CreateConnector();
+        var source = CreateFileSource(rootPath);
+        var result = await connector.DiscoverAsync(source, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsComplete);
+        Assert.Null(result.Message);
+        Assert.Equal("first.txt", Assert.Single(result.Items).ItemId);
+
+        var validation = new ValidationResultDetails();
+
+        await connector.ValidateAsync(source, validation, TestContext.Current.CancellationToken);
+
+        Assert.True(validation.Succeeded);
+    }
+
     private FileSystemIngestionConnector CreateConnector(bool allowed = true)
     {
         var options = new FileSystemConnectorOptions();
@@ -339,6 +365,9 @@ public sealed class FileSystemFileSourceTests : IDisposable
     }
 
     private FileSource CreateFileSource()
+        => CreateFileSource(_root);
+
+    private static FileSource CreateFileSource(string rootPath)
     {
         var source = new FileSource
         {
@@ -351,7 +380,7 @@ public sealed class FileSystemFileSourceTests : IDisposable
 
         source.Put(new FileSystemFileSourceMetadata
         {
-            RootPath = _root,
+            RootPath = rootPath,
         });
 
         return source;

@@ -58,15 +58,10 @@ public sealed class FileSystemIngestionConnector : IIngestionConnector
 
         var metadata = source.GetOrCreate<FileSystemFileSourceMetadata>();
 
-        if (string.IsNullOrWhiteSpace(metadata.RootPath))
-        {
-            result.Fail(new System.ComponentModel.DataAnnotations.ValidationResult(
-                "A folder is required.",
-                [nameof(FileSystemFileSourceMetadata.RootPath)]));
-
-            return ValueTask.CompletedTask;
-        }
-
+        // A blank folder is not refused here: it means the folder the host allows, and the resolver below
+        // decides whether there is one. Validating it separately is what made the default configuration
+        // look invalid.
+        //
         // The refusal says which of the several reasons applies, because a bare "not allowed" sends an
         // administrator to the allowed-roots list when the real problem was a '..' they typed.
         if (!_options.TryResolveRoot(metadata.RootPath, out _, out var reason))

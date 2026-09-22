@@ -155,6 +155,66 @@ public sealed class FileSystemConnectorOptionsTests
         Assert.StartsWith(Base, resolved, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Verifies that naming no folder reads the one folder the host allows.
+    /// </summary>
+    /// <remarks>
+    /// Leaving the folder empty is the configuration a reader with nothing to narrow down arrives at, and
+    /// it used to be refused as "No folder is configured" -- so the simplest setup was the one that
+    /// silently ingested nothing.
+    /// </remarks>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void NoFolderNamed_ResolvesToTheSingleAllowedRoot(string rootPath)
+    {
+        var options = Create("App_Data/file-sources");
+
+        Assert.True(options.TryResolveRoot(rootPath, out var resolved, out var reason));
+        Assert.Null(reason);
+        Assert.Equal(Path.Combine(Base, "App_Data", "file-sources"), resolved);
+    }
+
+    /// <summary>
+    /// Verifies that naming no folder is refused when the host allows several, since there is no single
+    /// folder to fall back to and reading one nobody pointed at is worse than saying so.
+    /// </summary>
+    [Fact]
+    public void NoFolderNamed_IsRefusedWhenSeveralRootsAreAllowed()
+    {
+        var options = Create("App_Data/file-sources", "App_Data/other-files");
+
+        Assert.False(options.TryResolveRoot(null, out _, out var reason));
+        Assert.Contains("more than one folder", reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that naming no folder is refused when the host allows none, which is the same refusal a
+    /// named folder gets.
+    /// </summary>
+    [Fact]
+    public void NoFolderNamed_IsRefusedWhenNoRootIsAllowed()
+    {
+        var options = new FileSystemConnectorOptions { BasePath = Base };
+
+        Assert.False(options.TryResolveRoot(null, out _, out var reason));
+        Assert.Contains("not configured to read any folder", reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that a blank entry in the allowed roots is not counted, so a host whose configuration left
+    /// a hole still gets the one real folder it named.
+    /// </summary>
+    [Fact]
+    public void NoFolderNamed_IgnoresBlankAllowedRoots()
+    {
+        var options = Create("", "App_Data/file-sources", "   ");
+
+        Assert.True(options.TryResolveRoot(null, out var resolved, out _));
+        Assert.Equal(Path.Combine(Base, "App_Data", "file-sources"), resolved);
+    }
+
     private static FileSystemConnectorOptions Create(params string[] allowedRoots)
     {
         var options = new FileSystemConnectorOptions { BasePath = Base };

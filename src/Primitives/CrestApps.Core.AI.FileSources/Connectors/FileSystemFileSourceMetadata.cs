@@ -13,6 +13,10 @@ public sealed class FileSystemFileSourceMetadata
     /// root, so a file source pointed at <c>App_Data/file-sources/test</c> reads <c>test</c> and nothing
     /// beside it.
     /// </summary>
+    /// <remarks>
+    /// Optional. Left blank, the source reads the folder the host allows it to read, which is what a reader
+    /// who has nothing to narrow down wants. A path is relative to that folder and may not climb out of it.
+    /// </remarks>
     public string RootPath { get; set; }
 
     /// <summary>
