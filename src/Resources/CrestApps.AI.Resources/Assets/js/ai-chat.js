@@ -489,13 +489,15 @@ window.coreAIChatManager = function () {
         // at the first one, so the sentence is torn into fragments and the commas between the markers are
         // left stranded on their own lines. Inline-block keeps the figure looking exactly the same while
         // remaining something a paragraph can legally contain.
+        // The download sits over the picture's lower corner rather than on a line of its own beneath it.
+        // A row of its own cost a band of vertical space under every figure, which a conversation full of
+        // them pays for once per figure. The link itself is unchanged -- same address, same download
+        // attribute, same behaviour -- only where it is drawn.
         return `<span class="generated-image-container">
         <img src="${src}" alt="${alt}" class="img-thumbnail" style="max-width: ${maxWidth}px; height: auto;" />
-        <span class="mt-2 d-block">
-            <a href="${src}" target="_blank" download="${alt}" title="${defaultConfig.downloadImageTitle}" class="btn btn-sm btn-outline-secondary ai-download-image">
-                <i class="fa-solid fa-download"></i>
-            </a>
-        </span>
+        <a href="${src}" target="_blank" download="${alt}" title="${defaultConfig.downloadImageTitle}" class="btn btn-sm btn-outline-secondary ai-download-image">
+            <i class="fa-solid fa-download"></i>
+        </a>
     </span>`;
     };
 
@@ -578,6 +580,37 @@ window.coreAIChatManager = function () {
         // Deferred for the same reason the charts below are: the render that produced these elements has
         // not necessarily been flushed to the DOM when this runs.
         requestAnimationFrame(wireBrokenImageHandlers);
+        requestAnimationFrame(wireImageZoom);
+    }
+
+    // A picture arrives after the markdown is handed back -- the view writes it, and a streamed answer
+    // rewrites it on every chunk -- so zooming cannot be attached once at load. It is attached on the same
+    // pass as the broken-image handler above, and the attribute marks a picture already attached so a
+    // re-render does not bind it a second time.
+    function wireImageZoom() {
+        // The library is the host's to load. Without it the picture is still shown and still downloadable;
+        // only the enlarging is missing, so this is not worth failing a render over.
+        if (typeof mediumZoom !== 'function') {
+            return;
+        }
+
+        const images = document.querySelectorAll('.generated-image-container img:not([data-zoom-wired])');
+
+        if (images.length === 0) {
+            return;
+        }
+
+        for (const image of images) {
+            image.setAttribute('data-zoom-wired', 'true');
+        }
+
+        mediumZoom(images, {
+            // The drawing is bounded by the window rather than by this margin, so the margin is kept
+            // small: an ingested figure is read detail by detail, and every pixel given away here comes
+            // off the size it is read at.
+            margin: 16,
+            background: 'rgba(15, 15, 15, 0.92)',
+        });
     }
 
     function wireBrokenImageHandlers() {
