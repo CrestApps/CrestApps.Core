@@ -128,6 +128,15 @@ public sealed class PreviewTabularDataTool : AIFunction
 
         if (!string.IsNullOrEmpty(cachedResponse))
         {
+            // Asked again, so show the cached pictures again.
+            foreach (var marker in AIInvocationScope.Current.ToolReferences.Keys)
+            {
+                if (cachedResponse.Contains(marker, StringComparison.Ordinal))
+                {
+                    AIInvocationScope.Current.RequestFigureDisplay(marker);
+                }
+            }
+
             if (logger.IsEnabled(LogLevel.Debug))
             {
                 logger.LogDebug("AI tool '{ToolName}' returned a cached preview for this turn.", Name);
@@ -504,6 +513,9 @@ public sealed class PreviewTabularDataTool : AIFunction
         foreach (var (marker, reference) in pending)
         {
             invocationContext.ToolReferences[marker] = reference;
+
+            // A spoken reply never contains the marker, so ask the host to show the picture.
+            invocationContext.RequestFigureDisplay(marker);
         }
 
         var response = new StringBuilder();

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Tooling;
 
@@ -29,6 +30,7 @@ namespace CrestApps.Core.AI.Orchestration;
 /// </summary>
 public sealed class AIInvocationContext
 {
+    private readonly ConcurrentQueue<string> _pendingFigureMarkers = new();
     private int _referenceIndex;
     private List<Action> _disposeCallbacks;
 
@@ -93,6 +95,39 @@ public sealed class AIInvocationContext
     public int NextReferenceIndex()
     {
         return Interlocked.Increment(ref _referenceIndex);
+    }
+
+    /// <summary>
+    /// Asks the host to show the picture registered under <paramref name="marker"/> in <see cref="ToolReferences"/>.
+    /// Used where the model cannot write the marker itself, such as a spoken realtime reply. Thread-safe.
+    /// </summary>
+    /// <param name="marker">The picture marker, for example <c>[fig:1]</c>.</param>
+    public void RequestFigureDisplay(string marker)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(marker);
+
+        _pendingFigureMarkers.Enqueue(marker);
+    }
+
+    /// <summary>
+    /// Removes and returns the markers passed to <see cref="RequestFigureDisplay"/> since the last call.
+    /// </summary>
+    /// <returns>The pending markers in request order.</returns>
+    public IReadOnlyList<string> TakeFigureDisplayRequests()
+    {
+        if (_pendingFigureMarkers.IsEmpty)
+        {
+            return [];
+        }
+
+        var markers = new List<string>();
+
+        while (_pendingFigureMarkers.TryDequeue(out var marker))
+        {
+            markers.Add(marker);
+        }
+
+        return markers;
     }
 
     /// <summary>

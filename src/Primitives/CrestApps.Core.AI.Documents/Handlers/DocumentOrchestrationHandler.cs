@@ -208,6 +208,7 @@ public sealed class DocumentOrchestrationHandler : IOrchestrationContextBuilderH
             ["visionUserSuppliedDocuments"] = visionUserSuppliedDocuments ?? [],
             ["tabularAgentName"] = TabularDataAgentProvider.AgentName,
             ["isInScope"] = ragMetadata?.IsInScope == true,
+            ["isRealtime"] = context.OrchestrationContext.ExecutionMode == OrchestrationExecutionMode.Realtime,
         };
 
         var header = await _templateService.RenderAsync(AITemplateIds.DocumentAvailability, arguments, cancellationToken);
