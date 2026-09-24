@@ -147,6 +147,7 @@ The server owns the session's lifecycle and reports it to the browser over a sin
 
 | Event | Meaning |
 |---|---|
+| `speech_speed` | Sent just before `session_ready`: the speed the session opened at, or empty when its speed cannot be changed. The client answers with the user's own speed, if they chose one. |
 | `session_ready` | The provider session is open; the client moves from *connecting* to *listening*. |
 | `speech_started` | The provider heard the user. With barge-in on, the client stops playback immediately. |
 | `playback_flush` | Buffered assistant audio has been superseded and must be dropped. |
@@ -430,6 +431,10 @@ How much was heard is known exactly on WebRTC, where the peer reports the audio 
 WebSocket transport the server only knows what it sent, so the truncation is an over-estimate that trims nothing —
 no worse than not truncating at all.
 
+The provider measures an item before its speaking speed was applied, so what was heard is scaled by the speed the
+reply was delivered at: six seconds heard at 1.5× is nine seconds of the item. Left unscaled, the cut would land a
+third early at 1.5× and past the end of the item — where the provider refuses it — at 0.75×.
+
 ## Session limits
 
 A realtime session holds an open (billed) provider connection whether or not anyone is talking, so two guard
@@ -496,6 +501,7 @@ remains are per-device preferences (saved in the browser), independent of the tr
 
 - **Microphone** and **Speaker**. Automatic speaker routing follows the preference above; the picker exists because Windows keeps a separate *Default Device* and *Default Communications Device*, so the sink that gives the best echo cancellation is not always the one the user is listening to. On Firefox the browser's own picker is used, since it exposes no output list until the user chooses.
 - **Assistant volume** — lowers playback; this also reduces the echo the canceller and the gate must handle.
+- **Speaking speed** — how fast the assistant talks, from 0.75× to 1.5×. Every conversation starts at 1.0×, the model's normal pace; a user's own choice is remembered in the browser, and *Reset* returns to 1.0×. The model applies the speed to its audio after generating it, so the words and the voice are unchanged, and a change takes effect from the assistant's next reply. It is hidden for a cascaded deployment, whose text-to-speech leg is not given a speed.
 - **Language** — *Automatic* sends no language hint at all, so the transcriber detects it and a bilingual user is not pinned to their browser's locale. Choosing a language pins both transcription and the assistant's replies to it.
 - **Allow interruptions** — *on* (default): talk over the assistant to interrupt it. The gate's learned echo level is what keeps the assistant's own voice from counting as an interruption, so this is safe with a headset, laptop speakers and most desk speakers alike. Turn it *off* only if the assistant keeps hearing itself: the microphone is then muted while it speaks (half duplex).
 - **Push-to-talk** — hold <kbd>Space</kbd> (or the button) to open the mic; for very noisy places.

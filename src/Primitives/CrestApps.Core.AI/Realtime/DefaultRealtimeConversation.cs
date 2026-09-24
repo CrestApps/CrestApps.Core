@@ -23,6 +23,7 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
 
     private readonly IRealtimeClientSession _session;
     private readonly Func<string, CancellationToken, Task<string?>>? _groundTurnAsync;
+    private readonly bool _supportsSpeechSpeed;
     private int _disposed;
 
     public DefaultRealtimeConversation(IRealtimeClientSession session)
@@ -38,14 +39,22 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
     /// Retrieves the knowledge for one utterance, or <see langword="null"/> when the session is not grounded and
     /// the provider answers on its own.
     /// </param>
-    public DefaultRealtimeConversation(IRealtimeClientSession session, Func<string, CancellationToken, Task<string?>>? groundTurnAsync)
+    /// <param name="supportsSpeechSpeed">Whether the session honours a speaking speed; <see langword="false"/> for a cascaded deployment.</param>
+    public DefaultRealtimeConversation(
+        IRealtimeClientSession session,
+        Func<string, CancellationToken, Task<string?>>? groundTurnAsync,
+        bool supportsSpeechSpeed = true)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _groundTurnAsync = groundTurnAsync;
+        _supportsSpeechSpeed = supportsSpeechSpeed;
     }
 
     /// <inheritdoc />
     public bool RespondsAutomatically => _groundTurnAsync is null;
+
+    /// <inheritdoc />
+    public bool SupportsSpeechSpeed => _supportsSpeechSpeed;
 
     /// <inheritdoc />
     public Task SendAudioAsync(ReadOnlyMemory<byte> audio, CancellationToken cancellationToken = default)
@@ -202,6 +211,34 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
                                 silence_duration_ms = silenceDurationMs ?? configured?.SilenceDurationMs ?? 800,
                                 threshold = vadThreshold ?? configured?.Threshold,
                             },
+                    },
+                },
+            },
+        }, RawJsonOptions);
+
+        return _session.SendAsync(new RealtimeClientMessage { RawRepresentation = payload }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task UpdateSpeechSpeedAsync(double speed, CancellationToken cancellationToken = default)
+    {
+        if (!_supportsSpeechSpeed)
+        {
+            return Task.CompletedTask;
+        }
+
+        // Only the speed, like turn detection above: resending the voice after the assistant has spoken is rejected.
+        var payload = JsonSerializer.Serialize(new
+        {
+            type = "session.update",
+            session = new
+            {
+                type = "realtime",
+                audio = new
+                {
+                    output = new
+                    {
+                        speed = RealtimeSpeechSpeedRange.Normalize(speed),
                     },
                 },
             },

@@ -69,6 +69,15 @@ public interface IRealtimeConversationSink
     Task SessionReadyAsync(string identifier, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Tells the client how fast the assistant speaks on this session, before <see cref="SessionReadyAsync"/>.
+    /// </summary>
+    /// <param name="identifier">The session or interaction identifier.</param>
+    /// <param name="speed">The speed, or <see langword="null"/> when this session's speed cannot be changed.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    Task SpeechSpeedAsync(string identifier, double? speed, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    /// <summary>
     /// Signals that the session has ended and no further events will arrive, so the client can release the
     /// microphone and return to idle instead of streaming into a dead session.
     /// </summary>

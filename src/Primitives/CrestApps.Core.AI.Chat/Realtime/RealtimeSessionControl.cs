@@ -4,7 +4,8 @@ using CrestApps.Core.AI.Realtime;
 namespace CrestApps.Core.AI.Chat.Realtime;
 
 /// <summary>
-/// A handle on a running realtime session, used to change turn-taking settings without ending the conversation.
+/// A handle on a running realtime session, used to change turn-taking settings and the speaking speed without
+/// ending the conversation.
 /// </summary>
 /// <remarks>
 /// Barge-in and the voice-activity knobs are enforced in three places at once — the browser's microphone gate,
@@ -62,5 +63,23 @@ public sealed class RealtimeSessionControl
 
         await _conversation.UpdateTurnDetectionAsync(
             allowInterruption, _context.SilenceDurationMs, _context.VadThreshold, turnDetectionType: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Changes how fast the assistant speaks, from its next reply.
+    /// </summary>
+    /// <param name="speed">The speed, as a multiple of the model's normal pace; clamped to <see cref="RealtimeSpeechSpeedRange"/>.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    public async Task ApplySpeechSpeedAsync(double speed, CancellationToken cancellationToken = default)
+    {
+        // Truncation reads this speed back, so it only changes where the provider honours it.
+        if (!_conversation.SupportsSpeechSpeed)
+        {
+            return;
+        }
+
+        _context.SpeechSpeed = RealtimeSpeechSpeedRange.Normalize(speed);
+
+        await _conversation.UpdateSpeechSpeedAsync(_context.SpeechSpeed, cancellationToken);
     }
 }

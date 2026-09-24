@@ -13,6 +13,12 @@ public static class RealtimeClientEventTypes
     public const string SessionReady = "session_ready";
 
     /// <summary>
+    /// The session's speaking speed, sent just before <see cref="SessionReady"/>. The payload is the speed in invariant
+    /// culture (for example <c>1</c>), or empty when it cannot be changed.
+    /// </summary>
+    public const string SpeechSpeed = "speech_speed";
+
+    /// <summary>
     /// The session ended. The payload carries the reason (see <see cref="RealtimeSessionEndReasons"/>).
     /// </summary>
     public const string SessionEnded = "session_ended";

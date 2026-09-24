@@ -34,6 +34,9 @@ internal sealed class WebRtcRealtimeConversationSink : IRealtimeConversationSink
     public Task SessionReadyAsync(string identifier, CancellationToken cancellationToken)
         => _inner.SessionReadyAsync(identifier, cancellationToken);
 
+    public Task SpeechSpeedAsync(string identifier, double? speed, CancellationToken cancellationToken)
+        => _inner.SpeechSpeedAsync(identifier, speed, cancellationToken);
+
     public Task SessionEndedAsync(string identifier, string reason, CancellationToken cancellationToken)
         => _inner.SessionEndedAsync(identifier, reason, cancellationToken);
 

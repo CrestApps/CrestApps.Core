@@ -116,4 +116,17 @@ public interface IRealtimeConversation : IAsyncDisposable
         float? vadThreshold,
         string turnDetectionType = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a value indicating whether the speaking speed can be changed on this session. A cascaded deployment
+    /// cannot: its text-to-speech leg is not given a speed.
+    /// </summary>
+    bool SupportsSpeechSpeed => false;
+
+    /// <summary>
+    /// Changes how fast the assistant speaks, from its next reply; a reply in progress keeps its speed.
+    /// </summary>
+    /// <param name="speed">The speed, as a multiple of the model's normal pace (see <see cref="RealtimeSpeechSpeedRange"/>).</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    Task UpdateSpeechSpeedAsync(double speed, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
