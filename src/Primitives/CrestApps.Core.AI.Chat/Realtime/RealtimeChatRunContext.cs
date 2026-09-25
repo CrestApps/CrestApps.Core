@@ -1,5 +1,6 @@
 #nullable enable
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Realtime;
 
 namespace CrestApps.Core.AI.Chat.Realtime;
 
@@ -71,6 +72,12 @@ public sealed class RealtimeChatRunContext
     /// server voice-activity detector will not interrupt an in-progress response. Defaults to true.
     /// </summary>
     public bool AllowInterruption { get; set; } = true;
+
+    /// <summary>
+    /// Gets how fast the assistant speaks. Starts at <see cref="RealtimeSpeechSpeedRange.Default"/>; changed through
+    /// <see cref="RealtimeSessionControl.ApplySpeechSpeedAsync"/>.
+    /// </summary>
+    public double SpeechSpeed { get; internal set; } = RealtimeSpeechSpeedRange.Default;
 
     /// <summary>
     /// Gets an optional hook invoked once the provider session is live, handing the caller a control it can use to

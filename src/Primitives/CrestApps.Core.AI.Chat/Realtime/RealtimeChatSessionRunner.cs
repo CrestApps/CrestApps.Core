@@ -143,12 +143,16 @@ public sealed class RealtimeChatSessionRunner
                 },
                 cancellationToken);
 
+            // Hand the host a control so settings changed mid-conversation reach both the input pump and the
+            // provider, instead of only taking effect on the user's next session. Published before the client is
+            // told anything, so a saved speed it sends straight back is not dropped.
+            context.OnSessionStarted?.Invoke(new RealtimeSessionControl(conversation, context));
+
+            // Lets the client apply a saved speed before anyone speaks, or hide the control where speed can't change.
+            await sink.SpeechSpeedAsync(context.SessionId, conversation.SupportsSpeechSpeed ? context.SpeechSpeed : null, cancellationToken);
+
             // The provider session is open: tell the client it can stop showing "connecting" and start listening.
             await sink.SessionReadyAsync(context.SessionId, cancellationToken);
-
-            // Hand the host a control so settings changed mid-conversation reach both the input pump and the
-            // provider, instead of only taking effect on the user's next session.
-            context.OnSessionStarted?.Invoke(new RealtimeSessionControl(conversation, context));
 
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
@@ -595,7 +599,10 @@ public sealed class RealtimeChatSessionRunner
                     activity.Touch(_timeProvider.GetUtcNow());
                     responseState.Activate();
                     sawAnyResponse = true;
+
+                    // A speed change mid-reply applies to the next one, so this reply keeps the current speed.
                     playback.Reset();
+                    playback.Speed = context.SpeechSpeed;
                     grounding?.ResponseStarted(evt.ResponseId);
                     if (_logger.IsEnabled(LogLevel.Debug))
                     {
@@ -903,7 +910,8 @@ public sealed class RealtimeChatSessionRunner
         // What was handed to the transport, minus what it is still holding, minus the browser's own jitter buffer.
         // Transports that hand audio straight to the client report nothing pending, so this becomes "everything
         // sent" — an over-estimate that trims nothing rather than trimming too much.
-        var heardMs = playback.SentMs - sink.PendingPlaybackMs - ClientJitterBufferMs;
+        // The provider measures the item before the speed is applied: 6 s heard at 1.5x is 9 s of the item.
+        var heardMs = (int)((playback.SentMs - sink.PendingPlaybackMs - ClientJitterBufferMs) * playback.Speed);
 
         if (playback.ItemId is null || heardMs <= 0)
         {
@@ -1122,6 +1130,9 @@ public sealed class RealtimeChatSessionRunner
         public string? ItemId { get; private set; }
 
         public int SentMs { get; private set; }
+
+        // The speed the current reply is delivered at; SentMs counts delivered audio.
+        public double Speed { get; set; } = RealtimeSpeechSpeedRange.Default;
 
         public void Append(string? itemId, int byteCount)
         {

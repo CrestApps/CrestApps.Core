@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
@@ -1443,6 +1444,37 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             {
                 // A settings change must never end a conversation in progress.
                 Logger.LogWarning(ex, "Failed to apply realtime settings to the active session.");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Changes how fast the assistant speaks in the caller's running realtime session, from its next reply. Set by
+    /// the user from the voice settings; every conversation starts at the model's normal pace.
+    /// </summary>
+    /// <param name="speed">The speed, as a multiple of the model's normal pace; clamped to <see cref="RealtimeSpeechSpeedRange"/>.</param>
+    public virtual Task UpdateRealtimeSpeechSpeed(double speed)
+    {
+        var connectionId = Context.ConnectionId;
+        var cancellationToken = Context.ConnectionAborted;
+
+        return RunInScopeAsync(async services =>
+        {
+            var control = services.GetRequiredService<RealtimeSessionRegistry>().Get(connectionId);
+
+            if (control is null)
+            {
+                return;
+            }
+
+            try
+            {
+                await control.ApplySpeechSpeedAsync(speed, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // A settings change must never end a conversation in progress.
+                Logger.LogWarning(ex, "Failed to apply the speaking speed to the active realtime session.");
             }
         });
     }
@@ -2936,6 +2968,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         public Task SessionReadyAsync(string identifier, CancellationToken cancellationToken)
         {
             return _client.ReceiveRealtimeEvent(identifier, RealtimeClientEventTypes.SessionReady, null);
+        }
+
+        public Task SpeechSpeedAsync(string identifier, double? speed, CancellationToken cancellationToken)
+        {
+            return _client.ReceiveRealtimeEvent(identifier, RealtimeClientEventTypes.SpeechSpeed, speed?.ToString(CultureInfo.InvariantCulture));
         }
 
         public Task SessionEndedAsync(string identifier, string reason, CancellationToken cancellationToken)
