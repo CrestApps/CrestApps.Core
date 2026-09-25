@@ -1038,7 +1038,7 @@
       gear.className = 'btn btn-outline-secondary';
       gear.title = localize('settingsTitle', 'Voice settings');
       gear.setAttribute('aria-label', localize('settingsTitle', 'Voice settings'));
-      gear.innerHTML = '<i class="fa-solid fa-gear"></i>';
+      gear.innerHTML = '<i class="fa-solid fa-headset"></i>';
       var langs = [['en', 'English'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'], ['pt', 'Portuguese'], ['nl', 'Dutch'], ['zh', 'Chinese'], ['ja', 'Japanese'], ['ko', 'Korean'], ['ar', 'Arabic'], ['hi', 'Hindi'], ['ru', 'Russian']];
       var langOptions = '<option value=""' + (prefs.language === '' ? ' selected' : '') + '>' + localize('languageAuto', 'Automatic') + '</option>' + langs.map(function (l) {
         return '<option value="' + l[0] + '"' + (prefs.language === l[0] ? ' selected' : '') + '>' + l[1] + '</option>';
