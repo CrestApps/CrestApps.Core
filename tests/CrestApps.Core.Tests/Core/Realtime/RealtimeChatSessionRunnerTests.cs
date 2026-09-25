@@ -1321,6 +1321,208 @@ public sealed class RealtimeChatSessionRunnerTests
         Assert.Null(reference.Link);
     }
 
+    [Fact]
+    public async Task RunAsync_PlacesAPictureAToolAskedToShowOnTheNextSpokenReply()
+    {
+        // A spoken reply never contains the marker, so the runner appends it.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-1" };
+        var (store, persisted) = CreateStore();
+        var sink = new RecordingSink();
+
+        using var scope = AIInvocationScope.Begin();
+
+        // The tool-only response must not take the picture into a bubble of its own.
+        var toolResponseCompleted = Evt(RealtimeConversationEventType.ResponseCompleted);
+        var conversation = new FakeConversation(
+        [
+            Evt(RealtimeConversationEventType.ResponseStarted),
+            toolResponseCompleted,
+            Evt(RealtimeConversationEventType.ResponseStarted),
+            Evt(RealtimeConversationEventType.AssistantTranscriptDelta, text: "Here is the preview."),
+            Evt(RealtimeConversationEventType.AssistantTranscriptDone, text: "Here is the preview."),
+            Evt(RealtimeConversationEventType.ResponseCompleted),
+        ])
+        {
+            BeforeEvent = evt =>
+            {
+                if (ReferenceEquals(evt, toolResponseCompleted))
+                {
+                    scope.Context.ToolReferences["[fig:1]"] = new AICompletionReference { Index = 1, Title = "Sheet1", Link = "/ai/documents/preview-1/download", IsImage = true };
+                    scope.Context.RequestFigureDisplay("[fig:1]");
+                }
+            },
+        };
+
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext { Resource = profile, SessionId = session.SessionId, ChatSession = session },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        // One bubble, with the marker both streamed and saved.
+        var turn = Assert.Single(persisted);
+        Assert.Equal("Here is the preview.\n\n[fig:1]", turn.Content);
+        Assert.True(turn.References!["[fig:1]"].IsImage);
+        Assert.Equal(["Here is the preview.", "\n\n[fig:1]"], sink.AssistantDeltas);
+        Assert.Single(sink.AssistantCompleted);
+        Assert.Empty(scope.Context.TakeFigureDisplayRequests());
+    }
+
+    [Fact]
+    public async Task RunAsync_DoesNotRepeatAPictureTheReplyAlreadyNames()
+    {
+        // A cascaded chat leg can write the marker itself; it must not be added twice.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-1" };
+        var (store, persisted) = CreateStore();
+        var sink = new RecordingSink();
+
+        using var scope = AIInvocationScope.Begin();
+        scope.Context.ToolReferences["[fig:1]"] = new AICompletionReference { Index = 1, Title = "Sheet1", Link = "/ai/documents/preview-1/download", IsImage = true };
+        scope.Context.RequestFigureDisplay("[fig:1]");
+
+        var conversation = new FakeConversation(
+        [
+            Evt(RealtimeConversationEventType.AssistantTranscriptDelta, text: "Here it is: [fig:1]"),
+            Evt(RealtimeConversationEventType.AssistantTranscriptDone, text: "Here it is: [fig:1]"),
+        ]);
+
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext { Resource = profile, SessionId = session.SessionId, ChatSession = session },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("Here it is: [fig:1]", Assert.Single(persisted).Content);
+        Assert.Equal(["Here it is: [fig:1]"], sink.AssistantDeltas);
+    }
+
+    [Fact]
+    public async Task RunAsync_ShowsAPictureAgainWhenItIsAskedForAgain()
+    {
+        // A repeat request is answered from the preview cache with the same marker; it is shown again.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-1" };
+        var (store, persisted) = CreateStore();
+
+        using var scope = AIInvocationScope.Begin();
+        scope.Context.ToolReferences["[fig:1]"] = new AICompletionReference { Index = 1, Title = "Sheet1", Link = "/ai/documents/preview-1/download", IsImage = true };
+        scope.Context.RequestFigureDisplay("[fig:1]");
+
+        var secondToolResponseCompleted = Evt(RealtimeConversationEventType.ResponseCompleted);
+        var conversation = new FakeConversation(
+        [
+            Evt(RealtimeConversationEventType.AssistantTranscriptDone, text: "Here is the preview."),
+            Evt(RealtimeConversationEventType.AssistantTranscriptDone, text: "Glad it helped."),
+            Evt(RealtimeConversationEventType.ResponseStarted),
+            secondToolResponseCompleted,
+            Evt(RealtimeConversationEventType.AssistantTranscriptDone, text: "Here it is again."),
+        ])
+        {
+            BeforeEvent = evt =>
+            {
+                if (ReferenceEquals(evt, secondToolResponseCompleted))
+                {
+                    scope.Context.RequestFigureDisplay("[fig:1]");
+                }
+            },
+        };
+
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext { Resource = profile, SessionId = session.SessionId, ChatSession = session },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            new RecordingSink(),
+            TestContext.Current.CancellationToken);
+
+        // The reply in between does not get the picture.
+        Assert.Equal(
+            ["Here is the preview.\n\n[fig:1]", "Glad it helped.", "Here it is again.\n\n[fig:1]"],
+            persisted.Select(prompt => prompt.Content));
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenTheSessionEndsBeforeTheReply_StillShowsThePicture()
+    {
+        // The session ended before the reply, so the picture is saved as its own turn.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-1" };
+        var (store, persisted) = CreateStore();
+        var sink = new RecordingSink();
+
+        using var scope = AIInvocationScope.Begin();
+
+        var toolResponseCompleted = Evt(RealtimeConversationEventType.ResponseCompleted);
+        var conversation = new FakeConversation(
+        [
+            Evt(RealtimeConversationEventType.ResponseStarted),
+            toolResponseCompleted,
+        ])
+        {
+            BeforeEvent = evt =>
+            {
+                if (ReferenceEquals(evt, toolResponseCompleted))
+                {
+                    scope.Context.ToolReferences["[fig:1]"] = new AICompletionReference { Index = 1, Title = "Sheet1", Link = "/ai/documents/preview-1/download", IsImage = true };
+                    scope.Context.RequestFigureDisplay("[fig:1]");
+                }
+            },
+        };
+
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext { Resource = profile, SessionId = session.SessionId, ChatSession = session },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            sink,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("[fig:1]", Assert.Single(persisted).Content);
+        Assert.Equal(["[fig:1]"], sink.AssistantDeltas);
+        Assert.Single(sink.AssistantCompleted);
+    }
+
+    [Fact]
+    public async Task RunAsync_PlacesOnlyPicturesAToolAskedToShowAndTheHostCanServe()
+    {
+        // Unrequested, unservable, and unregistered pictures are not added.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-1" };
+        var (store, persisted) = CreateStore();
+
+        using var scope = AIInvocationScope.Begin();
+        scope.Context.ToolReferences["[fig:1]"] = new AICompletionReference { Index = 1, Title = "Retrieved figure", Link = "/figures/1", IsImage = true };
+        scope.Context.ToolReferences["[fig:2]"] = new AICompletionReference { Index = 2, Title = "Unservable preview", IsImage = true };
+        scope.Context.RequestFigureDisplay("[fig:2]");
+        scope.Context.RequestFigureDisplay("[fig:3]");
+
+        var conversation = new FakeConversation(
+        [
+            Evt(RealtimeConversationEventType.AssistantTranscriptDone, text: "Here is the answer."),
+        ]);
+
+        var runner = new RealtimeChatSessionRunner(new FakeOrchestrator(conversation), TimeProvider.System, NullLogger<RealtimeChatSessionRunner>.Instance);
+
+        await runner.RunAsync(
+            new RealtimeChatRunContext { Resource = profile, SessionId = session.SessionId, ChatSession = session },
+            new ChatSessionRealtimeTurnStore(store.Object),
+            PendingAudio(TestContext.Current.CancellationToken),
+            new RecordingSink(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("Here is the answer.", Assert.Single(persisted).Content);
+    }
+
     private sealed class FixedLinkResolver : IAIReferenceLinkResolver
     {
         private readonly string _prefix;
@@ -1413,6 +1615,11 @@ public sealed class RealtimeChatSessionRunnerTests
         /// session does not tear down while a test is still exercising the input pump.
         /// </summary>
         public bool HoldOpen { get; init; }
+
+        /// <summary>
+        /// Runs before each scripted event is raised, for example to simulate a tool call.
+        /// </summary>
+        public Action<RealtimeConversationEvent>? BeforeEvent { get; init; }
 
         /// <summary>
         /// A second batch of events a test can release once the first has been consumed, so it can put virtual
@@ -1513,6 +1720,8 @@ public sealed class RealtimeChatSessionRunnerTests
             foreach (var evt in _events)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+
+                BeforeEvent?.Invoke(evt);
 
                 yield return evt;
 

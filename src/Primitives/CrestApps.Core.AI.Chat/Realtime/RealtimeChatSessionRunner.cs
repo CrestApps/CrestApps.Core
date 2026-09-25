@@ -706,7 +706,7 @@ public sealed class RealtimeChatSessionRunner
         }
 
         // The stream ended (session closed). Persist any assistant turn that never received a done event.
-        await FlushAssistantTurnAsync(context, turnStore, sink, sessionId, turn, finalText: null, cancellationToken);
+        await FlushAssistantTurnAsync(context, turnStore, sink, sessionId, turn, finalText: null, cancellationToken, endOfSession: true);
     }
 
     // Ends the session when neither side has spoken for the configured idle window, nobody is mid-utterance, and
@@ -951,20 +951,57 @@ public sealed class RealtimeChatSessionRunner
         string sessionId,
         AssistantTurn turn,
         string? finalText,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool endOfSession = false)
     {
         // Persist when deltas were accumulated, or when a final transcript arrived even without deltas
         // (some providers emit only the completed transcript).
-        if (!turn.HasContent && string.IsNullOrWhiteSpace(finalText))
+        if (!turn.HasContent && string.IsNullOrWhiteSpace(finalText) && !endOfSession)
         {
             return;
         }
 
         var content = !string.IsNullOrWhiteSpace(finalText) ? finalText! : turn.Builder.ToString();
         var messageId = turn.MessageId ?? UniqueId.GenerateId();
+
+        // Requested pictures go on the next spoken turn (never a tool-only response), or on a picture-only turn at
+        // session end. Taken before the snapshot so every requested reference is in it.
+        IReadOnlyList<string> requestedFigures = !string.IsNullOrWhiteSpace(content) || endOfSession
+            ? AIInvocationScope.Current?.TakeFigureDisplayRequests() ?? []
+            : [];
         var references = SnapshotReferences();
 
         turn.Reset();
+
+        var figureMarkers = new List<string>(requestedFigures.Count);
+
+        foreach (var marker in requestedFigures)
+        {
+            // Skip markers already in the text, repeated, or without a picture the client can draw.
+            if (content.Contains(marker, StringComparison.Ordinal) ||
+                figureMarkers.Contains(marker, StringComparer.OrdinalIgnoreCase) ||
+                references is null ||
+                !references.TryGetValue(marker, out var reference) ||
+                !reference.IsImage ||
+                string.IsNullOrWhiteSpace(reference.Link))
+            {
+                continue;
+            }
+
+            figureMarkers.Add(marker);
+        }
+
+        if (figureMarkers.Count > 0)
+        {
+            var figureLine = string.Join(' ', figureMarkers);
+
+            // Sent as a transcript delta for the live client and saved with the turn for history.
+            var delta = string.IsNullOrWhiteSpace(content) ? figureLine : "\n\n" + figureLine;
+
+            await sink.AssistantTranscriptDeltaAsync(sessionId, messageId, delta, messageId, references, cancellationToken);
+
+            content = string.IsNullOrWhiteSpace(content) ? figureLine : content + delta;
+        }
 
         if (string.IsNullOrWhiteSpace(content))
         {
