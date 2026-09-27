@@ -85,7 +85,10 @@ internal static class PdfTextFinder
                     continue;
                 }
 
-                matches.Add(new PdfTextMatch(page.Number, match.Value, Snippet(text, match.Index, match.Length), boxes));
+                matches.Add(new PdfTextMatch(page.Number, match.Value, Snippet(text, match.Index, match.Length), boxes)
+                {
+                    Letters = LettersFor(letters, match.Index, match.Length),
+                });
 
                 if (matches.Count >= maxMatches)
                 {
@@ -96,6 +99,39 @@ internal static class PdfTextFinder
         catch (RegexMatchTimeoutException ex)
         {
             throw new PdfToolException($"The pattern \"{query}\" took too long to evaluate; simplify it.", ex);
+        }
+
+        return matches;
+    }
+
+    /// <summary>
+    /// Finds the values <see cref="PdfPatternLibrary"/> recognises on a page — email addresses, card numbers,
+    /// identity numbers and the rest — with where each is drawn.
+    /// </summary>
+    /// <param name="page">The page.</param>
+    /// <param name="kinds">The kinds to look for, or <see langword="null"/> for all.</param>
+    /// <returns>The matches, in reading order, each carrying its <see cref="PdfTextMatch.Kind"/>.</returns>
+    public static List<PdfTextMatch> FindPatterns(Page page, IEnumerable<string> kinds)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+
+        var (text, letters) = BuildIndex(page);
+        var matches = new List<PdfTextMatch>();
+
+        foreach (var found in PdfPatternLibrary.Find(text, kinds))
+        {
+            var boxes = BoxesFor(letters, found.Index, found.Length);
+
+            if (boxes.Count == 0)
+            {
+                continue;
+            }
+
+            matches.Add(new PdfTextMatch(page.Number, found.Value, Snippet(text, found.Index, found.Length), boxes)
+            {
+                Letters = LettersFor(letters, found.Index, found.Length),
+                Kind = found.Kind,
+            });
         }
 
         return matches;
@@ -195,6 +231,21 @@ internal static class PdfTextFinder
         }
 
         return boxes;
+    }
+
+    private static List<Letter> LettersFor(List<Letter> letters, int start, int length)
+    {
+        var result = new List<Letter>();
+
+        for (var index = start; index < start + length && index < letters.Count; index++)
+        {
+            if (letters[index] is { } letter && (result.Count == 0 || !ReferenceEquals(result[^1], letter)))
+            {
+                result.Add(letter);
+            }
+        }
+
+        return result;
     }
 
     private static bool SameLine(Letter previous, Letter next)

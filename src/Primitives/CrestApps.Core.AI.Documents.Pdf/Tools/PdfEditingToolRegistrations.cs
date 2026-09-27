@@ -3,7 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CrestApps.Core.AI.Documents.Pdf.Tools;
 
 /// <summary>
-/// Registers the tools that change what existing PDF pages show: content, annotations, redaction, sensitive-data detection and sanitizing.
+/// Registers the tools that change what existing PDF pages show: content, annotations, redaction,
+/// sensitive-data detection and sanitizing.
 /// </summary>
 internal static class PdfEditingToolRegistrations
 {
@@ -14,5 +15,8 @@ internal static class PdfEditingToolRegistrations
     public static void Register(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        services.AddPdfTool<RedactPdfTool>(RedactPdfTool.TheName, "Redact PDF", "Permanently removes text, images and areas from pages.");
+        services.AddPdfTool<FindPdfSensitiveDataTool>(FindPdfSensitiveDataTool.TheName, "Find PDF Sensitive Data", "Finds personal, financial and other sensitive data before redaction.");
     }
 }
