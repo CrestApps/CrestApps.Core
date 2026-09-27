@@ -8,29 +8,45 @@ namespace CrestApps.Core.AI.Documents.Pdf.Composition;
 /// </summary>
 internal static class PdfFontConfiguration
 {
-    private static int _configured;
+    private static readonly Lock _gate = new();
+
+    private static volatile bool _configured;
 
     /// <summary>
     /// Configures font resolution if it has not been configured yet.
     /// </summary>
+    /// <remarks>
+    /// A caller that arrives while another is configuring waits for it: returning early would let it draw text
+    /// before the resolver is in place, which PDFsharp fails with "No appropriate font found".
+    /// </remarks>
     public static void Ensure()
     {
-        if (Interlocked.Exchange(ref _configured, 1) != 0)
+        if (_configured)
         {
             return;
         }
 
-        // Resolve fonts from the host operating system. On non-Windows hosts that lack a custom resolver,
-        // fall back to a font discovered in the system font directories so PDF generation works out of the
-        // box on Linux/macOS servers. Truly font-less environments can still register their own resolver.
-        GlobalFontSettings.UseWindowsFontsUnderWindows = true;
-        GlobalFontSettings.UseWindowsFontsUnderWsl2 = true;
-
-        if (!OperatingSystem.IsWindows() &&
-            GlobalFontSettings.FontResolver is null &&
-            SystemFontResolver.TryCreate(out var resolver))
+        lock (_gate)
         {
-            GlobalFontSettings.FontResolver = resolver;
+            if (_configured)
+            {
+                return;
+            }
+
+            // Resolve fonts from the host operating system. On non-Windows hosts that lack a custom resolver,
+            // serve the fonts found in the system font directories so PDF generation works out of the box on
+            // Linux/macOS servers. Truly font-less environments can still register their own resolver.
+            GlobalFontSettings.UseWindowsFontsUnderWindows = true;
+            GlobalFontSettings.UseWindowsFontsUnderWsl2 = true;
+
+            if (!OperatingSystem.IsWindows() &&
+                GlobalFontSettings.FontResolver is null &&
+                SystemFontResolver.TryCreate(out var resolver))
+            {
+                GlobalFontSettings.FontResolver = resolver;
+            }
+
+            _configured = true;
         }
     }
 }
