@@ -162,6 +162,11 @@ The built-in **Tabular Data Agent** is the reference pattern for a framework-man
 - it stays out of the AI Profile and Chat Interaction pickers because system agents are not user-selectable
 - it is still returned by `IAIProfileManager.GetAsync(AIProfileType.Agent)`, so the A2A host exposes it like any other agent
 
+The built-in **PDF Agent** (`pdf-agent`, registered by `AddPdf()`) follows the same pattern with its own
+hidden PDF tools, over a per-conversation workspace that keeps the documents it composes and the working
+copies of the PDFs it edits; see [AI Documents](./ai-documents.md#pdf-files-and-the-pdf-agent). Set
+`PdfAgentOptions.Enabled = false` to leave it out.
+
 Use the same pattern for additional code-defined system agents when you want a capability to be automatically present for orchestration and remotely invocable over A2A without making it a manual UI choice.
 
 ## Creating Agent Profiles

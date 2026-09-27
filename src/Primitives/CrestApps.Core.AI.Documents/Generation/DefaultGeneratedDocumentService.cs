@@ -7,7 +7,8 @@ namespace CrestApps.Core.AI.Documents.Generation;
 
 /// <summary>
 /// Default <see cref="IGeneratedDocumentService"/> that writes generated content through the registered
-/// <see cref="IGeneratedFileWriter"/>, stores it via <see cref="IDocumentFileStore"/>, persists the
+/// <see cref="IGeneratedFileWriter"/> (or takes <see cref="GeneratedFileContent.EncodedContent"/> as it
+/// is), stores it via <see cref="IDocumentFileStore"/>, persists the
 /// metadata via <see cref="IAIDocumentStore"/>, and registers a download reference on the active
 /// <see cref="AIInvocationScope"/>.
 /// </summary>
@@ -61,13 +62,25 @@ public sealed class DefaultGeneratedDocumentService : IGeneratedDocumentService
 
         var extension = Path.GetExtension(request.FileName);
 
-        if (!_writerResolver.TryResolve(extension, out var writer))
+        await using var buffer = new MemoryStream();
+
+        if (request.Content.HasEncodedContent)
         {
-            throw new NotSupportedException($"No generated file writer is registered for the '{extension}' format.");
+            // The caller already produced the file, so it is stored as given. Resolving a writer here would
+            // tie the storage of an extracted image or a finished PDF to a format this host can write, which
+            // is a different question from whether it can store one.
+            await buffer.WriteAsync(request.Content.EncodedContent, cancellationToken);
+        }
+        else
+        {
+            if (!_writerResolver.TryResolve(extension, out var writer))
+            {
+                throw new NotSupportedException($"No generated file writer is registered for the '{extension}' format.");
+            }
+
+            await writer.WriteAsync(request.Content, buffer, cancellationToken);
         }
 
-        await using var buffer = new MemoryStream();
-        await writer.WriteAsync(request.Content, buffer, cancellationToken);
         buffer.Position = 0;
 
         var documentId = UniqueId.GenerateId();
@@ -87,7 +100,9 @@ public sealed class DefaultGeneratedDocumentService : IGeneratedDocumentService
             FileName = request.FileName,
             StoredFileName = storedFileName,
             StoredFilePath = storagePath,
-            ContentType = MediaTypeHelper.InferMediaType(extension),
+            ContentType = string.IsNullOrWhiteSpace(request.ContentType)
+                ? MediaTypeHelper.InferMediaType(extension)
+                : request.ContentType,
             FileSize = buffer.Length,
             UploadedUtc = _timeProvider.GetUtcNow().UtcDateTime,
         };
