@@ -22,5 +22,7 @@ internal static class PdfPropertiesToolRegistrations
         services.AddPdfTool<AddPdfLinksTool>(AddPdfLinksTool.TheName, "Add PDF Links", "Adds web links and links to pages over text or areas of a PDF.");
         services.AddPdfTool<ProtectPdfTool>(ProtectPdfTool.TheName, "Protect PDF", "Encrypts a PDF with an open password and permissions.");
         services.AddPdfTool<RemovePdfSecurityTool>(RemovePdfSecurityTool.TheName, "Remove PDF Security", "Removes a PDF's password protection when the user supplies its password.");
+        services.AddPdfTool<SignPdfTool>(SignPdfTool.TheName, "Sign PDF", "Digitally signs a PDF with the signing certificate the host configured.");
+        services.AddPdfTool<VerifyPdfSignatureTool>(VerifyPdfSignatureTool.TheName, "Verify PDF Signature", "Verifies a PDF's digital signatures and whether it changed after signing.");
     }
 }

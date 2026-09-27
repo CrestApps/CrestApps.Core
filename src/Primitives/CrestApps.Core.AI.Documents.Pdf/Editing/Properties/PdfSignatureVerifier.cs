@@ -167,6 +167,7 @@ internal static class PdfSignatureVerifier
         DescribeCertificate(signer.Certificate, cms.Certificates, time, report);
 
         var valid = true;
+        var signedDigest = ReadMessageDigest(signer);
 
         if (encapsulated)
         {
@@ -176,7 +177,7 @@ internal static class PdfSignatureVerifier
                 valid = false;
             }
         }
-        else if (hashName is { } name && ReadMessageDigest(signer) is { } signedDigest)
+        else if (hashName is { } name && signedDigest is not null)
         {
             if (!Hash(name, signed).AsSpan().SequenceEqual(signedDigest))
             {
@@ -193,7 +194,11 @@ internal static class PdfSignatureVerifier
         {
             if (valid)
             {
-                report.Findings.Add("The signature value does not verify: " + ex.Message);
+                // Without a signed message digest the signature is over the content itself, so a failure
+                // cannot tell a changed document from a damaged signature.
+                report.Findings.Add(signedDigest is null && !encapsulated
+                    ? "The signature does not match the bytes it covers: the document was changed after signing, or the signature is damaged."
+                    : "The signature value does not verify: " + ex.Message);
             }
 
             valid = false;
