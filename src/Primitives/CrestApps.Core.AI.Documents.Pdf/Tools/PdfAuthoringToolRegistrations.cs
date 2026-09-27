@@ -22,6 +22,11 @@ internal static class PdfAuthoringToolRegistrations
         services.AddPdfTool<FormatPdfTool>(FormatPdfTool.TheName, "Format PDF", "Records how a composed PDF looks: theme, page layout, running heads, page numbers, cover, contents and watermark.");
         services.AddPdfTool<PreviewPdfTool>(PreviewPdfTool.TheName, "Preview PDF", "Shows PDF pages as pictures in the conversation.");
         services.AddPdfTool<ExportPdfTool>(ExportPdfTool.TheName, "Export PDF", "Writes a PDF as a download.");
+        services.AddPdfTool<GetPdfFormFieldsTool>(GetPdfFormFieldsTool.TheName, "Get PDF Form Fields", "Lists form fields with their types, values, choices and constraints.");
+        services.AddPdfTool<FillPdfFormTool>(FillPdfFormTool.TheName, "Fill PDF Form", "Fills the form fields of a PDF.");
+        services.AddPdfTool<EditPdfFormTool>(EditPdfFormTool.TheName, "Edit PDF Form", "Adds, changes, renames and removes form fields, including signature fields.");
+        services.AddPdfTool<ValidatePdfFormTool>(ValidatePdfFormTool.TheName, "Validate PDF Form", "Checks form values against required fields, formats and choices.");
+        services.AddPdfTool<FlattenPdfTool>(FlattenPdfTool.TheName, "Flatten PDF", "Flattens form fields and annotations into page content.");
         services.AddPdfTool<EditPdfPagesTool>(EditPdfPagesTool.TheName, "Edit PDF Pages", "Merges, splits, extracts, reorders, rotates, deletes, inserts, crops and resizes pages, and stamps watermarks, page numbers and running text.");
     }
 }
