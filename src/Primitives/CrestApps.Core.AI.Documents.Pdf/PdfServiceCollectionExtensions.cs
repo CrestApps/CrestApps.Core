@@ -25,6 +25,7 @@ public static class PdfServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddCoreAIPresentationPdfExport();
         services.AddCoreAIPdfIngestion();
 
         // Register the PDF output writer so generated files can be downloaded as PDF documents.
