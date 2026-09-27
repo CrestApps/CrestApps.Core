@@ -73,7 +73,8 @@ internal static partial class PdfHeadingDetector
 
         int TierOf(double size)
         {
-            for (var index = tiers.Count - 1; index >= 0; index--)
+            // Tiers run from the largest size down; a size belongs to the first tier it reaches.
+            for (var index = 0; index < tiers.Count; index++)
             {
                 if (size >= tiers[index] - 0.75)
                 {
@@ -81,7 +82,7 @@ internal static partial class PdfHeadingDetector
                 }
             }
 
-            return 0;
+            return tiers.Count - 1;
         }
 
         var firstTier = 0;

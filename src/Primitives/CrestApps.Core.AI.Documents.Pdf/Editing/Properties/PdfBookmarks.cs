@@ -59,6 +59,23 @@ internal static class PdfBookmarks
     }
 
     /// <summary>
+    /// Counts a document's bookmarks, nested ones included.
+    /// </summary>
+    /// <param name="document">The document.</param>
+    /// <returns>The count.</returns>
+    public static int Count(PigDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        if (!document.TryGetBookmarks(out var bookmarks))
+        {
+            return 0;
+        }
+
+        return bookmarks.GetNodes().Count();
+    }
+
+    /// <summary>
     /// Describes a document's bookmarks, one per line, indented by level.
     /// </summary>
     /// <param name="document">The document.</param>
