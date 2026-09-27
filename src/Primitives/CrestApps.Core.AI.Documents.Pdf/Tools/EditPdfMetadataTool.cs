@@ -452,20 +452,44 @@ internal sealed partial class EditPdfMetadataTool : PdfToolBase
     [GeneratedRegex("^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$", RegexOptions.CultureInvariant)]
     private static partial Regex LanguagePattern();
 
+    /// <summary>
+    /// The changes a call asks for.
+    /// </summary>
     private sealed class MetadataRequest
     {
+        /// <summary>
+        /// Gets the standard properties to set, by information dictionary key.
+        /// </summary>
         public Dictionary<string, (string Label, string Value)> Standard { get; } = new(StringComparer.Ordinal);
 
+        /// <summary>
+        /// Gets the standard properties to remove, by information dictionary key.
+        /// </summary>
         public HashSet<string> Clear { get; } = new(StringComparer.Ordinal);
 
+        /// <summary>
+        /// Gets or sets the language to set.
+        /// </summary>
         public string Language { get; set; }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether the language is removed.
+        /// </summary>
         public bool ClearLanguage { get; set; }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether every custom property is removed.
+        /// </summary>
         public bool ClearAllCustom { get; set; }
 
+        /// <summary>
+        /// Gets the custom properties to set, by name; a <see langword="null"/> value removes one.
+        /// </summary>
         public Dictionary<string, string> Custom { get; } = new(StringComparer.Ordinal);
 
+        /// <summary>
+        /// Gets a value indicating whether nothing is to change.
+        /// </summary>
         public bool IsEmpty => Standard.Count == 0 && Clear.Count == 0 && Language is null && !ClearLanguage && !ClearAllCustom && Custom.Count == 0;
     }
 }

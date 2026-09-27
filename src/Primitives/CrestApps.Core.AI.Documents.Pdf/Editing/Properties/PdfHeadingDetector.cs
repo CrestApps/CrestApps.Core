@@ -285,20 +285,44 @@ internal static partial class PdfHeadingDetector
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespacePattern();
 
+    /// <summary>
+    /// A line of text with what heading detection needs to know about it.
+    /// </summary>
     private sealed class LineInfo
     {
+        /// <summary>
+        /// Gets the one-based page the line is on.
+        /// </summary>
         public int Page { get; init; }
 
+        /// <summary>
+        /// Gets the number of the text block the line belongs to, in reading order.
+        /// </summary>
         public int Block { get; init; }
 
+        /// <summary>
+        /// Gets or sets the line's text.
+        /// </summary>
         public string Text { get; set; }
 
+        /// <summary>
+        /// Gets the size most of the line's characters are drawn at, to half a point.
+        /// </summary>
         public double Size { get; init; }
 
+        /// <summary>
+        /// Gets the top of the line, in user space.
+        /// </summary>
         public double Top { get; init; }
 
+        /// <summary>
+        /// Gets or sets the bottom of the line, in user space.
+        /// </summary>
         public double Bottom { get; set; }
 
+        /// <summary>
+        /// Gets a value indicating whether the line sits in the top or bottom tenth of the page.
+        /// </summary>
         public bool InMargin { get; init; }
     }
 }
