@@ -149,7 +149,7 @@ internal sealed class AddPdfLinksTool : PdfToolBase
                 answer.AppendLine(string.Create(CultureInfo.InvariantCulture, $"(and {placed.Count - 50} more)"));
             }
 
-            PdfPropertiesToolText.AppendNotes(answer, signatures);
+            PdfPropertiesToolText.AppendNotes(answer, signatures, PdfProtection.DescribeDropped(bytes, password));
 
             return answer.ToString().TrimEnd();
         }, cancellationToken);

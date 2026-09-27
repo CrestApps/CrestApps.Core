@@ -150,7 +150,7 @@ internal sealed class ManagePdfAttachmentsTool : PdfToolBase
                 ? $"Replaced the attachment \"{name}\" with {fileName} ({PdfPropertiesToolText.Size(content.LongLength)})."
                 : $"Attached \"{name}\" ({PdfPropertiesToolText.Size(content.LongLength)}).");
 
-            PdfPropertiesToolText.AppendNotes(answer, sync.DescribeConformance(), signatures);
+            PdfPropertiesToolText.AppendNotes(answer, sync.DescribeConformance(), signatures, PdfProtection.DescribeDropped(bytes, password));
 
             return answer.ToString().TrimEnd();
         }, cancellationToken);
@@ -185,7 +185,7 @@ internal sealed class ManagePdfAttachmentsTool : PdfToolBase
             answer.AppendLine(PdfPropertiesToolText.Saved(target, working));
             answer.AppendLine(string.Create(CultureInfo.InvariantCulture, $"Removed {removed} attachment(s) named \"{name}\"; the embedded file is no longer in the file."));
 
-            PdfPropertiesToolText.AppendNotes(answer, signatures);
+            PdfPropertiesToolText.AppendNotes(answer, signatures, PdfProtection.DescribeDropped(bytes, password));
 
             return answer.ToString().TrimEnd();
         }, cancellationToken);

@@ -20,5 +20,7 @@ internal static class PdfPropertiesToolRegistrations
         services.AddPdfTool<ManagePdfAttachmentsTool>(ManagePdfAttachmentsTool.TheName, "Manage PDF Attachments", "Lists, adds, extracts and removes the files embedded in a PDF.");
         services.AddPdfTool<ManagePdfLayersTool>(ManagePdfLayersTool.TheName, "Manage PDF Layers", "Lists a PDF's layers and shows or hides them by default.");
         services.AddPdfTool<AddPdfLinksTool>(AddPdfLinksTool.TheName, "Add PDF Links", "Adds web links and links to pages over text or areas of a PDF.");
+        services.AddPdfTool<ProtectPdfTool>(ProtectPdfTool.TheName, "Protect PDF", "Encrypts a PDF with an open password and permissions.");
+        services.AddPdfTool<RemovePdfSecurityTool>(RemovePdfSecurityTool.TheName, "Remove PDF Security", "Removes a PDF's password protection when the user supplies its password.");
     }
 }

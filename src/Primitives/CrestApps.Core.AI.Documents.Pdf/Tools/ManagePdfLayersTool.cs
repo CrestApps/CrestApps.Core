@@ -135,7 +135,7 @@ internal sealed class ManagePdfLayersTool : PdfToolBase
                 ? "Viewers show these layers on opening."
                 : "The hidden content is still in the file and readers can switch it back on in a viewer's layers panel; this tool does not remove layer content permanently.");
 
-            PdfPropertiesToolText.AppendNotes(answer, signatures);
+            PdfPropertiesToolText.AppendNotes(answer, signatures, PdfProtection.DescribeDropped(bytes, password));
 
             return answer.ToString().TrimEnd();
         }, cancellationToken);

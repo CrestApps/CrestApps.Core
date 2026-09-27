@@ -151,6 +151,7 @@ internal sealed partial class EditPdfMetadataTool : PdfToolBase
                         : "The file is encrypted, so its XMP metadata was written by the PDF library from these values.",
                     sync.DescribeConformance(),
                     signatures,
+                    PdfProtection.DescribeDropped(bytes, arguments.GetString("password")),
                 ]);
 
             return answer.ToString().TrimEnd();

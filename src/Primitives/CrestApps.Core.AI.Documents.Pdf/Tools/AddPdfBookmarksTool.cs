@@ -216,7 +216,7 @@ internal sealed class AddPdfBookmarksTool : PdfToolBase
                 AppendTree(answer, nodes, 1, ref lines);
             }
 
-            PdfPropertiesToolText.AppendNotes(answer, signatures);
+            PdfPropertiesToolText.AppendNotes(answer, signatures, PdfProtection.DescribeDropped(bytes, password));
 
             return answer.ToString().TrimEnd();
         }, cancellationToken);
