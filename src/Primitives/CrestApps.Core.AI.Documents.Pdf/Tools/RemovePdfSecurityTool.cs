@@ -78,6 +78,9 @@ internal sealed class RemovePdfSecurityTool : PdfToolBase
 
             var saved = sync.Save(document, context.TimeProvider.GetUtcNow());
             var working = await context.SaveWorkingFileAsync(state, target, arguments.GetString("save_as"), saved, "Removed the password protection", cancellationToken);
+
+            // Here the copy is meant to be unprotected.
+            context.Notes.Remove(PdfProtection.DroppedNote);
             var answer = new StringBuilder();
 
             answer.AppendLine(PdfPropertiesToolText.Saved(target, working));

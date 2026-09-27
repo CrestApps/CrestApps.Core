@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml.Linq;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
@@ -23,8 +24,12 @@ namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 /// </remarks>
 internal sealed class PdfMetadataSync
 {
+    // A document opened for editing is captured once; a tool that captures it again gets the same capture,
+    // which still holds the packet the file had.
+    private static readonly ConditionalWeakTable<PdfDocument, PdfMetadataSync> _captures = [];
+
     private readonly XElement _original;
-    private readonly bool _keepOtherProperties;
+    private bool _keepOtherProperties;
 
     private PdfMetadataSync(XElement original, bool keepOtherProperties)
     {
@@ -76,6 +81,13 @@ internal sealed class PdfMetadataSync
     {
         ArgumentNullException.ThrowIfNull(document);
 
+        if (_captures.TryGetValue(document, out var existing))
+        {
+            existing._keepOtherProperties &= keepOtherProperties;
+
+            return existing;
+        }
+
         var catalog = document.Internals.Catalog;
         XElement original = null;
 
@@ -93,7 +105,11 @@ internal sealed class PdfMetadataSync
 
         catalog.Elements.Remove("/Metadata");
 
-        return new PdfMetadataSync(original, keepOtherProperties);
+        var sync = new PdfMetadataSync(original, keepOtherProperties);
+
+        _captures.AddOrUpdate(document, sync);
+
+        return sync;
     }
 
     /// <summary>
@@ -110,7 +126,7 @@ internal sealed class PdfMetadataSync
 
         // PDFsharp refuses to count the pages of a document it has saved.
         var pageCount = document.PageCount;
-        var saved = PdfFiles.Save(document);
+        var saved = PdfFiles.SaveAsIs(document);
         var rewritten = Rewrite(saved, document, pageCount);
 
         Rewritten = rewritten is not null;

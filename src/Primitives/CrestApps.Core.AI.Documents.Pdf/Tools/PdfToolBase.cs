@@ -66,6 +66,15 @@ internal abstract class PdfToolBase : AIFunction
         {
             var response = await ExecuteAsync(new PdfToolArguments(arguments), context, cancellationToken);
 
+            // A note the tool already worked into its answer is not repeated.
+            foreach (var note in context.Notes)
+            {
+                if (response is not null && !response.Contains(note, StringComparison.Ordinal))
+                {
+                    response = response.TrimEnd() + Environment.NewLine + Environment.NewLine + "Note: " + note;
+                }
+            }
+
             if (logger.IsEnabled(LogLevel.Debug))
             {
                 logger.LogDebug("AI tool '{ToolName}' completed with {Length} characters.", Name, response?.Length ?? 0);

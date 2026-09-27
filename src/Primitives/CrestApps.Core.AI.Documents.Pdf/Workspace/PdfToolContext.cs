@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Documents.Endpoints;
 using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
+using CrestApps.Core.AI.Documents.Pdf.Editing;
 using CrestApps.Core.AI.Documents.Tooling;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
@@ -34,6 +35,7 @@ internal sealed class PdfToolContext : IPdfImageSource
     private readonly PdfDocumentComposer _composer;
     private readonly IServiceProvider _services;
     private readonly HashSet<string> _readableReferences;
+    private bool _readProtected;
     private PdfWorkspaceState _state;
 
     private PdfToolContext(
@@ -94,6 +96,12 @@ internal sealed class PdfToolContext : IPdfImageSource
     /// Gets the logger.
     /// </summary>
     public ILogger Logger { get; }
+
+    /// <summary>
+    /// Gets the notes the answer of the current call ends with, such as a warning that a protected source
+    /// was saved without its protection.
+    /// </summary>
+    public List<string> Notes { get; } = [];
 
     /// <summary>
     /// Gets the request services.
@@ -395,19 +403,21 @@ internal sealed class PdfToolContext : IPdfImageSource
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        if (source.IsUpload)
-        {
-            return await ReadUploadAsync(source.Upload, cancellationToken)
-                ?? throw new PdfToolException($"The stored file for \"{source.Name}\" is missing. Ask the user to upload it again.");
-        }
-
         if (source.IsComposed)
         {
             return (await RenderAsync(source.Working, cancellationToken)).Bytes;
         }
 
-        return await _workspaceStore.ReadBlobAsync(source.Working.BlobPath, cancellationToken)
-            ?? throw new PdfToolException($"The file behind working PDF \"{source.Name}\" is missing. Recreate it from the upload it came from.");
+        var bytes = source.IsUpload
+            ? await ReadUploadAsync(source.Upload, cancellationToken)
+                ?? throw new PdfToolException($"The stored file for \"{source.Name}\" is missing. Ask the user to upload it again.")
+            : await _workspaceStore.ReadBlobAsync(source.Working.BlobPath, cancellationToken)
+                ?? throw new PdfToolException($"The file behind working PDF \"{source.Name}\" is missing. Recreate it from the upload it came from.");
+
+        // PDFsharp saves every edit without the source's encryption; the answer has to say so.
+        _readProtected |= PdfProtection.DeclaresEncryption(bytes);
+
+        return bytes;
     }
 
     /// <summary>
@@ -551,6 +561,11 @@ internal sealed class PdfToolContext : IPdfImageSource
         }
 
         var previousBlob = existing.BlobPath;
+
+        if (_readProtected && !PdfProtection.DeclaresEncryption(bytes) && !Notes.Contains(PdfProtection.DroppedNote))
+        {
+            Notes.Add(PdfProtection.DroppedNote);
+        }
 
         existing.BlobPath = await _workspaceStore.WriteBlobAsync(RequireScope(), bytes, ".pdf", cancellationToken);
         existing.ByteLength = bytes.LongLength;

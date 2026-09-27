@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Documents.Pdf.Composition;
+using CrestApps.Core.AI.Documents.Pdf.Editing;
 using PdfSharp.Pdf.IO;
 using PdfSharpDocument = PdfSharp.Pdf.PdfDocument;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
@@ -49,7 +50,12 @@ internal static class PdfFiles
         // Edits draw text, and PDFsharp needs to know where the host's fonts are before it measures any.
         PdfFontConfiguration.Ensure();
 
-        return Open(bytes, password, PdfDocumentOpenMode.Modify);
+        var document = Open(bytes, password, PdfDocumentOpenMode.Modify);
+
+        // The file's XMP packet is taken now, before any edit, so the save can write a correct one.
+        PdfMetadataSync.Capture(document);
+
+        return document;
     }
 
     /// <summary>
@@ -64,11 +70,24 @@ internal static class PdfFiles
     }
 
     /// <summary>
-    /// Saves a PDF to bytes.
+    /// Saves a PDF to bytes, dating the change and writing XMP metadata that agrees with the document
+    /// information and keeps the conformance the file claimed.
     /// </summary>
     /// <param name="document">The document.</param>
     /// <returns>The file.</returns>
     public static byte[] Save(PdfSharpDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        return PdfMetadataSync.Capture(document).Save(document, TimeProvider.System.GetUtcNow());
+    }
+
+    /// <summary>
+    /// Saves a PDF to bytes exactly as PDFsharp writes it.
+    /// </summary>
+    /// <param name="document">The document.</param>
+    /// <returns>The file.</returns>
+    public static byte[] SaveAsIs(PdfSharpDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
 
@@ -114,9 +133,13 @@ internal static class PdfFiles
             stream.Dispose();
 
             throw new PdfToolException(
-                string.IsNullOrEmpty(password)
-                    ? "This PDF is protected and cannot be changed without its owner password. Ask the user for it and pass it as 'password', or use remove_pdf_security first."
-                    : "The password given does not open this PDF for changes. It needs the owner password, not only the one that opens it for reading.",
+                (string.IsNullOrEmpty(password), mode == PdfDocumentOpenMode.Import) switch
+                {
+                    (true, true) => "This PDF is protected with a password. Ask the user for it and pass it as 'password'.",
+                    (true, false) => "This PDF is protected and cannot be changed without its owner password. Ask the user for it and pass it as 'password', or use remove_pdf_security first.",
+                    (false, true) => "The password given does not open this PDF.",
+                    _ => "The password given does not open this PDF for changes. It needs the owner password, not only the one that opens it for reading.",
+                },
                 ex);
         }
         catch (Exception ex) when (ex is not PdfToolException and not OperationCanceledException)

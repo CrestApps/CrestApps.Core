@@ -13,6 +13,21 @@ namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 internal static class PdfProtection
 {
     /// <summary>
+    /// The note an answer carries when an edit saved a protected source without its protection.
+    /// </summary>
+    public const string DroppedNote = "The source was password protected; like every edit, this working copy is saved without that protection. Protect it again with protect_pdf as the last step if it must stay protected.";
+
+    /// <summary>
+    /// Returns whether a file declares encryption, without parsing it: an encrypted file names its
+    /// encryption dictionary in its trailer, which is never itself encrypted.
+    /// </summary>
+    /// <param name="bytes">The file.</param>
+    /// <returns><see langword="true"/> when the file names an encryption dictionary.</returns>
+    public static bool DeclaresEncryption(ReadOnlySpan<byte> bytes)
+    {
+        return bytes.IndexOf("/Encrypt"u8) >= 0;
+    }
+    /// <summary>
     /// Returns whether a file is encrypted.
     /// </summary>
     /// <param name="bytes">The file.</param>
@@ -48,6 +63,6 @@ internal static class PdfProtection
             return null;
         }
 
-        return "The source was password protected; like every edit, this working copy is saved without that protection. Protect it again with protect_pdf as the last step if it must stay protected.";
+        return DroppedNote;
     }
 }
