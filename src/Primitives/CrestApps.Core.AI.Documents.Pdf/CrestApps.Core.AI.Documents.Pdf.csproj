@@ -7,7 +7,7 @@
 			$(CrestAppsDescription)
 
 			PDF support for CrestApps AI documents: the PDF reader, the PDF writer behind generated files and tabular
-			exports, and the system PDF agent that builds, edits, previews and analyses PDFs in a conversation.
+			exports, and the system PDF agent that builds, converts, edits, previews and analyses PDFs in a conversation.
 		</Description>
     <PackageTags>$(PackageTags) ai pdf documents extraction agent</PackageTags>
   </PropertyGroup>
@@ -25,6 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" />
     <PackageReference Include="PdfPig" />
     <PackageReference Include="PDFsharp-MigraDoc" />
   </ItemGroup>

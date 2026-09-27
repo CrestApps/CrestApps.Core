@@ -262,10 +262,26 @@ internal sealed class PdfToolContext : IPdfImageSource
 
         // Reloaded under the lock, so a change made by a tool call that ran alongside this one is kept.
         var state = await _workspaceStore.LoadAsync(scope, cancellationToken);
-        var result = await change(state);
+        var previous = _state;
+
+        // What the change reads through this context — an asset it just added, a document it just made —
+        // has to come from the state it is changing, not from the copy loaded before it.
+        _state = state;
+
+        T result;
+
+        try
+        {
+            result = await change(state);
+        }
+        catch
+        {
+            _state = previous;
+
+            throw;
+        }
 
         await _workspaceStore.SaveAsync(scope, state, cancellationToken);
-        _state = state;
 
         return result;
     }

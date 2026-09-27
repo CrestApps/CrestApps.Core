@@ -18,6 +18,7 @@ internal static class PdfAuthoringToolRegistrations
 
         services.AddPdfTool<GetPdfInfoTool>(GetPdfInfoTool.TheName, "Get PDF Info", "Lists the PDFs in the conversation, or describes one: pages, metadata, bookmarks, forms, attachments, layers and security.");
         services.AddPdfTool<CreatePdfTool>(CreatePdfTool.TheName, "Create PDF", "Starts a new composed PDF with its page setup, theme and first content.");
+        services.AddPdfTool<ConvertToPdfTool>(ConvertToPdfTool.TheName, "Convert to PDF", "Converts uploaded Word, PowerPoint, spreadsheet, Markdown, HTML, text and image files into a composed PDF.");
         services.AddPdfTool<AddPdfContentTool>(AddPdfContentTool.TheName, "Add PDF Content", "Adds, inserts, replaces or removes content blocks in a composed PDF.");
         services.AddPdfTool<FormatPdfTool>(FormatPdfTool.TheName, "Format PDF", "Records how a composed PDF looks: theme, page layout, running heads, page numbers, cover, contents and watermark.");
         services.AddPdfTool<PreviewPdfTool>(PreviewPdfTool.TheName, "Preview PDF", "Shows PDF pages as pictures in the conversation.");
