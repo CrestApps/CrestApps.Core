@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Documents.Pdf.Composition;
 using PdfSharp.Pdf.IO;
 using PdfSharpDocument = PdfSharp.Pdf.PdfDocument;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
@@ -45,6 +46,9 @@ internal static class PdfFiles
     /// <returns>The document. The caller disposes it.</returns>
     public static PdfSharpDocument OpenForEditing(byte[] bytes, string password = null)
     {
+        // Edits draw text, and PDFsharp needs to know where the host's fonts are before it measures any.
+        PdfFontConfiguration.Ensure();
+
         return Open(bytes, password, PdfDocumentOpenMode.Modify);
     }
 

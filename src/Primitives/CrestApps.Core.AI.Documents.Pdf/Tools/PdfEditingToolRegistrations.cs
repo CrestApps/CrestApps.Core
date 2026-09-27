@@ -18,6 +18,7 @@ internal static class PdfEditingToolRegistrations
 
         services.AddPdfTool<RedactPdfTool>(RedactPdfTool.TheName, "Redact PDF", "Permanently removes text, images and areas from pages.");
         services.AddPdfTool<EditPdfContentTool>(EditPdfContentTool.TheName, "Edit PDF Content", "Replaces, adds or removes text and images on existing pages.");
+        services.AddPdfTool<ManagePdfAnnotationsTool>(ManagePdfAnnotationsTool.TheName, "Manage PDF Annotations", "Lists, adds, changes and removes comments, highlights, shapes and stamps.");
         services.AddPdfTool<FindPdfSensitiveDataTool>(FindPdfSensitiveDataTool.TheName, "Find PDF Sensitive Data", "Finds personal, financial and other sensitive data before redaction.");
     }
 }
