@@ -14,5 +14,7 @@ internal static class PdfPropertiesToolRegistrations
     public static void Register(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        services.AddPdfTool<EditPdfMetadataTool>(EditPdfMetadataTool.TheName, "Edit PDF Metadata", "Updates a PDF's title, author, subject, keywords, language and custom properties.");
     }
 }
