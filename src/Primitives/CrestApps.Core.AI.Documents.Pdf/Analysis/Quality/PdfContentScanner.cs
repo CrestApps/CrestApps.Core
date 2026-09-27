@@ -99,7 +99,7 @@ internal static class PdfContentScanner
             }
 
             var page = document.Pages[number - 1];
-            var resources = PdfObjects.GetInherited(page, "/Resources") as PdfDictionary;
+            var resources = PdfObjectReader.GetInherited(page, "/Resources") as PdfDictionary;
 
             result.ScannedPages.Add(number);
 
@@ -131,7 +131,7 @@ internal static class PdfContentScanner
     {
         ArgumentNullException.ThrowIfNull(page);
 
-        var contents = PdfObjects.Get(page, "/Contents");
+        var contents = PdfObjectReader.Get(page, "/Contents");
 
         if (contents is PdfDictionary single)
         {
@@ -145,7 +145,7 @@ internal static class PdfContentScanner
 
         using var buffer = new MemoryStream();
 
-        foreach (var item in PdfObjects.Items(array))
+        foreach (var item in PdfObjectReader.Items(array))
         {
             if (item is not PdfDictionary part || part.Stream is null)
             {
@@ -208,7 +208,7 @@ internal static class PdfContentScanner
                     var xobject = Require(resources, "/XObject", "XObject", operands[0], page, where, result);
 
                     if (xobject is not null &&
-                        PdfObjects.IsName(xobject, "/Subtype", "/Form") &&
+                        PdfObjectReader.IsName(xobject, "/Subtype", "/Form") &&
                         depth < MaxFormDepth &&
                         forms.Add(xobject))
                     {
@@ -225,7 +225,7 @@ internal static class PdfContentScanner
                             break;
                         }
 
-                        var formResources = PdfObjects.GetDictionary(xobject, "/Resources") ?? resources;
+                        var formResources = PdfObjectReader.GetDictionary(xobject, "/Resources") ?? resources;
 
                         ScanStream(formContent, formResources, page, "form " + operands[0], result, forms, depth + 1);
                     }
@@ -271,10 +271,10 @@ internal static class PdfContentScanner
         string where,
         PdfContentScanResult result)
     {
-        var dictionary = PdfObjects.GetDictionary(resources, category);
+        var dictionary = PdfObjectReader.GetDictionary(resources, category);
         var value = dictionary is null
             ? null
-            : PdfObjects.Get(dictionary, name);
+            : PdfObjectReader.Get(dictionary, name);
 
         if (value is PdfDictionary found)
         {

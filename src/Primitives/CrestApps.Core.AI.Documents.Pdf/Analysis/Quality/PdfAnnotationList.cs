@@ -57,7 +57,7 @@ internal sealed class PdfAnnotationEntry
     /// <summary>
     /// Gets the annotation's text description (<c>/Contents</c>), or <see langword="null"/>.
     /// </summary>
-    public string Contents => PdfObjects.GetText(Dictionary, "/Contents");
+    public string Contents => PdfObjectReader.GetText(Dictionary, "/Contents");
 
     /// <summary>
     /// Gets a value indicating whether the annotation is a link.
@@ -93,7 +93,7 @@ internal static class PdfAnnotationList
                 continue;
             }
 
-            foreach (var item in PdfObjects.Items(PdfObjects.GetArray(document.Pages[number - 1], "/Annots")))
+            foreach (var item in PdfObjectReader.Items(PdfObjectReader.GetArray(document.Pages[number - 1], "/Annots")))
             {
                 if (item is not PdfDictionary annotation)
                 {
@@ -104,7 +104,7 @@ internal static class PdfAnnotationList
                 {
                     Dictionary = annotation,
                     Page = number,
-                    Subtype = PdfObjects.GetName(annotation, "/Subtype")?.TrimStart('/'),
+                    Subtype = PdfObjectReader.GetName(annotation, "/Subtype")?.TrimStart('/'),
                     Rect = ReadRect(annotation),
                 };
 
@@ -153,9 +153,9 @@ internal static class PdfAnnotationList
             return (null, "its destination refers to itself");
         }
 
-        var resolved = PdfObjects.Resolve(destination);
+        var resolved = PdfObjectReader.Resolve(destination);
 
-        if (resolved is PdfDictionary wrapper && PdfObjects.Get(wrapper, "/D") is { } inner)
+        if (resolved is PdfDictionary wrapper && PdfObjectReader.Get(wrapper, "/D") is { } inner)
         {
             return ResolveDestination(document, inner, pageIndex, depth + 1);
         }
@@ -169,7 +169,7 @@ internal static class PdfAnnotationList
 
             var first = array.Elements[0];
 
-            if (PdfObjects.Resolve(first) is PdfDictionary)
+            if (PdfObjectReader.Resolve(first) is PdfDictionary)
             {
                 if (pageIndex.TryGetPage(first, out var page))
                 {
@@ -179,7 +179,7 @@ internal static class PdfAnnotationList
                 return (null, "its destination is not a page of this document");
             }
 
-            var number = PdfObjects.AsNumber(first);
+            var number = PdfObjectReader.AsNumber(first);
 
             if (number is not null)
             {
@@ -193,7 +193,7 @@ internal static class PdfAnnotationList
             return (null, "its destination refers to an object that does not exist");
         }
 
-        var name = PdfObjects.AsText(resolved);
+        var name = PdfObjectReader.AsText(resolved);
 
         if (name is null)
         {
@@ -201,8 +201,8 @@ internal static class PdfAnnotationList
         }
 
         var catalog = document.Internals.Catalog;
-        var named = PdfObjects.Get(PdfObjects.GetDictionary(catalog, "/Dests"), "/" + name) ??
-            PdfObjects.LookUpNameTree(PdfObjects.GetDictionary(PdfObjects.GetDictionary(catalog, "/Names"), "/Dests"), name);
+        var named = PdfObjectReader.Get(PdfObjectReader.GetDictionary(catalog, "/Dests"), "/" + name) ??
+            PdfObjectReader.LookUpNameTree(PdfObjectReader.GetDictionary(PdfObjectReader.GetDictionary(catalog, "/Names"), "/Dests"), name);
 
         if (named is null)
         {
@@ -218,37 +218,37 @@ internal static class PdfAnnotationList
         PdfPageIndex pageIndex)
     {
         var annotation = entry.Dictionary;
-        var action = PdfObjects.GetDictionary(annotation, "/A");
+        var action = PdfObjectReader.GetDictionary(annotation, "/A");
 
         if (action is null)
         {
             if (annotation.Elements.ContainsKey("/Dest"))
             {
                 entry.Action = "Dest";
-                (entry.TargetPage, entry.TargetProblem) = ResolveDestination(document, PdfObjects.Get(annotation, "/Dest"), pageIndex);
+                (entry.TargetPage, entry.TargetProblem) = ResolveDestination(document, PdfObjectReader.Get(annotation, "/Dest"), pageIndex);
             }
 
             return;
         }
 
-        entry.Action = PdfObjects.GetName(action, "/S")?.TrimStart('/') ?? "unknown";
+        entry.Action = PdfObjectReader.GetName(action, "/S")?.TrimStart('/') ?? "unknown";
 
         switch (entry.Action)
         {
             case "URI":
-                entry.Uri = PdfObjects.GetText(action, "/URI");
+                entry.Uri = PdfObjectReader.GetText(action, "/URI");
 
                 break;
             case "GoTo":
-                (entry.TargetPage, entry.TargetProblem) = ResolveDestination(document, PdfObjects.Get(action, "/D"), pageIndex);
+                (entry.TargetPage, entry.TargetProblem) = ResolveDestination(document, PdfObjectReader.Get(action, "/D"), pageIndex);
 
                 break;
             case "GoToR" or "GoToE" or "Launch":
-                var file = PdfObjects.Get(action, "/F");
+                var file = PdfObjectReader.Get(action, "/F");
 
                 entry.RemoteFile = file is PdfDictionary specification
-                    ? PdfObjects.GetText(specification, "/UF") ?? PdfObjects.GetText(specification, "/F")
-                    : PdfObjects.AsText(file);
+                    ? PdfObjectReader.GetText(specification, "/UF") ?? PdfObjectReader.GetText(specification, "/F")
+                    : PdfObjectReader.AsText(file);
 
                 break;
         }
@@ -256,7 +256,7 @@ internal static class PdfAnnotationList
 
     private static PdfBox? ReadRect(PdfDictionary annotation)
     {
-        var numbers = PdfObjects.GetNumbers(annotation, "/Rect");
+        var numbers = PdfObjectReader.GetNumbers(annotation, "/Rect");
 
         if (numbers is not { Count: 4 })
         {

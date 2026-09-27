@@ -36,10 +36,10 @@ public sealed class TagPdfAccessibilityToolTests
         using var saved = PdfReader.Open(new MemoryStream(await host.ReadWorkingPdfAsync("form")), PdfDocumentOpenMode.Import);
         var catalog = saved.Internals.Catalog;
 
-        Assert.Equal("en-US", PdfObjects.GetText(catalog, "/Lang"));
+        Assert.Equal("en-US", PdfObjectReader.GetText(catalog, "/Lang"));
         Assert.Equal("Membership application", saved.Info.Title);
-        Assert.True(PdfObjects.GetBoolean(PdfObjects.GetDictionary(catalog, "/ViewerPreferences"), "/DisplayDocTitle"));
-        Assert.Equal("/S", PdfObjects.GetName(saved.Pages[0], "/Tabs"));
+        Assert.True(PdfObjectReader.GetBoolean(PdfObjectReader.GetDictionary(catalog, "/ViewerPreferences"), "/DisplayDocTitle"));
+        Assert.Equal("/S", PdfObjectReader.GetName(saved.Pages[0], "/Tabs"));
 
         var field = Assert.Single(PdfFormFieldList.Read(saved));
 
@@ -48,7 +48,7 @@ public sealed class TagPdfAccessibilityToolTests
         var link = Assert.Single(PdfAnnotationList.Read(saved, [1]), annotation => annotation.IsLink);
 
         Assert.Equal("Our website (link to https://example.com)", link.Contents);
-        Assert.Null(PdfObjects.GetDictionary(catalog, "/MarkInfo"));
+        Assert.Null(PdfObjectReader.GetDictionary(catalog, "/MarkInfo"));
 
         var recheck = await host.InvokeAsync(new CheckPdfAccessibilityTool(), new { pdf = "form" });
 
@@ -120,7 +120,7 @@ public sealed class TagPdfAccessibilityToolTests
 
         using var saved = PdfReader.Open(new MemoryStream(await host.ReadWorkingPdfAsync("tagged")), PdfDocumentOpenMode.Import);
 
-        Assert.True(PdfObjects.GetBoolean(PdfObjects.GetDictionary(saved.Internals.Catalog, "/MarkInfo"), "/Marked"));
+        Assert.True(PdfObjectReader.GetBoolean(PdfObjectReader.GetDictionary(saved.Internals.Catalog, "/MarkInfo"), "/Marked"));
 
         var figure = Assert.Single(PdfStructureTree.Read(saved), element => element.StandardType == "Figure");
 
@@ -135,7 +135,7 @@ public sealed class TagPdfAccessibilityToolTests
 
         var result = await host.InvokeAsync(new TagPdfAccessibilityTool(), new { pdf = "archive.pdf", language = "en" });
 
-        Assert.Contains("Kept the original XMP metadata properties", result, StringComparison.Ordinal);
+        Assert.Contains("PDF/A-2B identification was kept", result, StringComparison.Ordinal);
 
         using var saved = PdfReader.Open(new MemoryStream(await host.ReadWorkingPdfAsync("archive")), PdfDocumentOpenMode.Import);
         var xmp = PdfXmpInfo.Read(saved);

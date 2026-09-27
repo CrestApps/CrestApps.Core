@@ -12,7 +12,7 @@ namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
 /// <c>Resources</c>) create what they do not find. A check must not do that — it would report what it just
 /// added — so the quality tools read the raw dictionaries through here.
 /// </remarks>
-internal static class PdfObjects
+internal static class PdfObjectReader
 {
     /// <summary>
     /// Follows references to the object they point at.

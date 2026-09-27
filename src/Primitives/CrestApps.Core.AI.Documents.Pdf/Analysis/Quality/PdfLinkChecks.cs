@@ -228,7 +228,7 @@ internal static class PdfLinkChecks
 
     private static void CheckBookmarks(PdfCheckList checks, PdfDocument objects)
     {
-        var outlines = PdfObjects.GetDictionary(objects.Internals.Catalog, "/Outlines");
+        var outlines = PdfObjectReader.GetDictionary(objects.Internals.Catalog, "/Outlines");
 
         if (outlines is null)
         {
@@ -241,7 +241,7 @@ internal static class PdfLinkChecks
         var visited = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
         var pending = new Stack<PdfDictionary>();
 
-        if (PdfObjects.GetDictionary(outlines, "/First") is { } first)
+        if (PdfObjectReader.GetDictionary(outlines, "/First") is { } first)
         {
             pending.Push(first);
         }
@@ -250,17 +250,17 @@ internal static class PdfLinkChecks
         {
             var item = pending.Pop();
 
-            for (var current = item; current is not null && visited.Add(current); current = PdfObjects.GetDictionary(current, "/Next"))
+            for (var current = item; current is not null && visited.Add(current); current = PdfObjectReader.GetDictionary(current, "/Next"))
             {
                 count++;
 
-                var title = PdfObjects.GetText(current, "/Title") ?? "(untitled)";
-                var destination = PdfObjects.Get(current, "/Dest");
-                var action = PdfObjects.GetDictionary(current, "/A");
+                var title = PdfObjectReader.GetText(current, "/Title") ?? "(untitled)";
+                var destination = PdfObjectReader.Get(current, "/Dest");
+                var action = PdfObjectReader.GetDictionary(current, "/A");
 
-                if (destination is null && action is not null && PdfObjects.IsName(action, "/S", "/GoTo"))
+                if (destination is null && action is not null && PdfObjectReader.IsName(action, "/S", "/GoTo"))
                 {
-                    destination = PdfObjects.Get(action, "/D");
+                    destination = PdfObjectReader.Get(action, "/D");
                 }
 
                 if (destination is not null)
@@ -273,7 +273,7 @@ internal static class PdfLinkChecks
                     }
                 }
 
-                if (PdfObjects.GetDictionary(current, "/First") is { } child)
+                if (PdfObjectReader.GetDictionary(current, "/First") is { } child)
                 {
                     pending.Push(child);
                 }

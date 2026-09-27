@@ -77,12 +77,12 @@ internal static class PdfActiveContent
         var catalog = document.Internals.Catalog;
         var locations = new Dictionary<PdfDictionary, string>(ReferenceEqualityComparer.Instance);
 
-        foreach (var (name, _) in PdfObjects.ReadNameTree(PdfObjects.GetDictionary(PdfObjects.GetDictionary(catalog, "/Names"), "/JavaScript"), 1_000))
+        foreach (var (name, _) in PdfObjectReader.ReadNameTree(PdfObjectReader.GetDictionary(PdfObjectReader.GetDictionary(catalog, "/Names"), "/JavaScript"), 1_000))
         {
             report.DocumentScripts.Add(name ?? "(unnamed)");
         }
 
-        Label(locations, PdfObjects.Get(catalog, "/OpenAction"), "the open action (runs when the file opens)");
+        Label(locations, PdfObjectReader.Get(catalog, "/OpenAction"), "the open action (runs when the file opens)");
         LabelAdditional(report, locations, catalog, "the document");
 
         for (var index = 0; index < document.PageCount; index++)
@@ -92,28 +92,28 @@ internal static class PdfActiveContent
 
             LabelAdditional(report, locations, page, pageName);
 
-            foreach (var item in PdfObjects.Items(PdfObjects.GetArray(page, "/Annots")))
+            foreach (var item in PdfObjectReader.Items(PdfObjectReader.GetArray(page, "/Annots")))
             {
                 if (item is not PdfDictionary annotation)
                 {
                     continue;
                 }
 
-                var kind = PdfObjects.GetName(annotation, "/Subtype") switch
+                var kind = PdfObjectReader.GetName(annotation, "/Subtype") switch
                 {
                     "/Link" => "a link",
                     "/Widget" => "a form field",
                     _ => "an annotation",
                 };
 
-                Label(locations, PdfObjects.Get(annotation, "/A"), $"{kind} on {pageName}");
+                Label(locations, PdfObjectReader.Get(annotation, "/A"), $"{kind} on {pageName}");
                 LabelAdditional(report, locations, annotation, $"{kind} on {pageName}");
             }
         }
 
-        foreach (var dictionary in PdfObjects.EnumerateDictionaries(document))
+        foreach (var dictionary in PdfObjectReader.EnumerateDictionaries(document))
         {
-            var type = PdfObjects.GetName(dictionary, "/S")?.TrimStart('/');
+            var type = PdfObjectReader.GetName(dictionary, "/S")?.TrimStart('/');
 
             if (type is null && dictionary.Elements.ContainsKey("/JS"))
             {
@@ -126,7 +126,7 @@ internal static class PdfActiveContent
             }
 
             // A structure element also carries /S (its type); only action dictionaries are of interest.
-            if (PdfObjects.IsName(dictionary, "/Type", "/StructElem") || (dictionary.Elements.ContainsKey("/P") && dictionary.Elements.ContainsKey("/K")))
+            if (PdfObjectReader.IsName(dictionary, "/Type", "/StructElem") || (dictionary.Elements.ContainsKey("/P") && dictionary.Elements.ContainsKey("/K")))
             {
                 continue;
             }
@@ -140,7 +140,7 @@ internal static class PdfActiveContent
         }
 
         // Form fields carry their own additional actions, such as keystroke and format scripts.
-        var form = PdfObjects.GetDictionary(catalog, "/AcroForm");
+        var form = PdfObjectReader.GetDictionary(catalog, "/AcroForm");
 
         foreach (var field in PdfFormFieldList.Read(document))
         {
@@ -150,7 +150,7 @@ internal static class PdfActiveContent
             }
         }
 
-        if (form is not null && PdfObjects.Get(form, "/XFA") is not null)
+        if (form is not null && PdfObjectReader.Get(form, "/XFA") is not null)
         {
             report.Actions.Add(new PdfActionFinding("XFA", "the form (an XFA form, which can carry its own scripts)"));
         }
@@ -160,18 +160,18 @@ internal static class PdfActiveContent
 
     private static void Label(Dictionary<PdfDictionary, string> locations, PdfItem action, string location)
     {
-        var current = PdfObjects.Resolve(action) as PdfDictionary;
+        var current = PdfObjectReader.Resolve(action) as PdfDictionary;
 
         // An action may chain further actions through /Next.
         for (var step = 0; step < 16 && current is not null; step++)
         {
             locations.TryAdd(current, location);
 
-            var next = PdfObjects.Get(current, "/Next");
+            var next = PdfObjectReader.Get(current, "/Next");
 
             if (next is PdfArray array)
             {
-                foreach (var item in PdfObjects.Items(array))
+                foreach (var item in PdfObjectReader.Items(array))
                 {
                     Label(locations, item, location);
                 }
@@ -189,7 +189,7 @@ internal static class PdfActiveContent
         PdfDictionary owner,
         string location)
     {
-        var additional = PdfObjects.GetDictionary(owner, "/AA");
+        var additional = PdfObjectReader.GetDictionary(owner, "/AA");
 
         if (additional is null)
         {

@@ -86,12 +86,6 @@ internal sealed class PdfDocumentComposer
             Document = document,
         };
 
-        if (definition.PdfA == true)
-        {
-            renderer.PdfDocument = new PdfDocument();
-            renderer.PdfDocument.SetPdfA();
-        }
-
         renderer.RenderDocument();
 
         var pdf = renderer.PdfDocument;
@@ -112,10 +106,30 @@ internal sealed class PdfDocumentComposer
 
         var pageCount = pdf.PageCount;
 
-        using var buffer = new MemoryStream();
-        pdf.Save(buffer, closeStream: false);
+        // PDFsharp's own XMP packet leaves values unescaped, so a title with an ampersand would make it
+        // unreadable; the sync writes a correct one, and the PDF/A identification when it was asked for.
+        var metadata = PdfMetadataSync.Capture(pdf);
 
-        return new PdfCompositionResult(buffer.ToArray(), pageCount, warnings);
+        if (definition.PdfA == true)
+        {
+            if (PdfArchiveProfile.TryApply(pdf))
+            {
+                metadata.ClaimPdfA(2, "B");
+            }
+            else
+            {
+                warnings.Add("The sRGB colour profile PDF/A needs is not available on this server, so the file was not written as PDF/A.");
+            }
+        }
+
+        var bytes = metadata.Save(pdf, _timeProvider.GetUtcNow());
+
+        if (definition.PdfA == true && !metadata.Rewritten)
+        {
+            warnings.Add("The PDF/A identification could not be written into this file's metadata, so it does not claim PDF/A.");
+        }
+
+        return new PdfCompositionResult(bytes, pageCount, warnings);
     }
 
     private static void ApplyWatermark(

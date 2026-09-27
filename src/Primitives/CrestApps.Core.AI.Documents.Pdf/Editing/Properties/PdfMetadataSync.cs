@@ -28,7 +28,7 @@ internal sealed class PdfMetadataSync
     // which still holds the packet the file had.
     private static readonly ConditionalWeakTable<PdfDocument, PdfMetadataSync> _captures = [];
 
-    private readonly XElement _original;
+    private XElement _original;
     private bool _keepOtherProperties;
 
     private PdfMetadataSync(XElement original, bool keepOtherProperties)
@@ -110,6 +110,40 @@ internal sealed class PdfMetadataSync
         _captures.AddOrUpdate(document, sync);
 
         return sync;
+    }
+
+    /// <summary>
+    /// Makes the saved packet identify the file as PDF/A, replacing any identification it had.
+    /// </summary>
+    /// <param name="part">The PDF/A part, such as 2.</param>
+    /// <param name="conformance">The conformance level, such as <c>B</c>.</param>
+    public void ClaimPdfA(int part, string conformance)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(conformance);
+
+        var rdf = _original is null
+            ? new XElement(PdfXmpPacket.Rdf + "RDF")
+            : new XElement(_original);
+
+        foreach (var property in rdf.Descendants().Where(element => element.Name.Namespace == PdfXmpPacket.PdfAId).ToList())
+        {
+            property.Remove();
+        }
+
+        foreach (var attribute in rdf.Descendants().Attributes().Where(attribute => attribute.Name.Namespace == PdfXmpPacket.PdfAId).ToList())
+        {
+            attribute.Remove();
+        }
+
+        rdf.Add(new XElement(
+            PdfXmpPacket.Rdf + "Description",
+            new XAttribute(PdfXmpPacket.Rdf + "about", string.Empty),
+            new XAttribute(XNamespace.Xmlns + "pdfaid", PdfXmpPacket.PdfAId.NamespaceName),
+            new XElement(PdfXmpPacket.PdfAId + "part", part.ToString(CultureInfo.InvariantCulture)),
+            new XElement(PdfXmpPacket.PdfAId + "conformance", conformance.Trim().ToUpperInvariant())));
+
+        _original = rdf;
+        DropPdfAConformance = false;
     }
 
     /// <summary>

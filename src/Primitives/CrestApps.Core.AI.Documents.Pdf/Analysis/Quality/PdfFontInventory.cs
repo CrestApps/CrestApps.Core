@@ -155,7 +155,7 @@ internal static partial class PdfFontInventory
                 continue;
             }
 
-            var resources = PdfObjects.GetInherited(document.Pages[number - 1], "/Resources") as PdfDictionary;
+            var resources = PdfObjectReader.GetInherited(document.Pages[number - 1], "/Resources") as PdfDictionary;
 
             CollectResources(resources, number, fonts, order, new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance), 0);
         }
@@ -173,29 +173,29 @@ internal static partial class PdfFontInventory
     {
         ArgumentNullException.ThrowIfNull(font);
 
-        var subtype = PdfObjects.GetName(font, "/Subtype")?.TrimStart('/');
-        var name = PdfObjects.GetName(font, "/BaseFont")?.TrimStart('/') ??
-            PdfObjects.GetName(font, "/Name")?.TrimStart('/') ??
+        var subtype = PdfObjectReader.GetName(font, "/Subtype")?.TrimStart('/');
+        var name = PdfObjectReader.GetName(font, "/BaseFont")?.TrimStart('/') ??
+            PdfObjectReader.GetName(font, "/Name")?.TrimStart('/') ??
             resourceName?.TrimStart('/') ??
             "(unnamed)";
 
         var descendant = string.Equals(subtype, "Type0", StringComparison.Ordinal)
-            ? PdfObjects.Items(PdfObjects.GetArray(font, "/DescendantFonts")).OfType<PdfDictionary>().FirstOrDefault()
+            ? PdfObjectReader.Items(PdfObjectReader.GetArray(font, "/DescendantFonts")).OfType<PdfDictionary>().FirstOrDefault()
             : null;
 
-        var descriptor = PdfObjects.GetDictionary(descendant ?? font, "/FontDescriptor");
+        var descriptor = PdfObjectReader.GetDictionary(descendant ?? font, "/FontDescriptor");
         var isType3 = string.Equals(subtype, "Type3", StringComparison.Ordinal);
         var embedded = isType3 ||
-            PdfObjects.Get(descriptor, "/FontFile") is PdfDictionary ||
-            PdfObjects.Get(descriptor, "/FontFile2") is PdfDictionary ||
-            PdfObjects.Get(descriptor, "/FontFile3") is PdfDictionary;
+            PdfObjectReader.Get(descriptor, "/FontFile") is PdfDictionary ||
+            PdfObjectReader.Get(descriptor, "/FontFile2") is PdfDictionary ||
+            PdfObjectReader.Get(descriptor, "/FontFile3") is PdfDictionary;
 
         var baseName = SubsetPrefix().Replace(name, string.Empty);
         var standard = !isType3 && descendant is null && _standard14.Contains(baseName);
-        var hasToUnicode = PdfObjects.Get(font, "/ToUnicode") is PdfDictionary;
-        var encodingItem = PdfObjects.Get(font, "/Encoding");
-        var encodingName = PdfObjects.AsName(encodingItem);
-        var flags = (int)(PdfObjects.GetNumber(descriptor, "/Flags") ?? 0);
+        var hasToUnicode = PdfObjectReader.Get(font, "/ToUnicode") is PdfDictionary;
+        var encodingItem = PdfObjectReader.Get(font, "/Encoding");
+        var encodingName = PdfObjectReader.AsName(encodingItem);
+        var flags = (int)(PdfObjectReader.GetNumber(descriptor, "/Flags") ?? 0);
         var symbolic = (flags & 4) != 0 || baseName is "Symbol" or "ZapfDingbats";
 
         bool mapped;
@@ -203,7 +203,7 @@ internal static partial class PdfFontInventory
 
         if (descendant is not null)
         {
-            var ordering = PdfObjects.GetText(PdfObjects.GetDictionary(descendant, "/CIDSystemInfo"), "/Ordering");
+            var ordering = PdfObjectReader.GetText(PdfObjectReader.GetDictionary(descendant, "/CIDSystemInfo"), "/Ordering");
 
             encoding = encodingName?.TrimStart('/') ?? "embedded CMap";
             mapped = hasToUnicode || (ordering is not null && _cjkOrderings.Contains(ordering) && !string.Equals(encodingName, "/Identity-H", StringComparison.Ordinal) && !string.Equals(encodingName, "/Identity-V", StringComparison.Ordinal));
@@ -218,7 +218,7 @@ internal static partial class PdfFontInventory
         else
         {
             var baseEncoding = encodingItem is PdfDictionary differences
-                ? PdfObjects.GetName(differences, "/BaseEncoding")
+                ? PdfObjectReader.GetName(differences, "/BaseEncoding")
                 : encodingName;
 
             if (encodingItem is PdfDictionary)
@@ -266,13 +266,13 @@ internal static partial class PdfFontInventory
             return;
         }
 
-        var fontDictionary = PdfObjects.GetDictionary(resources, "/Font");
+        var fontDictionary = PdfObjectReader.GetDictionary(resources, "/Font");
 
         if (fontDictionary is not null)
         {
             foreach (var pair in fontDictionary.Elements)
             {
-                if (PdfObjects.Resolve(pair.Value) is not PdfDictionary font)
+                if (PdfObjectReader.Resolve(pair.Value) is not PdfDictionary font)
                 {
                     continue;
                 }
@@ -289,12 +289,12 @@ internal static partial class PdfFontInventory
                 // A Type 3 font draws its glyphs with its own resources, which may name further fonts.
                 if (string.Equals(info.Subtype, "Type3", StringComparison.Ordinal))
                 {
-                    CollectResources(PdfObjects.GetDictionary(font, "/Resources"), page, fonts, order, visited, depth + 1);
+                    CollectResources(PdfObjectReader.GetDictionary(font, "/Resources"), page, fonts, order, visited, depth + 1);
                 }
             }
         }
 
-        var xobjects = PdfObjects.GetDictionary(resources, "/XObject");
+        var xobjects = PdfObjectReader.GetDictionary(resources, "/XObject");
 
         if (xobjects is null)
         {
@@ -303,9 +303,9 @@ internal static partial class PdfFontInventory
 
         foreach (var pair in xobjects.Elements)
         {
-            if (PdfObjects.Resolve(pair.Value) is PdfDictionary form && PdfObjects.IsName(form, "/Subtype", "/Form"))
+            if (PdfObjectReader.Resolve(pair.Value) is PdfDictionary form && PdfObjectReader.IsName(form, "/Subtype", "/Form"))
             {
-                CollectResources(PdfObjects.GetDictionary(form, "/Resources"), page, fonts, order, visited, depth + 1);
+                CollectResources(PdfObjectReader.GetDictionary(form, "/Resources"), page, fonts, order, visited, depth + 1);
             }
         }
     }

@@ -94,7 +94,9 @@ internal sealed class PreviewPdfTool : PdfToolBase
 
         var bytes = await context.ReadPdfAsync(source, cancellationToken);
 
-        using var pdf = PdfFiles.OpenForReading(bytes, arguments.GetString("password"));
+        var password = arguments.GetString("password");
+
+        using var pdf = PdfFiles.OpenForReading(bytes, password);
 
         var pageCount = pdf.NumberOfPages;
         var maxPages = Math.Max(1, options.MaxPages);
@@ -112,7 +114,8 @@ internal sealed class PreviewPdfTool : PdfToolBase
         }
         else
         {
-            var renderings = PdfPageSvgRenderer.Render(bytes, shown, options);
+            // The renderer opens the file without a password, so a protected upload is drawn from a decrypted copy.
+            var renderings = PdfPageSvgRenderer.Render(PdfReadableCopy.WithoutPassword(bytes, password, pdf.IsEncrypted), shown, options);
             var safeName = PdfToolContext.SanitizeName(source.Name).Replace(' ', '_');
             var figures = renderings
                 .Select(rendering => new PdfFigure(

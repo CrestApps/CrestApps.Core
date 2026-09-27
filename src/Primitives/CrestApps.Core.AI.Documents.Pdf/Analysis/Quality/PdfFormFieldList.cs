@@ -15,7 +15,7 @@ internal sealed record PdfFormField(PdfDictionary Dictionary, string FullName, s
     /// <summary>
     /// Gets the tooltip (<c>/TU</c>), the name assistive technology reads out, or <see langword="null"/>.
     /// </summary>
-    public string Tooltip => PdfObjects.GetText(Dictionary, "/TU");
+    public string Tooltip => PdfObjectReader.GetText(Dictionary, "/TU");
 }
 
 /// <summary>
@@ -35,7 +35,7 @@ internal static class PdfFormFieldList
         ArgumentNullException.ThrowIfNull(document);
 
         var fields = new List<PdfFormField>();
-        var form = PdfObjects.GetDictionary(document.Internals.Catalog, "/AcroForm");
+        var form = PdfObjectReader.GetDictionary(document.Internals.Catalog, "/AcroForm");
 
         if (form is null)
         {
@@ -44,7 +44,7 @@ internal static class PdfFormFieldList
 
         var visited = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
 
-        foreach (var item in PdfObjects.Items(PdfObjects.GetArray(form, "/Fields")))
+        foreach (var item in PdfObjectReader.Items(PdfObjectReader.GetArray(form, "/Fields")))
         {
             Walk(item as PdfDictionary, null, null, fields, visited, 0);
         }
@@ -132,7 +132,7 @@ internal static class PdfFormFieldList
             return;
         }
 
-        var partial = PdfObjects.GetText(field, "/T");
+        var partial = PdfObjectReader.GetText(field, "/T");
         var fullName = parentName;
 
         if (!string.IsNullOrEmpty(partial))
@@ -142,12 +142,12 @@ internal static class PdfFormFieldList
                 : parentName + "." + partial;
         }
 
-        var type = PdfObjects.GetName(field, "/FT")?.TrimStart('/') ?? inheritedType;
+        var type = PdfObjectReader.GetName(field, "/FT")?.TrimStart('/') ?? inheritedType;
 
         // Kids without a name of their own are the field's widgets; kids with one are further fields.
-        var childFields = PdfObjects.Items(PdfObjects.GetArray(field, "/Kids"))
+        var childFields = PdfObjectReader.Items(PdfObjectReader.GetArray(field, "/Kids"))
             .OfType<PdfDictionary>()
-            .Where(kid => PdfObjects.Get(kid, "/T") is not null)
+            .Where(kid => PdfObjectReader.Get(kid, "/T") is not null)
             .ToList();
 
         if (childFields.Count == 0)

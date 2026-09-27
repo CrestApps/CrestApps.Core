@@ -35,7 +35,7 @@ internal static class PdfComplianceChecks
         var objects = document.Objects;
         var catalog = objects.Internals.Catalog;
         var xmp = facts.Xmp;
-        var dictionaries = PdfObjects.EnumerateDictionaries(objects);
+        var dictionaries = PdfObjectReader.EnumerateDictionaries(objects);
 
         checks.Category = standard.Name;
 
@@ -80,7 +80,7 @@ internal static class PdfComplianceChecks
         CheckDocumentId(checks, document);
         CheckMetadataConsistency(checks, objects, xmp);
 
-        if (standard.Part == 1 && PdfObjects.Get(catalog, "/OCProperties") is not null)
+        if (standard.Part == 1 && PdfObjectReader.Get(catalog, "/OCProperties") is not null)
         {
             checks.Fail("Optional content", "The file has layers (optional content), which PDF/A-1 does not allow.", "Flatten or remove the layers with manage_pdf_layers.");
         }
@@ -208,8 +208,8 @@ internal static class PdfComplianceChecks
 
     private static void CheckOutputIntent(PdfCheckList checks, PdfDictionary catalog)
     {
-        var intents = PdfObjects.Items(PdfObjects.GetArray(catalog, "/OutputIntents")).OfType<PdfDictionary>().ToList();
-        var archival = intents.Where(intent => PdfObjects.IsName(intent, "/S", "/GTS_PDFA1")).ToList();
+        var intents = PdfObjectReader.Items(PdfObjectReader.GetArray(catalog, "/OutputIntents")).OfType<PdfDictionary>().ToList();
+        var archival = intents.Where(intent => PdfObjectReader.IsName(intent, "/S", "/GTS_PDFA1")).ToList();
 
         if (archival.Count == 0)
         {
@@ -218,14 +218,14 @@ internal static class PdfComplianceChecks
             return;
         }
 
-        if (!archival.Any(intent => PdfObjects.Get(intent, "/DestOutputProfile") is PdfDictionary { Stream: not null }))
+        if (!archival.Any(intent => PdfObjectReader.Get(intent, "/DestOutputProfile") is PdfDictionary { Stream: not null }))
         {
             checks.Fail("Output intent", "The PDF/A output intent has no embedded ICC profile (/DestOutputProfile).");
 
             return;
         }
 
-        var condition = archival.Select(intent => PdfObjects.GetText(intent, "/OutputConditionIdentifier")).FirstOrDefault(text => !string.IsNullOrWhiteSpace(text));
+        var condition = archival.Select(intent => PdfObjectReader.GetText(intent, "/OutputConditionIdentifier")).FirstOrDefault(text => !string.IsNullOrWhiteSpace(text));
 
         checks.Pass("Output intent", condition is null
             ? "The file has a PDF/A output intent with an embedded ICC profile."
@@ -307,15 +307,15 @@ internal static class PdfComplianceChecks
     private static void CheckTransparency(PdfCheckList checks, PdfStandard standard, List<PdfDictionary> dictionaries)
     {
         var findings = new List<string>();
-        var softMasks = dictionaries.Count(dictionary => PdfObjects.IsName(dictionary, "/Subtype", "/Image") && PdfObjects.Get(dictionary, "/SMask") is PdfDictionary);
+        var softMasks = dictionaries.Count(dictionary => PdfObjectReader.IsName(dictionary, "/Subtype", "/Image") && PdfObjectReader.Get(dictionary, "/SMask") is PdfDictionary);
         var alpha = dictionaries.Count(dictionary =>
-            (PdfObjects.GetNumber(dictionary, "/CA") ?? 1) < 1 || (PdfObjects.GetNumber(dictionary, "/ca") ?? 1) < 1);
+            (PdfObjectReader.GetNumber(dictionary, "/CA") ?? 1) < 1 || (PdfObjectReader.GetNumber(dictionary, "/ca") ?? 1) < 1);
 
         var maskedStates = dictionaries.Count(dictionary =>
-            !PdfObjects.IsName(dictionary, "/Subtype", "/Image") && PdfObjects.Get(dictionary, "/SMask") is PdfDictionary);
+            !PdfObjectReader.IsName(dictionary, "/Subtype", "/Image") && PdfObjectReader.Get(dictionary, "/SMask") is PdfDictionary);
 
-        var blends = dictionaries.Count(dictionary => PdfObjects.GetName(dictionary, "/BM") is { } mode && !_allowedBlendModes.Contains(mode));
-        var groups = dictionaries.Count(dictionary => PdfObjects.IsName(PdfObjects.GetDictionary(dictionary, "/Group"), "/S", "/Transparency"));
+        var blends = dictionaries.Count(dictionary => PdfObjectReader.GetName(dictionary, "/BM") is { } mode && !_allowedBlendModes.Contains(mode));
+        var groups = dictionaries.Count(dictionary => PdfObjectReader.IsName(PdfObjectReader.GetDictionary(dictionary, "/Group"), "/S", "/Transparency"));
 
         if (softMasks > 0)
         {
@@ -361,7 +361,7 @@ internal static class PdfComplianceChecks
 
     private static void CheckEmbeddedFiles(PdfCheckList checks, PdfStandard standard, List<PdfDictionary> dictionaries)
     {
-        var specifications = dictionaries.Where(dictionary => PdfObjects.GetDictionary(dictionary, "/EF") is not null).ToList();
+        var specifications = dictionaries.Where(dictionary => PdfObjectReader.GetDictionary(dictionary, "/EF") is not null).ToList();
 
         if (specifications.Count == 0)
         {
@@ -370,7 +370,7 @@ internal static class PdfComplianceChecks
             return;
         }
 
-        var names = specifications.Select(specification => PdfCheckList.Quote(PdfObjects.GetText(specification, "/UF") ?? PdfObjects.GetText(specification, "/F") ?? "unnamed")).ToList();
+        var names = specifications.Select(specification => PdfCheckList.Quote(PdfObjectReader.GetText(specification, "/UF") ?? PdfObjectReader.GetText(specification, "/F") ?? "unnamed")).ToList();
 
         switch (standard.Part)
         {
@@ -381,7 +381,7 @@ internal static class PdfComplianceChecks
             case 2:
                 var notPdf = specifications
                     .Where(specification => !IsPdfFile(specification))
-                    .Select(specification => PdfCheckList.Quote(PdfObjects.GetText(specification, "/UF") ?? PdfObjects.GetText(specification, "/F") ?? "unnamed"))
+                    .Select(specification => PdfCheckList.Quote(PdfObjectReader.GetText(specification, "/UF") ?? PdfObjectReader.GetText(specification, "/F") ?? "unnamed"))
                     .ToList();
 
                 if (notPdf.Count > 0)
@@ -396,8 +396,8 @@ internal static class PdfComplianceChecks
                 break;
             default:
                 var unrelated = specifications
-                    .Where(specification => PdfObjects.GetName(specification, "/AFRelationship") is null)
-                    .Select(specification => PdfCheckList.Quote(PdfObjects.GetText(specification, "/UF") ?? PdfObjects.GetText(specification, "/F") ?? "unnamed"))
+                    .Where(specification => PdfObjectReader.GetName(specification, "/AFRelationship") is null)
+                    .Select(specification => PdfCheckList.Quote(PdfObjectReader.GetText(specification, "/UF") ?? PdfObjectReader.GetText(specification, "/F") ?? "unnamed"))
                     .ToList();
 
                 if (unrelated.Count > 0)
@@ -545,10 +545,10 @@ internal static class PdfComplianceChecks
 
     private static bool IsPdfFile(PdfDictionary specification)
     {
-        var files = PdfObjects.GetDictionary(specification, "/EF");
-        var stream = PdfObjects.GetDictionary(files, "/UF") ?? PdfObjects.GetDictionary(files, "/F");
-        var subtype = PdfObjects.GetName(stream, "/Subtype");
-        var name = PdfObjects.GetText(specification, "/UF") ?? PdfObjects.GetText(specification, "/F") ?? string.Empty;
+        var files = PdfObjectReader.GetDictionary(specification, "/EF");
+        var stream = PdfObjectReader.GetDictionary(files, "/UF") ?? PdfObjectReader.GetDictionary(files, "/F");
+        var subtype = PdfObjectReader.GetName(stream, "/Subtype");
+        var name = PdfObjectReader.GetText(specification, "/UF") ?? PdfObjectReader.GetText(specification, "/F") ?? string.Empty;
 
         return (subtype is not null && subtype.Contains("pdf", StringComparison.OrdinalIgnoreCase)) ||
             name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
@@ -556,14 +556,14 @@ internal static class PdfComplianceChecks
 
     private static IEnumerable<string> Filters(PdfDictionary stream)
     {
-        var filter = PdfObjects.Get(stream, "/Filter");
+        var filter = PdfObjectReader.Get(stream, "/Filter");
 
         if (filter is PdfArray array)
         {
-            return PdfObjects.Items(array).Select(PdfObjects.AsName).Where(name => name is not null);
+            return PdfObjectReader.Items(array).Select(PdfObjectReader.AsName).Where(name => name is not null);
         }
 
-        var single = PdfObjects.AsName(filter);
+        var single = PdfObjectReader.AsName(filter);
 
         return single is null
             ? []

@@ -8,6 +8,42 @@ namespace CrestApps.Core.Tests.Core.Documents.Pdf;
 public sealed class PdfAuthoringToolsTests
 {
     [Fact]
+    public async Task CreatePdf_AsPdfA_WritesTheArchiveIdentificationAndOutputIntent()
+    {
+        using var host = new PdfToolTestHost();
+
+        var created = await host.InvokeAsync(new CreatePdfTool(), new
+        {
+            name = "archive",
+            title = "Contoso & Northwind agreement",
+            pdf_a = true,
+            page_numbers = new { enabled = true },
+            blocks = new object[]
+            {
+                new { type = "heading", text = "Terms", level = 1 },
+                new { type = "paragraph", text = "See [the portal](https://example.com/terms) for the full terms." },
+            },
+        });
+
+        Assert.Contains("Created working PDF \"archive\"", created, StringComparison.Ordinal);
+
+        var verdict = await host.InvokeAsync(new ValidatePdfComplianceTool(), new { pdf = "archive", standard = "pdfa-2b" });
+
+        Assert.Contains("Verdict: appears to satisfy PDF/A-2b", verdict, StringComparison.Ordinal);
+
+        using var pdf = PdfDocument.Open(await host.ReadWorkingPdfAsync("archive"));
+
+        Assert.True(pdf.TryGetXmpMetadata(out var xmp));
+
+        var packet = XDocument.Parse(Encoding.UTF8.GetString(xmp.GetXmlBytes().ToArray()));
+
+        Assert.Contains(packet.Descendants(), element => element.Name.LocalName == "part" && element.Value == "2");
+
+        // The ampersand in the title is escaped, so the packet is well-formed and carries the title.
+        Assert.Contains(packet.Descendants(), element => element.Value == "Contoso & Northwind agreement");
+    }
+
+    [Fact]
     public async Task CreateAddFormatPreviewExport_BuildsTheRequestedReport()
     {
         using var host = new PdfToolTestHost();

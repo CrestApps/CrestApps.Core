@@ -149,7 +149,7 @@ internal static class PdfIntegrityChecks
             return;
         }
 
-        var catalogVersion = PdfObjects.GetName(objects?.Internals.Catalog, "/Version")?.TrimStart('/');
+        var catalogVersion = PdfObjectReader.GetName(objects?.Internals.Catalog, "/Version")?.TrimStart('/');
         var effective = catalogVersion is not null && string.CompareOrdinal(catalogVersion, version) > 0
             ? $"PDF {version}, raised to {catalogVersion} by the document catalog"
             : $"PDF {version}";
@@ -285,7 +285,7 @@ internal static class PdfIntegrityChecks
             counts.Add(string.Create(CultureInfo.InvariantCulture, $"the object reader finds {document.Objects.PageCount}"));
             values.Add(document.Objects.PageCount);
 
-            var declared = PdfObjects.GetNumber(PdfObjects.GetDictionary(document.Objects.Internals.Catalog, "/Pages"), "/Count");
+            var declared = PdfObjectReader.GetNumber(PdfObjectReader.GetDictionary(document.Objects.Internals.Catalog, "/Pages"), "/Count");
 
             if (declared is not null)
             {
@@ -337,7 +337,7 @@ internal static class PdfIntegrityChecks
         {
             var page = objects.Pages[index];
             var number = index + 1;
-            var media = PdfObjects.AsNumbers(PdfObjects.GetInherited(page, "/MediaBox"));
+            var media = PdfObjectReader.AsNumbers(PdfObjectReader.GetInherited(page, "/MediaBox"));
 
             if (media is not { Count: 4 })
             {
@@ -357,11 +357,11 @@ internal static class PdfIntegrityChecks
                 huge.Add(number);
             }
 
-            var cropItem = PdfObjects.GetInherited(page, "/CropBox");
+            var cropItem = PdfObjectReader.GetInherited(page, "/CropBox");
 
             if (cropItem is not null)
             {
-                var crop = PdfObjects.AsNumbers(cropItem);
+                var crop = PdfObjectReader.AsNumbers(cropItem);
 
                 if (crop is not { Count: 4 } || Normalize(crop).Width < 1 || Normalize(crop).Height < 1)
                 {
@@ -378,7 +378,7 @@ internal static class PdfIntegrityChecks
                 }
             }
 
-            var rotation = PdfObjects.AsNumber(PdfObjects.GetInherited(page, "/Rotate"));
+            var rotation = PdfObjectReader.AsNumber(PdfObjectReader.GetInherited(page, "/Rotate"));
 
             if (rotation is not null && Math.Abs(rotation.Value % 90) > 0.001)
             {
@@ -504,7 +504,7 @@ internal static class PdfIntegrityChecks
 
     private static void CheckReferences(PdfCheckList checks, PdfDocument objects)
     {
-        var broken = PdfObjects.FindBrokenReferences(objects);
+        var broken = PdfObjectReader.FindBrokenReferences(objects);
 
         if (broken.Count == 0)
         {

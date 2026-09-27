@@ -47,7 +47,7 @@ internal sealed class PdfAccessibilityFacts
     /// <summary>
     /// Gets the structure elements, in document order.
     /// </summary>
-    public List<PdfStructureElement> Elements { get; private set; } = [];
+    public List<PdfTagElement> Elements { get; private set; } = [];
 
     /// <summary>
     /// Gets the number of bookmarks.
@@ -97,7 +97,7 @@ internal sealed class PdfAccessibilityFacts
     /// <summary>
     /// Gets the figures: structure elements that stand for <c>Figure</c>.
     /// </summary>
-    public List<PdfStructureElement> Figures => [.. Elements.Where(element => element.StandardType == "Figure")];
+    public List<PdfTagElement> Figures => [.. Elements.Where(element => element.StandardType == "Figure")];
 
     /// <summary>
     /// Gathers the facts of a document.
@@ -111,17 +111,17 @@ internal sealed class PdfAccessibilityFacts
         ArgumentNullException.ThrowIfNull(objects);
 
         var catalog = objects.Internals.Catalog;
-        var markInfo = PdfObjects.GetDictionary(catalog, "/MarkInfo");
+        var markInfo = PdfObjectReader.GetDictionary(catalog, "/MarkInfo");
         var pages = Enumerable.Range(1, objects.PageCount).ToList();
         var facts = new PdfAccessibilityFacts
         {
             PageCount = objects.PageCount,
-            IsMarked = PdfObjects.GetBoolean(markInfo, "/Marked") == true,
-            IsSuspect = PdfObjects.GetBoolean(markInfo, "/Suspects") == true,
-            HasStructureTree = PdfObjects.GetDictionary(catalog, "/StructTreeRoot") is not null,
-            Language = PdfObjects.GetText(catalog, "/Lang")?.Trim(),
+            IsMarked = PdfObjectReader.GetBoolean(markInfo, "/Marked") == true,
+            IsSuspect = PdfObjectReader.GetBoolean(markInfo, "/Suspects") == true,
+            HasStructureTree = PdfObjectReader.GetDictionary(catalog, "/StructTreeRoot") is not null,
+            Language = PdfObjectReader.GetText(catalog, "/Lang")?.Trim(),
             Title = ReadInfoTitle(objects),
-            DisplayDocTitle = PdfObjects.GetBoolean(PdfObjects.GetDictionary(catalog, "/ViewerPreferences"), "/DisplayDocTitle"),
+            DisplayDocTitle = PdfObjectReader.GetBoolean(PdfObjectReader.GetDictionary(catalog, "/ViewerPreferences"), "/DisplayDocTitle"),
             Elements = PdfStructureTree.Read(objects),
             BookmarkCount = CountBookmarks(objects),
             Fields = PdfFormFieldList.Read(objects),
@@ -133,7 +133,7 @@ internal sealed class PdfAccessibilityFacts
 
         foreach (var page in facts.Annotations.Where(annotation => annotation.Subtype != "Popup").Select(annotation => annotation.Page).Distinct())
         {
-            if (!PdfObjects.IsName(objects.Pages[page - 1], "/Tabs", "/S"))
+            if (!PdfObjectReader.IsName(objects.Pages[page - 1], "/Tabs", "/S"))
             {
                 facts.PagesMissingTabOrder.Add(page);
             }
@@ -176,7 +176,7 @@ internal sealed class PdfAccessibilityFacts
     /// </summary>
     /// <param name="element">The element.</param>
     /// <returns>The one-based page, or <see langword="null"/>.</returns>
-    public int? PageOf(PdfStructureElement element)
+    public int? PageOf(PdfTagElement element)
     {
         ArgumentNullException.ThrowIfNull(element);
 
@@ -184,14 +184,14 @@ internal sealed class PdfAccessibilityFacts
 
         for (var depth = 0; depth < 32 && current is not null; depth++)
         {
-            var page = PdfObjects.Get(current, "/Pg");
+            var page = PdfObjectReader.Get(current, "/Pg");
 
             if (page is PdfDictionary && PageIndex.TryGetPage(page, out var number))
             {
                 return number;
             }
 
-            current = PdfObjects.GetDictionary(current, "/P");
+            current = PdfObjectReader.GetDictionary(current, "/P");
         }
 
         return null;
@@ -215,23 +215,23 @@ internal sealed class PdfAccessibilityFacts
 
     private static int CountBookmarks(PdfDocument objects)
     {
-        var outlines = PdfObjects.GetDictionary(objects.Internals.Catalog, "/Outlines");
+        var outlines = PdfObjectReader.GetDictionary(objects.Internals.Catalog, "/Outlines");
         var visited = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
         var pending = new Stack<PdfDictionary>();
         var count = 0;
 
-        if (PdfObjects.GetDictionary(outlines, "/First") is { } first)
+        if (PdfObjectReader.GetDictionary(outlines, "/First") is { } first)
         {
             pending.Push(first);
         }
 
         while (pending.Count > 0 && count < 100_000)
         {
-            for (var current = pending.Pop(); current is not null && visited.Add(current); current = PdfObjects.GetDictionary(current, "/Next"))
+            for (var current = pending.Pop(); current is not null && visited.Add(current); current = PdfObjectReader.GetDictionary(current, "/Next"))
             {
                 count++;
 
-                if (PdfObjects.GetDictionary(current, "/First") is { } child)
+                if (PdfObjectReader.GetDictionary(current, "/First") is { } child)
                 {
                     pending.Push(child);
                 }

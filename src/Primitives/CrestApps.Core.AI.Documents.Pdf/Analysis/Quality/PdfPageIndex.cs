@@ -25,7 +25,7 @@ internal sealed class PdfPageIndex
 
             _byDictionary[page] = index + 1;
 
-            var objectNumber = PdfObjects.ObjectNumber(page);
+            var objectNumber = PdfObjectReader.ObjectNumber(page);
 
             if (objectNumber > 0)
             {
@@ -42,11 +42,11 @@ internal sealed class PdfPageIndex
     /// <returns><see langword="true"/> when the item is a page of the document.</returns>
     public bool TryGetPage(PdfItem item, out int page)
     {
-        if (PdfObjects.Resolve(item) is PdfDictionary dictionary && _byDictionary.TryGetValue(dictionary, out page))
+        if (PdfObjectReader.Resolve(item) is PdfDictionary dictionary && _byDictionary.TryGetValue(dictionary, out page))
         {
             return true;
         }
 
-        return _byObjectNumber.TryGetValue(PdfObjects.ObjectNumber(item), out page);
+        return _byObjectNumber.TryGetValue(PdfObjectReader.ObjectNumber(item), out page);
     }
 }

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using CrestApps.Core.AI.Documents.Pdf.Analysis;
+using CrestApps.Core.AI.Documents.Pdf.Editing;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
 using PdfSharp.Pdf;
 using UglyToad.PdfPig.DocumentLayoutAnalysis;
@@ -104,8 +105,7 @@ internal sealed class TagPdfAccessibilityTool : PdfToolBase
 
                 var changes = new List<string>();
                 var notes = new List<string>();
-                var catalog = document.Internals.Catalog;
-                var originalXmp = PdfObjects.GetDictionary(catalog, "/Metadata")?.Stream?.UnfilteredValue;
+                var sync = PdfMetadataSync.Capture(document);
 
                 ApplyLanguage(document, language, changes);
                 ApplyTitle(document, content, title, changes, notes);
@@ -120,19 +120,11 @@ internal sealed class TagPdfAccessibilityTool : PdfToolBase
                     return Report(target, null, changes, notes, "Nothing needed changing; no working copy was saved.");
                 }
 
-                var saved = PdfFiles.Save(document);
+                var saved = sync.Save(document, context.TimeProvider.GetUtcNow());
 
-                if (PdfXmpPreservation.HasForeignProperties(originalXmp))
+                if (sync.DescribeConformance() is { } conformance)
                 {
-                    if (PdfXmpPreservation.TryRestore(saved, originalXmp, out var restored))
-                    {
-                        saved = restored;
-                        changes.Add("Kept the original XMP metadata properties (such as a PDF/A or PDF/UA identification) that saving would otherwise drop.");
-                    }
-                    else
-                    {
-                        notes.Add("Saving rewrote the XMP metadata, and its extra properties (such as a PDF/A or PDF/UA identification) could not be kept; run validate_pdf_compliance before relying on a standards claim.");
-                    }
+                    notes.Add(conformance);
                 }
 
                 var working = await context.SaveWorkingFileAsync(state, target, arguments.GetString("save_as"), saved, "Improved accessibility settings", cancellationToken);
@@ -204,7 +196,7 @@ internal sealed class TagPdfAccessibilityTool : PdfToolBase
 
     private static void ApplyLanguage(PdfDocument document, string language, List<string> changes)
     {
-        var existing = PdfObjects.GetText(document.Internals.Catalog, "/Lang")?.Trim();
+        var existing = PdfObjectReader.GetText(document.Internals.Catalog, "/Lang")?.Trim();
 
         if (language is null)
         {
@@ -254,9 +246,9 @@ internal sealed class TagPdfAccessibilityTool : PdfToolBase
             }
         }
 
-        var preferences = PdfObjects.GetDictionary(document.Internals.Catalog, "/ViewerPreferences");
+        var preferences = PdfObjectReader.GetDictionary(document.Internals.Catalog, "/ViewerPreferences");
 
-        if (PdfObjects.GetBoolean(preferences, "/DisplayDocTitle") != true && !string.IsNullOrWhiteSpace(document.Info.Title))
+        if (PdfObjectReader.GetBoolean(preferences, "/DisplayDocTitle") != true && !string.IsNullOrWhiteSpace(document.Info.Title))
         {
             document.ViewerPreferences.DisplayDocTitle = true;
             changes.Add("Made viewers show the title instead of the file name (DisplayDocTitle).");
@@ -267,16 +259,16 @@ internal sealed class TagPdfAccessibilityTool : PdfToolBase
     {
         var catalog = document.Internals.Catalog;
 
-        if (PdfObjects.GetDictionary(catalog, "/StructTreeRoot") is null)
+        if (PdfObjectReader.GetDictionary(catalog, "/StructTreeRoot") is null)
         {
             notes.Add("This PDF is untagged (it has no structure tree), and this tool cannot build one: that takes the document's content and its reading order. If full tagging is needed, rebuild the document with create_pdf and add_pdf_content, or re-export it from its source application with tagging turned on.");
 
             return;
         }
 
-        var markInfo = PdfObjects.GetDictionary(catalog, "/MarkInfo");
+        var markInfo = PdfObjectReader.GetDictionary(catalog, "/MarkInfo");
 
-        if (PdfObjects.GetBoolean(markInfo, "/Marked") == true)
+        if (PdfObjectReader.GetBoolean(markInfo, "/Marked") == true)
         {
             return;
         }
@@ -298,11 +290,11 @@ internal sealed class TagPdfAccessibilityTool : PdfToolBase
         for (var index = 0; index < document.PageCount; index++)
         {
             var page = document.Pages[index];
-            var annotations = PdfObjects.Items(PdfObjects.GetArray(page, "/Annots"))
+            var annotations = PdfObjectReader.Items(PdfObjectReader.GetArray(page, "/Annots"))
                 .OfType<PdfDictionary>()
-                .Any(annotation => !PdfObjects.IsName(annotation, "/Subtype", "/Popup"));
+                .Any(annotation => !PdfObjectReader.IsName(annotation, "/Subtype", "/Popup"));
 
-            if (annotations && !PdfObjects.IsName(page, "/Tabs", "/S"))
+            if (annotations && !PdfObjectReader.IsName(page, "/Tabs", "/S"))
             {
                 page.Elements.SetName("/Tabs", "/S");
                 pages.Add(index + 1);
@@ -417,7 +409,7 @@ internal sealed class TagPdfAccessibilityTool : PdfToolBase
 
         if (figures.Count == 0)
         {
-            var reason = PdfObjects.GetDictionary(document.Internals.Catalog, "/StructTreeRoot") is null
+            var reason = PdfObjectReader.GetDictionary(document.Internals.Catalog, "/StructTreeRoot") is null
                 ? " (it is untagged, so it has no figures at all)."
                 : ".";
 

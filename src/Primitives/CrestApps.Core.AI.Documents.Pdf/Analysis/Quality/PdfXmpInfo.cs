@@ -120,7 +120,7 @@ internal sealed class PdfXmpInfo
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        var stream = PdfObjects.GetDictionary(document.Internals.Catalog, "/Metadata");
+        var stream = PdfObjectReader.GetDictionary(document.Internals.Catalog, "/Metadata");
 
         if (stream?.Stream is null)
         {
@@ -144,7 +144,7 @@ internal sealed class PdfXmpInfo
 
         var info = Parse(bytes);
 
-        info.IsFiltered = PdfObjects.Get(stream, "/Filter") is not null;
+        info.IsFiltered = PdfObjectReader.Get(stream, "/Filter") is not null;
 
         return info;
     }
