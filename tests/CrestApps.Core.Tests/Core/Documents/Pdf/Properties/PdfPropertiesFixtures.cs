@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
@@ -156,6 +158,68 @@ internal static class PdfPropertiesFixtures
         used.Elements["/L1"] = notes.Reference;
         used.Elements["/L2"] = draft.Reference;
         resources.Elements["/Properties"] = used;
+
+        return Save(document);
+    }
+
+    /// <summary>
+    /// Builds a PDF whose pages each carry their own, identical and uncompressed copy of a form, with a page
+    /// thumbnail, as files assembled from separate pieces often do.
+    /// </summary>
+    /// <param name="pages">The number of pages.</param>
+    /// <returns>The file.</returns>
+    public static byte[] DuplicatedStreamsPdf(int pages = 3)
+    {
+        PdfFontConfiguration.Ensure();
+
+        using var document = new PdfDocument();
+
+        document.Options.CompressContentStreams = false;
+        document.Options.NoCompression = true;
+
+        var drawing = new StringBuilder();
+
+        for (var line = 0; line < 1500; line++)
+        {
+            drawing.Append(CultureInfo.InvariantCulture, $"{line % 100} 0 m {line % 100} 100 l S\n");
+        }
+
+        var content = Encoding.ASCII.GetBytes(drawing.ToString());
+
+        for (var number = 0; number < pages; number++)
+        {
+            var page = document.AddPage();
+
+            using (var graphics = XGraphics.FromPdfPage(page))
+            {
+                graphics.DrawString("Page with a repeated drawing", new XFont("Arial", 12), XBrushes.Black, new XPoint(72, 100));
+            }
+
+            var form = new PdfDictionary(document);
+
+            form.Elements.SetName("/Type", "/XObject");
+            form.Elements.SetName("/Subtype", "/Form");
+            form.Elements["/BBox"] = new PdfLiteral("[0 0 100 100]");
+            form.CreateStream(content);
+            document.Internals.AddObject(form);
+
+            var thumbnail = new PdfDictionary(document);
+
+            thumbnail.CreateStream(new byte[600]);
+            document.Internals.AddObject(thumbnail);
+            page.Elements["/Thumb"] = thumbnail.Reference;
+
+            var resources = page.Elements.GetDictionary("/Resources");
+            var objects = resources.Elements.GetDictionary("/XObject");
+
+            if (objects is null)
+            {
+                objects = new PdfDictionary(document);
+                resources.Elements["/XObject"] = objects;
+            }
+
+            objects.Elements["/Fm9"] = form.Reference;
+        }
 
         return Save(document);
     }

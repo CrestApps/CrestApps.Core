@@ -24,5 +24,6 @@ internal static class PdfPropertiesToolRegistrations
         services.AddPdfTool<RemovePdfSecurityTool>(RemovePdfSecurityTool.TheName, "Remove PDF Security", "Removes a PDF's password protection when the user supplies its password.");
         services.AddPdfTool<SignPdfTool>(SignPdfTool.TheName, "Sign PDF", "Digitally signs a PDF with the signing certificate the host configured.");
         services.AddPdfTool<VerifyPdfSignatureTool>(VerifyPdfSignatureTool.TheName, "Verify PDF Signature", "Verifies a PDF's digital signatures and whether it changed after signing.");
+        services.AddPdfTool<OptimizePdfTool>(OptimizePdfTool.TheName, "Optimize PDF", "Compresses and optimizes a PDF, reporting the size before and after.");
     }
 }

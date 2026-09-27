@@ -123,9 +123,14 @@ internal static class PdfStreamOptimizer
             var replacements = new Dictionary<PdfObject, PdfReference>(ReferenceEqualityComparer.Instance);
             var objects = document.Internals.GetAllObjects();
 
+            // Objects nothing refers to any more (a removed thumbnail) are dropped by the save; they are not
+            // duplicates worth counting.
+            var reachable = Reachable(document);
+
             foreach (var item in objects)
             {
                 if (item is not PdfDictionary dictionary ||
+                    !reachable.Contains(dictionary) ||
                     dictionary.Stream is null ||
                     dictionary.Reference is null ||
                     pageContents.Contains(dictionary))
@@ -180,10 +185,12 @@ internal static class PdfStreamOptimizer
 
         var encoder = new FlateDecode();
         var compressed = 0;
+        var reachable = Reachable(document);
 
         foreach (var item in document.Internals.GetAllObjects())
         {
             if (item is not PdfDictionary dictionary ||
+                !reachable.Contains(dictionary) ||
                 dictionary.Stream is null ||
                 dictionary.Elements["/Filter"] is not null ||
                 dictionary.Elements["/F"] is not null ||
@@ -224,10 +231,12 @@ internal static class PdfStreamOptimizer
 
         var codec = new FlateDecode();
         var recompressed = 0;
+        var reachable = Reachable(document);
 
         foreach (var item in document.Internals.GetAllObjects())
         {
             if (item is not PdfDictionary dictionary ||
+                !reachable.Contains(dictionary) ||
                 dictionary.Stream is null ||
                 dictionary.Elements["/DecodeParms"] is not null ||
                 !IsFlateOnly(dictionary.Elements["/Filter"]))
@@ -271,6 +280,58 @@ internal static class PdfStreamOptimizer
         return recompressed;
     }
 
+    private static HashSet<PdfObject> Reachable(PdfDocument document)
+    {
+        var reachable = new HashSet<PdfObject>(ReferenceEqualityComparer.Instance);
+        var pending = new Stack<PdfItem>();
+
+        pending.Push(document.Internals.Catalog);
+        pending.Push(document.Info);
+
+        while (pending.Count > 0)
+        {
+            var item = pending.Pop();
+
+            if (item is PdfReference reference)
+            {
+                item = reference.Value;
+            }
+
+            switch (item)
+            {
+                case PdfDictionary dictionary:
+                    if (!reachable.Add(dictionary))
+                    {
+                        continue;
+                    }
+
+                    foreach (var entry in dictionary.Elements)
+                    {
+                        if (entry.Value is not null)
+                        {
+                            pending.Push(entry.Value);
+                        }
+                    }
+
+                    break;
+                case PdfArray array:
+                    if (!reachable.Add(array))
+                    {
+                        continue;
+                    }
+
+                    foreach (var element in array.Elements)
+                    {
+                        pending.Push(element);
+                    }
+
+                    break;
+            }
+        }
+
+        return reachable;
+    }
+
     private static bool IsFlateOnly(PdfItem filter)
     {
         return PdfObjects.Resolve(filter) switch
@@ -311,15 +372,16 @@ internal static class PdfStreamOptimizer
             case PdfDictionary dictionary:
                 builder.Append("<<");
 
-                foreach (var entry in dictionary.Elements.OrderBy(entry => entry.Key, StringComparer.Ordinal))
+                // PDFsharp's element collection cannot be copied, so it is sorted by its keys.
+                foreach (var key in dictionary.Elements.Keys.Order(StringComparer.Ordinal))
                 {
-                    if (skipLength && entry.Key == "/Length")
+                    if (skipLength && key == "/Length")
                     {
                         continue;
                     }
 
-                    builder.Append(entry.Key).Append(' ');
-                    Describe(entry.Value, builder, depth + 1);
+                    builder.Append(key).Append(' ');
+                    Describe(dictionary.Elements[key], builder, depth + 1);
                     builder.Append(' ');
                 }
 
