@@ -12,8 +12,9 @@ namespace CrestApps.Core.AI.Documents.Services;
 /// Default <see cref="IConversationDocumentCleanupService"/> that removes a conversation's documents from
 /// the <see cref="IAIDocumentStore"/>, deletes their stored file content from the <see cref="IDocumentFileStore"/>,
 /// drops any persisted tabular artifact via the <see cref="ITabularDocumentArtifactStore"/>, clears the
-/// associated chunks from the <see cref="IAIDocumentChunkStore"/>, and removes the file-backed tabular
-/// database when one exists.
+/// associated chunks from the <see cref="IAIDocumentChunkStore"/>, removes the file-backed tabular
+/// database when one exists, and lets every registered <see cref="IConversationWorkspaceCleanupHandler"/>
+/// remove the working state its feature keeps for the conversation.
 /// </summary>
 public sealed class DefaultConversationDocumentCleanupService : IConversationDocumentCleanupService
 {
@@ -21,6 +22,7 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
     private readonly IAIDocumentChunkStore _chunkStore;
     private readonly IDocumentFileStore _fileStore;
     private readonly ITabularDocumentArtifactStore _artifactStore;
+    private readonly IEnumerable<IConversationWorkspaceCleanupHandler> _workspaceCleanupHandlers;
     private readonly ILogger<DefaultConversationDocumentCleanupService> _logger;
 
     /// <summary>
@@ -39,11 +41,34 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
         ITabularDocumentArtifactStore artifactStore,
         IOptions<DocumentFileSystemFileStoreOptions> fileStoreOptions,
         ILogger<DefaultConversationDocumentCleanupService> logger)
+        : this(documentStore, chunkStore, fileStore, artifactStore, fileStoreOptions, [], logger)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultConversationDocumentCleanupService"/> class.
+    /// </summary>
+    /// <param name="documentStore">The document metadata store.</param>
+    /// <param name="chunkStore">The document chunk store.</param>
+    /// <param name="fileStore">The document file store.</param>
+    /// <param name="artifactStore">The tabular document artifact store.</param>
+    /// <param name="fileStoreOptions">The document file store options.</param>
+    /// <param name="workspaceCleanupHandlers">The handlers that remove the working state other features keep per conversation.</param>
+    /// <param name="logger">The logger.</param>
+    public DefaultConversationDocumentCleanupService(
+        IAIDocumentStore documentStore,
+        IAIDocumentChunkStore chunkStore,
+        IDocumentFileStore fileStore,
+        ITabularDocumentArtifactStore artifactStore,
+        IOptions<DocumentFileSystemFileStoreOptions> fileStoreOptions,
+        IEnumerable<IConversationWorkspaceCleanupHandler> workspaceCleanupHandlers,
+        ILogger<DefaultConversationDocumentCleanupService> logger)
     {
         _documentStore = documentStore;
         _chunkStore = chunkStore;
         _fileStore = fileStore;
         _artifactStore = artifactStore;
+        _workspaceCleanupHandlers = workspaceCleanupHandlers ?? [];
         _logger = logger;
     }
 
@@ -73,6 +98,28 @@ public sealed class DefaultConversationDocumentCleanupService : IConversationDoc
         // file that outlives the document rows, so a conversation whose spreadsheets were each removed
         // one by one still has a database to delete, and returning early would orphan it forever.
         TryDeleteTabularDatabase(referenceType, referenceId);
+
+        foreach (var handler in _workspaceCleanupHandlers)
+        {
+            try
+            {
+                await handler.CleanupAsync(referenceId, referenceType, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // One feature failing to tidy up its working state must not stop the others, nor fail the
+                // deletion of a conversation whose documents are already gone.
+                _logger.LogWarning(
+                    ex,
+                    "Workspace cleanup handler '{HandlerType}' failed for conversation '{ReferenceId}'.",
+                    handler.GetType().FullName,
+                    referenceId.SanitizeForLog());
+            }
+        }
 
         if (documents.Count > 0 && _logger.IsEnabled(LogLevel.Debug))
         {

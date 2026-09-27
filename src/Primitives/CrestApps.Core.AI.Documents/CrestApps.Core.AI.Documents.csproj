@@ -22,6 +22,9 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+    <!-- The PDF agent ships next to the PDF writer and reuses the tabular workspace and the spreadsheet value
+         formatting that the preview draws with, so a table taken from uploaded data reads the same in a PDF. -->
+    <InternalsVisibleTo Include="CrestApps.Core.AI.Documents.Pdf" />
   </ItemGroup>
 
   <ItemGroup>
