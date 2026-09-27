@@ -123,7 +123,7 @@ agent.Put(new AgentMetadata
 });
 ```
 
-When a tool-capable agent is invoked, `AgentProxyTool` runs it through the orchestrator so its configured tools are available. A recursion-depth guard (`AIInvocationContext.AgentInvocationDepth`) suppresses nested agents, so an agent can never invoke another agent — bounding recursion to a single level. This is how the system [Tabular Data Agent](./ai-documents.md#tabular-files) runs its SQL tools.
+When a tool-capable agent is invoked, `AgentProxyTool` runs it through the orchestrator so its configured tools are available. A recursion-depth guard (`AIInvocationContext.AgentInvocationDepth`) suppresses nested agents, so an agent can never invoke another agent — bounding recursion to a single level. This is how the system [Tabular Data Agent](./ai-documents.md#tabular-files) runs its SQL tools, and the system [Presentation Agent](./ai-documents.md#presentations-and-the-presentation-agent) its PowerPoint tools.
 
 ### Code-defined profiles and system agents
 
@@ -163,6 +163,11 @@ The built-in **Tabular Data Agent** is the reference pattern for a framework-man
 - it is still returned by `IAIProfileManager.GetAsync(AIProfileType.Agent)`, so the A2A host exposes it like any other agent
 
 Use the same pattern for additional code-defined system agents when you want a capability to be automatically present for orchestration and remotely invocable over A2A without making it a manual UI choice.
+
+The built-in **Presentation Agent** (`presentation-agent`, registered by `AddOpenXml()`) follows it too: its
+hidden PowerPoint tools work on a per-conversation workspace of decks, and a steering handler tells the
+primary model to delegate uploaded `.pptx` and `.potx` files to it. Set `PresentationAgentOptions.Enabled =
+false` to leave it out.
 
 ## Creating Agent Profiles
 

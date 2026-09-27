@@ -40,6 +40,7 @@ With AI Documents enabled, your users can:
 - Search document content semantically instead of by exact keyword only
 - Work with spreadsheets and CSV files through a tabular workflow
 - Download generated files such as exports and AI-authored documents
+- Create, edit, design, preview and export PowerPoint decks through the Presentation Agent
 - Include supported images in chat flows
 
 ## Supported Experiences
@@ -115,6 +116,82 @@ A chart embedded in the workbook is for the downloaded file. To render a chart i
 
 When your deployment supports vision, users can upload supported image files alongside standard documents. This enables image-aware chat scenarios such as describing screenshots, extracting visible text, or answering questions about diagrams and photos.
 
+### Presentations and the Presentation Agent
+
+`AddOpenXml()` registers PowerPoint support: the reader that indexes `.pptx` and `.potx` uploads for search, a
+`.pptx` writer behind generated files, and the built-in **Presentation Agent** (`presentation-agent`). Like
+the Tabular Data Agent it is a code-defined **system agent**: always available to the primary model, exposed
+through the A2A host, and hidden from the agent pickers. The primary model delegates every request that
+produces or works on a slide deck to it — "make me a 6-slide deck about our Q3 results", "use our company
+template", "turn slide 4 into a timeline", "shorten every slide", "export it as PDF" — and every follow-up as
+well. `generate_file` sends `.pptx` requests to the agent instead of writing a deck itself.
+
+#### The workspace
+
+Each chat session or chat interaction has a presentation workspace that persists between turns:
+
+- **Uploaded decks are never changed.** An uploaded `.pptx` is copied into the workspace the first time a
+  presentation tool runs, and every edit changes that working copy. A `.potx` upload is a template: the agent
+  can build a new deck in its design, or restyle an existing deck with it.
+- **Decks are real PowerPoint files.** Every change is applied as one all-or-nothing batch and saved as a new
+  version, so the next turn, the preview and the export all see the same file. The last few versions are
+  kept for `undo_presentation_change` and `compare_presentations`.
+- The workspace is stored through `IDocumentFileStore` under the conversation's document folder, and is
+  removed when the conversation is deleted or its history is cleared. Removing an upload removes the working
+  copy made from it.
+
+#### What the agent can do
+
+| Area | Tools |
+| --- | --- |
+| Understanding | `get_presentation_outline`, `get_slide_content` (every element with its `#id`, role, position, text and style), `get_presentation_theme`, `search_presentation`, `extract_presentation_content` (text, notes, tables, charts, pictures, links, structure) |
+| Slides | `create_presentation` (a theme preset, custom colours and fonts, or an uploaded template, with every slide in one call), `add_slide`, `duplicate_slide`, `delete_slide`, `move_slide`, `update_slide` (title, body, notes, layout, background, transition, visibility — many slides in one call) |
+| Elements | `insert_slide_element` (text, bullets, 40 shapes, lines and connectors, tables, charts, pictures, icons, diagrams, video and audio links, groups), `update_slide_element` (move, resize, rotate, restyle, re-link, replace or crop a picture, alt text), `update_slide_text` (rewrite paragraphs in place, find and replace, speaker notes), `copy_slide_elements`, `delete_slide_element`, `group_slide_elements`, `arrange_slide_elements` (align, distribute, match sizes, layer, snap, auto-layout) |
+| Data | `update_slide_table`, `update_slide_chart` (the chart's embedded workbook is updated too, so it stays editable in PowerPoint), `link_slide_data` and `refresh_slide_data`: tables and charts can take their rows from the conversation's uploaded spreadsheets with a read-only `tabular_sql` query, and stay linked to it |
+| Design | `format_presentation` (consistent text, shape, table, chart and background styles, remembered as the deck's house style), `apply_slide_layout`, `apply_presentation_template`, `set_slide_background`, `update_presentation_theme`, `update_slide_master`, `apply_presentation_branding` (brand colours, fonts, logo, footer), `set_presentation_footer`, `update_presentation_sections`, `add_presentation_toc` (a linked agenda slide) |
+| Visuals | `generate_slide_diagram` (process, chevron, cycle, timeline, hierarchy, pyramid, funnel, matrix, Venn and card diagrams built from editable shapes coloured from the theme), `generate_slide_image` (uses the image deployment) |
+| Review | `analyze_presentation` (storyline, density, speaking time, visuals, design), `check_presentation` (overflowing or overlapping content, inconsistent titles and fonts, missing alt text and titles, low contrast, small text, dense slides, broken links, missing media, schema problems, content previews cannot draw), `compare_presentations` |
+| Delivery | `preview_presentation`, `export_presentation` (`.pptx`, or PDF when `AddPdf()` is also registered), `export_presentation_content` (outline, speaker notes, presenter script with timings, handout or all text — inline or as `.md`, `.txt`, `.docx` or `.pdf`), `undo_presentation_change` |
+
+The agent can also call `list_tabular_data` and `query_tabular_data` to choose the tables and queries a
+slide's data comes from.
+
+#### Previews
+
+`preview_presentation` shows slides in the chat as pictures. Each slide is drawn as SVG from a display list
+built by the same text layout the engine uses when it fits text into boxes, so a line that wraps in the
+preview wraps at the same word in PowerPoint and in the exported PDF. The pictures are stored through
+`IGeneratedDocumentService` and returned as `[fig:N]` markers, a preview is bounded and says which slides it
+left out, and on a host that cannot serve pictures the slides are described in text instead. Content the
+renderer cannot draw — SmartArt, 3D models, embedded objects, video frames — is shown as a labelled box, and
+`check_presentation` says which slides have it. The preview format is resolvable but not requestable, so
+`generate_file` cannot produce one.
+
+#### Options
+
+```csharp
+builder.Services.Configure<PresentationWorkspaceOptions>(options =>
+{
+    options.MaxDecks = 10;         // decks kept per conversation
+    options.MaxRevisions = 5;      // earlier versions kept for undo and comparison
+    options.MaxSlides = 200;
+    options.MaxImageBytes = 15 * 1024 * 1024;
+});
+
+builder.Services.Configure<PresentationPreviewOptions>(options =>
+{
+    options.MaxSlides = 8;         // slides per preview call
+    options.Width = 960;
+});
+
+// Keep PowerPoint reading and writing but leave the agent out.
+builder.Services.Configure<PresentationAgentOptions>(options => options.Enabled = false);
+```
+
+PDF export draws the same display lists into PDF pages. It embeds the fonts the host can resolve and falls
+back to a common sans-serif typeface for the others, and gradients keep their first and last colours; the
+`.pptx` file is unaffected by either.
+
 ## Download Links and Citations
 
 Uploaded documents and generated deliverables can both appear as downloadable references in chat.
@@ -143,7 +220,7 @@ Generated downloads are kept separate from user-uploaded source documents, which
 
 Out of the box, the document features support common text, document, image, and tabular formats. Add the packages you need:
 
-- `AddOpenXml()` for Office formats such as Word, PowerPoint, and Excel
+- `AddOpenXml()` for Office formats such as Word, PowerPoint (`.pptx` and `.potx` templates), and Excel, and for the Presentation Agent
 - `AddPdf()` for PDF reading
 - `AddMarkdown()` for Markdown-aware normalization and chunking
 

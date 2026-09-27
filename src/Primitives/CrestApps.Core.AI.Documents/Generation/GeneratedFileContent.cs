@@ -45,6 +45,23 @@ public sealed class GeneratedFileContent
     public IList<GeneratedSheet> Sheets { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets a file that is already encoded in its final format. When this is set the generated
+    /// document service stores these bytes exactly as given and no writer is involved.
+    /// </summary>
+    /// <remarks>
+    /// This is for host code that produced the file itself — a PDF assembled page by page, an image read
+    /// out of another document — and only needs it stored and offered for download. It is never populated
+    /// from a model-supplied argument: the file-creation tools write model text through a writer, and a
+    /// writer is what decides what a format may contain.
+    /// </remarks>
+    public ReadOnlyMemory<byte> EncodedContent { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether the content is a file that is already encoded and bypasses the writers.
+    /// </summary>
+    public bool HasEncodedContent => !EncodedContent.IsEmpty;
+
+    /// <summary>
     /// Gets a value indicating whether the content carries a tabular header that writers can render.
     /// </summary>
     public bool HasTable => Header is { Count: > 0 } || Sheets.Any(sheet => sheet is { HasTable: true });

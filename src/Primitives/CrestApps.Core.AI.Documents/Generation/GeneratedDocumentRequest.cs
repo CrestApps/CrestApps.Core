@@ -60,4 +60,15 @@ public sealed class GeneratedDocumentRequest
     /// answer. Leaving it on would offer the same file a second time as a download nobody asked for.
     /// </remarks>
     public bool RegisterDownloadReference { get; init; } = true;
+
+    /// <summary>
+    /// Gets the media type the stored document is served with, overriding the one inferred from the file
+    /// extension. Leave it <see langword="null"/> to infer it.
+    /// </summary>
+    /// <remarks>
+    /// A caller storing bytes it did not author — a file embedded in an uploaded document, for instance —
+    /// sets <c>application/octet-stream</c> here so a markup file is downloaded rather than served as markup
+    /// from this origin.
+    /// </remarks>
+    public string ContentType { get; init; }
 }
