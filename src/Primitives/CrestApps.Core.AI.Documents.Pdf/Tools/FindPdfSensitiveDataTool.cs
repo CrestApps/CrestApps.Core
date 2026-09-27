@@ -64,7 +64,7 @@ internal sealed class FindPdfSensitiveDataTool : PdfToolBase
     {
         var source = await context.FindPdfAsync(arguments.Pdf(), cancellationToken);
         var bytes = await context.ReadPdfAsync(source, cancellationToken);
-        var categories = arguments.GetStrings("categories");
+        var categories = arguments.GetStrings("categories", splitCommas: true);
         var kinds = categories.Count > 0 ? categories : [.. PdfPatternLibrary.SensitiveKinds];
         var showValues = arguments.GetBoolean("show_values") == true;
 

@@ -137,17 +137,21 @@ internal static partial class PdfPatternLibrary
         Collect(CreditCard, CardPattern(), IsLuhnValid);
         Collect(Iban, IbanPattern(), IsIbanValid);
         Collect(UsSocialSecurityNumber, SsnPattern(), IsPlausibleSsn);
-        Collect(Phone, PhonePattern(), IsPlausiblePhone);
         Collect(Date, DatePattern());
+        Collect(Phone, PhonePattern(), IsPlausiblePhone);
         Collect(Money, MoneyPattern());
         Collect(Percentage, PercentPattern());
         Collect(UsZipCode, ZipPattern());
 
         // A card number also reads as a phone number and a date part can read as an amount; the more
-        // specific kind wins, and the looser match inside it is dropped.
+        // specific kind wins, and the looser match inside it is dropped. Matches of the same span keep the
+        // order they were collected in, which puts a date such as 2026-03-15 ahead of a phone number.
         var ordered = matches
-            .OrderBy(match => match.Index)
-            .ThenByDescending(match => match.Length)
+            .Select((match, position) => (Match: match, Position: position))
+            .OrderBy(entry => entry.Match.Index)
+            .ThenByDescending(entry => entry.Match.Length)
+            .ThenBy(entry => entry.Position)
+            .Select(entry => entry.Match)
             .ToList();
 
         var result = new List<PdfPatternMatch>(ordered.Count);

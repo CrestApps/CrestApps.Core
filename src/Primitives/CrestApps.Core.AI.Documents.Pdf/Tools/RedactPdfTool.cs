@@ -84,7 +84,7 @@ internal sealed class RedactPdfTool : PdfToolBase
     /// <param name="cancellationToken">The cancellation token.</param>
     protected override async Task<string> ExecuteAsync(PdfToolArguments arguments, PdfToolContext context, CancellationToken cancellationToken)
     {
-        var categories = arguments.GetStrings("categories")
+        var categories = arguments.GetStrings("categories", splitCommas: true)
             .SelectMany(category => category.Equals("all_sensitive", StringComparison.OrdinalIgnoreCase) ? PdfPatternLibrary.SensitiveKinds : [category.Trim().ToLowerInvariant()])
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();

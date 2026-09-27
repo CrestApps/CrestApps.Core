@@ -123,4 +123,15 @@ public sealed class PdfRedactionTests
         Assert.Contains(matches, match => match.Value == "219-09-9999" && match.Kind == PdfPatternLibrary.UsSocialSecurityNumber);
         Assert.Equal("•••-••-9999", PdfPatternLibrary.Mask(PdfPatternLibrary.UsSocialSecurityNumber, "219-09-9999"));
     }
+
+    [Theory]
+    [InlineData("Signed on 2026-03-15 by the buyer.", "2026-03-15")]
+    [InlineData("Signed on 15.03.2026 by the buyer.", "15.03.2026")]
+    public void PatternLibrary_ReadsNumericDatesAsDates(string text, string date)
+    {
+        var match = Assert.Single(PdfPatternLibrary.Find(text, [PdfPatternLibrary.Date, PdfPatternLibrary.Phone]));
+
+        Assert.Equal(PdfPatternLibrary.Date, match.Kind);
+        Assert.Equal(date, match.Value);
+    }
 }

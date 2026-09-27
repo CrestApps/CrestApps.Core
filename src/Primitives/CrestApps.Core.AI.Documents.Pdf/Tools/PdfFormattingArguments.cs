@@ -39,7 +39,7 @@ internal static class PdfFormattingArguments
 
         var changed = new List<string>();
 
-        foreach (var area in arguments.GetStrings("clear"))
+        foreach (var area in arguments.GetStrings("clear", splitCommas: true))
         {
             if (Clear(definition, area.Trim().ToLowerInvariant()))
             {

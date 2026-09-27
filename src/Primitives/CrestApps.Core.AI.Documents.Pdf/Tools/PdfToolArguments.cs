@@ -123,11 +123,15 @@ internal sealed class PdfToolArguments
     }
 
     /// <summary>
-    /// Reads a list of strings, accepting a single string or a comma-separated one.
+    /// Reads a list of strings, accepting an array or a single string.
     /// </summary>
     /// <param name="name">The argument name.</param>
+    /// <param name="splitCommas">
+    /// Whether a single string is split at commas, for lists of names or kinds; leave it off for values that
+    /// may contain a comma themselves, such as text to find.
+    /// </param>
     /// <returns>The values, or an empty list.</returns>
-    public List<string> GetStrings(string name)
+    public List<string> GetStrings(string name, bool splitCommas = false)
     {
         var values = new List<string>();
 
@@ -155,7 +159,11 @@ internal sealed class PdfToolArguments
         {
             var text = element.GetString();
 
-            if (!string.IsNullOrWhiteSpace(text))
+            if (splitCommas)
+            {
+                values.AddRange(text?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? []);
+            }
+            else if (!string.IsNullOrWhiteSpace(text))
             {
                 values.Add(text.Trim());
             }
