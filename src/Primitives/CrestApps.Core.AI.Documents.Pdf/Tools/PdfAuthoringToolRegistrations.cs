@@ -22,5 +22,6 @@ internal static class PdfAuthoringToolRegistrations
         services.AddPdfTool<FormatPdfTool>(FormatPdfTool.TheName, "Format PDF", "Records how a composed PDF looks: theme, page layout, running heads, page numbers, cover, contents and watermark.");
         services.AddPdfTool<PreviewPdfTool>(PreviewPdfTool.TheName, "Preview PDF", "Shows PDF pages as pictures in the conversation.");
         services.AddPdfTool<ExportPdfTool>(ExportPdfTool.TheName, "Export PDF", "Writes a PDF as a download.");
+        services.AddPdfTool<EditPdfPagesTool>(EditPdfPagesTool.TheName, "Edit PDF Pages", "Merges, splits, extracts, reorders, rotates, deletes, inserts, crops and resizes pages, and stamps watermarks, page numbers and running text.");
     }
 }
