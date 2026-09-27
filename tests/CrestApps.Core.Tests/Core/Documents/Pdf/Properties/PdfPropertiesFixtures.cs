@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
+using PdfSharp;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 
@@ -33,6 +34,7 @@ internal static class PdfPropertiesFixtures
         for (var number = 1; number <= pages; number++)
         {
             var page = document.AddPage();
+            page.Size = PageSize.Letter;
 
             using var graphics = XGraphics.FromPdfPage(page);
 
@@ -77,6 +79,7 @@ internal static class PdfPropertiesFixtures
         for (var index = 0; index < sections.Length; index++)
         {
             var page = document.AddPage();
+            page.Size = PageSize.Letter;
 
             using var graphics = XGraphics.FromPdfPage(page);
 
@@ -119,6 +122,7 @@ internal static class PdfPropertiesFixtures
         using var document = new PdfDocument();
 
         var page = document.AddPage();
+        page.Size = PageSize.Letter;
 
         using (var graphics = XGraphics.FromPdfPage(page))
         {
@@ -189,6 +193,7 @@ internal static class PdfPropertiesFixtures
         for (var number = 0; number < pages; number++)
         {
             var page = document.AddPage();
+            page.Size = PageSize.Letter;
 
             using (var graphics = XGraphics.FromPdfPage(page))
             {

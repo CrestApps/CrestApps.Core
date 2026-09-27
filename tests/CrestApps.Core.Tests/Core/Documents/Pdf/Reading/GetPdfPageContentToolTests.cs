@@ -14,8 +14,10 @@ public sealed class GetPdfPageContentToolTests
 
         Assert.Contains("Page 1 of 2 of \"links.pdf\": Letter portrait (612 × 792 pt), rotated 0°.", result, StringComparison.Ordinal);
         Assert.Contains("Text blocks in reading order", result, StringComparison.Ordinal);
-        Assert.Contains("(Arial,Bold 20pt bold): Introduction", result, StringComparison.Ordinal);
-        Assert.Contains("- Arial: 12pt;", result, StringComparison.Ordinal);
+
+        // Font names depend on the fonts the host has; the style and size do not.
+        Assert.Matches(@"\([^()\r\n]*Bold[^()\r\n]* 20pt bold\): Introduction", result);
+        Assert.Matches(@"- [^:\r\n]+: 12pt;", result);
         Assert.Contains("Links (4):", result, StringComparison.Ordinal);
         Assert.Contains("- internal: \"Go to the appendix.\" → (page 2)", result, StringComparison.Ordinal);
         Assert.Contains("- Text, at x=400", result, StringComparison.Ordinal);
@@ -33,7 +35,7 @@ public sealed class GetPdfPageContentToolTests
 
         Assert.Contains("Pictures (1):", result, StringComparison.Ordinal);
         Assert.Contains("64×48 px, png, DeviceRGB", result, StringComparison.Ordinal);
-        Assert.Contains("- Arial,Italic: 9pt;", result, StringComparison.Ordinal);
+        Assert.Matches(@"- [^:\r\n]*Italic[^:\r\n]*: 9pt;", result);
         Assert.DoesNotContain("Text blocks", result, StringComparison.Ordinal);
         Assert.DoesNotContain("Links (", result, StringComparison.Ordinal);
     }

@@ -128,7 +128,9 @@ internal static class PdfReadingFixtures
         var large = new XFont("Arial", 20, XFontStyleEx.Bold);
 
         var first = document.AddPage();
+        first.Size = PageSize.Letter;
         var second = document.AddPage();
+        second.Size = PageSize.Letter;
 
         using (var graphics = XGraphics.FromPdfPage(first))
         {
@@ -301,6 +303,7 @@ internal static class PdfReadingFixtures
         using var document = new PdfDocument();
         var font = new XFont("Arial", 11);
         var first = document.AddPage();
+        first.Size = PageSize.Letter;
 
         using (var graphics = XGraphics.FromPdfPage(first))
         {
@@ -310,7 +313,7 @@ internal static class PdfReadingFixtures
             }
         }
 
-        document.AddPage();
+        document.AddPage().Size = PageSize.Letter;
 
         using var buffer = new MemoryStream();
         document.Save(buffer, closeStream: false);

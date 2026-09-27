@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Documents.Pdf.Composition;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using PdfSharp;
 using PdfSharp.Pdf;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf.Quality;
@@ -116,6 +117,7 @@ internal static class QualityTestPdfs
         foreach (var content in pages)
         {
             var page = document.AddPage();
+            page.Size = PageSize.Letter;
 
             page.Width = PdfSharp.Drawing.XUnit.FromPoint(612);
             page.Height = PdfSharp.Drawing.XUnit.FromPoint(792);

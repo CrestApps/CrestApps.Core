@@ -2,6 +2,7 @@ using System.Text;
 using CrestApps.Core.AI.Documents.Pdf;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
 using Microsoft.Extensions.Options;
+using PdfSharp;
 using PdfSharp.Pdf;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf;
@@ -48,6 +49,7 @@ internal static class PdfToolFixtures
     {
         using var document = new PdfDocument();
         var page = document.AddPage();
+        page.Size = PageSize.Letter;
         var font = new PdfDictionary(document);
 
         font.Elements.SetName("/Type", "/Font");
