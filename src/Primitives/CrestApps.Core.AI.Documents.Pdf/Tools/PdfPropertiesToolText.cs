@@ -28,6 +28,18 @@ internal static class PdfPropertiesToolText
     }
 
     /// <summary>
+    /// Starts a sentence with a capital letter.
+    /// </summary>
+    /// <param name="text">The sentence.</param>
+    /// <returns>The sentence, capitalized.</returns>
+    public static string Capitalize(string text)
+    {
+        return string.IsNullOrEmpty(text)
+            ? text
+            : char.ToUpperInvariant(text[0]) + text[1..];
+    }
+
+    /// <summary>
     /// Quotes a value for an answer, cutting a long one.
     /// </summary>
     /// <param name="value">The value.</param>

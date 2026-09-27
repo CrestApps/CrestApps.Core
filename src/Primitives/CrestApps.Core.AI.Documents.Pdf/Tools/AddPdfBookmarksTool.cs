@@ -107,14 +107,14 @@ internal sealed class AddPdfBookmarksTool : PdfToolBase
 
             if (listing is null)
             {
-                return $"{Capitalize(source.Describe())} has no bookmarks. Add them with 'bookmarks', or generate them with mode 'from_headings'.";
+                return $"{PdfPropertiesToolText.Capitalize(source.Describe())} has no bookmarks. Add them with 'bookmarks', or generate them with mode 'from_headings'.";
             }
 
             var more = total > MaxListed
                 ? $"\n({total - MaxListed:N0} more not shown.)"
                 : string.Empty;
 
-            return $"{Capitalize(source.Describe())} has {total:N0} bookmark(s):\n{listing}{more}";
+            return $"{PdfPropertiesToolText.Capitalize(source.Describe())} has {total:N0} bookmark(s):\n{listing}{more}";
         }
 
         if (mode is not ("add" or "replace" or "clear" or "from_headings"))
@@ -149,7 +149,7 @@ internal sealed class AddPdfBookmarksTool : PdfToolBase
                 case "clear":
                     if (!PdfBookmarks.Clear(document) || existing == 0)
                     {
-                        throw new PdfToolException($"{Capitalize(target.Describe())} has no bookmarks to clear.");
+                        throw new PdfToolException($"{PdfPropertiesToolText.Capitalize(target.Describe())} has no bookmarks to clear.");
                     }
 
                     change = $"Removed all {existing} bookmarks";
@@ -348,12 +348,5 @@ internal sealed class AddPdfBookmarksTool : PdfToolBase
                 return;
             }
         }
-    }
-
-    private static string Capitalize(string text)
-    {
-        return string.IsNullOrEmpty(text)
-            ? text
-            : char.ToUpperInvariant(text[0]) + text[1..];
     }
 }
