@@ -72,6 +72,12 @@ internal sealed class PdfTableDefinition
     public List<PdfHighlightRuleDefinition> HighlightRules { get; set; }
 
     /// <summary>
+    /// Gets or sets the tabular data the rows are read from when the block is added. Cleared once the rows
+    /// are read.
+    /// </summary>
+    public PdfTabularSourceDefinition Source { get; set; }
+
+    /// <summary>
     /// Gets or sets a description of where the rows were read from, kept so a follow-up can tell the reader
     /// what the table shows.
     /// </summary>

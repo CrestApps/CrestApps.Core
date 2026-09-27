@@ -1035,6 +1035,9 @@ internal sealed partial class PdfMigraDocBuilder
         table.RightPadding = Unit.FromPoint(6);
         table.TopPadding = Unit.FromPoint(1.5);
         table.BottomPadding = Unit.FromPoint(1.5);
+
+        // A short fact list reads as one thing; split across a page break it reads as two.
+        table.KeepTogether = pairs.Count <= 15;
         table.AddColumn(Unit.FromPoint(_page.UsableWidth * 0.32));
         table.AddColumn(Unit.FromPoint(_page.UsableWidth * 0.68));
 

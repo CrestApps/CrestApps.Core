@@ -67,4 +67,21 @@ internal sealed class PdfChartDefinition
     /// Gets or sets a caption printed under the chart.
     /// </summary>
     public string Caption { get; set; }
+
+    /// <summary>
+    /// Gets or sets the tabular data the labels and series are read from when the block is added. Cleared
+    /// once the data is read.
+    /// </summary>
+    public PdfTabularSourceDefinition Source { get; set; }
+
+    /// <summary>
+    /// Gets or sets a Chart.js configuration, or a whole <c>[chart:…]</c> marker, the labels and series are
+    /// read from when the block is added. Cleared once it is read.
+    /// </summary>
+    public string ChartJs { get; set; }
+
+    /// <summary>
+    /// Gets or sets a description of where the data was read from.
+    /// </summary>
+    public string SourceDescription { get; set; }
 }

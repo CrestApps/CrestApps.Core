@@ -201,9 +201,12 @@ internal sealed class PdfToolTestHost : IDisposable
 
         if (document.IsComposed)
         {
-            var composer = Services.GetRequiredService<PdfDocumentComposer>();
+            // Rendered through a tool context, so the document's pictures resolve from the conversation the
+            // way an export resolves them.
+            using var scope = Services.CreateScope();
+            var context = await PdfToolContext.ResolveAsync(scope.ServiceProvider, TestContext.Current.CancellationToken);
 
-            return (await composer.ComposeAsync(document.Definition, null, TestContext.Current.CancellationToken)).Bytes;
+            return (await context.RenderAsync(document, TestContext.Current.CancellationToken)).Bytes;
         }
 
         return await store.ReadBlobAsync(document.BlobPath);
