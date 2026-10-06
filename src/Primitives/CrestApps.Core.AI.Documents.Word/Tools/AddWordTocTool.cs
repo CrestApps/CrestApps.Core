@@ -27,8 +27,8 @@ internal sealed class AddWordTocTool : WordToolBase
             "from_level": { "type": "integer", "description": "Highest heading level listed. Default 1." },
             "to_level": { "type": "integer", "description": "Lowest heading level listed. Default 3." },
             "page_numbers": { "type": "boolean", "description": "Show page numbers. Default true." },
-            "page_break_after": { "type": "boolean", "description": "Start the content after the table on a new page. Default true when the table goes at the start." },
-            {{WordToolSchemas.Position}},
+            "page_break_after": { "type": "boolean", "description": "Start the content after the table on a new page. Default true." },
+            "after": { "type": "string", "description": "Only when the user asked for the table somewhere else: the id of the element it follows. Left out, it goes after the title and any cover page." },
             {{WordToolSchemas.SaveAs}}
           },
           "required": [],
@@ -52,7 +52,7 @@ internal sealed class AddWordTocTool : WordToolBase
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Inserts a real Word table of contents built from the document's headings, with hyperlinked entries and page numbers, after the document's title by default — leave after, before and at out unless the user asked for another place. If the document already has one, it is refreshed from the current headings instead. The table is also refreshed automatically on every preview and export, and Word updates it when the file opens.";
+    public override string Description => "Inserts a real Word table of contents built from the document's headings, with hyperlinked entries and page numbers, after the document's title and any cover page. If the document already has one, it is refreshed from the current headings instead. The table is also refreshed automatically on every preview and export, and Word updates it when the file opens.";
 
     /// <summary>
     /// Inserts or refreshes the table of contents.
@@ -72,26 +72,19 @@ internal sealed class AddWordTocTool : WordToolBase
                 var from = Math.Clamp(arguments.GetInt("from_level") ?? 1, 1, 9);
                 var to = Math.Clamp(arguments.GetInt("to_level") ?? 3, from, 9);
                 var title = arguments.GetRawString("title") ?? "Contents";
-                var after = arguments.GetString("after");
-                var before = arguments.GetString("before");
-                var at = arguments.GetString("at");
-
-                if (after is null && before is null && at is null)
-                {
-                    after = LeadingTitle(package);
-                    at = after is null ? "start" : null;
-                }
+                var after = arguments.GetString("after") ?? LeadingTitle(package);
+                var at = after is null ? "start" : null;
 
                 var writer = edit.CreateWriter();
                 var toc = WordTableOfContents.Create(package, writer, title, from, to, arguments.GetBoolean("page_numbers") ?? true);
                 var elements = new List<OpenXmlElement> { toc };
 
-                if (arguments.GetBoolean("page_break_after") ?? (after is not null || at == "start"))
+                if (arguments.GetBoolean("page_break_after") ?? true)
                 {
                     elements.Add(WordBlockWriter.PageBreak());
                 }
 
-                WordBlockLocator.Insert(package, elements, after, before, at);
+                WordBlockLocator.Insert(package, elements, after, null, at);
             }
 
             WordDocumentRefresher.Refresh(package, context.Services);
@@ -115,21 +108,24 @@ internal sealed class AddWordTocTool : WordToolBase
         return $"\"{document.Name}\" (version {document.Version}): {summary} preview_word shows it.";
     }
 
+    // The title block: a title, a subtitle, and the page break that ends a cover page.
     private static string LeadingTitle(WordPackage package)
     {
-        var blocks = WordBlockReader.Read(package);
         string last = null;
 
-        foreach (var block in blocks)
+        foreach (var block in WordBlockReader.Read(package))
         {
-            if (block.Kind is WordBlockKind.Title or WordBlockKind.Subtitle or WordBlockKind.Empty)
+            if (block.Kind is WordBlockKind.Title or WordBlockKind.Subtitle || (last is not null && block.Kind == WordBlockKind.PageBreak))
             {
-                last = block.Kind == WordBlockKind.Empty ? last : block.Id;
+                last = block.Id;
 
                 continue;
             }
 
-            break;
+            if (block.Kind != WordBlockKind.Empty || block.EndsSection)
+            {
+                break;
+            }
         }
 
         return last;

@@ -159,6 +159,29 @@ public sealed class StructureToolsTests
     }
 
     [Fact]
+    public async Task AddWordToc_GoesAfterTheTitleAndItsCoverPage()
+    {
+        using var host = new WordToolTestHost();
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "doc",
+            title = "Report",
+            content = new object[]
+            {
+                new { type = "page_break" },
+                new { type = "heading", text = "Alpha", level = 1 },
+                new { type = "paragraph", text = "Alpha body." },
+            },
+        });
+
+        await host.InvokeAsync(new AddWordTocTool(), new { document = "doc" });
+
+        var kinds = (await ReadAsync(host)).Select(block => block.Kind).ToList();
+
+        Assert.Equal([WordBlockKind.Title, WordBlockKind.PageBreak, WordBlockKind.TableOfContents, WordBlockKind.PageBreak, WordBlockKind.Heading], kinds.Take(5));
+    }
+
+    [Fact]
     public async Task AddWordIndex_ListsMarkedTermsWithPages()
     {
         using var host = new WordToolTestHost();
