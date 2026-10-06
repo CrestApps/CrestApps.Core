@@ -29,7 +29,7 @@ internal static class WordSvgWriter
         var builder = new StringBuilder(64 * 1024);
 
         builder.Append(CultureInfo.InvariantCulture, $"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{Math.Round(page.Width * scale)}\" height=\"{Math.Round(page.Height * scale)}\" viewBox=\"0 0 {N(page.Width)} {N(page.Height)}\">");
-        builder.Append(CultureInfo.InvariantCulture, $"<rect x=\"0\" y=\"0\" width=\"{N(page.Width)}\" height=\"{N(page.Height)}\" fill=\"#{page.Background ?? "FFFFFF"}\"/>");
+        builder.Append(CultureInfo.InvariantCulture, $"<rect x=\"0\" y=\"0\" width=\"{N(page.Width)}\" height=\"{N(page.Height)}\" fill=\"{Paint(page.Background, "FFFFFF")}\"/>");
 
         foreach (var item in page.Items)
         {
@@ -46,7 +46,7 @@ internal static class WordSvgWriter
                     break;
 
                 case WordLineItem line:
-                    builder.Append(CultureInfo.InvariantCulture, $"<line x1=\"{N(line.X1)}\" y1=\"{N(line.Y1)}\" x2=\"{N(line.X2)}\" y2=\"{N(line.Y2)}\" stroke=\"#{line.Color}\" stroke-width=\"{N(Math.Max(0.25, line.Width))}\"");
+                    builder.Append(CultureInfo.InvariantCulture, $"<line x1=\"{N(line.X1)}\" y1=\"{N(line.Y1)}\" x2=\"{N(line.X2)}\" y2=\"{N(line.Y2)}\" stroke=\"{Paint(line.Color, "000000")}\" stroke-width=\"{N(Math.Max(0.25, line.Width))}\"");
 
                     if (line.Dotted)
                     {
@@ -110,9 +110,9 @@ internal static class WordSvgWriter
 
         var format = text.Format;
         var size = format.SmallCaps ? format.DrawnSize * 0.8 : format.DrawnSize;
-        var color = text.MarkupColor ?? format.Color ?? "000000";
+        var color = Paint(text.MarkupColor ?? format.Color, "000000");
 
-        builder.Append(CultureInfo.InvariantCulture, $"<text x=\"{N(text.X)}\" y=\"{N(text.Baseline)}\" font-family=\"{Escape(FontFamily(format.Font))}\" font-size=\"{N(size)}\" fill=\"#{color}\"");
+        builder.Append(CultureInfo.InvariantCulture, $"<text x=\"{N(text.X)}\" y=\"{N(text.Baseline)}\" font-family=\"{Escape(FontFamily(format.Font))}\" font-size=\"{N(size)}\" fill=\"{color}\"");
 
         if (format.Bold)
         {
@@ -133,19 +133,19 @@ internal static class WordSvgWriter
 
         if (format.Underline)
         {
-            builder.Append(CultureInfo.InvariantCulture, $"<line x1=\"{N(text.X)}\" y1=\"{N(text.Baseline + (size * 0.12))}\" x2=\"{N(text.X + text.Width)}\" y2=\"{N(text.Baseline + (size * 0.12))}\" stroke=\"#{color}\" stroke-width=\"{N(Math.Max(0.5, size / 16))}\"/>");
+            builder.Append(CultureInfo.InvariantCulture, $"<line x1=\"{N(text.X)}\" y1=\"{N(text.Baseline + (size * 0.12))}\" x2=\"{N(text.X + text.Width)}\" y2=\"{N(text.Baseline + (size * 0.12))}\" stroke=\"{color}\" stroke-width=\"{N(Math.Max(0.5, size / 16))}\"/>");
         }
 
         if (format.Strike)
         {
-            builder.Append(CultureInfo.InvariantCulture, $"<line x1=\"{N(text.X)}\" y1=\"{N(text.Baseline - (size * 0.3))}\" x2=\"{N(text.X + text.Width)}\" y2=\"{N(text.Baseline - (size * 0.3))}\" stroke=\"#{color}\" stroke-width=\"{N(Math.Max(0.5, size / 16))}\"/>");
+            builder.Append(CultureInfo.InvariantCulture, $"<line x1=\"{N(text.X)}\" y1=\"{N(text.Baseline - (size * 0.3))}\" x2=\"{N(text.X + text.Width)}\" y2=\"{N(text.Baseline - (size * 0.3))}\" stroke=\"{color}\" stroke-width=\"{N(Math.Max(0.5, size / 16))}\"/>");
         }
     }
 
     private static void WriteRect(StringBuilder builder, WordRectItem rect)
     {
-        var fill = rect.Fill is null ? "none" : "#" + rect.Fill;
-        var stroke = rect.Stroke is null ? string.Empty : string.Create(CultureInfo.InvariantCulture, $" stroke=\"#{rect.Stroke}\" stroke-width=\"{N(rect.StrokeWidth)}\"");
+        var fill = rect.Fill is null ? "none" : Paint(rect.Fill, "none");
+        var stroke = rect.Stroke is null ? string.Empty : string.Create(CultureInfo.InvariantCulture, $" stroke=\"{Paint(rect.Stroke, "000000")}\" stroke-width=\"{N(rect.StrokeWidth)}\"");
         var dash = rect.Dashed ? " stroke-dasharray=\"4,3\"" : string.Empty;
 
         if (rect.Ellipse)
@@ -162,7 +162,7 @@ internal static class WordSvgWriter
 
     private static void WriteImage(StringBuilder builder, WordImageItem image)
     {
-        if (image.Bytes is { Length: > 0 } && !string.IsNullOrEmpty(image.MediaType))
+        if (image.Bytes is { Length: > 0 } && image.MediaType is "image/png" or "image/jpeg" or "image/gif" or "image/bmp")
         {
             builder.Append(CultureInfo.InvariantCulture, $"<image x=\"{N(image.X)}\" y=\"{N(image.Y)}\" width=\"{N(image.Width)}\" height=\"{N(image.Height)}\" preserveAspectRatio=\"none\" href=\"data:{image.MediaType};base64,");
             builder.Append(Convert.ToBase64String(image.Bytes));
@@ -193,10 +193,28 @@ internal static class WordSvgWriter
         }
 
         var points = string.Join(' ', polygon.Points.Select(point => N(point.X) + "," + N(point.Y)));
-        var fill = polygon.Fill is null || polygon.Open ? "none" : "#" + polygon.Fill;
-        var stroke = polygon.Stroke is null ? string.Empty : string.Create(CultureInfo.InvariantCulture, $" stroke=\"#{polygon.Stroke}\" stroke-width=\"{N(polygon.StrokeWidth)}\" stroke-linejoin=\"round\"");
+        var fill = polygon.Fill is null || polygon.Open ? "none" : Paint(polygon.Fill, "none");
+        var stroke = polygon.Stroke is null ? string.Empty : string.Create(CultureInfo.InvariantCulture, $" stroke=\"{Paint(polygon.Stroke, "000000")}\" stroke-width=\"{N(polygon.StrokeWidth)}\" stroke-linejoin=\"round\"");
 
         builder.Append(polygon.Open ? "<polyline" : "<polygon").Append(" points=\"").Append(points).Append("\" fill=\"").Append(fill).Append('"').Append(stroke).Append("/>");
+    }
+
+    /// <summary>
+    /// Writes a color for a paint attribute. Colors come from the document, which the user uploaded, so only a
+    /// strict six-digit hexadecimal value is ever written; anything else becomes the fallback rather than text
+    /// that could close the attribute and add markup to a picture this host serves.
+    /// </summary>
+    /// <param name="color">The color.</param>
+    /// <param name="fallback">The six-digit color, or <c>none</c>, used when the color is not one.</param>
+    /// <returns>The attribute value.</returns>
+    public static string Paint(string color, string fallback)
+    {
+        if (color is { Length: 6 } && color.All(char.IsAsciiHexDigit))
+        {
+            return "#" + color;
+        }
+
+        return fallback == "none" ? "none" : "#" + fallback;
     }
 
     private static string N(double value)

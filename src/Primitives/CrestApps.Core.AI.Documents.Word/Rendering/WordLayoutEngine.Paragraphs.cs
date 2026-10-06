@@ -864,15 +864,34 @@ internal sealed partial class WordLayoutEngine
         var lineBox = new LineBox { Height = height, Break = breakKind, Width = contentEnd };
         var offset = 0d;
 
+        // Words and the spaces between them in one format are drawn as one run of text, unless the line is
+        // justified and every space stretches by itself.
+        WordTextItem current = null;
+
         foreach (var (token, x, width) in builder.Tokens)
         {
             var left = x + shift + offset;
+
+            if (token.Kind is not (TokenKind.Text or TokenKind.Space) || token.IsMarker || extraPerSpace > 0)
+            {
+                current = null;
+            }
 
             switch (token.Kind)
             {
                 case TokenKind.Space:
                     offset += extraPerSpace;
                     AddBackground(lineBox, token, left, width + extraPerSpace, baseline);
+
+                    if (current is not null && ReferenceEquals(current.Format, token.Format) && token.Markup is null)
+                    {
+                        current.Text += token.Text;
+                        current.Width += width;
+                    }
+                    else
+                    {
+                        current = null;
+                    }
 
                     break;
 
@@ -905,6 +924,14 @@ internal sealed partial class WordLayoutEngine
                 default:
                     AddBackground(lineBox, token, left, width, baseline);
 
+                    if (current is not null && ReferenceEquals(current.Format, token.Format) && token.Markup is null && !token.Text.Contains('', StringComparison.Ordinal))
+                    {
+                        current.Text += token.Text;
+                        current.Width += width;
+
+                        break;
+                    }
+
                     var drawn = token.Format;
 
                     if (token.Markup is not null)
@@ -921,7 +948,7 @@ internal sealed partial class WordLayoutEngine
                         _ => 0,
                     };
 
-                    lineBox.Items.Add(new WordTextItem
+                    var textItem = new WordTextItem
                     {
                         X = left,
                         Baseline = baseline + verticalShift,
@@ -935,7 +962,12 @@ internal sealed partial class WordLayoutEngine
                             _ => null,
                         },
                         Source = token.Source,
-                    });
+                    };
+
+                    lineBox.Items.Add(textItem);
+
+                    // A page-number placeholder is measured again once the number is known, so it stays alone.
+                    current = token.Markup is null && !token.IsMarker && !token.Text.Contains('', StringComparison.Ordinal) ? textItem : null;
 
                     break;
             }
