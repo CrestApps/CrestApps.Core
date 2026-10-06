@@ -135,10 +135,15 @@ internal static class PdfCompositionDescriber
             {
                 theme.PrimaryColor is null ? null : "primary " + theme.PrimaryColor,
                 theme.AccentColor is null ? null : "accent " + theme.AccentColor,
+                theme.HeadingColor is null ? null : "headings " + theme.HeadingColor,
+                theme.TextColor is null ? null : "text " + theme.TextColor,
+                theme.MutedColor is null ? null : "muted " + theme.MutedColor,
                 theme.FontFamily is null ? null : "font " + theme.FontFamily,
-                theme.HeadingFontFamily is null ? null : "headings " + theme.HeadingFontFamily,
+                theme.HeadingFontFamily is null ? null : "heading font " + theme.HeadingFontFamily,
                 theme.BaseFontSize is null ? null : FormattableString.Invariant($"{theme.BaseFontSize} pt"),
+                theme.LineSpacing is null ? null : FormattableString.Invariant($"line spacing {theme.LineSpacing}"),
                 theme.Logo is null ? null : "logo " + theme.Logo,
+                theme.ChartColors is { Count: > 0 } ? "chart colours " + string.Join(" ", theme.ChartColors) : null,
             }.Where(value => value is not null)));
         }
 
@@ -159,7 +164,10 @@ internal static class PdfCompositionDescriber
 
         if (definition.CoverPage is { } cover && cover.Enabled != false)
         {
-            lines.Add($"Cover page: \"{cover.Title ?? definition.Title}\"" + (cover.BackgroundColor is null ? string.Empty : ", filled " + cover.BackgroundColor));
+            var coverTitle = string.IsNullOrWhiteSpace(cover.Title) ? definition.Title : cover.Title;
+
+            lines.Add((string.IsNullOrWhiteSpace(coverTitle) ? "Cover page: no title (set one with format_pdf)" : $"Cover page: \"{coverTitle}\"") +
+                (cover.BackgroundColor is null ? string.Empty : ", filled " + cover.BackgroundColor));
         }
 
         if (definition.TableOfContents?.Enabled == true)

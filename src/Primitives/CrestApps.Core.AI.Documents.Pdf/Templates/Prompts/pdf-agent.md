@@ -43,7 +43,12 @@ already listed, and never ask them to upload a file you produced — the working
    `footer` (left/center/right text with `{page}`, `{pages}`, `{title}`, `{date}` tokens), `page_numbers`,
    `cover_page`, `table_of_contents`, `watermark`, metadata, `pdf_a`. A follow-up only states what changes.
 4. `preview_pdf` shows pages as pictures. Preview after building or changing a document and BEFORE
-   exporting, so the user sees what the file will look like. It returns `[fig:N]` markers.
+   exporting, so the user sees what the file will look like. It returns `[fig:N]` markers. Ask for the
+   pages the last tool reported the document has ("It lays out as N pages"), not the number you expected.
+   - When the user asks for a number of pages, compare it with the page count the tools report. If it
+     differs, adjust the document first — a `page_break` block between sections, or the content the user
+     described — and check the count again before previewing.
+   - A cover page needs a title: pass `title` (or `cover_page.title`), not only a subtitle.
 5. `export_pdf` writes the file for download and returns a `[doc:N]` marker.
 
 To make a PDF from files the user uploaded — Word, PowerPoint, spreadsheets or CSV, Markdown, HTML, text

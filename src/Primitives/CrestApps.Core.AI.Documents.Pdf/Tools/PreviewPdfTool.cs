@@ -100,9 +100,13 @@ internal sealed class PreviewPdfTool : PdfToolBase
 
         var pageCount = pdf.NumberOfPages;
         var maxPages = Math.Max(1, options.MaxPages);
+        var missing = new List<int>();
+
+        // A preview only reads, so pages asked for past the end are left out and named rather than failing
+        // the call: a model that expected three pages of a two-page document still shows the two.
         var requested = arguments.GetPages() is null
             ? [.. Enumerable.Range(1, Math.Min(pageCount, maxPages))]
-            : PdfPageRange.Parse(arguments.GetPages(), pageCount);
+            : PdfPageRange.Parse(arguments.GetPages(), pageCount, missing: missing);
         var shown = requested.Take(maxPages).ToList();
         var omitted = requested.Skip(maxPages).ToList();
 
@@ -129,6 +133,13 @@ internal sealed class PreviewPdfTool : PdfToolBase
             response = markers is null
                 ? BuildTextResponse(pdf, source, shown, omitted, pageCount, "This host cannot show pictures here, so the pages are written out as text instead.")
                 : BuildImageResponse(source, renderings, markers, omitted, pageCount);
+        }
+
+        if (missing.Count > 0)
+        {
+            response += Environment.NewLine + Environment.NewLine + string.Create(
+                CultureInfo.InvariantCulture,
+                $"The document has {pageCount} page(s), so page {PdfPageRange.Describe(missing)} does not exist and was not shown. If it should, change the document (for example add a page_break block) and preview again.");
         }
 
         Cache(key, response);

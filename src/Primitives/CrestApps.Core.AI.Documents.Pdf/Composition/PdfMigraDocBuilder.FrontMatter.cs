@@ -87,16 +87,19 @@ internal sealed partial class PdfMigraDocBuilder
 
         // The cover title is not a heading of the body, so it does not become a bookmark of its own.
         title.Format.OutlineLevel = OutlineLevel.BodyText;
-        AddInline(title, cover.Title ?? _definition.Title, null, null);
 
-        if (!string.IsNullOrWhiteSpace(cover.Subtitle))
+        var (titleText, subtitleText) = CoverText(cover);
+
+        AddInline(title, titleText, null, null);
+
+        if (!string.IsNullOrWhiteSpace(subtitleText))
         {
             var subtitle = section.AddParagraph();
             subtitle.Format.Font.Size = Math.Round(_theme.BaseFontSize * 1.45, 1);
             subtitle.Format.Font.Color = (hasBackground ? textColor : _theme.Muted).ToMigraDoc();
             subtitle.Format.Alignment = alignment;
             subtitle.Format.SpaceAfter = Unit.FromPoint(30);
-            AddInline(subtitle, cover.Subtitle, null, null);
+            AddInline(subtitle, subtitleText, null, null);
         }
 
         var rule = section.AddParagraph();
@@ -141,6 +144,23 @@ internal sealed partial class PdfMigraDocBuilder
             note.Format.Alignment = alignment;
             AddInline(note, cover.Note, null, null);
         }
+    }
+
+    private (string Title, string Subtitle) CoverText(PdfCoverPageDefinition cover)
+    {
+        var title = !string.IsNullOrWhiteSpace(cover.Title) ? cover.Title : _definition.Title;
+
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            return (title, cover.Subtitle);
+        }
+
+        _warnings.Add("The cover page has no title, so its subtitle or the first heading stands in for one. Give the document a title with format_pdf (title or cover_page.title).");
+
+        // Without a title, the subtitle reads as the cover's title, or else the first heading does.
+        return !string.IsNullOrWhiteSpace(cover.Subtitle)
+            ? (cover.Subtitle, null)
+            : (_tocEntries.Count > 0 ? _tocEntries[0].Text : null, null);
     }
 
     private void AddTableOfContentsSection(Document document)

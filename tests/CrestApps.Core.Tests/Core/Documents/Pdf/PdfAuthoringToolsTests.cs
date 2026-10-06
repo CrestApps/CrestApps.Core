@@ -8,6 +8,43 @@ namespace CrestApps.Core.Tests.Core.Documents.Pdf;
 public sealed class PdfAuthoringToolsTests
 {
     [Fact]
+    public async Task CreatePdf_CoverPageWithoutTitle_IsStillDrawn_AndPreviewShowsThePagesThatExist()
+    {
+        using var host = new PdfToolTestHost();
+
+        // The cover is asked for with only a subtitle and the document has no title: it used to be dropped
+        // silently, turning a three-page report into two.
+        var created = await host.InvokeAsync(new CreatePdfTool(), new
+        {
+            name = "quarterly",
+            theme = new { heading_color = "#1F3A5F" },
+            cover_page = new { enabled = true, subtitle = "Contoso quarterly report" },
+            table_of_contents = new { enabled = true },
+            page_numbers = new { enabled = true },
+            blocks = new object[]
+            {
+                new { type = "heading", text = "Revenue", level = 1 },
+                new { type = "paragraph", text = "Revenue grew in every quarter." },
+            },
+        });
+
+        Assert.Contains("It lays out as 3 pages", created, StringComparison.Ordinal);
+        Assert.Contains("The cover page has no title", created, StringComparison.Ordinal);
+        Assert.Contains("headings #1F3A5F", created, StringComparison.Ordinal);
+
+        using (var pdf = PdfDocument.Open(await host.ReadWorkingPdfAsync("quarterly")))
+        {
+            Assert.Contains("Contoso", string.Join(' ', pdf.GetPage(1).GetWords().Select(word => word.Text)), StringComparison.Ordinal);
+        }
+
+        // Asking for more pages than there are shows the ones that exist instead of failing.
+        var preview = await host.InvokeAsync(new PreviewPdfTool(), new { pages = "1-5" });
+
+        Assert.Contains("[fig:1] [fig:2] [fig:3]", preview, StringComparison.Ordinal);
+        Assert.Contains("page 4-5 does not exist", preview, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CreatePdf_AsPdfA_WritesTheArchiveIdentificationAndOutputIntent()
     {
         using var host = new PdfToolTestHost();

@@ -126,10 +126,11 @@ internal sealed partial class PdfMigraDocBuilder
 
     private bool IsCoverEnabled()
     {
+        // A cover asked for is always drawn: dropping it because no title was given silently loses a page the
+        // user asked for. The cover writes what stands in for the title, and says so.
         var cover = _definition.CoverPage;
 
-        return cover is not null && (cover.Enabled ?? true) &&
-            !string.IsNullOrWhiteSpace(cover.Title ?? _definition.Title);
+        return cover is not null && (cover.Enabled ?? true);
     }
 
     private void DefineStyles(Document document)

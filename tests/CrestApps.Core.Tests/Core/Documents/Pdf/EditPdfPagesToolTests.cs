@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Documents.Pdf.Tools;
+using CrestApps.Core.AI.Documents.Pdf.Workspace;
 using UglyToad.PdfPig;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf;
@@ -157,5 +158,27 @@ public sealed class EditPdfPagesToolTests
         Assert.Equal([1, 3, 5], PdfPageRange.Parse("odd", 6));
         Assert.Equal([3, 2, 1], PdfPageRange.Parse("3-1", 6, keepOrderAndDuplicates: true));
         Assert.Equal("1-3, 5", PdfPageRange.Describe([5, 1, 2, 3]));
+    }
+
+    [Fact]
+    public void PageRange_WithMissing_KeepsThePagesThatExistAndNamesTheRest()
+    {
+        var missing = new List<int>();
+
+        Assert.Equal([1, 2], PdfPageRange.Parse("1-3", 2, missing: missing));
+        Assert.Equal([3], missing);
+
+        missing.Clear();
+
+        Assert.Equal([2], PdfPageRange.Parse("2, 5", 2, missing: missing));
+        Assert.Equal([5], missing);
+
+        // Without the list, a page past the end still fails, as an edit needs.
+        Assert.Throws<PdfToolException>(() => PdfPageRange.Parse("1-3", 2));
+
+        // A selection with no page that exists still fails, and names the pages.
+        var none = Assert.Throws<PdfToolException>(() => PdfPageRange.Parse("4-5", 2, missing: []));
+
+        Assert.Contains("Page 4-5", none.Message, StringComparison.Ordinal);
     }
 }

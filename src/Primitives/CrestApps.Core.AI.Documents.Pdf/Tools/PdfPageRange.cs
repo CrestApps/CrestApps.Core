@@ -9,14 +9,21 @@ namespace CrestApps.Core.AI.Documents.Pdf.Tools;
 /// </summary>
 internal static class PdfPageRange
 {
+    // A range far past the end, such as "1-1000" on a short document, records only this many missing pages.
+    private const int MaxMissing = 50;
+
     /// <summary>
     /// Reads a page selection.
     /// </summary>
     /// <param name="selection">The selection, or <see langword="null"/> for every page.</param>
     /// <param name="pageCount">The number of pages the document has.</param>
     /// <param name="keepOrderAndDuplicates">Whether the pages keep the order written and may repeat, as a reorder needs; otherwise they are sorted and distinct.</param>
+    /// <param name="missing">
+    /// When given, pages past the end of the document are added to it and left out of the result, so a call
+    /// that only reads pages can show the ones that exist; otherwise naming one fails the call, as an edit must.
+    /// </param>
     /// <returns>The one-based page numbers.</returns>
-    public static List<int> Parse(string selection, int pageCount, bool keepOrderAndDuplicates = false)
+    public static List<int> Parse(string selection, int pageCount, bool keepOrderAndDuplicates = false, ICollection<int> missing = null)
     {
         if (pageCount <= 0)
         {
@@ -76,13 +83,39 @@ internal static class PdfPageRange
 
             if (dash < 0)
             {
-                pages.Add(Check(ParseNumber(part, raw, pageCount), raw, pageCount));
+                var number = ParseNumber(part, raw, pageCount);
+
+                if (missing is not null && number > pageCount)
+                {
+                    missing.Add(number);
+
+                    continue;
+                }
+
+                pages.Add(Check(number, raw, pageCount));
 
                 continue;
             }
 
             var from = ParseNumber(part[..dash], raw, pageCount);
             var to = dash == part.Length - 1 ? pageCount : ParseNumber(part[(dash + 1)..], raw, pageCount);
+
+            if (missing is not null)
+            {
+                // Past the end, a range keeps the pages it covers that exist and records the rest.
+                foreach (var page in Enumerable.Range(Math.Min(from, to), Math.Abs(to - from) + 1).Where(page => page > pageCount).Take(MaxMissing))
+                {
+                    missing.Add(page);
+                }
+
+                if (Math.Min(from, to) > pageCount)
+                {
+                    continue;
+                }
+
+                from = Math.Min(from, pageCount);
+                to = Math.Min(to, pageCount);
+            }
 
             Check(from, raw, pageCount);
             Check(to, raw, pageCount);
@@ -102,7 +135,9 @@ internal static class PdfPageRange
 
         if (pages.Count == 0)
         {
-            throw new PdfToolException($"\"{selection}\" selects no pages. Use page numbers such as \"1-3,5\", or \"all\".");
+            throw missing is { Count: > 0 }
+                ? new PdfToolException($"Page {Describe(missing)} (from \"{selection}\") does not exist; the document has {pageCount} page(s).")
+                : new PdfToolException($"\"{selection}\" selects no pages. Use page numbers such as \"1-3,5\", or \"all\".");
         }
 
         return keepOrderAndDuplicates
