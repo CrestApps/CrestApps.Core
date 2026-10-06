@@ -95,6 +95,16 @@ internal sealed partial class WordLayoutEngine
             case WordDrawingKind.Shape:
                 DrawShape(info, context, source, box);
 
+                if (ReadRotation(info) is var rotation and not 0)
+                {
+                    foreach (var item in box.Items)
+                    {
+                        item.Rotation = rotation;
+                        item.RotationX = info.Width / 2;
+                        item.RotationY = info.Height / 2;
+                    }
+                }
+
                 break;
 
             default:
@@ -158,7 +168,23 @@ internal sealed partial class WordLayoutEngine
         var right = Inset("rIns", 7.2);
         var top = Inset("tIns", 3.6);
         var bottom = Inset("bIns", 3.6);
-        var text = LayoutContainer(content.ChildElements, Math.Max(4, info.Width - left - right), context);
+        var available = Math.Max(4, info.Width - left - right);
+        var text = LayoutContainer(content.ChildElements, available, context);
+
+        // Text that does not wrap keeps each paragraph on one line, running past the box evenly on both sides
+        // when it is wider.
+        if (body?.GetAttributes().FirstOrDefault(attribute => attribute.LocalName == "wrap").Value == "none")
+        {
+            var natural = LayoutContainer(content.ChildElements, 100_000, context).Items.OfType<WordTextItem>().ToList();
+            var width = natural.Count == 0 ? 0 : natural.Max(item => item.X + item.Width) - natural.Min(item => item.X);
+
+            if (width > available)
+            {
+                text = LayoutContainer(content.ChildElements, width + 1, context);
+                left -= (width + 1 - available) / 2;
+            }
+        }
+
         var anchor = body?.GetAttributes().FirstOrDefault(attribute => attribute.LocalName == "anchor").Value;
         var offset = anchor switch
         {
@@ -173,6 +199,14 @@ internal sealed partial class WordLayoutEngine
         }
 
         box.Items.AddRange(text.Translate(left, offset));
+    }
+
+    // A shape's rotation is in 60,000ths of a degree on its transform.
+    private static double ReadRotation(WordDrawingInfo info)
+    {
+        var rotation = info.Element.Descendants<A.Transform2D>().FirstOrDefault()?.Rotation?.Value ?? 0;
+
+        return rotation % 21_600_000 / 60_000d;
     }
 
     private string ReadColor(A.SolidFill fill)
@@ -319,6 +353,48 @@ internal sealed partial class WordLayoutEngine
         }
 
         Record(paragraph);
+    }
+
+    // A header's or footer's floating drawings — a watermark, a logo placed on the page — are positioned on the
+    // page itself, not in the header's flow.
+    private static void PlaceStoryFloating(WordLayoutPage page, SectionGeometry geometry, List<(FloatingDrawing Drawing, double Top)> floating, double storyTop)
+    {
+        foreach (var (drawing, paragraphTop) in floating)
+        {
+            var info = drawing.Info;
+            var horizontal = info.HorizontalFrom == "page" ? (Left: 0d, Width: geometry.Width) : (Left: geometry.Left, Width: geometry.Right - geometry.Left);
+            var x = info.HorizontalAlignment switch
+            {
+                "center" => horizontal.Left + ((horizontal.Width - info.Width) / 2),
+                "right" or "outside" => horizontal.Left + horizontal.Width - info.Width,
+                "left" or "inside" => horizontal.Left,
+                _ => horizontal.Left + info.OffsetX,
+            };
+            var vertical = info.VerticalFrom switch
+            {
+                "page" => (Top: 0d, Height: geometry.Height),
+                "margin" => (Top: geometry.MarginTop, Height: geometry.Height - geometry.MarginTop - geometry.MarginBottom),
+                "topMargin" => (Top: 0d, Height: geometry.MarginTop),
+                _ => (Top: storyTop + paragraphTop, Height: 0d),
+            };
+            var y = info.VerticalAlignment switch
+            {
+                "center" => vertical.Top + ((vertical.Height - info.Height) / 2),
+                "bottom" => vertical.Top + vertical.Height - info.Height,
+                "top" => vertical.Top,
+                _ => vertical.Top + info.OffsetY,
+            };
+            var items = drawing.Box.Translate(x, y);
+
+            if (info.BehindText)
+            {
+                page.Items.InsertRange(0, items);
+            }
+            else
+            {
+                page.Items.AddRange(items);
+            }
+        }
     }
 
     private byte[] ReadPicture(OpenXmlPart owner, string relationshipId, out string mediaType)

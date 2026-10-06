@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CrestApps.Core.AI.Documents.OpenXml.Word;
 using CrestApps.Core.AI.Documents.Word.Editing;
+using CrestApps.Core.AI.Documents.Word.Reading;
 using CrestApps.Core.AI.Documents.Word.Workspace;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
@@ -26,16 +27,20 @@ internal sealed class UpdateWordTableTool : WordToolBase
             "table": { "type": "string", "description": "The table's id, the id of a paragraph in it, or its number in the document (1 = first). Optional when there is one table." },
             "cells": {
               "type": "array",
-              "description": "Cells to set. Rows and columns count from 1; row 1 is the header row.",
+              "description": "Cells to set. Columns count from 1.",
               "items": {
                 "type": "object",
-                "properties": { "row": { "type": "integer" }, "column": { "type": "integer" }, "text": { "type": "string", "description": "Inline Markdown." } },
+                "properties": {
+                  "row": { "type": ["integer", "string"], "description": "The text of the row's first cell, such as \"Testing\", or its number counting the header row as 1." },
+                  "column": { "type": "integer" },
+                  "text": { "type": "string", "description": "Inline Markdown, written as given: write numbers the way the column shows them, such as $9,500.00." }
+                },
                 "required": ["row", "column", "text"]
               }
             },
             "add_rows": { "type": "array", "items": { "type": "array", "items": { "type": ["string", "number", "boolean", "null"] } }, "description": "Rows to add, one array of cell values each. They copy the look of the row they follow." },
-            "after_row": { "type": "integer", "description": "Add the rows after this row. Default: after the last row." },
-            "remove_rows": { "type": "array", "items": { "type": "integer" } },
+            "after_row": { "type": ["integer", "string"], "description": "Add the rows after this row: the text of its first cell, or its number. Default: after the last row." },
+            "remove_rows": { "type": "array", "items": { "type": ["integer", "string"] }, "description": "Rows by the text of their first cell, or their number counting the header row as 1." },
             "add_column": {
               "type": "object",
               "properties": { "header": { "type": "string" }, "values": { "type": "array", "items": { "type": ["string", "number", "boolean", "null"] } }, "after_column": { "type": "integer", "description": "Default: after the last column." } },
@@ -66,7 +71,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Changes a table of a Word document in place: set 'cells' by row and column, 'add_rows' (they copy the look of the row before), 'remove_rows', 'add_column', 'remove_columns', and 'repeat_header' across pages. Cell text changes are tracked when tracking is on; row and column changes are not. To restyle the table's text use format_word_content with the table's id.";
+    public override string Description => "Changes a table of a Word document in place: set 'cells' by row (the text of its first cell, such as \"Testing\") and column, 'add_rows' (they copy the look of the row before), 'remove_rows', 'add_column', 'remove_columns', and 'repeat_header' across pages. Cell text changes are tracked when tracking is on; row and column changes are not. To restyle the table's text use format_word_content with the table's id.";
 
     /// <summary>
     /// Changes the table.
@@ -86,19 +91,19 @@ internal sealed class UpdateWordTableTool : WordToolBase
             if (arguments.TryGetElement("remove_rows", out var removeRows) && removeRows.ValueKind == JsonValueKind.Array)
             {
                 var rows = table.Elements<TableRow>().ToList();
-                var numbers = removeRows.EnumerateArray().Select(WordJsonValues.ReadDouble).Where(value => value is not null).Select(value => (int)value.Value).Distinct().ToList();
+                var targets = removeRows.EnumerateArray().Select(value => Row(rows, value)).Distinct().ToList();
 
-                if (numbers.Count >= rows.Count)
+                if (targets.Count >= rows.Count)
                 {
                     throw new WordToolException("That would remove every row; remove the table with remove_word_content instead.");
                 }
 
-                foreach (var number in numbers)
+                foreach (var row in targets)
                 {
-                    Row(rows, number).Remove();
+                    row.Remove();
                 }
 
-                changes.Add($"removed {numbers.Count} row(s)");
+                changes.Add($"removed {targets.Count} row(s)");
             }
 
             if (arguments.TryGetElement("remove_columns", out var removeColumns) && removeColumns.ValueKind == JsonValueKind.Array)
@@ -151,7 +156,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
             if (arguments.TryGetElement("add_rows", out var addRows) && addRows.ValueKind == JsonValueKind.Array)
             {
                 var rows = table.Elements<TableRow>().ToList();
-                var anchor = Row(rows, arguments.GetInt("after_row") ?? rows.Count);
+                var anchor = arguments.TryGetElement("after_row", out var afterRow) ? Row(rows, afterRow) : rows[^1];
                 var added = 0;
 
                 foreach (var values in addRows.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Array))
@@ -184,7 +189,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
 
                 foreach (var item in cellList.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object))
                 {
-                    var row = Row(rows, WordJsonValues.GetInt(item, "row") ?? 0);
+                    var row = WordJsonValues.TryGet(item, "row", out var rowValue) ? Row(rows, rowValue) : throw new WordToolException("Each cell needs a 'row'.");
 
                     SetText(Cell(row, WordJsonValues.GetInt(item, "column") ?? 0), WordJsonValues.GetRawString(item, "text") ?? string.Empty, part, revisions);
                     count++;
@@ -272,6 +277,19 @@ internal sealed class UpdateWordTableTool : WordToolBase
 
             properties.TableCellWidth = new TableCellWidth { Width = (share * span).ToString(System.Globalization.CultureInfo.InvariantCulture), Type = TableWidthUnitValues.Dxa };
         }
+    }
+
+    private static TableRow Row(List<TableRow> rows, JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.String && !int.TryParse(value.GetString(), out _))
+        {
+            var label = value.GetString().Trim();
+
+            return rows.FirstOrDefault(row => row.Elements<TableCell>().FirstOrDefault() is { } cell && string.Equals(WordText.OfCell(cell).Trim(), label, StringComparison.OrdinalIgnoreCase))
+                ?? throw new WordToolException($"No row starts with \"{label}\". The rows start with: {string.Join(", ", rows.Select(row => row.Elements<TableCell>().FirstOrDefault() is { } cell ? "\"" + WordText.OfCell(cell) + "\"" : "(empty)"))}.");
+        }
+
+        return Row(rows, (int)(WordJsonValues.ReadDouble(value) ?? 0));
     }
 
     private static TableRow Row(List<TableRow> rows, int number)

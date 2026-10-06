@@ -1055,7 +1055,7 @@ internal sealed partial class WordLayoutEngine
         return LayoutContainer(footnote.ChildElements, ColumnWidth, new LayoutContext(_package.MainPart.FootnotesPart, null) { FootnoteNumber = number });
     }
 
-    private WordBox LayoutContainer(IEnumerable<OpenXmlElement> children, double width, LayoutContext context)
+    private WordBox LayoutContainer(IEnumerable<OpenXmlElement> children, double width, LayoutContext context, List<(FloatingDrawing Drawing, double Top)> floating = null)
     {
         var box = new WordBox();
         var y = 0d;
@@ -1074,6 +1074,11 @@ internal sealed partial class WordLayoutEngine
                     y += y > 0 ? before : 0;
 
                     var top = y;
+
+                    foreach (var drawing in built.Floating)
+                    {
+                        floating?.Add((drawing, top));
+                    }
 
                     foreach (var line in built.Lines)
                     {

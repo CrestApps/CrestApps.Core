@@ -89,22 +89,41 @@ internal static class WordWatermark
         var ids = WordDrawingIds.For(package);
         var done = new HashSet<OpenXmlPart>();
 
+        var evenPages = package.MainPart.DocumentSettingsPart?.Settings?.GetFirstChild<EvenAndOddHeaders>() is not null;
+
         foreach (var section in WordSections.All(package))
         {
-            var part = WordHeadersFooters.Find(package, section, header: true, HeaderFooterValues.Default)
-                ?? WordHeadersFooters.Set(package, section, header: true, HeaderFooterValues.Default, _ => []);
+            // Every page of a section shows one of its headers: a different first page and even pages have
+            // their own, and each needs the watermark.
+            var types = new List<HeaderFooterValues> { HeaderFooterValues.Default };
 
-            if (!done.Add(part))
+            if (section.GetFirstChild<TitlePage>() is not null)
             {
-                continue;
+                types.Add(HeaderFooterValues.First);
             }
 
-            var paragraph = build(ids.Next());
-            var root = WordHeadersFooters.RootOf(part);
+            if (evenPages)
+            {
+                types.Add(HeaderFooterValues.Even);
+            }
 
-            package.Ids.Assign(paragraph);
-            WordPackage.EnsureNamespaces(root);
-            root.PrependChild(paragraph);
+            foreach (var type in types)
+            {
+                var part = WordHeadersFooters.Find(package, section, header: true, type)
+                    ?? WordHeadersFooters.Set(package, section, header: true, type, _ => []);
+
+                if (!done.Add(part))
+                {
+                    continue;
+                }
+
+                var paragraph = build(ids.Next());
+                var root = WordHeadersFooters.RootOf(part);
+
+                package.Ids.Assign(paragraph);
+                WordPackage.EnsureNamespaces(root);
+                root.PrependChild(paragraph);
+            }
         }
 
         return done.Count;

@@ -33,6 +33,11 @@ internal static class WordSvgWriter
 
         foreach (var item in page.Items)
         {
+            if (item.Rotation != 0)
+            {
+                builder.Append(CultureInfo.InvariantCulture, $"<g transform=\"rotate({N(item.Rotation)} {N(item.RotationX)} {N(item.RotationY)})\">");
+            }
+
             switch (item)
             {
                 case WordTextItem text:
@@ -66,6 +71,11 @@ internal static class WordSvgWriter
                     WritePolygon(builder, polygon);
 
                     break;
+            }
+
+            if (item.Rotation != 0)
+            {
+                builder.Append("</g>");
             }
         }
 

@@ -348,16 +348,21 @@ internal sealed partial class WordLayoutEngine
 
             if (info.Headers.GetValueOrDefault(kind) is { } header)
             {
-                var box = LayoutStory(header, page.ContentRight - page.ContentLeft);
+                var floating = new List<(FloatingDrawing Drawing, double Top)>();
+                var box = LayoutStory(header, page.ContentRight - page.ContentLeft, floating);
 
                 page.Items.AddRange(box.Translate(page.ContentLeft, info.Geometry.HeaderDistance));
+                PlaceStoryFloating(page, info.Geometry, floating, info.Geometry.HeaderDistance);
             }
 
             if (info.Footers.GetValueOrDefault(kind) is { } footer)
             {
-                var box = LayoutStory(footer, page.ContentRight - page.ContentLeft);
+                var floating = new List<(FloatingDrawing Drawing, double Top)>();
+                var box = LayoutStory(footer, page.ContentRight - page.ContentLeft, floating);
+                var footerTop = page.Height - info.Geometry.FooterDistance - box.Height;
 
-                page.Items.AddRange(box.Translate(page.ContentLeft, page.Height - info.Geometry.FooterDistance - box.Height));
+                page.Items.AddRange(box.Translate(page.ContentLeft, footerTop));
+                PlaceStoryFloating(page, info.Geometry, floating, footerTop);
             }
 
             _pageFieldValues = null;
@@ -426,7 +431,7 @@ internal sealed partial class WordLayoutEngine
         return part is null ? 0 : LayoutStory(part, _geometry.Right - _geometry.Left).Height;
     }
 
-    private WordBox LayoutStory(OpenXmlPart part, double width)
+    private WordBox LayoutStory(OpenXmlPart part, double width, List<(FloatingDrawing Drawing, double Top)> floating = null)
     {
         var root = part switch
         {
@@ -435,7 +440,7 @@ internal sealed partial class WordLayoutEngine
             _ => null,
         };
 
-        return root is null ? new WordBox() : LayoutContainer(root.ChildElements, width, new LayoutContext(part, null));
+        return root is null ? new WordBox() : LayoutContainer(root.ChildElements, width, new LayoutContext(part, null), floating);
     }
 
     private void Record(OpenXmlElement element)

@@ -40,6 +40,9 @@ internal sealed class WordBox
     /// <param name="y">The vertical distance.</param>
     public static void Move(WordDrawItem item, double x, double y)
     {
+        item.RotationX += x;
+        item.RotationY += y;
+
         switch (item)
         {
             case WordTextItem text:

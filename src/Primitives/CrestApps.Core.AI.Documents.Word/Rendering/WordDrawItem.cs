@@ -8,6 +8,21 @@ namespace CrestApps.Core.AI.Documents.Word.Rendering;
 internal abstract class WordDrawItem
 {
     /// <summary>
+    /// Gets or sets the clockwise rotation in degrees of the shape the item belongs to; 0 for none.
+    /// </summary>
+    public double Rotation { get; set; }
+
+    /// <summary>
+    /// Gets or sets the horizontal center the item is rotated about.
+    /// </summary>
+    public double RotationX { get; set; }
+
+    /// <summary>
+    /// Gets or sets the vertical center the item is rotated about.
+    /// </summary>
+    public double RotationY { get; set; }
+
+    /// <summary>
     /// Gets or sets the block the item belongs to, so a block can be found and outlined on the page.
     /// </summary>
     public OpenXmlElement Source { get; set; }

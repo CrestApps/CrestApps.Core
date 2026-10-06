@@ -71,7 +71,12 @@ public sealed class FormattingAndReviewToolsTests
 
         // The page number is laid out at its real width, so " of " follows it without a gap.
         using var package = WordPackage.Open(bytes);
-        var page = WordPreview.Layout(package, host.Services).Pages[1];
+        var layout = WordPreview.Layout(package, host.Services);
+
+        // The watermark is drawn on every page, the first-page one included, turned diagonally.
+        Assert.All(layout.Pages, item => Assert.Contains(item.Items.OfType<WordTextItem>(), text => text.Text == "DRAFT" && text.Rotation != 0));
+
+        var page = layout.Pages[1];
         var items = page.Items.OfType<WordTextItem>().Where(item => item.Baseline > page.Height - 100).OrderBy(item => item.X).ToList();
         var number = items.Single(item => item.Text == "ii");
         var next = items.First(item => item.X > number.X);
@@ -89,10 +94,10 @@ public sealed class FormattingAndReviewToolsTests
         await host.InvokeAsync(new UpdateWordTableTool(), new
         {
             document = "doc",
-            cells = new[] { new { row = 2, column = 2, text = "**20**" } },
+            cells = new[] { new { row = "north", column = 2, text = "**20**" } },
             add_rows = new[] { new object[] { "East", 30 } },
             add_column = new { header = "Note", values = new[] { "a", "b", "c" } },
-            remove_rows = new[] { 3 },
+            remove_rows = new[] { "South" },
             repeat_header = true,
         });
 
