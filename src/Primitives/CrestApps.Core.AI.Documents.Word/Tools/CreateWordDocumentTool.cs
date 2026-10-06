@@ -156,6 +156,11 @@ internal sealed class CreateWordDocumentTool : WordToolBase
             answer.Append(". Page: ").Append(WordDescriber.DescribeSection(section0)).AppendLine(".");
             answer.Append("Theme: ").Append(edit.Design.Preset).Append(" (").Append(edit.Design.BodyFont).Append(" body, ").Append(edit.Design.HeadingFont).AppendLine(" headings).");
 
+            if (arguments.GetString("title") is not null)
+            {
+                answer.AppendLine("The title is already at the top: do not add it again. For a cover page, add only a page_break after it.");
+            }
+
             if (blocks.Count > 0)
             {
                 answer.AppendLine().AppendLine("Elements:");

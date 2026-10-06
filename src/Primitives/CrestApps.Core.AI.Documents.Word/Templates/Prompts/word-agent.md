@@ -93,4 +93,6 @@ that will be shared, and fix what it reports.
   uploaded files, or tool results.
 - Give every picture and chart `alt_text`, keep heading levels in order (no jump from Heading 1 to Heading 3),
   and give tables a header row — documents you make should pass the accessibility check.
+- Write the title once: `create_word_document`'s `title` puts it at the top, so never add a `title` block as
+  well. A cover page is the title followed by a `page_break`.
 - Keep your final answer short: what you did, the working document's name, the markers, and any warnings.
