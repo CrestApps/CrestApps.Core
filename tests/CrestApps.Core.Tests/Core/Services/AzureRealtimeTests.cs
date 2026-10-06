@@ -3,6 +3,7 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Realtime;
 using Microsoft.Extensions.AI;
@@ -219,6 +220,54 @@ public sealed class AzureRealtimeTests
         var audio = Assert.IsType<OutputTextAudioRealtimeServerMessage>(message);
         Assert.Equal(RealtimeServerMessageType.OutputAudioTranscriptionDelta, audio.Type);
         Assert.Equal("hello", audio.Text);
+    }
+
+    [Fact]
+    public void ReadServerMessage_ResponseDone_MapsBillableUsage()
+    {
+        var message = ReadFromJson("""{"type":"response.done","response":{"id":"r1","status":"completed","usage":{"total_tokens":253,"input_tokens":132,"output_tokens":121,"input_token_details":{"text_tokens":119,"audio_tokens":13,"cached_tokens":64},"output_token_details":{"text_tokens":30,"audio_tokens":91}}}}""");
+
+        var done = Assert.IsType<ResponseCreatedRealtimeServerMessage>(message);
+        Assert.Equal(RealtimeServerMessageType.ResponseDone, done.Type);
+        Assert.NotNull(done.Usage);
+        Assert.Equal(132, done.Usage.InputTokenCount);
+        Assert.Equal(121, done.Usage.OutputTokenCount);
+        Assert.Equal(253, done.Usage.TotalTokenCount);
+        Assert.Equal(64, done.Usage.CachedInputTokenCount);
+        Assert.Equal(13, done.Usage.InputAudioTokenCount);
+        Assert.Equal(91, done.Usage.OutputAudioTokenCount);
+    }
+
+    [Fact]
+    public void ReadServerMessage_ResponseDoneWithoutUsage_LeavesUsageEmpty()
+    {
+        var message = ReadFromJson("""{"type":"response.done","response":{"id":"r1","status":"cancelled"}}""");
+
+        var done = Assert.IsType<ResponseCreatedRealtimeServerMessage>(message);
+        Assert.Null(done.Usage);
+    }
+
+    [Fact]
+    public void ReadServerMessage_InputTranscriptionCompletedWithDurationUsage_MapsAudioDuration()
+    {
+        var message = ReadFromJson("""{"type":"conversation.item.input_audio_transcription.completed","item_id":"i9","transcript":"hi","usage":{"type":"duration","seconds":2.4}}""");
+
+        var transcription = Assert.IsType<InputAudioTranscriptionRealtimeServerMessage>(message);
+        Assert.NotNull(transcription.Usage);
+        Assert.NotNull(transcription.Usage.AdditionalCounts);
+        Assert.Equal(2_400, transcription.Usage.AdditionalCounts[AIUsageAdditionalCounts.AudioDurationMs]);
+    }
+
+    [Fact]
+    public void ReadServerMessage_InputTranscriptionCompletedWithTokenUsage_MapsTokens()
+    {
+        var message = ReadFromJson("""{"type":"conversation.item.input_audio_transcription.completed","item_id":"i9","transcript":"hi","usage":{"type":"tokens","total_tokens":26,"input_tokens":17,"input_token_details":{"text_tokens":0,"audio_tokens":17},"output_tokens":9}}""");
+
+        var transcription = Assert.IsType<InputAudioTranscriptionRealtimeServerMessage>(message);
+        Assert.NotNull(transcription.Usage);
+        Assert.Equal(17, transcription.Usage.InputTokenCount);
+        Assert.Equal(17, transcription.Usage.InputAudioTokenCount);
+        Assert.Equal(9, transcription.Usage.OutputTokenCount);
     }
 
     [Fact]

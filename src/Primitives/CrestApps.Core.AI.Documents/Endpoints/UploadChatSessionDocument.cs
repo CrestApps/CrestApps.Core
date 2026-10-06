@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
@@ -150,6 +151,8 @@ public static class UploadChatSessionDocument
 
             var deployment = await ResolveSessionDeploymentAsync(profile, deploymentManager);
             var embeddingDeployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Embedding, clientName: deployment?.ClientName);
+
+            using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Indexing);
             var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
 
             profile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMetadata);

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
@@ -226,6 +227,7 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
             {
                 try
                 {
+                    using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Indexing);
                     embeddings = await embeddingGenerator.GenerateAsync(chunksForEmbedding);
                     embeddedChunkCount = chunksForEmbedding.Count;
                 }

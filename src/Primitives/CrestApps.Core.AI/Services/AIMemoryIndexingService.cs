@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
@@ -86,6 +87,8 @@ public sealed class AIMemoryIndexingService
         }
 
         var embeddingText = $"Name: {memory.Name}{Environment.NewLine}Description: {memory.Description}{Environment.NewLine}Content: {memory.Content}";
+
+        using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Indexing);
         var embeddings = await embeddingGenerator.GenerateAsync([embeddingText], cancellationToken: cancellationToken);
         var vector = embeddings.Count > 0 && embeddings[0] is { Vector: { } generatedVector }
             ? generatedVector.ToArray()

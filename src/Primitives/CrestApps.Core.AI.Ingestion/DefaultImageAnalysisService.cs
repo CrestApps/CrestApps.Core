@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Support.Json;
@@ -84,7 +85,7 @@ public sealed class DefaultImageAnalysisService : IImageAnalysisService
                 return ImageAnalysisResult.Failed("No vision-capable deployment is available for image analysis.");
             }
 
-            var chatClient = await _clientFactory.CreateChatClientAsync(deployment);
+            var chatClient = await _clientFactory.CreateChatClientAsync(deployment, builder => builder.UseUsageLabels(purpose: AIUsagePurposes.ImageAnalysis));
 
             var messages = new List<ChatMessage>();
 

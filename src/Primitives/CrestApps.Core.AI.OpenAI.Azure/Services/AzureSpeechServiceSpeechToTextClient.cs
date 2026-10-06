@@ -128,7 +128,11 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
                 _logger.LogTrace("[STT:{TraceId}] +{Elapsed}ms SUCCESS. Text='{Text}'", traceId, sw.ElapsedMilliseconds, result.Text);
             }
 
-            return new SpeechToTextResponse(result.Text);
+            return new SpeechToTextResponse(result.Text)
+            {
+                StartTime = GetStartTime(result),
+                EndTime = GetEndTime(result),
+            };
         }
 
         if (result.Reason == ResultReason.NoMatch)
@@ -203,7 +207,11 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
                     _logger.LogTrace("[STT:{TraceId}] +{Elapsed}ms FINAL: '{Text}'", traceId, sw.ElapsedMilliseconds, e.Result.Text);
                 }
 
-                channel.Writer.TryWrite(new SpeechToTextResponseUpdate(e.Result.Text));
+                channel.Writer.TryWrite(new SpeechToTextResponseUpdate(e.Result.Text)
+                {
+                    StartTime = GetStartTime(e.Result),
+                    EndTime = GetEndTime(e.Result),
+                });
             }
             else if (e.Result.Reason == ResultReason.NoMatch)
             {
@@ -661,5 +669,24 @@ public sealed class AzureSpeechServiceSpeechToTextClient : ISpeechToTextClient
     private static bool IsGStreamerError(ApplicationException ex)
     {
         return ex.Message.Contains("0x29", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("GSTREAMER", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Gets where the recognized speech starts, measured from the start of the audio.
+    /// </summary>
+    /// <param name="result">The recognition result.</param>
+    private static TimeSpan GetStartTime(SpeechRecognitionResult result)
+    {
+        return TimeSpan.FromTicks((long)result.OffsetInTicks);
+    }
+
+    /// <summary>
+    /// Gets where the recognized speech ends, measured from the start of the audio. Usage metering reads it as the
+    /// length of audio transcribed.
+    /// </summary>
+    /// <param name="result">The recognition result.</param>
+    private static TimeSpan GetEndTime(SpeechRecognitionResult result)
+    {
+        return GetStartTime(result) + result.Duration;
     }
 }

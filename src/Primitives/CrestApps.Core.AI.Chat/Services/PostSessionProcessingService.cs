@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Text.Json;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -130,7 +131,7 @@ public sealed class PostSessionProcessingService
         var response = await chatClient.GetResponseAsync<ResolutionAnalysisResponse>(messages, new ChatOptions
         {
             Temperature = null,
-        }.AddUsageTracking(session: AIInvocationScope.Current?.ChatSession), null, cancellationToken);
+        }.AddUsageTracking(session: AIInvocationScope.Current?.ChatSession, purpose: AIUsagePurposes.PostSessionProcessing), null, cancellationToken);
 
         return response.Result?.Resolved ?? false;
     }
@@ -199,7 +200,7 @@ public sealed class PostSessionProcessingService
         var response = await chatClient.GetResponseAsync<ConversionGoalEvaluationResponse>(messages, new ChatOptions
         {
             Temperature = null,
-        }.AddUsageTracking(session: AIInvocationScope.Current?.ChatSession), null, cancellationToken);
+        }.AddUsageTracking(session: AIInvocationScope.Current?.ChatSession, purpose: AIUsagePurposes.PostSessionProcessing), null, cancellationToken);
 
         if (response.Result?.Goals is null || response.Result.Goals.Count == 0)
         {
@@ -472,7 +473,7 @@ public sealed class PostSessionProcessingService
         {
             Temperature = null,
             Tools = tools,
-        }.AddUsageTracking(session: session), cancellationToken);
+        }.AddUsageTracking(session: session, purpose: AIUsagePurposes.PostSessionProcessing), cancellationToken);
 
         var toolCallCount = response.Messages?
             .SelectMany(m => m.Contents?.OfType<FunctionCallContent>() ?? [])
@@ -628,7 +629,7 @@ public sealed class PostSessionProcessingService
         var response = await chatClient.GetResponseAsync<PostSessionProcessingResponse>(messages, new ChatOptions
         {
             Temperature = null,
-        }.AddUsageTracking(session: session), null, cancellationToken);
+        }.AddUsageTracking(session: session, purpose: AIUsagePurposes.PostSessionProcessing), null, cancellationToken);
 
         var responseText = GetLastAssistantMessageText(response.Messages);
         PostSessionProcessingResponse result = null;
@@ -888,7 +889,7 @@ public sealed class PostSessionProcessingService
         var response = await chatClient.GetResponseAsync<PostSessionProcessingResponse>(followUpMessages, new ChatOptions
         {
             Temperature = null,
-        }, null, cancellationToken);
+        }.AddUsageTracking(session: AIInvocationScope.Current?.ChatSession, purpose: AIUsagePurposes.PostSessionProcessing), null, cancellationToken);
 
         var recoveryResponseText = GetLastAssistantMessageText(response.Messages);
 

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Infrastructure.Indexing.Models;
@@ -132,6 +133,7 @@ public abstract class EmbeddingSearchIndexProfileHandlerBase : IndexProfileHandl
             throw new InvalidOperationException("The selected embedding deployment could not be resolved.");
         }
 
+        using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Indexing);
         var embedding = await embeddingGenerator.GenerateAsync(["Sample"], cancellationToken: cancellationToken);
         if (embedding?.Count > 0 && embedding[0].Vector.Length > 0)
         {

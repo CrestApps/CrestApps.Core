@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Models;
@@ -109,7 +110,7 @@ public sealed class GenerateImageTool : AIFunction
 
             var aIClientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
 
-            var imageGenerator = await aIClientFactory.CreateImageGeneratorAsync(deployment);
+            var imageGenerator = await aIClientFactory.CreateImageGeneratorAsync(deployment, builder => builder.UseUsageLabels(purpose: AIUsagePurposes.ImageGeneration));
 
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
             var options = new ImageGenerationOptions

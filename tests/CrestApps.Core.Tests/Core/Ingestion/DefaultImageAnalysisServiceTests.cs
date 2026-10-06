@@ -62,7 +62,7 @@ public sealed class DefaultImageAnalysisServiceTests
 
         var clientFactory = new Mock<IAIClientFactory>();
         clientFactory
-            .Setup(factory => factory.CreateChatClientAsync(It.IsAny<AIDeployment>()))
+            .Setup(factory => factory.CreateChatClientAsync(It.IsAny<AIDeployment>(), It.IsAny<Action<ChatClientBuilder>>()))
             .ReturnsAsync(chatClient.Object);
 
         var templateService = new Mock<ITemplateService>();

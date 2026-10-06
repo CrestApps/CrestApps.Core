@@ -1,4 +1,5 @@
 ﻿using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
@@ -377,6 +378,7 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
                 chunkTexts[0] = normalizedTitle + "\n" + chunkTexts[0];
             }
 
+            using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Indexing);
             var embeddings = await context.EmbeddingGenerator.GenerateAsync(chunkTexts, cancellationToken: cancellationToken);
             if (embeddings == null || embeddings.Count != chunkTexts.Count)
             {

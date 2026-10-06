@@ -8,6 +8,7 @@ using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Chat.Realtime;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -1845,7 +1846,11 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         string voiceName,
         CancellationToken cancellationToken)
     {
-        var options = new TextToSpeechOptions();
+        var options = new TextToSpeechOptions
+        {
+            AdditionalProperties = SpeechUsageProperties.Create(nameof(ChatInteraction), AIUsagePurposes.SpeechSynthesis),
+        };
+
         if (!string.IsNullOrWhiteSpace(voiceName))
         {
             options.VoiceId = voiceName;
@@ -1891,7 +1896,11 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         string voiceName,
         CancellationToken cancellationToken)
     {
-        var options = new TextToSpeechOptions();
+        var options = new TextToSpeechOptions
+        {
+            AdditionalProperties = SpeechUsageProperties.Create(nameof(ChatInteraction), AIUsagePurposes.SpeechSynthesis),
+        };
+
         if (!string.IsNullOrWhiteSpace(voiceName))
         {
             options.VoiceId = voiceName;
@@ -1992,6 +2001,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             var sttOptions = new SpeechToTextOptions
             {
                 SpeechLanguage = speechLanguage,
+                AdditionalProperties = SpeechUsageProperties.Create(nameof(ChatInteraction), AIUsagePurposes.Transcription),
             };
 
             if (!string.IsNullOrWhiteSpace(audioFormat))
@@ -2354,6 +2364,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             var sttOptions = new SpeechToTextOptions
             {
                 SpeechLanguage = speechLanguage,
+                AdditionalProperties = SpeechUsageProperties.Create(nameof(ChatInteraction), AIUsagePurposes.Transcription),
             };
 
             if (!string.IsNullOrWhiteSpace(audioFormat))
