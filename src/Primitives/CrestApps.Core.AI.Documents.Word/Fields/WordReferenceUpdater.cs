@@ -28,10 +28,20 @@ internal static class WordReferenceUpdater
         }
 
         var texts = ReadBookmarkTexts(package.Body);
+        var order = package.Body.Descendants().Select((element, index) => (element, index)).ToDictionary(pair => pair.element, pair => pair.index, ReferenceEqualityComparer.Instance);
+        var starts = package.Body.Descendants<BookmarkStart>().Where(start => start.Name?.Value is not null).GroupBy(start => start.Name.Value, StringComparer.OrdinalIgnoreCase).ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         foreach (var field in fields.Where(field => field.Type == "REF"))
         {
             var name = WordFieldScanner.ArgumentOf(field.Instruction);
+
+            // With \p a reference says where its target is rather than repeating it.
+            if (field.Instruction.Contains("\\p", StringComparison.OrdinalIgnoreCase) && starts.TryGetValue(name, out var start) && field.BeginRun is not null)
+            {
+                WordFieldScanner.SetResult(field, order[start] < order[field.BeginRun] ? "above" : "below");
+
+                continue;
+            }
 
             if (texts.TryGetValue(name, out var text))
             {

@@ -29,6 +29,7 @@ internal static class WordDocumentRefresher
 
         WordCaptions.Renumber(package);
         WordReferenceUpdater.Update(package, services);
+        Structure.WordIndex.RefreshAll(package, services);
 
         if (WordFieldScanner.Scan(package.Body).Any(field => _pageDependentFields.Contains(field.Type)))
         {

@@ -26,6 +26,18 @@ internal static class WordToolRegistrations
         services.AddWordTool<PreviewWordTool>(PreviewWordTool.TheName, "Preview Word", "Shows Word document pages as pictures in the conversation.");
         services.AddWordTool<ExportWordTool>(ExportWordTool.TheName, "Export Word", "Writes a Word document as a .docx download.");
         services.AddWordTool<ImportWordTool>(ImportWordTool.TheName, "Import Word", "Loads an uploaded Word document into the workspace as a working copy.");
+        services.AddWordTool<UpdateWordContentTool>(UpdateWordContentTool.TheName, "Update Word Content", "Changes elements in place: text, a phrase, style, heading level or the whole element.");
+        services.AddWordTool<RemoveWordContentTool>(RemoveWordContentTool.TheName, "Remove Word Content", "Removes elements, ranges, sections or a working document.");
+        services.AddWordTool<MoveWordContentTool>(MoveWordContentTool.TheName, "Move Word Content", "Moves elements or a heading with its content.");
+        services.AddWordTool<GetWordDocumentOutlineTool>(GetWordDocumentOutlineTool.TheName, "Get Word Document Outline", "Returns the heading tree with ids and pages.");
+        services.AddWordTool<AddWordSectionTool>(AddWordSectionTool.TheName, "Add Word Section", "Starts a section with its own page layout.");
+        services.AddWordTool<AddWordPageBreakTool>(AddWordPageBreakTool.TheName, "Add Word Page Break", "Inserts a page, column or section break.");
+        services.AddWordTool<AddWordTocTool>(AddWordTocTool.TheName, "Add Word Table of Contents", "Inserts or refreshes a table of contents.");
+        services.AddWordTool<AddWordIndexTool>(AddWordIndexTool.TheName, "Add Word Index", "Marks index entries and inserts an index.");
+        services.AddWordTool<AddWordCaptionTool>(AddWordCaptionTool.TheName, "Add Word Caption", "Adds a numbered caption to a table, figure or element.");
+        services.AddWordTool<AddWordCrossReferenceTool>(AddWordCrossReferenceTool.TheName, "Add Word Cross-Reference", "Inserts a reference to a heading, caption or bookmark.");
+        services.AddWordTool<AddWordBookmarkTool>(AddWordBookmarkTool.TheName, "Add Word Bookmark", "Adds, renames, removes or lists bookmarks.");
+        services.AddWordTool<AddWordHyperlinkTool>(AddWordHyperlinkTool.TheName, "Add Word Hyperlink", "Adds a link to a web address or a place in the document.");
     }
 
     /// <summary>
