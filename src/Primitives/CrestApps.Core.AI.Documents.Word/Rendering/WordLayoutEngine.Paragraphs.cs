@@ -543,15 +543,17 @@ internal sealed partial class WordLayoutEngine
         }
     }
 
-    private static string DynamicToken(string fieldType)
+    private string DynamicToken(string fieldType)
     {
-        return fieldType switch
+        var token = fieldType switch
         {
             "PAGE" => PageToken,
             "NUMPAGES" => PagesToken,
             "SECTIONPAGES" => SectionPagesToken,
             _ => null,
         };
+
+        return token is not null && _pageFieldValues?.GetValueOrDefault(token) is { } value ? value : token;
     }
 
     private static void AppendText(string text, WordResolvedRun format, OpenXmlElement source, List<Token> tokens, string markup)
@@ -696,7 +698,8 @@ internal sealed partial class WordLayoutEngine
 
             var available = right - line.X;
 
-            if (wordWidth > available && line.HasContent && !tokens[index].IsMarker)
+            // Text aligned to a right tab ends exactly at the margin; rounding must not push it onto a new line.
+            if (wordWidth > available + 0.01 && line.HasContent && !tokens[index].IsMarker)
             {
                 FinishLine(box, line, right, paragraphRun, BreakKind.None, justify: true);
                 line = new LineBuilder(format.IndentLeft);

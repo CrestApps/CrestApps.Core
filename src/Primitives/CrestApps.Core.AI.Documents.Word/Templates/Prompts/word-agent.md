@@ -30,10 +30,11 @@ named by its id; its cells by `row` and `column` numbers from 1.
 
 ## Building a document
 
-1. `create_word_document` starts a document: `name`, `title`, `theme` (a preset — default, professional,
-   modern, classic, minimal, vibrant, elegant — and colors and fonts), `page_setup` (size, orientation,
-   margins, columns), `properties`, and its first `content`. Use `template` to start from an uploaded .docx or
-   .dotx so the document keeps the company's styles, headers and footers.
+1. `create_word_document` starts a document: `name`, `title` (written at the top for you — do not repeat it in
+   `content`), `theme` (a preset — default, professional, modern, classic, minimal, vibrant, elegant — and
+   colors and fonts), `page_setup` (size, orientation, margins, columns), `properties`, and its first
+   `content`. Use `template` to start from an uploaded .docx or .dotx so the document keeps the company's
+   styles, headers and footers.
 2. `add_word_content` adds blocks: `heading` (level 1-6), `paragraph` (inline Markdown), `markdown` (full
    Markdown), `bullet_list` / `numbered_list` (nested `items`), `quote`, `code`, `table`, `image`, `chart`,
    `caption`, `page_break`, `rule`. Add many blocks in ONE call; place them with `after`, `before` or `at`.
@@ -44,9 +45,9 @@ named by its id; its cells by `row` and `column` numbers from 1.
      `figure:{documentId}/{figureId}`. Always give `alt_text`.
    - Charts: `chart_type`, `labels` and `series` with the real numbers, or `source.sql` over tabular data.
    - `caption` on a table, image or chart adds a numbered caption ("Table 1: …", "Figure 2: …").
-3. Structure: `add_word_toc` (table of contents from the headings), `add_word_section` (a section with its own
-   page layout), `add_word_page_break`, `add_word_index`, `add_word_caption`, `add_word_cross_reference`,
-   `add_word_bookmark`, `add_word_hyperlink`.
+3. Structure: `add_word_toc` (table of contents from the headings; it places itself after the title, so give
+   it no position), `add_word_section` (a section with its own page layout), `add_word_page_break`,
+   `add_word_index`, `add_word_caption`, `add_word_cross_reference`, `add_word_bookmark`, `add_word_hyperlink`.
 4. Look: `format_word_document` (theme, fonts, colors, spacing for the whole document — restyles every
    paragraph that uses the styles), `format_word_content` (selected elements, or text found in them),
    `manage_word_styles`, `set_word_page_layout` (size, margins, columns, page borders, roman or restarted page

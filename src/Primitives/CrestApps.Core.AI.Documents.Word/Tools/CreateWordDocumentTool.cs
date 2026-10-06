@@ -23,7 +23,7 @@ internal sealed class CreateWordDocumentTool : WordToolBase
           "type": "object",
           "properties": {
             "name": { "type": "string", "description": "The working document's name, used to refer to it later and as the download's file name." },
-            "title": { "type": "string", "description": "The document title: written at the top in the Title style and stored as the title property." },
+            "title": { "type": "string", "description": "The document title: written at the top in the Title style and stored as the title property. Do not repeat it as a title or heading block in 'content'." },
             "subtitle": { "type": "string" },
             "template": { "type": "string", "description": "An uploaded .docx or .dotx to start from. The new document keeps its styles, page setup, headers and footers; its body is emptied unless keep_template_content is true." },
             "keep_template_content": { "type": "boolean" },

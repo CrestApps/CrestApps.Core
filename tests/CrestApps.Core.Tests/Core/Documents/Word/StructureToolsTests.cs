@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Documents.OpenXml.Word;
 using CrestApps.Core.AI.Documents.Word.Reading;
+using CrestApps.Core.AI.Documents.Word.Rendering;
 using CrestApps.Core.AI.Documents.Word.Tools;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -143,6 +144,14 @@ public sealed class StructureToolsTests
         // The table takes the first page, so the headings follow on pages 2 and 3.
         Assert.Contains("Alpha\t2", text, StringComparison.Ordinal);
         Assert.Contains("Beta\t3", text, StringComparison.Ordinal);
+
+        // The page number sits at the right tab on the entry's own line.
+        using (var package = WordPackage.Open(bytes))
+        {
+            var page = WordPreview.PageText(WordPreview.Layout(package, host.Services).Pages[0]);
+
+            Assert.Contains("\nAlpha 2\n", page, StringComparison.Ordinal);
+        }
 
         var again = await host.InvokeAsync(new AddWordTocTool(), new { document = "doc" });
 

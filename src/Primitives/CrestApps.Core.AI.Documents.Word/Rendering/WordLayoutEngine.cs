@@ -50,6 +50,7 @@ internal sealed partial class WordLayoutEngine
     private double _footnoteReserve;
     private List<FootnoteBox> _pageFootnotes = [];
     private bool _stopped;
+    private Dictionary<string, string> _pageFieldValues;
 
     private WordLayoutEngine(WordPackage package, WordLayoutOptions options)
     {
@@ -336,6 +337,15 @@ internal sealed partial class WordLayoutEngine
             page.Items.Clear();
             DrawPageFrame(page, info.Geometry);
 
+            // Headers and footers are laid out once the page count is known, so their page fields take their real
+            // values and are measured as they are drawn.
+            _pageFieldValues = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [PageToken] = page.DisplayNumber,
+                [PagesToken] = total.ToString(CultureInfo.InvariantCulture),
+                [SectionPagesToken] = sectionCounts.GetValueOrDefault(page.Section).ToString(CultureInfo.InvariantCulture),
+            };
+
             if (info.Headers.GetValueOrDefault(kind) is { } header)
             {
                 var box = LayoutStory(header, page.ContentRight - page.ContentLeft);
@@ -350,6 +360,7 @@ internal sealed partial class WordLayoutEngine
                 page.Items.AddRange(box.Translate(page.ContentLeft, page.Height - info.Geometry.FooterDistance - box.Height));
             }
 
+            _pageFieldValues = null;
             page.Items.AddRange(bodyItems);
 
             foreach (var text in page.Items.OfType<WordTextItem>())

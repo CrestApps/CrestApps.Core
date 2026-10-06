@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Documents.OpenXml.Word;
 using CrestApps.Core.AI.Documents.Word.Reading;
+using CrestApps.Core.AI.Documents.Word.Rendering;
 using CrestApps.Core.AI.Documents.Word.Tools;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -67,6 +68,16 @@ public sealed class FormattingAndReviewToolsTests
         Assert.Equal(BorderValues.Double, section.GetFirstChild<PageBorders>().TopBorder.Val.Value);
         Assert.Contains(footer.Descendants<FieldCode>(), code => code.Text.Contains("NUMPAGES", StringComparison.Ordinal));
         WordAuthoringToolsTests.AssertValid(bytes);
+
+        // The page number is laid out at its real width, so " of " follows it without a gap.
+        using var package = WordPackage.Open(bytes);
+        var page = WordPreview.Layout(package, host.Services).Pages[1];
+        var items = page.Items.OfType<WordTextItem>().Where(item => item.Baseline > page.Height - 100).OrderBy(item => item.X).ToList();
+        var number = items.Single(item => item.Text == "ii");
+        var next = items.First(item => item.X > number.X);
+
+        Assert.Contains("Page ii of 2", WordPreview.PageText(page), StringComparison.Ordinal);
+        Assert.InRange(next.X - (number.X + number.Width), 0, 4);
     }
 
     [Fact]

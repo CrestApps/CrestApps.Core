@@ -52,7 +52,7 @@ internal sealed class AddWordTocTool : WordToolBase
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Inserts a real Word table of contents built from the document's headings, with hyperlinked entries and page numbers, after a leading title by default. If the document already has one, it is refreshed from the current headings instead. The table is also refreshed automatically on every preview and export, and Word updates it when the file opens.";
+    public override string Description => "Inserts a real Word table of contents built from the document's headings, with hyperlinked entries and page numbers, after the document's title by default — leave after, before and at out unless the user asked for another place. If the document already has one, it is refreshed from the current headings instead. The table is also refreshed automatically on every preview and export, and Word updates it when the file opens.";
 
     /// <summary>
     /// Inserts or refreshes the table of contents.
