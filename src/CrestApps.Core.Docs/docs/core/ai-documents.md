@@ -20,6 +20,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddEntityCoreStores()
             .AddOpenXml()
             .AddPdf()
+            .AddWord()
             .AddReferenceDownloads()
         )
         .AddOpenAI()
@@ -40,6 +41,7 @@ With AI Documents enabled, your users can:
 - Search document content semantically instead of by exact keyword only
 - Work with spreadsheets and CSV files through a tabular workflow
 - Download generated files such as exports and AI-authored documents
+- Create, edit, format, review, preview and export Word documents through the Word Agent
 - Include supported images in chat flows
 
 ## Supported Experiences
@@ -115,6 +117,76 @@ A chart embedded in the workbook is for the downloaded file. To render a chart i
 
 When your deployment supports vision, users can upload supported image files alongside standard documents. This enables image-aware chat scenarios such as describing screenshots, extracting visible text, or answering questions about diagrams and photos.
 
+### Word documents and the Word Agent
+
+`AddWord()` registers the built-in **Word Agent** (`word-agent`). Like the Tabular Data Agent it is a
+code-defined **system agent**: always available to the primary model, exposed through the A2A host, and hidden
+from the agent pickers. The primary model delegates every request that produces or works on a Word document to
+it — "write a two-page project proposal with a table of contents", "use our letterhead template", "make every
+heading navy", "add page numbers", "turn tracking on and tighten the summary", "what changed between these two
+versions?" — and every follow-up as well. A steering handler tells the primary model which uploads are Word
+documents, so it delegates work on them instead of describing them. The `.docx` writer behind generated files
+is part of `AddOpenXml()` and works without the agent.
+
+#### The workspace
+
+Each chat session or chat interaction has a Word workspace that persists between turns:
+
+- **Uploaded documents are never changed.** An uploaded `.docx` is read in place; the first edit saves a
+  working copy, and every later edit changes that copy. A `.docx` or `.dotx` upload can be the template a new
+  document starts from, keeping its styles, page setup, headers and footers.
+- **Documents are real Word files.** Every tool call applies its changes as one all-or-nothing edit and saves
+  a new version, so the next turn, the preview and the export all see the same file. Elements are named by
+  stable ids (Word's own paragraph ids), so a follow-up can change one paragraph without rebuilding the rest.
+- The workspace is stored through `IDocumentFileStore` under the conversation's document folder, and is
+  removed when the conversation is deleted or its history is cleared.
+
+#### What the agent can do
+
+| Area | Tools |
+| --- | --- |
+| Writing | `create_word_document` (a theme preset or custom fonts and colours, page setup, properties, an uploaded template, and the first content), `add_word_content` (headings, paragraphs with inline Markdown, Markdown, nested lists, quotes, code, tables, pictures, charts, captions, page breaks), `update_word_content`, `remove_word_content`, `move_word_content` |
+| Structure | `add_word_section`, `add_word_page_break`, `add_word_toc`, `add_word_index`, `add_word_caption`, `add_word_cross_reference`, `add_word_bookmark`, `add_word_hyperlink`, `update_word_table` |
+| Design | `format_word_document` (the whole look, through the styles), `format_word_content` (chosen elements or a phrase in them), `manage_word_styles`, `set_word_page_layout` (size, margins, columns, page borders, page numbering), `set_word_page_background` (page colour, watermark), `add_word_header_footer` (text, page numbers and other fields, a logo) |
+| Review | `manage_word_comments`, `manage_word_revisions` (track changes, accept, reject), `check_word_document` (accessibility, broken references and links, layout problems), `compare_word_documents` |
+| Reading | `get_word_document`, `get_word_document_outline`, `search_word_document`, `extract_word_content` (Markdown, text, tables, links or pictures, optionally as a `.md`, `.txt` or `.csv` download) |
+| Delivery | `preview_word`, `export_word`, `import_word` |
+
+Tables and charts can take their rows from the conversation's uploaded spreadsheets with a read-only SQL
+query, and the agent can call `list_tabular_data` and `query_tabular_data` to choose them. While change
+tracking is on, text and formatting edits from every tool are recorded as revisions signed with
+`WordAgentOptions.Author`.
+
+#### Previews
+
+`preview_word` shows pages in the chat as pictures. An in-process layout engine lays the document out into
+pages — styles, lists, tables, pictures, charts, headers and footers, sections and columns — and draws each
+page as SVG; the same layout gives the table of contents and cross-references their page numbers. Text is
+measured with standard font metrics, so line and page breaks are close to Word's but not exact for every
+typeface. The pictures are stored through `IGeneratedDocumentService` and returned as `[fig:N]` markers;
+every colour taken from a document is validated before it is drawn, and links only keep web, mail and
+in-document targets.
+
+#### Options
+
+```csharp
+builder.Services.Configure<WordAgentOptions>(options =>
+{
+    options.MaxWorkingDocuments = 40;   // documents kept per conversation
+    options.MaxDocumentBytes = 50L * 1024 * 1024;
+    options.Author = "AI Assistant";    // the name comments and tracked changes are signed with
+});
+
+builder.Services.Configure<WordPreviewOptions>(options =>
+{
+    options.MaxPages = 4;               // pages per preview call
+    options.PageWidthPixels = 816;
+});
+
+// Keep the .docx writer but leave the agent out.
+builder.Services.Configure<WordAgentOptions>(options => options.Enabled = false);
+```
+
 ## Download Links and Citations
 
 Uploaded documents and generated deliverables can both appear as downloadable references in chat.
@@ -145,6 +217,7 @@ Out of the box, the document features support common text, document, image, and 
 
 - `AddOpenXml()` for Office formats such as Word, PowerPoint, and Excel
 - `AddPdf()` for PDF reading
+- `AddWord()` for the Word Agent
 - `AddMarkdown()` for Markdown-aware normalization and chunking
 
 Use the document upload options to control which extensions your app accepts.
