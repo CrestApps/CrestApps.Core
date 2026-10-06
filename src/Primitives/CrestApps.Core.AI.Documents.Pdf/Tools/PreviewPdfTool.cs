@@ -28,6 +28,9 @@ internal sealed class PreviewPdfTool : PdfToolBase
 
     private const string CacheKey = nameof(PreviewPdfTool) + ".Responses";
 
+    // The pages shown in this turn, by document version and page, with the marker each was shown with.
+    private const string ShownPagesKey = nameof(PreviewPdfTool) + ".ShownPages";
+
     private const string Schema = $$"""
         {
           "type": "object",
@@ -118,21 +121,56 @@ internal sealed class PreviewPdfTool : PdfToolBase
         }
         else
         {
-            // The renderer opens the file without a password, so a protected upload is drawn from a decrypted copy.
-            var renderings = PdfPageSvgRenderer.Render(PdfReadableCopy.WithoutPassword(bytes, password, pdf.IsEncrypted), shown, options);
-            var safeName = PdfToolContext.SanitizeName(source.Name).Replace(' ', '_');
-            var figures = renderings
-                .Select(rendering => new PdfFigure(
-                    string.Create(CultureInfo.InvariantCulture, $"{source.Name} — page {rendering.PageNumber} of {pageCount}"),
-                    string.Create(CultureInfo.InvariantCulture, $"{safeName}-page-{rendering.PageNumber}.svg"),
-                    Encoding.UTF8.GetBytes(rendering.Svg)))
-                .ToList();
+            // A page already shown in this turn keeps the marker it was shown with. Drawing it again under a
+            // new marker is how one answer ends up with every page twice: a second preview of the same pages,
+            // asked with other arguments, would hand the model a second set of markers to write.
+            var shownPages = ShownPages();
+            var pagePrefix = string.Join('|', source.Name, source.Working?.Version.ToString(CultureInfo.InvariantCulture) ?? source.Upload?.ItemId, string.Empty);
+            var toDraw = shown.Where(page => !shownPages.ContainsKey(pagePrefix + page.ToString(CultureInfo.InvariantCulture))).ToList();
+            var markers = new List<string>();
+            var drawn = new List<PdfPageRendering>();
 
-            var markers = await context.ShowFiguresAsync(figures, cancellationToken);
+            if (toDraw.Count > 0)
+            {
+                // The renderer opens the file without a password, so a protected upload is drawn from a decrypted copy.
+                drawn = PdfPageSvgRenderer.Render(PdfReadableCopy.WithoutPassword(bytes, password, pdf.IsEncrypted), toDraw, options);
 
-            response = markers is null
-                ? BuildTextResponse(pdf, source, shown, omitted, pageCount, "This host cannot show pictures here, so the pages are written out as text instead.")
-                : BuildImageResponse(source, renderings, markers, omitted, pageCount);
+                var safeName = PdfToolContext.SanitizeName(source.Name).Replace(' ', '_');
+                var figures = drawn
+                    .Select(rendering => new PdfFigure(
+                        string.Create(CultureInfo.InvariantCulture, $"{source.Name} — page {rendering.PageNumber} of {pageCount}"),
+                        string.Create(CultureInfo.InvariantCulture, $"{safeName}-page-{rendering.PageNumber}.svg"),
+                        Encoding.UTF8.GetBytes(rendering.Svg)))
+                    .ToList();
+
+                markers = await context.ShowFiguresAsync(figures, cancellationToken);
+            }
+
+            if (markers is null)
+            {
+                response = BuildTextResponse(pdf, source, shown, omitted, pageCount, "This host cannot show pictures here, so the pages are written out as text instead.");
+            }
+            else
+            {
+                for (var index = 0; index < drawn.Count; index++)
+                {
+                    // The picture itself is stored; only what describes it is kept for the rest of the turn.
+                    shownPages[pagePrefix + drawn[index].PageNumber.ToString(CultureInfo.InvariantCulture)] = (markers[index], drawn[index] with { Svg = null });
+                }
+
+                var pages = shown
+                    .Select(page => shownPages.TryGetValue(pagePrefix + page.ToString(CultureInfo.InvariantCulture), out var entry) ? entry : default)
+                    .Where(entry => entry.Marker is not null)
+                    .ToList();
+                var reused = shown.Except(toDraw).ToList();
+
+                foreach (var (marker, _) in pages)
+                {
+                    AIInvocationScope.Current?.RequestFigureDisplay(marker);
+                }
+
+                response = BuildImageResponse(source, [.. pages.Select(page => page.Rendering)], [.. pages.Select(page => page.Marker)], omitted, pageCount, reused);
+            }
         }
 
         if (missing.Count > 0)
@@ -152,16 +190,27 @@ internal sealed class PreviewPdfTool : PdfToolBase
         List<PdfPageRendering> renderings,
         List<string> markers,
         List<int> omitted,
-        int pageCount)
+        int pageCount,
+        List<int> reused)
     {
         var builder = new StringBuilder();
 
         builder
-            .AppendLine("WRITE THE FOLLOWING LINE IN YOUR ANSWER, EXACTLY AS SHOWN, ON A LINE OF ITS OWN:")
+            .AppendLine("WRITE THE FOLLOWING LINE IN YOUR ANSWER ONCE, EXACTLY AS SHOWN, ON A LINE OF ITS OWN:")
             .AppendLine()
             .AppendLine(string.Join(' ', markers))
             .AppendLine()
-            .AppendLine("The markers are placeholders the host replaces with the page pictures; the user sees nothing unless they appear in your answer character for character. Do not describe them as \"shown above\" instead of writing them.")
+            .AppendLine("The markers are placeholders the host replaces with the page pictures; the user sees nothing unless they appear in your answer character for character. Do not describe them as \"shown above\" instead of writing them, and do not write them twice: each one becomes a picture every time it appears.");
+
+        if (reused.Count > 0)
+        {
+            builder
+                .AppendLine()
+                .Append("Page ").Append(PdfPageRange.Describe(reused))
+                .AppendLine(" was already shown in this turn and keeps the same marker; if your answer already has it, do not write it again.");
+        }
+
+        builder
             .AppendLine()
             .Append("What each picture shows (").Append(source.Describe()).AppendLine("), for your own wording only:");
 
@@ -226,6 +275,24 @@ internal sealed class PreviewPdfTool : PdfToolBase
         }
 
         return builder.ToString();
+    }
+
+    private static Dictionary<string, (string Marker, PdfPageRendering Rendering)> ShownPages()
+    {
+        var invocation = AIInvocationScope.Current;
+
+        if (invocation is null)
+        {
+            return [];
+        }
+
+        if (!invocation.Items.TryGetValue(ShownPagesKey, out var value) || value is not Dictionary<string, (string Marker, PdfPageRendering Rendering)> pages)
+        {
+            pages = new Dictionary<string, (string Marker, PdfPageRendering Rendering)>(StringComparer.Ordinal);
+            invocation.Items[ShownPagesKey] = pages;
+        }
+
+        return pages;
     }
 
     private static bool TryGetCached(string key, out string response)

@@ -107,11 +107,35 @@ bothClients('an ordinary citation is left for the citation pass', (expand) => {
     assert.equal(expand('Stated in [doc:1] and [doc:2].', references), 'Stated in [doc:1] and [doc:2].');
 });
 
-bothClients('a marker used twice is expanded twice', (expand) => {
+bothClients('a picture is drawn once, where its marker is first written', (expand) => {
+    // The regression: a model wrote the line of preview markers once where it introduced the preview and again
+    // where it summed up, and every page of a three-page document was shown twice. The later mention is
+    // dropped, never left as the raw marker.
     const references = { '[fig:1]': { isImage: true, link: LINK, title: 'Monthly totals' } };
     const image = `![Monthly totals](${LINK})`;
 
-    assert.equal(expand('[fig:1] and again [fig:1]', references), `${image} and again ${image}`);
+    assert.equal(expand('[fig:1] and again [fig:1]', references), `${image} and again `);
+});
+
+bothClients('a repeated line of markers shows each picture once', (expand) => {
+    const references = {
+        '[fig:1]': { isImage: true, link: LINK, title: 'Page 1' },
+        '[fig:2]': { isImage: true, link: OTHER_LINK, title: 'Page 2' },
+    };
+
+    assert.equal(
+        expand('[fig:1] [fig:2]\n\nThe preview: [fig:1] [fig:2]', references),
+        `![Page 1](${LINK}) ![Page 2](${OTHER_LINK})\n\nThe preview:  `);
+});
+
+bothClients('two markers for the same picture draw it once, in reading order', (expand) => {
+    // First in the text decides, not first in the map.
+    const references = {
+        '[fig:1]': { isImage: true, link: LINK, title: 'First' },
+        '[fig:2]': { isImage: true, link: LINK, title: 'Second' },
+    };
+
+    assert.equal(expand('[fig:2] then [fig:1]', references), `![Second](${LINK}) then `);
 });
 
 bothClients('a longer index is not corrupted by a shorter one', (expand) => {

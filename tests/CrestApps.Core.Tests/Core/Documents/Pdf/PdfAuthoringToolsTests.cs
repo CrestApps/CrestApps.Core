@@ -8,6 +8,45 @@ namespace CrestApps.Core.Tests.Core.Documents.Pdf;
 public sealed class PdfAuthoringToolsTests
 {
     [Fact]
+    public async Task PreviewPdf_SamePagesTwiceInATurn_KeepTheirMarkers_SoTheAnswerCannotShowThemTwice()
+    {
+        using var host = new PdfToolTestHost();
+
+        await host.InvokeAsync(new CreatePdfTool(), new
+        {
+            name = "brief",
+            title = "Contoso Brief",
+            cover_page = new { subtitle = "Second quarter" },
+            table_of_contents = new { enabled = true },
+            blocks = new object[] { new { type = "heading", text = "Summary", level = 1 } },
+        });
+
+        var first = await host.InvokeAsync(new PreviewPdfTool(), new { });
+
+        Assert.Contains("[fig:1] [fig:2] [fig:3]", first, StringComparison.Ordinal);
+
+        // Asked again with other arguments — as a model does before and after exporting — the pages come back
+        // under the markers they were shown with, not as [fig:4] to [fig:6].
+        var again = await host.InvokeAsync(new PreviewPdfTool(), new { pages = "1-3" });
+
+        Assert.Contains("[fig:1] [fig:2] [fig:3]", again, StringComparison.Ordinal);
+        Assert.DoesNotContain("[fig:4]", again, StringComparison.Ordinal);
+        Assert.Contains("already shown in this turn", again, StringComparison.Ordinal);
+
+        var part = await host.InvokeAsync(new PreviewPdfTool(), new { pages = "3" });
+
+        Assert.Contains("[fig:3]", part, StringComparison.Ordinal);
+        Assert.DoesNotContain("[fig:1]", part, StringComparison.Ordinal);
+
+        // A changed document is a different picture, so it is drawn and marked again.
+        await host.InvokeAsync(new AddPdfContentTool(), new { blocks = new object[] { new { type = "paragraph", text = "Revenue rose." } } });
+
+        var changed = await host.InvokeAsync(new PreviewPdfTool(), new { pages = "3" });
+
+        Assert.Contains("[fig:4]", changed, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CreatePdf_ReportAsAModelWritesIt_HasOneNumberPerPage_AGeneratedContentsPage_AndAReadableChart()
     {
         using var host = new PdfToolTestHost();

@@ -3,6 +3,12 @@
 ** Any changes made directly to this file will be overwritten next time its asset group is processed by Gulp.
 */
 
+function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
+function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
+function _iterableToArray(r) { if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r); }
+function _arrayWithoutHoles(r) { if (Array.isArray(r)) return _arrayLikeToArray(r); }
+function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
 function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
 /*
  * Markers the host expands on the model's behalf.
@@ -64,6 +70,11 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
    * exactly as written -- a marker the model invented for a figure that was never in the results, or one
    * whose picture the host cannot serve, reaches the reader as the few characters the model typed rather
    * than as a broken image.
+   *
+   * Each picture is drawn once per message, where it is first mentioned. Models repeat the line of markers
+   * a tool asked them to write -- once where they introduce the preview, again where they sum up -- and
+   * drawing every occurrence showed each page of a three-page document twice. A later mention of the same
+   * marker, or of another marker for the same picture, is dropped rather than left as raw text.
    */
   function expandImageMarkers(content, references) {
     if (typeof content !== 'string' || !content) {
@@ -72,36 +83,50 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
     if (!references || _typeof(references) !== 'object') {
       return content;
     }
-    var expanded = content;
-    var _loop = function _loop() {
-        var _reference$isImage, _reference$link, _reference$title;
-        var marker = _Object$keys[_i];
-        var reference = references[marker];
-        if (!marker || !reference || _typeof(reference) !== 'object') {
-          return 0; // continue
-        }
-        if (((_reference$isImage = reference.isImage) !== null && _reference$isImage !== void 0 ? _reference$isImage : reference.IsImage) !== true) {
-          return 0; // continue
-        }
-        var rawLink = (_reference$link = reference.link) !== null && _reference$link !== void 0 ? _reference$link : reference.Link;
-        var link = typeof rawLink === 'string' ? rawLink.trim() : '';
-        if (!link) {
-          return 0; // continue
-        }
-        var image = "![".concat(escapeImageAltText((_reference$title = reference.title) !== null && _reference$title !== void 0 ? _reference$title : reference.Title), "](").concat(encodeImageLink(link), ")");
-
-        // Every occurrence, and through a replacer function so a '$' in a caption or a link is not read as
-        // a replacement pattern.
-        expanded = expanded.replaceAll(marker, function () {
-          return image;
-        });
-      },
-      _ret;
+    var images = new Map();
     for (var _i = 0, _Object$keys = Object.keys(references); _i < _Object$keys.length; _i++) {
-      _ret = _loop();
-      if (_ret === 0) continue;
+      var _reference$isImage, _reference$link, _reference$title;
+      var marker = _Object$keys[_i];
+      var reference = references[marker];
+      if (!marker || !reference || _typeof(reference) !== 'object') {
+        continue;
+      }
+      if (((_reference$isImage = reference.isImage) !== null && _reference$isImage !== void 0 ? _reference$isImage : reference.IsImage) !== true) {
+        continue;
+      }
+      var rawLink = (_reference$link = reference.link) !== null && _reference$link !== void 0 ? _reference$link : reference.Link;
+      var link = typeof rawLink === 'string' ? rawLink.trim() : '';
+      if (!link) {
+        continue;
+      }
+      images.set(marker, {
+        link: link,
+        image: "![".concat(escapeImageAltText((_reference$title = reference.title) !== null && _reference$title !== void 0 ? _reference$title : reference.Title), "](").concat(encodeImageLink(link), ")")
+      });
     }
-    return expanded;
+    if (images.size === 0) {
+      return content;
+    }
+
+    // One pass over every marker at once, so "first mention" means first in the text rather than first in
+    // the map. The markers are bracketed, so [fig:1] cannot match inside [fig:11]; the longer ones are
+    // tried first all the same.
+    var pattern = new RegExp(_toConsumableArray(images.keys()).sort(function (left, right) {
+      return right.length - left.length;
+    }).map(function (marker) {
+      return marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }).join('|'), 'g');
+    var drawn = new Set();
+
+    // Through a replacer function, so a '$' in a caption or a link is not read as a replacement pattern.
+    return content.replace(pattern, function (marker) {
+      var entry = images.get(marker);
+      if (drawn.has(entry.link)) {
+        return '';
+      }
+      drawn.add(entry.link);
+      return entry.image;
+    });
   }
 
   // The marker the chart tool emits and asks the model to repeat verbatim, braces and all.

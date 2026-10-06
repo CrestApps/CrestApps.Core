@@ -59,6 +59,11 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || (function () {
      * exactly as written -- a marker the model invented for a figure that was never in the results, or one
      * whose picture the host cannot serve, reaches the reader as the few characters the model typed rather
      * than as a broken image.
+     *
+     * Each picture is drawn once per message, where it is first mentioned. Models repeat the line of markers
+     * a tool asked them to write -- once where they introduce the preview, again where they sum up -- and
+     * drawing every occurrence showed each page of a three-page document twice. A later mention of the same
+     * marker, or of another marker for the same picture, is dropped rather than left as raw text.
      */
     function expandImageMarkers(content, references) {
         if (typeof content !== 'string' || !content) {
@@ -69,7 +74,7 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || (function () {
             return content;
         }
 
-        let expanded = content;
+        const images = new Map();
 
         for (const marker of Object.keys(references)) {
             const reference = references[marker];
@@ -89,14 +94,37 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || (function () {
                 continue;
             }
 
-            const image = `![${escapeImageAltText(reference.title ?? reference.Title)}](${encodeImageLink(link)})`;
-
-            // Every occurrence, and through a replacer function so a '$' in a caption or a link is not read as
-            // a replacement pattern.
-            expanded = expanded.replaceAll(marker, function () { return image; });
+            images.set(marker, {
+                link: link,
+                image: `![${escapeImageAltText(reference.title ?? reference.Title)}](${encodeImageLink(link)})`,
+            });
         }
 
-        return expanded;
+        if (images.size === 0) {
+            return content;
+        }
+
+        // One pass over every marker at once, so "first mention" means first in the text rather than first in
+        // the map. The markers are bracketed, so [fig:1] cannot match inside [fig:11]; the longer ones are
+        // tried first all the same.
+        const pattern = new RegExp([...images.keys()]
+            .sort(function (left, right) { return right.length - left.length; })
+            .map(function (marker) { return marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); })
+            .join('|'), 'g');
+        const drawn = new Set();
+
+        // Through a replacer function, so a '$' in a caption or a link is not read as a replacement pattern.
+        return content.replace(pattern, function (marker) {
+            const entry = images.get(marker);
+
+            if (drawn.has(entry.link)) {
+                return '';
+            }
+
+            drawn.add(entry.link);
+
+            return entry.image;
+        });
     }
 
     // The marker the chart tool emits and asks the model to repeat verbatim, braces and all.
