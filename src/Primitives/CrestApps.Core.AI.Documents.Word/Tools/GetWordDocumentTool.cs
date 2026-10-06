@@ -110,12 +110,12 @@ internal sealed class GetWordDocumentTool : WordToolBase
 
         if (package.MainPart.WordprocessingCommentsPart?.Comments?.HasChildren == true)
         {
-            answer.Append("It has comments; see extract_word_comments. ");
+            answer.Append("It has comments; see manage_word_comments. ");
         }
 
         if (package.Body.Descendants<DocumentFormat.OpenXml.Wordprocessing.InsertedRun>().Any() || package.Body.Descendants<DocumentFormat.OpenXml.Wordprocessing.DeletedRun>().Any())
         {
-            answer.Append("It has tracked changes; see get_word_changes.");
+            answer.Append("It has tracked changes; see manage_word_revisions.");
         }
 
         answer.AppendLine().AppendLine();
@@ -150,7 +150,7 @@ internal sealed class GetWordDocumentTool : WordToolBase
 
         if (state.Documents.Count == 0 && !context.WordUploads.Any())
         {
-            return "There are no Word documents in this conversation. Start one with create_word_document, or convert content with convert_to_word.";
+            return "There are no Word documents in this conversation. Start one with create_word_document.";
         }
 
         if (state.Documents.Count > 0)

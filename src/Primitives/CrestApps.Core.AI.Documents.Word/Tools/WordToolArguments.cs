@@ -118,6 +118,28 @@ internal sealed class WordToolArguments
     }
 
     /// <summary>
+    /// Reads a length in points, accepting a number of points or text with a unit such as <c>0.5in</c>,
+    /// <c>2cm</c> or <c>50%</c>.
+    /// </summary>
+    /// <param name="name">The argument name.</param>
+    /// <param name="referencePoints">What a percentage is a percentage of.</param>
+    /// <returns>The length, or <see langword="null"/> when it is missing or not a length.</returns>
+    public double? GetLength(string name, double referencePoints = 468)
+    {
+        if (!TryGetElement(name, out var element))
+        {
+            return null;
+        }
+
+        if (element.ValueKind == JsonValueKind.Number && element.TryGetDouble(out var number))
+        {
+            return number;
+        }
+
+        return element.ValueKind == JsonValueKind.String && OpenXml.Word.WordUnits.TryParseLength(element.GetString(), referencePoints, out var points) ? points : null;
+    }
+
+    /// <summary>
     /// Reads a list of strings, accepting an array or a single string.
     /// </summary>
     /// <param name="name">The argument name.</param>

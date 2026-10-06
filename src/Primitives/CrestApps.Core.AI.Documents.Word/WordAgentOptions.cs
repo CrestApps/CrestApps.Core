@@ -35,12 +35,6 @@ public sealed class WordAgentOptions
     public int MaxImageBytes { get; set; } = 10 * 1024 * 1024;
 
     /// <summary>
-    /// Gets or sets the most characters of document text a single model-assisted tool (summaries, structured
-    /// extraction, classification, rewriting) reads in one pass before it works in parts. Defaults to 60,000.
-    /// </summary>
-    public int MaxModelInputCharacters { get; set; } = 60_000;
-
-    /// <summary>
     /// Gets or sets the author name comments and tracked changes made by the agent are signed with. Defaults to
     /// <c>AI Assistant</c>.
     /// </summary>

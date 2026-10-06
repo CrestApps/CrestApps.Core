@@ -131,7 +131,7 @@ internal sealed class UpdateWordContentTool : WordToolBase
                 {
                     if (text is not null || style is not null || level is not null || alignment is not null)
                     {
-                        throw new WordToolException($"[{id}] is a {(element is Table ? "table — change it with update_word_table or format_word_table" : "container — change the paragraphs inside it")}.");
+                        throw new WordToolException($"[{id}] is a {(element is Table ? "table — change it with update_word_table or format_word_content" : "container — change the paragraphs inside it")}.");
                     }
 
                     continue;

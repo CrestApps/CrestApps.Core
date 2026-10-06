@@ -45,59 +45,40 @@ named by its id; its cells by `row` and `column` numbers from 1.
    - Charts: `chart_type`, `labels` and `series` with the real numbers, or `source.sql` over tabular data.
    - `caption` on a table, image or chart adds a numbered caption ("Table 1: …", "Figure 2: …").
 3. Structure: `add_word_toc` (table of contents from the headings), `add_word_section` (a section with its own
-   page layout), `add_word_page_break`, `add_word_header_footer`, `add_word_page_numbers`, `add_word_index`,
-   `add_word_caption`, `add_word_cross_reference`, `add_word_bookmark`, `add_word_hyperlink`.
+   page layout), `add_word_page_break`, `add_word_index`, `add_word_caption`, `add_word_cross_reference`,
+   `add_word_bookmark`, `add_word_hyperlink`.
 4. Look: `format_word_document` (theme, fonts, colors, spacing for the whole document — restyles every
    paragraph that uses the styles), `format_word_content` (selected elements, or text found in them),
-   `manage_word_styles`, `set_word_page_layout`, `set_word_page_background`, `add_word_page_borders`.
-5. Tables, images, charts and shapes after they exist: `add_word_table`, `update_word_table`,
-   `format_word_table`, `merge_word_table_cells`, `split_word_table_cell`, `add_word_image`,
-   `update_word_image`, `add_word_chart`, `update_word_chart`, `add_word_shape`, `add_word_smartart`.
-6. `preview_word` shows pages as pictures. Preview after building or changing a document and BEFORE
+   `manage_word_styles`, `set_word_page_layout` (size, margins, columns, page borders, roman or restarted page
+   numbering), `set_word_page_background` (page color, watermark).
+5. Headers and footers: `add_word_header_footer` with `left`/`center`/`right` text and tokens such as
+   `{page}` and `{pages}` — page numbers are a footer like `center: "Page {page} of {pages}"`;
+   `hide_on_first_page` keeps a cover page clean.
+6. Tables after they exist: `update_word_table` sets cells and adds or removes rows and columns.
+7. `preview_word` shows pages as pictures. Preview after building or changing a document and BEFORE
    exporting, so the user sees what the file will look like. It returns `[fig:N]` markers.
-7. `export_word` writes the .docx for download and returns a `[doc:N]` marker.
+8. `export_word` writes the .docx for download and returns a `[doc:N]` marker.
 
 Change existing content in place — `update_word_content`, `remove_word_content`, `move_word_content`,
 `format_word_content` — never rebuild a whole document to change one part.
 
 ## Working on uploaded documents
 
-- Read first: `get_word_document`, `get_word_document_outline`, `get_word_document_info`,
-  `extract_word_structure`, `extract_word_text`, `get_word_content`, `search_word_document`.
-- Extract: `extract_word_tables`, `extract_word_images`, `extract_word_links`, `extract_word_fields`,
-  `extract_word_comments`, `extract_word_revisions`, `detect_word_language`.
+- Read first: `get_word_document`, `get_word_document_outline`, `search_word_document`.
+- `extract_word_content` returns the content as Markdown or text, or its tables, links or pictures; with
+  `save_as_file` it is also a download (the document as Markdown, its tables as CSV). Use it to summarize,
+  answer questions or reuse content — cite the ids of the elements you used.
+- `compare_word_documents` lists what changed between two versions, or a working copy and its upload.
 - `import_word` makes a named working copy; any editing tool also makes one on its first change.
-- Comments: `add_word_comment` (anchored to text you find, or an element), `reply_to_word_comment`,
-  `update_word_comment` (text or resolved), `delete_word_comment`.
-- Tracked changes: `enable_word_track_changes` turns tracking on, after which your text edits are recorded as
-  revisions signed by the agent. `get_word_changes` lists them; `accept_word_changes` and
-  `reject_word_changes` take ids or `all`; `add_word_tracked_change` inserts or deletes text as a revision.
-- `manage_word_protection` restricts editing (read only, comments only, tracked changes only, forms).
-
-## Understanding documents
-
-- `summarize_word_document`, `ask_word_document` (answers with the ids of the paragraphs it used — cite them),
-  `compare_word_documents` (versions, or a working copy against its upload), `extract_word_entities`,
-  `extract_word_data` (into a JSON shape you give), `classify_word_document`, `generate_word_outline`,
-  `cross_reference_word_documents`.
-- `rewrite_word_content`, `improve_word_content` and `translate_word_content` change text in place and keep
-  its formatting; they use tracked changes when tracking is on.
-- Tools that need a model say so when this host has none; tell the user rather than guessing.
-
-## Converting
-
-- `convert_to_word` turns Markdown, HTML, text, PDF, PowerPoint, Excel or CSV — uploaded files or text you
-  give — into a working document. `convert_from_word` writes a document as PDF, HTML, Markdown, text, JSON or
-  page images. `export_word_content` exports selected elements as a separate .docx;
-  `duplicate_word_document` makes a separate working copy.
+- `manage_word_comments` lists, adds (on an element or a phrase in it), answers, resolves and deletes comments.
+- `manage_word_revisions` turns change tracking on or off, lists tracked changes, and accepts or rejects them.
+  While tracking is on, text and formatting edits are recorded as revisions signed by the agent.
 
 ## Checking quality
 
-`validate_word_document` (package and schema), `validate_word_layout`, `check_word_rendering`,
-`check_word_content_overflow`, `check_word_fonts`, `check_word_links`, `validate_word_fields`,
-`check_word_accessibility` and `validate_word_accessibility`. `get_word_page_count`,
-`get_word_rendering_info`, `render_word_pages` and `preview_word_content` look at the laid-out pages. Run a
-check before exporting a document that will be shared, and fix what it reports.
+`check_word_document` lists accessibility problems, broken cross-references and links, open comments and
+tracked changes, and layout problems such as text running off the page. Run it before exporting a document
+that will be shared, and fix what it reports.
 
 ## Rules
 

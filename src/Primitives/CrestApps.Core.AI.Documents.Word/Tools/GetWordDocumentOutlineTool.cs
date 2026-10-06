@@ -113,7 +113,7 @@ internal sealed class GetWordDocumentOutlineTool : WordToolBase
 
         if (headings == 0)
         {
-            answer.AppendLine("The document has no headings. generate_word_outline can propose one from its text.");
+            answer.AppendLine("The document has no headings; turn paragraphs into headings with update_word_content level.");
         }
 
         if (skipped.Count > 0)

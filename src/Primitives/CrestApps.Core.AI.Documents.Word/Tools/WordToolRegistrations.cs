@@ -38,6 +38,19 @@ internal static class WordToolRegistrations
         services.AddWordTool<AddWordCrossReferenceTool>(AddWordCrossReferenceTool.TheName, "Add Word Cross-Reference", "Inserts a reference to a heading, caption or bookmark.");
         services.AddWordTool<AddWordBookmarkTool>(AddWordBookmarkTool.TheName, "Add Word Bookmark", "Adds, renames, removes or lists bookmarks.");
         services.AddWordTool<AddWordHyperlinkTool>(AddWordHyperlinkTool.TheName, "Add Word Hyperlink", "Adds a link to a web address or a place in the document.");
+        services.AddWordTool<UpdateWordTableTool>(UpdateWordTableTool.TheName, "Update Word Table", "Sets cells and adds or removes rows and columns of a table.");
+        services.AddWordTool<FormatWordDocumentTool>(FormatWordDocumentTool.TheName, "Format Word Document", "Changes the theme, fonts, colors and spacing of the whole document through its styles.");
+        services.AddWordTool<FormatWordContentTool>(FormatWordContentTool.TheName, "Format Word Content", "Formats chosen elements or a phrase in them, or applies a style.");
+        services.AddWordTool<ManageWordStylesTool>(ManageWordStylesTool.TheName, "Manage Word Styles", "Lists, creates, changes and deletes paragraph and character styles.");
+        services.AddWordTool<SetWordPageLayoutTool>(SetWordPageLayoutTool.TheName, "Set Word Page Layout", "Sets page size, orientation, margins, columns, page borders and page numbering.");
+        services.AddWordTool<SetWordPageBackgroundTool>(SetWordPageBackgroundTool.TheName, "Set Word Page Background", "Sets a page color or a text watermark.");
+        services.AddWordTool<AddWordHeaderFooterTool>(AddWordHeaderFooterTool.TheName, "Add Word Header or Footer", "Sets a header or footer with text, page numbers, fields and a logo.");
+        services.AddWordTool<ManageWordCommentsTool>(ManageWordCommentsTool.TheName, "Manage Word Comments", "Lists, adds, answers, resolves and deletes review comments.");
+        services.AddWordTool<ManageWordRevisionsTool>(ManageWordRevisionsTool.TheName, "Manage Word Revisions", "Turns change tracking on or off, and lists, accepts or rejects tracked changes.");
+        services.AddWordTool<SearchWordDocumentTool>(SearchWordDocumentTool.TheName, "Search Word Document", "Finds words or a pattern and returns each match with its element, page and context.");
+        services.AddWordTool<ExtractWordContentTool>(ExtractWordContentTool.TheName, "Extract Word Content", "Extracts the document as Markdown or text, or its tables, links or pictures.");
+        services.AddWordTool<CompareWordDocumentsTool>(CompareWordDocumentsTool.TheName, "Compare Word Documents", "Lists what was added, removed and changed between two documents.");
+        services.AddWordTool<CheckWordDocumentTool>(CheckWordDocumentTool.TheName, "Check Word Document", "Checks accessibility, references, links and layout.");
     }
 
     /// <summary>
