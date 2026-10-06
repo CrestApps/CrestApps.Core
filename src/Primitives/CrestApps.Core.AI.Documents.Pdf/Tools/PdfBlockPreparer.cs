@@ -26,7 +26,7 @@ internal static class PdfBlockPreparer
     /// <returns>Notes about data that could not be read as asked.</returns>
     public static async Task<List<string>> PrepareAsync(
         PdfDocumentDefinition definition,
-        IReadOnlyList<PdfBlockDefinition> blocks,
+        List<PdfBlockDefinition> blocks,
         IServiceProvider services,
         CancellationToken cancellationToken)
     {
@@ -38,6 +38,8 @@ internal static class PdfBlockPreparer
         {
             return warnings;
         }
+
+        ReplaceHandWrittenContents(definition, blocks, warnings);
 
         TabularToolRunner.PreparationResult? tabular = null;
 
@@ -97,6 +99,110 @@ internal static class PdfBlockPreparer
         }
 
         return warnings;
+    }
+
+    /// <summary>
+    /// Replaces a table of contents written as content — a "Table of Contents" heading over a list of the
+    /// document's headings — with the generated one, which has page numbers and links and stays current.
+    /// </summary>
+    /// <param name="definition">The document.</param>
+    /// <param name="blocks">The blocks of the call, changed in place.</param>
+    /// <param name="notes">Receives a note when one was replaced.</param>
+    internal static void ReplaceHandWrittenContents(PdfDocumentDefinition definition, List<PdfBlockDefinition> blocks, List<string> notes)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(blocks);
+
+        for (var index = 0; index < blocks.Count; index++)
+        {
+            var block = blocks[index];
+
+            if (block is null || PdfMigraDocBuilder.NormalizeType(block) != PdfBlockTypes.Heading || !IsContentsTitle(block.Text))
+            {
+                continue;
+            }
+
+            var end = index + 1;
+            var next = end < blocks.Count ? blocks[end] : null;
+
+            // The list under it is the hand-written entries; it is taken only when its items are the
+            // document's own headings, so an ordinary list under a heading called "Contents" is kept.
+            if (next is not null && PdfMigraDocBuilder.NormalizeType(next) == PdfBlockTypes.List)
+            {
+                if (!ListsHeadings(next, definition, blocks))
+                {
+                    continue;
+                }
+
+                end++;
+            }
+
+            // The generated contents get a page of their own, so a break the model put after its own is not
+            // needed and would leave a blank page.
+            if (end < blocks.Count && blocks[end] is { } after && PdfMigraDocBuilder.NormalizeType(after) == PdfBlockTypes.PageBreak)
+            {
+                end++;
+            }
+
+            blocks.RemoveRange(index, end - index);
+
+            definition.TableOfContents ??= new PdfTableOfContentsDefinition();
+            definition.TableOfContents.Enabled = true;
+            definition.TableOfContents.Title ??= Plain(block.Text);
+
+            notes.Add("The table of contents written as a heading and a list was replaced with a generated one (table_of_contents), which shows each heading's page number and links to it. Do not write one by hand.");
+
+            return;
+        }
+    }
+
+    private static bool IsContentsTitle(string text)
+    {
+        return Plain(text).TrimEnd(':').ToLowerInvariant() is "table of contents" or "contents" or "toc" or "content";
+    }
+
+    private static bool ListsHeadings(PdfBlockDefinition list, PdfDocumentDefinition definition, List<PdfBlockDefinition> blocks)
+    {
+        var items = (list.Items ?? []).Select(EntryText).Where(item => item.Length > 0).ToList();
+
+        if (items.Count == 0)
+        {
+            return false;
+        }
+
+        var headings = new HashSet<string>(
+            (definition.Sections ?? []).SelectMany(section => section.Blocks ?? []).Concat(blocks)
+                .Where(candidate => candidate is not null && PdfMigraDocBuilder.NormalizeType(candidate) == PdfBlockTypes.Heading && !IsContentsTitle(candidate.Text))
+                .Select(candidate => EntryText(candidate.Text)),
+            StringComparer.OrdinalIgnoreCase);
+
+        return items.Count(headings.Contains) * 2 >= items.Count;
+    }
+
+    private static string EntryText(string text)
+    {
+        // "1. Revenue Analysis ........ 3" names the heading "Revenue Analysis".
+        var plain = Plain(text);
+        var start = 0;
+
+        while (start < plain.Length && (char.IsDigit(plain[start]) || plain[start] is '.' or ')' or '-' or '•' or '*' or ' '))
+        {
+            start++;
+        }
+
+        var end = plain.Length;
+
+        while (end > start && (char.IsDigit(plain[end - 1]) || plain[end - 1] is '.' or ' ' or '…'))
+        {
+            end--;
+        }
+
+        return plain[start..end].Trim();
+    }
+
+    private static string Plain(string text)
+    {
+        return (text ?? string.Empty).Replace("**", string.Empty, StringComparison.Ordinal).Replace("__", string.Empty, StringComparison.Ordinal).Trim();
     }
 
     private static void ReadChartJs(PdfChartDefinition chart, List<string> warnings)

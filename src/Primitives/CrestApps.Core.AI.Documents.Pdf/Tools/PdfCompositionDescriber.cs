@@ -159,7 +159,9 @@ internal static class PdfCompositionDescriber
 
         if (definition.PageNumbers?.Enabled == true)
         {
-            lines.Add($"Page numbers: {definition.PageNumbers.Position ?? "footer-center"}, \"{definition.PageNumbers.Template ?? "Page {page} of {pages}"}\"");
+            lines.Add(PdfMigraDocBuilder.ShowsPageNumber(definition.Header) || PdfMigraDocBuilder.ShowsPageNumber(definition.Footer)
+                ? "Page numbers: written by the header or footer's {page} token"
+                : $"Page numbers: {definition.PageNumbers.Position ?? "footer-center"}, \"{definition.PageNumbers.Template ?? "Page {page} of {pages}"}\"");
         }
 
         if (definition.CoverPage is { } cover && cover.Enabled != false)

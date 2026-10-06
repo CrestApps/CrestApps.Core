@@ -1,6 +1,7 @@
 using MigraDoc.DocumentObjectModel;
 using MigraDoc.DocumentObjectModel.Shapes;
 using MigraDoc.DocumentObjectModel.Shapes.Charts;
+using MigraDoc.DocumentObjectModel.Tables;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Composition;
 
@@ -9,15 +10,19 @@ internal sealed partial class PdfMigraDocBuilder
     /// <summary>
     /// Reads a chart type, accepting the names a model and Chart.js use.
     /// </summary>
+    /// <remarks>
+    /// A "bar chart" is drawn with upright bars, as Chart.js and most people mean it; only a chart asked for
+    /// as horizontal lays its bars sideways.
+    /// </remarks>
     /// <param name="value">The chart type as written.</param>
     /// <returns>The MigraDoc chart type.</returns>
     public static ChartType ReadChartType(string value)
     {
         return value?.Trim().ToLowerInvariant().Replace('-', '_').Replace(' ', '_') switch
         {
-            "bar" or "horizontal_bar" or "hbar" => ChartType.Bar2D,
-            "stacked_bar" or "horizontal_stacked_bar" => ChartType.BarStacked2D,
-            "stacked_column" or "stacked" or "stacked_vertical" => ChartType.ColumnStacked2D,
+            "horizontal_bar" or "hbar" or "bar_horizontal" or "horizontal" => ChartType.Bar2D,
+            "stacked_horizontal_bar" or "horizontal_stacked_bar" or "stacked_hbar" => ChartType.BarStacked2D,
+            "stacked_bar" or "stacked_column" or "stacked" or "stacked_vertical" => ChartType.ColumnStacked2D,
             "line" or "trend" or "radar" => ChartType.Line,
             "area" => ChartType.Area2D,
             "pie" or "doughnut" or "donut" or "polararea" or "polar_area" => ChartType.Pie2D,
@@ -50,6 +55,8 @@ internal sealed partial class PdfMigraDocBuilder
 
         var type = ReadChartType(definition.ChartType);
         var isPie = type is ChartType.Pie2D or ChartType.PieExploded2D;
+        var isHorizontal = type is ChartType.Bar2D or ChartType.BarStacked2D;
+        var numberFormat = string.IsNullOrWhiteSpace(definition.NumberFormat) ? DefaultNumberFormat(series) : definition.NumberFormat;
 
         if (isPie && series.Count > 1)
         {
@@ -58,7 +65,7 @@ internal sealed partial class PdfMigraDocBuilder
         }
 
         var width = _page.UsableWidth * Math.Clamp(definition.WidthPercent ?? 100, 20, 100) / 100;
-        var height = Math.Clamp(definition.Height ?? (isPie ? 250 : 220), 80, _page.UsableHeight * 0.9);
+        var height = Math.Clamp(definition.Height ?? DefaultHeight(definition, isPie, isHorizontal, categoryCount, series.Count), 80, _page.UsableHeight * 0.9);
         var chart = new Chart(type)
         {
             Width = Unit.FromPoint(width),
@@ -141,20 +148,31 @@ internal sealed partial class PdfMigraDocBuilder
             chart.YAxis.MajorGridlines.LineFormat.Width = 0.5;
             chart.YAxis.LineFormat.Visible = false;
 
-            if (!string.IsNullOrWhiteSpace(definition.NumberFormat))
-            {
-                chart.YAxis.TickLabels.Format = definition.NumberFormat;
-            }
+            // Values read with thousands separators: "150,000", not "150000.0".
+            chart.YAxis.TickLabels.Format = numberFormat;
 
+            // MigraDoc's value axis is the Y axis whichever way the bars run; its title is turned upright only
+            // when that axis is upright, or it is written across the axis labels.
             if (!string.IsNullOrWhiteSpace(definition.XAxisTitle))
             {
                 chart.XAxis.Title.Caption = definition.XAxisTitle;
+
+                if (isHorizontal)
+                {
+                    chart.XAxis.Title.Orientation = 90;
+                    chart.XAxis.Title.VerticalAlignment = VerticalAlignment.Center;
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(definition.YAxisTitle))
             {
                 chart.YAxis.Title.Caption = definition.YAxisTitle;
-                chart.YAxis.Title.Orientation = 90;
+
+                if (!isHorizontal)
+                {
+                    chart.YAxis.Title.Orientation = 90;
+                    chart.YAxis.Title.VerticalAlignment = VerticalAlignment.Center;
+                }
             }
 
             chart.PlotArea.LineFormat.Visible = false;
@@ -175,9 +193,9 @@ internal sealed partial class PdfMigraDocBuilder
             chart.DataLabel.Position = isPie ? DataLabelPosition.OutsideEnd : DataLabelPosition.OutsideEnd;
             chart.DataLabel.Font.Size = Math.Max(6, _theme.BaseFontSize - 3);
 
-            if (!isPie && !string.IsNullOrWhiteSpace(definition.NumberFormat))
+            if (!isPie)
             {
-                chart.DataLabel.Format = definition.NumberFormat;
+                chart.DataLabel.Format = numberFormat;
             }
         }
 
@@ -190,5 +208,41 @@ internal sealed partial class PdfMigraDocBuilder
         section.Add(chart);
 
         AddCaption(section, definition.Caption);
+    }
+
+    private static string DefaultNumberFormat(List<PdfChartSeriesDefinition> series)
+    {
+        var values = series
+            .SelectMany(candidate => candidate.Values)
+            .Where(value => value is { } number && double.IsFinite(number))
+            .Select(value => value.Value)
+            .ToList();
+
+        // Whole numbers are shown whole; fractions keep up to two places, so 0.25 is not shown as 0.
+        return values.Count == 0 || values.All(value => Math.Abs(value - Math.Round(value)) < 1e-9)
+            ? "#,##0"
+            : "#,##0.##";
+    }
+
+    private static double DefaultHeight(PdfChartDefinition definition, bool isPie, bool isHorizontal, int categories, int seriesCount)
+    {
+        if (isPie)
+        {
+            return 260;
+        }
+
+        // The plot gets what the title, the legend and the axis titles leave, so each of them adds room
+        // rather than squeezing the bars.
+        var hasLegend = definition.Legend ?? seriesCount > 1;
+        var chrome = (string.IsNullOrWhiteSpace(definition.Title) ? 0 : 22) +
+            (hasLegend ? 24 : 0) +
+            (string.IsNullOrWhiteSpace(isHorizontal ? definition.YAxisTitle : definition.XAxisTitle) ? 0 : 16);
+
+        // Sideways bars need height for every bar; upright ones need a plot tall enough to compare them.
+        var plot = isHorizontal
+            ? Math.Max(150, categories * ((seriesCount * 14) + 12))
+            : 210;
+
+        return plot + chrome + 30;
     }
 }

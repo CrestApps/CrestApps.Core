@@ -37,9 +37,10 @@ internal sealed partial class PdfMigraDocBuilder
 
     private PdfResolvedTheme _theme;
     private PageGeometry _page;
-    private bool _hasFrontMatter;
-    private int _bodySectionCount;
     private int _missingImageCount;
+
+    // Whether a section before this one already carries the running heads, so this one does not start them.
+    private bool _runningHeadsStarted;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PdfMigraDocBuilder"/> class.
@@ -93,7 +94,9 @@ internal sealed partial class PdfMigraDocBuilder
         var coverEnabled = IsCoverEnabled();
         var tocEnabled = _definition.TableOfContents?.Enabled == true;
 
-        _hasFrontMatter = coverEnabled || tocEnabled;
+        // The cover carries no header, footer or number, so with one the document's first page is already
+        // behind the running heads, and "skip the first page" has nothing left to skip.
+        _runningHeadsStarted = coverEnabled;
 
         if (coverEnabled)
         {
@@ -108,8 +111,6 @@ internal sealed partial class PdfMigraDocBuilder
         var sections = _definition.Sections is { Count: > 0 }
             ? _definition.Sections
             : [new PdfSectionDefinition { Id = "s1" }];
-
-        _bodySectionCount = sections.Count;
 
         for (var index = 0; index < sections.Count; index++)
         {
@@ -289,21 +290,15 @@ internal sealed partial class PdfMigraDocBuilder
 
         _page = ApplyPageSetup(section.PageSetup, definition.PageSetup);
 
-        if (isFirst)
+        // Pages are numbered as they stand in the file, the cover and contents included, so the number on
+        // a page is the one a viewer and every PDF tool call it by; only an explicit start_at changes that.
+        if (isFirst && _definition.PageNumbers?.StartAt is > 0 and var startAt)
         {
-            var startAt = _definition.PageNumbers?.StartAt;
-
-            if (startAt is > 0)
-            {
-                section.PageSetup.StartingNumber = startAt.Value;
-            }
-            else if (_hasFrontMatter)
-            {
-                section.PageSetup.StartingNumber = 1;
-            }
+            section.PageSetup.StartingNumber = startAt;
         }
 
-        AddRunningHeads(section, isFirst);
+        AddRunningHeads(section, !_runningHeadsStarted);
+        _runningHeadsStarted = true;
 
         var blocks = definition.Blocks ?? [];
 
@@ -1273,7 +1268,10 @@ internal sealed partial class PdfMigraDocBuilder
     private void AddRunningHeads(Section section, bool isFirst)
     {
         var numbers = _definition.PageNumbers;
-        var numbersEnabled = numbers?.Enabled == true;
+
+        // A header or footer that already writes {page} is the page number; adding page_numbers to it as
+        // well would print "Page 1 of 3 Page 1 of 3".
+        var numbersEnabled = numbers?.Enabled == true && !ShowsPageNumber(_definition.Header) && !ShowsPageNumber(_definition.Footer);
         var numbersPosition = (numbers?.Position ?? "footer-center").Trim().ToLowerInvariant();
         var numbersTemplate = string.IsNullOrWhiteSpace(numbers?.Template) ? "Page {page} of {pages}" : numbers.Template;
         var numbersInHeader = numbersPosition.StartsWith("header", StringComparison.Ordinal) || numbersPosition.StartsWith("top", StringComparison.Ordinal);
@@ -1494,11 +1492,8 @@ internal sealed partial class PdfMigraDocBuilder
                 case "pages":
                 case "total":
                     {
-                        // With a cover or a contents page in front, "of 12" must count the body the numbers
-                        // run through, not the front matter they skip.
-                        NumericFieldBase field = _hasFrontMatter && _bodySectionCount == 1
-                            ? paragraph.AddSectionPagesField()
-                            : paragraph.AddNumPagesField();
+                        // "of 3" counts every page of the file, as the page numbers do.
+                        var field = paragraph.AddNumPagesField();
 
                         if (!string.IsNullOrEmpty(format))
                         {
@@ -1531,6 +1526,17 @@ internal sealed partial class PdfMigraDocBuilder
 
             position = close + 1;
         }
+    }
+
+    /// <summary>
+    /// Returns whether a header or footer writes the page number itself.
+    /// </summary>
+    /// <param name="slots">The header or footer.</param>
+    /// <returns><see langword="true"/> when any of its slots holds a <c>{page}</c> token.</returns>
+    internal static bool ShowsPageNumber(PdfHeaderFooterDefinition slots)
+    {
+        return slots is not null && new[] { slots.Left, slots.Center, slots.Right }.Any(text =>
+            text is not null && text.Replace(" ", string.Empty, StringComparison.Ordinal).Contains("{page}", StringComparison.OrdinalIgnoreCase));
     }
 
     private string PageNumberFormat()

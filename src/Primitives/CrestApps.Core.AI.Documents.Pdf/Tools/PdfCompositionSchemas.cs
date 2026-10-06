@@ -112,7 +112,7 @@ internal static class PdfCompositionSchemas
                 "type": "object",
                 "description": "A vector chart. Give labels and series with the real values, or source over uploaded tabular data, or chart_js with a [chart:…] marker returned earlier.",
                 "properties": {
-                  "chart_type": { "type": "string", "enum": ["column", "bar", "stacked_column", "stacked_bar", "line", "area", "pie"] },
+                  "chart_type": { "type": "string", "enum": ["bar", "column", "horizontal_bar", "stacked_bar", "stacked_horizontal_bar", "line", "area", "pie"], "description": "bar and column draw upright bars; horizontal_bar draws them sideways, for long category names." },
                   "title": { "type": "string" },
                   "labels": { "type": "array", "items": { "type": "string" } },
                   "series": {
@@ -142,7 +142,7 @@ internal static class PdfCompositionSchemas
                   "y_axis_title": { "type": "string" },
                   "legend": { "type": "boolean" },
                   "data_labels": { "type": "boolean" },
-                  "number_format": { "type": "string", "description": "For example '#,##0' or '0%'." },
+                  "number_format": { "type": "string", "description": "Axis and label format. Defaults to '#,##0'; for example '$#,##0' or '0%'." },
                   "width_percent": { "type": "number" },
                   "height": { "type": "number", "description": "Height in points." },
                   "caption": { "type": "string" }
@@ -258,7 +258,7 @@ internal static class PdfCompositionSchemas
             "enabled": { "type": "boolean" },
             "position": { "type": "string", "enum": ["footer-left", "footer-center", "footer-right", "header-left", "header-center", "header-right"] },
             "format": { "type": "string", "enum": ["1", "i", "I", "a", "A"] },
-            "template": { "type": "string", "description": "Defaults to 'Page {page} of {pages}'." },
+            "template": { "type": "string", "description": "Defaults to 'Page {page} of {pages}'. Use either page_numbers or a {page} token in the header or footer, not both." },
             "start_at": { "type": "integer" },
             "skip_first_page": { "type": "boolean" }
           }
@@ -286,6 +286,7 @@ internal static class PdfCompositionSchemas
         },
         "table_of_contents": {
           "type": "object",
+          "description": "A generated contents page listing the headings with their page numbers and links. Use this instead of writing a contents list as blocks.",
           "properties": {
             "enabled": { "type": "boolean" },
             "title": { "type": "string" },

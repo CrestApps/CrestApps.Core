@@ -220,6 +220,8 @@ Without it, `sign_pdf` explains that signing is not configured; `verify_pdf_sign
 
 - Every edit of a password-protected file saves an unprotected copy, and any edit makes existing digital
   signatures stop verifying. The agent says so, and protects or signs as the last step.
+- Pages are numbered as they stand in the file, the way viewers and every PDF tool count them: a cover
+  page shows no number but is counted, so the page after it reads "Page 2 of 3".
 - Positions on a page are points from its top-left, as `search_pdf` reports them; on a page with a
   `/Rotate` entry they are in the page's unrotated frame.
 - For the Orchard Core integration, see [CrestApps for Orchard Core](https://orchardcore.crestapps.com).

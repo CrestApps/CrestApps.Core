@@ -50,8 +50,9 @@ public sealed class PdfDocumentComposerTests
         Assert.Contains("12%", body, StringComparison.Ordinal);
         Assert.DoesNotContain("**", body, StringComparison.Ordinal);
 
-        // The body is numbered from one and counts only its own pages, not the cover and contents.
-        Assert.Contains("Page 1 of 1", body, StringComparison.Ordinal);
+        // Pages are numbered as they stand in the file; the cover shows no number but is counted.
+        Assert.Contains("Page 3 of 3", body, StringComparison.Ordinal);
+        Assert.Contains("Page 2 of 3", PageText(pdf.GetPage(2)), StringComparison.Ordinal);
         Assert.DoesNotContain("Page", PageText(pdf.GetPage(1)), StringComparison.Ordinal);
         Assert.Equal("Quarterly Report", pdf.Information.Title);
     }
@@ -276,7 +277,8 @@ public sealed class PdfDocumentComposerTests
         const string Marker = "[chart:{\"type\":\"bar\",\"data\":{\"labels\":[\"A\",\"B\"],\"datasets\":[{\"label\":\"Sales\",\"data\":[1,2],\"backgroundColor\":\"rgba(31,78,121,0.7)\"}]},\"options\":{\"indexAxis\":\"y\",\"plugins\":{\"title\":{\"text\":\"Sales\"}}}}]";
 
         Assert.True(PdfChartJsReader.TryRead(Marker, out var chart));
-        Assert.Equal("bar", chart.ChartType);
+        // indexAxis "y" is Chart.js's sideways bar chart; a plain "bar" would be drawn upright.
+        Assert.Equal("horizontal_bar", chart.ChartType);
         Assert.Equal("Sales", chart.Title);
         Assert.Equal(["A", "B"], chart.Labels);
         Assert.Equal([1d, 2d], chart.Series[0].Values.Select(value => value.Value));

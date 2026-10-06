@@ -376,9 +376,6 @@ internal static partial class PdfDefinitionChecks
         var missing = new List<string>();
         var partial = new List<string>();
         var complete = new List<string>();
-        var start = numbers?.StartAt is > 0
-            ? numbers.StartAt.Value
-            : 1;
         var arabic = string.IsNullOrWhiteSpace(numbers?.Format) || numbers.Format.Trim() == "1";
         var bands = new Dictionary<(int Page, bool Top), string>();
 
@@ -398,9 +395,9 @@ internal static partial class PdfDefinitionChecks
             for (var index = 0; index < expectedPages.Count; index++)
             {
                 var page = expectedPages[index];
-                var bodyIndex = bodyPages.IndexOf(page);
+                // Pages are numbered as they stand in the file, unless start_at numbers the body from a value.
                 int? number = arabic
-                    ? start + bodyIndex
+                    ? numbers?.StartAt is > 0 ? numbers.StartAt.Value + bodyPages.IndexOf(page) : page.Number
                     : null;
 
                 if (!bands.TryGetValue((page.Number, top), out var band))

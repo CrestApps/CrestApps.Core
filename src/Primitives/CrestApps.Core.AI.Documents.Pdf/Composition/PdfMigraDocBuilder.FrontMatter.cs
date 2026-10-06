@@ -170,6 +170,10 @@ internal sealed partial class PdfMigraDocBuilder
 
         _page = ApplyPageSetup(section.PageSetup, null);
 
+        // The contents page is numbered like every page after the cover.
+        AddRunningHeads(section, !_runningHeadsStarted);
+        _runningHeadsStarted = true;
+
         var title = section.AddParagraph(string.IsNullOrWhiteSpace(contents.Title) ? "Contents" : contents.Title);
         title.Style = TocTitleStyle;
 

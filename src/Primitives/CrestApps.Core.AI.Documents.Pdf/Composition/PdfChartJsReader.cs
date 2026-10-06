@@ -133,7 +133,7 @@ internal static class PdfChartJsReader
             "radar" => "line",
             "area" => "area",
             _ => horizontal
-                ? stacked ? "stacked_bar" : "bar"
+                ? stacked ? "stacked_horizontal_bar" : "horizontal_bar"
                 : stacked ? "stacked_column" : "column",
         };
     }

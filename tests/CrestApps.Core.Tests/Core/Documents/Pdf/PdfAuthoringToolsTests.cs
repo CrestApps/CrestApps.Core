@@ -8,6 +8,117 @@ namespace CrestApps.Core.Tests.Core.Documents.Pdf;
 public sealed class PdfAuthoringToolsTests
 {
     [Fact]
+    public async Task CreatePdf_ReportAsAModelWritesIt_HasOneNumberPerPage_AGeneratedContentsPage_AndAReadableChart()
+    {
+        using var host = new PdfToolTestHost();
+
+        // What a model wrote for "a 3-page quarterly report with a cover page, a table of contents and page
+        // numbers in the footer": its own contents list, and the page number both in the footer and as
+        // page_numbers.
+        var created = await host.InvokeAsync(new CreatePdfTool(), Report());
+
+        Assert.Contains("It lays out as 3 pages", created, StringComparison.Ordinal);
+        Assert.Contains("replaced with a generated one", created, StringComparison.Ordinal);
+
+        var workspace = await host.LoadWorkspaceAsync();
+        var definition = Assert.Single(workspace.Documents).Definition;
+
+        Assert.True(definition.TableOfContents?.Enabled);
+        Assert.DoesNotContain(definition.Sections[0].Blocks, block => block.Type == "list");
+
+        using var pdf = PdfDocument.Open(await host.ReadWorkingPdfAsync("contoso"));
+
+        string Words(int page)
+        {
+            return string.Join(' ', pdf.GetPage(page).GetWords().Select(word => word.Text));
+        }
+
+        // Each page carries its number once, counted as the file counts pages.
+        Assert.DoesNotContain("Page", Words(1), StringComparison.Ordinal);
+        Assert.Equal(1, CountOf(Words(2), "Page 2 of 3"));
+        Assert.Equal(1, CountOf(Words(3), "Page 3 of 3"));
+
+        // The contents page lists the headings with the page they are on.
+        Assert.Matches(@"Executive Summary[ .]*3", Words(2));
+
+        // The chart's values read with thousands separators.
+        Assert.Contains("190,000", Words(3), StringComparison.Ordinal);
+        Assert.DoesNotContain("190000", Words(3), StringComparison.Ordinal);
+    }
+
+    internal static object Report()
+    {
+        return new
+        {
+            name = "contoso",
+            title = "Contoso Quarterly Report",
+            theme = new { heading_color = "#1F3A5F" },
+            cover_page = new { enabled = true },
+            page_numbers = new { enabled = true, position = "footer-center" },
+            footer = new { center = "Page {page} of {pages}", separator = true },
+            blocks = new object[]
+            {
+                new { type = "heading", text = "Table of Contents", level = 1 },
+                new { type = "list", items = new[] { "Executive Summary", "Revenue Analysis" } },
+                new { type = "page_break" },
+                new { type = "heading", text = "Executive Summary", level = 1 },
+                new { type = "paragraph", text = "This quarterly report gives an overview of revenue by region." },
+                new { type = "heading", text = "Revenue Analysis", level = 1 },
+                new
+                {
+                    type = "table",
+                    table = new
+                    {
+                        columns = new object[]
+                        {
+                            new { header = "Region" },
+                            new { header = "Q1 Revenue", format = "currency" },
+                            new { header = "Q2 Revenue", format = "currency" },
+                        },
+                        rows = new[]
+                        {
+                            new[] { "North America", "190000", "215000" },
+                            new[] { "Europe", "102500", "120000" },
+                            new[] { "Asia-Pacific", "75625", "85000" },
+                        },
+                        total_row = new { label = "Total", functions = new Dictionary<string, string> { ["Q1 Revenue"] = "sum", ["Q2 Revenue"] = "sum" } },
+                    },
+                },
+                new
+                {
+                    type = "chart",
+                    chart = new
+                    {
+                        chart_type = "bar",
+                        title = "Quarterly Revenue by Region",
+                        labels = new[] { "North America", "Europe", "Asia-Pacific" },
+                        series = new object[]
+                        {
+                            new { name = "Q1 Revenue", values = new[] { 190000, 102500, 75625 } },
+                            new { name = "Q2 Revenue", values = new[] { 215000, 120000, 85000 } },
+                        },
+                        x_axis_title = "Region",
+                        y_axis_title = "Revenue ($)",
+                        data_labels = true,
+                    },
+                },
+            },
+        };
+    }
+
+    private static int CountOf(string text, string value)
+    {
+        var count = 0;
+
+        for (var index = text.IndexOf(value, StringComparison.Ordinal); index >= 0; index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+    [Fact]
     public async Task CreatePdf_CoverPageWithoutTitle_IsStillDrawn_AndPreviewShowsThePagesThatExist()
     {
         using var host = new PdfToolTestHost();
@@ -171,7 +282,7 @@ public sealed class PdfAuthoringToolsTests
         Assert.Contains("14%", body, StringComparison.Ordinal);
         Assert.DoesNotContain("12%", body, StringComparison.Ordinal);
         Assert.Contains("$2,000.50", body, StringComparison.Ordinal);
-        Assert.Contains("Page 1 of 1", body, StringComparison.Ordinal);
+        Assert.Contains("Page 3 of 3", body, StringComparison.Ordinal);
         Assert.Contains("Quarterly Report", body, StringComparison.Ordinal);
 
         var again = await host.InvokeAsync(new ExportPdfTool(), new { });

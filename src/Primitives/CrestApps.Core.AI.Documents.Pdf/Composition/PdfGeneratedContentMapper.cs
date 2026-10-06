@@ -327,7 +327,8 @@ internal static class PdfGeneratedContentMapper
         {
             ChartType = chart.Kind switch
             {
-                SpreadsheetChartKind.Bar => "bar",
+                // A spreadsheet's bar chart is the sideways one; its column chart is upright.
+                SpreadsheetChartKind.Bar => "horizontal_bar",
                 SpreadsheetChartKind.Line => "line",
                 SpreadsheetChartKind.Pie => "pie",
                 SpreadsheetChartKind.Area => "area",
