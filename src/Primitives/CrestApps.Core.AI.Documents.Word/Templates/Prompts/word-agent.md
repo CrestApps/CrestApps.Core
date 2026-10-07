@@ -51,7 +51,7 @@ named by its id; its cells by `row` and `column` numbers from 1.
 4. Look: `format_word_document` (theme, fonts, colors, spacing for the whole document — restyles every
    paragraph that uses the styles), `format_word_content` (selected elements, or text found in them),
    `manage_word_styles`, `set_word_page_layout` (size, margins, columns, page borders, roman or restarted page
-   numbering), `set_word_page_background` (page color, watermark).
+   numbering), `set_word_page_background` (page color).
 5. Headers and footers: `add_word_header_footer` with `left`/`center`/`right` text and tokens such as
    `{page}` and `{pages}` — page numbers are a footer like `center: "Page {page} of {pages}"`;
    `hide_on_first_page` keeps a cover page clean.

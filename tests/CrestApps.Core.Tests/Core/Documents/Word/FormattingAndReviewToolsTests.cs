@@ -48,14 +48,14 @@ public sealed class FormattingAndReviewToolsTests
     }
 
     [Fact]
-    public async Task HeaderFooterAndPageLayout_WritePageNumbersBordersAndRomanNumbering()
+    public async Task HeaderFooterAndPageLayout_WritePageNumbersBordersNumberingAndPageColor()
     {
         using var host = new WordToolTestHost();
         await CreateAsync(host);
 
         await host.InvokeAsync(new AddWordHeaderFooterTool(), new { document = "doc", kind = "footer", center = "Page {page} of {pages}", hide_on_first_page = true });
         await host.InvokeAsync(new SetWordPageLayoutTool(), new { document = "doc", number_format = "lower_roman", start_at = 1, page_borders = new { style = "double", color = "#336699" } });
-        await host.InvokeAsync(new SetWordPageBackgroundTool(), new { document = "doc", watermark = "DRAFT" });
+        await host.InvokeAsync(new SetWordPageBackgroundTool(), new { document = "doc", color = "#FFF8E7" });
 
         var bytes = await host.ReadWorkingDocumentAsync("doc");
 
@@ -66,17 +66,13 @@ public sealed class FormattingAndReviewToolsTests
         Assert.NotNull(section.GetFirstChild<TitlePage>());
         Assert.Equal(NumberFormatValues.LowerRoman, section.GetFirstChild<PageNumberType>().Format.Value);
         Assert.Equal(BorderValues.Double, section.GetFirstChild<PageBorders>().TopBorder.Val.Value);
+        Assert.Equal("FFF8E7", document.MainDocumentPart.Document.DocumentBackground.Color.Value);
         Assert.Contains(footer.Descendants<FieldCode>(), code => code.Text.Contains("NUMPAGES", StringComparison.Ordinal));
         WordAuthoringToolsTests.AssertValid(bytes);
 
         // The page number is laid out at its real width, so " of " follows it without a gap.
         using var package = WordPackage.Open(bytes);
-        var layout = WordPreview.Layout(package, host.Services);
-
-        // The watermark is drawn on every page, the first-page one included, turned diagonally.
-        Assert.All(layout.Pages, item => Assert.Contains(item.Items.OfType<WordTextItem>(), text => text.Text == "DRAFT" && text.Rotation != 0));
-
-        var page = layout.Pages[1];
+        var page = WordPreview.Layout(package, host.Services).Pages[1];
         var items = page.Items.OfType<WordTextItem>().Where(item => item.Baseline > page.Height - 100).OrderBy(item => item.X).ToList();
         var number = items.Single(item => item.Text == "ii");
         var next = items.First(item => item.X > number.X);
