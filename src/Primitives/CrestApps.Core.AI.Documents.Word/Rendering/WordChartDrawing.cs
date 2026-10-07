@@ -15,6 +15,13 @@ internal static class WordChartDrawing
     private const string AxisColor = "595959";
     private const string GridColor = "E7E6E6";
 
+    // The most gridlines an axis draws, and the largest value it scales to.
+    private const int MaxTicks = 100;
+    private const double MaxValue = 1e100;
+
+    // A label longer than this is cut before it is measured; no chart has room to draw more.
+    private const int MaxLabelLength = 256;
+
     /// <summary>
     /// Draws a chart into a box of the given size.
     /// </summary>
@@ -123,7 +130,7 @@ internal static class WordChartDrawing
 
     private static void DrawPie(WordChartSpec spec, WordChartSeries series, List<WordDrawItem> items, double left, double top, double right, double bottom, OpenXmlElement source)
     {
-        var values = series.Values.Select(value => Math.Max(0, value ?? 0)).ToList();
+        var values = series.Values.Select(value => Math.Max(0, Clean(value ?? 0))).ToList();
         var total = values.Sum();
 
         if (total <= 0)
@@ -199,7 +206,7 @@ internal static class WordChartDrawing
         }
         else
         {
-            var values = series.SelectMany(item => item.Values).Where(value => value is not null).Select(value => value.Value).DefaultIfEmpty(0).ToList();
+            var values = series.SelectMany(item => item.Values).Where(value => value is not null).Select(value => Clean(value.Value)).DefaultIfEmpty(0).ToList();
 
             minimum = Math.Min(0, values.Min());
             maximum = Math.Max(0, values.Max());
@@ -219,8 +226,17 @@ internal static class WordChartDrawing
             ? plotLeft + ((value - low) / (high - low) * plotWidth)
             : plotBottom - ((value - low) / (high - low) * plotHeight);
 
-        for (var tick = low; tick <= high + (step / 2); tick += step)
+        // The ticks are counted rather than stepped to the top, so a step too small to move a huge value still
+        // ends the loop.
+        for (var index = 0; index <= MaxTicks; index++)
         {
+            var tick = low + (index * step);
+
+            if (tick > high + (step / 2))
+            {
+                break;
+            }
+
             var position = ValuePosition(tick);
 
             if (horizontal)
@@ -405,7 +421,7 @@ internal static class WordChartDrawing
 
     private static void DrawScatter(WordChartSpec spec, List<WordChartSeries> series, List<WordDrawItem> items, double plotLeft, double plotWidth, Func<double, double> position, OpenXmlElement source)
     {
-        var xs = series.SelectMany(item => item.XValues.Count > 0 ? item.XValues : [.. Enumerable.Range(1, item.Values.Count).Select(number => (double?)number)]).Where(value => value is not null).Select(value => value.Value).ToList();
+        var xs = series.SelectMany(item => item.XValues.Count > 0 ? item.XValues : [.. Enumerable.Range(1, item.Values.Count).Select(number => (double?)number)]).Where(value => value is not null).Select(value => Clean(value.Value)).ToList();
         var (low, high, _) = NiceScale(xs.DefaultIfEmpty(0).Min(), xs.DefaultIfEmpty(1).Max());
 
         foreach (var item in series)
@@ -419,17 +435,24 @@ internal static class WordChartDrawing
                     continue;
                 }
 
-                var xValue = index < item.XValues.Count && item.XValues[index] is { } given ? given : index + 1;
+                var xValue = index < item.XValues.Count && item.XValues[index] is { } given ? Clean(given) : index + 1;
                 var x = plotLeft + ((xValue - low) / (high - low) * plotWidth);
 
-                items.Add(new WordRectItem { X = x - 3, Y = position(y) - 3, Width = 6, Height = 6, Fill = color, Ellipse = true, Source = source });
+                items.Add(new WordRectItem { X = x - 3, Y = position(Clean(y)) - 3, Width = 6, Height = 6, Fill = color, Ellipse = true, Source = source });
             }
         }
     }
 
     private static double Value(WordChartSeries series, int index)
     {
-        return index < series.Values.Count && series.Values[index] is { } value && double.IsFinite(value) ? value : 0;
+        return index < series.Values.Count && series.Values[index] is { } value ? Clean(value) : 0;
+    }
+
+    // A chart's cached values come from the document: values that are not numbers count as zero, and values past
+    // any real chart's scale are held to it, so the axis arithmetic stays finite.
+    private static double Clean(double value)
+    {
+        return double.IsFinite(value) ? Math.Clamp(value, -MaxValue, MaxValue) : 0;
     }
 
     /// <summary>
@@ -440,6 +463,9 @@ internal static class WordChartDrawing
     /// <returns>The axis low and high ends and the step between gridlines.</returns>
     public static (double Low, double High, double Step) NiceScale(double minimum, double maximum)
     {
+        minimum = Clean(minimum);
+        maximum = Clean(maximum);
+
         if (maximum <= minimum)
         {
             maximum = minimum + 1;
@@ -450,6 +476,13 @@ internal static class WordChartDrawing
         var magnitude = Math.Pow(10, Math.Floor(Math.Log10(rough)));
         var residual = rough / magnitude;
         var step = (residual <= 1 ? 1 : residual <= 2 ? 2 : residual <= 2.5 ? 2.5 : residual <= 5 ? 5 : 10) * magnitude;
+
+        // A value so large that adding one does not change it leaves no step to take.
+        if (!double.IsFinite(step) || step <= 0 || minimum + step == minimum)
+        {
+            return (minimum, minimum + 1, 0.2);
+        }
+
         var low = Math.Floor(minimum / step) * step;
         var high = Math.Ceiling(maximum / step) * step;
 
@@ -473,6 +506,8 @@ internal static class WordChartDrawing
 
     private static WordTextItem Text(string text, double x, double baseline, double size, bool bold, string color, OpenXmlElement source, string anchor = "start", double maxWidth = 0)
     {
+        text = Shorten(text);
+
         var format = new WordResolvedRun { Font = "Calibri", Size = size, Bold = bold, Color = color };
         var width = WordTextMeasurer.Measure(text, format.Font, size, bold);
 
@@ -497,20 +532,41 @@ internal static class WordChartDrawing
         return WordTextMeasurer.Measure(text ?? string.Empty, "Calibri", size, bold: false);
     }
 
-    private static string Clip(string text, double width, double size)
+    private static string Shorten(string text)
     {
         text ??= string.Empty;
+
+        return text.Length > MaxLabelLength ? text[..(MaxLabelLength - 1)] + "…" : text;
+    }
+
+    private static string Clip(string text, double width, double size)
+    {
+        text = Shorten(text);
 
         if (Measure(text, size) <= width || text.Length <= 3)
         {
             return text;
         }
 
-        while (text.Length > 1 && Measure(text + "…", size) > width)
+        // The longest start of the text that fits with an ellipsis, found by halving rather than one character
+        // at a time.
+        var low = 1;
+        var high = text.Length - 1;
+
+        while (low < high)
         {
-            text = text[..^1];
+            var middle = (low + high + 1) / 2;
+
+            if (Measure(string.Concat(text.AsSpan(0, middle), "…"), size) <= width)
+            {
+                low = middle;
+            }
+            else
+            {
+                high = middle - 1;
+            }
         }
 
-        return text + "…";
+        return text[..low] + "…";
     }
 }
