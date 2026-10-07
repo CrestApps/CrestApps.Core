@@ -134,6 +134,21 @@ internal static class WordHeadersFooters
         Set(package, section, header: false, HeaderFooterValues.Default, _ => []);
     }
 
+    /// <summary>
+    /// Returns the root element of a header or footer part.
+    /// </summary>
+    /// <param name="part">The part.</param>
+    /// <returns>The header or footer, or <see langword="null"/>.</returns>
+    public static OpenXmlPartRootElement RootOf(OpenXmlPart part)
+    {
+        return part switch
+        {
+            HeaderPart header => header.Header,
+            FooterPart footer => footer.Footer,
+            _ => null,
+        };
+    }
+
     private static void Reference(WordPackage package, SectionProperties section, bool header, HeaderFooterValues type, OpenXmlPart part)
     {
         var id = package.MainPart.GetIdOfPart(part);

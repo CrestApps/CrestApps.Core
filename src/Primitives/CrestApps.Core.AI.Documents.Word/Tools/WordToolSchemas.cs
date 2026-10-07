@@ -142,7 +142,7 @@ internal static class WordToolSchemas
         {
           "type": "object",
           "properties": {
-            "type": { "type": "string", "enum": ["heading", "title", "subtitle", "paragraph", "markdown", "bullet_list", "numbered_list", "quote", "code", "table", "image", "chart", "caption", "toc", "page_break", "rule"], "description": "'title' only for a document that has no title yet; a document created with 'title' already has it at the top. 'toc' is a table of contents, filled in from the headings." },
+            "type": { "type": "string", "enum": ["heading", "paragraph", "markdown", "bullet_list", "numbered_list", "quote", "code", "table", "image", "chart", "caption", "toc", "page_break", "rule"], "description": "The title and subtitle are create_word_document's 'title' and 'subtitle'; to make an existing document's paragraph a title, use a paragraph with style 'Title'. 'toc' is a table of contents, filled in from the headings." },
             "text": { "type": "string", "description": "The text, with inline Markdown (**bold**, *italic*, `code`, [link](https://…)). For 'markdown', full Markdown that becomes headings, lists and tables. For 'code', the code. For 'toc', its title (default 'Contents')." },
             "level": { "type": "integer", "description": "Heading level 1-6." },
             "style": { "type": "string", "description": "Paragraph style name for a paragraph." },

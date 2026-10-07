@@ -47,7 +47,7 @@ internal sealed class AddWordPageBreakTool : WordToolBase
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Inserts a page break, a column break or a section break into a Word document 'after' or 'before' an element, or at the 'start' or 'end'. To make a heading always start a new page, prefer format_word_content with paragraph_format.page_break_before.";
+    public override string Description => "Inserts a page break, a column break or a section break into a Word document 'after' or 'before' an element, or at the 'start' or 'end'. A break at the 'start' leaves page 1 blank; never use it to set apart a cover page. To make a heading always start a new page, prefer format_word_content with paragraph_format.page_break_before.";
 
     /// <summary>
     /// Inserts the break.

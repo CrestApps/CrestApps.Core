@@ -22,7 +22,7 @@ internal sealed class WordContentBuilder
     /// </summary>
     public static readonly IReadOnlyList<string> BlockTypes =
     [
-        "heading", "title", "subtitle", "paragraph", "markdown", "bullet_list", "numbered_list", "quote", "code",
+        "heading", "paragraph", "markdown", "bullet_list", "numbered_list", "quote", "code",
         "table", "image", "chart", "caption", "toc", "page_break", "rule",
     ];
 
@@ -143,16 +143,6 @@ internal sealed class WordContentBuilder
         {
             case "heading":
                 elements.Add(Format(_writer.Heading(text ?? string.Empty, Math.Clamp(WordJsonValues.GetInt(block, "level") ?? 1, 1, 6)), block));
-
-                break;
-
-            case "title":
-                elements.Add(Format(_writer.Paragraph(text ?? string.Empty, _writer.Style(WordStyleSheet.Title)), block));
-
-                break;
-
-            case "subtitle":
-                elements.Add(Format(_writer.Paragraph(text ?? string.Empty, _writer.Style(WordStyleSheet.Subtitle)), block));
 
                 break;
 

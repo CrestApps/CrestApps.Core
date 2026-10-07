@@ -1447,6 +1447,12 @@ internal sealed class UpdateWordTableTool : WordToolBase
             paragraphs.Add(cell.AppendChild(new Paragraph()));
         }
 
+        // A cell that already reads the same is left alone, so tracking records no change.
+        if (paragraphs.Count == 1 && string.Equals(WordText.Of(paragraphs[0]), markdown, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
         var dropped = WordTextEditor.ReplaceParagraph(paragraphs[0], markdown, part, revisions);
 
         foreach (var extra in paragraphs.Skip(1))

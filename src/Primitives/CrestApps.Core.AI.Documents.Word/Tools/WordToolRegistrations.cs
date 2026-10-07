@@ -43,7 +43,7 @@ internal static class WordToolRegistrations
         services.AddWordTool<FormatWordContentTool>(FormatWordContentTool.TheName, "Format Word Content", "Formats chosen elements or a phrase in them, or applies a style.");
         services.AddWordTool<ManageWordStylesTool>(ManageWordStylesTool.TheName, "Manage Word Styles", "Lists, creates, changes and deletes paragraph and character styles.");
         services.AddWordTool<SetWordPageLayoutTool>(SetWordPageLayoutTool.TheName, "Set Word Page Layout", "Sets page size, orientation, margins, columns, page borders and page numbering.");
-        services.AddWordTool<SetWordPageBackgroundTool>(SetWordPageBackgroundTool.TheName, "Set Word Page Background", "Sets or removes the page color.");
+        services.AddWordTool<SetWordPageBackgroundTool>(SetWordPageBackgroundTool.TheName, "Set Word Page Background", "Sets a page color or a text watermark.");
         services.AddWordTool<AddWordHeaderFooterTool>(AddWordHeaderFooterTool.TheName, "Add Word Header or Footer", "Sets a header or footer with text, page numbers, fields and a logo.");
         services.AddWordTool<ManageWordCommentsTool>(ManageWordCommentsTool.TheName, "Manage Word Comments", "Lists, adds, answers, resolves and deletes review comments.");
         services.AddWordTool<ManageWordRevisionsTool>(ManageWordRevisionsTool.TheName, "Manage Word Revisions", "Turns change tracking on or off, and lists, accepts or rejects tracked changes.");

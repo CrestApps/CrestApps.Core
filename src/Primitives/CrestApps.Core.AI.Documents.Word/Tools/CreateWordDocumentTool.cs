@@ -23,8 +23,8 @@ internal sealed class CreateWordDocumentTool : WordToolBase
           "type": "object",
           "properties": {
             "name": { "type": "string", "description": "The working document's name, used to refer to it later and as the download's file name." },
-            "title": { "type": "string", "description": "The document title: written at the top in the Title style and stored as the title property. Do not repeat it as a title or heading block in 'content'." },
-            "subtitle": { "type": "string" },
+            "title": { "type": "string", "description": "The document title: written at the top in the Title style and stored as the title property. Do not repeat it in 'content'." },
+            "subtitle": { "type": "string", "description": "Written under the title in the Subtitle style; do not repeat it in 'content'." },
             "template": { "type": "string", "description": "An uploaded .docx or .dotx to start from. The new document keeps its styles, page setup, headers and footers; its body is emptied unless keep_template_content is true." },
             "keep_template_content": { "type": "boolean" },
             {{WordToolSchemas.Theme}},
@@ -137,15 +137,7 @@ internal sealed class CreateWordDocumentTool : WordToolBase
             }
 
             WordBlockLocator.Insert(package, elements, after: null, before: null, at: "end");
-
-            if (builder.HasTableOfContents)
-            {
-                Fields.WordDocumentRefresher.Refresh(package, context.Services);
-            }
-            else
-            {
-                Fields.WordCaptions.Renumber(package);
-            }
+            Fields.WordCaptions.Renumber(package);
 
             var blocks = WordBlockReader.Read(package);
             var section0 = WordSections.All(package)[0];

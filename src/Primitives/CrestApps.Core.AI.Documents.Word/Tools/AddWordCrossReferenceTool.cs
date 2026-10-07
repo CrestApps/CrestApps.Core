@@ -25,10 +25,10 @@ internal sealed class AddWordCrossReferenceTool : WordToolBase
           "properties": {
             {{WordToolSchemas.Document}},
             "id": { "type": "string", "description": "The paragraph the reference is written in." },
-            "after_text": { "type": "string", "description": "Insert right after this text in the paragraph. Defaults to the end of the paragraph." },
+            "after_text": { "type": "string", "description": "Words already in the paragraph that the reference goes right after; they are not written. Words to write before the reference go in 'prefix'. Default: the end of the paragraph." },
             "target": { "type": "string", "description": "What is referred to: a heading id, a caption id, or a bookmark name." },
             "show": { "type": "string", "enum": ["text", "number", "page", "above_below"], "description": "text: the heading's text; number: a caption's label and number ('Figure 2'); page: its page number; above_below: 'above' or 'below'. Default: number for a caption, text otherwise." },
-            "prefix": { "type": "string", "description": "Text written before the reference, such as 'see '." },
+            "prefix": { "type": "string", "description": "Text written before the reference, such as 'see '. 'number' already writes the label ('Table 1'), so never end the prefix with it." },
             "suffix": { "type": "string", "description": "Text written after it." },
             "hyperlink": { "type": "boolean", "description": "Make the reference a link to its target. Default true." },
             {{WordToolSchemas.SaveAs}}
@@ -54,7 +54,7 @@ internal sealed class AddWordCrossReferenceTool : WordToolBase
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Inserts a cross-reference into a paragraph — 'see Figure 2', 'as described in Market overview', 'on page 7' — pointing at a heading id, a caption id or a bookmark. A reference to a caption writes its label and number itself ('Table 1'), so the text before it is 'see ', not 'see Table '. Write the sentence first (add_word_content), then call this once with its id. It is a real Word field that stays correct when content moves: refreshed on preview and export and by Word on open.";
+    public override string Description => "Inserts a cross-reference into a paragraph — 'see Figure 2', 'as described in Market overview', 'on page 7' — pointing at a heading id, a caption id or a bookmark. A reference to a caption writes its label and number itself ('Table 1'), so the text before it is 'see ', not 'see Table '. Write the sentence first (add_word_content), then call this once with its id. It is a real Word field that stays correct when content moves: refreshed on preview and export and by Word on open. To write a sentence that refers to something, add the paragraph with only the words before the reference ('Budget details by phase are in '), then call this with no 'after_text' and the rest in 'suffix' ('.').";
 
     /// <summary>
     /// Inserts the reference.
