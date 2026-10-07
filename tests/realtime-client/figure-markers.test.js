@@ -128,6 +128,22 @@ bothClients('a repeated line of markers shows each picture once', (expand) => {
         `![Page 1](${LINK}) ![Page 2](${OTHER_LINK})\n\nThe preview:  `);
 });
 
+bothClients('a marker dressed up as markdown is still drawn as its picture', (expand) => {
+    // The regression: gpt-4.1-mini wrote "![Contoso Quarterly Report — page 1 of 4][fig:1]" and the reader saw
+    // "!Contoso Quarterly Report — page 1 of 4" as text instead of the page.
+    const references = { '[fig:1]': { isImage: true, link: LINK, title: 'Page 1' } };
+    const image = `![Page 1](${LINK})`;
+
+    assert.equal(expand('![Report — page 1 of 4][fig:1]', references), image);
+    assert.equal(expand('![Page one]([fig:1])', references), image);
+    assert.equal(expand('![Page one](fig:1)', references), image);
+    assert.equal(expand('![fig:1]', references), image);
+    assert.equal(expand('[fig:1](page1.png)', references), image);
+
+    // An exclamation mark that ends a sentence before an image is not part of the marker's dress.
+    assert.equal(expand('Done! [fig:1]', references), `Done! ${image}`);
+});
+
 bothClients('two markers for the same picture draw it once, in reading order', (expand) => {
     // First in the text decides, not first in the map.
     const references = {

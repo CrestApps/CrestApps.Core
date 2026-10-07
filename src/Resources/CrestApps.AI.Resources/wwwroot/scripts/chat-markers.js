@@ -5,9 +5,10 @@
 
 function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
 function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
-function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
 function _iterableToArray(r) { if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r); }
 function _arrayWithoutHoles(r) { if (Array.isArray(r)) return _arrayLikeToArray(r); }
+function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t["return"] || t["return"](); } finally { if (u) throw o; } } }; }
+function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
 function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
 function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
 /*
@@ -48,6 +49,11 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
     // The backslash is escaped as well, or a caption ending in one would escape the bracket that closes
     // the alt text and the image would swallow the rest of the line.
     return text.replace(/[\\\[\]]/g, '\\$&');
+  }
+
+  // Escapes a literal for use inside a regular expression.
+  function escapeRegExp(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   /*
@@ -108,18 +114,36 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
       return content;
     }
 
-    // One pass over every marker at once, so "first mention" means first in the text rather than first in
-    // the map. The markers are bracketed, so [fig:1] cannot match inside [fig:11]; the longer ones are
-    // tried first all the same.
+    // A smaller model dresses the marker up as the markdown it was told not to write --
+    // "![Page 1][fig:1]", "![Page 1]([fig:1])", "![fig:1]", "[fig:1](page1.png)" -- and the reader saw
+    // "!Page 1" as text where the picture should be. Each of those is the marker, so it is put back to the
+    // bare marker before anything is drawn.
+    var normalized = content;
+    var _iterator = _createForOfIteratorHelper(images.keys()),
+      _step;
+    try {
+      for (_iterator.s(); !(_step = _iterator.n()).done;) {
+        var _marker = _step.value;
+        var escaped = escapeRegExp(_marker);
+        var inner = escapeRegExp(_marker.slice(1, -1));
+        normalized = normalized.replace(new RegExp('!\\[[^\\]\\n]*\\]\\(\\s*\\[?' + inner + '\\]?\\s*\\)', 'g'), _marker).replace(new RegExp('!\\[[^\\]\\n]*\\]' + escaped, 'g'), _marker).replace(new RegExp(escaped + '\\([^)\\s]*\\)', 'g'), _marker).replace(new RegExp('!(?=' + escaped + ')', 'g'), '');
+      }
+
+      // One pass over every marker at once, so "first mention" means first in the text rather than first in
+      // the map. The markers are bracketed, so [fig:1] cannot match inside [fig:11]; the longer ones are
+      // tried first all the same.
+    } catch (err) {
+      _iterator.e(err);
+    } finally {
+      _iterator.f();
+    }
     var pattern = new RegExp(_toConsumableArray(images.keys()).sort(function (left, right) {
       return right.length - left.length;
-    }).map(function (marker) {
-      return marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }).join('|'), 'g');
+    }).map(escapeRegExp).join('|'), 'g');
     var drawn = new Set();
 
     // Through a replacer function, so a '$' in a caption or a link is not read as a replacement pattern.
-    return content.replace(pattern, function (marker) {
+    return normalized.replace(pattern, function (marker) {
       var entry = images.get(marker);
       if (drawn.has(entry.link)) {
         return '';

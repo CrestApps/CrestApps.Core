@@ -39,6 +39,11 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || (function () {
         return text.replace(/[\\\[\]]/g, '\\$&');
     }
 
+    // Escapes a literal for use inside a regular expression.
+    function escapeRegExp(text) {
+        return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
     /*
      * Makes a link safe to sit inside the destination of ![alt](link): the few characters that would end the
      * destination early are percent-encoded, which leaves the URL addressing the same resource. The link is
@@ -104,17 +109,34 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || (function () {
             return content;
         }
 
+        // A smaller model dresses the marker up as the markdown it was told not to write --
+        // "![Page 1][fig:1]", "![Page 1]([fig:1])", "![fig:1]", "[fig:1](page1.png)" -- and the reader saw
+        // "!Page 1" as text where the picture should be. Each of those is the marker, so it is put back to the
+        // bare marker before anything is drawn.
+        let normalized = content;
+
+        for (const marker of images.keys()) {
+            const escaped = escapeRegExp(marker);
+            const inner = escapeRegExp(marker.slice(1, -1));
+
+            normalized = normalized
+                .replace(new RegExp('!\\[[^\\]\\n]*\\]\\(\\s*\\[?' + inner + '\\]?\\s*\\)', 'g'), marker)
+                .replace(new RegExp('!\\[[^\\]\\n]*\\]' + escaped, 'g'), marker)
+                .replace(new RegExp(escaped + '\\([^)\\s]*\\)', 'g'), marker)
+                .replace(new RegExp('!(?=' + escaped + ')', 'g'), '');
+        }
+
         // One pass over every marker at once, so "first mention" means first in the text rather than first in
         // the map. The markers are bracketed, so [fig:1] cannot match inside [fig:11]; the longer ones are
         // tried first all the same.
         const pattern = new RegExp([...images.keys()]
             .sort(function (left, right) { return right.length - left.length; })
-            .map(function (marker) { return marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); })
+            .map(escapeRegExp)
             .join('|'), 'g');
         const drawn = new Set();
 
         // Through a replacer function, so a '$' in a caption or a link is not read as a replacement pattern.
-        return content.replace(pattern, function (marker) {
+        return normalized.replace(pattern, function (marker) {
             const entry = images.get(marker);
 
             if (drawn.has(entry.link)) {
