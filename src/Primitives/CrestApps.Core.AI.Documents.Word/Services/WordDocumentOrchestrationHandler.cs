@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Documents.OpenXml.Word;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.Templates.Services;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents.Word.Services;
 
@@ -22,14 +23,19 @@ internal sealed class WordDocumentOrchestrationHandler : IOrchestrationContextBu
     public const string TemplateId = "word-document-availability";
 
     private readonly ITemplateService _templateService;
+    private readonly WordAgentOptions _options;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WordDocumentOrchestrationHandler"/> class.
     /// </summary>
     /// <param name="templateService">The template service.</param>
-    public WordDocumentOrchestrationHandler(ITemplateService templateService)
+    /// <param name="options">The agent options.</param>
+    public WordDocumentOrchestrationHandler(
+        ITemplateService templateService,
+        IOptions<WordAgentOptions> options)
     {
         _templateService = templateService;
+        _options = options.Value;
     }
 
     /// <summary>
@@ -43,13 +49,19 @@ internal sealed class WordDocumentOrchestrationHandler : IOrchestrationContextBu
     }
 
     /// <summary>
-    /// Appends the Word guidance when the conversation holds uploaded Word documents.
+    /// Appends the Word guidance when the conversation holds uploaded Word documents and the Word agent is
+    /// enabled. With the agent turned off there is nothing to delegate to, so nothing is added.
     /// </summary>
     /// <param name="context">The built context.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     public async Task BuiltAsync(OrchestrationContextBuiltContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
+
+        if (!_options.Enabled)
+        {
+            return;
+        }
 
         // The agent's own orchestration must not be told to delegate to itself.
         if (AIInvocationScope.Current?.AgentInvocationDepth > 0 || context.OrchestrationContext?.CompletionContext is null)
