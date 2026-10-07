@@ -2,6 +2,7 @@
 #nullable enable
 using System.Text;
 using System.Text.Json;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Realtime;
 using Microsoft.Extensions.AI;
 
@@ -469,7 +470,48 @@ internal static class AzureRealtimeProtocol
         {
             ResponseId = GetString(response, "id"),
             Status = GetString(response, "status"),
+            Usage = ReadUsage(GetProperty(response, "usage")),
         };
+    }
+
+    /// <summary>
+    /// Reads the usage a realtime event reports. A response reports text and audio tokens; a transcription reports
+    /// either tokens or, for duration-billed models, the seconds of audio transcribed.
+    /// </summary>
+    internal static UsageDetails? ReadUsage(JsonElement usage)
+    {
+        if (usage.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var inputDetails = GetProperty(usage, "input_token_details");
+        var outputDetails = GetProperty(usage, "output_token_details");
+
+        var details = new UsageDetails
+        {
+            InputTokenCount = GetInt64(usage, "input_tokens"),
+            OutputTokenCount = GetInt64(usage, "output_tokens"),
+            TotalTokenCount = GetInt64(usage, "total_tokens"),
+            CachedInputTokenCount = GetInt64(inputDetails, "cached_tokens"),
+            InputAudioTokenCount = GetInt64(inputDetails, "audio_tokens"),
+            InputTextTokenCount = GetInt64(inputDetails, "text_tokens"),
+            OutputAudioTokenCount = GetInt64(outputDetails, "audio_tokens"),
+            OutputTextTokenCount = GetInt64(outputDetails, "text_tokens"),
+        };
+
+        if (string.Equals(GetString(usage, "type"), "duration", StringComparison.Ordinal) &&
+            usage.TryGetProperty("seconds", out var seconds) &&
+            seconds.ValueKind == JsonValueKind.Number &&
+            seconds.TryGetDouble(out var audioSeconds))
+        {
+            details.AdditionalCounts = new AdditionalPropertiesDictionary<long>
+            {
+                [AIUsageAdditionalCounts.AudioDurationMs] = (long)Math.Round(audioSeconds * 1000),
+            };
+        }
+
+        return details;
     }
 
     private static ResponseOutputItemRealtimeServerMessage ReadOutputItem(JsonElement root, RealtimeServerMessageType type)
@@ -532,6 +574,7 @@ internal static class AzureRealtimeProtocol
             ItemId = GetString(root, "item_id"),
             ContentIndex = GetInt32(root, "content_index"),
             Transcription = GetString(root, field),
+            Usage = ReadUsage(GetProperty(root, "usage")),
         };
     }
 
@@ -633,6 +676,13 @@ internal static class AzureRealtimeProtocol
     {
         return element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString()
+            : null;
+    }
+
+    private static long? GetInt64(JsonElement element, string name)
+    {
+        return element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var number)
+            ? number
             : null;
     }
 

@@ -69,13 +69,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var client = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetChatClientAsync(conn, model));
 
-        client = new AICompletionUsageTrackingChatClient(
-            client,
-            deployment.ClientName,
-            deployment.ConnectionName,
-            deployment.ModelName,
-            _serviceProvider,
-            _serviceProvider.GetRequiredService<ILogger<AICompletionUsageTrackingChatClient>>());
+        client = new AICompletionUsageTrackingChatClient(client, CreateUsageRecorder(deployment));
 
         // Enforce the deployment's declared trained features as the terminal layer, immediately above
         // the provider-facing client and below any pipeline middleware supplied through
@@ -123,6 +117,8 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var generator = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetEmbeddingGeneratorAsync(conn, model));
 
+        generator = new AIUsageTrackingEmbeddingGenerator(generator, CreateUsageRecorder(deployment));
+
         return BuildEmbeddingGenerator(generator, configurePipeline);
     }
 
@@ -151,6 +147,8 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         var generator = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetImageGeneratorAsync(conn, model));
+
+        generator = new AIUsageTrackingImageGenerator(generator, CreateUsageRecorder(deployment));
 
         return BuildImageGenerator(generator, configurePipeline);
     }
@@ -181,6 +179,8 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var client = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetSpeechToTextClientAsync(conn, model));
 
+        client = new AIUsageTrackingSpeechToTextClient(client, CreateUsageRecorder(deployment));
+
         return BuildSpeechToTextClient(client, configurePipeline);
     }
 
@@ -210,6 +210,8 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var client = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetTextToSpeechClientAsync(conn, model));
 
+        client = new AIUsageTrackingTextToSpeechClient(client, CreateUsageRecorder(deployment));
+
         return BuildTextToSpeechClient(client, configurePipeline);
     }
 
@@ -224,6 +226,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         // A cascaded deployment names three other deployments instead of speaking to a provider itself, so
         // it is composed here: a client provider only ever sees one connection and could never reach them.
+        // It is not metered itself: each of its legs is created through this factory and meters its own usage.
         if (deployment.TryGet<CascadedRealtimeMetadata>(out var cascade) && cascade.IsComplete())
         {
             return await CreateCascadedRealtimeClientAsync(deployment, cascade);
@@ -236,8 +239,10 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         // is repeated here.
         var connection = await GetConnectionEntryAsync(deployment);
 
-        return await ResolveClientAsync(deployment, connection,
+        var client = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetRealtimeClientAsync(conn, model));
+
+        return new AIUsageTrackingRealtimeClient(client, CreateUsageRecorder(deployment));
     }
 
     /// <summary>
@@ -324,6 +329,14 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         }
 
         throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the client '{deployment.ClientName}'.");
+    }
+
+    private AIUsageRecorder CreateUsageRecorder(AIDeployment deployment)
+    {
+        return new AIUsageRecorder(
+            AIDeploymentUsageInfo.From(deployment),
+            _serviceProvider,
+            _serviceProvider.GetRequiredService<ILogger<AIUsageRecorder>>());
     }
 
     private async ValueTask<AIProviderConnectionEntry> GetConnectionEntryAsync(AIDeployment deployment)

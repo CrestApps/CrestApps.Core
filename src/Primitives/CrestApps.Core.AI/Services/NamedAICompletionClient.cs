@@ -352,7 +352,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
         await ConfigureChatOptionsAsync(configureContext);
 
-        chatOptions.AddUsageTracking(context, clientName: ClientName);
+        chatOptions.AddUsageTracking(context, clientName: ClientName, defaultPurpose: AIUsagePurposes.Conversation);
 
         return chatOptions;
     }

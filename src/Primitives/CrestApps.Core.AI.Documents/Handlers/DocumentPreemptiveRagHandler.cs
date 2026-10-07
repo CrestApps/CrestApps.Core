@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
@@ -290,6 +291,7 @@ internal sealed class DocumentPreemptiveRagHandler : IPreemptiveRagHandler
             return [];
         }
 
+        using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Retrieval);
         var embeddings = await embeddingGenerator.GenerateAsync(context.Queries);
 
         if (embeddings == null || embeddings.Count == 0)

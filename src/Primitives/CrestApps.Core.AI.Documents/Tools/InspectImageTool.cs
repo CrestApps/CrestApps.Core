@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Ingestion;
@@ -179,7 +180,7 @@ public sealed class InspectImageTool : AIFunction
         }
 
         var clientFactory = arguments.Services.GetRequiredService<IAIClientFactory>();
-        var chatClient = await clientFactory.CreateChatClientAsync(deployment);
+        var chatClient = await clientFactory.CreateChatClientAsync(deployment, builder => builder.UseUsageLabels(purpose: AIUsagePurposes.ImageAnalysis));
 
         var contentType = document.ContentType ?? MediaTypeHelper.InferMediaType(Path.GetExtension(document.FileName));
         var userPrompt = string.IsNullOrWhiteSpace(question)

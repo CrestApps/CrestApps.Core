@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
@@ -155,6 +156,8 @@ internal static partial class DataSourceRetrieval
 
         // One batched call regardless of how many phrases were asked for: the embedding API takes the whole
         // set, so N phrases cost one round trip rather than N.
+
+        using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Retrieval);
         var embeddings = await embeddingGenerator.GenerateAsync(queries, cancellationToken: cancellationToken);
 
         var vectors = embeddings?

@@ -14,12 +14,16 @@ internal static class AIUsageTrackingChatOptionsExtensions
     /// <param name="session">The session.</param>
     /// <param name="interaction">The interaction.</param>
     /// <param name="clientName">The client name.</param>
+    /// <param name="purpose">The usage purpose of the request, which takes precedence over any <see cref="AIUsageScope"/>.</param>
+    /// <param name="defaultPurpose">The usage purpose to record only when neither the request nor an <see cref="AIUsageScope"/> names one.</param>
     public static ChatOptions AddUsageTracking(
         this ChatOptions options,
         AICompletionContext completionContext = null,
         AIChatSession session = null,
         ChatInteraction interaction = null,
-        string clientName = null)
+        string clientName = null,
+        string purpose = null,
+        string defaultPurpose = null)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -46,6 +50,18 @@ internal static class AIUsageTrackingChatOptionsExtensions
         {
             options.AdditionalProperties ??= [];
             options.AdditionalProperties[AICompletionContextKeys.ClientName] = clientName;
+        }
+
+        if (!string.IsNullOrEmpty(purpose))
+        {
+            options.AdditionalProperties ??= [];
+            options.AdditionalProperties[AICompletionContextKeys.UsagePurpose] = purpose;
+        }
+
+        if (!string.IsNullOrEmpty(defaultPurpose))
+        {
+            options.AdditionalProperties ??= [];
+            options.AdditionalProperties[AICompletionContextKeys.DefaultUsagePurpose] = defaultPurpose;
         }
 
         return options;
