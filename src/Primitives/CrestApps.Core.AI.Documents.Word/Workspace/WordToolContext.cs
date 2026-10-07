@@ -267,7 +267,9 @@ internal sealed class WordToolContext
 
     /// <summary>
     /// Opens a document, applies an edit to it and saves the result as a new version of a working document.
-    /// The edit is all or nothing: when it throws, nothing is saved.
+    /// The edit is all or nothing: when it throws, nothing is saved. An edit that clears
+    /// <see cref="WordEditContext.Changed"/> saves no new version; on an upload it ends with a
+    /// <see cref="WordToolException"/>, since there is no working document to report.
     /// </summary>
     /// <typeparam name="T">The result type.</typeparam>
     /// <param name="handle">The document's name, or <see langword="null"/> for the active document.</param>
@@ -297,7 +299,8 @@ internal sealed class WordToolContext
 
             if (!context.Changed)
             {
-                return (result, source.Working);
+                // An upload has no working document to report, and none is made when nothing changed.
+                return (result, source.Working ?? throw new WordToolException($"Nothing in {source.Describe()} needed changing, so no working copy was saved."));
             }
 
             var design = context.DesignChanged ? context.Design : null;
@@ -609,11 +612,19 @@ internal sealed class WordToolContext
 
         var existing = state.Find(name);
 
-        if (existing is not null && target.IsUpload && !string.Equals(existing.SourceDocumentId, target.Upload.ItemId, StringComparison.Ordinal))
+        if (existing is not null && !IsSameDocument(existing, target, saveAs))
         {
-            // A working document of the same name made from something else is not overwritten.
+            // Only the document that was edited is changed in place. Any other working document of that name —
+            // one 'save_as' names, or one made from something else — is kept, and the result gets a new name.
+            var requested = name;
+
             name = UniqueName(state, name);
             existing = null;
+
+            if (!string.IsNullOrWhiteSpace(saveAs))
+            {
+                Notes.Add($"A working document named \"{requested}\" already exists and was left unchanged; the result was saved as \"{name}\".");
+            }
         }
 
         if (existing is null)
@@ -653,6 +664,27 @@ internal sealed class WordToolContext
         state.ActiveDocument = existing.Name;
 
         return existing;
+    }
+
+    /// <summary>
+    /// Returns whether a working document found under the name a result is saved as is the document that was
+    /// edited, so the result replaces it rather than being saved under a new name.
+    /// </summary>
+    /// <param name="existing">The working document found under the name.</param>
+    /// <param name="target">The document that was edited.</param>
+    /// <param name="saveAs">The name asked for, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the result is a new version of <paramref name="existing"/>.</returns>
+    private static bool IsSameDocument(WordWorkingDocument existing, WordSource target, string saveAs)
+    {
+        if (target.Working is not null)
+        {
+            return string.Equals(existing.Name, target.Working.Name, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // The first edit of an upload saves a copy named after it, and a later edit of the upload without a new
+        // name changes that copy.
+        return string.IsNullOrWhiteSpace(saveAs) &&
+            string.Equals(existing.SourceDocumentId, target.Upload.ItemId, StringComparison.Ordinal);
     }
 
     /// <summary>
