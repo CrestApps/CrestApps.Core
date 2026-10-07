@@ -146,16 +146,32 @@ Each chat session or chat interaction has a Word workspace that persists between
 | Area | Tools |
 | --- | --- |
 | Writing | `create_word_document` (a theme preset or custom fonts and colours, page setup, properties, an uploaded template, and the first content), `add_word_content` (headings, paragraphs with inline Markdown, Markdown, nested lists, quotes, code, tables, pictures, charts, captions, page breaks), `update_word_content`, `remove_word_content`, `move_word_content` |
-| Structure | `add_word_section`, `add_word_page_break`, `add_word_toc`, `add_word_index`, `add_word_caption`, `add_word_cross_reference`, `add_word_bookmark`, `add_word_hyperlink`, `update_word_table` |
+| Structure | `add_word_section`, `add_word_page_break`, `add_word_toc`, `add_word_index`, `add_word_caption`, `add_word_cross_reference`, `add_word_bookmark`, `add_word_hyperlink`, `update_word_table` (cells, rows and columns, merging and splitting cells, cell fill and alignment, column widths, table style, banding and borders) |
 | Design | `format_word_document` (the whole look, through the styles), `format_word_content` (chosen elements or a phrase in them), `manage_word_styles`, `set_word_page_layout` (size, margins, columns, page borders, page numbering), `set_word_page_background` (page colour), `add_word_header_footer` (text, page numbers and other fields, a logo) |
-| Review | `manage_word_comments`, `manage_word_revisions` (track changes, accept, reject), `check_word_document` (accessibility, broken references and links, layout problems), `compare_word_documents` |
+| Review | `manage_word_comments`, `manage_word_revisions` (track changes, accept, reject), `manage_word_protection` (editing restrictions with an optional password), `check_word_document` (accessibility, broken references and links, layout problems), `compare_word_documents` |
 | Reading | `get_word_document`, `get_word_document_outline`, `search_word_document`, `extract_word_content` (Markdown, text, tables, links or pictures, optionally as a `.md`, `.txt` or `.csv` download) |
-| Delivery | `preview_word`, `export_word`, `import_word` |
+| Delivery | `preview_word`, `export_word` (the whole document, or chosen headings and elements as a separate file), `import_word` (a working copy of an upload, or a duplicate of a working document) |
 
-Tables and charts can take their rows from the conversation's uploaded spreadsheets with a read-only SQL
-query, and the agent can call `list_tabular_data` and `query_tabular_data` to choose them. While change
-tracking is on, text and formatting edits from every tool are recorded as revisions signed with
-`WordAgentOptions.Author`.
+The agent runs 32 hidden tools. Tables and charts can take their rows from the conversation's uploaded
+spreadsheets with a read-only SQL query, and the agent can call `list_tabular_data` and `query_tabular_data`
+to choose them. While change tracking is on, text and formatting edits from every tool are recorded as
+revisions signed with `WordAgentOptions.Author`.
+
+Table columns are always the table's grid columns, counted from 1, so a row with merged cells is addressed
+the same way as the others: a merged cell is found from any row and column it covers, and adding or removing
+a column widens or narrows a merged cell instead of breaking its row.
+
+`manage_word_protection` writes the editing restrictions Word enforces — read only, comments only, tracked
+changes only, or filling in forms only — to the document settings. A password is hashed the way Word hashes
+it (SHA-512 with a random salt and 100,000 rounds over Word's legacy password key), so Word asks for it to
+stop the protection; the password itself is never stored or shown again, and Word only checks its first 15
+characters. Protection is not encryption: the file still opens anywhere, and other applications may ignore
+it.
+
+`export_word` with `headings` or `ids` exports only that content as a separate `.docx`, leaving the working
+document as it is. A heading brings everything under it up to the next heading of the same or a higher level;
+the kept content keeps its sections' page layout, and comments and bookmarks whose content was left out are
+removed.
 
 #### Previews
 
@@ -172,15 +188,19 @@ in-document targets.
 ```csharp
 builder.Services.Configure<WordAgentOptions>(options =>
 {
-    options.MaxWorkingDocuments = 40;   // documents kept per conversation
-    options.MaxDocumentBytes = 50L * 1024 * 1024;
-    options.Author = "AI Assistant";    // the name comments and tracked changes are signed with
+    options.MaxWorkingDocuments = 40;                // documents kept per conversation, duplicates included
+    options.MaxDocumentBytes = 50L * 1024 * 1024;    // the largest document opened or kept
+    options.MaxImageBytes = 10 * 1024 * 1024;        // the largest picture a document places
+    options.MaxToolResponseCharacters = 24_000;      // longer tool answers are cut, saying how to ask for the rest
+    options.Author = "AI Assistant";                 // the name comments and tracked changes are signed with
 });
 
 builder.Services.Configure<WordPreviewOptions>(options =>
 {
-    options.MaxPages = 4;               // pages per preview call
-    options.PageWidthPixels = 816;
+    options.MaxPages = 4;                            // pages per preview call
+    options.PageWidthPixels = 816;                   // the width a page is drawn at: a letter page at 96 dpi
+    options.MaxImageBytesPerPage = 3 * 1024 * 1024;  // pictures past it are drawn as labelled placeholders
+    options.MaxLayoutPages = 500;                    // pages laid out per document; page counts past it are a lower bound
 });
 
 // Keep the .docx writer but leave the agent out.

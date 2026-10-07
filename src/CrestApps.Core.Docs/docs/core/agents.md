@@ -164,9 +164,11 @@ The built-in **Tabular Data Agent** is the reference pattern for a framework-man
 
 Use the same pattern for additional code-defined system agents when you want a capability to be automatically present for orchestration and remotely invocable over A2A without making it a manual UI choice.
 
-The built-in **Word Agent** (`word-agent`, registered by `AddWord()`) follows it too: its hidden Word tools
-work on a per-conversation workspace of documents, and a steering handler tells the primary model to delegate
-uploaded `.docx` files to it. Set `WordAgentOptions.Enabled = false` to leave it out.
+The built-in **Word Agent** (`word-agent`, registered by `AddWord()`) follows it too: its 32 hidden Word tools
+— writing, tables, design, comments, tracked changes and protection, reading, preview and export — work on a
+per-conversation workspace of documents, and a steering handler tells the primary model to delegate uploaded
+`.docx` files to it. Set `WordAgentOptions.Enabled = false` to leave it out. See
+[AI Documents](./ai-documents.md#word-documents-and-the-word-agent).
 
 ## Creating Agent Profiles
 

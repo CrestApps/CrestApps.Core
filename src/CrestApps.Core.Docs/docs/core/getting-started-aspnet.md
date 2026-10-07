@@ -22,6 +22,8 @@ Start with the smallest set that matches your scenario.
   <PackageReference Include="CrestApps.Core.AI.Documents" />
   <PackageReference Include="CrestApps.Core.AI.Documents.OpenXml" />
   <PackageReference Include="CrestApps.Core.AI.Documents.Pdf" />
+  <!-- Add for the Word Agent, which creates, edits and previews .docx files -->
+  <PackageReference Include="CrestApps.Core.AI.Documents.Word" />
 
   <!-- Pick at least one provider -->
   <PackageReference Include="CrestApps.Core.AI.OpenAI" />
@@ -179,6 +181,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddEntityCoreStores()
             .AddOpenXml()
             .AddPdf()
+            .AddWord()
         )
         .AddAIMemory(memory => memory
             .AddEntityCoreStores()
@@ -215,6 +218,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddYesSqlStores()                    // IAIDocumentStore, IAIDocumentChunkStore, IAIDataSourceStore
             .AddOpenXml()
             .AddPdf()
+            .AddWord()
         )
         .AddAIMemory(memory => memory
             .AddYesSqlStores()                    // IAIMemoryStore

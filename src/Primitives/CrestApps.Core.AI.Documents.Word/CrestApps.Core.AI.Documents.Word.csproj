@@ -7,8 +7,9 @@
 			$(CrestAppsDescription)
 
 			Microsoft Word support for CrestApps AI documents: the system Word agent that creates, edits, formats,
-			reviews, converts, previews and exports Word documents in a conversation, with tools for structure,
-			tables, images, charts, comments, tracked changes, document intelligence and quality checks.
+			reviews, previews and exports Word documents in a conversation, with tools for structure, tables, images,
+			charts, comments, tracked changes, editing protection, content extraction, comparison and quality checks,
+			and an in-process layout engine that draws pages as SVG previews.
 		</Description>
     <PackageTags>$(PackageTags) ai word docx documents agent openxml</PackageTags>
   </PropertyGroup>
@@ -27,7 +28,6 @@
 
   <ItemGroup>
     <PackageReference Include="DocumentFormat.OpenXml" />
-    <PackageReference Include="PDFsharp-MigraDoc" />
   </ItemGroup>
 
   <ItemGroup>
