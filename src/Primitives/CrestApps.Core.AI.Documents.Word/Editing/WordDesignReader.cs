@@ -1,3 +1,4 @@
+using System.Globalization;
 using CrestApps.Core.AI.Documents.OpenXml.Word;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -106,7 +107,7 @@ internal static class WordDesignReader
     {
         size = 0;
 
-        if (!int.TryParse(halfPoints, out var value) || value <= 0)
+        if (!int.TryParse(halfPoints, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) || value <= 0)
         {
             return false;
         }

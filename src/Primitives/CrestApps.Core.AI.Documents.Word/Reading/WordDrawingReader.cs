@@ -1,3 +1,4 @@
+using System.Globalization;
 using CrestApps.Core.AI.Documents.OpenXml.Word;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -145,7 +146,7 @@ internal static class WordDrawingReader
             info.HorizontalFrom = horizontal.RelativeFrom?.InnerText;
             info.HorizontalAlignment = horizontal.HorizontalAlignment?.Text;
 
-            if (long.TryParse(horizontal.PositionOffset?.Text, out var offset))
+            if (long.TryParse(horizontal.PositionOffset?.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var offset))
             {
                 info.OffsetX = WordUnits.FromEmus(offset);
             }
@@ -156,7 +157,7 @@ internal static class WordDrawingReader
             info.VerticalFrom = vertical.RelativeFrom?.InnerText;
             info.VerticalAlignment = vertical.VerticalAlignment?.Text;
 
-            if (long.TryParse(vertical.PositionOffset?.Text, out var offset))
+            if (long.TryParse(vertical.PositionOffset?.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var offset))
             {
                 info.OffsetY = WordUnits.FromEmus(offset);
             }

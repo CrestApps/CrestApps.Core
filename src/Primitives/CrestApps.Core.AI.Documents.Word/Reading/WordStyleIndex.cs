@@ -1,3 +1,4 @@
+using System.Globalization;
 using CrestApps.Core.AI.Documents.OpenXml.Word;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -117,7 +118,7 @@ internal sealed class WordStyleIndex
 
             if (style.StyleName?.Val?.Value is { } name &&
                 name.StartsWith("heading ", StringComparison.OrdinalIgnoreCase) &&
-                int.TryParse(name.AsSpan(8), out var number) &&
+                int.TryParse(name.AsSpan(8), NumberStyles.Integer, CultureInfo.InvariantCulture, out var number) &&
                 number is >= 1 and <= 9)
             {
                 return number - 1;

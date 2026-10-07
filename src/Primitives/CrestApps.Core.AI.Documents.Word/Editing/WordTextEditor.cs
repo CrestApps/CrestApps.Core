@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Documents.OpenXml.Word;
@@ -301,7 +302,7 @@ internal static class WordTextEditor
         return new WordRunFormat
         {
             Font = first.RunFonts?.Ascii?.Value,
-            Size = double.TryParse(first.FontSize?.Val?.Value, out var halfPoints) ? halfPoints / 2 : null,
+            Size = double.TryParse(first.FontSize?.Val?.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var halfPoints) ? halfPoints / 2 : null,
             Color = first.Color?.Val?.Value,
             StyleId = first.RunStyle?.Val?.Value is { } style && !string.Equals(style, WordStyleSheet.InlineCode, StringComparison.Ordinal) && !string.Equals(style, WordStyleSheet.Hyperlink, StringComparison.Ordinal) ? style : null,
         };

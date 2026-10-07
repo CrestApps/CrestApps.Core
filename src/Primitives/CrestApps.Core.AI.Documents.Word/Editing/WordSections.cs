@@ -1,3 +1,4 @@
+using System.Globalization;
 using CrestApps.Core.AI.Documents.OpenXml.Word;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -159,7 +160,7 @@ internal static class WordSections
         var columns = section?.GetFirstChild<Columns>();
         var count = columns?.ColumnCount?.Value ?? 1;
 
-        return (Math.Max(1, (int)count), WordUnits.FromTwips(double.TryParse(columns?.Space?.Value, out var space) ? space : 720));
+        return (Math.Max(1, (int)count), WordUnits.FromTwips(double.TryParse(columns?.Space?.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var space) ? space : 720));
     }
 
     /// <summary>

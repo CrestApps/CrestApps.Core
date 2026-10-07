@@ -197,17 +197,17 @@ internal static class WordChartReader
 
     private static List<T> ReadPoints<T>(XElement cache, Func<string, T> convert)
     {
-        var count = int.TryParse(cache.Element(_c + "ptCount")?.Attribute("val")?.Value, out var declared) ? declared : 0;
+        var count = int.TryParse(cache.Element(_c + "ptCount")?.Attribute("val")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var declared) ? declared : 0;
         var points = cache.Elements(_c + "pt").ToList();
 
-        count = Math.Max(count, points.Count == 0 ? 0 : points.Max(point => int.TryParse(point.Attribute("idx")?.Value, out var index) ? index + 1 : 0));
+        count = Math.Max(count, points.Count == 0 ? 0 : points.Max(point => int.TryParse(point.Attribute("idx")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) ? index + 1 : 0));
         count = Math.Min(count, 10_000);
 
         var values = Enumerable.Repeat(default(T), count).ToList();
 
         foreach (var point in points)
         {
-            if (int.TryParse(point.Attribute("idx")?.Value, out var index) && index >= 0 && index < count)
+            if (int.TryParse(point.Attribute("idx")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) && index >= 0 && index < count)
             {
                 values[index] = convert(point.Element(_c + "v")?.Value);
             }

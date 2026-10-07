@@ -1,3 +1,4 @@
+using System.Globalization;
 using CrestApps.Core.AI.Documents.OpenXml.Word;
 using CrestApps.Core.AI.Documents.Word.Workspace;
 using DocumentFormat.OpenXml;
@@ -87,7 +88,7 @@ internal static class WordBlockLocator
             throw new WordToolException($"The document has {tables.Count} tables; pass 'table' with a table's id or its number (1 to {tables.Count}).");
         }
 
-        if (int.TryParse(reference.Trim().TrimStart('#'), out var number) && reference.Trim().Length < 6)
+        if (int.TryParse(reference.Trim().TrimStart('#'), NumberStyles.Integer, CultureInfo.InvariantCulture, out var number) && reference.Trim().Length < 6)
         {
             return number >= 1 && number <= tables.Count
                 ? tables[number - 1]

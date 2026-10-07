@@ -144,7 +144,7 @@ internal static class WordText
             case SoftHyphen:
                 return;
 
-            case SymbolChar symbol when symbol.Char?.Value is { Length: 4 } code && int.TryParse(code, System.Globalization.NumberStyles.HexNumber, null, out var value):
+            case SymbolChar symbol when symbol.Char?.Value is { Length: 4 } code && int.TryParse(code, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out var value):
                 // A symbol font character is mapped from the private-use area it is stored in.
                 builder.Append(value >= 0xF000 ? (char)(value - 0xF000) : (char)value);
 
