@@ -1,7 +1,7 @@
 {
   "name": "@crestapps/ai-chat-ui",
   "version": "2.0.0-preview",
-  "description": "Browser-ready JavaScript widgets and CSS for CrestApps AI chat sessions and chat interactions. Supports streaming responses, image generation, Chart.js interactive charts, document uploads, copy-to-clipboard, and feedback buttons.",
+  "description": "Browser-ready JavaScript widgets and CSS for CrestApps AI chat sessions and chat interactions. Supports streaming responses, image generation, Chart.js interactive charts, a stacked image carousel, document uploads, copy-to-clipboard, and feedback buttons.",
   "license": "MIT",
   "author": "CrestApps",
   "homepage": "https://crestapps.com/docs/core/chat",
@@ -25,6 +25,7 @@
     "signalr",
     "crestapps",
     "chart.js",
+    "carousel",
     "streaming",
     "vue",
     "css"

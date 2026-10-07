@@ -773,7 +773,7 @@ This is the mechanism `[doc:n]` citations already use — a reference registered
 
 ### Stacked Image Carousel
 
-When a response shows two or more pictures one after another — slide previews, spreadsheet previews, before/after comparisons, or any run of images separated only by whitespace — the chat UI stacks them into a single carousel instead of rendering each one at full size. The current picture sits in front with its neighbours fanned out behind it; the reader moves between them by swiping, clicking a picture behind, using the arrows or dots, or pressing the arrow keys while the carousel has focus. A picture written mid-sentence keeps its place in the text.
+When a response shows two or more pictures one after another — slide previews, spreadsheet previews, before/after comparisons, or any run of images separated only by whitespace — the chat UI stacks them into a single carousel instead of rendering each one at full size. The current picture sits in front with its neighbours fanned out behind it; the reader moves between them by swiping, clicking a picture behind, using the arrows or dots, or pressing the arrow keys while the carousel has focus. An S / M / L control beside the caption lets the reader pick small, medium or large previews; the choice applies to every carousel on the page and is remembered in the browser. A picture written mid-sentence keeps its place in the text.
 
 The carousel is shared by every chat surface (AI Chat sessions, Chat Interactions and the chat widget) and is optional. Load `chat-image-carousel.js` and `chat-image-carousel.css` alongside the chat scripts to enable it; without them, pictures render as before.
 
@@ -781,6 +781,27 @@ The carousel is shared by every chat surface (AI Chat sessions, Chat Interaction
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@crestapps/ai-chat-ui/dist/chat-image-carousel.min.css" />
 <script src="https://cdn.jsdelivr.net/npm/@crestapps/ai-chat-ui/dist/chat-image-carousel.min.js"></script>
 ```
+
+#### Using the carousel in your own UI
+
+The carousel does not depend on the bundled chat widgets, so a custom chat UI can reuse it. Render each picture with the same markup the bundled renderers produce, then pass the sanitized message HTML through `CoreAIChatImageCarousel.stackAdjacentImages` before inserting it into the page:
+
+```html
+<span class="generated-image-container">
+    <img src="https://example.com/slide-1.svg" alt="Slide 1" class="img-thumbnail" />
+    <a href="https://example.com/slide-1.svg" download="Slide 1" class="ai-download-image">Download</a>
+</span>
+```
+
+```js
+const html = DOMPurify.sanitize(marked.parse(markdown));
+
+messageElement.innerHTML = window.CoreAIChatImageCarousel
+    ? window.CoreAIChatImageCarousel.stackAdjacentImages(html)
+    : html;
+```
+
+`stackAdjacentImages` returns the input string unchanged when it finds no run of two or more pictures. Swiping, clicking, keyboard navigation and the S / M / L size picker are wired once on the document, so carousels inserted later — including on every chunk of a streamed response — work without further setup.
 
 ## Client-Side Assets
 

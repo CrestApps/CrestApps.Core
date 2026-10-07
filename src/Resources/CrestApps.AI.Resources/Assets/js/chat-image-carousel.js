@@ -33,6 +33,16 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || (function () 
     const previousIcon = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
     const nextIcon = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
 
+    // How large the reader wants previews drawn. It is the reader's taste rather than the answer's, so one choice
+    // applies to every carousel on the page and is kept in the browser for the next visit.
+    const sizes = [
+        { name: 'small', text: 'S', label: 'Small previews' },
+        { name: 'medium', text: 'M', label: 'Medium previews' },
+        { name: 'large', text: 'L', label: 'Large previews' },
+    ];
+    const defaultSize = 'medium';
+    const sizeStorageKey = 'coreai-image-carousel-size';
+
     // A streamed answer is re-rendered on every chunk, and every render builds the carousel afresh. The picture
     // the reader moved to is remembered here so the next render opens on it rather than back on the first.
     const activeIndexByCarouselKey = new Map();
@@ -122,6 +132,7 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || (function () 
         carousel.setAttribute('aria-roledescription', 'carousel');
         carousel.setAttribute('aria-label', `${containers.length} images`);
         carousel.dataset.carouselKey = getCarouselKey(containers);
+        carousel.dataset.carouselSize = getPreferredSize();
 
         const stage = createElement(ownerDocument, 'span', 'ai-image-carousel-stage');
         const controls = createElement(ownerDocument, 'span', 'ai-image-carousel-controls');
@@ -162,7 +173,7 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || (function () 
             dots,
             createStepButton(ownerDocument, 1, 'Next image', nextIcon));
 
-        controls.append(caption, navigation);
+        controls.append(caption, createSizePicker(ownerDocument, carousel.dataset.carouselSize), navigation);
         carousel.append(stage, controls);
 
         for (const paragraph of vacatedParagraphs) {
@@ -214,6 +225,57 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || (function () 
         button.innerHTML = icon;
 
         return button;
+    }
+
+
+    // A segmented S / M / L control.
+    function createSizePicker(ownerDocument, selectedSize) {
+        const picker = createElement(ownerDocument, 'span', 'ai-image-carousel-sizes');
+        picker.setAttribute('role', 'group');
+        picker.setAttribute('aria-label', 'Preview size');
+
+        for (const size of sizes) {
+            const button = createElement(ownerDocument, 'button', 'ai-image-carousel-size');
+            button.type = 'button';
+            button.title = size.label;
+            button.textContent = size.text;
+            button.dataset.carouselSizeOption = size.name;
+            button.setAttribute('aria-label', size.label);
+            button.setAttribute('aria-pressed', size.name === selectedSize ? 'true' : 'false');
+            picker.appendChild(button);
+        }
+
+        return picker;
+    }
+
+
+    // Storage can be missing or refuse access -- a private window, blocked site data -- and the default is a fine
+    // answer then.
+    function getPreferredSize() {
+        try {
+            const storedSize = localStorage.getItem(sizeStorageKey);
+
+            return sizes.some(size => size.name === storedSize) ? storedSize : defaultSize;
+        } catch (_) {
+            return defaultSize;
+        }
+    }
+
+
+    function setPreferredSize(selectedSize) {
+        try {
+            localStorage.setItem(sizeStorageKey, selectedSize);
+        } catch (_) {
+            // Still applied to the page; only remembering it for the next visit is lost.
+        }
+
+        for (const carousel of document.querySelectorAll('.ai-image-carousel')) {
+            carousel.dataset.carouselSize = selectedSize;
+        }
+
+        for (const button of document.querySelectorAll('[data-carousel-size-option]')) {
+            button.setAttribute('aria-pressed', button.dataset.carouselSizeOption === selectedSize ? 'true' : 'false');
+        }
     }
 
 
@@ -305,6 +367,15 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || (function () 
         if (stepButton) {
             stopEvent(event);
             showImage(carousel, getActiveIndex(carousel) + Number(stepButton.dataset.carouselStep));
+
+            return;
+        }
+
+        const sizeButton = event.target.closest('[data-carousel-size-option]');
+
+        if (sizeButton) {
+            stopEvent(event);
+            setPreferredSize(sizeButton.dataset.carouselSizeOption);
 
             return;
         }

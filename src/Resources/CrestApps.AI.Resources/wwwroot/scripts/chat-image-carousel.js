@@ -40,6 +40,24 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || function () {
   var previousIcon = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
   var nextIcon = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
 
+  // How large the reader wants previews drawn. It is the reader's taste rather than the answer's, so one choice
+  // applies to every carousel on the page and is kept in the browser for the next visit.
+  var sizes = [{
+    name: 'small',
+    text: 'S',
+    label: 'Small previews'
+  }, {
+    name: 'medium',
+    text: 'M',
+    label: 'Medium previews'
+  }, {
+    name: 'large',
+    text: 'L',
+    label: 'Large previews'
+  }];
+  var defaultSize = 'medium';
+  var sizeStorageKey = 'coreai-image-carousel-size';
+
   // A streamed answer is re-rendered on every chunk, and every render builds the carousel afresh. The picture
   // the reader moved to is remembered here so the next render opens on it rather than back on the first.
   var activeIndexByCarouselKey = new Map();
@@ -127,6 +145,7 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || function () {
     carousel.setAttribute('aria-roledescription', 'carousel');
     carousel.setAttribute('aria-label', "".concat(containers.length, " images"));
     carousel.dataset.carouselKey = getCarouselKey(containers);
+    carousel.dataset.carouselSize = getPreferredSize();
     var stage = createElement(ownerDocument, 'span', 'ai-image-carousel-stage');
     var controls = createElement(ownerDocument, 'span', 'ai-image-carousel-controls');
     var caption = createElement(ownerDocument, 'span', 'ai-image-carousel-caption');
@@ -154,7 +173,7 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || function () {
       stage.appendChild(container);
     });
     navigation.append(createStepButton(ownerDocument, -1, 'Previous image', previousIcon), dots, createStepButton(ownerDocument, 1, 'Next image', nextIcon));
-    controls.append(caption, navigation);
+    controls.append(caption, createSizePicker(ownerDocument, carousel.dataset.carouselSize), navigation);
     carousel.append(stage, controls);
     var _iterator3 = _createForOfIteratorHelper(vacatedParagraphs),
       _step3;
@@ -203,6 +222,77 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || function () {
     button.setAttribute('aria-label', label);
     button.innerHTML = icon;
     return button;
+  }
+
+  // A segmented S / M / L control.
+  function createSizePicker(ownerDocument, selectedSize) {
+    var picker = createElement(ownerDocument, 'span', 'ai-image-carousel-sizes');
+    picker.setAttribute('role', 'group');
+    picker.setAttribute('aria-label', 'Preview size');
+    var _iterator4 = _createForOfIteratorHelper(sizes),
+      _step4;
+    try {
+      for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+        var size = _step4.value;
+        var button = createElement(ownerDocument, 'button', 'ai-image-carousel-size');
+        button.type = 'button';
+        button.title = size.label;
+        button.textContent = size.text;
+        button.dataset.carouselSizeOption = size.name;
+        button.setAttribute('aria-label', size.label);
+        button.setAttribute('aria-pressed', size.name === selectedSize ? 'true' : 'false');
+        picker.appendChild(button);
+      }
+    } catch (err) {
+      _iterator4.e(err);
+    } finally {
+      _iterator4.f();
+    }
+    return picker;
+  }
+
+  // Storage can be missing or refuse access -- a private window, blocked site data -- and the default is a fine
+  // answer then.
+  function getPreferredSize() {
+    try {
+      var storedSize = localStorage.getItem(sizeStorageKey);
+      return sizes.some(function (size) {
+        return size.name === storedSize;
+      }) ? storedSize : defaultSize;
+    } catch (_) {
+      return defaultSize;
+    }
+  }
+  function setPreferredSize(selectedSize) {
+    try {
+      localStorage.setItem(sizeStorageKey, selectedSize);
+    } catch (_) {
+      // Still applied to the page; only remembering it for the next visit is lost.
+    }
+    var _iterator5 = _createForOfIteratorHelper(document.querySelectorAll('.ai-image-carousel')),
+      _step5;
+    try {
+      for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+        var carousel = _step5.value;
+        carousel.dataset.carouselSize = selectedSize;
+      }
+    } catch (err) {
+      _iterator5.e(err);
+    } finally {
+      _iterator5.f();
+    }
+    var _iterator6 = _createForOfIteratorHelper(document.querySelectorAll('[data-carousel-size-option]')),
+      _step6;
+    try {
+      for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
+        var button = _step6.value;
+        button.setAttribute('aria-pressed', button.dataset.carouselSizeOption === selectedSize ? 'true' : 'false');
+      }
+    } catch (err) {
+      _iterator6.e(err);
+    } finally {
+      _iterator6.f();
+    }
   }
   function getItems(carousel) {
     return carousel.querySelectorAll('.ai-image-carousel-stage > .ai-image-carousel-item');
@@ -269,6 +359,12 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || function () {
     if (stepButton) {
       stopEvent(event);
       showImage(carousel, getActiveIndex(carousel) + Number(stepButton.dataset.carouselStep));
+      return;
+    }
+    var sizeButton = event.target.closest('[data-carousel-size-option]');
+    if (sizeButton) {
+      stopEvent(event);
+      setPreferredSize(sizeButton.dataset.carouselSizeOption);
       return;
     }
     var dot = event.target.closest('[data-carousel-target]');
