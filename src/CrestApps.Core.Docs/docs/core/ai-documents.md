@@ -238,10 +238,28 @@ Each chat session or chat interaction has a Word workspace that persists between
 | Reading | `get_word_document`, `get_word_document_outline`, `search_word_document`, `extract_word_content` (Markdown, text, tables, links or pictures, optionally as a `.md`, `.txt` or `.csv` download) |
 | Delivery | `preview_word`, `export_word` (the whole document, or chosen headings and elements as a separate file), `import_word` (a working copy of an upload, or a duplicate of a working document) |
 
-The agent runs 32 hidden tools. Tables and charts can take their rows from the conversation's uploaded
+The agent runs 32 hidden tools, and all of them stay in scope on every request: the orchestrator's relevance
+scoping, which keeps the tools sharing the most words with a request once a profile has more than
+`ScopingThreshold` tools, would otherwise hide the one a request needs, such as `format_word_document` for
+"switch to the modern theme". Tables and charts can take their rows from the conversation's uploaded
 spreadsheets with a read-only SQL query, and the agent can call `list_tabular_data` and `query_tabular_data`
 to choose them. While change tracking is on, text and formatting edits from every tool are recorded as
 revisions signed with `WordAgentOptions.Author`.
+
+A document can be written in one call: a `toc` content block places a table of contents that is filled in
+from the headings around it, list items nest under one another (bullets under a numbered item included), and
+a table takes a format per column, from each column's `format`, a `formats` array, or a header that names the
+unit, such as "Planned ($)". Follow-up edits keep to what they name:
+
+- `update_word_content` replaces a phrase in chosen elements, in one heading's section (`under`), or in the
+  whole document only when asked for `everywhere`.
+- A list block added after an item of a list of the same kind continues that list, and a list written again
+  with new items at its end adds only the new items.
+- `update_word_table` names a row by the text of its first cell or its number (`get_word_document` lists both),
+  writes a plain number the way the rest of its column is written, such as `$9,500.00`, and adds rows above
+  the first one with `after_row: 0`.
+- A cross-reference to a captioned table or figure refers to its caption, and `add_word_caption` on an element
+  that has one changes its words instead of adding another.
 
 Table columns are always the table's grid columns, counted from 1, so a row with merged cells is addressed
 the same way as the others: a merged cell is found from any row and column it covers, and adding or removing
