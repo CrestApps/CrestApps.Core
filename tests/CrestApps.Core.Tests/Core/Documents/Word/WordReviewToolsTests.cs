@@ -353,8 +353,8 @@ public sealed partial class WordReviewToolsTests
             },
         });
         await host.UploadAsync("original.docx", await host.ReadWorkingDocumentAsync("doc"));
-        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "doc", find = "alpha", replace = "ALPHA" });
-        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "doc", find = "beta", replace = "BETA" });
+        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "doc", find = "alpha", replace = "ALPHA", everywhere = true });
+        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "doc", find = "beta", replace = "BETA", everywhere = true });
 
         var compare = await host.InvokeAsync(new CompareWordDocumentsTool(), new { original = "original.docx", revised = "doc" });
 

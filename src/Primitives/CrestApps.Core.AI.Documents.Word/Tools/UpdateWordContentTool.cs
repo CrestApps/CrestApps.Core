@@ -26,7 +26,9 @@ internal sealed class UpdateWordContentTool : WordToolBase
             "id": { "type": "string", "description": "The element to change." },
             "ids": { "type": "array", "items": { "type": "string" }, "description": "Several elements to change the same way." },
             "text": { "type": "string", "description": "New text for the whole element, with inline Markdown. The element keeps its style." },
-            "find": { "type": "string", "description": "Text to find inside the elements, or in the whole document when no id is given." },
+            "find": { "type": "string", "description": "Text to find inside the elements, in the section of the heading 'under' names, or in the whole document with 'everywhere'." },
+            "under": { "type": "string", "description": "A heading id: find and replace only in that heading's section, up to the next heading of the same or a higher level — 'in the Executive Summary'." },
+            "everywhere": { "type": "boolean", "description": "Find and replace in the whole document, the title and every section included." },
             "replace": { "type": "string", "description": "What 'find' becomes; an empty string deletes it." },
             "match_case": { "type": "boolean" },
             "whole_word": { "type": "boolean" },
@@ -81,9 +83,18 @@ internal sealed class UpdateWordContentTool : WordToolBase
             throw new WordToolException("Say what to change: 'text', 'find' and 'replace', 'block', 'style', 'level' or 'alignment'.");
         }
 
+        var under = arguments.GetString("under");
+
         if (ids.Count == 0 && find is null)
         {
-            throw new WordToolException("Pass 'id' (or 'ids') of the element to change. Only 'find' and 'replace' work on the whole document.");
+            throw new WordToolException("Pass 'id' (or 'ids') of the element to change. Only 'find' and 'replace' work on a section or the whole document.");
+        }
+
+        // A phrase replaced with no scope would change the title and every section, which a request about one part
+        // of the document rarely means, so the whole document has to be asked for.
+        if (find is not null && ids.Count == 0 && under is null && arguments.GetBoolean("everywhere") != true)
+        {
+            throw new WordToolException("Say where to replace: 'ids' of the elements, 'under' with a heading id for that heading's section, or 'everywhere': true for the whole document, title included.");
         }
 
         var (lines, document) = await context.EditAsync(arguments.Document(), "Updated content", async edit =>
@@ -93,11 +104,25 @@ internal sealed class UpdateWordContentTool : WordToolBase
 
             if (find is not null && ids.Count == 0)
             {
-                var replaced = WordTextEditor.Replace(edit.Package.Body, find, arguments.GetRawString("replace") ?? string.Empty, arguments.GetBoolean("match_case") == true, arguments.GetBoolean("whole_word") == true, revisions, arguments.GetInt("count") ?? int.MaxValue);
+                List<DocumentFormat.OpenXml.OpenXmlElement> scopes = under is null ? [edit.Package.Body] : SectionOf(edit.Package, under);
+                var remaining = arguments.GetInt("count") ?? int.MaxValue;
+                var replaced = 0;
+
+                foreach (var scope in scopes)
+                {
+                    var count = WordTextEditor.Replace(scope, find, arguments.GetRawString("replace") ?? string.Empty, arguments.GetBoolean("match_case") == true, arguments.GetBoolean("whole_word") == true, revisions, remaining - replaced);
+
+                    replaced += count;
+
+                    if (replaced >= remaining)
+                    {
+                        break;
+                    }
+                }
 
                 if (replaced == 0)
                 {
-                    throw new WordToolException($"\"{find}\" was not found in the document.");
+                    throw new WordToolException(under is null ? $"\"{find}\" was not found in the document." : $"\"{find}\" was not found under [{under}].");
                 }
 
                 report.Add($"Replaced {replaced} occurrence(s) of \"{find}\".");
@@ -227,5 +252,24 @@ internal sealed class UpdateWordContentTool : WordToolBase
         }
 
         throw new WordToolException($"The document has no paragraph style \"{style}\". manage_word_styles lists and creates styles.");
+    }
+
+    // The elements of a heading's section: everything after it up to the next heading of its level or higher.
+    private static List<DocumentFormat.OpenXml.OpenXmlElement> SectionOf(WordPackage package, string headingId)
+    {
+        var blocks = WordBlockReader.Read(package);
+        var index = blocks.FindIndex(block => string.Equals(block.Id, headingId, StringComparison.OrdinalIgnoreCase));
+
+        if (index < 0 || blocks[index].Kind != WordBlockKind.Heading)
+        {
+            throw new WordToolException($"[{headingId}] is not a heading; 'under' takes the id of the heading whose section to change.");
+        }
+
+        var level = blocks[index].Level;
+
+        return [.. blocks
+            .Skip(index + 1)
+            .TakeWhile(block => block.Kind != WordBlockKind.Heading || block.Level > level)
+            .Select(block => block.Element)];
     }
 }

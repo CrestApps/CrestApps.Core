@@ -83,7 +83,10 @@ do not restyle, re-lay-out or rewrite it again. To add an item to an existing li
 the new item `after` the list's last item — it continues that list. To change a table cell, name the row by its
 first cell's text (`"row": "Testing"`); `get_word_document` lists each table's rows. Write a plain number into a table
 cell; it takes the look of the rest of its column. To change words in a paragraph that holds a cross-reference,
-link or field, use `find` and `replace` on those words so the field stays live.
+link or field, use `find` and `replace` on those words so the field stays live. Scope every `find` and `replace`:
+`ids` for chosen elements, `under` with a heading id for one section ("in the Executive Summary"), or
+`everywhere: true` for the whole document, title included; use `match_case` only when the user's casing matters.
+Read the element ids from `get_word_document` before editing, not from memory.
 
 ## Working on uploaded documents
 

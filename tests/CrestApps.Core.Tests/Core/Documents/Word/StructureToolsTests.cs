@@ -33,7 +33,7 @@ public sealed class StructureToolsTests
         using var host = new WordToolTestHost();
         await CreateAsync(host);
 
-        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "doc", find = "Alpha", replace = "Omega" });
+        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "doc", find = "Alpha", replace = "Omega", everywhere = true });
 
         var bytes = await host.ReadWorkingDocumentAsync("doc");
 
@@ -47,7 +47,7 @@ public sealed class StructureToolsTests
             await host.UploadAsync("tracked.docx", package.Save());
         }
 
-        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "tracked.docx", find = "Omega", replace = "Gamma" });
+        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "tracked.docx", find = "Omega", replace = "Gamma", everywhere = true });
 
         var tracked = await host.ReadWorkingDocumentAsync("tracked");
 
@@ -402,6 +402,37 @@ public sealed class StructureToolsTests
 
         Assert.Equal(4, ids.Count);
         Assert.Single(ids.Distinct());
+    }
+
+    [Fact]
+    public async Task UpdateWordContent_FindUnderAHeading_ReplacesOnlyInThatSection()
+    {
+        using var host = new WordToolTestHost();
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "doc",
+            title = "Project Falcon",
+            content = new object[]
+            {
+                new { type = "heading", text = "Summary", level = 1 },
+                new { type = "paragraph", text = "The project shipped." },
+                new { type = "heading", text = "Detail", level = 2 },
+                new { type = "paragraph", text = "The project grew." },
+                new { type = "heading", text = "Budget", level = 1 },
+                new { type = "paragraph", text = "The project cost less." },
+            },
+        });
+
+        var summary = (await ReadAsync(host)).Single(block => block.Text == "Summary");
+
+        var unscoped = await host.InvokeAsync(new UpdateWordContentTool(), new { document = "doc", find = "project", replace = "initiative" });
+        var scoped = await host.InvokeAsync(new UpdateWordContentTool(), new { document = "doc", under = summary.Id, find = "project", replace = "initiative" });
+
+        Assert.Contains("Say where to replace", unscoped, StringComparison.Ordinal);
+        Assert.Contains("Replaced 2 occurrence(s)", scoped, StringComparison.Ordinal);
+        Assert.Equal(
+            ["Project Falcon", "Summary", "The initiative shipped.", "Detail", "The initiative grew.", "Budget", "The project cost less."],
+            (await ReadAsync(host)).Select(block => block.Text));
     }
 
     [Fact]

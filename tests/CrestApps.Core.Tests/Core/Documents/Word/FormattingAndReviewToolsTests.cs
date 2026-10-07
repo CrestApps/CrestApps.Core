@@ -142,7 +142,7 @@ public sealed class FormattingAndReviewToolsTests
         await CreateAsync(host);
 
         await host.InvokeAsync(new ManageWordRevisionsTool(), new { document = "doc", action = "track" });
-        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "doc", find = "Alpha body", replace = "Omega body" });
+        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "doc", find = "Alpha body", replace = "Omega body", everywhere = true });
 
         var list = await host.InvokeAsync(new ManageWordRevisionsTool(), new { document = "doc", action = "list" });
 
@@ -152,7 +152,7 @@ public sealed class FormattingAndReviewToolsTests
         await host.InvokeAsync(new ManageWordRevisionsTool(), new { document = "doc", action = "reject" });
         Assert.Contains("Alpha body text.", await TextAsync(host), StringComparison.Ordinal);
 
-        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "doc", find = "Beta body", replace = "Gamma body" });
+        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "doc", find = "Beta body", replace = "Gamma body", everywhere = true });
         await host.InvokeAsync(new ManageWordRevisionsTool(), new { document = "doc", action = "accept" });
 
         var bytes = await host.ReadWorkingDocumentAsync("doc");
@@ -171,7 +171,7 @@ public sealed class FormattingAndReviewToolsTests
         using var host = new WordToolTestHost();
         await CreateAsync(host);
         await host.UploadAsync("original.docx", await host.ReadWorkingDocumentAsync("doc"));
-        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "doc", find = "Beta body", replace = "Beta changed body" });
+        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "doc", find = "Beta body", replace = "Beta changed body", everywhere = true });
 
         var markdown = await host.InvokeAsync(new ExtractWordContentTool(), new { document = "doc" });
         var csv = await host.InvokeAsync(new ExtractWordContentTool(), new { document = "doc", what = "tables", save_as_file = true });
@@ -216,7 +216,7 @@ public sealed class FormattingAndReviewToolsTests
         using var host = new WordToolTestHost();
         await CreateAsync(host);
         await host.UploadAsync("report.docx", await host.ReadWorkingDocumentAsync("doc"));
-        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "report.docx", find = "Beta body", replace = "Beta new body" });
+        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "report.docx", find = "Beta body", replace = "Beta new body", everywhere = true });
 
         var compare = await host.InvokeAsync(new CompareWordDocumentsTool(), new { original = "report.docx", revised = "report" });
 
