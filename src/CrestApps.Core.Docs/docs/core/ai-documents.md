@@ -41,6 +41,7 @@ With AI Documents enabled, your users can:
 - Search document content semantically instead of by exact keyword only
 - Work with spreadsheets and CSV files through a tabular workflow
 - Download generated files such as exports and AI-authored documents
+- Create, edit, design, preview and export PowerPoint decks through the Presentation Agent
 - Create, edit, format, review, preview and export Word documents through the Word Agent
 - Include supported images in chat flows
 
@@ -117,6 +118,82 @@ A chart embedded in the workbook is for the downloaded file. To render a chart i
 
 When your deployment supports vision, users can upload supported image files alongside standard documents. This enables image-aware chat scenarios such as describing screenshots, extracting visible text, or answering questions about diagrams and photos.
 
+### Presentations and the Presentation Agent
+
+`AddOpenXml()` registers PowerPoint support: the reader that indexes `.pptx` and `.potx` uploads for search, a
+`.pptx` writer behind generated files, and the built-in **Presentation Agent** (`presentation-agent`). Like
+the Tabular Data Agent it is a code-defined **system agent**: always available to the primary model, exposed
+through the A2A host, and hidden from the agent pickers. The primary model delegates every request that
+produces or works on a slide deck to it — "make me a 6-slide deck about our Q3 results", "use our company
+template", "turn slide 4 into a timeline", "shorten every slide", "export it as PDF" — and every follow-up as
+well. `generate_file` sends `.pptx` requests to the agent instead of writing a deck itself.
+
+#### The workspace
+
+Each chat session or chat interaction has a presentation workspace that persists between turns:
+
+- **Uploaded decks are never changed.** An uploaded `.pptx` is copied into the workspace the first time a
+  presentation tool runs, and every edit changes that working copy. A `.potx` upload is a template: the agent
+  can build a new deck in its design, or restyle an existing deck with it.
+- **Decks are real PowerPoint files.** Every change is applied as one all-or-nothing batch and saved as a new
+  version, so the next turn, the preview and the export all see the same file. The last few versions are
+  kept for `undo_presentation_change` and `compare_presentations`.
+- The workspace is stored through `IDocumentFileStore` under the conversation's document folder, and is
+  removed when the conversation is deleted or its history is cleared. Removing an upload removes the working
+  copy made from it.
+
+#### What the agent can do
+
+| Area | Tools |
+| --- | --- |
+| Understanding | `get_presentation_outline`, `get_slide_content` (every element with its `#id`, role, position, text and style), `get_presentation_theme`, `search_presentation`, `extract_presentation_content` (text, notes, tables, charts, pictures, links, structure) |
+| Slides | `create_presentation` (a theme preset, custom colours and fonts, or an uploaded template, with every slide in one call), `add_slide`, `duplicate_slide`, `delete_slide`, `move_slide`, `update_slide` (title, body, notes, layout, background, transition, visibility — many slides in one call) |
+| Elements | `insert_slide_element` (text, bullets, 40 shapes, lines and connectors, tables, charts, pictures, icons, diagrams, video and audio links, groups), `update_slide_element` (move, resize, rotate, restyle, re-link, replace or crop a picture, alt text), `update_slide_text` (rewrite paragraphs in place, find and replace, speaker notes), `copy_slide_elements`, `delete_slide_element`, `group_slide_elements`, `arrange_slide_elements` (align, distribute, match sizes, layer, snap, auto-layout) |
+| Data | `update_slide_table`, `update_slide_chart` (the chart's embedded workbook is updated too, so it stays editable in PowerPoint), `link_slide_data` and `refresh_slide_data`: tables and charts can take their rows from the conversation's uploaded spreadsheets with a read-only `tabular_sql` query, and stay linked to it |
+| Design | `format_presentation` (consistent text, shape, table, chart and background styles, remembered as the deck's house style), `apply_slide_layout`, `apply_presentation_template`, `set_slide_background`, `update_presentation_theme`, `update_slide_master`, `apply_presentation_branding` (brand colours, fonts, logo, footer), `set_presentation_footer`, `update_presentation_sections`, `add_presentation_toc` (a linked agenda slide) |
+| Visuals | `generate_slide_diagram` (process, chevron, cycle, timeline, hierarchy, pyramid, funnel, matrix, Venn and card diagrams built from editable shapes coloured from the theme), `generate_slide_image` (uses the image deployment) |
+| Review | `analyze_presentation` (storyline, density, speaking time, visuals, design), `check_presentation` (overflowing or overlapping content, inconsistent titles and fonts, missing alt text and titles, low contrast, small text, dense slides, broken links, missing media, schema problems, content previews cannot draw), `compare_presentations` |
+| Delivery | `preview_presentation`, `export_presentation` (`.pptx`, or PDF when `AddPdf()` is also registered), `export_presentation_content` (outline, speaker notes, presenter script with timings, handout or all text — inline or as `.md`, `.txt`, `.docx` or `.pdf`), `undo_presentation_change` |
+
+The agent can also call `list_tabular_data` and `query_tabular_data` to choose the tables and queries a
+slide's data comes from.
+
+#### Previews
+
+`preview_presentation` shows slides in the chat as pictures. Each slide is drawn as SVG from a display list
+built by the same text layout the engine uses when it fits text into boxes, so a line that wraps in the
+preview wraps at the same word in PowerPoint and in the exported PDF. The pictures are stored through
+`IGeneratedDocumentService` and returned as `[fig:N]` markers, a preview is bounded and says which slides it
+left out, and on a host that cannot serve pictures the slides are described in text instead. Content the
+renderer cannot draw — SmartArt, 3D models, embedded objects, video frames — is shown as a labelled box, and
+`check_presentation` says which slides have it. The preview format is resolvable but not requestable, so
+`generate_file` cannot produce one.
+
+#### Options
+
+```csharp
+builder.Services.Configure<PresentationWorkspaceOptions>(options =>
+{
+    options.MaxDecks = 10;         // decks kept per conversation
+    options.MaxRevisions = 5;      // earlier versions kept for undo and comparison
+    options.MaxSlides = 200;
+    options.MaxImageBytes = 15 * 1024 * 1024;
+});
+
+builder.Services.Configure<PresentationPreviewOptions>(options =>
+{
+    options.MaxSlides = 8;         // slides per preview call
+    options.Width = 960;
+});
+
+// Keep PowerPoint reading and writing but leave the agent out.
+builder.Services.Configure<PresentationAgentOptions>(options => options.Enabled = false);
+```
+
+PDF export draws the same display lists into PDF pages. It embeds the fonts the host can resolve and falls
+back to a common sans-serif typeface for the others, and gradients keep their first and last colours; the
+`.pptx` file is unaffected by either.
+
 ### Word documents and the Word Agent
 
 `AddWord()` registers the built-in **Word Agent** (`word-agent`). Like the Tabular Data Agent it is a
@@ -138,8 +215,17 @@ Each chat session or chat interaction has a Word workspace that persists between
 - **Documents are real Word files.** Every tool call applies its changes as one all-or-nothing edit and saves
   a new version, so the next turn, the preview and the export all see the same file. Elements are named by
   stable ids (Word's own paragraph ids), so a follow-up can change one paragraph without rebuilding the rest.
+- **A copy never overwrites another document.** `save_as` with a name another working document already has
+  saves under a numbered name, such as `final-2`, and the tool's answer says which.
 - The workspace is stored through `IDocumentFileStore` under the conversation's document folder, and is
-  removed when the conversation is deleted or its history is cleared.
+  removed, preview pictures included, when the conversation is deleted or its history is cleared. A file the
+  store fails to delete is remembered and retried the next time the workspace is removed.
+- Edits to one workspace are serialized by an in-process lock. On a multi-server deployment, route a
+  conversation to one server, or two servers editing the same conversation at the same moment can lose one of
+  the edits.
+- Uploads are checked before they are opened: a `.docx` whose parts unpack past
+  `WordAgentOptions.MaxUncompressedDocumentBytes`, that has more than 10,000 parts, or whose large parts are
+  compressed far more than real documents are, is refused.
 
 #### What the agent can do
 
@@ -173,6 +259,17 @@ document as it is. A heading brings everything under it up to the next heading o
 the kept content keeps its sections' page layout, and comments and bookmarks whose content was left out are
 removed.
 
+Tracked changes are listed, accepted and rejected wherever Word keeps them — the body, headers, footers,
+footnotes, endnotes and comments — including inserted and deleted table rows and cells, moved text, and
+changes to paragraph, table, cell and page layout. The few kinds only Word can apply, such as numbering and
+equation changes, are listed as such, and accepting or rejecting all changes stops with a message while any
+of them remain.
+
+When a document is refreshed before a preview or an export, a table of contents is rebuilt only when it lists
+headings; a table of figures and other field results Word wrote are kept as Word left them. The exported file
+asks Word to update its fields on opening only when something could not be refreshed here, such as a page
+number past the layout limit.
+
 #### Previews
 
 `preview_word` shows pages in the chat as pictures. An in-process layout engine lays the document out into
@@ -181,7 +278,12 @@ page as SVG; the same layout gives the table of contents and cross-references th
 measured with standard font metrics, so line and page breaks are close to Word's but not exact for every
 typeface. The pictures are stored through `IGeneratedDocumentService` and returned as `[fig:N]` markers;
 every colour taken from a document is validated before it is drawn, and links only keep web, mail and
-in-document targets.
+in-document targets. On a host that cannot serve pictures the pages are described in text instead.
+
+The layout is bounded so an uploaded file cannot exhaust the host: it stops at `MaxLayoutPages`, tables and
+content controls nested more than 32 deep are drawn as placeholders, tables keep at most 63 columns and
+sections at most 45, a paragraph is laid out up to its first 250,000 characters, and a picture larger than
+`MaxImageBytesPerPage` is drawn as a labelled placeholder rather than read.
 
 #### Options
 
@@ -190,6 +292,7 @@ builder.Services.Configure<WordAgentOptions>(options =>
 {
     options.MaxWorkingDocuments = 40;                // documents kept per conversation, duplicates included
     options.MaxDocumentBytes = 50L * 1024 * 1024;    // the largest document opened or kept
+    options.MaxUncompressedDocumentBytes = 256L * 1024 * 1024; // the most a document may unpack to
     options.MaxImageBytes = 10 * 1024 * 1024;        // the largest picture a document places
     options.MaxToolResponseCharacters = 24_000;      // longer tool answers are cut, saying how to ask for the rest
     options.Author = "AI Assistant";                 // the name comments and tracked changes are signed with
@@ -197,7 +300,8 @@ builder.Services.Configure<WordAgentOptions>(options =>
 
 builder.Services.Configure<WordPreviewOptions>(options =>
 {
-    options.MaxPages = 4;                            // pages per preview call
+    options.MaxPages = 4;                            // pages shown when the agent asks for no particular pages
+    options.MaxRenderPages = 12;                     // the most pages one call draws when it names them
     options.PageWidthPixels = 816;                   // the width a page is drawn at: a letter page at 96 dpi
     options.MaxImageBytesPerPage = 3 * 1024 * 1024;  // pictures past it are drawn as labelled placeholders
     options.MaxLayoutPages = 500;                    // pages laid out per document; page counts past it are a lower bound
@@ -235,7 +339,7 @@ Generated downloads are kept separate from user-uploaded source documents, which
 
 Out of the box, the document features support common text, document, image, and tabular formats. Add the packages you need:
 
-- `AddOpenXml()` for Office formats such as Word, PowerPoint, and Excel
+- `AddOpenXml()` for Office formats such as Word, PowerPoint (`.pptx` and `.potx` templates), and Excel, and for the Presentation Agent
 - `AddPdf()` for PDF reading
 - `AddWord()` for the Word Agent
 - `AddMarkdown()` for Markdown-aware normalization and chunking

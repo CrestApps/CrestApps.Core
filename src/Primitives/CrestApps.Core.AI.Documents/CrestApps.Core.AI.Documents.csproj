@@ -22,6 +22,9 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+    <!-- The PDF agent ships next to the PDF writer and reuses the tabular workspace and the spreadsheet value
+         formatting that the preview draws with, so a table taken from uploaded data reads the same in a PDF. -->
+    <InternalsVisibleTo Include="CrestApps.Core.AI.Documents.Pdf" />
   </ItemGroup>
 
   <ItemGroup>
@@ -44,5 +47,12 @@
     <ProjectReference Include="../CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
     <ProjectReference Include="../CrestApps.Core.AI.Chat/CrestApps.Core.AI.Chat.csproj" />
     <ProjectReference Include="../CrestApps.Core.AI.Ingestion/CrestApps.Core.AI.Ingestion.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The presentation engine lays text out with the same measurer the slide preview uses, so a line breaks
+         at the same word in the picture and in the exported deck, and it lays diagrams out with the shared
+         composer. -->
+    <InternalsVisibleTo Include="CrestApps.Core.AI.Documents.OpenXml" />
   </ItemGroup>
 </Project>
