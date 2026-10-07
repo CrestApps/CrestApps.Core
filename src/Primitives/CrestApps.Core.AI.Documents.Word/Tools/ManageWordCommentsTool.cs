@@ -80,6 +80,9 @@ internal sealed class ManageWordCommentsTool : WordToolBase
         {
             var package = edit.Package;
 
+            // Replies and resolved states are keyed by the comments' paragraph ids, which a file may lack.
+            _ = package.Ids;
+
             return Task.FromResult(action switch
             {
                 "add" => Add(edit, arguments),
@@ -166,6 +169,11 @@ internal sealed class ManageWordCommentsTool : WordToolBase
             var paragraph = paragraphs.FirstOrDefault(item => WordText.Of(item).Contains(phrase, StringComparison.OrdinalIgnoreCase))
                 ?? throw new WordToolException($"\"{phrase}\" is not in that element.");
             var runs = WordTextEditor.Isolate(paragraph, phrase, matchCase: false);
+
+            if (runs.Count == 0)
+            {
+                throw new WordToolException($"\"{phrase}\" is part of a field, such as a page number or a cross-reference; comment on the whole element instead.");
+            }
 
             runs[0].InsertBeforeSelf(new CommentRangeStart { Id = id });
             runs[^1].InsertAfterSelf(new CommentRangeEnd { Id = id });

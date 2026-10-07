@@ -121,10 +121,19 @@ internal sealed class FormatWordContentTool : WordToolBase
                     paragraphFormat?.ApplyTo(properties);
                 }
 
+                // Paragraph-only changes leave the runs alone, so no empty formatting revisions are recorded.
+                if (runFormat is null or { IsEmpty: true } && !clear)
+                {
+                    continue;
+                }
+
                 foreach (var run in targets)
                 {
                     var properties = run.RunProperties ??= new RunProperties();
-                    var before = revisions is null ? null : properties.ChildElements.Where(child => child is not RunPropertiesChange).Select(child => child.CloneNode(true)).ToList();
+
+                    // A run already formatted under tracking keeps its first recorded look, so rejecting restores the
+                    // original rather than the previous edit.
+                    var before = revisions is null || properties.RunPropertiesChange is not null ? null : properties.ChildElements.Select(child => child.CloneNode(true)).ToList();
 
                     if (clear)
                     {

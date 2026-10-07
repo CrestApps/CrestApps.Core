@@ -55,9 +55,21 @@ internal sealed class WordParagraphIds
             }
         }
 
+        // A document opened without identifiers gets the same ones every time it is read, so an id a tool reported
+        // from an upload still names the same element when a later edit opens it again.
+        var candidate = 0u;
+
         foreach (var element in pending)
         {
-            Write(element, ids.Next());
+            string value;
+
+            do
+            {
+                value = ((int)((++candidate * 2_654_435_761u) % (MaxValue - 1)) + 1).ToString("X8", CultureInfo.InvariantCulture);
+            }
+            while (!ids._used.Add(value));
+
+            Write(element, value);
         }
 
         return ids;

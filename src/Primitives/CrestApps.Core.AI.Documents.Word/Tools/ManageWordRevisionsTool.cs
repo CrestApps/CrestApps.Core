@@ -235,7 +235,15 @@ internal sealed class ManageWordRevisionsTool : WordToolBase
             case ParagraphPropertiesChange paragraphChange:
                 if (!accept && paragraphChange.Parent is ParagraphProperties paragraphProperties)
                 {
-                    var kept = paragraphProperties.ChildElements.Where(child => child is ParagraphMarkRunProperties or SectionProperties).Select(child => child.CloneNode(true)).ToList();
+                    // The mark's properties and the section break are moved, not copied: a change to the mark is still
+                    // to be applied to them.
+                    var kept = paragraphProperties.ChildElements.Where(child => child is ParagraphMarkRunProperties or SectionProperties).ToList();
+
+                    foreach (var child in kept)
+                    {
+                        child.Remove();
+                    }
+
                     var previous = paragraphChange.ParagraphPropertiesExtended?.ChildElements.Select(child => child.CloneNode(true)).ToList() ?? [];
 
                     // The mark's run properties and the section break come last in a paragraph's properties.

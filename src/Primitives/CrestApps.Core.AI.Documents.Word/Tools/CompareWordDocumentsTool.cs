@@ -56,8 +56,8 @@ internal sealed class CompareWordDocumentsTool : WordToolBase
     /// <param name="cancellationToken">The cancellation token.</param>
     protected override async Task<string> ExecuteAsync(WordToolArguments arguments, WordToolContext context, CancellationToken cancellationToken)
     {
-        var originalSource = await context.FindDocumentAsync(arguments.GetString("original") ?? throw new WordToolException("Pass 'original'."), cancellationToken);
-        var revisedSource = await context.FindDocumentAsync(arguments.GetString("revised") ?? throw new WordToolException("Pass 'revised'."), cancellationToken);
+        var originalSource = await ResolveAsync(context, arguments.GetString("original") ?? throw new WordToolException("Pass 'original'."), cancellationToken);
+        var revisedSource = await ResolveAsync(context, arguments.GetString("revised") ?? throw new WordToolException("Pass 'revised'."), cancellationToken);
         var limit = Math.Clamp(arguments.GetInt("limit") ?? 100, 1, 1000);
 
         var original = await ReadAsync(context, originalSource, cancellationToken);
@@ -117,6 +117,16 @@ internal sealed class CompareWordDocumentsTool : WordToolBase
         var summary = string.Create(CultureInfo.InvariantCulture, $"Comparing {originalSource.Describe()} (original, {original.Count} elements) with {revisedSource.Describe()} (revised, {revised.Count} elements): {counts[0]} added, {counts[1]} removed, {counts[2]} changed.");
 
         return summary + "\n" + answer.ToString().TrimEnd() + (listed > limit ? $"\n…and {listed - limit} more." : string.Empty);
+    }
+
+    // An upload's exact file name means the upload itself, not the working copy every other tool edits, so an
+    // upload can be compared with its edited copy.
+    private static async Task<WordSource> ResolveAsync(WordToolContext context, string handle, CancellationToken cancellationToken)
+    {
+        var trimmed = handle.Trim().Trim('"');
+        var upload = context.WordUploads.FirstOrDefault(document => string.Equals(document.ItemId, trimmed, StringComparison.Ordinal) || string.Equals(document.FileName, trimmed, StringComparison.OrdinalIgnoreCase));
+
+        return upload is null ? await context.FindDocumentAsync(handle, cancellationToken) : WordSource.ForUpload(upload);
     }
 
     private static async Task<List<WordBlock>> ReadAsync(WordToolContext context, WordSource source, CancellationToken cancellationToken)

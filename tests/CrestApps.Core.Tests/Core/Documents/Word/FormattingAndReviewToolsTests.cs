@@ -192,6 +192,59 @@ public sealed class FormattingAndReviewToolsTests
         Assert.DoesNotContain("no header row", check, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ElementIds_OfADocumentWithout_AreTheSameEachTimeItIsOpened()
+    {
+        using var stream = new MemoryStream();
+
+        using (var created = WordprocessingDocument.Create(stream, DocumentFormat.OpenXml.WordprocessingDocumentType.Document))
+        {
+            created.AddMainDocumentPart().Document = new Document(new Body(new Paragraph(new Run(new Text("One"))), new Paragraph(new Run(new Text("Two")))));
+        }
+
+        var bytes = stream.ToArray();
+
+        using var first = WordPackage.Open(bytes);
+        using var second = WordPackage.Open(bytes);
+
+        Assert.Equal(WordBlockReader.Read(first).Select(block => block.Id), WordBlockReader.Read(second).Select(block => block.Id));
+    }
+
+    [Fact]
+    public async Task CompareWordDocuments_ComparesAnUploadWithItsOwnWorkingCopy()
+    {
+        using var host = new WordToolTestHost();
+        await CreateAsync(host);
+        await host.UploadAsync("report.docx", await host.ReadWorkingDocumentAsync("doc"));
+        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "report.docx", find = "Beta body", replace = "Beta new body" });
+
+        var compare = await host.InvokeAsync(new CompareWordDocumentsTool(), new { original = "report.docx", revised = "report" });
+
+        Assert.Contains("1 changed", compare, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UpdateWordTable_CopiedRowsDoNotRepeatAComment()
+    {
+        using var host = new WordToolTestHost();
+        await CreateAsync(host);
+        using (var package = WordPackage.Open(await host.ReadWorkingDocumentAsync("doc")))
+        {
+            var south = package.Body.Descendants<TableRow>().Last().Descendants<Paragraph>().First();
+
+            await host.InvokeAsync(new ManageWordCommentsTool(), new { document = "doc", action = "add", id = WordParagraphIds.Of(south), comment = "Check this row." });
+        }
+
+        await host.InvokeAsync(new UpdateWordTableTool(), new { document = "doc", add_rows = new[] { new object[] { "East", "20" } } });
+
+        var bytes = await host.ReadWorkingDocumentAsync("doc");
+
+        using var document = WordprocessingDocument.Open(new MemoryStream(bytes), isEditable: false);
+
+        Assert.Single(document.MainDocumentPart.Document.Descendants<CommentReference>());
+        WordAuthoringToolsTests.AssertValid(bytes);
+    }
+
     private static async Task<List<WordBlock>> CreateAsync(WordToolTestHost host)
     {
         await host.InvokeAsync(new CreateWordDocumentTool(), new

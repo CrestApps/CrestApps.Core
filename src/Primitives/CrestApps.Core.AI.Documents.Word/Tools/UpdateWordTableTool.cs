@@ -27,7 +27,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
             "table": { "type": "string", "description": "The table's id, the id of a paragraph in it, or its number in the document (1 = first). Optional when there is one table." },
             "cells": {
               "type": "array",
-              "description": "Cells to set. Columns count from 1.",
+              "description": "Cells to set. Columns count from 1. The changes are made in this order: remove_rows, remove_columns, add_column, add_rows, cells, so a row or column number counts the table as the earlier changes left it; name rows by their first cell's text to avoid that.",
               "items": {
                 "type": "object",
                 "properties": {
@@ -139,7 +139,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
 
                 foreach (var row in table.Elements<TableRow>())
                 {
-                    var copy = (TableCell)Cell(row, after).CloneNode(true);
+                    var copy = Blank((TableCell)Cell(row, after).CloneNode(true));
                     var text = index == 0 ? WordJsonValues.GetRawString(column, "header") : index - 1 < values.Count ? values[index - 1] : string.Empty;
 
                     SetText(copy, text, part, null);
@@ -161,7 +161,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
 
                 foreach (var values in addRows.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Array))
                 {
-                    var row = (TableRow)anchor.CloneNode(true);
+                    var row = Blank((TableRow)anchor.CloneNode(true));
                     var cells = row.Elements<TableCell>().ToList();
                     var texts = values.EnumerateArray().Select(Text).ToList();
 
@@ -225,6 +225,24 @@ internal sealed class UpdateWordTableTool : WordToolBase
         }, arguments.SaveAs(), cancellationToken);
 
         return $"\"{document.Name}\" (version {document.Version}): {summary}.";
+    }
+
+    // A copied row or cell keeps only its look: comments, bookmarks and note references belong to the original,
+    // and a second copy of them would make the document invalid.
+    private static T Blank<T>(T element)
+        where T : OpenXmlElement
+    {
+        foreach (var marker in element.Descendants().Where(item => item is BookmarkStart or BookmarkEnd or CommentRangeStart or CommentRangeEnd).ToList())
+        {
+            marker.Remove();
+        }
+
+        foreach (var run in element.Descendants<Run>().Where(run => run.ChildElements.Any(child => child is CommentReference or FootnoteReference or EndnoteReference)).ToList())
+        {
+            run.Remove();
+        }
+
+        return element;
     }
 
     private static void SetText(TableCell cell, string markdown, OpenXmlPart part, WordRevisions revisions)

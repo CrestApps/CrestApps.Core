@@ -92,6 +92,8 @@ internal sealed class SearchWordDocumentTool : WordToolBase
 
         using var package = await context.OpenAsync(source, cancellationToken);
 
+        _ = package.Ids;
+
         var limit = Math.Clamp(arguments.GetInt("limit") ?? 50, 1, 500);
         var layout = arguments.GetBoolean("page_numbers") ?? true ? WordPreview.Layout(package, context.Services) : null;
         var styles = new WordStyleIndex(package.MainPart);
