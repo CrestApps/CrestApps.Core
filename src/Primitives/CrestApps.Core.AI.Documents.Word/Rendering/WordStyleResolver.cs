@@ -15,6 +15,11 @@ namespace CrestApps.Core.AI.Documents.Word.Rendering;
 /// </summary>
 internal sealed class WordStyleResolver
 {
+    // The longest length, in points, a document's indent, spacing or line height is read as: Word's largest page.
+    private const double MaxLength = 1584;
+
+    private const int MaxFontNameLength = 64;
+
     private readonly WordStyleIndex _styles;
     private readonly OpenXmlElement _paragraphDefaults;
     private readonly OpenXmlElement _runDefaults;
@@ -33,8 +38,8 @@ internal sealed class WordStyleResolver
         _styles = new WordStyleIndex(mainPart);
         _paragraphDefaults = mainPart.StyleDefinitionsPart?.Styles?.DocDefaults?.ParagraphPropertiesDefault?.ParagraphPropertiesBaseStyle;
         _runDefaults = mainPart.StyleDefinitionsPart?.Styles?.DocDefaults?.RunPropertiesDefault?.RunPropertiesBaseStyle;
-        _minorFont = WordDesignReader.ThemeFont(mainPart, minor: true) ?? "Calibri";
-        _majorFont = WordDesignReader.ThemeFont(mainPart, minor: false) ?? "Calibri Light";
+        _minorFont = FontName(WordDesignReader.ThemeFont(mainPart, minor: true)) ?? "Calibri";
+        _majorFont = FontName(WordDesignReader.ThemeFont(mainPart, minor: false)) ?? "Calibri Light";
 
         var scheme = mainPart.ThemePart?.Theme?.ThemeElements?.ColorScheme;
 
@@ -290,12 +295,12 @@ internal sealed class WordStyleResolver
                         target.SpaceAfter = after;
                     }
 
-                    if (double.TryParse(spacing.Line?.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var line))
+                    if (double.TryParse(spacing.Line?.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var line) && double.IsFinite(line))
                     {
                         var rule = spacing.LineRule?.InnerText ?? "auto";
 
                         target.LineRule = rule;
-                        target.LineValue = rule == "auto" ? line / 240 : line / 20;
+                        target.LineValue = Math.Clamp(rule == "auto" ? line / 240 : line / 20, 0, MaxLength);
                     }
 
                     break;
@@ -388,7 +393,7 @@ internal sealed class WordStyleResolver
 
                     if (!string.IsNullOrWhiteSpace(font))
                     {
-                        target.Font = font;
+                        target.Font = FontName(font);
                     }
                     else if (fonts.AsciiTheme is not null)
                     {
@@ -439,8 +444,9 @@ internal sealed class WordStyleResolver
 
                     break;
 
-                case FontSize size when double.TryParse(size.Val?.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var halfPoints) && halfPoints > 0:
-                    target.Size = halfPoints / 2;
+                case FontSize size when double.TryParse(size.Val?.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var halfPoints) && double.IsFinite(halfPoints) && halfPoints > 0:
+                    // Word sets text from 1 to 1,638 points.
+                    target.Size = Math.Clamp(halfPoints / 2, 1, 1638);
 
                     break;
 
@@ -486,10 +492,11 @@ internal sealed class WordStyleResolver
             return new WordBorder(0, null, 0, "none");
         }
 
+        // Word draws borders up to 12 points wide and up to 31 points from their text.
         return new WordBorder(
-            Math.Max(0.25, (border.Size?.Value ?? 4U) / 8d),
+            Math.Clamp((border.Size?.Value ?? 4U) / 8d, 0.25, 12),
             ResolveColor(border.Color?.Value, border.ThemeColor?.InnerText) ?? "000000",
-            border.Space?.Value ?? 0U,
+            Math.Min(border.Space?.Value ?? 0U, 31U),
             style);
     }
 
@@ -503,9 +510,19 @@ internal sealed class WordStyleResolver
         return ReadBorder(border);
     }
 
+    // A typeface's name is looked up for every word measured, so an absurdly long one is cut short.
+    private static string FontName(string font)
+    {
+        return font is { Length: > MaxFontNameLength } ? font[..MaxFontNameLength] : font;
+    }
+
     private static double? Twips(string value)
     {
-        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var twips) ? twips / 20 : null;
+        // NaN and infinity parse as numbers but are no length, and a length past Word's largest page is held to
+        // it, so no indent or spacing pushes the layout's arithmetic out of range.
+        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var twips) && double.IsFinite(twips)
+            ? Math.Clamp(twips / 20, -MaxLength, MaxLength)
+            : null;
     }
 
     private static string HighlightColor(string name)

@@ -14,6 +14,14 @@ namespace CrestApps.Core.AI.Documents.Word.Rendering;
 /// </remarks>
 internal static class WordSvgWriter
 {
+    // The most characters of markup one page is drawn with, pictures included.
+    private const int MaxLength = 32 * 1024 * 1024;
+
+    // A typeface name is at most this long; Word's own are far shorter.
+    private const int MaxFontNameLength = 64;
+
+    private const double MaxCoordinate = 1_000_000;
+
     /// <summary>
     /// Draws a page.
     /// </summary>
@@ -25,14 +33,26 @@ internal static class WordSvgWriter
     {
         ArgumentNullException.ThrowIfNull(page);
 
-        var scale = Math.Max(100, pixelWidth) / page.Width;
+        // A page with no size would draw at an infinite scale; it is drawn as a letter page instead.
+        var pageWidth = double.IsFinite(page.Width) && page.Width > 0 ? page.Width : 612;
+        var pageHeight = double.IsFinite(page.Height) && page.Height > 0 ? page.Height : 792;
+        var scale = Math.Clamp(pixelWidth, 100, 10_000) / pageWidth;
         var builder = new StringBuilder(64 * 1024);
 
-        builder.Append(CultureInfo.InvariantCulture, $"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{Math.Round(page.Width * scale)}\" height=\"{Math.Round(page.Height * scale)}\" viewBox=\"0 0 {N(page.Width)} {N(page.Height)}\">");
-        builder.Append(CultureInfo.InvariantCulture, $"<rect x=\"0\" y=\"0\" width=\"{N(page.Width)}\" height=\"{N(page.Height)}\" fill=\"{Paint(page.Background, "FFFFFF")}\"/>");
+        builder.Append(CultureInfo.InvariantCulture, $"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{N(Math.Round(pageWidth * scale))}\" height=\"{N(Math.Round(pageHeight * scale))}\" viewBox=\"0 0 {N(pageWidth)} {N(pageHeight)}\">");
+        builder.Append(CultureInfo.InvariantCulture, $"<rect x=\"0\" y=\"0\" width=\"{N(pageWidth)}\" height=\"{N(pageHeight)}\" fill=\"{Paint(page.Background, "FFFFFF")}\"/>");
 
         foreach (var item in page.Items)
         {
+            // A page drawing thousands of overlapping items would make a picture too large to load; past the
+            // limit the rest of the page is left out and the picture says so.
+            if (builder.Length > MaxLength)
+            {
+                builder.Append(CultureInfo.InvariantCulture, $"<text x=\"{N(pageWidth / 2)}\" y=\"{N(pageHeight - 12)}\" font-family=\"Arial, sans-serif\" font-size=\"9\" fill=\"#C00000\" text-anchor=\"middle\">The rest of this page is too large to preview.</text>");
+
+                break;
+            }
+
             if (item.Rotation != 0)
             {
                 builder.Append(CultureInfo.InvariantCulture, $"<g transform=\"rotate({N(item.Rotation)} {N(item.RotationX)} {N(item.RotationY)})\">");
@@ -98,6 +118,12 @@ internal static class WordSvgWriter
     public static string FontFamily(string font)
     {
         var name = string.IsNullOrWhiteSpace(font) ? "Calibri" : font.Trim();
+
+        if (name.Length > MaxFontNameLength)
+        {
+            name = name[..MaxFontNameLength];
+        }
+
         var fallback = name switch
         {
             _ when WordTextMeasurer.IsMonospace(name) => "'Courier New', monospace",
@@ -229,7 +255,14 @@ internal static class WordSvgWriter
 
     private static string N(double value)
     {
-        return Math.Round(value, 2).ToString("0.##", CultureInfo.InvariantCulture);
+        // NaN or infinity is not a number SVG reads, and a coordinate past any page needs no more digits than
+        // one just outside it.
+        if (!double.IsFinite(value))
+        {
+            return "0";
+        }
+
+        return Math.Round(Math.Clamp(value, -MaxCoordinate, MaxCoordinate), 2).ToString("0.##", CultureInfo.InvariantCulture);
     }
 
     private static string Escape(string text)
