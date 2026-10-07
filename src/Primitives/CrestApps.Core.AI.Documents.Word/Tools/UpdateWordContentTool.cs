@@ -112,9 +112,21 @@ internal sealed class UpdateWordContentTool : WordToolBase
                 if (hasBlock)
                 {
                     var built = await new WordContentBuilder(edit, context, element).BuildBlockAsync(block, cancellationToken);
-                    var cell = element.Ancestors<TableCell>().FirstOrDefault();
+                    var container = element.Parent;
 
-                    WordBlockLocator.Insert(edit.Package, built, after: null, before: id, at: null);
+                    if (container is SdtContentBlock && built.All(item => item is Paragraph or Table))
+                    {
+                        // Inside a content control, the new content takes the old element's place in the control.
+                        foreach (var item in built)
+                        {
+                            edit.Package.Ids.Assign(item);
+                            element.InsertBeforeSelf(item);
+                        }
+                    }
+                    else
+                    {
+                        WordBlockLocator.Insert(edit.Package, built, after: null, before: id, at: null);
+                    }
 
                     // A paragraph that ends a section hands the break to the last new paragraph, or to an empty one
                     // after a new table, so the section keeps its layout.
@@ -124,7 +136,7 @@ internal sealed class UpdateWordContentTool : WordToolBase
                     }
 
                     element.Remove();
-                    WordBlockLocator.RepairCell(edit.Package, cell);
+                    WordBlockLocator.RepairContainer(edit.Package, container);
                     report.Add($"[{id}] replaced by {built.Count} new element(s): " + string.Join(", ", built.Select(item => "[" + WordParagraphIds.Of(item) + "]")));
 
                     continue;

@@ -1,5 +1,6 @@
 using System.Globalization;
 using CrestApps.Core.AI.Documents.OpenXml.Word;
+using CrestApps.Core.AI.Documents.Word.Reading;
 using CrestApps.Core.AI.Documents.Word.Workspace;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -12,8 +13,9 @@ namespace CrestApps.Core.AI.Documents.Word.Editing;
 internal static class WordBlockLocator
 {
     /// <summary>
-    /// Finds the block an id names: a paragraph, a table (named by its first row), or a content control such as
-    /// a table of contents (named by its first paragraph). A paragraph inside a table cell is found too.
+    /// Finds the block an id names: a paragraph, a table (named by its first row), or a table of contents or index
+    /// in a content control (named by its first paragraph). A paragraph inside a table cell or inside any other
+    /// content control is found too.
     /// </summary>
     /// <param name="package">The document.</param>
     /// <param name="id">The id.</param>
@@ -31,11 +33,12 @@ internal static class WordBlockLocator
 
         _ = package.Ids;
 
-        // Descendants are visited parent first, so a table is found before its first row and a content
-        // control before its first paragraph.
+        // Descendants are visited parent first, so a table is found before its first row and a table of contents
+        // before its first paragraph. A content control that wraps ordinary paragraphs is not named itself: its
+        // first paragraph's id names that paragraph, as get_word_document lists it.
         foreach (var element in package.Body.Descendants())
         {
-            if (element is not (Paragraph or Table or SdtBlock))
+            if (element is not (Paragraph or Table or SdtBlock) || (element is SdtBlock control && WordBlockReader.IsTransparent(control)))
             {
                 continue;
             }
@@ -213,6 +216,33 @@ internal static class WordBlockLocator
 
         package.Ids.Assign(paragraph);
         cell.Append(paragraph);
+    }
+
+    /// <summary>
+    /// Repairs the element content was removed from or inserted into: a content control left without a block
+    /// gets an empty paragraph, and a table cell — the element itself or the one around it — ends with a
+    /// paragraph.
+    /// </summary>
+    /// <param name="package">The document, which gives a new paragraph its id.</param>
+    /// <param name="container">The element that held the content, or <see langword="null"/>.</param>
+    public static void RepairContainer(WordPackage package, OpenXmlElement container)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+
+        if (container is null or Body)
+        {
+            return;
+        }
+
+        if (container is SdtContentBlock content && !content.ChildElements.Any(child => child is Paragraph or Table or SdtBlock or CustomXmlBlock))
+        {
+            var paragraph = new Paragraph();
+
+            package.Ids.Assign(paragraph);
+            content.Append(paragraph);
+        }
+
+        RepairCell(package, container as TableCell ?? container.Ancestors<TableCell>().FirstOrDefault());
     }
 
     private static bool EndsWithParagraph(OpenXmlElement container)

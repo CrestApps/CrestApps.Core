@@ -98,6 +98,11 @@ internal static class WordDescriber
             builder.Append(" (style \"").Append(block.StyleName).Append("\")");
         }
 
+        if (block.ContentControl is { } control)
+        {
+            builder.Append(control.Length == 0 ? " (in a content control)" : " (in content control \"" + control + "\")");
+        }
+
         if (!string.IsNullOrWhiteSpace(block.Text) && block.Kind is not WordBlockKind.Empty)
         {
             builder.Append(": ").Append(block.Kind == WordBlockKind.Table ? "header " : string.Empty).Append('"').Append(WordText.Clip(block.Text, textLength)).Append('"');

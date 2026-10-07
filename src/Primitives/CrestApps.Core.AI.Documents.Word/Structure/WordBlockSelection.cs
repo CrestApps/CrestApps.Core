@@ -65,7 +65,7 @@ internal static class WordBlockSelection
             {
                 throw new WordToolException(WordBlockLocator.IsInTable(element)
                     ? $"[{id}] is inside a table cell. Pass the table's own id to work on the whole table; the content of its cells is changed with update_word_table or update_word_content."
-                    : $"[{id}] is inside a content control. Pass the id of the control itself, the first id get_word_document lists for it.");
+                    : $"[{id}] is inside a content control. To move the whole control, pass 'from' and 'to' with the first and last ids get_word_document lists in it.");
             }
 
             if (!selected.Contains(element))

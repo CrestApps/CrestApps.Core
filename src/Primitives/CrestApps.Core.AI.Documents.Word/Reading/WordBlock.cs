@@ -73,6 +73,12 @@ internal sealed class WordBlock
     public bool EndsSection { get; set; }
 
     /// <summary>
+    /// Gets or sets the name of the content control the block sits in — its title or tag, or an empty string when
+    /// it has neither — or <see langword="null"/> for a block that is not in one.
+    /// </summary>
+    public string ContentControl { get; set; }
+
+    /// <summary>
     /// Gets a value indicating whether the block is a heading or the title.
     /// </summary>
     public bool IsHeading => Kind is WordBlockKind.Heading or WordBlockKind.Title;

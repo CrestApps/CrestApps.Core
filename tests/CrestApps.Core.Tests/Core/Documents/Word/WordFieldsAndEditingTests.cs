@@ -555,6 +555,41 @@ public sealed class WordFieldsAndEditingTests
         Assert.Null(AI.Documents.Word.Charts.WordChartReader.Read(part));
     }
 
+    [Fact]
+    public async Task UpdateWordContent_ParagraphsInContentControl_AreEditedByTheirOwnIds()
+    {
+        using var host = new WordToolTestHost();
+        using var package = WordPackage.Create(new WordDesign());
+        var name = Plain("Name: ___");
+        var address = Plain("Address: ___");
+
+        Add(package, new SdtBlock(
+            new SdtProperties(new SdtAlias { Val = "Client" }, new SdtId { Val = 7 }),
+            new SdtContentBlock(name, address)));
+        await host.UploadAsync("template.docx", package.Save());
+
+        using (var read = WordPackage.Open(await host.ReadFileAsync(host.Documents.All.Single().StoredFilePath)))
+        {
+            var blocks = WordBlockReader.Read(read);
+
+            Assert.Equal([name.ParagraphId.Value, address.ParagraphId.Value], blocks.Select(block => block.Id));
+            Assert.All(blocks, block => Assert.Equal("Client", block.ContentControl));
+            Assert.Contains("(in content control \"Client\")", WordDescriber.Line(blocks[0]), StringComparison.Ordinal);
+        }
+
+        await host.InvokeAsync(new UpdateWordContentTool(), new { document = "template.docx", id = name.ParagraphId.Value, text = "Name: Contoso" });
+        await host.InvokeAsync(new RemoveWordContentTool(), new { document = "template", ids = new[] { address.ParagraphId.Value } });
+
+        var bytes = await host.ReadWorkingDocumentAsync("template");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var result = WordPackage.Open(bytes);
+        var control = Assert.Single(result.Body.Elements<SdtBlock>());
+
+        Assert.Equal("Name: Contoso", WordText.Of(control));
+    }
+
     internal static void Add(WordPackage package, OpenXmlElement element)
     {
         package.Ids.Assign(element);

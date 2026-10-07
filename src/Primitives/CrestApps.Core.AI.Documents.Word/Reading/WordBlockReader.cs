@@ -11,7 +11,9 @@ namespace CrestApps.Core.AI.Documents.Word.Reading;
 internal static class WordBlockReader
 {
     /// <summary>
-    /// Reads the body's blocks in reading order.
+    /// Reads the body's blocks in reading order. A content control that wraps paragraphs or tables, as templates
+    /// do, is read as the blocks inside it, so each can be named and edited by its own id; a table of contents
+    /// or an index in a content control is read as one block.
     /// </summary>
     /// <param name="package">The document. Its paragraphs are given ids if they have none.</param>
     /// <returns>The blocks.</returns>
@@ -27,24 +29,82 @@ internal static class WordBlockReader
 
         foreach (var element in package.Body.ChildElements)
         {
-            var block = ReadBlock(element, styles);
-
-            if (block is null)
+            foreach (var block in ReadBlocks(element, styles, control: null))
             {
-                continue;
-            }
+                block.Section = section;
+                block.Index = blocks.Count;
+                blocks.Add(block);
 
-            block.Section = section;
-            block.Index = blocks.Count;
-            blocks.Add(block);
-
-            if (block.EndsSection)
-            {
-                section++;
+                if (block.EndsSection)
+                {
+                    section++;
+                }
             }
         }
 
         return blocks;
+    }
+
+    /// <summary>
+    /// Returns whether a content control is read as the blocks inside it rather than as one block: one that
+    /// wraps paragraphs or tables and is not a table of contents or an index.
+    /// </summary>
+    /// <param name="control">The content control.</param>
+    /// <returns><see langword="true"/> when the blocks inside it are named by their own ids.</returns>
+    public static bool IsTransparent(SdtBlock control)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+
+        return KindOf(control) == WordBlockKind.ContentControl &&
+            control.SdtContentBlock?.ChildElements.Any(child => child is Paragraph or Table or SdtBlock) == true;
+    }
+
+    private static IEnumerable<WordBlock> ReadBlocks(OpenXmlElement element, WordStyleIndex styles, string control)
+    {
+        if (element is SdtBlock content && IsTransparent(content))
+        {
+            var name = NameOf(content);
+
+            foreach (var child in content.SdtContentBlock.ChildElements)
+            {
+                foreach (var inner in ReadBlocks(child, styles, control ?? name))
+                {
+                    yield return inner;
+                }
+            }
+
+            yield break;
+        }
+
+        var block = ReadBlock(element, styles);
+
+        if (block is not null)
+        {
+            block.ContentControl = control;
+
+            yield return block;
+        }
+    }
+
+    private static string NameOf(SdtBlock control)
+    {
+        // A content control is named by its title, then its tag; one with neither is still marked as one.
+        var properties = control.SdtProperties;
+        var name = properties?.GetFirstChild<SdtAlias>()?.Val?.Value ?? properties?.GetFirstChild<Tag>()?.Val?.Value;
+
+        return string.IsNullOrWhiteSpace(name) ? string.Empty : name.Trim();
+    }
+
+    private static WordBlockKind KindOf(SdtBlock control)
+    {
+        var gallery = control.SdtProperties?.Descendants<DocPartGallery>().FirstOrDefault()?.Val?.Value;
+
+        if (string.Equals(gallery, "Table of Contents", StringComparison.OrdinalIgnoreCase) || HasField(control, "TOC"))
+        {
+            return WordBlockKind.TableOfContents;
+        }
+
+        return HasField(control, "INDEX") ? WordBlockKind.Index : WordBlockKind.ContentControl;
     }
 
     /// <summary>
@@ -213,9 +273,9 @@ internal static class WordBlockReader
 
     private static WordBlock ReadContentControl(SdtBlock control)
     {
-        var gallery = control.SdtProperties?.Descendants<DocPartGallery>().FirstOrDefault()?.Val?.Value;
-        var isToc = string.Equals(gallery, "Table of Contents", StringComparison.OrdinalIgnoreCase) || HasField(control, "TOC");
-        var isIndex = !isToc && HasField(control, "INDEX");
+        var kind = KindOf(control);
+        var isToc = kind == WordBlockKind.TableOfContents;
+        var isIndex = kind == WordBlockKind.Index;
         var alias = control.SdtProperties?.GetFirstChild<SdtAlias>()?.Val?.Value;
 
         return new WordBlock

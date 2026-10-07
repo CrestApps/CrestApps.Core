@@ -108,18 +108,7 @@ internal sealed class RemoveWordContentTool : WordToolBase
                 removed++;
 
                 // A cell or a content control keeps a paragraph at its end.
-                if (parent is not null and not Body)
-                {
-                    WordBlockLocator.RepairCell(edit.Package, parent as TableCell ?? parent.Ancestors<TableCell>().FirstOrDefault());
-
-                    if (parent is SdtContentBlock content && !content.Elements<Paragraph>().Any() && !content.Elements<Table>().Any())
-                    {
-                        var empty = new Paragraph();
-
-                        edit.Package.Ids.Assign(empty);
-                        content.Append(empty);
-                    }
-                }
+                WordBlockLocator.RepairContainer(edit.Package, parent);
             }
 
             if (section is not null && blocks.Count > 0 && blocks[^1] is not Paragraph { ParagraphProperties.SectionProperties: not null })
