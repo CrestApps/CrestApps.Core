@@ -94,7 +94,7 @@ internal sealed class WordRevisions
     /// </summary>
     /// <param name="element">The element.</param>
     /// <returns><see langword="true"/> for an insertion, deletion, move or formatting change of text, a paragraph
-    /// mark, a table, a row, a cell or a section.</returns>
+    /// mark, a table, a row, a cell or a section, and for numbering added to a paragraph.</returns>
     public static bool IsChange(OpenXmlElement element)
     {
         return element switch
@@ -103,7 +103,8 @@ internal sealed class WordRevisions
             RunPropertiesChange or ParagraphPropertiesChange or ParagraphMarkRunPropertiesChange => true,
             TablePropertiesChange or TablePropertyExceptionsChange or TableGridChange or TableRowPropertiesChange or TableCellPropertiesChange => true,
             CellInsertion or CellDeletion or CellMerge or SectionPropertiesChange => true,
-            Inserted or Deleted => element.Parent is ParagraphMarkRunProperties or TableRowProperties,
+            Inserted => element.Parent is ParagraphMarkRunProperties or TableRowProperties or NumberingProperties,
+            Deleted => element.Parent is ParagraphMarkRunProperties or TableRowProperties,
             MoveFrom or MoveTo => element.Parent is ParagraphMarkRunProperties,
             _ => !IsSupported(element),
         };

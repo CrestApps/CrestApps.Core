@@ -38,9 +38,12 @@ internal sealed class WordParagraphIds
         ArgumentNullException.ThrowIfNull(mainPart);
 
         var ids = new WordParagraphIds();
-        var pending = new List<OpenXmlElement>();
+        var roots = EnumerateRoots(mainPart).ToList();
+        var pending = roots.ToDictionary(root => root, _ => new List<OpenXmlElement>());
 
-        foreach (var root in EnumerateRoots(mainPart))
+        // The comments are read first: the extended comments parts name a comment by its paragraph's identifier,
+        // so a comment keeps its identifier when another paragraph uses it too, and the other paragraph gets a new one.
+        foreach (var root in roots.OrderBy(root => root is Comments ? 0 : 1))
         {
             foreach (var element in root.Descendants().Where(element => element is Paragraph or TableRow))
             {
@@ -51,7 +54,7 @@ internal sealed class WordParagraphIds
                     continue;
                 }
 
-                pending.Add(element);
+                pending[root].Add(element);
             }
         }
 
@@ -59,7 +62,7 @@ internal sealed class WordParagraphIds
         // from an upload still names the same element when a later edit opens it again.
         var candidate = 0u;
 
-        foreach (var element in pending)
+        foreach (var element in roots.SelectMany(root => pending[root]))
         {
             string value;
 

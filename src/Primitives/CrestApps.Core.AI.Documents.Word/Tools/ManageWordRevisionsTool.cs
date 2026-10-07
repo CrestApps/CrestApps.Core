@@ -98,12 +98,22 @@ internal sealed class ManageWordRevisionsTool : WordToolBase
                 case "accept":
                 case "reject":
                     var accept = action == "accept";
-                    var changes = WordRevisions.Changes(package).Where(item => Matches(item.Element, ids, author)).ToList();
+                    var all = WordRevisions.Changes(package);
+                    var changes = all.Where(item => Matches(item.Element, ids, author)).ToList();
 
                     if (changes.Count == 0)
                     {
                         throw new WordToolException("No tracked change matches. Call manage_word_revisions with action 'list'.");
                     }
+
+                    // A move is one change made of two halves: the text moved away and the text moved here. Applying
+                    // only one would delete the text from both places, or keep it in both.
+                    var moves = Moves(all);
+                    var chosen = changes.Select(item => item.Element).ToHashSet();
+                    var partners = all.Where(item => !chosen.Contains(item.Element) &&
+                        changes.Any(change => moves.TryGetValue(change.Element, out var move) && move.Contains(item.Element))).ToList();
+
+                    changes.AddRange(partners);
 
                     var unsupported = changes.Where(item => !WordRevisions.IsSupported(item.Element)).ToList();
 
@@ -114,6 +124,11 @@ internal sealed class ManageWordRevisionsTool : WordToolBase
                             $"({string.Join(", ", unsupported.Take(10).Select(item => "#" + IdOf(item.Element) + " " + KindOf(item.Element)))}) can only be accepted or rejected in Word. " +
                             "Pass the 'revision_ids' of the other changes to apply them.");
                     }
+
+                    // Comments and notes are anchored by a reference in the text; one that goes with removed text
+                    // leaves its comment or note behind.
+                    var comments = ManageWordCommentsTool.AnchoredCommentIds(package);
+                    var notes = ReferencedNotes(package);
 
                     // Rows and cells first, so the changes inside a row that goes are not applied for nothing; then the
                     // text; paragraph marks last: a paragraph whose mark goes is joined to the next one, which has to see
@@ -128,7 +143,32 @@ internal sealed class ManageWordRevisionsTool : WordToolBase
 
                     RemoveFinishedMoveRanges(package);
 
-                    return Task.FromResult($"{(accept ? "Accepted" : "Rejected")} {changes.Count} tracked change(s); {WordRevisions.Changes(package).Count} remain.");
+                    var answer = new StringBuilder($"{(accept ? "Accepted" : "Rejected")} {changes.Count} tracked change(s)");
+
+                    if (partners.Count > 0)
+                    {
+                        answer.Append(CultureInfo.InvariantCulture, $", {partners.Count} of them the other half of a move");
+                    }
+
+                    answer.Append(CultureInfo.InvariantCulture, $"; {WordRevisions.Changes(package).Count} remain.");
+
+                    comments.ExceptWith(ManageWordCommentsTool.AnchoredCommentIds(package));
+
+                    if (comments.Count > 0)
+                    {
+                        var removed = ManageWordCommentsTool.RemoveComments(package, comments);
+
+                        answer.Append(CultureInfo.InvariantCulture, $" Removed {removed} comment(s) and reply(ies) whose anchor went with the removed text.");
+                    }
+
+                    notes.ExceptWith(ReferencedNotes(package));
+
+                    if (notes.Count > 0)
+                    {
+                        answer.Append(CultureInfo.InvariantCulture, $" The reference to {notes.Count} footnote(s) or endnote(s) went with the removed text; those notes are no longer shown.");
+                    }
+
+                    return Task.FromResult(answer.ToString());
 
                 default:
                     throw new WordToolException("'action' must be list, track, stop_tracking, accept or reject.");
@@ -172,6 +212,7 @@ internal sealed class ManageWordRevisionsTool : WordToolBase
         }
 
         var answer = new StringBuilder();
+        var moves = Moves(WordRevisions.Changes(package));
 
         answer.Append(tracking).Append(CultureInfo.InvariantCulture, $" {changes.Count} tracked change(s):").AppendLine();
 
@@ -184,6 +225,12 @@ internal sealed class ManageWordRevisionsTool : WordToolBase
             if (DateOf(element) is { } date)
             {
                 answer.Append(", ").Append(date.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture));
+            }
+
+            // Both halves of a move are accepted or rejected together.
+            if (moves.TryGetValue(element, out var move) && move.Count > 1)
+            {
+                answer.Append(" (one move with ").Append(string.Join(", ", move.Where(item => item != element).Take(10).Select(item => "#" + IdOf(item)))).Append(')');
             }
 
             if (change.Part != "body")
@@ -263,6 +310,7 @@ internal sealed class ManageWordRevisionsTool : WordToolBase
         {
             Inserted or Deleted when change.Parent is TableRowProperties => 0,
             CellInsertion or CellDeletion => 1,
+            Inserted when change.Parent is NumberingProperties => 2,
             Inserted or Deleted or MoveFrom or MoveTo => 3,
             _ => 2,
         };
@@ -397,6 +445,19 @@ internal sealed class ManageWordRevisionsTool : WordToolBase
 
                 break;
 
+            case Inserted when change.Parent is NumberingProperties numbering:
+                // Numbering added to a paragraph: accepting keeps it, rejecting takes it away.
+                if (accept)
+                {
+                    change.Remove();
+                }
+                else
+                {
+                    numbering.Remove();
+                }
+
+                break;
+
             case Inserted or Deleted or MoveFrom or MoveTo:
                 var paragraph = change.Ancestors<Paragraph>().FirstOrDefault();
                 var keepMark = change is Inserted or MoveTo ? accept : !accept;
@@ -514,6 +575,132 @@ internal sealed class ManageWordRevisionsTool : WordToolBase
         end?.Remove();
     }
 
+    // The changes that make up each move, both halves, by change. The text moved away sits in a move-from range and
+    // the text moved here in a move-to range of the same name; ranges without a name pair up in order, as do moved
+    // runs and paragraph marks outside any range.
+    private static Dictionary<OpenXmlElement, List<OpenXmlElement>> Moves(List<WordTrackedChange> changes)
+    {
+        var moves = new Dictionary<OpenXmlElement, List<OpenXmlElement>>();
+
+        foreach (var part in changes.GroupBy(item => item.Root))
+        {
+            var halves = part.Select(item => item.Element).Where(IsMoveHalf).ToHashSet();
+
+            if (halves.Count == 0)
+            {
+                continue;
+            }
+
+            var groups = new Dictionary<string, List<OpenXmlElement>>(StringComparer.Ordinal);
+            var openFrom = new List<(string Id, string Key)>();
+            var openTo = new List<(string Id, string Key)>();
+            var unnamedFrom = 0;
+            var unnamedTo = 0;
+            var looseFrom = 0;
+            var looseTo = 0;
+
+            foreach (var element in part.Key.Descendants())
+            {
+                switch (element)
+                {
+                    case MoveFromRangeStart start:
+                        openFrom.Add((start.Id?.Value, string.IsNullOrEmpty(start.Name?.Value) ? "range:" + unnamedFrom++.ToString(CultureInfo.InvariantCulture) : "name:" + start.Name.Value));
+
+                        break;
+
+                    case MoveToRangeStart start:
+                        openTo.Add((start.Id?.Value, string.IsNullOrEmpty(start.Name?.Value) ? "range:" + unnamedTo++.ToString(CultureInfo.InvariantCulture) : "name:" + start.Name.Value));
+
+                        break;
+
+                    case MoveFromRangeEnd end:
+                        Close(openFrom, end.Id?.Value);
+
+                        break;
+
+                    case MoveToRangeEnd end:
+                        Close(openTo, end.Id?.Value);
+
+                        break;
+
+                    case MoveFromRun or MoveFrom when halves.Contains(element):
+                        Add(groups, openFrom.Count > 0 ? openFrom[^1].Key : "loose:" + looseFrom++.ToString(CultureInfo.InvariantCulture), element);
+
+                        break;
+
+                    case MoveToRun or MoveTo when halves.Contains(element):
+                        Add(groups, openTo.Count > 0 ? openTo[^1].Key : "loose:" + looseTo++.ToString(CultureInfo.InvariantCulture), element);
+
+                        break;
+                }
+            }
+
+            foreach (var group in groups.Values)
+            {
+                foreach (var element in group)
+                {
+                    moves[element] = group;
+                }
+            }
+        }
+
+        return moves;
+
+        static void Close(List<(string Id, string Key)> open, string id)
+        {
+            var index = open.FindLastIndex(item => item.Id == id);
+
+            if (index >= 0)
+            {
+                open.RemoveAt(index);
+            }
+        }
+
+        static void Add(Dictionary<string, List<OpenXmlElement>> groups, string key, OpenXmlElement element)
+        {
+            if (!groups.TryGetValue(key, out var group))
+            {
+                groups[key] = group = [];
+            }
+
+            group.Add(element);
+        }
+    }
+
+    private static bool IsMoveHalf(OpenXmlElement change)
+    {
+        return change is MoveFromRun or MoveToRun || (change is MoveFrom or MoveTo && change.Parent is ParagraphMarkRunProperties);
+    }
+
+    // The footnotes and endnotes the text refers to, as "f" or "e" and the note's id.
+    private static HashSet<string> ReferencedNotes(WordPackage package)
+    {
+        var mainPart = package.MainPart;
+        var stories = new OpenXmlElement[] { package.Body, mainPart.FootnotesPart?.Footnotes, mainPart.EndnotesPart?.Endnotes }
+            .Concat(mainPart.HeaderParts.Select(part => part.Header))
+            .Concat(mainPart.FooterParts.Select(part => part.Footer))
+            .Where(story => story is not null);
+        var notes = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var element in stories.SelectMany(story => story.Descendants()))
+        {
+            switch (element)
+            {
+                case FootnoteReference footnote when footnote.Id?.Value is { } id:
+                    notes.Add("f" + id.ToString(CultureInfo.InvariantCulture));
+
+                    break;
+
+                case EndnoteReference endnote when endnote.Id?.Value is { } id:
+                    notes.Add("e" + id.ToString(CultureInfo.InvariantCulture));
+
+                    break;
+            }
+        }
+
+        return notes;
+    }
+
     private static IEnumerable<OpenXmlElement> Roots(WordPackage package)
     {
         var mainPart = package.MainPart;
@@ -526,7 +713,8 @@ internal sealed class ManageWordRevisionsTool : WordToolBase
 
     // Removing a paragraph mark joins the paragraph to the next one, whose mark — and so whose formatting — the
     // joined paragraph keeps. An emptied paragraph simply goes. Range markers between the two, such as a move's or a
-    // bookmark's, are stepped over.
+    // bookmark's, are stepped over. A mark that ends a section takes its section break with it: as in Word, the two
+    // sections become one, laid out as the following section is.
     private static void JoinWithNext(Paragraph paragraph)
     {
         var content = paragraph.ChildElements.Where(child => child is not ParagraphProperties).ToList();
@@ -557,12 +745,6 @@ internal sealed class ManageWordRevisionsTool : WordToolBase
             }
 
             anchor = child;
-        }
-
-        if (paragraph.ParagraphProperties?.SectionProperties is { } section)
-        {
-            section.Remove();
-            (next.ParagraphProperties ??= new ParagraphProperties()).SectionProperties ??= section;
         }
 
         paragraph.Remove();
@@ -613,6 +795,7 @@ internal sealed class ManageWordRevisionsTool : WordToolBase
             ParagraphPropertiesChange => "paragraph formatting change",
             Inserted when change.Parent is TableRowProperties => "inserted table row",
             Deleted when change.Parent is TableRowProperties => "deleted table row",
+            Inserted when change.Parent is NumberingProperties => "numbering added",
             Inserted => "new paragraph",
             Deleted => "joined paragraphs",
             MoveTo => "paragraph moved here",

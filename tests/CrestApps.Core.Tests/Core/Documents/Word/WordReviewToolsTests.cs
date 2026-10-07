@@ -408,6 +408,211 @@ public sealed partial class WordReviewToolsTests
         Assert.Contains("nested in table [", markdown, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Accept_DeletedMarkEndingASection_MergesTheSectionsUnderTheFollowingOne()
+    {
+        using var host = new WordToolTestHost();
+        await host.UploadAsync("sections.docx", Build(
+            $"<w:p><w:pPr><w:rPr><w:del w:id=\"1\" {Stamp}/></w:rPr>" +
+            "<w:sectPr><w:pgSz w:w=\"15840\" w:h=\"12240\" w:orient=\"landscape\"/><w:pgMar w:top=\"720\" w:right=\"720\" w:bottom=\"720\" w:left=\"720\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/></w:sectPr>" +
+            "</w:pPr><w:r><w:t>First</w:t></w:r></w:p>" +
+            Paragraph("Second")));
+
+        var answer = await host.InvokeAsync(new ManageWordRevisionsTool(), new { document = "sections.docx", action = "accept" });
+
+        Assert.Contains("Accepted 1 tracked change(s); 0 remain.", answer, StringComparison.Ordinal);
+
+        var bytes = await host.ReadWorkingDocumentAsync("sections");
+
+        using (var document = WordprocessingDocument.Open(new MemoryStream(bytes), isEditable: false))
+        {
+            var body = document.MainDocumentPart.Document.Body;
+            var section = Assert.Single(body.Descendants<SectionProperties>());
+
+            Assert.Same(body, section.Parent);
+            Assert.Equal(12240U, section.GetFirstChild<PageSize>().Width.Value);
+            Assert.Equal("FirstSecond", WordText.Of(body));
+        }
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+    }
+
+    [Fact]
+    public async Task Accept_OneHalfOfAMove_AppliesBothHalvesAndLeavesOtherMoves()
+    {
+        using var host = new WordToolTestHost();
+        await host.UploadAsync("moves.docx", Build(
+            "<w:p>" +
+            $"<w:moveFromRangeStart w:id=\"30\" w:name=\"move1\" {Stamp}/><w:moveFrom w:id=\"31\" {Stamp}><w:r><w:t>One</w:t></w:r></w:moveFrom><w:moveFromRangeEnd w:id=\"30\"/>" +
+            "<w:r><w:t xml:space=\"preserve\"> stays </w:t></w:r>" +
+            $"<w:moveFromRangeStart w:id=\"32\" w:name=\"move2\" {Stamp}/><w:moveFrom w:id=\"33\" {Stamp}><w:r><w:t>Two</w:t></w:r></w:moveFrom><w:moveFromRangeEnd w:id=\"32\"/>" +
+            "</w:p>" +
+            "<w:p>" +
+            $"<w:moveToRangeStart w:id=\"34\" w:name=\"move2\" {Stamp}/><w:moveTo w:id=\"35\" {Stamp}><w:r><w:t>Two</w:t></w:r></w:moveTo><w:moveToRangeEnd w:id=\"34\"/>" +
+            $"<w:moveToRangeStart w:id=\"36\" w:name=\"move1\" {Stamp}/><w:moveTo w:id=\"37\" {Stamp}><w:r><w:t>One</w:t></w:r></w:moveTo><w:moveToRangeEnd w:id=\"36\"/>" +
+            "</w:p>"));
+
+        var list = await host.InvokeAsync(new ManageWordRevisionsTool(), new { document = "moves.docx", action = "list" });
+        var answer = await host.InvokeAsync(new ManageWordRevisionsTool(), new { document = "moves.docx", action = "accept", revision_ids = new[] { "31" } });
+
+        Assert.Contains("#31 moved away by Reviewer, 2024-01-01 00:00 (one move with #37)", list, StringComparison.Ordinal);
+        Assert.Contains("#35 moved here by Reviewer, 2024-01-01 00:00 (one move with #33)", list, StringComparison.Ordinal);
+        Assert.Contains("Accepted 2 tracked change(s), 1 of them the other half of a move; 2 remain.", answer, StringComparison.Ordinal);
+
+        var bytes = await host.ReadWorkingDocumentAsync("moves");
+
+        using (var document = WordprocessingDocument.Open(new MemoryStream(bytes), isEditable: false))
+        {
+            var body = document.MainDocumentPart.Document.Body;
+
+            Assert.Equal(["33", "35"], body.Descendants().Where(element => element is MoveFromRun or MoveToRun).Select(element => element.GetAttribute("id", W).Value));
+            Assert.DoesNotContain(body.Descendants<MoveToRangeStart>(), start => start.Name.Value == "move1");
+            Assert.Equal("One", WordText.Of(body.Elements<Paragraph>().Last().Elements<Run>().Single()));
+        }
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+    }
+
+    [Theory]
+    [InlineData("accept", true)]
+    [InlineData("reject", false)]
+    public async Task AcceptOrReject_NumberingAdded_KeepsOrRemovesTheNumbering(string action, bool numbered)
+    {
+        using var host = new WordToolTestHost();
+        await host.UploadAsync("numbering.docx", Build(
+            $"<w:p><w:pPr><w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"1\"/><w:ins w:id=\"5\" {Stamp}/></w:numPr></w:pPr><w:r><w:t>Item</w:t></w:r></w:p>"));
+
+        var list = await host.InvokeAsync(new ManageWordRevisionsTool(), new { document = "numbering.docx", action = "list" });
+        var answer = await host.InvokeAsync(new ManageWordRevisionsTool(), new { document = "numbering.docx", action });
+
+        Assert.Contains("#5 numbering added by Reviewer", list, StringComparison.Ordinal);
+        Assert.Contains("1 tracked change(s); 0 remain.", answer, StringComparison.Ordinal);
+
+        var bytes = await host.ReadWorkingDocumentAsync("numbering");
+
+        using (var document = WordprocessingDocument.Open(new MemoryStream(bytes), isEditable: false))
+        {
+            var numbering = document.MainDocumentPart.Document.Body.Descendants<NumberingProperties>().SingleOrDefault();
+
+            Assert.Equal(numbered, numbering is not null);
+            Assert.Empty(document.MainDocumentPart.Document.Body.Descendants<Inserted>());
+        }
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+    }
+
+    [Fact]
+    public async Task Accept_DeletionHoldingACommentReference_RemovesTheCommentAndItsReplies()
+    {
+        using var host = new WordToolTestHost();
+        await CreateAsync(host);
+        var body = await IdOfAsync(host, "Alpha body text.");
+
+        await host.InvokeAsync(new ManageWordCommentsTool(), new { document = "doc", action = "add", id = body, text = "body", comment = "Is this right?" });
+        await host.InvokeAsync(new ManageWordCommentsTool(), new { document = "doc", action = "reply", comment_id = "0", comment = "Yes." });
+
+        // The commented text and the comment's reference are deleted as one tracked change.
+        byte[] deleted;
+
+        using (var package = WordPackage.Open(await host.ReadWorkingDocumentAsync("doc")))
+        {
+            var reference = package.Body.Descendants<CommentReference>().Single(item => item.Id.Value == "0").Parent;
+            var deletion = new DeletedRun { Id = "50", Author = "Reviewer", Date = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc) };
+
+            reference.InsertBeforeSelf(deletion);
+            reference.Remove();
+            deletion.Append(reference);
+            deleted = package.Save();
+        }
+
+        await host.UploadAsync("deleted.docx", deleted);
+
+        var answer = await host.InvokeAsync(new ManageWordRevisionsTool(), new { document = "deleted.docx", action = "accept" });
+
+        Assert.Contains("Removed 2 comment(s) and reply(ies) whose anchor went with the removed text.", answer, StringComparison.Ordinal);
+
+        var bytes = await host.ReadWorkingDocumentAsync("deleted");
+
+        using (var document = WordprocessingDocument.Open(new MemoryStream(bytes), isEditable: false))
+        {
+            var main = document.MainDocumentPart;
+
+            Assert.Empty(main.WordprocessingCommentsPart.Comments.Elements<Comment>());
+            Assert.Empty(main.WordprocessingCommentsExPart.CommentsEx.Elements<CommentEx>());
+            Assert.DoesNotContain(main.Document.Body.Descendants(), element => element is CommentRangeStart or CommentRangeEnd or CommentReference);
+        }
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+    }
+
+    [Fact]
+    public async Task Delete_CommentWhoseReferenceIsTheOnlyTrackedInsertion_RemovesTheEmptyInsertion()
+    {
+        using var host = new WordToolTestHost();
+        await CreateAsync(host);
+        var body = await IdOfAsync(host, "Alpha body text.");
+
+        await host.InvokeAsync(new ManageWordCommentsTool(), new { document = "doc", action = "add", id = body, comment = "Check." });
+
+        byte[] inserted;
+
+        using (var package = WordPackage.Open(await host.ReadWorkingDocumentAsync("doc")))
+        {
+            var reference = package.Body.Descendants<CommentReference>().Single().Parent;
+            var insertion = new InsertedRun { Id = "50", Author = "Reviewer", Date = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc) };
+
+            reference.InsertBeforeSelf(insertion);
+            reference.Remove();
+            insertion.Append(reference);
+            inserted = package.Save();
+        }
+
+        await host.UploadAsync("inserted.docx", inserted);
+        await host.InvokeAsync(new ManageWordCommentsTool(), new { document = "inserted.docx", action = "delete", comment_id = "0" });
+
+        var bytes = await host.ReadWorkingDocumentAsync("inserted");
+
+        using (var document = WordprocessingDocument.Open(new MemoryStream(bytes), isEditable: false))
+        {
+            Assert.Empty(document.MainDocumentPart.Document.Body.Descendants<InsertedRun>());
+        }
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+    }
+
+    [Fact]
+    public async Task List_CommentSharingItsParagraphIdWithTheBody_KeepsItsResolvedState()
+    {
+        using var host = new WordToolTestHost();
+        await CreateAsync(host);
+        var body = await IdOfAsync(host, "Alpha body text.");
+
+        await host.InvokeAsync(new ManageWordCommentsTool(), new { document = "doc", action = "add", id = body, comment = "Check." });
+        await host.InvokeAsync(new ManageWordCommentsTool(), new { document = "doc", action = "resolve", comment_id = "0" });
+
+        // Another editor wrote the comment's paragraph id on a body paragraph too.
+        byte[] shared;
+
+        using (var package = WordPackage.Open(await host.ReadWorkingDocumentAsync("doc")))
+        {
+            var comment = package.MainPart.WordprocessingCommentsPart.Comments.Elements<Comment>().Single();
+
+            package.Body.Elements<Paragraph>().First().ParagraphId = ParagraphIdOf(comment);
+            shared = package.Save();
+        }
+
+        await host.UploadAsync("shared.docx", shared);
+
+        // An edit gives the paragraphs that share an id new ones; the comment's is the one kept.
+        await host.InvokeAsync(new ManageWordCommentsTool(), new { document = "shared.docx", action = "reply", comment_id = "0", comment = "Done." });
+
+        var list = await host.InvokeAsync(new ManageWordCommentsTool(), new { document = "shared", action = "list" });
+
+        Assert.Contains("[resolved]", list, StringComparison.Ordinal);
+        Assert.Contains("reply #1", list, StringComparison.Ordinal);
+        WordAuthoringToolsTests.AssertValid(await host.ReadWorkingDocumentAsync("shared"));
+    }
+
     private static async Task CreateAsync(WordToolTestHost host)
     {
         await host.InvokeAsync(new CreateWordDocumentTool(), new

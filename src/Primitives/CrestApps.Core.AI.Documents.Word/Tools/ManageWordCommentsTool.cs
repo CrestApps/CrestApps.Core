@@ -303,14 +303,42 @@ internal sealed class ManageWordCommentsTool : WordToolBase
             : $"{verb} {rootIds.Count} comment thread(s).";
     }
 
-    private static string Delete(WordPackage package, string commentId)
+    /// <summary>
+    /// Returns the ids of the comments whose reference is in the document's text: the body, the headers, the
+    /// footers and the notes.
+    /// </summary>
+    /// <param name="package">The document.</param>
+    /// <returns>The comment ids.</returns>
+    public static HashSet<string> AnchoredCommentIds(WordPackage package)
     {
+        ArgumentNullException.ThrowIfNull(package);
+
+        return Stories(package)
+            .SelectMany(story => story.Descendants<CommentReference>())
+            .Select(reference => reference.Id?.Value)
+            .Where(id => id is not null)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Removes comments with their replies: their range markers and references in the text, and their entries
+    /// in the extended comments parts.
+    /// </summary>
+    /// <param name="package">The document.</param>
+    /// <param name="toRemove">The ids of the comments to remove.</param>
+    /// <returns>The number of comments removed, replies included.</returns>
+    public static int RemoveComments(WordPackage package, IEnumerable<string> toRemove)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        ArgumentNullException.ThrowIfNull(toRemove);
+
+        // Replies and their threads are keyed by the comments' paragraph ids, which a file may lack.
+        _ = package.Ids;
+
         var comments = AllComments(package);
         var extended = Extended(package.MainPart, create: false);
         var parents = Parents(comments, extended);
-        var ids = IsAll(commentId)
-            ? comments.Select(IdOf).ToHashSet(StringComparer.Ordinal)
-            : [IdOf(Require(package, commentId))];
+        var ids = toRemove.ToHashSet(StringComparer.Ordinal);
 
         // Replies go with what they answer, however deep they are nested.
         bool added;
@@ -335,7 +363,7 @@ internal sealed class ManageWordCommentsTool : WordToolBase
             {
                 if (ids.Contains((marker is CommentRangeStart start ? start.Id?.Value : ((CommentRangeEnd)marker).Id?.Value) ?? string.Empty))
                 {
-                    marker.Remove();
+                    RemoveFromChange(marker);
                 }
             }
 
@@ -343,7 +371,7 @@ internal sealed class ManageWordCommentsTool : WordToolBase
             {
                 if (reference.Parent is Run run && run.ChildElements.All(child => child is RunProperties or CommentReference))
                 {
-                    run.Remove();
+                    RemoveFromChange(run);
                 }
                 else
                 {
@@ -355,9 +383,12 @@ internal sealed class ManageWordCommentsTool : WordToolBase
         var mainPart = package.MainPart;
         var commentIds = mainPart.WordprocessingCommentsIdsPart?.CommentsIds;
         var extensible = mainPart.WordCommentsExtensiblePart?.CommentsExtensible;
+        var removed = 0;
 
         foreach (var comment in comments.Where(comment => ids.Contains(IdOf(comment))))
         {
+            removed++;
+
             var paraId = LastParagraphId(comment);
 
             if (paraId is not null)
@@ -374,7 +405,30 @@ internal sealed class ManageWordCommentsTool : WordToolBase
             comment.Remove();
         }
 
-        return $"Deleted {ids.Count} comment(s) and reply(ies).";
+        return removed;
+    }
+
+    private static string Delete(WordPackage package, string commentId)
+    {
+        var ids = IsAll(commentId)
+            ? AllComments(package).Select(IdOf).ToHashSet(StringComparer.Ordinal)
+            : [IdOf(Require(package, commentId))];
+
+        return $"Deleted {RemoveComments(package, ids)} comment(s) and reply(ies).";
+    }
+
+    // A marker or reference run removed from a tracked insertion, deletion or move takes the change with it when
+    // nothing else is left in it.
+    private static void RemoveFromChange(OpenXmlElement element)
+    {
+        var parent = element.Parent;
+
+        element.Remove();
+
+        if (parent is InsertedRun or DeletedRun or MoveFromRun or MoveToRun && !parent.HasChildren)
+        {
+            parent.Remove();
+        }
     }
 
     private static Comment CreateComment(WordEditContext edit, string text)
