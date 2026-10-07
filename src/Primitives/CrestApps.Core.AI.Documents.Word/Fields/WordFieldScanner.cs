@@ -28,6 +28,13 @@ internal static class WordFieldScanner
 
         foreach (var element in root.Descendants())
         {
+            // A text box Word saves twice, as a modern shape and an older fallback picture, holds the same fields
+            // twice; reading only the first copy keeps a caption in a text box from being numbered twice.
+            if (element is SimpleField or FieldChar or FieldCode && IsFallbackCopy(element))
+            {
+                continue;
+            }
+
             switch (element)
             {
                 case SimpleField simple:
@@ -84,6 +91,19 @@ internal static class WordFieldScanner
         }
 
         return fields;
+    }
+
+    private static bool IsFallbackCopy(OpenXmlElement element)
+    {
+        foreach (var ancestor in element.Ancestors())
+        {
+            if (ancestor is AlternateContentFallback fallback)
+            {
+                return fallback.Parent is AlternateContent alternate && alternate.GetFirstChild<AlternateContentChoice>() is not null;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

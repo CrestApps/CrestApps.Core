@@ -166,7 +166,7 @@ internal sealed partial class WordLayoutEngine
         }
 
         var body = info.Element.Descendants().FirstOrDefault(element => element.LocalName == "bodyPr");
-        double Inset(string name, double fallback) => body?.GetAttributes().FirstOrDefault(attribute => attribute.LocalName == name).Value is { } value && long.TryParse(value, out var emu) ? WordUnits.FromEmus(emu) : fallback;
+        double Inset(string name, double fallback) => body?.GetAttributes().FirstOrDefault(attribute => attribute.LocalName == name).Value is { } value && long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var emu) ? WordUnits.FromEmus(emu) : fallback;
 
         var left = Inset("lIns", 7.2);
         var right = Inset("rIns", 7.2);

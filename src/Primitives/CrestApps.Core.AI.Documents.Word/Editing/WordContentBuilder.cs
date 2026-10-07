@@ -268,6 +268,9 @@ internal sealed class WordContentBuilder
         {
             var result = await WordTabularSource.QueryAsync(source, _tools.Services, cancellationToken);
 
+            // Values read from a spreadsheet are data, not Markdown: "C:\temp" or "*.csv" keep every character.
+            spec.Literal = true;
+
             for (var index = 0; index < result.Headers.Count; index++)
             {
                 if (index >= spec.Columns.Count)

@@ -143,6 +143,23 @@ public sealed class WordFieldsAndEditingTests
     }
 
     [Fact]
+    public void Scan_FieldInTextBoxSavedTwice_FindsItOnce()
+    {
+        var choice = new AlternateContentChoice(new Paragraph(SimpleSeq("SEQ Figure")));
+        choice.SetAttribute(new OpenXmlAttribute("Requires", string.Empty, "wps"));
+        var alternate = new AlternateContent(choice, new AlternateContentFallback(new Paragraph(SimpleSeq("SEQ Figure"))));
+        var body = new Body(new Paragraph(new Run(alternate)), new Paragraph(SimpleSeq("SEQ Figure")));
+
+        var fields = WordFieldScanner.Scan(body);
+
+        Assert.Equal(2, fields.Count);
+        Assert.DoesNotContain(fields, field => field.SimpleField.Ancestors<AlternateContentFallback>().Any());
+
+        static SimpleField SimpleSeq(string instruction)
+            => new(new Run(new Text("1"))) { Instruction = instruction };
+    }
+
+    [Fact]
     public void ArgumentOf_QuotedName_ReadsTheWholeName()
     {
         Assert.Equal("Code Listing", WordFieldScanner.ArgumentOf("SEQ \"Code Listing\" \\* ARABIC"));

@@ -1336,7 +1336,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
 
     private static TableRow FindRow(List<TableRow> rows, JsonElement value)
     {
-        if (value.ValueKind == JsonValueKind.String && !int.TryParse(value.GetString(), out _))
+        if (value.ValueKind == JsonValueKind.String && !int.TryParse(value.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
         {
             var label = value.GetString().Trim();
 

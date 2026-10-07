@@ -28,7 +28,7 @@ internal sealed class ExportWordTool : WordToolBase
             "file_name": { "type": "string", "description": "The download's file name. Defaults to the document's name; .docx is added." },
             "ids": { "type": "array", "items": { "type": "string" }, "description": "Export only these elements (ids from get_word_document) as a separate document. An element in a table exports the whole table." },
             "headings": { "type": "array", "items": { "type": "string" }, "description": "Export only these headings, each with everything under it up to the next heading of the same or a higher level. Combines with 'ids'." },
-            "update_fields": { "type": "boolean", "description": "Refresh the table of contents, caption numbers and page references first, and ask Word to update fields when it opens the file. Default true." }
+            "update_fields": { "type": "boolean", "description": "Refresh the table of contents, caption numbers and page references first. Word is asked to update fields when it opens the file only when some could not be refreshed here. Default true." }
           },
           "required": [],
           "additionalProperties": false

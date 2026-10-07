@@ -231,9 +231,11 @@ internal static class WordTextEditor
 
                 case Hyperlink link:
                     var text = string.Concat(link.Descendants<Run>().Select(RunMarkdown));
+                    // A link to a place in another file has both: the file, and the bookmark in it.
+                    var external = link.Id?.Value is { } id ? part?.HyperlinkRelationships.FirstOrDefault(relationship => relationship.Id == id)?.Uri?.ToString() : null;
                     var target = link.Anchor?.Value is { } anchor
-                        ? "#" + anchor
-                        : link.Id?.Value is { } id ? part?.HyperlinkRelationships.FirstOrDefault(relationship => relationship.Id == id)?.Uri?.ToString() : null;
+                        ? external + "#" + anchor
+                        : external;
 
                     builder.Append(target is null ? text : "[" + text + "](" + target + ")");
 

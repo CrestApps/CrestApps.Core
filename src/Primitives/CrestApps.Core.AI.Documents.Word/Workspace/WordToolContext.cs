@@ -870,6 +870,22 @@ internal sealed class WordToolContext
     }
 
     /// <summary>
+    /// Gets a value indicating whether pictures can be shown in the conversation in this request.
+    /// </summary>
+    public bool CanShowFigures
+    {
+        get
+        {
+            // A marker registered without an address this host serves reaches the reader as a broken picture,
+            // so the check is whether the pictures can be delivered, before any of them is drawn or stored.
+            return AIInvocationScope.Current is not null &&
+                Scope is not null &&
+                _generatedDocuments is not null &&
+                !string.IsNullOrEmpty(ResolveDownloadLink("probe"));
+        }
+    }
+
+    /// <summary>
     /// Shows pictures in the conversation where their markers are written.
     /// </summary>
     /// <param name="figures">The pictures.</param>
@@ -879,18 +895,12 @@ internal sealed class WordToolContext
     {
         ArgumentNullException.ThrowIfNull(figures);
 
-        var invocation = AIInvocationScope.Current;
-
-        // A marker registered without an address this host serves reaches the reader as a broken picture, so
-        // the check is whether the pictures can be delivered, before any of them is stored.
-        if (invocation is null ||
-            Scope is null ||
-            _generatedDocuments is null ||
-            figures.Count == 0 ||
-            string.IsNullOrEmpty(ResolveDownloadLink("probe")))
+        if (figures.Count == 0 || !CanShowFigures)
         {
             return null;
         }
+
+        var invocation = AIInvocationScope.Current;
 
         var index = FigureReferenceMarker.NextIndex(invocation);
         var pending = new List<(string Marker, AICompletionReference Reference)>(figures.Count);

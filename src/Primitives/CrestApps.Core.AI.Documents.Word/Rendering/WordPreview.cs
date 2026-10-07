@@ -123,6 +123,12 @@ internal static class WordPreview
         DocumentFormat.OpenXml.OpenXmlElement highlight,
         CancellationToken cancellationToken)
     {
+        // Drawing pages this host cannot deliver would be wasted work; the caller falls back to text.
+        if (!context.CanShowFigures)
+        {
+            return Task.FromResult<List<string>>(null);
+        }
+
         var safeName = WordToolContext.SanitizeName(source.Name).Replace(' ', '_');
         var bounds = highlight is null ? [] : layout.BoundsOf(highlight);
         var figures = pages
