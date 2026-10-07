@@ -34,6 +34,7 @@ internal sealed class WordToolContext
     private readonly IGeneratedDocumentService _generatedDocuments;
     private readonly HashSet<string> _readableReferences;
     private WordWorkspaceState _state;
+    private Mutation _mutation;
 
     private WordToolContext(
         IServiceProvider services,
@@ -233,9 +234,19 @@ internal sealed class WordToolContext
     /// <param name="change">The change. It may throw <see cref="WordToolException"/> to abandon the change.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>What the change returned.</returns>
+    /// <remarks>
+    /// A stored file the change replaces or removes is deleted only after the workspace that no longer refers to
+    /// it is saved, so a change that is cancelled or fails part way never leaves a working document pointing at a
+    /// deleted file. Once the change has run, the workspace is saved even if the call is cancelled meanwhile.
+    /// </remarks>
     public async Task<T> MutateAsync<T>(Func<WordWorkspaceState, Task<T>> change, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(change);
+
+        if (_mutation is not null)
+        {
+            throw new InvalidOperationException("The Word workspace is already being changed by this call; make the change inside the one in progress.");
+        }
 
         var scope = RequireScope();
 
@@ -244,25 +255,53 @@ internal sealed class WordToolContext
         // Reloaded under the lock, so a change made by a tool call that ran alongside this one is kept.
         var state = await _workspaceStore.LoadAsync(scope, cancellationToken);
         var previous = _state;
+        var mutation = new Mutation(state);
 
         _state = state;
-
-        T result;
+        _mutation = mutation;
 
         try
         {
-            result = await change(state);
+            T result;
+
+            try
+            {
+                result = await change(state);
+            }
+            catch
+            {
+                _state = previous;
+
+                // Nothing refers to the files the abandoned change wrote.
+                foreach (var path in mutation.Written)
+                {
+                    await _workspaceStore.DeleteBlobAsync(path);
+                }
+
+                throw;
+            }
+
+            try
+            {
+                await _workspaceStore.SaveAsync(scope, state, CancellationToken.None);
+            }
+            catch
+            {
+                // Whether the stored workspace now names the new files or the old ones is unknown, so both are
+                // kept: a file left behind costs storage, a deleted one would break the document.
+                _state = previous;
+
+                throw;
+            }
+
+            await DeleteReplacedBlobsAsync(scope, state, mutation.Replaced);
+
+            return result;
         }
-        catch
+        finally
         {
-            _state = previous;
-
-            throw;
+            _mutation = null;
         }
-
-        await _workspaceStore.SaveAsync(scope, state, cancellationToken);
-
-        return result;
     }
 
     /// <summary>
@@ -479,11 +518,42 @@ internal sealed class WordToolContext
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        return source.IsUpload
-            ? await ReadUploadAsync(source.Upload, cancellationToken)
-                ?? throw new WordToolException($"The stored file for \"{source.Name}\" is missing. Ask the user to upload it again.")
-            : await _workspaceStore.ReadBlobAsync(source.Working.BlobPath, cancellationToken)
-                ?? throw new WordToolException($"The file behind working document \"{source.Name}\" is missing. Recreate it, or import the upload it came from again.");
+        if (source.IsUpload)
+        {
+            return await ReadUploadAsync(source.Upload, cancellationToken)
+                ?? throw new WordToolException($"The stored file for \"{source.Name}\" is missing. Ask the user to upload it again.");
+        }
+
+        var path = source.Working.BlobPath;
+
+        for (var attempt = 0; ; attempt++)
+        {
+            var bytes = await _workspaceStore.ReadBlobAsync(path, cancellationToken);
+
+            if (bytes is not null)
+            {
+                return bytes;
+            }
+
+            // A reading call does not take the workspace's lock, so an edit saved by a call running alongside it
+            // may have replaced the version it found, and deleted that version's file. The workspace is read
+            // again for the current one. Under the lock — or with nothing newer — the file is really gone.
+            if (_mutation is not null || Scope is null || attempt >= 2)
+            {
+                break;
+            }
+
+            var current = (await _workspaceStore.LoadAsync(Scope.Value, cancellationToken)).Find(source.Working.Name);
+
+            if (current is null || string.Equals(current.BlobPath, path, StringComparison.Ordinal))
+            {
+                break;
+            }
+
+            path = current.BlobPath;
+        }
+
+        throw new WordToolException($"The file behind working document \"{source.Name}\" is missing. Recreate it, or import the upload it came from again.");
     }
 
     /// <summary>
@@ -543,7 +613,7 @@ internal sealed class WordToolContext
         var document = new WordWorkingDocument
         {
             Name = UniqueName(state, name),
-            BlobPath = await _workspaceStore.WriteBlobAsync(RequireScope(), bytes, ".docx", cancellationToken),
+            BlobPath = await WriteBlobAsync(bytes, cancellationToken),
             ByteLength = bytes.LongLength,
             Version = 1,
             Design = design,
@@ -561,7 +631,8 @@ internal sealed class WordToolContext
     }
 
     /// <summary>
-    /// Removes a working document and its file from the workspace.
+    /// Removes a working document and its file from the workspace. Inside <see cref="MutateAsync"/>, the file is
+    /// deleted once the workspace is saved.
     /// </summary>
     /// <param name="state">The workspace, inside <see cref="MutateAsync"/>.</param>
     /// <param name="document">The document.</param>
@@ -571,7 +642,7 @@ internal sealed class WordToolContext
         ArgumentNullException.ThrowIfNull(document);
 
         state.Documents.Remove(document);
-        await _workspaceStore.DeleteBlobAsync(document.BlobPath);
+        await DeleteBlobAfterSaveAsync(document.BlobPath);
 
         if (string.Equals(state.ActiveDocument, document.Name, StringComparison.OrdinalIgnoreCase))
         {
@@ -644,7 +715,7 @@ internal sealed class WordToolContext
 
         var previousBlob = existing.BlobPath;
 
-        existing.BlobPath = await _workspaceStore.WriteBlobAsync(RequireScope(), bytes, ".docx", cancellationToken);
+        existing.BlobPath = await WriteBlobAsync(bytes, cancellationToken);
         existing.ByteLength = bytes.LongLength;
         existing.Version++;
         existing.UpdatedUtc = TimeProvider.GetUtcNow().UtcDateTime;
@@ -658,7 +729,7 @@ internal sealed class WordToolContext
 
         if (!string.IsNullOrEmpty(previousBlob) && !string.Equals(previousBlob, existing.BlobPath, StringComparison.Ordinal))
         {
-            await _workspaceStore.DeleteBlobAsync(previousBlob);
+            await DeleteBlobAfterSaveAsync(previousBlob);
         }
 
         state.ActiveDocument = existing.Name;
@@ -1051,6 +1122,71 @@ internal sealed class WordToolContext
         return buffer.ToArray();
     }
 
+    private async Task<string> WriteBlobAsync(byte[] bytes, CancellationToken cancellationToken)
+    {
+        var path = await _workspaceStore.WriteBlobAsync(RequireScope(), bytes, ".docx", cancellationToken);
+
+        _mutation?.Written.Add(path);
+
+        return path;
+    }
+
+    private async Task DeleteBlobAfterSaveAsync(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        if (_mutation is null)
+        {
+            await _workspaceStore.DeleteBlobAsync(path);
+
+            return;
+        }
+
+        // A file written by this same change is not referred to by the stored workspace, so it can go now.
+        if (_mutation.Written.Remove(path))
+        {
+            await _workspaceStore.DeleteBlobAsync(path);
+
+            return;
+        }
+
+        _mutation.Replaced.Add(path);
+    }
+
+    private async Task DeleteReplacedBlobsAsync(WordWorkspaceScope scope, WordWorkspaceState state, List<string> paths)
+    {
+        var leftBehind = new List<string>();
+
+        foreach (var path in paths)
+        {
+            if (!await _workspaceStore.DeleteBlobAsync(path))
+            {
+                leftBehind.Add(path);
+            }
+        }
+
+        if (leftBehind.Count == 0)
+        {
+            return;
+        }
+
+        // Remembered, so deleting the workspace deletes them too. The change itself is already saved, so a
+        // failure here only costs storage.
+        state.OrphanedBlobs.AddRange(leftBehind.Where(path => !state.OrphanedBlobs.Contains(path, StringComparer.Ordinal)));
+
+        try
+        {
+            await _workspaceStore.SaveAsync(scope, state, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "The Word workspace could not record {Count} file(s) it failed to delete.", leftBehind.Count);
+        }
+    }
+
     private void EnsureSize(byte[] bytes)
     {
         if (bytes.LongLength > Options.MaxDocumentBytes)
@@ -1069,5 +1205,23 @@ internal sealed class WordToolContext
         {
             throw new WordToolException($"\"{source.Name}\" cannot be opened as a Word document. {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// The stored files a change in progress wrote and replaced, so the replaced ones are deleted only once the
+    /// change is saved, and the written ones when it is abandoned.
+    /// </summary>
+    private sealed class Mutation
+    {
+        public Mutation(WordWorkspaceState state)
+        {
+            State = state;
+        }
+
+        public WordWorkspaceState State { get; }
+
+        public List<string> Written { get; } = [];
+
+        public List<string> Replaced { get; } = [];
     }
 }

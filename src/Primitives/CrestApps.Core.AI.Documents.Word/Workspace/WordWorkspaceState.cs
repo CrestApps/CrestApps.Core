@@ -16,6 +16,12 @@ internal sealed class WordWorkspaceState
     public string ActiveDocument { get; set; }
 
     /// <summary>
+    /// Gets or sets stored files of this workspace that no working document refers to any more but that could not
+    /// be deleted when they were replaced, so deleting the workspace still removes them.
+    /// </summary>
+    public List<string> OrphanedBlobs { get; set; } = [];
+
+    /// <summary>
     /// Finds a working document by name, ignoring case.
     /// </summary>
     /// <param name="name">The name.</param>
