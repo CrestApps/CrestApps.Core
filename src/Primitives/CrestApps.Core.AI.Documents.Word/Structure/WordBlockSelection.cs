@@ -27,10 +27,16 @@ internal static class WordBlockSelection
     /// <summary>
     /// Reads the selection from a tool call's arguments.
     /// </summary>
+    /// <remarks>
+    /// An id that names a paragraph or a table inside a table cell or a content control selects that element
+    /// alone when <paramref name="nested"/> is <see langword="true"/>, as removing it does; otherwise such an id
+    /// is refused, so moving a paragraph out of a cell never takes the whole table with it.
+    /// </remarks>
     /// <param name="package">The document.</param>
     /// <param name="arguments">The arguments.</param>
-    /// <returns>The selected top-level blocks, in document order, or an empty list when nothing was asked for.</returns>
-    public static List<OpenXmlElement> Read(WordPackage package, WordToolArguments arguments)
+    /// <param name="nested">Whether ids may name elements inside a table cell or a content control.</param>
+    /// <returns>The selected blocks, in document order, or an empty list when nothing was asked for.</returns>
+    public static List<OpenXmlElement> Read(WordPackage package, WordToolArguments arguments, bool nested = false)
     {
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(arguments);
@@ -54,15 +60,28 @@ internal static class WordBlockSelection
         foreach (var id in arguments.GetIds("ids", "id"))
         {
             var element = WordBlockLocator.Require(package, id);
-            var block = WordSections.TopLevel(body, element) ?? element;
 
-            if (!selected.Contains(block))
+            if (element.Parent is not Body && !nested)
             {
-                selected.Add(block);
+                throw new WordToolException(WordBlockLocator.IsInTable(element)
+                    ? $"[{id}] is inside a table cell. Pass the table's own id to work on the whole table; the content of its cells is changed with update_word_table or update_word_content."
+                    : $"[{id}] is inside a content control. Pass the id of the control itself, the first id get_word_document lists for it.");
+            }
+
+            if (!selected.Contains(element))
+            {
+                selected.Add(element);
             }
         }
 
-        return [.. selected.OrderBy(element => IndexOf(body, element))];
+        if (selected.All(element => element.Parent is Body))
+        {
+            return [.. selected.OrderBy(element => IndexOf(body, element))];
+        }
+
+        var order = body.Descendants().Select((element, index) => (element, index)).ToDictionary(pair => pair.element, pair => pair.index, ReferenceEqualityComparer.Instance);
+
+        return [.. selected.OrderBy(element => order.GetValueOrDefault(element, -1))];
     }
 
     /// <summary>

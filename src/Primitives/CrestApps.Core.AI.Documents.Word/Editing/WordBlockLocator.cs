@@ -135,6 +135,8 @@ internal static class WordBlockLocator
                 reference.InsertAfterSelf(elements[index]);
             }
 
+            RepairCell(package, reference.Ancestors<TableCell>().FirstOrDefault());
+
             return;
         }
 
@@ -146,6 +148,8 @@ internal static class WordBlockLocator
             {
                 anchor.InsertBeforeSelf(element);
             }
+
+            RepairCell(package, anchor.Ancestors<TableCell>().FirstOrDefault());
 
             return;
         }
@@ -187,6 +191,42 @@ internal static class WordBlockLocator
     public static bool IsInTable(OpenXmlElement element)
     {
         return element?.Ancestors<TableCell>().Any() == true;
+    }
+
+    /// <summary>
+    /// Makes a table cell end with a paragraph, as Word requires of every cell: one whose last block is a table,
+    /// or that has no block left, gets an empty paragraph at its end. Call it after content in a cell was
+    /// inserted, removed or moved.
+    /// </summary>
+    /// <param name="package">The document, which gives the new paragraph its id.</param>
+    /// <param name="cell">The cell, or <see langword="null"/> when the content was not in a cell.</param>
+    public static void RepairCell(WordPackage package, TableCell cell)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+
+        if (cell is null || EndsWithParagraph(cell))
+        {
+            return;
+        }
+
+        var paragraph = new Paragraph();
+
+        package.Ids.Assign(paragraph);
+        cell.Append(paragraph);
+    }
+
+    private static bool EndsWithParagraph(OpenXmlElement container)
+    {
+        // A content control or custom XML block that ends with a paragraph ends the cell with one too.
+        var last = container.ChildElements.LastOrDefault(child => child is Paragraph or Table or SdtBlock or CustomXmlBlock or AltChunk);
+
+        return last switch
+        {
+            Paragraph => true,
+            SdtBlock control => control.SdtContentBlock is { } content && EndsWithParagraph(content),
+            CustomXmlBlock custom => EndsWithParagraph(custom),
+            _ => false,
+        };
     }
 
     private static OpenXmlElement InsertionPoint(OpenXmlElement anchor, IReadOnlyList<OpenXmlElement> elements)

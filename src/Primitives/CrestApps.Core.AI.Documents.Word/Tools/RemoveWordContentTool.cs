@@ -66,7 +66,8 @@ internal sealed class RemoveWordContentTool : WordToolBase
 
         var (summary, document) = await context.EditAsync(arguments.Document(), "Removed content", edit =>
         {
-            var blocks = section is { } number ? WordBlockSelection.Section(edit.Package, number) : WordBlockSelection.Read(edit.Package, arguments);
+            // An id inside a table cell or a content control removes that paragraph or table alone.
+            var blocks = section is { } number ? WordBlockSelection.Section(edit.Package, number) : WordBlockSelection.Read(edit.Package, arguments, nested: true);
 
             if (blocks.Count == 0)
             {
@@ -93,7 +94,7 @@ internal sealed class RemoveWordContentTool : WordToolBase
                 if (sectionProperties is not null && section is null)
                 {
                     // The paragraph ends a section: its layout moves to the paragraph before it, so the section keeps it.
-                    KeepSection(block, sectionProperties);
+                    WordSections.KeepSectionBreak(edit.Package, (Paragraph)block, blocks);
                 }
 
                 if (revisions is not null)
@@ -101,8 +102,24 @@ internal sealed class RemoveWordContentTool : WordToolBase
                     notes.Add("Tables cannot be removed as a tracked change here; they were removed outright.");
                 }
 
+                var parent = block.Parent;
+
                 block.Remove();
                 removed++;
+
+                // A cell or a content control keeps a paragraph at its end.
+                if (parent is not null and not Body)
+                {
+                    WordBlockLocator.RepairCell(edit.Package, parent as TableCell ?? parent.Ancestors<TableCell>().FirstOrDefault());
+
+                    if (parent is SdtContentBlock content && !content.Elements<Paragraph>().Any() && !content.Elements<Table>().Any())
+                    {
+                        var empty = new Paragraph();
+
+                        edit.Package.Ids.Assign(empty);
+                        content.Append(empty);
+                    }
+                }
             }
 
             if (section is not null && blocks.Count > 0 && blocks[^1] is not Paragraph { ParagraphProperties.SectionProperties: not null })
@@ -131,27 +148,6 @@ internal sealed class RemoveWordContentTool : WordToolBase
         }, arguments.SaveAs(), cancellationToken);
 
         return $"\"{document.Name}\" (version {document.Version}): {summary}";
-    }
-
-    private static void KeepSection(OpenXmlElement block, SectionProperties sectionProperties)
-    {
-        sectionProperties.Remove();
-
-        var previous = block.PreviousSibling();
-
-        while (previous is not null and not Paragraph)
-        {
-            previous = previous.PreviousSibling();
-        }
-
-        if (previous is Paragraph target && target.ParagraphProperties?.SectionProperties is null)
-        {
-            (target.ParagraphProperties ??= new ParagraphProperties()).SectionProperties = sectionProperties;
-
-            return;
-        }
-
-        block.InsertAfterSelf(new Paragraph(new ParagraphProperties { SectionProperties = sectionProperties }));
     }
 
     private static async Task<string> RemoveDocumentAsync(WordToolArguments arguments, WordToolContext context, CancellationToken cancellationToken)

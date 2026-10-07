@@ -46,7 +46,7 @@ internal sealed class MoveWordContentTool : WordToolBase
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Moves elements of a Word document: elements by 'ids', a range ('from' to 'to'), or a heading with everything under it ('heading_with_content', to reorder sections), placed 'after' or 'before' another element or at the 'start' or 'end'. Elements keep their ids.";
+    public override string Description => "Moves elements of a Word document: elements by 'ids', a range ('from' to 'to'), or a heading with everything under it ('heading_with_content', to reorder sections), placed 'after' or 'before' another element or at the 'start' or 'end'. Elements keep their ids; section breaks stay where they are. Paragraphs inside table cells cannot be moved on their own.";
 
     /// <summary>
     /// Moves the elements.
@@ -85,6 +85,12 @@ internal sealed class MoveWordContentTool : WordToolBase
                 {
                     throw new WordToolException("The target position is inside the content being moved.");
                 }
+            }
+
+            // A section break stays where it is: the paragraph that carries it moves without it.
+            foreach (var paragraph in blocks.OfType<Paragraph>().Where(paragraph => paragraph.ParagraphProperties?.SectionProperties is not null).ToList())
+            {
+                WordSections.KeepSectionBreak(edit.Package, paragraph, blocks);
             }
 
             foreach (var block in blocks)

@@ -102,6 +102,48 @@ internal static class WordSections
     }
 
     /// <summary>
+    /// Keeps a section break where it is when the paragraph that carries it is about to be removed, moved or
+    /// replaced: the break goes to the paragraph just before it, or — when the block before it is a table, a
+    /// content control, a paragraph that ends a section of its own, or one that is leaving too — to a new empty
+    /// paragraph in its place.
+    /// </summary>
+    /// <param name="package">The document.</param>
+    /// <param name="paragraph">The paragraph, still in the body.</param>
+    /// <param name="leaving">The other blocks removed or moved with it, which cannot take the break; or <see langword="null"/>.</param>
+    public static void KeepSectionBreak(WordPackage package, Paragraph paragraph, ICollection<OpenXmlElement> leaving = null)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+
+        if (paragraph?.ParagraphProperties?.SectionProperties is not { } section || paragraph.Parent is not Body)
+        {
+            return;
+        }
+
+        section.Remove();
+
+        // Bookmarks and other markers between the blocks are stepped over; a table or a content control is not, as
+        // the section would then end above it.
+        var previous = paragraph.PreviousSibling();
+
+        while (previous is not null and not (Paragraph or Table or SdtBlock or CustomXmlBlock or AltChunk))
+        {
+            previous = previous.PreviousSibling();
+        }
+
+        if (previous is Paragraph target && target.ParagraphProperties?.SectionProperties is null && leaving?.Contains(target) != true)
+        {
+            (target.ParagraphProperties ??= new ParagraphProperties()).SectionProperties = section;
+
+            return;
+        }
+
+        var holder = new Paragraph(new ParagraphProperties { SectionProperties = section });
+
+        package.Ids.Assign(holder);
+        paragraph.InsertAfterSelf(holder);
+    }
+
+    /// <summary>
     /// Returns the child of the body an element is in.
     /// </summary>
     /// <param name="body">The document body.</param>
