@@ -50,7 +50,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
               }
             },
             "add_rows": { "type": "array", "items": { "type": "array", "items": { "type": ["string", "number", "boolean", "null"] } }, "description": "Rows to add, one array of cell values each, one value per column. They copy the look of the row they follow, without its merged cells." },
-            "after_row": { "type": ["integer", "string"], "description": "Add the rows after this row: the text of its first cell, or its number. Default: after the last row." },
+            "after_row": { "type": ["integer", "string"], "description": "Add the rows after this row: the text of its first cell, or its number; 0 adds them above the first row, such as a title row above the header. Default: after the last row." },
             "remove_rows": { "type": "array", "items": { "type": ["integer", "string"] }, "description": "Rows by the text of their first cell, or their number counting the header row as 1." },
             "add_column": {
               "type": "object",
@@ -226,12 +226,17 @@ internal sealed class UpdateWordTableTool : WordToolBase
             if (arguments.TryGetElement("add_rows", out var addRows) && addRows.ValueKind == JsonValueKind.Array)
             {
                 var rows = Rows(table);
-                var anchor = arguments.TryGetElement("after_row", out var afterRow) ? FindRow(rows, afterRow) : rows[^1];
+
+                // after_row 0 puts the new rows above the first one, such as a title row above the header.
+                var atTop = arguments.TryGetElement("after_row", out var afterRow) &&
+                    ((afterRow.ValueKind == JsonValueKind.Number && afterRow.TryGetInt32(out var number) && number == 0) ||
+                    (afterRow.ValueKind == JsonValueKind.String && afterRow.GetString()?.Trim() == "0"));
+                var anchor = atTop ? null : afterRow.ValueKind != JsonValueKind.Undefined ? FindRow(rows, afterRow) : rows[^1];
                 var added = 0;
 
                 foreach (var values in addRows.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Array))
                 {
-                    var row = Blank((TableRow)anchor.CloneNode(true));
+                    var row = Blank((TableRow)(anchor ?? rows[0]).CloneNode(true));
                     var texts = values.EnumerateArray().Select(Text).ToList();
 
                     // A copy of the header row would repeat as a header; only the first row is one.
@@ -241,7 +246,21 @@ internal sealed class UpdateWordTableTool : WordToolBase
                     Unmerge(row);
 
                     // The row is placed first so its values can be written the way the rest of their column is.
-                    anchor.InsertAfterSelf(row);
+                    if (anchor is null)
+                    {
+                        rows[0].InsertBeforeSelf(row);
+
+                        // Word repeats header rows only from the top of the table, so a row above a repeating
+                        // header repeats with it.
+                        if (rows[0].TableRowProperties?.GetFirstChild<TableHeader>() is not null)
+                        {
+                            AddRowProperty(row, new TableHeader());
+                        }
+                    }
+                    else
+                    {
+                        anchor.InsertAfterSelf(row);
+                    }
 
                     var cells = row.Elements<TableCell>().ToList();
 

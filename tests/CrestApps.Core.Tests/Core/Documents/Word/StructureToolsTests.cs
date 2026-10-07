@@ -436,6 +436,40 @@ public sealed class StructureToolsTests
     }
 
     [Fact]
+    public async Task UpdateWordTable_RowAfterRowZero_IsAddedAboveTheHeaderAndRepeatsWithIt()
+    {
+        using var host = new WordToolTestHost();
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "doc",
+            content = new object[] { new { type = "table", columns = new[] { "Item", "Planned" }, rows = new object[] { new object[] { "Design", "1" } } } },
+        });
+
+        var table = (await ReadAsync(host)).Single(block => block.Kind == WordBlockKind.Table);
+
+        await host.InvokeAsync(new UpdateWordTableTool(), new
+        {
+            document = "doc",
+            table = table.Id,
+            add_rows = new object[] { new[] { "FY2026 Budget", string.Empty } },
+            after_row = 0,
+            merge_cells = new object[] { new { row = 1, column = 1, to_row = 1, to_column = 2 } },
+        });
+
+        var bytes = await host.ReadWorkingDocumentAsync("doc");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var document = WordprocessingDocument.Open(new MemoryStream(bytes), isEditable: false);
+        var rows = document.MainDocumentPart.Document.Body.Descendants<TableRow>().ToList();
+
+        Assert.Equal("FY2026 Budget", WordText.Of(rows[0]));
+        Assert.Single(rows[0].Elements<TableCell>());
+        Assert.Equal(["Item", "Planned"], rows[1].Elements<TableCell>().Select(cell => WordText.Of(cell)));
+        Assert.All(rows.Take(2), row => Assert.NotNull(row.TableRowProperties?.GetFirstChild<TableHeader>()));
+    }
+
+    [Fact]
     public async Task UpdateWordTable_PlainNumbersInFormattedColumns_TakeTheColumnsLook()
     {
         using var host = new WordToolTestHost();
