@@ -405,6 +405,42 @@ public sealed class StructureToolsTests
     }
 
     [Fact]
+    public async Task UpdateWordTable_PlainNumbersInFormattedColumns_TakeTheColumnsLook()
+    {
+        using var host = new WordToolTestHost();
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "doc",
+            content = new object[]
+            {
+                new { type = "table", columns = new[] { "Item", "Actual", "Variance", "Note" }, formats = new[] { "", "currency", "percent", "" }, rows = new object[] { new object[] { "Design", 11500, -0.042, "On track" }, new object[] { "Testing", 7600, -0.05, "Late" } } },
+            },
+        });
+
+        var table = (await ReadAsync(host)).Single(block => block.Kind == WordBlockKind.Table);
+
+        await host.InvokeAsync(new UpdateWordTableTool(), new
+        {
+            document = "doc",
+            table = table.Id,
+            cells = new object[] { new { row = "Testing", column = 2, text = "9500" }, new { row = "Testing", column = 3, text = "0.188" }, new { row = "Testing", column = 4, text = "1200" } },
+            add_rows = new object[] { new[] { "Contingency", "2000", "-1", "None" } },
+        });
+
+        var bytes = await host.ReadWorkingDocumentAsync("doc");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var document = WordprocessingDocument.Open(new MemoryStream(bytes), isEditable: false);
+        var rows = document.MainDocumentPart.Document.Body.Descendants<TableRow>()
+            .Select(row => row.Elements<TableCell>().Select(cell => WordText.Of(cell)).ToList())
+            .ToList();
+
+        Assert.Equal(["Testing", "$9,500.00", "18.8%", "1200"], rows[2]);
+        Assert.Equal(["Contingency", "$2,000.00", "-100.0%", "None"], rows[3]);
+    }
+
+    [Fact]
     public async Task AddWordContent_ListWrittenAgainWithANewItem_AddsOnlyTheNewItemToTheList()
     {
         using var host = new WordToolTestHost();

@@ -240,6 +240,9 @@ internal sealed class UpdateWordTableTool : WordToolBase
                     // A new row takes one value per column, so the copy keeps none of the merged cells it was made from.
                     Unmerge(row);
 
+                    // The row is placed first so its values can be written the way the rest of their column is.
+                    anchor.InsertAfterSelf(row);
+
                     var cells = row.Elements<TableCell>().ToList();
 
                     for (var cell = 0; cell < cells.Count; cell++)
@@ -254,7 +257,6 @@ internal sealed class UpdateWordTableTool : WordToolBase
                     }
 
                     edit.Package.Ids.Assign(row);
-                    anchor.InsertAfterSelf(row);
                     anchor = row;
                     added++;
                 }
@@ -1412,6 +1414,8 @@ internal sealed class UpdateWordTableTool : WordToolBase
     // in a content control has it set there.
     private static string SetText(TableCell cell, string markdown, OpenXmlPart part, WordRevisions revisions)
     {
+        markdown = FormatLikeColumn(cell, markdown);
+
         var paragraphs = cell.Elements<Paragraph>().ToList();
 
         if (paragraphs.Count == 0 && cell.Elements<SdtBlock>().FirstOrDefault()?.SdtContentBlock is { } control)
@@ -1444,6 +1448,85 @@ internal sealed class UpdateWordTableTool : WordToolBase
     // A table's columns are laid out from its grid. After columns change, the grid keeps the table's width,
     // each column keeping its share of it, and every cell of this table (not of a table nested in one) gets
     // the width of the columns it covers.
+    // A plain number written into a column whose other values share a look — "$12,000", "-4.2%", "1,250" — is written
+    // the same way, as the table's own values were when it was made. A fraction goes into a percent column as a
+    // percentage (0.188 is 18.8%), and text that is not a number is written as given.
+    private static string FormatLikeColumn(TableCell cell, string text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || cell.Parent is not TableRow row || row.Parent is not Table table ||
+            Slots(row).FirstOrDefault(slot => ReferenceEquals(slot.Cell, cell)) is not { Cell: not null } own)
+        {
+            return text;
+        }
+
+        var raw = text.Trim();
+        var digits = new string([.. raw.Where(character => character is not ('$' or '€' or '£' or ',' or '%' or ' '))]);
+
+        if (!double.TryParse(digits, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+        {
+            return text;
+        }
+
+        var samples = Rows(table)
+            .Skip(1)
+            .Where(other => !ReferenceEquals(other, row))
+            .Select(other => SlotAt(other, own.Start) is { } slot ? WordText.Of(slot.Cell).Trim() : string.Empty)
+            .Where(sample => sample.Length > 0)
+            .ToList();
+
+        if (samples.Count == 0)
+        {
+            return text;
+        }
+
+        var kinds = samples.Select(Classify).ToList();
+
+        if (kinds.Any(kind => kind is null) || kinds.Select(kind => (kind.Value.Kind, kind.Value.Symbol)).Distinct().Count() != 1)
+        {
+            return text;
+        }
+
+        var (kindName, symbol, _) = kinds[0].Value;
+        var decimals = kinds.Max(kind => kind.Value.Decimals);
+        var format = "N" + decimals.ToString(CultureInfo.InvariantCulture);
+
+        return kindName switch
+        {
+            "percent" => (raw.EndsWith('%') || Math.Abs(value) > 1.5 ? value : value * 100).ToString(format, CultureInfo.InvariantCulture) + "%",
+            "currency" => (value < 0 ? "-" : string.Empty) + symbol + Math.Abs(value).ToString(format, CultureInfo.InvariantCulture),
+            _ => value.ToString(format, CultureInfo.InvariantCulture),
+        };
+
+        static (string Kind, string Symbol, int Decimals)? Classify(string sample)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(sample, @"^-?(?<symbol>[$€£]?)(?<whole>\d{1,3}(,\d{3})*|\d+)(\.(?<fraction>\d+))?(?<percent>%?)$");
+
+            if (!match.Success)
+            {
+                return null;
+            }
+
+            var symbol = match.Groups["symbol"].Value;
+            var percent = match.Groups["percent"].Value.Length > 0;
+            var decimals = match.Groups["fraction"].Value.Length;
+
+            if (symbol.Length > 0 && !percent)
+            {
+                return ("currency", symbol, decimals);
+            }
+
+            if (percent && symbol.Length == 0)
+            {
+                return ("percent", string.Empty, decimals);
+            }
+
+            // Only numbers written with thousands separators say how the column is formatted; plain digits do not.
+            return symbol.Length == 0 && match.Groups["whole"].Value.Contains(',', StringComparison.Ordinal)
+                ? ("grouped", string.Empty, decimals)
+                : null;
+        }
+    }
+
     private static void Fit(Table table, int tableWidth)
     {
         var grid = table.GetFirstChild<TableGrid>().Elements<GridColumn>().ToList();
