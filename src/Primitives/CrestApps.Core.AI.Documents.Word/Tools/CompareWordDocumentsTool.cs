@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using CrestApps.Core.AI.Documents.Word.Reading;
 using CrestApps.Core.AI.Documents.Word.Workspace;
+using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace CrestApps.Core.AI.Documents.Word.Tools;
 
@@ -143,10 +144,25 @@ internal sealed class CompareWordDocumentsTool : WordToolBase
         // The blocks are read once; the package can close, so each keeps its text, not its element.
         foreach (var block in blocks.Where(block => block.Kind == WordBlockKind.Table))
         {
-            block.Text = WordText.Of(block.Element);
+            var table = block.Element as Table ?? block.Element.Descendants<Table>().FirstOrDefault();
+
+            block.Text = table is null ? WordText.Of(block.Element) : TableText(table);
         }
 
         return blocks;
+    }
+
+    // A table's text keeps its rows and cells apart, one row a line and the cells between bars, so an emptied cell
+    // or text moved to another cell is a change.
+    private static string TableText(Table table)
+    {
+        var rows = table.Descendants<TableRow>()
+            .Where(row => row.Ancestors<Table>().FirstOrDefault() == table)
+            .Select(row => "| " + string.Join(" | ", row.Descendants<TableCell>()
+                .Where(cell => cell.Ancestors<TableRow>().FirstOrDefault() == row)
+                .Select(cell => Normalize(WordText.Of(cell)).Replace("|", "\\|", StringComparison.Ordinal))) + " |");
+
+        return string.Join("\n", rows);
     }
 
     // A longest-common-subsequence alignment of the two element lists; a removal next to an addition of the same
@@ -182,26 +198,68 @@ internal sealed class CompareWordDocumentsTool : WordToolBase
             }
         }
 
-        for (var index = 0; index < steps.Count - 1; index++)
+        var paired = new List<(char Kind, WordBlock Before, WordBlock After)>(steps.Count);
+
+        for (var index = 0; index < steps.Count;)
         {
-            if (steps[index].Kind == '-' && steps[index + 1].Kind == '+' && steps[index].Before.Kind == steps[index + 1].After.Kind)
+            if (steps[index].Kind == ' ')
             {
-                steps[index] = ('~', steps[index].Before, steps[index + 1].After);
-                steps.RemoveAt(index + 1);
+                paired.Add(steps[index++]);
+
+                continue;
             }
-            else if (steps[index].Kind == '+' && steps[index + 1].Kind == '-' && steps[index].After.Kind == steps[index + 1].Before.Kind)
+
+            // Between two unchanged elements, the removed and added ones are paired in order: the first removed with
+            // the first added of the same kind, and so on, so A, B edited into A', B' reads as two changes.
+            var removed = new List<WordBlock>();
+            var added = new List<WordBlock>();
+
+            for (; index < steps.Count && steps[index].Kind != ' '; index++)
             {
-                steps[index] = ('~', steps[index + 1].Before, steps[index].After);
-                steps.RemoveAt(index + 1);
+                if (steps[index].Kind == '-')
+                {
+                    removed.Add(steps[index].Before);
+                }
+                else
+                {
+                    added.Add(steps[index].After);
+                }
             }
+
+            Pair(removed, added, paired);
         }
 
-        return steps;
+        return paired;
+    }
+
+    private static void Pair(List<WordBlock> removed, List<WordBlock> added, List<(char Kind, WordBlock Before, WordBlock After)> steps)
+    {
+        int r = 0, a = 0;
+
+        while (r < removed.Count || a < added.Count)
+        {
+            if (r < removed.Count && a < added.Count && removed[r].Kind == added[a].Kind)
+            {
+                steps.Add(('~', removed[r++], added[a++]));
+            }
+            else if (a < added.Count && (r == removed.Count || !removed.Skip(r).Any(block => block.Kind == added[a].Kind)))
+            {
+                // Nothing left to pair the added element with: it is new.
+                steps.Add(('+', null, added[a++]));
+            }
+            else
+            {
+                steps.Add(('-', removed[r++], null));
+            }
+        }
     }
 
     private static bool Same(WordBlock left, WordBlock right)
     {
-        return left.Kind == right.Kind && string.Equals(Normalize(TextOf(left)), Normalize(TextOf(right)), StringComparison.Ordinal);
+        // A table's text already keeps its cells apart, which spacing must not merge.
+        return left.Kind == right.Kind && (left.Kind == WordBlockKind.Table
+            ? string.Equals(TextOf(left), TextOf(right), StringComparison.Ordinal)
+            : string.Equals(Normalize(TextOf(left)), Normalize(TextOf(right)), StringComparison.Ordinal));
     }
 
     private static string TextOf(WordBlock block)
