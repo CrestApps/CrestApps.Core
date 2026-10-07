@@ -88,7 +88,12 @@ internal sealed class AddWordContentTool : WordToolBase
 
                 WordBlockLocator.Insert(edit.Package, elements, after, before, at);
 
-                if (elements.Any(element => WordBlockReader.HasField(element, "SEQ")))
+                if (builder.HasTableOfContents)
+                {
+                    // A table of contents lists the headings around it, so it is filled in once they are placed.
+                    WordDocumentRefresher.Refresh(edit.Package, context.Services);
+                }
+                else if (elements.Any(element => WordBlockReader.HasField(element, "SEQ")))
                 {
                     WordCaptions.Renumber(edit.Package);
                 }

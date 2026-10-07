@@ -140,14 +140,15 @@ internal static class WordToolSchemas
         {
           "type": "object",
           "properties": {
-            "type": { "type": "string", "enum": ["heading", "title", "subtitle", "paragraph", "markdown", "bullet_list", "numbered_list", "quote", "code", "table", "image", "chart", "caption", "page_break", "rule"], "description": "'title' only for a document that has no title yet; a document created with 'title' already has it at the top." },
-            "text": { "type": "string", "description": "The text, with inline Markdown (**bold**, *italic*, `code`, [link](https://…)). For 'markdown', full Markdown that becomes headings, lists and tables. For 'code', the code." },
+            "type": { "type": "string", "enum": ["heading", "title", "subtitle", "paragraph", "markdown", "bullet_list", "numbered_list", "quote", "code", "table", "image", "chart", "caption", "toc", "page_break", "rule"], "description": "'title' only for a document that has no title yet; a document created with 'title' already has it at the top. 'toc' is a table of contents, filled in from the headings." },
+            "text": { "type": "string", "description": "The text, with inline Markdown (**bold**, *italic*, `code`, [link](https://…)). For 'markdown', full Markdown that becomes headings, lists and tables. For 'code', the code. For 'toc', its title (default 'Contents')." },
             "level": { "type": "integer", "description": "Heading level 1-6." },
             "style": { "type": "string", "description": "Paragraph style name for a paragraph." },
             "alignment": { "type": "string", "enum": ["left", "center", "right", "justify"] },
             "format": {{RunFormat}},
             "paragraph_format": {{ParagraphFormat}},
-            "items": { "type": "array", "description": "List items: strings, or { text, level, items } for nesting.", "items": {} },
+            "items": { "type": "array", "description": "List items: strings, or { text, level, items, type, items_type } for nesting. 'type' (bullet or numbered) makes an item the other kind than its list, and 'items_type' does so for the items nested under it, such as bullets under a numbered goal.", "items": {} },
+            "to_level": { "type": "integer", "description": "For a toc block: the lowest heading level listed. Default 3." },
             "start": { "type": "integer", "description": "First number of a numbered list." },
             "caption": { "type": "string", "description": "Numbered caption for a table (above), image or chart (below), e.g. 'Revenue by region'." },
             "caption_position": { "type": "string", "enum": ["above", "below"] },

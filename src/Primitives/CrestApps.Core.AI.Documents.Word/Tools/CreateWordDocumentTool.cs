@@ -125,13 +125,27 @@ internal sealed class CreateWordDocumentTool : WordToolBase
                 elements.Add(builder.Writer.Paragraph(subtitle, builder.Writer.Style(WordStyleSheet.Subtitle)));
             }
 
+            var droppedTitle = false;
+
             if (arguments.TryGetObject("content", out var content))
             {
-                elements.AddRange(await builder.BuildAsync(content, cancellationToken));
+                var built = await builder.BuildAsync(content, cancellationToken);
+
+                // The title is written above; a model that also opens the content with it would show it twice.
+                droppedTitle = title is not null && DropRepeatedTitle(built, title, builder.Writer);
+                elements.AddRange(built);
             }
 
             WordBlockLocator.Insert(package, elements, after: null, before: null, at: "end");
-            Fields.WordCaptions.Renumber(package);
+
+            if (builder.HasTableOfContents)
+            {
+                Fields.WordDocumentRefresher.Refresh(package, context.Services);
+            }
+            else
+            {
+                Fields.WordCaptions.Renumber(package);
+            }
 
             var blocks = WordBlockReader.Read(package);
             var section0 = WordSections.All(package)[0];
@@ -156,7 +170,11 @@ internal sealed class CreateWordDocumentTool : WordToolBase
             answer.Append(". Page: ").Append(WordDescriber.DescribeSection(section0)).AppendLine(".");
             answer.Append("Theme: ").Append(edit.Design.Preset).Append(" (").Append(edit.Design.BodyFont).Append(" body, ").Append(edit.Design.HeadingFont).AppendLine(" headings).");
 
-            if (arguments.GetString("title") is not null)
+            if (droppedTitle)
+            {
+                answer.AppendLine("The content opened with the title again; that copy was left out, since 'title' already writes it at the top.");
+            }
+            else if (arguments.GetString("title") is not null)
             {
                 answer.AppendLine("The title is already at the top: do not add it again. For a cover page, add only a page_break after it.");
             }
@@ -185,6 +203,30 @@ internal sealed class CreateWordDocumentTool : WordToolBase
 
             return answer.ToString();
         }, cancellationToken);
+    }
+
+    // A title or heading block with the title's words that opens the content repeats the title written above it.
+    private static bool DropRepeatedTitle(List<DocumentFormat.OpenXml.OpenXmlElement> elements, string title, WordBlockWriter writer)
+    {
+        if (elements.Count == 0 || elements[0] is not Paragraph first)
+        {
+            return false;
+        }
+
+        var style = first.ParagraphProperties?.ParagraphStyleId?.Val?.Value ?? string.Empty;
+        var isTitleOrHeading = string.Equals(style, writer.Style(WordStyleSheet.Title), StringComparison.OrdinalIgnoreCase) ||
+            style.StartsWith("Heading", StringComparison.OrdinalIgnoreCase);
+
+        if (!isTitleOrHeading || !string.Equals(Collapse(WordText.Of(first)), Collapse(title), StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        elements.RemoveAt(0);
+
+        return true;
+
+        static string Collapse(string text) => string.Join(' ', (text ?? string.Empty).Split((char[])null, StringSplitOptions.RemoveEmptyEntries));
     }
 
     private static async Task<WordPackage> OpenTemplateAsync(WordToolContext context, CrestApps.Core.AI.Models.AIDocument template, bool keepContent, CancellationToken cancellationToken)

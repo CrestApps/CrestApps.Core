@@ -149,13 +149,50 @@ internal sealed class WordBlockWriter
     {
         ArgumentNullException.ThrowIfNull(items);
 
-        var numberId = WordNumbering.CreateList(_mainPart, numbered, start);
+        return List(items.Select(item => (item.Text, item.Level, (bool?)null)), numbered, start);
+    }
+
+    /// <summary>
+    /// Builds a list whose nested items may be of the other kind, such as bullets under a numbered item.
+    /// </summary>
+    /// <param name="items">The items, each with its nesting level from 0 and whether it is numbered, or
+    /// <see langword="null"/> to be of the list's kind.</param>
+    /// <param name="numbered">Whether the list is numbered rather than bulleted.</param>
+    /// <param name="start">The first number of a numbered list.</param>
+    /// <returns>One paragraph per item.</returns>
+    public List<Paragraph> List(IEnumerable<(string Text, int Level, bool? Numbered)> items, bool numbered, int start = 1)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
         var style = Style(WordStyleSheet.ListParagraph);
         var paragraphs = new List<Paragraph>();
 
-        foreach (var (text, level) in items)
+        // As in Markdown lists: an item nested under one of the same kind continues its parent's list, and one
+        // of the other kind starts a list of its own, so it gets its own kind of marker.
+        var levels = new (int NumberId, bool Numbered)?[9];
+
+        foreach (var (text, rawLevel, itemNumbered) in items)
         {
-            var paragraph = ListItem(numberId, Math.Clamp(level, 0, 8), style);
+            var level = Math.Clamp(rawLevel, 0, 8);
+            var isNumbered = itemNumbered ?? numbered;
+
+            for (var deeper = level + 1; deeper < levels.Length; deeper++)
+            {
+                levels[deeper] = null;
+            }
+
+            if (levels[level] is not { } current || current.Numbered != isNumbered)
+            {
+                var parent = levels.Take(level).LastOrDefault(entry => entry is not null);
+                var numberId = parent is { } inherited && inherited.Numbered == isNumbered
+                    ? inherited.NumberId
+                    : WordNumbering.CreateList(_mainPart, isNumbered, level == 0 ? start : 1, level);
+
+                current = (numberId, isNumbered);
+                levels[level] = current;
+            }
+
+            var paragraph = ListItem(current.NumberId, level, style);
 
             WordInlineWriter.AppendMarkdown(paragraph, text, _part);
             paragraphs.Add(paragraph);

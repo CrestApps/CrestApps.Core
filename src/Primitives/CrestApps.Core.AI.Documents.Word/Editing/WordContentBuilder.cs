@@ -23,7 +23,7 @@ internal sealed class WordContentBuilder
     public static readonly IReadOnlyList<string> BlockTypes =
     [
         "heading", "title", "subtitle", "paragraph", "markdown", "bullet_list", "numbered_list", "quote", "code",
-        "table", "image", "chart", "caption", "page_break", "rule",
+        "table", "image", "chart", "caption", "toc", "page_break", "rule",
     ];
 
     private const double MinChartSize = 18;
@@ -53,6 +53,12 @@ internal sealed class WordContentBuilder
     /// Gets the warnings building raised, such as a picture that could not be found.
     /// </summary>
     public List<string> Warnings { get; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether the content built so far has a table of contents, whose entries the
+    /// caller fills in once the content is in the document.
+    /// </summary>
+    public bool HasTableOfContents { get; private set; }
 
     /// <summary>
     /// Gets the block writer content is built with.
@@ -192,6 +198,11 @@ internal sealed class WordContentBuilder
 
             case "caption":
                 elements.Add(Caption(WordJsonValues.GetString(block, "label") ?? "Figure", text));
+
+                break;
+
+            case "toc":
+                elements.Add(TableOfContents(block, text));
 
                 break;
 
@@ -372,6 +383,32 @@ internal sealed class WordContentBuilder
         }
 
         return spec;
+    }
+
+    /// <summary>
+    /// Builds a table of contents where it is placed, so a document can be written with it in one call. Its
+    /// entries are filled in once the headings after it are in the document.
+    /// </summary>
+    /// <param name="block">The block object: an optional <c>title</c>, <c>from_level</c>, <c>to_level</c> and
+    /// <c>page_numbers</c>.</param>
+    /// <param name="text">The block's text, used as the title when no <c>title</c> is given.</param>
+    /// <returns>The table of contents.</returns>
+    public OpenXmlElement TableOfContents(JsonElement block, string text)
+    {
+        // A heading-based table in the document, or one built earlier in this content.
+        if (WordFieldScanner.Scan(_edit.Package.Body).Any(field => field.Type == "TOC" && WordTableOfContents.IsHeadingTable(field.Instruction)) ||
+            HasTableOfContents)
+        {
+            throw new WordToolException("The document already has a table of contents; add_word_toc refreshes it.");
+        }
+
+        var from = Math.Clamp(WordJsonValues.GetInt(block, "from_level") ?? 1, 1, 9);
+        var to = Math.Clamp(WordJsonValues.GetInt(block, "to_level") ?? 3, from, 9);
+        var title = WordJsonValues.GetRawString(block, "title") ?? (string.IsNullOrWhiteSpace(text) ? "Contents" : text);
+
+        HasTableOfContents = true;
+
+        return WordTableOfContents.Create(_edit.Package, _writer, title, from, to, WordJsonValues.GetBoolean(block, "page_numbers") ?? true);
     }
 
     /// <summary>
@@ -650,9 +687,9 @@ internal sealed class WordContentBuilder
         return null;
     }
 
-    private static List<(string Text, int Level)> ReadItems(JsonElement block)
+    private static List<(string Text, int Level, bool? Numbered)> ReadItems(JsonElement block)
     {
-        var items = new List<(string Text, int Level)>();
+        var items = new List<(string Text, int Level, bool? Numbered)>();
 
         if (!WordJsonValues.TryGet(block, "items", out var array))
         {
@@ -660,7 +697,7 @@ internal sealed class WordContentBuilder
 
             if (!string.IsNullOrWhiteSpace(text))
             {
-                items.AddRange(text.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line => (line.Trim().TrimStart('-', '*', '•').Trim(), 0)));
+                items.AddRange(text.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line => (line.Trim().TrimStart('-', '*', '•').Trim(), 0, (bool?)null)));
             }
 
             return items;
@@ -671,18 +708,18 @@ internal sealed class WordContentBuilder
             return items;
         }
 
-        Collect(array, 0, items);
+        Collect(array, 0, null, items);
 
         return items;
     }
 
-    private static void Collect(JsonElement array, int level, List<(string Text, int Level)> items)
+    private static void Collect(JsonElement array, int level, bool? numbered, List<(string Text, int Level, bool? Numbered)> items)
     {
         foreach (var item in array.EnumerateArray())
         {
             if (item.ValueKind == JsonValueKind.String)
             {
-                items.Add((item.GetString(), level));
+                items.Add((item.GetString(), level, numbered));
 
                 continue;
             }
@@ -694,13 +731,27 @@ internal sealed class WordContentBuilder
 
             var itemLevel = WordJsonValues.GetInt(item, "level") ?? level;
 
-            items.Add((WordJsonValues.GetRawString(item, "text") ?? string.Empty, Math.Clamp(itemLevel, 0, 8)));
+            // An item can be of the other kind than its list — bullets under a numbered goal — by its own 'type',
+            // or by the 'items_type' of the item it is nested under.
+            var itemNumbered = ReadListKind(WordJsonValues.GetString(item, "type")) ?? numbered;
+
+            items.Add((WordJsonValues.GetRawString(item, "text") ?? string.Empty, Math.Clamp(itemLevel, 0, 8), itemNumbered));
 
             if (WordJsonValues.TryGet(item, "items", out var children) && children.ValueKind == JsonValueKind.Array)
             {
-                Collect(children, Math.Min(itemLevel + 1, 8), items);
+                Collect(children, Math.Min(itemLevel + 1, 8), ReadListKind(WordJsonValues.GetString(item, "items_type")), items);
             }
         }
+    }
+
+    private static bool? ReadListKind(string value)
+    {
+        return (value ?? string.Empty).Trim().ToLowerInvariant().Replace(' ', '_').Replace('-', '_') switch
+        {
+            "bullet" or "bullets" or "bullet_list" or "bulleted" or "unordered" => false,
+            "number" or "numbered" or "numbers" or "numbered_list" or "ordered" => true,
+            _ => null,
+        };
     }
 
     private static WordTableColumn ReadColumn(JsonElement column)
@@ -870,6 +921,7 @@ internal sealed class WordContentBuilder
             "pagebreak" or "break" => "page_break",
             "horizontal_rule" or "divider" or "hr" or "line" => "rule",
             "md" => "markdown",
+            "table_of_contents" or "contents" => "toc",
             _ => text,
         };
     }

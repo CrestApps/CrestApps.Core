@@ -229,6 +229,102 @@ public sealed class StructureToolsTests
     }
 
     [Fact]
+    public async Task AddWordCrossReference_LabelWrittenBeforeReference_IsNotRepeated()
+    {
+        using var host = new WordToolTestHost();
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "doc",
+            content = new object[]
+            {
+                new { type = "table", caption = "Budget by phase", columns = new[] { "Item", "Planned" }, rows = new object[] { new object[] { "Design", "12000" } } },
+                new { type = "paragraph", text = "Refer to Table" },
+                new { type = "paragraph", text = "Costs are in" },
+            },
+        });
+
+        var blocks = await ReadAsync(host);
+        var caption = blocks.Single(block => block.Kind == WordBlockKind.Caption);
+        var trailing = blocks.Single(block => block.Text == "Refer to Table");
+        var plain = blocks.Single(block => block.Text == "Costs are in");
+
+        var fromText = await host.InvokeAsync(new AddWordCrossReferenceTool(), new { document = "doc", id = trailing.Id, target = caption.Id, suffix = " for details." });
+        var fromPrefix = await host.InvokeAsync(new AddWordCrossReferenceTool(), new { document = "doc", id = plain.Id, target = caption.Id, prefix = " the summary in Table ", suffix = "." });
+
+        Assert.Contains("\"Refer to Table 1 for details.\"", fromText, StringComparison.Ordinal);
+        Assert.Contains("was left out", fromText, StringComparison.Ordinal);
+        Assert.Contains("\"Costs are in the summary in Table 1.\"", fromPrefix, StringComparison.Ordinal);
+        WordAuthoringToolsTests.AssertValid(await host.ReadWorkingDocumentAsync("doc"));
+    }
+
+    [Fact]
+    public async Task CreateWordDocument_TitleRepeatedAndTocBlock_WritesTitleOnceAndFillsTheContents()
+    {
+        using var host = new WordToolTestHost();
+
+        var answer = await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "doc",
+            title = "Project Falcon",
+            content = new object[]
+            {
+                new { type = "title", text = "Project  Falcon" },
+                new { type = "page_break" },
+                new { type = "toc" },
+                new { type = "page_break" },
+                new { type = "heading", text = "Summary", level = 1 },
+                new { type = "paragraph", text = "Body." },
+                new { type = "heading", text = "Goals", level = 1 },
+                new
+                {
+                    type = "numbered_list",
+                    items = new object[]
+                    {
+                        "Grow",
+                        new { text = "Ship", items_type = "bullet", items = new[] { "Beta", "Launch" } },
+                        "Hire",
+                    },
+                },
+            },
+        });
+
+        Assert.Contains("left out", answer, StringComparison.Ordinal);
+
+        var bytes = await host.ReadWorkingDocumentAsync("doc");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var document = WordprocessingDocument.Open(new MemoryStream(bytes), isEditable: false);
+        var body = document.MainDocumentPart.Document.Body;
+        var paragraphs = body.Descendants<Paragraph>().ToList();
+
+        Assert.Single(paragraphs, paragraph => paragraph.ParagraphProperties?.ParagraphStyleId?.Val?.Value == "Title");
+
+        var contents = WordText.Of(body.Descendants<DocumentFormat.OpenXml.Wordprocessing.SdtBlock>().First());
+
+        Assert.Contains("Summary", contents, StringComparison.Ordinal);
+        Assert.Contains("Goals", contents, StringComparison.Ordinal);
+
+        // The nested items are bullets of their own list, not the numbered list's second level.
+        var numbering = document.MainDocumentPart.NumberingDefinitionsPart.Numbering;
+        string FormatOf(string text)
+        {
+            var paragraph = paragraphs.Single(item => WordText.Of(item) == text);
+            var properties = paragraph.ParagraphProperties.NumberingProperties;
+            var numberId = properties.NumberingId.Val.Value;
+            var level = properties.NumberingLevelReference.Val.Value;
+            var abstractId = numbering.Elements<NumberingInstance>().Single(instance => instance.NumberID.Value == numberId).AbstractNumId.Val.Value;
+            var definition = numbering.Elements<AbstractNum>().Single(item => item.AbstractNumberId.Value == abstractId);
+
+            return definition.Elements<Level>().Single(item => item.LevelIndex.Value == level).NumberingFormat.Val.ToString();
+        }
+
+        Assert.Equal("decimal", FormatOf("Ship"));
+        Assert.Equal("bullet", FormatOf("Beta"));
+        Assert.Equal("decimal", FormatOf("Hire"));
+    }
+
+    [Fact]
     public async Task AddWordBookmarkAndHyperlink_LinkPointsAtBookmark()
     {
         using var host = new WordToolTestHost();

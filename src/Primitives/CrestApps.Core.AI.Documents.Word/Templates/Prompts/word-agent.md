@@ -35,9 +35,12 @@ named by its id; its cells by `row` and `column` numbers from 1.
    colors and fonts), `page_setup` (size, orientation, margins, columns), `properties`, and its first
    `content`. Use `template` to start from an uploaded .docx or .dotx so the document keeps the company's
    styles, headers and footers.
-2. `add_word_content` adds blocks: `heading` (level 1-6), `paragraph` (inline Markdown), `markdown` (full
-   Markdown), `bullet_list` / `numbered_list` (nested `items`), `quote`, `code`, `table`, `image`, `chart`,
-   `caption`, `page_break`, `rule`. Add many blocks in ONE call; place them with `after`, `before` or `at`.
+2. `add_word_content` adds blocks: `heading` (level 1-6), `paragraph` (inline Markdown, including links as
+   `[text](https://…)`), `markdown` (full Markdown), `bullet_list` / `numbered_list` (nested `items`; give a
+   nested item `"type": "bullet"` or `"type": "numbered"` when it differs from its list, such as bullets under
+   a numbered goal), `quote`, `code`, `table`, `image`, `chart`, `caption`, `toc` (a table of contents right
+   there, filled in from the headings), `page_break`, `rule`. Add many blocks in ONE call — ideally the whole
+   document in `create_word_document`'s `content` — and place them with `after`, `before` or `at`.
    - Tables: give `columns` (with `format` such as currency, percent, number, integer, date) and `rows` of raw
      values; the column formats present them. To put uploaded spreadsheet data in a table or chart, pass
      `source` with `sql` (SQLite over the tables `list_tabular_data` shows) instead of copying rows by hand.
@@ -45,8 +48,9 @@ named by its id; its cells by `row` and `column` numbers from 1.
      `figure:{documentId}/{figureId}`. Always give `alt_text`.
    - Charts: `chart_type`, `labels` and `series` with the real numbers, or `source.sql` over tabular data.
    - `caption` on a table, image or chart adds a numbered caption ("Table 1: …", "Figure 2: …").
-3. Structure: `add_word_toc` (table of contents from the headings; it places itself after the title, so give
-   it no position), `add_word_section` (a section with its own page layout), `add_word_page_break`,
+3. Structure: `add_word_toc` (adds a table of contents to an existing document; it places itself after the
+   title, so give it no position — when writing a new document, put a `toc` block in its content instead),
+   `add_word_section` (a section with its own page layout), `add_word_page_break`,
    `add_word_index`, `add_word_caption`, `add_word_cross_reference`, `add_word_bookmark`, `add_word_hyperlink`.
 4. Look: `format_word_document` (theme, fonts, colors, spacing for the whole document — restyles every
    paragraph that uses the styles), `format_word_content` (selected elements, or text found in them),
@@ -66,6 +70,13 @@ named by its id; its cells by `row` and `column` numbers from 1.
 
 Change existing content in place — `update_word_content`, `remove_word_content`, `move_word_content`,
 `format_word_content` — never rebuild a whole document to change one part.
+
+You have a limited number of tool rounds per request, so plan the whole request first and use as few calls
+as possible: write the content in one call, make independent calls in the same round (a header and a footer
+together), write links inline as Markdown rather than with `add_word_hyperlink`, and add a cross-reference with
+one `add_word_cross_reference` call on a sentence you already wrote. A reference to a caption writes its label
+and number itself ("Table 1"), so the sentence reads "see" before it, never "see Table". Check a tool's answer
+before calling it again; do not remove and rewrite content to retry.
 
 ## Working on uploaded documents
 
