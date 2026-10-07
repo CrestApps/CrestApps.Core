@@ -229,6 +229,34 @@ public sealed class StructureToolsTests
     }
 
     [Fact]
+    public async Task AddWordCrossReference_CaptionAsTextThenNumber_ShowsTheWholeCaptionThenItsNumber()
+    {
+        using var host = new WordToolTestHost();
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "doc",
+            content = new object[]
+            {
+                new { type = "table", caption = "Budget by phase", columns = new[] { "Item" }, rows = new object[] { new object[] { "Design" } } },
+                new { type = "paragraph", text = "Costs are in" },
+                new { type = "paragraph", text = "See" },
+            },
+        });
+
+        var blocks = await ReadAsync(host);
+        var caption = blocks.Single(block => block.Kind == WordBlockKind.Caption);
+        var costs = blocks.Single(block => block.Text == "Costs are in");
+        var see = blocks.Single(block => block.Text == "See");
+
+        var asText = await host.InvokeAsync(new AddWordCrossReferenceTool(), new { document = "doc", id = costs.Id, target = caption.Id, show = "text", suffix = "." });
+        var asNumber = await host.InvokeAsync(new AddWordCrossReferenceTool(), new { document = "doc", id = see.Id, target = caption.Id, suffix = "." });
+
+        Assert.Contains("\"Costs are in Table 1: Budget by phase.\"", asText, StringComparison.Ordinal);
+        Assert.Contains("\"See Table 1.\"", asNumber, StringComparison.Ordinal);
+        WordAuthoringToolsTests.AssertValid(await host.ReadWorkingDocumentAsync("doc"));
+    }
+
+    [Fact]
     public async Task AddWordCrossReference_LabelWrittenBeforeReference_IsNotRepeated()
     {
         using var host = new WordToolTestHost();

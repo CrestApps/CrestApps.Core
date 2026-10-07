@@ -76,7 +76,7 @@ internal sealed class AddWordCrossReferenceTool : WordToolBase
                 throw new WordToolException($"[{id}] is not a paragraph.");
             }
 
-            var (bookmark, isCaption, label) = ResolveTarget(package, target);
+            var (bookmark, isCaption, label) = ResolveTarget(package, target, wholeCaption: string.Equals(arguments.GetString("show")?.Trim(), "text", StringComparison.OrdinalIgnoreCase));
             var show = (arguments.GetString("show") ?? (isCaption ? "number" : "text")).Trim().ToLowerInvariant();
 
             // A caption's number reference already reads "Table 1", so a label written just before it — "see Table"
@@ -186,6 +186,18 @@ internal sealed class AddWordCrossReferenceTool : WordToolBase
         return $"Added a cross-reference in \"{document.Name}\" (version {document.Version}). [{id}] now reads: \"{WordText.Clip(text.Item1, 300)}\".{text.Item2}";
     }
 
+    // The name of a _Ref bookmark that starts before a paragraph's content and ends after it, as Wrap writes one.
+    private static string WholeParagraphBookmark(Paragraph paragraph)
+    {
+        return paragraph.ChildElements.FirstOrDefault(child => child is not ParagraphProperties) is BookmarkStart start &&
+            start.Name?.Value is { } name &&
+            name.StartsWith("_Ref", StringComparison.OrdinalIgnoreCase) &&
+            paragraph.LastChild is BookmarkEnd end &&
+            string.Equals(end.Id?.Value, start.Id?.Value, StringComparison.Ordinal)
+            ? name
+            : null;
+    }
+
     // "see Table " less its last word when that word is the label: "see ". Null when the text does not end with it.
     private static string TrimTrailingWord(string text, string word)
     {
@@ -203,7 +215,7 @@ internal sealed class AddWordCrossReferenceTool : WordToolBase
             : null;
     }
 
-    private static (string Bookmark, bool IsCaption, string Label) ResolveTarget(WordPackage package, string target)
+    private static (string Bookmark, bool IsCaption, string Label) ResolveTarget(WordPackage package, string target, bool wholeCaption)
     {
         var element = WordBlockLocator.Find(package, target);
 
@@ -232,9 +244,28 @@ internal sealed class AddWordCrossReferenceTool : WordToolBase
         var isCaption = styles.HasStyle(paragraph, "caption") || sequence is not null;
         var label = sequence is null ? null : WordFieldScanner.ArgumentOf(sequence.Instruction);
 
-        if (WordBookmarks.FindOn(paragraph, "_Ref") is { } existing)
+        // A caption's own bookmark holds its label and number, "Table 1", for a number reference. Its text is the
+        // whole caption, "Table 1: Budget by phase", so it is referred to by a bookmark around the paragraph.
+        if (isCaption && wholeCaption)
         {
-            return (existing, isCaption, label);
+            if (WholeParagraphBookmark(paragraph) is { } whole)
+            {
+                return (whole, isCaption, label);
+            }
+        }
+        else
+        {
+            // A caption may hold both bookmarks; a number reference takes the one around the label and number.
+            var whole = isCaption ? WholeParagraphBookmark(paragraph) : null;
+            var names = paragraph.Elements<BookmarkStart>()
+                .Select(start => start.Name?.Value)
+                .Where(name => name is not null && name.StartsWith("_Ref", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if ((names.Find(name => !string.Equals(name, whole, StringComparison.Ordinal)) ?? (names.Count > 0 ? names[0] : null)) is { } existing)
+            {
+                return (existing, isCaption, label);
+            }
         }
 
         var registry = WordBookmarks.For(package);
