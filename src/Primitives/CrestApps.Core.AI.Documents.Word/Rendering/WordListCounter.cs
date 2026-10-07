@@ -11,6 +11,8 @@ namespace CrestApps.Core.AI.Documents.Word.Rendering;
 /// </summary>
 internal sealed class WordListCounter
 {
+    private const int MaxLetterRepeats = 10;
+
     private readonly Dictionary<int, NumberingInstance> _instances = [];
     private readonly Dictionary<int, AbstractNum> _definitions = [];
     private readonly Dictionary<string, int[]> _counters = new(StringComparer.Ordinal);
@@ -65,8 +67,19 @@ internal sealed class WordListCounter
 
         level = Math.Clamp(level, 0, 8);
 
-        var levels = abstractNum.Elements<Level>().ToDictionary(item => item.LevelIndex?.Value ?? 0, item => item);
-        var overrides = instance.Elements<LevelOverride>().ToDictionary(item => item.LevelIndex?.Value ?? 0, item => item);
+        // A malformed numbering part can repeat a level; the first one wins, as it does in Word.
+        var levels = new Dictionary<int, Level>();
+        var overrides = new Dictionary<int, LevelOverride>();
+
+        foreach (var item in abstractNum.Elements<Level>())
+        {
+            levels.TryAdd(item.LevelIndex?.Value ?? 0, item);
+        }
+
+        foreach (var item in instance.Elements<LevelOverride>())
+        {
+            overrides.TryAdd(item.LevelIndex?.Value ?? 0, item);
+        }
 
         if (overrides.TryGetValue(level, out var levelOverride) && levelOverride.Level is { } replacement)
         {
@@ -140,6 +153,32 @@ internal sealed class WordListCounter
     }
 
     /// <summary>
+    /// Records where every list stands, so content laid out a second time — a repeated header row, a text box
+    /// measured before it is drawn — does not number its items again.
+    /// </summary>
+    /// <returns>The state, for <see cref="Restore"/>.</returns>
+    public Dictionary<string, int[]> Snapshot()
+    {
+        return _counters.ToDictionary(pair => pair.Key, pair => (int[])pair.Value.Clone(), StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Puts every list back where a <see cref="Snapshot"/> recorded it.
+    /// </summary>
+    /// <param name="snapshot">The state.</param>
+    public void Restore(Dictionary<string, int[]> snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        _counters.Clear();
+
+        foreach (var (key, value) in snapshot)
+        {
+            _counters[key] = (int[])value.Clone();
+        }
+    }
+
+    /// <summary>
     /// Formats a list number.
     /// </summary>
     /// <param name="number">The number.</param>
@@ -196,7 +235,13 @@ internal sealed class WordListCounter
             return string.Empty;
         }
 
-        // Word repeats the letter past z: aa, bb, cc.
+        // Word repeats the letter past z: aa, bb, cc. A list started at a huge number would repeat a letter
+        // millions of times, so past a few repeats the number is written in digits instead.
+        if (number > 26 * MaxLetterRepeats)
+        {
+            return number.ToString(CultureInfo.InvariantCulture);
+        }
+
         var letter = (char)('A' + ((number - 1) % 26));
 
         return new string(letter, ((number - 1) / 26) + 1);
