@@ -338,6 +338,69 @@ public sealed class WordTableAndProtectionTests
         Assert.Single((await host.LoadWorkspaceAsync()).Documents);
     }
 
+    [Fact]
+    public async Task ExportWord_Heading_ExportsOnlyThatSection()
+    {
+        using var host = new WordToolTestHost();
+
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "report",
+            content = new object[]
+            {
+                new { type = "heading", text = "Alpha", level = 1 },
+                new { type = "paragraph", text = "Alpha body." },
+                new { type = "page_break" },
+                new { type = "heading", text = "Beta", level = 1 },
+                new { type = "heading", text = "Beta detail", level = 2 },
+                new { type = "paragraph", text = "Beta body." },
+                new { type = "heading", text = "Gamma", level = 1 },
+                new { type = "paragraph", text = "Gamma body." },
+            },
+        });
+
+        List<WordBlock> blocks;
+
+        using (var package = WordPackage.Open(await host.ReadWorkingDocumentAsync("report")))
+        {
+            blocks = WordBlockReader.Read(package);
+        }
+
+        // A comment on content left out must not stay behind in the excerpt.
+        await host.InvokeAsync(new ManageWordCommentsTool(), new { document = "report", action = "add", id = blocks.First(block => block.Text == "Alpha body.").Id, comment = "Check this." });
+
+        var original = await host.ReadWorkingDocumentAsync("report");
+
+        using (var document = Open(original))
+        {
+            Assert.Single(document.MainDocumentPart.WordprocessingCommentsPart.Comments.Elements<Comment>());
+        }
+
+        var answer = await host.InvokeAsync(new ExportWordTool(), new { document = "report", headings = new[] { blocks.First(block => block.Text == "Beta").Id } });
+        var marker = Regex.Match(answer, @"\[doc:\d+\]").Value;
+
+        Assert.False(string.IsNullOrEmpty(marker), answer);
+
+        var (stored, bytes) = await host.ReadMarkerAsync(marker);
+
+        Assert.Equal("report-excerpt.docx", stored.FileName);
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using (var document = Open(bytes))
+        {
+            var text = WordText.Of(document.MainDocumentPart.Document.Body);
+
+            Assert.Contains("Beta detail", text, StringComparison.Ordinal);
+            Assert.Contains("Beta body.", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("Alpha", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("Gamma", text, StringComparison.Ordinal);
+            Assert.Empty(document.MainDocumentPart.WordprocessingCommentsPart?.Comments?.Elements<Comment>() ?? []);
+            Assert.NotNull(document.MainDocumentPart.Document.Body.GetFirstChild<SectionProperties>());
+        }
+
+        Assert.Equal(original, await host.ReadWorkingDocumentAsync("report"));
+    }
+
     private static async Task CreateTableAsync(WordToolTestHost host)
     {
         await host.InvokeAsync(new CreateWordDocumentTool(), new

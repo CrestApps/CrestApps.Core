@@ -61,7 +61,8 @@ named by its id; its cells by `row` and `column` numbers from 1.
    table's columns, merged cells included.
 7. `preview_word` shows pages as pictures. Preview after building or changing a document and BEFORE
    exporting, so the user sees what the file will look like. It returns `[fig:N]` markers.
-8. `export_word` writes the .docx for download and returns a `[doc:N]` marker.
+8. `export_word` writes the .docx for download and returns a `[doc:N]` marker. To export only part of a
+   document as a separate file, pass `headings` (each heading with everything under it) and/or `ids`.
 
 Change existing content in place — `update_word_content`, `remove_word_content`, `move_word_content`,
 `format_word_content` — never rebuild a whole document to change one part.
