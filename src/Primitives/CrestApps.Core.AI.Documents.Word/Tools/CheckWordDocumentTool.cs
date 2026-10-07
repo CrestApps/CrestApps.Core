@@ -16,6 +16,8 @@ internal sealed class CheckWordDocumentTool : WordToolBase
 {
     private static readonly string[] _vagueLinkTexts = ["click here", "here", "link", "this link", "read more", "more"];
 
+    private static readonly string[] _checks = ["accessibility", "references", "layout"];
+
     /// <summary>
     /// The tool name.
     /// </summary>
@@ -26,7 +28,7 @@ internal sealed class CheckWordDocumentTool : WordToolBase
           "type": "object",
           "properties": {
             {{WordToolSchemas.Document}},
-            "checks": { "type": "array", "items": { "type": "string", "enum": ["accessibility", "references", "layout"] }, "description": "Default all three." }
+            "checks": { "type": "array", "items": { "type": "string", "enum": ["all", "accessibility", "references", "layout"] }, "description": "Default (or \"all\"): all three." }
           },
           "required": [],
           "additionalProperties": false
@@ -59,11 +61,17 @@ internal sealed class CheckWordDocumentTool : WordToolBase
     /// <param name="cancellationToken">The cancellation token.</param>
     protected override async Task<string> ExecuteAsync(WordToolArguments arguments, WordToolContext context, CancellationToken cancellationToken)
     {
-        var checks = arguments.GetStrings("checks", splitCommas: true).Select(check => check.ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
+        var checks = arguments.GetStrings("checks", splitCommas: true).Select(check => check.Trim().ToLowerInvariant()).Where(check => check.Length > 0).ToHashSet(StringComparer.Ordinal);
+        var unknown = checks.Where(check => check != "all" && !_checks.Contains(check, StringComparer.Ordinal)).ToList();
 
-        if (checks.Count == 0)
+        if (unknown.Count > 0)
         {
-            checks = ["accessibility", "references", "layout"];
+            throw new WordToolException($"Unknown check(s): {string.Join(", ", unknown.Select(check => "\"" + check + "\""))}. 'checks' takes \"all\" or any of {string.Join(", ", _checks.Select(check => "\"" + check + "\""))}.");
+        }
+
+        if (checks.Count == 0 || checks.Contains("all"))
+        {
+            checks = [.. _checks];
         }
 
         var source = await context.FindDocumentAsync(arguments.Document(), cancellationToken);
@@ -194,7 +202,9 @@ internal sealed class CheckWordDocumentTool : WordToolBase
         {
             var where = WordParagraphIds.Of(link.Ancestors<Paragraph>().FirstOrDefault());
 
-            if (link.Anchor?.Value is { } anchor)
+            // A link with both a target and an anchor goes to a place in another file; only an anchor alone names a
+            // bookmark of this document.
+            if (link.Id?.Value is null && link.Anchor?.Value is { } anchor)
             {
                 if (!bookmarks.Contains(anchor))
                 {
@@ -211,14 +221,14 @@ internal sealed class CheckWordDocumentTool : WordToolBase
             }
         }
 
-        var comments = package.MainPart.WordprocessingCommentsPart?.Comments?.ChildElements.Count ?? 0;
+        var comments = ManageWordCommentsTool.CountOpenThreads(package);
 
         if (comments > 0)
         {
-            problems.Add($"Review: the document has {comments} comment(s); see manage_word_comments.");
+            problems.Add($"Review: the document has {comments} open comment thread(s); see manage_word_comments.");
         }
 
-        var revisions = package.Body.Descendants().Count(element => element is InsertedRun or DeletedRun or RunPropertiesChange);
+        var revisions = WordRevisions.Changes(package).Count;
 
         if (revisions > 0)
         {
