@@ -1,8 +1,10 @@
 using System.Runtime.CompilerServices;
 using CrestApps.Core.AI.Claude.Models;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -98,7 +100,15 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         context.CompletionContext.AdditionalProperties[FunctionInvocationAICompletionServiceHandler.ScopedEntriesKey] = scopedEntries;
 
         using var client = _clientService.CreateClient();
-        var chatClient = client.AsIChatClient(modelId, context.CompletionContext.MaxTokens ?? _defaultOptions.MaxOutputTokens);
+        // The Anthropic client is created here rather than by the AI client factory, so it is metered here. It is
+        // wrapped before the tool-calling loop is added, so every round trip is recorded as its own request.
+        var chatClient = AIUsageMetering.Meter(
+            client.AsIChatClient(modelId, context.CompletionContext.MaxTokens ?? _defaultOptions.MaxOutputTokens),
+            OrchestratorName,
+            null,
+            modelId,
+            context.ServiceProvider,
+            AIUsagePurposes.Conversation);
 
         var builder = new ChatClientBuilder(chatClient);
         builder.UseLogging(_loggerFactory);

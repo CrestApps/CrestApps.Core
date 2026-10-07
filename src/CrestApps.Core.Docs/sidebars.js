@@ -40,6 +40,7 @@ const sidebars = {
                 'core/ai-memory',
                 'core/ai-model-capabilities',
                 'core/ai-templates',
+                'core/ai-usage-metering',
                 'core/chat',
                 'core/context-builders',
                 {

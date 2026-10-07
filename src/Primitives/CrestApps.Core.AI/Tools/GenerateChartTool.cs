@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Orchestration;
@@ -153,7 +154,9 @@ public sealed class GenerateChartTool : AIFunction
 
             var chatClient = await aIClientFactory.CreateChatClientAsync(
                 deployment,
-                builder => builder.UseDefaultResilience());
+                builder => builder
+                    .UseDefaultResilience()
+                    .UseUsageLabels(purpose: AIUsagePurposes.ChartGeneration));
 
             if (chatClient == null)
             {

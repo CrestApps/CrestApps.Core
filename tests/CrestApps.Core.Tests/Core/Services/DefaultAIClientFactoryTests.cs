@@ -80,7 +80,11 @@ public sealed class DefaultAIClientFactoryTests
     [Fact]
     public async Task CreateRealtimeClientAsync_ResolvesClientFromProvider()
     {
-        var realtimeClient = new Mock<IRealtimeClient>(MockBehavior.Strict).Object;
+        var session = Mock.Of<IRealtimeClientSession>();
+        var realtimeClient = new Mock<IRealtimeClient>(MockBehavior.Strict);
+        realtimeClient
+            .Setup(client => client.CreateSessionAsync(It.IsAny<RealtimeSessionOptions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
 
         var deployment = new AIDeployment
         {
@@ -89,12 +93,17 @@ public sealed class DefaultAIClientFactoryTests
         };
         var provider = new Mock<IAIClientProvider>(MockBehavior.Strict);
         provider.Setup(p => p.CanHandle("Test")).Returns(true);
-        provider.Setup(p => p.GetRealtimeClientAsync(It.IsAny<AIProviderConnectionEntry>(), "realtime-model")).Returns(new ValueTask<IRealtimeClient>(realtimeClient));
+        provider.Setup(p => p.GetRealtimeClientAsync(It.IsAny<AIProviderConnectionEntry>(), "realtime-model")).Returns(new ValueTask<IRealtimeClient>(realtimeClient.Object));
 
         var factory = CreateFactory(provider.Object);
         var client = await factory.CreateRealtimeClientAsync(deployment);
 
-        Assert.Same(realtimeClient, client);
+        // The provider's client is wrapped so its usage is metered; sessions still come from the provider.
+        Assert.IsType<AIUsageTrackingRealtimeClient>(client);
+
+        await client.CreateSessionAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        realtimeClient.Verify(c => c.CreateSessionAsync(It.IsAny<RealtimeSessionOptions>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

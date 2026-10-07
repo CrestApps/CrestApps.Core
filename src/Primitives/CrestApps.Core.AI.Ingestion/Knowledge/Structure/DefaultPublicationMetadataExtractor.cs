@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Support.Json;
@@ -76,7 +77,7 @@ public sealed class DefaultPublicationMetadataExtractor : IPublicationMetadataEx
                 return null;
             }
 
-            var chatClient = await _clientFactory.CreateChatClientAsync(deployment);
+            var chatClient = await _clientFactory.CreateChatClientAsync(deployment, builder => builder.UseUsageLabels(purpose: AIUsagePurposes.MetadataExtraction));
             var systemPrompt = await _templateService.RenderAsync(AITemplateIds.PublicationMetadata, cancellationToken: cancellationToken);
 
             var messages = new List<ChatMessage>();

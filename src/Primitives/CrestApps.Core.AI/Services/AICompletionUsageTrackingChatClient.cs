@@ -1,47 +1,28 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using CrestApps.Core.AI.Completions;
-using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.Orchestration;
-using CrestApps.Core.Extensions;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
+/// <summary>
+/// Meters every chat request made through a chat client the AI client factory created, whatever the provider.
+/// </summary>
 internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
 {
-    private readonly string _clientName;
-    private readonly string _connectionName;
-    private readonly string _deploymentName;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<AICompletionUsageTrackingChatClient> _logger;
+    private readonly AIUsageRecorder _recorder;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AICompletionUsageTrackingChatClient"/> class.
     /// </summary>
     /// <param name="innerClient">The inner client.</param>
-    /// <param name="clientName">The client name.</param>
-    /// <param name="connectionName">The connection name.</param>
-    /// <param name="deploymentName">The deployment name.</param>
-    /// <param name="serviceProvider">The service provider.</param>
-    /// <param name="logger">The logger.</param>
+    /// <param name="recorder">The recorder that stores the usage.</param>
     public AICompletionUsageTrackingChatClient(
         IChatClient innerClient,
-        string clientName,
-        string connectionName,
-        string deploymentName,
-        IServiceProvider serviceProvider,
-        ILogger<AICompletionUsageTrackingChatClient> logger)
+        AIUsageRecorder recorder)
         : base(innerClient)
     {
-        _clientName = clientName;
-        _connectionName = connectionName;
-        _deploymentName = deploymentName;
-        _serviceProvider = serviceProvider;
-        _logger = logger;
+        _recorder = recorder;
     }
 
     /// <summary>
@@ -56,7 +37,7 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
         CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
-        var response = await base.GetResponseAsync(messages, options, cancellationToken);
+        var response = await base.GetResponseAsync(messages, AIUsageLabels.ForProvider(options), cancellationToken);
         stopwatch.Stop();
 
         await RecordUsageAsync(response, options, stopwatch.Elapsed.TotalMilliseconds, false, cancellationToken);
@@ -78,7 +59,7 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
         var stopwatch = Stopwatch.StartNew();
         var updates = new List<ChatResponseUpdate>();
 
-        await foreach (var update in base.GetStreamingResponseAsync(messages, options, cancellationToken))
+        await foreach (var update in base.GetStreamingResponseAsync(messages, AIUsageLabels.ForProvider(options), cancellationToken))
         {
             updates.Add(update);
             yield return update;
@@ -92,7 +73,7 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
         }
     }
 
-    private async Task RecordUsageAsync(
+    private Task RecordUsageAsync(
         ChatResponse response,
         ChatOptions options,
         double responseLatencyMs,
@@ -101,106 +82,18 @@ internal sealed class AICompletionUsageTrackingChatClient : DelegatingChatClient
     {
         if (response is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        if (!_serviceProvider.GetRequiredService<IOptionsMonitor<GeneralAIOptions>>().CurrentValue.EnableAIUsageTracking)
-        {
-            return;
-        }
-
-        var observers = _serviceProvider.GetServices<IAICompletionUsageObserver>();
-
-        if (!observers.Any())
-        {
-            return;
-        }
-
-        var completionContext = ResolveCompletionContext(options);
-        var clientName = ResolveClientName(options);
-        var additionalProperties = ResolveAdditionalProperties(options, completionContext);
-
-        var record = AICompletionUsageRecordFactory.Create(
-            additionalProperties,
-            clientName,
-            _connectionName,
-            _deploymentName,
+        return _recorder.RecordAsync(
+            AIUsageOperationTypes.Chat,
+            options?.AdditionalProperties,
             response.ModelId,
             response.ResponseId,
-            response.Usage?.InputTokenCount ?? 0,
-            response.Usage?.OutputTokenCount ?? 0,
-            response.Usage?.TotalTokenCount ?? 0,
+            response.Usage,
             responseLatencyMs,
-            isStreaming);
-
-        await observers.InvokeAsync((observer, usageRecord) => observer.UsageRecordedAsync(usageRecord, cancellationToken), record, _logger);
-    }
-
-    private static AICompletionContext ResolveCompletionContext(ChatOptions options)
-    {
-        if (options?.AdditionalProperties?.TryGetValue(AICompletionContextKeys.CompletionContext, out var completionContextValue) == true &&
-            completionContextValue is AICompletionContext completionContext)
-        {
-            return completionContext;
-        }
-
-        return AIInvocationScope.Current?.CompletionContext;
-    }
-
-    private string ResolveClientName(ChatOptions options)
-    {
-        if (options?.AdditionalProperties?.TryGetValue(AICompletionContextKeys.ClientName, out var clientNameValue) == true &&
-            clientNameValue is string clientName &&
-            !string.IsNullOrEmpty(clientName))
-        {
-            return clientName;
-        }
-
-        return _clientName;
-    }
-
-    private static Dictionary<string, object> ResolveAdditionalProperties(
-        ChatOptions options,
-        AICompletionContext completionContext)
-    {
-        var properties = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-
-        if (AIInvocationScope.Current?.CompletionContext?.AdditionalProperties is { Count: > 0 } scopedCompletionProperties)
-        {
-            CopyProperties(properties, scopedCompletionProperties);
-        }
-
-        if (completionContext?.AdditionalProperties is { Count: > 0 } completionProperties)
-        {
-            CopyProperties(properties, completionProperties);
-        }
-
-        if (options?.AdditionalProperties is { Count: > 0 } optionProperties)
-        {
-            CopyProperties(properties, optionProperties);
-        }
-
-        if (AIInvocationScope.Current?.ChatSession is { } session)
-        {
-            properties[AICompletionContextKeys.Session] = session;
-        }
-
-        if (AIInvocationScope.Current?.ChatInteraction is { } interaction)
-        {
-            properties[AICompletionContextKeys.Interaction] = interaction;
-            properties[AICompletionContextKeys.InteractionId] = interaction.ItemId;
-        }
-
-        return properties;
-    }
-
-    private static void CopyProperties(
-        Dictionary<string, object> destination,
-        IReadOnlyDictionary<string, object> source)
-    {
-        foreach (var (key, value) in source)
-        {
-            destination[key] = value;
-        }
+            isStreaming,
+            null,
+            cancellationToken);
     }
 }

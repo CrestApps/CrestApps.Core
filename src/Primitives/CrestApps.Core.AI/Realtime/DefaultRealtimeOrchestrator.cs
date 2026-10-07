@@ -181,6 +181,8 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             })
             .Build(_serviceProvider);
 
+        // The session's usage is labeled when it starts. A caller that named its own purpose keeps it.
+        using var usageScope = AIUsageScope.Begin(purpose: AIUsageScope.Current?.Purpose ?? AIUsagePurposes.VoiceConversation);
         var session = await client.CreateSessionAsync(options, cancellationToken);
 
         if (_logger.IsEnabled(LogLevel.Debug))

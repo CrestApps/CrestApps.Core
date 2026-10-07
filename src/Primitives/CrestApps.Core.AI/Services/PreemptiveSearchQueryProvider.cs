@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Resilience;
@@ -112,7 +113,7 @@ public sealed class PreemptiveSearchQueryProvider
             {
                 Temperature = 0.2f,
                 MaxOutputTokens = 200,
-            }.AddUsageTracking(context.CompletionContext);
+            }.AddUsageTracking(context.CompletionContext, purpose: AIUsagePurposes.SearchQueryGeneration);
 
             var response = await chatClient.GetResponseAsync(messages, chatOptions);
 

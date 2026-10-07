@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Mcp.Models;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -64,6 +65,7 @@ internal sealed class InMemoryMcpCapabilityEmbeddingCacheProvider : IMcpCapabili
 
             try
             {
+                using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Indexing);
                 var embeddings = await embeddingGenerator.GenerateAsync(pendingTexts, cancellationToken: cancellationToken);
 
                 if (embeddings is null || embeddings.Count != pendingTexts.Count)

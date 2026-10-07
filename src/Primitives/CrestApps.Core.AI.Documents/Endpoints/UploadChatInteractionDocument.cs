@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
@@ -129,6 +130,7 @@ public static class UploadChatInteractionDocument
                 logger.LogInformation("Resolved embedding deployment '{DeploymentName}' for interaction '{InteractionId}'.", embeddingDeployment?.Name, interaction.ItemId);
             }
 
+            using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Indexing);
             var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
             var visionDeployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Vision);
             var interactionDocOptions = interactionDocumentOptions.Value;

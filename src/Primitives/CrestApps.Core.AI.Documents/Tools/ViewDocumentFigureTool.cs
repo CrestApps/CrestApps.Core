@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Endpoints;
 using CrestApps.Core.AI.Documents.Models;
@@ -303,7 +304,7 @@ public sealed class ViewDocumentFigureTool : AIFunction
             return "No vision-capable deployment is available to inspect the picture.";
         }
 
-        var chatClient = await clientFactory.CreateChatClientAsync(deployment);
+        var chatClient = await clientFactory.CreateChatClientAsync(deployment, builder => builder.UseUsageLabels(purpose: AIUsagePurposes.ImageAnalysis));
         var prompt = new StringBuilder();
 
         prompt.Append("Regarding this figure from \"").Append(document.FileName).Append('"');

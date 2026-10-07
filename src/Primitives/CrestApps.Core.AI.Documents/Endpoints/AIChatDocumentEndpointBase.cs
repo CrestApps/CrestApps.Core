@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
@@ -444,6 +445,8 @@ public abstract class AIChatDocumentEndpointBase
             if (embeddingGenerator != null && chunks.Count > 0)
             {
                 var textsToEmbed = chunks.Select(c => c.Content).ToList();
+
+                using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Indexing);
                 var embeddings = await embeddingGenerator.GenerateAsync(textsToEmbed);
 
                 for (var i = 0; i < chunks.Count && i < embeddings.Count; i++)

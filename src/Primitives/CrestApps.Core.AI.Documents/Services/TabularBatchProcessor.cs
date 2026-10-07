@@ -328,6 +328,8 @@ public sealed class TabularBatchProcessor : ITabularBatchProcessor
             var deployment = await _deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Chat, deploymentName: sourceContext.ChatDeploymentName, cancellationToken: cancellationToken)
                 ?? throw new InvalidOperationException("Unable to resolve a chat deployment for batch processing.");
 
+            completionContext.AdditionalProperties[AICompletionContextKeys.UsagePurpose] = AIUsagePurposes.TabularProcessing;
+
             var response = await _completionService.CompleteAsync(
                 deployment,
                 [new ChatMessage(ChatRole.User, batchPrompt)],

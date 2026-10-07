@@ -229,7 +229,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
                 {
                     Temperature = 0.1f,
                     MaxOutputTokens = 300,
-                }.AddUsageTracking(context.CompletionContext);
+                }.AddUsageTracking(context.CompletionContext, purpose: AIUsagePurposes.Planning);
 
                 var response = await chatClient.GetResponseAsync(messages, chatOptions, cancellationToken);
                 plan = response?.Text;
@@ -248,6 +248,8 @@ public sealed class DefaultOrchestrator : IOrchestrator
                     MaxTokens = 300,
                     UseCaching = false,
                 };
+
+                planningContext.AdditionalProperties[AICompletionContextKeys.UsagePurpose] = AIUsagePurposes.Planning;
 
                 var response = await _completionService.CompleteAsync(
                     planningDeployment,

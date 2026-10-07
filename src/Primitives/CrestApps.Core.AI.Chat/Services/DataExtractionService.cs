@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Resilience;
@@ -192,7 +193,7 @@ public sealed class DataExtractionService
             {
                 Temperature = null,
                 MaxOutputTokens = 1024,
-            }.AddUsageTracking(session: session), null, cancellationToken);
+            }.AddUsageTracking(session: session, purpose: AIUsagePurposes.DataExtraction), null, cancellationToken);
 
             var responseText = GetLastAssistantMessageText(response.Messages);
 
