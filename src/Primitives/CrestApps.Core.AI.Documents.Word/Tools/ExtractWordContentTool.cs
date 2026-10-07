@@ -70,7 +70,7 @@ internal sealed class ExtractWordContentTool : WordToolBase
         var save = arguments.GetBoolean("save_as_file") == true;
         var (content, extension) = what switch
         {
-            "text" => (string.Join("\n\n", blocks.Select(block => block.Kind == WordBlockKind.Table ? TableText(block, "\t") : block.Text).Where(text => !string.IsNullOrWhiteSpace(text))), ".txt"),
+            "text" => (string.Join("\n\n", blocks.Select(block => block.Kind == WordBlockKind.Table ? string.Join("\n\n", TablesOf(block).Select(table => TableText(table.Rows, "\t"))) : block.Text).Where(text => !string.IsNullOrWhiteSpace(text))), ".txt"),
             "tables" => Tables(blocks, save ? "csv" : "markdown"),
             "links" => (Links(package, blocks), ".txt"),
             "images" => (Images(blocks), ".txt"),
@@ -96,7 +96,9 @@ internal sealed class ExtractWordContentTool : WordToolBase
                 ".txt" => "text/plain",
                 _ => "application/octet-stream",
             };
-            var marker = await context.ExportAsync(fileName, Encoding.UTF8.GetBytes(content), contentType, cancellationToken);
+            // A spreadsheet reads a CSV file as UTF-8 only when it starts with the byte order mark.
+            var bytes = extension == ".csv" ? [.. Encoding.UTF8.Preamble, .. Encoding.UTF8.GetBytes(content)] : Encoding.UTF8.GetBytes(content);
+            var marker = await context.ExportAsync(fileName, bytes, contentType, cancellationToken);
 
             answer.Append("Saved \"").Append(fileName).Append("\". WRITE THIS MARKER IN YOUR ANSWER EXACTLY AS SHOWN, ON A LINE OF ITS OWN: ").AppendLine(marker).AppendLine();
         }
@@ -178,7 +180,15 @@ internal sealed class ExtractWordContentTool : WordToolBase
                     break;
 
                 case WordBlockKind.Table:
-                    answer.Append(TableMarkdown(block));
+                    foreach (var table in TablesOf(block))
+                    {
+                        if (table.Parent is not null)
+                        {
+                            answer.AppendLine().Append("_Table [").Append(table.Id).Append("], ").Append(table.Parent).AppendLine(":_").AppendLine();
+                        }
+
+                        answer.Append(TableMarkdown(table.Rows));
+                    }
 
                     break;
 
@@ -216,33 +226,37 @@ internal sealed class ExtractWordContentTool : WordToolBase
 
     private static (string Content, string Extension) Tables(List<WordBlock> blocks, string format)
     {
-        var tables = blocks.Where(block => block.Kind == WordBlockKind.Table).ToList();
+        var tables = blocks.Where(block => block.Kind == WordBlockKind.Table).SelectMany(TablesOf).ToList();
         var answer = new StringBuilder();
 
         for (var index = 0; index < tables.Count; index++)
         {
+            var table = tables[index];
+
             if (format == "csv")
             {
+                // A blank line separates one table from the next.
                 if (index > 0)
                 {
-                    answer.AppendLine();
+                    answer.AppendLine().AppendLine();
                 }
 
-                answer.Append(TableText(tables[index], ",", csv: true));
+                answer.Append(TableText(table.Rows, ",", csv: true));
             }
             else
             {
-                answer.Append(CultureInfo.InvariantCulture, $"Table {index + 1} [{tables[index].Id}], {tables[index].Rows} × {tables[index].Columns}:").AppendLine();
-                answer.Append(TableMarkdown(tables[index])).AppendLine();
+                var columns = table.Rows.Count == 0 ? 0 : table.Rows[0].Count;
+
+                answer.Append(CultureInfo.InvariantCulture, $"Table {index + 1} [{table.Id}]{(table.Parent is null ? string.Empty : ", " + table.Parent)}, {table.Rows.Count} × {columns}:").AppendLine();
+                answer.Append(TableMarkdown(table.Rows)).AppendLine();
             }
         }
 
         return (answer.ToString().Trim(), format == "csv" ? ".csv" : ".md");
     }
 
-    private static string TableMarkdown(WordBlock block)
+    private static string TableMarkdown(List<List<string>> rows)
     {
-        var rows = Rows(block);
         var answer = new StringBuilder();
 
         for (var index = 0; index < rows.Count; index++)
@@ -251,18 +265,18 @@ internal sealed class ExtractWordContentTool : WordToolBase
 
             if (index == 0)
             {
-                answer.Append('|').Append(string.Concat(Enumerable.Repeat(" --- |", rows[0].Count))).AppendLine();
+                answer.Append('|').Append(string.Concat(Enumerable.Repeat(" --- |", rows.Max(row => row.Count)))).AppendLine();
             }
         }
 
         return answer.ToString();
     }
 
-    private static string TableText(WordBlock block, string separator, bool csv = false)
+    private static string TableText(List<List<string>> rows, string separator, bool csv = false)
     {
         var answer = new StringBuilder();
 
-        foreach (var row in Rows(block))
+        foreach (var row in rows)
         {
             answer.AppendJoin(separator, row.Select(cell => csv ? Csv(cell) : cell.ReplaceLineEndings(" "))).AppendLine();
         }
@@ -270,18 +284,107 @@ internal sealed class ExtractWordContentTool : WordToolBase
         return answer.ToString().TrimEnd();
     }
 
-    private static List<List<string>> Rows(WordBlock block)
+    // A table block's table and, after it, each table nested in its cells, which reads as a table of its own.
+    private static List<ExtractedTable> TablesOf(WordBlock block)
     {
-        return [.. block.Element.Elements<TableRow>().Select(row => row.Elements<TableCell>().Select(WordText.OfCell).ToList())];
+        var root = block.Element as Table ?? block.Element.Descendants<Table>().FirstOrDefault();
+
+        if (root is null)
+        {
+            return [];
+        }
+
+        var tables = new List<ExtractedTable> { new(block.Id, null, Rows(root)) };
+
+        foreach (var nested in root.Descendants<Table>())
+        {
+            var cell = nested.Ancestors<TableCell>().First();
+            var row = cell.Ancestors<TableRow>().First();
+            var parent = row.Ancestors<Table>().First();
+            var rowNumber = OwnRows(parent).IndexOf(row) + 1;
+            var columnNumber = OwnCells(row).IndexOf(cell) + 1;
+
+            tables.Add(new ExtractedTable(
+                WordParagraphIds.Of(nested),
+                string.Create(CultureInfo.InvariantCulture, $"nested in table [{WordParagraphIds.Of(parent)}], row {rowNumber}, column {columnNumber}"),
+                Rows(nested)));
+        }
+
+        return tables;
+    }
+
+    // The rows as a grid: a cell spanning columns is followed by empty cells, a cell continuing a merge is empty,
+    // and every row has as many cells as the widest, so the rows line up with the columns.
+    private static List<List<string>> Rows(Table table)
+    {
+        var rows = new List<List<string>>();
+
+        foreach (var row in OwnRows(table))
+        {
+            var cells = new List<string>();
+            var properties = row.TableRowProperties;
+
+            Pad(cells, properties?.GetFirstChild<GridBefore>()?.Val?.Value ?? 0);
+
+            foreach (var cell in OwnCells(row))
+            {
+                var verticalMerge = cell.TableCellProperties?.VerticalMerge;
+                var horizontalMerge = cell.TableCellProperties?.HorizontalMerge;
+                var continues = (verticalMerge is not null && (verticalMerge.Val is null || verticalMerge.Val.Value == MergedCellValues.Continue)) ||
+                    (horizontalMerge is not null && (horizontalMerge.Val is null || horizontalMerge.Val.Value == MergedCellValues.Continue));
+
+                cells.Add(continues ? string.Empty : CellText(cell));
+                Pad(cells, (cell.TableCellProperties?.GridSpan?.Val?.Value ?? 1) - 1);
+            }
+
+            Pad(cells, properties?.GetFirstChild<GridAfter>()?.Val?.Value ?? 0);
+            rows.Add(cells);
+        }
+
+        var width = rows.Count == 0 ? 0 : rows.Max(row => row.Count);
+
+        foreach (var row in rows)
+        {
+            Pad(row, width - row.Count);
+        }
+
+        return rows;
+    }
+
+    private static void Pad(List<string> cells, int count)
+    {
+        for (var index = 0; index < count; index++)
+        {
+            cells.Add(string.Empty);
+        }
+    }
+
+    // A table's own rows and a row's own cells, also those inside content controls, but not a nested table's.
+    private static List<TableRow> OwnRows(Table table)
+    {
+        return [.. table.Descendants<TableRow>().Where(row => row.Ancestors<Table>().FirstOrDefault() == table)];
+    }
+
+    private static List<TableCell> OwnCells(TableRow row)
+    {
+        return [.. row.Descendants<TableCell>().Where(cell => cell.Ancestors<TableRow>().FirstOrDefault() == row)];
+    }
+
+    // A cell's text, also in content controls; a nested table's text is extracted with the nested table.
+    private static string CellText(TableCell cell)
+    {
+        return string.Join("\n", cell.Descendants<Paragraph>().Where(paragraph => paragraph.Ancestors<TableCell>().FirstOrDefault() == cell).Select(paragraph => WordText.Of(paragraph))).Trim();
     }
 
     private static string Csv(string value)
     {
-        // A cell starting with a formula character is quoted with a leading apostrophe so a spreadsheet does not
-        // run it.
-        var safe = value.Length > 0 && value[0] is '=' or '+' or '-' or '@' ? "'" + value : value;
+        // A cell a spreadsheet would read as a formula is prefixed with an apostrophe so it is shown, not run; a
+        // plain number such as -5 or +3.2 is left as it is.
+        var formula = value.Length > 0 && value[0] is '=' or '+' or '-' or '@' or '\t' or '\r' &&
+            !double.TryParse(value, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out _);
+        var safe = formula ? "'" + value : value;
 
-        return safe.IndexOfAny([',', '"', '\n', '\r']) >= 0 || safe != value ? "\"" + safe.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"" : safe;
+        return formula || safe.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? "\"" + safe.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"" : safe;
     }
 
     private static string Links(WordPackage package, List<WordBlock> blocks)
@@ -293,7 +396,11 @@ internal sealed class ExtractWordContentTool : WordToolBase
         {
             foreach (var link in block.Element.Descendants<Hyperlink>())
             {
-                var target = link.Id?.Value is { } id && relationships.TryGetValue(id, out var uri) ? uri : link.Anchor?.Value is { } anchor ? "#" + anchor : "(no target)";
+                // An anchor with an external target is a place in that file.
+                var anchor = link.Anchor?.Value;
+                var target = link.Id?.Value is { } id && relationships.TryGetValue(id, out var uri)
+                    ? (anchor is null || uri.Contains('#', StringComparison.Ordinal) ? uri : uri + "#" + anchor)
+                    : anchor is not null ? "#" + anchor : "(no target)";
 
                 answer.Append("- \"").Append(WordText.Of(link)).Append("\" → ").Append(target).Append(" in [").Append(block.Id).AppendLine("]");
             }
@@ -317,4 +424,12 @@ internal sealed class ExtractWordContentTool : WordToolBase
 
         return answer.ToString().TrimEnd();
     }
+
+    /// <summary>
+    /// A table read as a grid of cell texts.
+    /// </summary>
+    /// <param name="Id">The table's id.</param>
+    /// <param name="Parent">Where a nested table is, or <see langword="null"/> for a table of the body.</param>
+    /// <param name="Rows">The rows, each as wide as the widest.</param>
+    private sealed record ExtractedTable(string Id, string Parent, List<List<string>> Rows);
 }
