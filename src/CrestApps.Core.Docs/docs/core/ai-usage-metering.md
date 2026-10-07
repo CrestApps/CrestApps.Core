@@ -83,6 +83,7 @@ Two labels say what a request was for, so usage can be reported per model and pe
 | `DataExtraction` | Extracting structured data from a conversation |
 | `PostSessionProcessing` | Tasks that run after a conversation closes |
 | `ImageAnalysis` | Describing an image or a document figure |
+| `DocumentAnalysis` | A document tool reading a document: the PDF agent's summaries, answers, extraction and classification |
 | `ImageGeneration`, `ChartGeneration` | Generating an image or a chart |
 | `MetadataExtraction` | Extracting metadata from an ingested publication |
 | `Transcription`, `SpeechSynthesis` | Speech-to-text and text-to-speech in chat |

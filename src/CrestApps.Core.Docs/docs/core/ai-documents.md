@@ -40,6 +40,7 @@ With AI Documents enabled, your users can:
 - Ask questions about uploaded content and get cited answers
 - Search document content semantically instead of by exact keyword only
 - Work with spreadsheets and CSV files through a tabular workflow
+- Create, convert, edit, preview and analyse PDF files through the PDF Agent
 - Download generated files such as exports and AI-authored documents
 - Create, edit, design, preview and export PowerPoint decks through the Presentation Agent
 - Create, edit, format, review, preview and export Word documents through the Word Agent
@@ -113,6 +114,120 @@ Requires `AddOpenXml()`; other formats (such as CSV) ignore the formatting and e
 #### Charts in the conversation
 
 A chart embedded in the workbook is for the downloaded file. To render a chart in the chat itself, the agent calls the `generate_chart` system tool with the actual values (`labels` and `series`), which builds the chart configuration directly from those numbers.
+
+### PDF files and the PDF Agent
+
+`AddPdf()` registers the PDF reader, the PDF writer behind generated files, and the built-in **PDF Agent**
+(`pdf-agent`). Like the Tabular Data Agent it is a code-defined **system agent**: always available to the
+primary model, exposed through the A2A host, and hidden from the agent pickers. The primary model delegates
+every request that produces or works on a PDF to it, and every follow-up as well ("now add page numbers",
+"make the title blue").
+
+#### The workspace
+
+Each chat session or chat interaction has a PDF workspace that persists between turns:
+
+- **Uploaded PDFs are never changed.** The first edit of `contract.pdf` saves a working copy named
+  `contract`; later edits change that copy.
+- **Composed PDFs** are kept as a definition — page setup, theme, running heads, cover page, table of
+  contents and numbered content blocks — and rendered on demand, so a follow-up changes one block or one
+  setting instead of rebuilding the document.
+- The workspace is stored through `IDocumentFileStore` under `documents/pdf-workspaces/`, and is removed
+  when the conversation is deleted or its history is cleared.
+
+#### What the agent can do
+
+| Area | Tools |
+| --- | --- |
+| Authoring | `create_pdf`, `add_pdf_content` (headings, paragraphs with inline Markdown, lists, tables with number formats, totals and highlighted cells, images, charts, callouts, key-value facts, quotes, code, page breaks, signature lines), `format_pdf` (page size and margins, theme colours and fonts, logo, header and footer, page numbers, cover page, table of contents, watermark, metadata, PDF/A-2B), `preview_pdf`, `export_pdf` |
+| Conversion | `convert_to_pdf` (Word, PowerPoint, spreadsheets and CSV, Markdown, HTML, text and images — several files into one PDF), `convert_from_pdf` (Word, Excel, CSV, Markdown, HTML, text, JSON, SVG pages) |
+| Pages | `edit_pdf_pages`: merge, extract, split, reorder, reverse, rotate, delete, duplicate, insert blank pages, crop, resize, watermark, stamp, page numbers, header and footer |
+| Content and review | `edit_pdf_content` (replace text in place, add text and images, remove or cover areas), `manage_pdf_annotations` (notes, highlights, underlines, strikeouts, shapes, arrows, text boxes, stamps), `add_pdf_bookmarks`, `add_pdf_links`, `edit_pdf_metadata`, `manage_pdf_attachments`, `manage_pdf_layers`, `flatten_pdf` |
+| Forms | `get_pdf_form_fields`, `fill_pdf_form`, `edit_pdf_form`, `validate_pdf_form` |
+| Security | `redact_pdf` (true redaction, verified by reading the result back), `find_pdf_sensitive_data`, `sanitize_pdf`, `protect_pdf`, `remove_pdf_security`, `sign_pdf`, `verify_pdf_signature` |
+| Reading | `get_pdf_info`, `extract_pdf_text`, `extract_pdf_tables`, `extract_pdf_images`, `extract_pdf_structure`, `extract_pdf_links`, `search_pdf`, `get_pdf_page_content`, `analyze_pdf_layout`, `detect_pdf_language`, `generate_pdf_outline`, `compare_pdfs` |
+| Understanding | `ocr_pdf`, `analyze_pdf_images`, `summarize_pdf`, `ask_pdf` (page-cited passages and answers), `extract_pdf_entities`, `extract_pdf_data`, `classify_pdf`, `cross_reference_pdfs` |
+| Quality | `validate_pdf`, `check_pdf_quality`, `check_pdf_accessibility`, `tag_pdf_accessibility`, `validate_pdf_compliance` (PDF/A-1, -2, -3 and PDF/UA-1), `optimize_pdf` |
+
+The understanding tools use the utility deployment for text and the vision deployment for scanned pages and
+pictures; on a host without one they say so instead of guessing.
+
+A converted file carries its content in the PDF's theme — headings, formatted text, links, lists, tables,
+pictures, a page per slide — not a copy of its page design. A spreadsheet converted in a conversation that
+has a tabular workspace keeps the number formats and colours the tabular preview shows.
+
+#### Previews
+
+`preview_pdf` shows pages in the chat as pictures. Like the tabular preview they are SVG — drawn from the
+page's own text, paths and images, so no rasterizer or fonts are needed on the host — stored through
+`IGeneratedDocumentService`, and returned as `[fig:N]` markers. A preview is bounded, says which pages it left
+out, and falls back to the pages' text on a host that cannot serve pictures. The preview format is
+resolvable but not requestable, so `generate_file` cannot produce one.
+
+#### Generated PDFs
+
+The same composer writes the PDFs `generate_file` and `export_tabular_data` produce. A tabular export keeps
+what the tabular preview shows: number formats, the header colour, the total row, highlighted cells and
+charts, with each sheet on its own page and wide sheets in landscape.
+
+#### Options
+
+```csharp
+builder.Services.Configure<PdfAgentOptions>(options =>
+{
+    options.Enabled = true;
+    options.MaxDocumentBytes = 50L * 1024 * 1024;
+    options.MaxWorkingDocuments = 40;
+});
+
+builder.Services.Configure<PdfCompositionOptions>(options =>
+{
+    options.DefaultPageSize = "Letter";
+    options.DefaultMarginMm = 20;
+    options.DefaultFontFamily = "Arial";
+});
+
+builder.Services.Configure<PdfPreviewOptions>(options =>
+{
+    options.MaxPages = 4;
+    options.PageWidthPixels = 816;
+});
+```
+
+#### Signing
+
+`sign_pdf` signs with an identity the host configures, never with one supplied in the conversation.
+Register it with `AddPdfSigning()`, which loads a PKCS#12 file; register your own
+`IPdfSigningCertificateProvider` first to take the certificate from a key vault or a certificate store
+instead:
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddDocumentProcessing(documentProcessing => documentProcessing
+            .AddPdf()
+            .AddPdfSigning(options =>
+            {
+                options.CertificatePath = builder.Configuration["Pdf:CertificatePath"];
+                options.CertificatePassword = builder.Configuration["Pdf:CertificatePassword"];
+                options.TimestampAuthorityUrl = "https://timestamp.example.com";
+            })
+        )
+    )
+);
+```
+
+Without it, `sign_pdf` explains that signing is not configured; `verify_pdf_signature` works either way.
+
+#### Good to know
+
+- Every edit of a password-protected file saves an unprotected copy, and any edit makes existing digital
+  signatures stop verifying. The agent says so, and protects or signs as the last step.
+- Pages are numbered as they stand in the file, the way viewers and every PDF tool count them: a cover
+  page shows no number but is counted, so the page after it reads "Page 2 of 3".
+- Positions on a page are points from its top-left, as `search_pdf` reports them; on a page with a
+  `/Rotate` entry they are in the page's unrotated frame.
+- For the Orchard Core integration, see [CrestApps for Orchard Core](https://orchardcore.crestapps.com).
 
 ### Images
 
@@ -358,7 +473,7 @@ Generated downloads are kept separate from user-uploaded source documents, which
 Out of the box, the document features support common text, document, image, and tabular formats. Add the packages you need:
 
 - `AddOpenXml()` for Office formats such as Word, PowerPoint (`.pptx` and `.potx` templates), and Excel, and for the Presentation Agent
-- `AddPdf()` for PDF reading
+- `AddPdf()` for PDF reading, the PDF writer and the PDF Agent (`AddPdfSigning()` adds signing)
 - `AddWord()` for the Word Agent
 - `AddMarkdown()` for Markdown-aware normalization and chunking
 
