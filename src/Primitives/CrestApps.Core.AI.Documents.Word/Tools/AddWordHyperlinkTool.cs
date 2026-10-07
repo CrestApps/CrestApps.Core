@@ -92,6 +92,17 @@ internal sealed class AddWordHyperlinkTool : WordToolBase
 
             var style = WordStyleSheet.Ensure(package.MainPart, WordStyleSheet.Hyperlink, edit.Design);
             var text = arguments.GetRawString("text");
+            var reused = false;
+
+            // Words to append that the paragraph already has — "visit the CrestApps website." then append "CrestApps
+            // website" — are linked where they are rather than written twice.
+            if (string.IsNullOrEmpty(text) &&
+                arguments.GetRawString("append_text")?.Trim() is { Length: > 0 } words &&
+                WordText.Of(paragraph).Contains(words, StringComparison.OrdinalIgnoreCase))
+            {
+                text = words;
+                reused = true;
+            }
 
             if (!string.IsNullOrEmpty(text))
             {
@@ -123,7 +134,9 @@ internal sealed class AddWordHyperlinkTool : WordToolBase
                 paragraph.Append(link);
             }
 
-            return Task.FromResult($"\"{WordText.Of(link)}\" now links to {(url ?? "bookmark " + target[1..])}");
+            var linked = $"\"{WordText.Of(link)}\" now links to {(url ?? "bookmark " + target[1..])}";
+
+            return Task.FromResult(reused ? linked + "; the words were already in the paragraph, so they were linked there instead of added again" : linked);
         }, arguments.SaveAs(), cancellationToken);
 
         return $"\"{document.Name}\" (version {document.Version}): {description}.";

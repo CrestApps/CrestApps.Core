@@ -93,8 +93,21 @@ internal sealed class AddWordCrossReferenceTool : WordToolBase
 
             var runs = new List<Run>();
 
+            var removedPrefix = false;
+            var wrotePrefix = false;
+
             if (arguments.GetRawString("prefix") is { Length: > 0 } prefix)
             {
+                // A sentence written to end where the reference goes — "As detailed in" — with the same words
+                // passed as the prefix would say them twice.
+                if (string.IsNullOrEmpty(arguments.GetRawString("after_text")) &&
+                    prefix.Trim() is { Length: > 0 } words &&
+                    WordText.Of(paragraph).TrimEnd().EndsWith(words, StringComparison.OrdinalIgnoreCase))
+                {
+                    prefix = string.Empty;
+                    removedPrefix = true;
+                }
+
                 if (repeatedLabel is not null && TrimTrailingWord(prefix, repeatedLabel) is { } trimmedPrefix)
                 {
                     prefix = trimmedPrefix;
@@ -104,6 +117,7 @@ internal sealed class AddWordCrossReferenceTool : WordToolBase
                 if (prefix.Length > 0)
                 {
                     runs.Add(WordInlineWriter.CreateRun(prefix));
+                    wrotePrefix = prefix.Trim().Length > 0;
                 }
             }
 
@@ -118,7 +132,7 @@ internal sealed class AddWordCrossReferenceTool : WordToolBase
                 ? WordTextEditor.Isolate(paragraph, afterText, matchCase: false).LastOrDefault() ?? throw new WordToolException($"\"{afterText}\" was not found in [{id}].")
                 : null;
 
-            if (repeatedLabel is not null && !removedLabel && string.IsNullOrWhiteSpace(arguments.GetRawString("prefix")))
+            if (repeatedLabel is not null && !removedLabel && !wrotePrefix)
             {
                 // The text the reference follows: the end of the paragraph, or the text it is placed after.
                 var before = (anchor ?? paragraph).Descendants<Text>().LastOrDefault();
@@ -160,6 +174,11 @@ internal sealed class AddWordCrossReferenceTool : WordToolBase
             var note = removedLabel
                 ? $" The word \"{repeatedLabel}\" written just before the reference was left out, because the reference itself shows the label and number."
                 : string.Empty;
+
+            if (removedPrefix)
+            {
+                note += " The paragraph already ended with the prefix, so it was not written again.";
+            }
 
             return Task.FromResult((WordText.Of(paragraph), note));
         }, arguments.SaveAs(), cancellationToken);

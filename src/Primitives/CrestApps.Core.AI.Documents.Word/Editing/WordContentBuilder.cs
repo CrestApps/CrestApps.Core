@@ -33,6 +33,8 @@ internal sealed class WordContentBuilder
     private readonly WordEditContext _edit;
     private readonly WordToolContext _tools;
     private readonly WordBlockWriter _writer;
+
+    private OpenXmlElement _contentsBreak;
     private WordDrawingIds _drawingIds;
     private WordBookmarks _bookmarks;
 
@@ -82,6 +84,15 @@ internal sealed class WordContentBuilder
             foreach (var block in blocks.EnumerateArray())
             {
                 index++;
+
+                // A table of contents ends its page on its own, so a page break written right after it is not a
+                // second, blank page.
+                if (elements.Count > 0 && ReferenceEquals(elements[^1], _contentsBreak) &&
+                    block.ValueKind == JsonValueKind.Object &&
+                    NormalizeType(WordJsonValues.GetString(block, "type"), block) == "page_break")
+                {
+                    continue;
+                }
 
                 try
                 {
@@ -203,6 +214,13 @@ internal sealed class WordContentBuilder
 
             case "toc":
                 elements.Add(TableOfContents(block, text));
+
+                // As with add_word_toc, the contents are a page of their own unless asked otherwise.
+                if (WordJsonValues.GetBoolean(block, "page_break_after") ?? true)
+                {
+                    _contentsBreak = WordBlockWriter.PageBreak();
+                    elements.Add(_contentsBreak);
+                }
 
                 break;
 

@@ -294,6 +294,49 @@ public sealed class StructureToolsTests
     }
 
     [Fact]
+    public async Task AddWordHyperlinkAndCrossReference_WordsAlreadyWritten_AreNotWrittenTwice()
+    {
+        using var host = new WordToolTestHost();
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "doc",
+            content = new object[]
+            {
+                new { type = "toc" },
+                new { type = "page_break" },
+                new { type = "heading", text = "Budget", level = 1 },
+                new { type = "table", caption = "Budget by phase", columns = new[] { "Item" }, rows = new object[] { new object[] { "Design" } } },
+                new { type = "paragraph", text = "As detailed in " },
+                new { type = "paragraph", text = "For more details, visit the CrestApps website." },
+            },
+        });
+
+        var blocks = await ReadAsync(host);
+        var caption = blocks.Single(block => block.Kind == WordBlockKind.Caption);
+        var detailed = blocks.Single(block => block.Text.StartsWith("As detailed", StringComparison.Ordinal));
+        var visit = blocks.Single(block => block.Text.StartsWith("For more", StringComparison.Ordinal));
+
+        var reference = await host.InvokeAsync(new AddWordCrossReferenceTool(), new { document = "doc", id = detailed.Id, target = caption.Id, prefix = "As detailed in " });
+        var link = await host.InvokeAsync(new AddWordHyperlinkTool(), new { document = "doc", id = visit.Id, append_text = "CrestApps website", url = "https://crestapps.com" });
+
+        Assert.Contains("\"As detailed in Table 1\"", reference, StringComparison.Ordinal);
+        Assert.Contains("already in the paragraph", link, StringComparison.Ordinal);
+
+        var bytes = await host.ReadWorkingDocumentAsync("doc");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var document = WordprocessingDocument.Open(new MemoryStream(bytes), isEditable: false);
+        var body = document.MainDocumentPart.Document.Body;
+
+        Assert.Equal("For more details, visit the CrestApps website.", WordText.Of(body.Elements<Paragraph>().Last()));
+        Assert.Equal("CrestApps website", body.Descendants<Hyperlink>().Single(item => item.Id is not null).InnerText);
+
+        // The page break written after the contents is the one the contents already end with.
+        Assert.Single(body.Descendants<Break>(), item => item.Type?.Value == BreakValues.Page);
+    }
+
+    [Fact]
     public async Task AddWordContent_ListItemsWithTheirOwnMarkers_NestsThemAndDropsTheMarkers()
     {
         using var host = new WordToolTestHost();
