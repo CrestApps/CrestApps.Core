@@ -145,7 +145,7 @@ internal sealed class RemoveWordContentTool : WordToolBase
 
         return await context.MutateAsync(async state =>
         {
-            var source = context.FindDocument(state, name);
+            var source = context.FindDocument(state, name, exact: true);
 
             if (source.IsUpload)
             {

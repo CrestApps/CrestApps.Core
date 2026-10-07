@@ -378,8 +378,10 @@ internal sealed class WordToolContext
     /// </summary>
     /// <param name="state">The workspace.</param>
     /// <param name="handle">The name.</param>
+    /// <param name="exact">Whether the name must match, rather than falling back to the conversation's only
+    /// document, as deleting a document requires.</param>
     /// <returns>The source.</returns>
-    public WordSource FindDocument(WordWorkspaceState state, string handle)
+    public WordSource FindDocument(WordWorkspaceState state, string handle, bool exact = false)
     {
         ArgumentNullException.ThrowIfNull(state);
 
@@ -435,6 +437,15 @@ internal sealed class WordToolContext
         if (working is not null)
         {
             return WordSource.ForWorking(working);
+        }
+
+        // With one document in the conversation, a name that matches nothing — "report" for "Project Falcon Annual
+        // Report" — can only mean that one; a retry would cost the agent a tool round for nothing.
+        if (!exact && state.Documents.Count == 1 && !WordUploads.Any())
+        {
+            Notes.Add($"There is no document named \"{name}\"; the conversation's only document, \"{state.Documents[0].Name}\", was used.");
+
+            return WordSource.ForWorking(state.Documents[0]);
         }
 
         throw new WordToolException($"There is no Word document named \"{name}\". " + DescribeAvailable(state));

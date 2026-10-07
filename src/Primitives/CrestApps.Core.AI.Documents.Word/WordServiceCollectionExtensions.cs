@@ -38,6 +38,7 @@ public static class WordServiceCollectionExtensions
         services.AddTemplatesFromAssembly(typeof(WordServiceCollectionExtensions).Assembly);
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIProfileProvider, WordAgentProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, WordDocumentOrchestrationHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, WordAgentToolScopeHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IConversationWorkspaceCleanupHandler, WordWorkspaceCleanupHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionHistoryHandler, WordWorkspaceHistoryClearedHandler>());
 

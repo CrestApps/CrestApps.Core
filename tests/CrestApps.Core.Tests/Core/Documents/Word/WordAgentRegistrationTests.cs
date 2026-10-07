@@ -23,6 +23,35 @@ public sealed class WordAgentRegistrationTests
         .ToArray();
 
     [Fact]
+    public async Task ToolScopeHandler_WordAgent_KeepsEveryToolInScope()
+    {
+        var handler = new WordAgentToolScopeHandler();
+        var agentContext = new OrchestrationContext { CompletionContext = new AICompletionContext() };
+        var otherContext = new OrchestrationContext { CompletionContext = new AICompletionContext() };
+
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile { Name = WordAgentProvider.AgentName }, agentContext), TestContext.Current.CancellationToken);
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile { Name = "another-agent" }, otherContext), TestContext.Current.CancellationToken);
+
+        Assert.Equal(WordAgentProvider.ToolNames.Order(), agentContext.MustIncludeTools.Order());
+        Assert.Contains(WordToolNames.FormatWordDocument, agentContext.MustIncludeTools);
+        Assert.Empty(otherContext.MustIncludeTools);
+    }
+
+    [Fact]
+    public async Task FormatWordDocument_NameMatchingNothingWithOneDocument_UsesThatDocument()
+    {
+        using var host = new WordToolTestHost();
+        await host.InvokeAsync(new CreateWordDocumentTool(), new { name = "Project Falcon Annual Report", content = new object[] { new { type = "heading", text = "Summary", level = 1 } } });
+
+        var formatted = await host.InvokeAsync(new FormatWordDocumentTool(), new { document = "report", theme = new { preset = "modern" } });
+        var removed = await host.InvokeAsync(new RemoveWordContentTool(), new { document = "report", scope = "document" });
+
+        Assert.Contains("the conversation's only document, \"Project Falcon Annual Report\", was used", formatted, StringComparison.Ordinal);
+        Assert.Contains("There is no Word document named \"report\"", removed, StringComparison.Ordinal);
+        Assert.Single((await host.LoadWorkspaceAsync()).Documents);
+    }
+
+    [Fact]
     public void AddWordTools_RegistersEveryWordToolName_AsAHiddenWordTool()
     {
         var services = new ServiceCollection();
