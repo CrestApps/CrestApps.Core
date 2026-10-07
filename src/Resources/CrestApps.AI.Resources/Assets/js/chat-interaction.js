@@ -629,7 +629,10 @@ window.chatInteractionManager = function () {
         _pendingCharts = [];
         const html = styleMarkdownTables(marked.parse(content, { renderer }));
         message._pendingCharts = _pendingCharts.length > 0 ? [..._pendingCharts] : [];
-        return DOMPurify.sanitize(html, { ADD_TAGS: ['canvas'], ADD_ATTR: ['target'] });
+        const sanitizedHtml = DOMPurify.sanitize(html, { ADD_TAGS: ['canvas'], ADD_ATTR: ['target'] });
+
+        // Optional, shared with every chat surface: a run of pictures becomes one stacked carousel.
+        return window.CoreAIChatImageCarousel ? window.CoreAIChatImageCarousel.stackAdjacentImages(sanitizedHtml) : sanitizedHtml;
     }
 
     function compactObject(source) {

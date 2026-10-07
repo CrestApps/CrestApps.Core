@@ -771,6 +771,17 @@ This is the mechanism `[doc:n]` citations already use — a reference registered
 
 **A marker that resolves to nothing stays as text.** A `[fig:N]` with no matching reference, or one whose reference is not a servable image, is left exactly as the model wrote it and is never rendered as an image that cannot load. A figure the host has no servable address for is never registered as an image in the first place, so the answer describes it rather than pointing at a picture that was never there.
 
+### Stacked Image Carousel
+
+When a response shows two or more pictures one after another — slide previews, spreadsheet previews, before/after comparisons, or any run of images separated only by whitespace — the chat UI stacks them into a single carousel instead of rendering each one at full size. The current picture sits in front with its neighbours fanned out behind it; the reader moves between them by swiping, clicking a picture behind, using the arrows or dots, or pressing the arrow keys while the carousel has focus. A picture written mid-sentence keeps its place in the text.
+
+The carousel is shared by every chat surface (AI Chat sessions, Chat Interactions and the chat widget) and is optional. Load `chat-image-carousel.js` and `chat-image-carousel.css` alongside the chat scripts to enable it; without them, pictures render as before.
+
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@crestapps/ai-chat-ui/dist/chat-image-carousel.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/@crestapps/ai-chat-ui/dist/chat-image-carousel.min.js"></script>
+```
+
 ## Client-Side Assets
 
 The JavaScript and CSS files that power the chat UIs are published as an npm package:
@@ -806,9 +817,11 @@ Pin a specific version in production by appending `@<version>` after the package
 |------|-------------|
 | `ai-chat.js` / `.min.js` | AI Chat widget — sessions, uploads, streaming, full chat UI |
 | `chat-interaction.js` / `.min.js` | Chat Interaction widget — lighter standalone chat experience |
+| `chat-image-carousel.js` / `.min.js` | Stacks a run of images in one response into a swipeable carousel (optional) |
 | `document-drop-zone.js` / `.min.js` | Drag-and-drop file upload component |
 | `technical-name-generator.js` / `.min.js` | Auto-generates URL-safe technical names from display names |
 | `chat-widget.css` / `.min.css` | Styles for the floating AI Chat widget |
+| `chat-image-carousel.css` / `.min.css` | Styles for the stacked image carousel |
 | `document-drop-zone.css` / `.min.css` | Styles for the document drop-zone component |
 
 Each JavaScript and CSS file also ships with a companion `.map` source map file (e.g. `ai-chat.js.map`, `chat-widget.css.map`). Source maps are generated for both the dev and minified builds and are included in the `dist/` folder and npm package exports.
