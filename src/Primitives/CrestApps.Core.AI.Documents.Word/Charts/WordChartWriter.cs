@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 using CrestApps.Core.AI.Documents.OpenXml.Word;
 using CrestApps.Core.AI.Documents.Word.Editing;
@@ -55,7 +57,7 @@ internal static class WordChartWriter
         var relationshipId = owner.GetIdOfPart(chartPart);
         var description = string.IsNullOrWhiteSpace(altText)
             ? (string.IsNullOrWhiteSpace(spec.Title) ? "Chart" : spec.Title.Trim()) + " (" + spec.Type.Replace('_', ' ') + " chart)"
-            : altText.Trim();
+            : XmlSafe(altText.Trim());
 
         var drawing = new DocumentFormat.OpenXml.Wordprocessing.Drawing(new DW.Inline(
             new DW.Extent { Cx = WordUnits.ToEmus(width), Cy = WordUnits.ToEmus(height) },
@@ -142,6 +144,54 @@ internal static class WordChartWriter
         {
             spec.Series = [spec.Series[0]];
         }
+
+        // Text from a model or an uploaded workbook may hold control characters XML cannot carry, which would make
+        // the chart part fail to save.
+        spec.Title = XmlSafe(spec.Title);
+        spec.XAxisTitle = XmlSafe(spec.XAxisTitle);
+        spec.YAxisTitle = XmlSafe(spec.YAxisTitle);
+        spec.Labels = [.. spec.Labels.Select(XmlSafe)];
+
+        foreach (var series in spec.Series)
+        {
+            series.Name = XmlSafe(series.Name);
+        }
+    }
+
+    /// <summary>
+    /// Removes the characters XML cannot carry — control characters other than tab, line feed and carriage
+    /// return, and unpaired surrogates — from a piece of text.
+    /// </summary>
+    /// <param name="text">The text, or <see langword="null"/>.</param>
+    /// <returns>The text without those characters.</returns>
+    public static string XmlSafe(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return text;
+        }
+
+        var builder = new StringBuilder(text.Length);
+
+        for (var index = 0; index < text.Length; index++)
+        {
+            var character = text[index];
+
+            if (char.IsHighSurrogate(character) && index + 1 < text.Length && char.IsLowSurrogate(text[index + 1]))
+            {
+                builder.Append(character).Append(text[index + 1]);
+                index++;
+
+                continue;
+            }
+
+            if (XmlConvert.IsXmlChar(character))
+            {
+                builder.Append(character);
+            }
+        }
+
+        return builder.Length == text.Length ? text : builder.ToString();
     }
 
     private static XElement BuildChartSpace(WordChartSpec spec, string workbookRelationshipId)

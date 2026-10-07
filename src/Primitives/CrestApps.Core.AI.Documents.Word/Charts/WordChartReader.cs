@@ -32,7 +32,16 @@ internal static class WordChartReader
         {
             using var stream = chartPart.GetStream(FileMode.Open, FileAccess.Read);
 
-            document = XDocument.Load(stream);
+            // The part comes from an uploaded file: a document type definition, which a chart never has, is refused
+            // rather than expanded, and nothing outside the part is ever fetched.
+            using var reader = XmlReader.Create(stream, new XmlReaderSettings
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null,
+                IgnoreComments = true,
+            });
+
+            document = XDocument.Load(reader);
         }
         catch (Exception ex) when (ex is XmlException or IOException or InvalidOperationException)
         {

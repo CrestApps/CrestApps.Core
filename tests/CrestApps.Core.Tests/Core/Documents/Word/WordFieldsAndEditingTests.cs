@@ -500,6 +500,61 @@ public sealed class WordFieldsAndEditingTests
         Assert.Null(WordTextEditor.ReplaceParagraph(paragraph, "New", package.MainPart, revisions: null));
     }
 
+    [Fact]
+    public void Fit_SizeLargerThanAnyPage_IsCappedAtTwentyTwoInches()
+    {
+        var info = new WordImageInfo("image/png", ".png", 1000, 500, 96, 96);
+
+        var (width, height) = WordImageWriter.Fit(info, 1_000_000, null, double.MaxValue, double.MaxValue);
+
+        Assert.Equal(1584, width, precision: 6);
+        Assert.Equal(792, height, precision: 6);
+    }
+
+    [Fact]
+    public async Task CreateWordDocument_ChartWithControlCharactersAndHugeHeight_IsValid()
+    {
+        using var host = new WordToolTestHost();
+
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "doc",
+            content = new object[]
+            {
+                new { type = "chart", chart_type = "column", title = "Rev\u0001enue", labels = new[] { "No\u0002rth", "South" }, series = new[] { new { name = "Sales\u0003", values = new[] { 1.0, 2.0 } } }, height = 100000 },
+            },
+        });
+
+        var bytes = await host.ReadWorkingDocumentAsync("doc");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var package = WordPackage.Open(bytes);
+        var extent = package.Body.Descendants<DocumentFormat.OpenXml.Drawing.Wordprocessing.Extent>().Single();
+        var chart = AI.Documents.Word.Charts.WordChartReader.Read(package.MainPart.ChartParts.Single());
+
+        Assert.True(extent.Cy.Value <= WordUnits.ToEmus(1584));
+        Assert.Equal("Revenue", chart.Title);
+        Assert.Equal("North", chart.Labels[0]);
+        Assert.Equal("Sales", chart.Series[0].Name);
+    }
+
+    [Fact]
+    public void Read_ChartWithDocumentTypeDefinition_IsRefused()
+    {
+        using var package = WordPackage.Create(new WordDesign());
+        var part = package.MainPart.AddNewPart<ChartPart>("rIdChart1");
+        var xml = "<?xml version=\"1.0\"?><!DOCTYPE c:chartSpace [<!ENTITY x \"Expanded\">]>" +
+            "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart><c:plotArea><c:barChart><c:ser><c:tx><c:v>&x;</c:v></c:tx></c:ser></c:barChart></c:plotArea></c:chart></c:chartSpace>";
+
+        using (var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(xml)))
+        {
+            part.FeedData(stream);
+        }
+
+        Assert.Null(AI.Documents.Word.Charts.WordChartReader.Read(part));
+    }
+
     internal static void Add(WordPackage package, OpenXmlElement element)
     {
         package.Ids.Assign(element);
