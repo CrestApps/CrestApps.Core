@@ -894,46 +894,56 @@ internal sealed class WordToolContext
 
         var index = FigureReferenceMarker.NextIndex(invocation);
         var pending = new List<(string Marker, AICompletionReference Reference)>(figures.Count);
+        var stored = new List<string>(figures.Count);
 
-        foreach (var figure in figures)
+        try
         {
-            var result = await _generatedDocuments.CreateAsync(
+            foreach (var figure in figures)
+            {
+                var result = await _generatedDocuments.CreateAsync(
                 new GeneratedDocumentRequest(
-                    Scope.Value.ReferenceId,
-                    Scope.Value.ReferenceType,
-                    figure.FileName,
-                    new GeneratedFileContent
+                        Scope.Value.ReferenceId,
+                        Scope.Value.ReferenceType,
+                        figure.FileName,
+                        new GeneratedFileContent
+                        {
+                            Title = figure.Title,
+                            EncodedContent = figure.Bytes,
+                        })
                     {
-                        Title = figure.Title,
-                        EncodedContent = figure.Bytes,
-                    })
+                        // Shown where its marker sits, so it is not also listed as a download nobody asked for.
+                        RegisterDownloadReference = false,
+                    },
+                    cancellationToken);
+
+                stored.Add(result.Document.ItemId);
+
+                var link = ResolveDownloadLink(result.Document.ItemId);
+
+                if (string.IsNullOrEmpty(link))
                 {
-                    // Shown where its marker sits, so it is not also listed as a download nobody asked for.
-                    RegisterDownloadReference = false,
-                },
-                cancellationToken);
+                    return null;
+                }
 
-            var link = ResolveDownloadLink(result.Document.ItemId);
+                var marker = FigureReferenceMarker.Format(index);
 
-            if (string.IsNullOrEmpty(link))
-            {
-                return null;
+                pending.Add((marker, new AICompletionReference
+                {
+                    Text = figure.Title,
+                    Title = figure.Title,
+                    Link = link,
+                    IsImage = true,
+                    Index = index,
+                    ReferenceId = result.Document.ItemId,
+                    ReferenceType = AIReferenceTypes.DataSource.Document,
+                }));
+
+                index++;
             }
-
-            var marker = FigureReferenceMarker.Format(index);
-
-            pending.Add((marker, new AICompletionReference
-            {
-                Text = figure.Title,
-                Title = figure.Title,
-                Link = link,
-                IsImage = true,
-                Index = index,
-                ReferenceId = result.Document.ItemId,
-                ReferenceType = AIReferenceTypes.DataSource.Document,
-            }));
-
-            index++;
+        }
+        finally
+        {
+            await RememberPreviewDocumentsAsync(stored);
         }
 
         foreach (var (marker, reference) in pending)
@@ -945,6 +955,47 @@ internal sealed class WordToolContext
         }
 
         return [.. pending.Select(entry => entry.Marker)];
+    }
+
+    /// <summary>
+    /// Remembers the pictures a preview stored in a chat interaction, so clearing its history deletes them.
+    /// </summary>
+    /// <remarks>
+    /// A preview is not a download: its reference is not marked as generated, so the cleanup that deletes the
+    /// generated files of cleared messages does not see it. A chat session needs no record, since its pictures
+    /// are deleted with the session.
+    /// </remarks>
+    /// <param name="documentIds">The stored pictures.</param>
+    private async Task RememberPreviewDocumentsAsync(List<string> documentIds)
+    {
+        if (documentIds.Count == 0 ||
+            Scope is not { } scope ||
+            !string.Equals(scope.ReferenceType, AIReferenceTypes.Document.ChatInteraction, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (_mutation is not null)
+        {
+            _mutation.State.PreviewDocumentIds.AddRange(documentIds);
+
+            return;
+        }
+
+        try
+        {
+            // Not cancelled: the pictures are already stored, and are shown either way.
+            await MutateAsync(state =>
+            {
+                state.PreviewDocumentIds.AddRange(documentIds);
+
+                return Task.FromResult(true);
+            }, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "The Word workspace could not record {Count} preview picture(s); clearing the history will not delete them.", documentIds.Count);
+        }
     }
 
     /// <summary>

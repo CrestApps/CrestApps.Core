@@ -22,6 +22,12 @@ internal sealed class WordWorkspaceState
     public List<string> OrphanedBlobs { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets the identifiers of the generated documents that hold the page pictures previews showed in a
+    /// chat interaction, so clearing its history deletes them with the workspace.
+    /// </summary>
+    public List<string> PreviewDocumentIds { get; set; } = [];
+
+    /// <summary>
     /// Finds a working document by name, ignoring case.
     /// </summary>
     /// <param name="name">The name.</param>
