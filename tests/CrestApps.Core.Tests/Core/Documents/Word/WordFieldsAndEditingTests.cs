@@ -229,9 +229,303 @@ public sealed class WordFieldsAndEditingTests
         Assert.Contains(document.MainDocumentPart.Document.Body.Descendants<FieldCode>(), code => code.Text.Contains("XE \"Beta\"", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task RemoveWordContent_ParagraphInTableCell_RemovesOnlyThatParagraph()
+    {
+        using var host = new WordToolTestHost();
+        using var package = WordPackage.Create(new WordDesign());
+        var kept = Plain("Keep me");
+        var removed = Plain("Remove me");
+        var only = Plain("Only one");
+
+        Add(package, Table(new TableCell(kept, removed), new TableCell(only)));
+        Add(package, Plain("After"));
+        await host.UploadAsync("cells.docx", package.Save());
+
+        await host.InvokeAsync(new RemoveWordContentTool(), new { document = "cells.docx", ids = new[] { removed.ParagraphId.Value, only.ParagraphId.Value } });
+
+        var bytes = await host.ReadWorkingDocumentAsync("cells");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var result = WordPackage.Open(bytes);
+        var table = Assert.Single(result.Body.Elements<Table>());
+        var cells = table.Descendants<TableCell>().ToList();
+
+        Assert.Equal("Keep me", WordText.OfCell(cells[0]));
+        Assert.DoesNotContain("Remove me", WordText.Of(result.Body), StringComparison.Ordinal);
+
+        // A cell whose only paragraph was removed keeps an empty one, as Word requires.
+        Assert.IsType<Paragraph>(cells[1].LastChild);
+    }
+
+    [Fact]
+    public async Task MoveWordContent_ParagraphInTableCell_IsRefused()
+    {
+        using var host = new WordToolTestHost();
+        using var package = WordPackage.Create(new WordDesign());
+        var inCell = Plain("In a cell");
+        var after = Plain("After");
+
+        Add(package, Table(new TableCell(inCell)));
+        Add(package, after);
+        await host.UploadAsync("cells.docx", package.Save());
+
+        var answer = await host.InvokeAsync(new MoveWordContentTool(), new { document = "cells.docx", ids = new[] { inCell.ParagraphId.Value }, after = after.ParagraphId.Value });
+
+        Assert.Contains("inside a table cell", answer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AddWordContent_TableAfterLastParagraphInCell_CellEndsWithParagraph()
+    {
+        using var host = new WordToolTestHost();
+        using var package = WordPackage.Create(new WordDesign());
+        var inCell = Plain("Cell text");
+
+        Add(package, Table(new TableCell(inCell)));
+        await host.UploadAsync("cells.docx", package.Save());
+
+        await host.InvokeAsync(new AddWordContentTool(), new
+        {
+            document = "cells.docx",
+            after = inCell.ParagraphId.Value,
+            content = new object[] { new { type = "table", columns = new[] { "A" }, rows = new object[] { new object[] { "1" } } } },
+        });
+
+        var bytes = await host.ReadWorkingDocumentAsync("cells");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var result = WordPackage.Open(bytes);
+        var outer = Assert.Single(result.Body.Elements<Table>());
+        var cell = outer.Elements<TableRow>().Single().Elements<TableCell>().Single();
+
+        Assert.Single(cell.Elements<Table>());
+        Assert.IsType<Paragraph>(cell.LastChild);
+    }
+
+    [Fact]
+    public async Task UpdateWordContent_BlockReplacesParagraphEndingSection_KeepsTheSectionBreak()
+    {
+        using var host = new WordToolTestHost();
+        using var package = WordPackage.Create(new WordDesign());
+        var ending = EndsSection(package, Plain("End of section one"));
+
+        Add(package, ending);
+        Add(package, Plain("Section two"));
+        await host.UploadAsync("sections.docx", package.Save());
+
+        await host.InvokeAsync(new UpdateWordContentTool(), new
+        {
+            document = "sections.docx",
+            id = ending.ParagraphId.Value,
+            block = new { type = "table", columns = new[] { "A" }, rows = new object[] { new object[] { "1" } } },
+        });
+
+        var bytes = await host.ReadWorkingDocumentAsync("sections");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var result = WordPackage.Open(bytes);
+        var children = result.Body.ChildElements.ToList();
+        var table = children.OfType<Table>().Single();
+        var breakAt = children.FindIndex(child => child is Paragraph { ParagraphProperties.SectionProperties: not null });
+
+        Assert.Equal(2, WordSections.All(result).Count);
+        Assert.True(children.IndexOf(table) < breakAt);
+        Assert.DoesNotContain("End of section one", WordText.Of(result.Body), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MoveWordContent_ParagraphEndingSection_LeavesTheSectionBreak()
+    {
+        using var host = new WordToolTestHost();
+        using var package = WordPackage.Create(new WordDesign());
+        var intro = Plain("Intro");
+        var ending = EndsSection(package, Plain("End of section one"));
+        var next = Plain("Section two");
+
+        Add(package, intro);
+        Add(package, ending);
+        Add(package, next);
+        await host.UploadAsync("sections.docx", package.Save());
+
+        await host.InvokeAsync(new MoveWordContentTool(), new { document = "sections.docx", ids = new[] { ending.ParagraphId.Value }, after = next.ParagraphId.Value });
+
+        var bytes = await host.ReadWorkingDocumentAsync("sections");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var result = WordPackage.Open(bytes);
+        var breaks = result.Body.Elements<Paragraph>().Where(paragraph => paragraph.ParagraphProperties?.SectionProperties is not null).ToList();
+
+        Assert.Equal("Intro", WordText.Of(Assert.Single(breaks)));
+        Assert.Equal(["Intro", "Section two", "End of section one"], result.Body.Elements<Paragraph>().Select(paragraph => WordText.Of(paragraph)));
+    }
+
+    [Fact]
+    public async Task RemoveWordContent_ParagraphEndingSectionAfterTable_KeepsTheBreakBelowTheTable()
+    {
+        using var host = new WordToolTestHost();
+        using var package = WordPackage.Create(new WordDesign());
+        var ending = EndsSection(package, Plain("End of section one"));
+
+        Add(package, Plain("Intro"));
+        Add(package, Table(new TableCell(Plain("Cell"))));
+        Add(package, ending);
+        Add(package, Plain("Section two"));
+        await host.UploadAsync("sections.docx", package.Save());
+
+        await host.InvokeAsync(new RemoveWordContentTool(), new { document = "sections.docx", ids = new[] { ending.ParagraphId.Value } });
+
+        var bytes = await host.ReadWorkingDocumentAsync("sections");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var result = WordPackage.Open(bytes);
+        var children = result.Body.ChildElements.ToList();
+        var breakAt = children.FindIndex(child => child is Paragraph { ParagraphProperties.SectionProperties: not null });
+
+        Assert.Equal(2, WordSections.All(result).Count);
+        Assert.True(children.FindIndex(child => child is Table) < breakAt);
+    }
+
+    [Fact]
+    public async Task AddWordHyperlink_TextInTrackedInsertion_KeepsTheInsertionInsideTheLink()
+    {
+        using var host = new WordToolTestHost();
+        using var package = WordPackage.Create(new WordDesign());
+        var paragraph = new Paragraph(
+            new Run(new Text("Read the ") { Space = SpaceProcessingModeValues.Preserve }),
+            new InsertedRun(new Run(new Text("full report") { Space = SpaceProcessingModeValues.Preserve })) { Id = "5", Author = "Reviewer", Date = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc) },
+            new Run(new Text(" now.") { Space = SpaceProcessingModeValues.Preserve }));
+
+        Add(package, paragraph);
+        await host.UploadAsync("tracked.docx", package.Save());
+
+        await host.InvokeAsync(new AddWordHyperlinkTool(), new { document = "tracked.docx", id = paragraph.ParagraphId.Value, text = "full", url = "https://example.com/" });
+
+        var bytes = await host.ReadWorkingDocumentAsync("tracked");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var result = WordPackage.Open(bytes);
+        var updated = result.Body.Elements<Paragraph>().First();
+        var link = Assert.Single(updated.Elements<Hyperlink>());
+        var insertions = updated.Descendants<InsertedRun>().ToList();
+
+        Assert.Equal("Read the full report now.", WordText.Of(updated));
+        Assert.Equal("full", WordText.Of(Assert.Single(link.Elements<InsertedRun>())));
+        Assert.DoesNotContain(updated.Descendants<InsertedRun>(), insertion => insertion.Elements<Hyperlink>().Any());
+        Assert.Equal(2, insertions.Count);
+        Assert.All(insertions, insertion => Assert.Equal("Reviewer", insertion.Author.Value));
+        Assert.NotEqual(insertions[0].Id.Value, insertions[1].Id.Value);
+    }
+
+    [Fact]
+    public void Replace_AcrossCommentReference_KeepsTheReference()
+    {
+        var paragraph = new Paragraph(
+            new Run(new Text("Hello")),
+            new Run(new CommentReference { Id = "0" }),
+            new Run(new TabChar(), new Text(" world") { Space = SpaceProcessingModeValues.Preserve }));
+
+        var count = WordTextEditor.Replace(paragraph, "Hello world", "Hi", matchCase: true, wholeWord: false, revisions: null);
+
+        Assert.Equal(1, count);
+        Assert.Equal("Hi", WordText.Of(paragraph).Replace("\t", string.Empty, StringComparison.Ordinal));
+        Assert.Single(paragraph.Descendants<CommentReference>());
+        Assert.Single(paragraph.Descendants<TabChar>());
+    }
+
+    [Fact]
+    public void Replace_TrackedAcrossCommentReference_DoesNotDeleteTheReference()
+    {
+        using var package = WordPackage.Create(new WordDesign());
+        var paragraph = new Paragraph(
+            new Run(new Text("Hello")),
+            new Run(new CommentReference { Id = "0" }),
+            new Run(new Text(" world") { Space = SpaceProcessingModeValues.Preserve }));
+
+        Add(package, paragraph);
+
+        var revisions = WordRevisions.For(package, "Reviewer", new DateTime(2026, 10, 6, 0, 0, 0, DateTimeKind.Utc));
+
+        WordTextEditor.Replace(paragraph, "Hello world", "Hi", matchCase: true, wholeWord: false, revisions);
+
+        var reference = Assert.Single(paragraph.Descendants<CommentReference>());
+
+        Assert.Null(reference.Ancestors<DeletedRun>().FirstOrDefault());
+        Assert.Equal("Hi", WordText.Of(paragraph));
+    }
+
+    [Fact]
+    public void ReplaceParagraph_NestedMarkersAndPicture_KeepsMarkersAndReportsThePicture()
+    {
+        using var package = WordPackage.Create(new WordDesign());
+        var paragraph = new Paragraph(
+            new Hyperlink(
+                new BookmarkStart { Name = "_Ref9", Id = "9" },
+                new Run(new Text("Old link text")),
+                new BookmarkEnd { Id = "9" }) { Anchor = "_Ref9" },
+            new InsertedRun(new Run(new FootnoteReference { Id = 1 })) { Id = "3", Author = "Reviewer" },
+            new Run(new Picture()));
+
+        Add(package, paragraph);
+
+        var revisions = WordRevisions.For(package, "Reviewer", new DateTime(2026, 10, 6, 0, 0, 0, DateTimeKind.Utc));
+        var dropped = WordTextEditor.ReplaceParagraph(paragraph, "New text", package.MainPart, revisions);
+
+        Assert.Contains("1 picture or drawing", dropped, StringComparison.Ordinal);
+        Assert.Contains("1 link", dropped, StringComparison.Ordinal);
+        Assert.Equal("New text", WordText.Of(paragraph));
+
+        var start = Assert.Single(paragraph.Descendants<BookmarkStart>());
+        var reference = Assert.Single(paragraph.Descendants<FootnoteReference>());
+
+        Assert.Null(start.Ancestors<DeletedRun>().FirstOrDefault());
+        Assert.Null(reference.Ancestors<DeletedRun>().FirstOrDefault());
+        Assert.Single(paragraph.Descendants<BookmarkEnd>());
+    }
+
+    [Fact]
+    public void ReplaceParagraph_TextOnly_ReportsNothing()
+    {
+        using var package = WordPackage.Create(new WordDesign());
+        var paragraph = Plain("Old");
+
+        Add(package, paragraph);
+
+        Assert.Null(WordTextEditor.ReplaceParagraph(paragraph, "New", package.MainPart, revisions: null));
+    }
+
     internal static void Add(WordPackage package, OpenXmlElement element)
     {
+        package.Ids.Assign(element);
         WordSections.EnsureBodySection(package.Body).InsertBeforeSelf(element);
+    }
+
+    internal static Paragraph Plain(string text)
+    {
+        return new Paragraph(new Run(new Text(text) { Space = SpaceProcessingModeValues.Preserve }));
+    }
+
+    internal static Table Table(params TableCell[] cells)
+    {
+        return new Table(
+            new TableProperties(new TableWidth { Type = TableWidthUnitValues.Auto, Width = "0" }),
+            new TableGrid(cells.Select(_ => new GridColumn { Width = "2000" })),
+            new TableRow(cells));
+    }
+
+    private static Paragraph EndsSection(WordPackage package, Paragraph paragraph)
+    {
+        var section = (SectionProperties)WordSections.EnsureBodySection(package.Body).CloneNode(true);
+
+        paragraph.PrependChild(new ParagraphProperties(section));
+
+        return paragraph;
     }
 
     internal static Paragraph Heading(WordPackage package, string text, int level)

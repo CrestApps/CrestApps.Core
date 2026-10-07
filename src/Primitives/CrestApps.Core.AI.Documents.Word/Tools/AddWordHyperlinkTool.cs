@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Documents.Word.Editing;
 using CrestApps.Core.AI.Documents.Word.Fields;
 using CrestApps.Core.AI.Documents.Word.Reading;
 using CrestApps.Core.AI.Documents.Word.Workspace;
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace CrestApps.Core.AI.Documents.Word.Tools;
@@ -106,13 +107,11 @@ internal sealed class AddWordHyperlinkTool : WordToolBase
                     throw new WordToolException($"\"{text}\" is already part of a link.");
                 }
 
-                runs[0].InsertBeforeSelf(link);
+                Wrap(package, link, runs, text);
 
                 foreach (var run in runs)
                 {
-                    run.Remove();
                     (run.RunProperties ??= new RunProperties()).RunStyle = new RunStyle { Val = style };
-                    link.Append(run);
                 }
             }
             else
@@ -128,6 +127,102 @@ internal sealed class AddWordHyperlinkTool : WordToolBase
         }, arguments.SaveAs(), cancellationToken);
 
         return $"\"{document.Name}\" (version {document.Version}): {description}.";
+    }
+
+    private static void Wrap(WordPackage package, Hyperlink link, List<Run> runs, string text)
+    {
+        // The link goes where the runs are and takes them with everything between them, such as a bookmark or a
+        // tracked deletion. Runs inside a tracked insertion stay inside one: the insertion is split at the edges
+        // of the text and the link holds the part inside them, as Word writes a link over inserted text.
+        var container = runs.All(run => ReferenceEquals(run.Parent, runs[0].Parent)) && runs[0].Parent is not InsertedRun
+            ? runs[0].Parent
+            : (runs[0].Parent as InsertedRun)?.Parent ?? runs[0].Parent;
+
+        if (runs.Any(run => !ReferenceEquals(run.Parent, container) && !(run.Parent is InsertedRun && ReferenceEquals(run.Parent.Parent, container))))
+        {
+            throw new WordToolException($"\"{text}\" spans fields, content controls or other links; link a phrase inside one of them.");
+        }
+
+        WordRevisions revisions = null;
+
+        OpenXmlElement first = runs[0].Parent is InsertedRun startInsertion && !ReferenceEquals(startInsertion, container)
+            ? SplitBefore(startInsertion, runs[0], ref revisions, package)
+            : runs[0];
+
+        OpenXmlElement last = runs[^1].Parent is InsertedRun endInsertion && !ReferenceEquals(endInsertion, container)
+            ? SplitAfter(endInsertion, runs[^1], ref revisions, package)
+            : runs[^1];
+
+        first.InsertBeforeSelf(link);
+
+        for (var current = first; current is not null;)
+        {
+            var next = current.NextSibling();
+
+            current.Remove();
+            link.Append(current);
+
+            if (ReferenceEquals(current, last))
+            {
+                break;
+            }
+
+            current = next;
+        }
+    }
+
+    private static InsertedRun SplitBefore(InsertedRun insertion, Run run, ref WordRevisions revisions, WordPackage package)
+    {
+        // The insertion keeps what comes before the run; the run and what follows move to a copy of it.
+        if (run.PreviousSibling() is null)
+        {
+            return insertion;
+        }
+
+        var tail = CopyOf(insertion, ref revisions, package);
+
+        insertion.InsertAfterSelf(tail);
+        MoveFrom(run, tail);
+
+        return tail;
+    }
+
+    private static InsertedRun SplitAfter(InsertedRun insertion, Run run, ref WordRevisions revisions, WordPackage package)
+    {
+        // The insertion keeps the run and what comes before it; what follows moves to a copy of it.
+        if (run.NextSibling() is { } next)
+        {
+            var tail = CopyOf(insertion, ref revisions, package);
+
+            insertion.InsertAfterSelf(tail);
+            MoveFrom(next, tail);
+        }
+
+        return insertion;
+    }
+
+    private static InsertedRun CopyOf(InsertedRun insertion, ref WordRevisions revisions, WordPackage package)
+    {
+        // The part split off keeps the author and date of the insertion, with an id of its own.
+        revisions ??= WordRevisions.For(package, insertion.Author?.Value, insertion.Date?.Value ?? DateTime.UtcNow);
+
+        var copy = (InsertedRun)insertion.CloneNode(false);
+
+        copy.Id = revisions.NextId();
+
+        return copy;
+    }
+
+    private static void MoveFrom(OpenXmlElement start, OpenXmlCompositeElement target)
+    {
+        for (var current = start; current is not null;)
+        {
+            var next = current.NextSibling();
+
+            current.Remove();
+            target.Append(current);
+            current = next;
+        }
     }
 
     private static string ResolveAnchor(WordPackage package, WordToolArguments arguments)
