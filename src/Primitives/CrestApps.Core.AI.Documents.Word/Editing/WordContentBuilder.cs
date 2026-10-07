@@ -346,7 +346,56 @@ internal sealed class WordContentBuilder
             }
         }
 
+        InferFormatsFromHeaders(spec);
+
         return spec;
+    }
+
+    // A header that names its unit — "Planned ($)", "Variance (%)", "Cost (currency)" — formats a column of plain
+    // numbers that was given no format. A percent is only inferred from fractions (-0.042 is -4.2%), since 4.2 in a
+    // "(%)" column already is the percentage.
+    private static void InferFormatsFromHeaders(WordTableSpec spec)
+    {
+        for (var index = 0; index < spec.Columns.Count; index++)
+        {
+            var column = spec.Columns[index];
+
+            if (column.Format is not null || string.IsNullOrWhiteSpace(column.Header))
+            {
+                continue;
+            }
+
+            var values = spec.Rows
+                .Where(row => index < row.Count)
+                .Select(row => row[index].Value ?? row[index].Text)
+                .Where(value => value is not null && !(value is string text && string.IsNullOrWhiteSpace(text)))
+                .ToList();
+
+            if (values.Count == 0 || !values.All(value => value is double or int or long or decimal || (value is string text && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out _))))
+            {
+                continue;
+            }
+
+            var header = column.Header.ToLowerInvariant();
+            var numbers = values.Select(value => Convert.ToDouble(value, CultureInfo.InvariantCulture)).ToList();
+            string format = null;
+
+            if (header.Contains("(%)", StringComparison.Ordinal) || header.Contains("(percent", StringComparison.Ordinal))
+            {
+                format = numbers.All(number => Math.Abs(number) <= 1.5) ? "percent" : null;
+            }
+            else if (header.Contains("($)", StringComparison.Ordinal) || header.Contains("(currency)", StringComparison.Ordinal) || header.Contains("(usd)", StringComparison.Ordinal))
+            {
+                format = "currency";
+            }
+
+            if (format is not null)
+            {
+                using var definition = JsonDocument.Parse(JsonSerializer.Serialize(new { format, header = column.Header }));
+
+                column.Format = ReadColumnFormat(definition.RootElement);
+            }
+        }
     }
 
     /// <summary>
@@ -739,7 +788,35 @@ internal sealed class WordContentBuilder
         {
             if (item.ValueKind == JsonValueKind.String)
             {
-                items.Add(ReadMarkedItem(item.GetString(), level, numbered, listNumbered, items.Count > 0));
+                // An item written with its sub-points on the lines after it — "Goal two", then "- Detail A" and
+                // "- Detail B" on lines of their own — is the item followed by its nested items.
+                var lines = item.GetString().Split('\n', StringSplitOptions.RemoveEmptyEntries).Where(line => !string.IsNullOrWhiteSpace(line)).ToList();
+
+                if (lines.Count == 0)
+                {
+                    continue;
+                }
+
+                var first = ReadMarkedItem(lines[0].TrimEnd('\r'), level, numbered, listNumbered, items.Count > 0);
+                var text = first.Text;
+                var nested = new List<(string Text, int Level, bool? Numbered)>();
+
+                foreach (var line in lines.Skip(1).Select(line => line.TrimEnd('\r')))
+                {
+                    if (nested.Count == 0 && !IsMarkedLine(line))
+                    {
+                        text += " " + line.Trim();
+
+                        continue;
+                    }
+
+                    var marked = ReadMarkedItem(line, first.Level, first.Numbered, listNumbered, hasPrevious: true);
+
+                    nested.Add(IsMarkedLine(line) ? (marked.Text, Math.Max(marked.Level, first.Level + 1), marked.Numbered ?? false) : marked);
+                }
+
+                items.Add((text, first.Level, first.Numbered));
+                items.AddRange(nested);
 
                 continue;
             }
@@ -802,6 +879,13 @@ internal sealed class WordContentBuilder
         }
 
         return (depth > 0 ? rest : value, Math.Clamp(level + depth, 0, 8), numbered);
+    }
+
+    private static bool IsMarkedLine(string line)
+    {
+        var text = line.TrimStart();
+
+        return text.Length > 1 && text[0] is '-' or '*' or '+' or '•' && text[1] == ' ';
     }
 
     private static bool? ReadListKind(string value)

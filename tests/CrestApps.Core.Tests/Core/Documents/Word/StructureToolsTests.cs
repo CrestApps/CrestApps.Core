@@ -337,6 +337,40 @@ public sealed class StructureToolsTests
     }
 
     [Fact]
+    public async Task AddWordContent_SubPointsInItemTextAndUnitsInHeaders_NestsAndFormats()
+    {
+        using var host = new WordToolTestHost();
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "doc",
+            content = new object[]
+            {
+                new { type = "numbered_list", items = new[] { "Launch", "Integrate analytics.\n\n- Better decisions.\n- Real-time reporting.", "Grow" } },
+                new { type = "table", columns = new[] { "Item", "Planned ($)", "Variance (%)", "Score (%)" }, rows = new object[] { new object[] { "Design", 12000, -0.042, 85 } } },
+            },
+        });
+
+        var bytes = await host.ReadWorkingDocumentAsync("doc");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var document = WordprocessingDocument.Open(new MemoryStream(bytes), isEditable: false);
+        var body = document.MainDocumentPart.Document.Body;
+        var items = body.Elements<Paragraph>()
+            .Where(paragraph => paragraph.ParagraphProperties?.NumberingProperties is not null)
+            .Select(paragraph => (Text: WordText.Of(paragraph), Level: paragraph.ParagraphProperties.NumberingProperties.NumberingLevelReference.Val.Value))
+            .ToList();
+
+        Assert.Equal(["Launch", "Integrate analytics.", "Better decisions.", "Real-time reporting.", "Grow"], items.Select(item => item.Text));
+        Assert.Equal([0, 0, 1, 1, 0], items.Select(item => item.Level));
+
+        var cells = body.Descendants<TableRow>().Last().Elements<TableCell>().Select(cell => WordText.Of(cell)).ToList();
+
+        // A fraction under "(%)" is a percentage; 85 already is one, so it stays as written.
+        Assert.Equal(["Design", "$12,000.00", "-4.2%", "85"], cells);
+    }
+
+    [Fact]
     public async Task AddWordContent_ListItemsWithTheirOwnMarkers_NestsThemAndDropsTheMarkers()
     {
         using var host = new WordToolTestHost();
