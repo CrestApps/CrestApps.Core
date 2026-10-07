@@ -109,6 +109,12 @@ internal static partial class WordTableOfContents
                 {
                     WordFieldScanner.SetResult(field, page);
                 }
+                else if (layout.Truncated && string.Concat(field.ResultRuns.Select(run => run.InnerText)) == "0")
+                {
+                    // A heading past the pages the layout reached has no page number to give; the entry shows
+                    // none rather than the placeholder 0, and Word fills it in when it updates the fields.
+                    WordFieldScanner.SetResult(field, string.Empty);
+                }
             }
         }
     }
