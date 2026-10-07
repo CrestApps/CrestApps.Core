@@ -55,7 +55,10 @@ named by its id; its cells by `row` and `column` numbers from 1.
 5. Headers and footers: `add_word_header_footer` with `left`/`center`/`right` text and tokens such as
    `{page}` and `{pages}` — page numbers are a footer like `center: "Page {page} of {pages}"`;
    `hide_on_first_page` keeps a cover page clean.
-6. Tables after they exist: `update_word_table` sets cells and adds or removes rows and columns.
+6. Tables after they exist: `update_word_table` sets cells, adds or removes rows and columns, merges a
+   rectangle of cells (`merge_cells`) or splits one (`split_cells`), and sets cell fill and alignment
+   (`format_cells`), `column_widths`, `table_style`, `banded` rows and `border_color`. Columns count the
+   table's columns, merged cells included.
 7. `preview_word` shows pages as pictures. Preview after building or changing a document and BEFORE
    exporting, so the user sees what the file will look like. It returns `[fig:N]` markers.
 8. `export_word` writes the .docx for download and returns a `[doc:N]` marker.
