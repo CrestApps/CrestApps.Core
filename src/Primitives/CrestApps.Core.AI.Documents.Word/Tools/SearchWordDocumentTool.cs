@@ -108,7 +108,7 @@ internal sealed class SearchWordDocumentTool : WordToolBase
                 heading = WordText.Of(paragraph);
             }
 
-            total += Report(answer, regex, paragraph, total, limit, block =>
+            total += Report(answer, regex, paragraph, total, limit, (_, match) =>
             {
                 var where = new StringBuilder();
 
@@ -119,9 +119,11 @@ internal sealed class SearchWordDocumentTool : WordToolBase
                     where.Append(" in table [").Append(WordParagraphIds.Of(table)).Append(']');
                 }
 
-                if (layout is not null && layout.PageOf(paragraph) is > 0 and var page)
+                if (layout is not null && PageOfMatch(layout, paragraph, match.Index) is > 0 and var page)
                 {
-                    where.Append(", page ").Append(layout.DisplayNumberOf(paragraph) ?? page.ToString(CultureInfo.InvariantCulture));
+                    var number = page <= layout.Pages.Count ? layout.Pages[page - 1].DisplayNumber : null;
+
+                    where.Append(", page ").Append(string.IsNullOrEmpty(number) ? page.ToString(CultureInfo.InvariantCulture) : number);
                 }
 
                 if (heading is not null)
@@ -147,7 +149,7 @@ internal sealed class SearchWordDocumentTool : WordToolBase
             {
                 foreach (var paragraph in root.Descendants<Paragraph>())
                 {
-                    total += Report(answer, regex, paragraph, total, limit, _ => "in a " + kind);
+                    total += Report(answer, regex, paragraph, total, limit, (_, _) => "in a " + kind);
                 }
             }
         }
@@ -162,7 +164,48 @@ internal sealed class SearchWordDocumentTool : WordToolBase
         return header + "\n" + answer.ToString().TrimEnd();
     }
 
-    private static int Report(StringBuilder answer, Regex regex, Paragraph paragraph, int found, int limit, Func<Paragraph, string> describe)
+    // The page the matched words are on. A paragraph that runs over a page break is followed through the text the
+    // layout drew for it, counting the characters before the match; spaces are not counted, since lines drop
+    // them where they break. A list number or text a tracked change deleted, which the layout also draws, can
+    // shift the count by a few characters, so a match right at a page break may be given the other page.
+    private static int PageOfMatch(WordLayout layout, Paragraph paragraph, int index)
+    {
+        var first = 0;
+        var last = 0;
+
+        for (DocumentFormat.OpenXml.OpenXmlElement current = paragraph; current is not null && first == 0; current = current.Parent)
+        {
+            if (layout.FirstPage.TryGetValue(current, out first))
+            {
+                last = layout.LastPage.TryGetValue(current, out var end) ? end : first;
+            }
+        }
+
+        if (first <= 0 || last <= first)
+        {
+            return first;
+        }
+
+        var before = WordText.Of(paragraph).Take(index).Count(character => !char.IsWhiteSpace(character));
+        var seen = 0;
+
+        for (var page = first; page <= last && page <= layout.Pages.Count; page++)
+        {
+            foreach (var item in layout.Pages[page - 1].Items.OfType<WordTextItem>().Where(item => ReferenceEquals(item.Source, paragraph) && item.MarkupColor != "C00000"))
+            {
+                seen += item.Text.Count(character => !char.IsWhiteSpace(character));
+
+                if (seen > before)
+                {
+                    return page;
+                }
+            }
+        }
+
+        return first;
+    }
+
+    private static int Report(StringBuilder answer, Regex regex, Paragraph paragraph, int found, int limit, Func<Paragraph, Match, string> describe)
     {
         var text = WordText.Of(paragraph);
 
@@ -184,7 +227,7 @@ internal sealed class SearchWordDocumentTool : WordToolBase
             var start = Math.Max(0, match.Index - 60);
             var end = Math.Min(text.Length, match.Index + match.Length + 60);
 
-            answer.Append("- ").Append(describe(paragraph)).Append(": ")
+            answer.Append("- ").Append(describe(paragraph, match)).Append(": ")
                 .Append(start > 0 ? "…" : string.Empty)
                 .Append(text, start, match.Index - start)
                 .Append("**").Append(match.Value).Append("**")
