@@ -15,6 +15,8 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <InternalsVisibleTo Include="CrestApps.Core.Benchmarks" />
     <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+    <!-- The Word agent builds documents with the same styles, numbering and table writer as the Word writer. -->
+    <InternalsVisibleTo Include="CrestApps.Core.AI.Documents.Word" />
   </ItemGroup>
 
   <ItemGroup>

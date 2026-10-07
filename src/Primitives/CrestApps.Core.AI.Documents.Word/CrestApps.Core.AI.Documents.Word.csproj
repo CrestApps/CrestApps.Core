@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.Documents.Word</RootNamespace>
+    <Title>CrestApps AI Documents Word</Title>
+    <Description>
+			$(CrestAppsDescription)
+
+			Microsoft Word support for CrestApps AI documents: the system Word agent that creates, edits, formats,
+			reviews, previews and exports Word documents in a conversation, with tools for structure, tables, images,
+			charts, comments, tracked changes, editing protection, content extraction, comparison and quality checks,
+			and an in-process layout engine that draws pages as SVG previews.
+		</Description>
+    <PackageTags>$(PackageTags) ai word docx documents agent openxml</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Templates\Prompts\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
+    <ProjectReference Include="../CrestApps.Core.AI.Documents.OpenXml/CrestApps.Core.AI.Documents.OpenXml.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -162,12 +162,23 @@ The built-in **Tabular Data Agent** is the reference pattern for a framework-man
 - it stays out of the AI Profile and Chat Interaction pickers because system agents are not user-selectable
 - it is still returned by `IAIProfileManager.GetAsync(AIProfileType.Agent)`, so the A2A host exposes it like any other agent
 
+The built-in **PDF Agent** (`pdf-agent`, registered by `AddPdf()`) follows the same pattern with its own
+hidden PDF tools, over a per-conversation workspace that keeps the documents it composes and the working
+copies of the PDFs it edits; see [AI Documents](./ai-documents.md#pdf-files-and-the-pdf-agent). Set
+`PdfAgentOptions.Enabled = false` to leave it out.
+
 Use the same pattern for additional code-defined system agents when you want a capability to be automatically present for orchestration and remotely invocable over A2A without making it a manual UI choice.
 
 The built-in **Presentation Agent** (`presentation-agent`, registered by `AddOpenXml()`) follows it too: its
 hidden PowerPoint tools work on a per-conversation workspace of decks, and a steering handler tells the
 primary model to delegate uploaded `.pptx` and `.potx` files to it. Set `PresentationAgentOptions.Enabled =
 false` to leave it out.
+
+So does the built-in **Word Agent** (`word-agent`, registered by `AddWord()`): its 32 hidden Word tools —
+writing, tables, design, comments, tracked changes and protection, reading, preview and export — work on a
+per-conversation workspace of documents, and a steering handler tells the primary model to delegate uploaded
+`.docx` files to it. Set `WordAgentOptions.Enabled = false` to leave it out; the steering handler then stays
+silent too. See [AI Documents](./ai-documents.md#word-documents-and-the-word-agent).
 
 ## Creating Agent Profiles
 

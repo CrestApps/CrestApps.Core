@@ -62,6 +62,12 @@ public static class AIUsagePurposes
     public const string ImageAnalysis = "ImageAnalysis";
 
     /// <summary>
+    /// Reading a document for a document tool: summarizing it, answering from it, or extracting, classifying
+    /// or comparing its content.
+    /// </summary>
+    public const string DocumentAnalysis = "DocumentAnalysis";
+
+    /// <summary>
     /// Generating an image.
     /// </summary>
     public const string ImageGeneration = "ImageGeneration";

@@ -20,6 +20,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddEntityCoreStores()
             .AddOpenXml()
             .AddPdf()
+            .AddWord()
             .AddReferenceDownloads()
         )
         .AddOpenAI()
@@ -39,8 +40,10 @@ With AI Documents enabled, your users can:
 - Ask questions about uploaded content and get cited answers
 - Search document content semantically instead of by exact keyword only
 - Work with spreadsheets and CSV files through a tabular workflow
+- Create, convert, edit, preview and analyse PDF files through the PDF Agent
 - Download generated files such as exports and AI-authored documents
 - Create, edit, design, preview and export PowerPoint decks through the Presentation Agent
+- Create, edit, format, review, preview and export Word documents through the Word Agent
 - Include supported images in chat flows
 
 ## Supported Experiences
@@ -111,6 +114,120 @@ Requires `AddOpenXml()`; other formats (such as CSV) ignore the formatting and e
 #### Charts in the conversation
 
 A chart embedded in the workbook is for the downloaded file. To render a chart in the chat itself, the agent calls the `generate_chart` system tool with the actual values (`labels` and `series`), which builds the chart configuration directly from those numbers.
+
+### PDF files and the PDF Agent
+
+`AddPdf()` registers the PDF reader, the PDF writer behind generated files, and the built-in **PDF Agent**
+(`pdf-agent`). Like the Tabular Data Agent it is a code-defined **system agent**: always available to the
+primary model, exposed through the A2A host, and hidden from the agent pickers. The primary model delegates
+every request that produces or works on a PDF to it, and every follow-up as well ("now add page numbers",
+"make the title blue").
+
+#### The workspace
+
+Each chat session or chat interaction has a PDF workspace that persists between turns:
+
+- **Uploaded PDFs are never changed.** The first edit of `contract.pdf` saves a working copy named
+  `contract`; later edits change that copy.
+- **Composed PDFs** are kept as a definition — page setup, theme, running heads, cover page, table of
+  contents and numbered content blocks — and rendered on demand, so a follow-up changes one block or one
+  setting instead of rebuilding the document.
+- The workspace is stored through `IDocumentFileStore` under `documents/pdf-workspaces/`, and is removed
+  when the conversation is deleted or its history is cleared.
+
+#### What the agent can do
+
+| Area | Tools |
+| --- | --- |
+| Authoring | `create_pdf`, `add_pdf_content` (headings, paragraphs with inline Markdown, lists, tables with number formats, totals and highlighted cells, images, charts, callouts, key-value facts, quotes, code, page breaks, signature lines), `format_pdf` (page size and margins, theme colours and fonts, logo, header and footer, page numbers, cover page, table of contents, watermark, metadata, PDF/A-2B), `preview_pdf`, `export_pdf` |
+| Conversion | `convert_to_pdf` (Word, PowerPoint, spreadsheets and CSV, Markdown, HTML, text and images — several files into one PDF), `convert_from_pdf` (Word, Excel, CSV, Markdown, HTML, text, JSON, SVG pages) |
+| Pages | `edit_pdf_pages`: merge, extract, split, reorder, reverse, rotate, delete, duplicate, insert blank pages, crop, resize, watermark, stamp, page numbers, header and footer |
+| Content and review | `edit_pdf_content` (replace text in place, add text and images, remove or cover areas), `manage_pdf_annotations` (notes, highlights, underlines, strikeouts, shapes, arrows, text boxes, stamps), `add_pdf_bookmarks`, `add_pdf_links`, `edit_pdf_metadata`, `manage_pdf_attachments`, `manage_pdf_layers`, `flatten_pdf` |
+| Forms | `get_pdf_form_fields`, `fill_pdf_form`, `edit_pdf_form`, `validate_pdf_form` |
+| Security | `redact_pdf` (true redaction, verified by reading the result back), `find_pdf_sensitive_data`, `sanitize_pdf`, `protect_pdf`, `remove_pdf_security`, `sign_pdf`, `verify_pdf_signature` |
+| Reading | `get_pdf_info`, `extract_pdf_text`, `extract_pdf_tables`, `extract_pdf_images`, `extract_pdf_structure`, `extract_pdf_links`, `search_pdf`, `get_pdf_page_content`, `analyze_pdf_layout`, `detect_pdf_language`, `generate_pdf_outline`, `compare_pdfs` |
+| Understanding | `ocr_pdf`, `analyze_pdf_images`, `summarize_pdf`, `ask_pdf` (page-cited passages and answers), `extract_pdf_entities`, `extract_pdf_data`, `classify_pdf`, `cross_reference_pdfs` |
+| Quality | `validate_pdf`, `check_pdf_quality`, `check_pdf_accessibility`, `tag_pdf_accessibility`, `validate_pdf_compliance` (PDF/A-1, -2, -3 and PDF/UA-1), `optimize_pdf` |
+
+The understanding tools use the utility deployment for text and the vision deployment for scanned pages and
+pictures; on a host without one they say so instead of guessing.
+
+A converted file carries its content in the PDF's theme — headings, formatted text, links, lists, tables,
+pictures, a page per slide — not a copy of its page design. A spreadsheet converted in a conversation that
+has a tabular workspace keeps the number formats and colours the tabular preview shows.
+
+#### Previews
+
+`preview_pdf` shows pages in the chat as pictures. Like the tabular preview they are SVG — drawn from the
+page's own text, paths and images, so no rasterizer or fonts are needed on the host — stored through
+`IGeneratedDocumentService`, and returned as `[fig:N]` markers. A preview is bounded, says which pages it left
+out, and falls back to the pages' text on a host that cannot serve pictures. The preview format is
+resolvable but not requestable, so `generate_file` cannot produce one.
+
+#### Generated PDFs
+
+The same composer writes the PDFs `generate_file` and `export_tabular_data` produce. A tabular export keeps
+what the tabular preview shows: number formats, the header colour, the total row, highlighted cells and
+charts, with each sheet on its own page and wide sheets in landscape.
+
+#### Options
+
+```csharp
+builder.Services.Configure<PdfAgentOptions>(options =>
+{
+    options.Enabled = true;
+    options.MaxDocumentBytes = 50L * 1024 * 1024;
+    options.MaxWorkingDocuments = 40;
+});
+
+builder.Services.Configure<PdfCompositionOptions>(options =>
+{
+    options.DefaultPageSize = "Letter";
+    options.DefaultMarginMm = 20;
+    options.DefaultFontFamily = "Arial";
+});
+
+builder.Services.Configure<PdfPreviewOptions>(options =>
+{
+    options.MaxPages = 4;
+    options.PageWidthPixels = 816;
+});
+```
+
+#### Signing
+
+`sign_pdf` signs with an identity the host configures, never with one supplied in the conversation.
+Register it with `AddPdfSigning()`, which loads a PKCS#12 file; register your own
+`IPdfSigningCertificateProvider` first to take the certificate from a key vault or a certificate store
+instead:
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddDocumentProcessing(documentProcessing => documentProcessing
+            .AddPdf()
+            .AddPdfSigning(options =>
+            {
+                options.CertificatePath = builder.Configuration["Pdf:CertificatePath"];
+                options.CertificatePassword = builder.Configuration["Pdf:CertificatePassword"];
+                options.TimestampAuthorityUrl = "https://timestamp.example.com";
+            })
+        )
+    )
+);
+```
+
+Without it, `sign_pdf` explains that signing is not configured; `verify_pdf_signature` works either way.
+
+#### Good to know
+
+- Every edit of a password-protected file saves an unprotected copy, and any edit makes existing digital
+  signatures stop verifying. The agent says so, and protects or signs as the last step.
+- Pages are numbered as they stand in the file, the way viewers and every PDF tool count them: a cover
+  page shows no number but is counted, so the page after it reads "Page 2 of 3".
+- Positions on a page are points from its top-left, as `search_pdf` reports them; on a page with a
+  `/Rotate` entry they are in the page's unrotated frame.
+- For the Orchard Core integration, see [CrestApps for Orchard Core](https://orchardcore.crestapps.com).
 
 ### Images
 
@@ -192,6 +309,141 @@ PDF export draws the same display lists into PDF pages. It embeds the fonts the 
 back to a common sans-serif typeface for the others, and gradients keep their first and last colours; the
 `.pptx` file is unaffected by either.
 
+### Word documents and the Word Agent
+
+`AddWord()` registers the built-in **Word Agent** (`word-agent`). Like the Tabular Data Agent it is a
+code-defined **system agent**: always available to the primary model, exposed through the A2A host, and hidden
+from the agent pickers. The primary model delegates every request that produces or works on a Word document to
+it — "write a two-page project proposal with a table of contents", "use our letterhead template", "make every
+heading navy", "add page numbers", "turn tracking on and tighten the summary", "what changed between these two
+versions?" — and every follow-up as well. A steering handler tells the primary model which uploads are Word
+documents, so it delegates work on them instead of describing them. The `.docx` writer behind generated files
+is part of `AddOpenXml()` and works without the agent.
+
+#### The workspace
+
+Each chat session or chat interaction has a Word workspace that persists between turns:
+
+- **Uploaded documents are never changed.** An uploaded `.docx` is read in place; the first edit saves a
+  working copy, and every later edit changes that copy. A `.docx` or `.dotx` upload can be the template a new
+  document starts from, keeping its styles, page setup, headers and footers.
+- **Documents are real Word files.** Every tool call applies its changes as one all-or-nothing edit and saves
+  a new version, so the next turn, the preview and the export all see the same file. Elements are named by
+  stable ids (Word's own paragraph ids), so a follow-up can change one paragraph without rebuilding the rest.
+- **A copy never overwrites another document.** `save_as` with a name another working document already has
+  saves under a numbered name, such as `final-2`, and the tool's answer says which.
+- The workspace is stored through `IDocumentFileStore` under the conversation's document folder, and is
+  removed, preview pictures included, when the conversation is deleted or its history is cleared. A file the
+  store fails to delete is remembered and retried the next time the workspace is removed.
+- Edits to one workspace are serialized by an in-process lock. On a multi-server deployment, route a
+  conversation to one server, or two servers editing the same conversation at the same moment can lose one of
+  the edits.
+- Uploads are checked before they are opened: a `.docx` whose parts unpack past
+  `WordAgentOptions.MaxUncompressedDocumentBytes`, that has more than 10,000 parts, or whose large parts are
+  compressed far more than real documents are, is refused.
+
+#### What the agent can do
+
+| Area | Tools |
+| --- | --- |
+| Writing | `create_word_document` (a theme preset or custom fonts and colours, page setup, properties, an uploaded template, and the first content), `add_word_content` (headings, paragraphs with inline Markdown, Markdown, nested lists, quotes, code, tables, pictures, charts, captions, page breaks), `update_word_content`, `remove_word_content`, `move_word_content` |
+| Structure | `add_word_section`, `add_word_page_break`, `add_word_toc`, `add_word_index`, `add_word_caption`, `add_word_cross_reference`, `add_word_bookmark`, `add_word_hyperlink`, `update_word_table` (cells, rows and columns, merging and splitting cells, cell fill and alignment, column widths, table style, banding and borders) |
+| Design | `format_word_document` (the whole look, through the styles), `format_word_content` (chosen elements or a phrase in them), `manage_word_styles`, `set_word_page_layout` (size, margins, columns, page borders, page numbering), `set_word_page_background` (page colour, watermark), `add_word_header_footer` (text, page numbers and other fields, a logo) |
+| Review | `manage_word_comments`, `manage_word_revisions` (track changes, accept, reject), `manage_word_protection` (editing restrictions with an optional password), `check_word_document` (accessibility, broken references and links, layout problems), `compare_word_documents` |
+| Reading | `get_word_document`, `get_word_document_outline`, `search_word_document`, `extract_word_content` (Markdown, text, tables, links or pictures, optionally as a `.md`, `.txt` or `.csv` download) |
+| Delivery | `preview_word`, `export_word` (the whole document, or chosen headings and elements as a separate file), `import_word` (a working copy of an upload, or a duplicate of a working document) |
+
+The agent runs 32 hidden tools, and all of them stay in scope on every request: the orchestrator's relevance
+scoping, which keeps the tools sharing the most words with a request once a profile has more than
+`ScopingThreshold` tools, would otherwise hide the one a request needs, such as `format_word_document` for
+"switch to the modern theme". Tables and charts can take their rows from the conversation's uploaded
+spreadsheets with a read-only SQL query, and the agent can call `list_tabular_data` and `query_tabular_data`
+to choose them. While change tracking is on, text and formatting edits from every tool are recorded as
+revisions signed with `WordAgentOptions.Author`.
+
+A document can be written in one call: a `toc` content block places a table of contents that is filled in
+from the headings around it, list items nest under one another (bullets under a numbered item included), and
+a table takes a format per column, from each column's `format`, a `formats` array, or a header that names the
+unit, such as "Planned ($)". Follow-up edits keep to what they name:
+
+- `update_word_content` replaces a phrase in chosen elements, in one heading's section (`under`), or in the
+  whole document only when asked for `everywhere`.
+- A list block added after an item of a list of the same kind continues that list, and a list written again
+  with new items at its end adds only the new items.
+- `update_word_table` names a row by the text of its first cell or its number (`get_word_document` lists both),
+  writes a plain number the way the rest of its column is written, such as `$9,500.00`, and adds rows above
+  the first one with `after_row: 0`.
+- A cross-reference to a captioned table or figure refers to its caption, and `add_word_caption` on an element
+  that has one changes its words instead of adding another.
+
+Table columns are always the table's grid columns, counted from 1, so a row with merged cells is addressed
+the same way as the others: a merged cell is found from any row and column it covers, and adding or removing
+a column widens or narrows a merged cell instead of breaking its row.
+
+`manage_word_protection` writes the editing restrictions Word enforces — read only, comments only, tracked
+changes only, or filling in forms only — to the document settings. A password is hashed the way Word hashes
+it (SHA-512 with a random salt and 100,000 rounds over Word's legacy password key), so Word asks for it to
+stop the protection; the password itself is never stored or shown again, and Word only checks its first 15
+characters. Protection is not encryption: the file still opens anywhere, and other applications may ignore
+it.
+
+`export_word` with `headings` or `ids` exports only that content as a separate `.docx`, leaving the working
+document as it is. A heading brings everything under it up to the next heading of the same or a higher level;
+the kept content keeps its sections' page layout, and comments and bookmarks whose content was left out are
+removed.
+
+Tracked changes are listed, accepted and rejected wherever Word keeps them — the body, headers, footers,
+footnotes, endnotes and comments — including inserted and deleted table rows and cells, moved text, and
+changes to paragraph, table, cell and page layout. The few kinds only Word can apply, such as numbering and
+equation changes, are listed as such, and accepting or rejecting all changes stops with a message while any
+of them remain.
+
+When a document is refreshed before a preview or an export, a table of contents is rebuilt only when it lists
+headings; a table of figures and other field results Word wrote are kept as Word left them. The exported file
+asks Word to update its fields on opening only when something could not be refreshed here, such as a page
+number past the layout limit.
+
+#### Previews
+
+`preview_word` shows pages in the chat as pictures. An in-process layout engine lays the document out into
+pages — styles, lists, tables, pictures, charts, headers and footers, sections and columns — and draws each
+page as SVG; the same layout gives the table of contents and cross-references their page numbers. Text is
+measured with standard font metrics, so line and page breaks are close to Word's but not exact for every
+typeface. The pictures are stored through `IGeneratedDocumentService` and returned as `[fig:N]` markers;
+every colour taken from a document is validated before it is drawn, and links only keep web, mail and
+in-document targets. On a host that cannot serve pictures the pages are described in text instead.
+
+The layout is bounded so an uploaded file cannot exhaust the host: it stops at `MaxLayoutPages`, tables and
+content controls nested more than 32 deep are drawn as placeholders, tables keep at most 63 columns and
+sections at most 45, a paragraph is laid out up to its first 250,000 characters, and a picture larger than
+`MaxImageBytesPerPage` is drawn as a labelled placeholder rather than read.
+
+#### Options
+
+```csharp
+builder.Services.Configure<WordAgentOptions>(options =>
+{
+    options.MaxWorkingDocuments = 40;                // documents kept per conversation, duplicates included
+    options.MaxDocumentBytes = 50L * 1024 * 1024;    // the largest document opened or kept
+    options.MaxUncompressedDocumentBytes = 256L * 1024 * 1024; // the most a document may unpack to
+    options.MaxImageBytes = 10 * 1024 * 1024;        // the largest picture a document places
+    options.MaxToolResponseCharacters = 24_000;      // longer tool answers are cut, saying how to ask for the rest
+    options.Author = "AI Assistant";                 // the name comments and tracked changes are signed with
+});
+
+builder.Services.Configure<WordPreviewOptions>(options =>
+{
+    options.MaxPages = 4;                            // pages shown when the agent asks for no particular pages
+    options.MaxRenderPages = 12;                     // the most pages one call draws when it names them
+    options.PageWidthPixels = 816;                   // the width a page is drawn at: a letter page at 96 dpi
+    options.MaxImageBytesPerPage = 3 * 1024 * 1024;  // pictures past it are drawn as labelled placeholders
+    options.MaxLayoutPages = 500;                    // pages laid out per document; page counts past it are a lower bound
+});
+
+// Keep the .docx writer but leave the agent out.
+builder.Services.Configure<WordAgentOptions>(options => options.Enabled = false);
+```
+
 ## Download Links and Citations
 
 Uploaded documents and generated deliverables can both appear as downloadable references in chat.
@@ -221,7 +473,8 @@ Generated downloads are kept separate from user-uploaded source documents, which
 Out of the box, the document features support common text, document, image, and tabular formats. Add the packages you need:
 
 - `AddOpenXml()` for Office formats such as Word, PowerPoint (`.pptx` and `.potx` templates), and Excel, and for the Presentation Agent
-- `AddPdf()` for PDF reading
+- `AddPdf()` for PDF reading, the PDF writer and the PDF Agent (`AddPdfSigning()` adds signing)
+- `AddWord()` for the Word Agent
 - `AddMarkdown()` for Markdown-aware normalization and chunking
 
 Use the document upload options to control which extensions your app accepts.

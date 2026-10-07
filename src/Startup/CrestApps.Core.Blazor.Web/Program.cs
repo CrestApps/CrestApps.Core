@@ -12,6 +12,7 @@ using CrestApps.Core.AI.Documents.Endpoints;
 using CrestApps.Core.AI.Documents.OpenXml;
 using CrestApps.Core.AI.Documents.Pdf;
 using CrestApps.Core.AI.Documents.Tooling;
+using CrestApps.Core.AI.Documents.Word;
 using CrestApps.Core.AI.Elasticsearch;
 using CrestApps.Core.AI.FileSources;
 using CrestApps.Core.AI.Ftp;
@@ -149,6 +150,7 @@ builder.Services
             .AddEntityCoreStores()
             .AddOpenXml()
             .AddPdf()
+            .AddWord()
             .AddReferenceDownloads()
         )
         .AddAIMemory(memory => memory

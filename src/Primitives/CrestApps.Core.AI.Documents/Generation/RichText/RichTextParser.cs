@@ -40,6 +40,8 @@ public static class RichTextParser
         var blocks = new List<RichTextBlock>();
         var paragraph = new List<string>();
         var numberedPosition = 0;
+        var listIndents = new List<int>();
+        var lastListItemLine = -2;
 
         for (var index = 0; index < lines.Length; index++)
         {
@@ -112,9 +114,31 @@ public static class RichTextParser
             {
                 FlushParagraph(blocks, paragraph);
 
+                // An item indented further than the one before it is nested under it, however many spaces the
+                // author indents by.
+                if (lastListItemLine != index - 1)
+                {
+                    listIndents.Clear();
+                }
+
+                var indent = line.Length - line.TrimStart().Length;
+
+                while (listIndents.Count > 0 && indent < listIndents[^1])
+                {
+                    listIndents.RemoveAt(listIndents.Count - 1);
+                }
+
+                if (listIndents.Count == 0 || indent > listIndents[^1])
+                {
+                    listIndents.Add(indent);
+                }
+
+                lastListItemLine = index;
+
                 blocks.Add(new RichTextBlock
                 {
                     Kind = ordered ? RichTextBlockKind.NumberedItem : RichTextBlockKind.BulletItem,
+                    Level = Math.Min(listIndents.Count - 1, 8),
                     Number = ordered ? ++numberedPosition : 0,
                     Spans = ParseInline(itemText),
                 });
