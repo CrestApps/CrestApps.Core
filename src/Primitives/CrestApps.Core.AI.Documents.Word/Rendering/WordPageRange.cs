@@ -17,6 +17,7 @@ internal static class WordPageRange
     public static List<int> Parse(string text, int pageCount)
     {
         var pages = new List<int>();
+        var seen = new HashSet<int>();
 
         if (string.IsNullOrWhiteSpace(text) || pageCount <= 0)
         {
@@ -34,9 +35,19 @@ internal static class WordPageRange
                 throw new WordToolException($"\"{part}\" is not a page or a range of pages. Use numbers from 1 to {pageCount}, such as \"2\", \"1-3\" or \"last\".");
             }
 
-            for (var page = Math.Min(from.Value, to.Value); page <= Math.Max(from.Value, to.Value); page++)
+            // The selection comes from the model, so a range such as "1-2147483647" is clamped to the document
+            // before it is walked: the loop then runs at most once per page.
+            var first = Math.Clamp(Math.Min(from.Value, to.Value), 1, pageCount);
+            var last = Math.Clamp(Math.Max(from.Value, to.Value), 1, pageCount);
+
+            if (Math.Max(from.Value, to.Value) < 1 || Math.Min(from.Value, to.Value) > pageCount)
             {
-                if (page >= 1 && page <= pageCount && !pages.Contains(page))
+                continue;
+            }
+
+            for (var page = first; page <= last; page++)
+            {
+                if (seen.Add(page))
                 {
                     pages.Add(page);
                 }
