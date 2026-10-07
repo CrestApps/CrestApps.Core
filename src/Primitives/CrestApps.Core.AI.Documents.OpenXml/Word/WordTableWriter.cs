@@ -1,4 +1,5 @@
 using System.Globalization;
+using CrestApps.Core.AI.Documents.Generation.RichText;
 using CrestApps.Core.AI.Documents.Generation.Spreadsheets;
 using CrestApps.Core.AI.Documents.Tabular;
 using DocumentFormat.OpenXml;
@@ -137,14 +138,19 @@ internal static class WordTableWriter
                 headerRow.TableRowProperties.Append(new TableHeader());
             }
 
+            // A header fill given without a text color gets whichever of dark or white text reads on it; the
+            // data style's own white header text would vanish on a pale fill.
+            var headerTextColor = spec.HeaderTextColor ?? ContrastingTextColor(spec.HeaderFill, design);
+
             for (var index = 0; index < columnCount; index++)
             {
                 var cell = new WordTableCell
                 {
                     Text = columns[index].Header ?? string.Empty,
+                    Spans = columns[index].HeaderSpans,
                     Bold = look is "data" or "striped" or "banded" or "default" ? null : true,
                     Fill = spec.HeaderFill ?? (look is "grid" or "bordered" ? "F2F2F2" : null),
-                    Color = spec.HeaderTextColor,
+                    Color = headerTextColor,
                     Alignment = columns[index].Alignment ?? (IsNumeric(columns[index].Format) ? "right" : null),
                 };
 
@@ -155,6 +161,10 @@ internal static class WordTableWriter
         }
 
         var pendingRowSpans = new int[columnCount];
+
+        // How many grid columns the merged cell a pending row span continues covers, so the continuation
+        // cells below span the same columns.
+        var pendingColumnSpans = new int[columnCount];
 
         for (var rowIndex = 0; rowIndex < spec.Rows.Count; rowIndex++)
         {
@@ -170,16 +180,24 @@ internal static class WordTableWriter
                 {
                     pendingRowSpans[column]--;
 
-                    var continuation = new TableCell(
-                        new TableCellProperties
+                    var continuedSpan = Math.Clamp(pendingColumnSpans[column], 1, columnCount - column);
+                    var continuationProperties = new TableCellProperties
+                    {
+                        TableCellWidth = new TableCellWidth
                         {
-                            TableCellWidth = new TableCellWidth { Width = gridWidths[column].ToString(CultureInfo.InvariantCulture), Type = TableWidthUnitValues.Dxa },
-                            VerticalMerge = new VerticalMerge(),
+                            Width = gridWidths.Skip(column).Take(continuedSpan).Sum().ToString(CultureInfo.InvariantCulture),
+                            Type = TableWidthUnitValues.Dxa,
                         },
-                        new Paragraph());
+                        VerticalMerge = new VerticalMerge(),
+                    };
 
-                    row.Append(continuation);
-                    column++;
+                    if (continuedSpan > 1)
+                    {
+                        continuationProperties.GridSpan = new GridSpan { Val = continuedSpan };
+                    }
+
+                    row.Append(new TableCell(continuationProperties, new Paragraph()));
+                    column += continuedSpan;
 
                     continue;
                 }
@@ -215,13 +233,11 @@ internal static class WordTableWriter
                 {
                     element.TableCellProperties.VerticalMerge = new VerticalMerge { Val = MergedCellValues.Restart };
 
-                    for (var spanned = column; spanned < column + span; spanned++)
-                    {
-                        pendingRowSpans[spanned] = Math.Max(pendingRowSpans[spanned], cell.RowSpan - 1);
-                    }
+                    pendingRowSpans[column] = Math.Max(pendingRowSpans[column], cell.RowSpan - 1);
+                    pendingColumnSpans[column] = span;
 
-                    // A merged cell covering several grid columns continues as one cell below, so the extra
-                    // columns are skipped there rather than given cells of their own.
+                    // A merged cell covering several grid columns continues as one cell below that spans the
+                    // same columns, so the extra columns are not given continuations of their own.
                     for (var spanned = column + 1; spanned < column + span; spanned++)
                     {
                         pendingRowSpans[spanned] = 0;
@@ -301,13 +317,40 @@ internal static class WordTableWriter
             Size = spec.FontSize,
         };
 
-        var text = cell.Value is not null
-            ? FormatValue(cell.Value, columnFormat)
-            : columnFormat is not null && LooksLikeValue(cell.Text) ? FormatValue(cell.Text.Trim(), columnFormat) : cell.Text;
+        var baseFormat = format.IsEmpty ? null : format;
+        var valueFormat = cell.Format ?? columnFormat;
 
-        WordInlineWriter.AppendMarkdown(paragraph, text ?? string.Empty, part, format.IsEmpty ? null : format);
+        if (cell.Value is null && cell.Spans is not null)
+        {
+            WordInlineWriter.AppendSpans(paragraph, cell.Spans, part, baseFormat);
+        }
+        else
+        {
+            var text = cell.Value is not null
+                ? FormatValue(cell.Value, valueFormat)
+                : valueFormat is not null && LooksLikeValue(cell.Text) ? FormatValue(cell.Text.Trim(), valueFormat) : cell.Text;
+
+            if (spec.Literal)
+            {
+                WordInlineWriter.AppendSpans(paragraph, [new RichTextSpan(text)], part, baseFormat);
+            }
+            else
+            {
+                WordInlineWriter.AppendMarkdown(paragraph, text ?? string.Empty, part, baseFormat);
+            }
+        }
 
         return new TableCell(properties, paragraph);
+    }
+
+    private static string ContrastingTextColor(string fill, WordDesign design)
+    {
+        if (string.IsNullOrWhiteSpace(fill) || !WordColor.TryParse(fill, out var color))
+        {
+            return null;
+        }
+
+        return WordColor.IsDark(color) ? "FFFFFF" : WordColor.ParseOrDefault(design.TextColor, "000000");
     }
 
     private static bool LooksLikeValue(string text)
@@ -383,32 +426,44 @@ internal static class WordTableWriter
     {
         var widths = new double[columns.Count];
         var weights = new double[columns.Count];
+        var unweighted = new bool[columns.Count];
         var fixedTotal = 0d;
-        var weightTotal = 0d;
+        var givenWeightTotal = 0d;
+        var givenWeightCount = 0;
 
         for (var index = 0; index < columns.Count; index++)
         {
             var text = columns[index].Width?.Trim();
 
-            if (string.IsNullOrEmpty(text))
-            {
-                weights[index] = 1;
-            }
-            else if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var weight))
+            if (!string.IsNullOrEmpty(text) && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var weight))
             {
                 weights[index] = Math.Max(weight, 0.1);
+                givenWeightTotal += weights[index];
+                givenWeightCount++;
             }
-            else if (WordUnits.TryParseLength(text, WordUnits.FromTwips(tableWidth), out var points) && points > 0)
+            else if (!string.IsNullOrEmpty(text) && WordUnits.TryParseLength(text, WordUnits.FromTwips(tableWidth), out var points) && points > 0)
             {
                 widths[index] = WordUnits.ToTwips(points);
                 fixedTotal += widths[index];
             }
             else
             {
-                weights[index] = 1;
+                unweighted[index] = true;
             }
+        }
 
-            weightTotal += weights[index];
+        // A column without a width takes the average of the weights given, so with only some columns sized
+        // (spreadsheet widths in characters, say) the rest are not squeezed to a weight of one beside them.
+        var defaultWeight = givenWeightCount > 0 ? givenWeightTotal / givenWeightCount : 1;
+        var weightTotal = givenWeightTotal;
+
+        for (var index = 0; index < columns.Count; index++)
+        {
+            if (unweighted[index])
+            {
+                weights[index] = defaultWeight;
+                weightTotal += defaultWeight;
+            }
         }
 
         var remaining = Math.Max(0, tableWidth - fixedTotal);

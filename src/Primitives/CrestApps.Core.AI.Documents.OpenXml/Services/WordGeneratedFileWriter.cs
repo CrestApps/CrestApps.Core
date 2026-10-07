@@ -24,6 +24,12 @@ namespace CrestApps.Core.AI.Documents.OpenXml.Services;
 /// </summary>
 public sealed class WordGeneratedFileWriter : IGeneratedFileWriter
 {
+    private static readonly SpreadsheetColumnFormat _countFormat = new()
+    {
+        NumberFormat = SpreadsheetNumberFormat.Number,
+        Decimals = 0,
+    };
+
     /// <summary>
     /// Writes the content as an Open XML word-processing document to the destination stream.
     /// </summary>
@@ -44,9 +50,11 @@ public sealed class WordGeneratedFileWriter : IGeneratedFileWriter
 
             void Add(OpenXmlElement element) => section.InsertBeforeSelf(element);
 
+            // The title and the sheet names are written as they are: unlike the body, they are not Markdown, so
+            // a backslash, an asterisk or an underscore in them is part of the name.
             if (!string.IsNullOrWhiteSpace(content.Title))
             {
-                Add(writer.Paragraph(content.Title.Trim(), writer.Style(WordStyleSheet.Title)));
+                Add(writer.Paragraph([new RichTextSpan(content.Title.Trim())], writer.Style(WordStyleSheet.Title)));
             }
 
             if (!string.IsNullOrEmpty(content.Text))
@@ -72,7 +80,7 @@ public sealed class WordGeneratedFileWriter : IGeneratedFileWriter
                     // apart.
                     if (sheets.Count > 1 && !string.IsNullOrWhiteSpace(sheet.Name))
                     {
-                        Add(writer.Heading(sheet.Name, 2));
+                        Add(writer.Paragraph([new RichTextSpan(sheet.Name.Trim())], writer.Style(WordStyleSheet.Heading(2))));
                     }
 
                     Add(writer.Table(ToTableSpec(sheet)));
@@ -90,7 +98,8 @@ public sealed class WordGeneratedFileWriter : IGeneratedFileWriter
 
     /// <summary>
     /// Describes a generated sheet as a table: its column formats, header style, banding and total row are
-    /// carried over, so the table reads the way the spreadsheet export of the same data reads.
+    /// carried over, so the table reads the way the spreadsheet export of the same data reads. The headers and
+    /// values are data, written as they are rather than read as Markdown.
     /// </summary>
     /// <param name="sheet">The sheet.</param>
     /// <returns>The table description.</returns>
@@ -106,6 +115,7 @@ public sealed class WordGeneratedFileWriter : IGeneratedFileWriter
             BandFill = formatting?.BandColor,
             HeaderFill = formatting?.HeaderStyle?.BackgroundColor,
             HeaderTextColor = formatting?.HeaderStyle?.FontColor,
+            Literal = true,
         };
 
         var formats = new List<SpreadsheetColumnFormat>(sheet.Header.Count);
@@ -161,7 +171,14 @@ public sealed class WordGeneratedFileWriter : IGeneratedFileWriter
                 Color = totalRow.Style?.FontColor,
             };
 
-            if (total is not null)
+            if (total is not null && total.Function == SpreadsheetAggregateFunction.Count)
+            {
+                // A count is of the cells that hold anything, as the spreadsheet's SUBTOTAL(103) counts them,
+                // and it is a whole number whatever the column's format: three amounts are 3, not $3.00.
+                cell.Value = sheet.Rows.Count(row => index < row.Count && !string.IsNullOrEmpty(row[index]));
+                cell.Format = _countFormat;
+            }
+            else if (total is not null)
             {
                 var values = sheet.Rows
                     .Select(row => index < row.Count && double.TryParse(row[index], NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : (double?)null)
@@ -171,7 +188,6 @@ public sealed class WordGeneratedFileWriter : IGeneratedFileWriter
 
                 cell.Value = total.Function switch
                 {
-                    SpreadsheetAggregateFunction.Count => (double)values.Count,
                     SpreadsheetAggregateFunction.Average when values.Count > 0 => values.Average(),
                     SpreadsheetAggregateFunction.Min when values.Count > 0 => values.Min(),
                     SpreadsheetAggregateFunction.Max when values.Count > 0 => values.Max(),

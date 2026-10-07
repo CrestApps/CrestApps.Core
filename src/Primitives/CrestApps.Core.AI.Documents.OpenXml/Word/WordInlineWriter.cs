@@ -1,3 +1,5 @@
+using System.Text;
+using System.Xml;
 using CrestApps.Core.AI.Documents.Generation.RichText;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
@@ -128,12 +130,12 @@ internal static class WordInlineWriter
     /// Appends text to a run, turning line breaks into breaks and tabs into tabs.
     /// </summary>
     /// <param name="run">The run.</param>
-    /// <param name="text">The text.</param>
+    /// <param name="text">The text. Characters an XML document cannot hold are left out.</param>
     public static void AppendText(Run run, string text)
     {
         ArgumentNullException.ThrowIfNull(run);
 
-        var lines = (text ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var lines = NormalizeText(text).Split('\n');
 
         for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
         {
@@ -157,6 +159,87 @@ internal static class WordInlineWriter
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Prepares text to be written into a document: every line ending — <c>\r\n</c>, a lone <c>\r</c> or
+    /// <c>\n</c> — becomes <c>\n</c>, and the control characters and other characters an XML document cannot
+    /// hold are left out, since a single one of them makes the whole document fail to save.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The text, with <c>\n</c> line endings and only characters XML can hold.</returns>
+    public static string NormalizeText(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        if (!NeedsNormalizing(text))
+        {
+            return text;
+        }
+
+        var builder = new StringBuilder(text.Length);
+
+        for (var index = 0; index < text.Length; index++)
+        {
+            var character = text[index];
+
+            if (character == '\r')
+            {
+                builder.Append('\n');
+
+                if (index + 1 < text.Length && text[index + 1] == '\n')
+                {
+                    index++;
+                }
+
+                continue;
+            }
+
+            if (char.IsHighSurrogate(character) && index + 1 < text.Length && char.IsLowSurrogate(text[index + 1]))
+            {
+                builder.Append(character).Append(text[index + 1]);
+                index++;
+
+                continue;
+            }
+
+            if (XmlConvert.IsXmlChar(character))
+            {
+                builder.Append(character);
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private static bool NeedsNormalizing(string text)
+    {
+        for (var index = 0; index < text.Length; index++)
+        {
+            var character = text[index];
+
+            if (character == '\r')
+            {
+                return true;
+            }
+
+            if (char.IsHighSurrogate(character) && index + 1 < text.Length && char.IsLowSurrogate(text[index + 1]))
+            {
+                index++;
+
+                continue;
+            }
+
+            if (!XmlConvert.IsXmlChar(character))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -241,6 +324,8 @@ internal static class WordInlineWriter
             _ => part?.GetParentParts().OfType<MainDocumentPart>().FirstOrDefault(),
         };
 
+        // This runs for every code span and link, so it relies on Ensure finding a style the document already
+        // has without building the whole style sheet each time.
         return mainPart is null
             ? styleId
             : WordStyleSheet.Ensure(mainPart, styleId, null);

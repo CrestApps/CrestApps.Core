@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Documents.Generation.RichText;
 using CrestApps.Core.AI.Documents.Generation.Spreadsheets;
 
 namespace CrestApps.Core.AI.Documents.OpenXml.Word;
@@ -80,6 +81,13 @@ internal sealed class WordTableSpec
     /// Gets or sets a value indicating whether the first column is bold, as row labels often are.
     /// </summary>
     public bool BoldFirstColumn { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether headers and cell text are written exactly as given rather than
+    /// read as inline Markdown. Values taken from a spreadsheet are data, so a backslash in a path, an asterisk
+    /// in a pattern or the underscores of <c>__init__</c> are part of the value, not markup.
+    /// </summary>
+    public bool Literal { get; set; }
 }
 
 /// <summary>
@@ -88,9 +96,15 @@ internal sealed class WordTableSpec
 internal sealed class WordTableColumn
 {
     /// <summary>
-    /// Gets or sets the header text, with inline Markdown.
+    /// Gets or sets the header text, with inline Markdown unless the table is <see cref="WordTableSpec.Literal"/>.
     /// </summary>
     public string Header { get; set; }
+
+    /// <summary>
+    /// Gets or sets the header as already parsed spans, written as they are. Takes precedence over the
+    /// formatting of <see cref="Header"/>, which still has to hold the header's text.
+    /// </summary>
+    public IReadOnlyList<RichTextSpan> HeaderSpans { get; set; }
 
     /// <summary>
     /// Gets or sets the width: a length such as <c>1.5in</c>, a percentage of the table, or a relative weight.
@@ -115,14 +129,27 @@ internal sealed class WordTableColumn
 internal sealed class WordTableCell
 {
     /// <summary>
-    /// Gets or sets the text, with inline Markdown. Ignored when <see cref="Value"/> is set.
+    /// Gets or sets the text, with inline Markdown unless the table is <see cref="WordTableSpec.Literal"/>.
+    /// Ignored when <see cref="Value"/> or <see cref="Spans"/> is set.
     /// </summary>
     public string Text { get; set; }
+
+    /// <summary>
+    /// Gets or sets the content as already parsed spans, written as they are, so text that was parsed once
+    /// is not parsed again. Ignored when <see cref="Value"/> is set.
+    /// </summary>
+    public IReadOnlyList<RichTextSpan> Spans { get; set; }
 
     /// <summary>
     /// Gets or sets a raw value, presented with the column's format.
     /// </summary>
     public object Value { get; set; }
+
+    /// <summary>
+    /// Gets or sets how the cell's value is presented, overriding the column's format, such as a count under
+    /// a currency column that is shown as a whole number.
+    /// </summary>
+    public SpreadsheetColumnFormat Format { get; set; }
 
     /// <summary>
     /// Gets or sets whether the cell is bold.

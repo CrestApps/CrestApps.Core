@@ -21,8 +21,9 @@ internal static class WordNumbering
     /// <param name="mainPart">The main document part.</param>
     /// <param name="numbered">Whether the list is numbered rather than bulleted.</param>
     /// <param name="start">The first number of a numbered list.</param>
+    /// <param name="level">The level, from 0, the list's first item is at and <paramref name="start"/> applies to.</param>
     /// <returns>The numbering instance the list's paragraphs refer to.</returns>
-    public static int CreateList(MainDocumentPart mainPart, bool numbered, int start = 1)
+    public static int CreateList(MainDocumentPart mainPart, bool numbered, int start = 1, int level = 0)
     {
         ArgumentNullException.ThrowIfNull(mainPart);
 
@@ -42,7 +43,7 @@ internal static class WordNumbering
         {
             instance.Append(new LevelOverride(new StartOverrideNumberingValue { Val = Math.Max(0, start) })
             {
-                LevelIndex = 0,
+                LevelIndex = Math.Clamp(level, 0, 8),
             });
         }
 

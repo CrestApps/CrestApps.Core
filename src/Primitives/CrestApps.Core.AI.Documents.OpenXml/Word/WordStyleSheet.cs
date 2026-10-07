@@ -104,6 +104,13 @@ internal static class WordStyleSheet
     private static readonly double[] _headingSizes = [18, 14, 12, 11, 11, 11];
     private static readonly double[] _headingSpaceBefore = [18, 14, 12, 10, 8, 8];
 
+    // The name and kind of every style this sheet defines, by id. They do not depend on the design.
+    private static readonly Lazy<Dictionary<string, (string Name, StyleValues? Type)>> _definitions = new(() =>
+        CreateAll(new WordDesign()).ToDictionary(
+            style => style.StyleId.Value,
+            style => (style.StyleName?.Val?.Value, style.Type?.Value),
+            StringComparer.Ordinal));
+
     /// <summary>
     /// Returns the style id of a heading level.
     /// </summary>
@@ -192,19 +199,22 @@ internal static class WordStyleSheet
         ArgumentNullException.ThrowIfNull(mainPart);
 
         var styles = GetOrCreateStyles(mainPart);
-        var definition = CreateAll(design ?? new WordDesign()).FirstOrDefault(style => string.Equals(style.StyleId?.Value, styleId, StringComparison.Ordinal));
 
-        if (definition is null)
+        // The style is looked for by its known name and kind first; the whole sheet is only built when the
+        // style has to be added, because this runs for every code span and link a document is written with.
+        if (styleId is null || !_definitions.Value.TryGetValue(styleId, out var known))
         {
             return FindStyle(styles, styleId, null, null)?.StyleId?.Value ?? styleId;
         }
 
-        var existing = FindStyle(styles, styleId, definition.StyleName?.Val?.Value, definition.Type?.Value);
+        var existing = FindStyle(styles, styleId, known.Name, known.Type);
 
         if (existing is not null)
         {
             return existing.StyleId?.Value ?? styleId;
         }
+
+        var definition = CreateAll(design ?? new WordDesign()).First(style => string.Equals(style.StyleId?.Value, styleId, StringComparison.Ordinal));
 
         // A style refers to the styles it is based on and followed by, and those have to exist too.
         if (definition.BasedOn?.Val?.Value is { } basedOn && !string.Equals(basedOn, styleId, StringComparison.Ordinal))

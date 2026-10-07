@@ -182,7 +182,7 @@ internal sealed class WordBlockWriter
     public List<Paragraph> Code(string code)
     {
         var style = Style(WordStyleSheet.CodeBlock);
-        var lines = (code ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var lines = WordInlineWriter.NormalizeText(code).Split('\n');
         var paragraphs = new List<Paragraph>(lines.Length);
 
         foreach (var line in lines)
@@ -315,91 +315,63 @@ internal sealed class WordBlockWriter
 
         var columnCount = Math.Max(1, source.ColumnCount);
 
+        // The cells keep the spans they were parsed into. Writing them back out as Markdown to be parsed again
+        // would lose the literal characters the first parse unescaped, such as a backslash or an asterisk.
         for (var index = 0; index < columnCount; index++)
         {
+            var spans = index < source.Header.Cells.Count ? source.Header.Cells[index].Spans : null;
+
             spec.Columns.Add(new WordTableColumn
             {
-                Header = index < source.Header.Cells.Count ? ToMarkdown(source.Header.Cells[index].Spans) : string.Empty,
+                Header = spans is null ? string.Empty : string.Concat(spans.Select(span => span.Text)),
+                HeaderSpans = spans is null ? null : [.. spans],
             });
         }
 
         foreach (var row in source.Rows)
         {
-            spec.Rows.Add([.. row.Cells.Select(cell => WordTableCell.FromText(ToMarkdown(cell.Spans)))]);
+            spec.Rows.Add([.. row.Cells.Select(cell => new WordTableCell { Spans = [.. cell.Spans] })]);
         }
 
         return spec;
-    }
-
-    /// <summary>
-    /// Writes parsed spans back as inline Markdown, so a cell keeps its emphasis and links.
-    /// </summary>
-    /// <param name="spans">The spans.</param>
-    /// <returns>The inline Markdown.</returns>
-    public static string ToMarkdown(IEnumerable<RichTextSpan> spans)
-    {
-        if (spans is null)
-        {
-            return string.Empty;
-        }
-
-        var builder = new System.Text.StringBuilder();
-
-        foreach (var span in spans)
-        {
-            var text = span.Text ?? string.Empty;
-
-            if (span.Code)
-            {
-                text = "`" + text + "`";
-            }
-
-            if (span.Strikethrough)
-            {
-                text = "~~" + text + "~~";
-            }
-
-            if (span.Italic)
-            {
-                text = "*" + text + "*";
-            }
-
-            if (span.Bold)
-            {
-                text = "**" + text + "**";
-            }
-
-            if (!string.IsNullOrWhiteSpace(span.Link))
-            {
-                text = "[" + text + "](" + span.Link + ")";
-            }
-
-            builder.Append(text);
-        }
-
-        return builder.ToString();
     }
 
     private int AppendList(IReadOnlyList<RichTextBlock> blocks, int index, List<OpenXmlElement> elements)
     {
         var style = Style(WordStyleSheet.ListParagraph);
 
-        // Each run of consecutive items is one list; a numbered run restarts its numbering.
-        var numbered = blocks[index].Kind == RichTextBlockKind.NumberedItem;
-        var numberId = WordNumbering.CreateList(_mainPart, numbered, Math.Max(1, blocks[index].Number));
+        // The list each nesting level is currently writing into. Each run of consecutive items is one list and
+        // a numbered run restarts its numbering. An item nested under one of the same kind continues its
+        // parent's list, so Word restarts the nested numbering under each parent item; one of the other kind
+        // (bullets under a numbered item, or numbers under a bullet) starts a list of its own, so it gets its
+        // own kind of marker rather than the parent list's marker for that level.
+        var levels = new (int NumberId, bool Numbered)?[9];
 
         while (index < blocks.Count && blocks[index].Kind is RichTextBlockKind.BulletItem or RichTextBlockKind.NumberedItem)
         {
             var block = blocks[index];
             var isNumbered = block.Kind == RichTextBlockKind.NumberedItem;
+            var level = Math.Clamp(block.Level, 0, 8);
 
-            if (isNumbered != numbered && block.Level == 0)
+            // Returning to a level ends every run nested deeper.
+            for (var deeper = level + 1; deeper < levels.Length; deeper++)
             {
-                numbered = isNumbered;
-                numberId = WordNumbering.CreateList(_mainPart, numbered, Math.Max(1, block.Number));
+                levels[deeper] = null;
             }
 
-            var paragraph = ListItem(numberId, Math.Clamp(block.Level, 0, 8), style);
+            if (levels[level] is not { } current || current.Numbered != isNumbered)
+            {
+                var parent = levels.Take(level).LastOrDefault(entry => entry is not null);
+
+                var numberId = parent is { } inherited && inherited.Numbered == isNumbered
+                    ? inherited.NumberId
+                    : WordNumbering.CreateList(_mainPart, isNumbered, Math.Max(1, block.Number), level);
+
+                current = (numberId, isNumbered);
+                levels[level] = current;
+            }
+
+            var paragraph = ListItem(current.NumberId, level, style);
 
             WordInlineWriter.AppendSpans(paragraph, block.Spans, _part);
             elements.Add(paragraph);
