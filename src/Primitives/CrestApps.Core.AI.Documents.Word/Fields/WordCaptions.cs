@@ -135,16 +135,16 @@ internal static class WordCaptions
                 continue;
             }
 
-            if (ChapterLevel(instruction) is { } chapterLevel)
+            // \s n restarts the sequence when a heading of level n or higher came between this field and the
+            // sequence's previous field, the way Word does.
+            if (ChapterLevel(instruction) is { } chapterLevel &&
+                chapters.TryGetValue(name, out var previous) &&
+                !string.Equals(ChapterKey(previous, chapterLevel), ChapterKey(chapter, chapterLevel), StringComparison.Ordinal))
             {
-                var key = string.Join('.', chapter.Split('.').Take(chapterLevel));
-
-                if (!chapters.TryGetValue(name, out var previous) || !string.Equals(previous, key, StringComparison.Ordinal))
-                {
-                    chapters[name] = key;
-                    counters[name] = 0;
-                }
+                counters[name] = 0;
             }
+
+            chapters[name] = chapter;
 
             var current = counters.GetValueOrDefault(name);
             int value;
@@ -181,6 +181,11 @@ internal static class WordCaptions
         return counters;
     }
 
+    private static string ChapterKey(string chapter, int level)
+    {
+        return string.Join('.', chapter.Split('.').Take(level));
+    }
+
     /// <summary>
     /// Writes a sequence number the way a field's <c>\*</c> switches ask.
     /// </summary>
@@ -192,7 +197,7 @@ internal static class WordCaptions
         ArgumentNullException.ThrowIfNull(formats);
 
         // MERGEFORMAT and CHARFORMAT say how the result is formatted, not how the number is written.
-        var format = formats.FirstOrDefault(item => !item.Equals("MERGEFORMAT", StringComparison.OrdinalIgnoreCase) && !item.Equals("CHARFORMAT", StringComparison.OrdinalIgnoreCase));
+        var format = formats.FirstOrDefault(item => item.Length > 0 && !item.Equals("MERGEFORMAT", StringComparison.OrdinalIgnoreCase) && !item.Equals("CHARFORMAT", StringComparison.OrdinalIgnoreCase));
 
         if (format is null || format.Equals("Arabic", StringComparison.OrdinalIgnoreCase))
         {

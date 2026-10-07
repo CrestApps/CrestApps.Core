@@ -122,6 +122,55 @@ public sealed class WordFieldsAndEditingTests
     }
 
     [Fact]
+    public void Refresh_ReferencesWordFormats_KeepsWordsResultAndAsksWordToUpdate()
+    {
+        using var package = WordPackage.Create(new WordDesign());
+
+        Add(package, new Paragraph(
+            new BookmarkStart { Name = "_Ref1", Id = "1" },
+            new Run(new Text("Market overview")),
+            new BookmarkEnd { Id = "1" }));
+
+        var relative = new Paragraph(new Run(new Text("See ")));
+        var upper = new Paragraph(new Run(new Text("Also ")));
+        var missing = new Paragraph(new Run(new Text("Then ")));
+        var plain = new Paragraph(new Run(new Text("And ")));
+
+        WordFieldWriter.Append(relative, "PAGEREF _Ref1 \\p \\h", "on page 5");
+        WordFieldWriter.Append(upper, "REF _Ref1 \\* Upper \\h", "MARKET OVERVIEW");
+        WordFieldWriter.Append(missing, "REF _Gone \\h", "the old section");
+        WordFieldWriter.Append(plain, "REF _Ref1 \\h \\* MERGEFORMAT", "old");
+        Add(package, relative);
+        Add(package, upper);
+        Add(package, missing);
+        Add(package, plain);
+
+        WordDocumentRefresher.Refresh(package, services: null);
+
+        Assert.Equal("See on page 5", WordText.Of(relative));
+        Assert.Equal("Also MARKET OVERVIEW", WordText.Of(upper));
+        Assert.Equal("Then the old section", WordText.Of(missing));
+        Assert.Equal("And Market overview", WordText.Of(plain));
+        Assert.NotNull(package.MainPart.DocumentSettingsPart?.Settings?.GetFirstChild<UpdateFieldsOnOpen>());
+    }
+
+    [Fact]
+    public void Renumber_NegativeOutlineLevelAndEmptyFormat_NumbersWithoutThrowing()
+    {
+        using var package = WordPackage.Create(new WordDesign());
+
+        Add(package, new Paragraph(new ParagraphProperties(new OutlineLevel { Val = -1 }), new Run(new Text("Odd level"))));
+
+        var first = Caption(package, "SEQ Figure \\* \"\"");
+        var second = Caption(package, "SEQ Figure \\s 1");
+
+        WordCaptions.Renumber(package);
+
+        Assert.Equal("1", Result(first));
+        Assert.Equal("2", Result(second));
+    }
+
+    [Fact]
     public void Renumber_NumberFormatsAndChapters_FollowWordsSwitches()
     {
         using var package = WordPackage.Create(new WordDesign());

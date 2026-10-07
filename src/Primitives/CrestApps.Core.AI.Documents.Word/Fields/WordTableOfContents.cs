@@ -121,6 +121,15 @@ internal static partial class WordTableOfContents
         {
             var name = WordFieldScanner.ArgumentOf(field.Instruction);
 
+            // \p writes "on page 5" or "above" rather than the number, and a \* or \# format rewrites it; Word's
+            // result is kept, and Word asked to update it.
+            if (WordFieldScanner.HasSwitch(field.Instruction, 'p') || WordFieldScanner.HasResultFormat(field.Instruction))
+            {
+                complete = false;
+
+                continue;
+            }
+
             if (targets.TryGetValue(name, out var target))
             {
                 var page = layout.DisplayNumberOf(target.Parent is Paragraph ? target.Parent : target.NextSibling() ?? target);
@@ -388,7 +397,7 @@ internal static partial class WordTableOfContents
         {
             if (style.StyleParagraphProperties?.OutlineLevel?.Val?.Value is { } level)
             {
-                return level < 9;
+                return level is >= 0 and < 9;
             }
 
             if (style.StyleName?.Val?.Value is { } name && name.StartsWith("heading ", StringComparison.OrdinalIgnoreCase))

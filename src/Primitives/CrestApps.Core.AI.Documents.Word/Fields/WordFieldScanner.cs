@@ -155,6 +155,23 @@ internal static class WordFieldScanner
     }
 
     /// <summary>
+    /// Returns whether a field asks for its result to be rewritten — a <c>\*</c> format such as <c>Upper</c> or
+    /// <c>ROMAN</c>, or a <c>\#</c> number picture — which only Word applies. <c>MERGEFORMAT</c>,
+    /// <c>CHARFORMAT</c> and <c>Arabic</c> leave the result as it is.
+    /// </summary>
+    /// <param name="instruction">The field code.</param>
+    /// <returns><see langword="true"/> when the result would be rewritten.</returns>
+    public static bool HasResultFormat(string instruction)
+    {
+        return HasSwitch(instruction, '#') ||
+            SwitchArguments(instruction, '*').Any(format =>
+                format.Length > 0 &&
+                !format.Equals("MERGEFORMAT", StringComparison.OrdinalIgnoreCase) &&
+                !format.Equals("CHARFORMAT", StringComparison.OrdinalIgnoreCase) &&
+                !format.Equals("Arabic", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
     /// Returns the arguments that follow every occurrence of a switch, such as <c>ROMAN</c> for <c>\* ROMAN</c> or
     /// <c>1-3</c> for <c>\o "1-3"</c>.
     /// </summary>

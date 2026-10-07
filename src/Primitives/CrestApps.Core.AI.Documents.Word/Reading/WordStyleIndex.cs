@@ -106,14 +106,14 @@ internal sealed class WordStyleIndex
     {
         if (paragraph?.ParagraphProperties?.OutlineLevel?.Val?.Value is { } direct)
         {
-            return direct >= 9 ? null : direct;
+            return direct is < 0 or >= 9 ? null : direct;
         }
 
         foreach (var style in Chain(StyleOf(paragraph)))
         {
             if (style.StyleParagraphProperties?.OutlineLevel?.Val?.Value is { } level)
             {
-                return level >= 9 ? null : level;
+                return level is < 0 or >= 9 ? null : level;
             }
 
             if (style.StyleName?.Val?.Value is { } name &&

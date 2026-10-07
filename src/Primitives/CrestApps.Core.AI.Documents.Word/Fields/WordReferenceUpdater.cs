@@ -57,10 +57,16 @@ internal static class WordReferenceUpdater
                 continue;
             }
 
-            if (texts.TryGetValue(name, out var text))
+            // A \* or \# format rewrites the text — Upper, FirstCap, a number picture — which only Word applies, and
+            // a reference whose bookmark is gone has nothing to show; both keep Word's result for Word to update.
+            if (WordFieldScanner.HasResultFormat(field.Instruction) || !texts.TryGetValue(name, out var text))
             {
-                WordFieldScanner.SetResult(field, text);
+                complete = false;
+
+                continue;
             }
+
+            WordFieldScanner.SetResult(field, text);
         }
 
         return WordTableOfContents.RefreshAll(package, services) && complete;
