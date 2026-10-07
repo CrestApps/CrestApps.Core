@@ -7,15 +7,18 @@ namespace CrestApps.Core.AI.Documents.Word.Fields;
 /// of contents and index with their page numbers, and the text of cross-references.
 /// </summary>
 /// <remarks>
-/// Word recomputes all of this from its own pagination when it opens a file whose fields are marked for update,
-/// but a preview, another reader, or a printout made before that would show stale numbers — so the results are
-/// filled in from this host's own layout, and Word is asked to update them as well.
+/// The results are filled in from this host's own layout, so a preview, another reader or a printout made before
+/// Word opens the file shows current numbers. Word is asked to update the fields when it opens the file only when
+/// a result could not be filled in here — a page past the end of the layout, a table of figures, a reference to a
+/// paragraph's number, a page count — because that request makes Word ask the reader whether to update the fields
+/// every time the file is opened.
 /// </remarks>
 internal static class WordDocumentRefresher
 {
-    private static readonly HashSet<string> _pageDependentFields = new(StringComparer.OrdinalIgnoreCase)
+    // Fields whose results only Word computes, so a document that has them still asks Word to update it.
+    private static readonly HashSet<string> _wordOnlyFields = new(StringComparer.OrdinalIgnoreCase)
     {
-        "TOC", "INDEX", "PAGEREF", "REF", "NUMPAGES", "SECTIONPAGES", "NOTEREF",
+        "NUMPAGES", "SECTIONPAGES", "NOTEREF",
     };
 
     /// <summary>
@@ -28,10 +31,12 @@ internal static class WordDocumentRefresher
         ArgumentNullException.ThrowIfNull(package);
 
         WordCaptions.Renumber(package);
-        WordReferenceUpdater.Update(package, services);
-        Structure.WordIndex.RefreshAll(package, services);
 
-        if (WordFieldScanner.Scan(package.Body).Any(field => _pageDependentFields.Contains(field.Type)))
+        var complete = WordReferenceUpdater.Update(package, services);
+
+        complete &= Structure.WordIndex.RefreshAll(package, services);
+
+        if (!complete || WordFieldScanner.Scan(package.Body).Any(field => _wordOnlyFields.Contains(field.Type)))
         {
             WordFieldWriter.RequestUpdateOnOpen(package);
         }

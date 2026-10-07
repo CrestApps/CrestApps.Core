@@ -52,7 +52,7 @@ internal sealed class AddWordTocTool : WordToolBase
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Inserts a real Word table of contents built from the document's headings, with hyperlinked entries and page numbers, after the document's title and any cover page. If the document already has one, it is refreshed from the current headings instead. The table is also refreshed automatically on every preview and export, and Word updates it when the file opens.";
+    public override string Description => "Inserts a real Word table of contents built from the document's headings, with hyperlinked entries and page numbers, after the document's title and any cover page. If the document already has one, it is refreshed from the current headings instead; a table of figures does not count as one. The table is also refreshed automatically, with its page numbers, on every preview and export.";
 
     /// <summary>
     /// Inserts or refreshes the table of contents.
@@ -65,7 +65,10 @@ internal sealed class AddWordTocTool : WordToolBase
         var (summary, document) = await context.EditAsync(arguments.Document(), "Added a table of contents", edit =>
         {
             var package = edit.Package;
-            var existing = WordFieldScanner.Scan(package.Body).Any(field => field.Type == "TOC");
+
+            // A table of figures or of tables is not a table of contents, so the document still needs one.
+            var tables = WordFieldScanner.Scan(package.Body).Where(field => field.Type == "TOC" && !WordTableOfContents.IsTableOfFigures(field.Instruction)).ToList();
+            var existing = tables.Count > 0;
 
             if (!existing)
             {
@@ -89,7 +92,16 @@ internal sealed class AddWordTocTool : WordToolBase
 
             WordDocumentRefresher.Refresh(package, context.Services);
 
-            var entries = WordFieldScanner.Scan(package.Body).Count(field => field.Type == "PAGEREF" && field.Paragraph?.Ancestors<SdtBlock>().Any() == true);
+            if (existing && !tables.Any(field => WordTableOfContents.IsHeadingTable(field.Instruction)))
+            {
+                return Task.FromResult("The document's table of contents is built from custom styles or TC entries rather than heading levels, so it was left as it is; the exported file asks Word to update it when it opens.");
+            }
+
+            // An entry links to its heading, shows its page, or both.
+            var entries = WordFieldScanner.Scan(package.Body)
+                .Where(field => field.Type == "TOC" && WordTableOfContents.IsHeadingTable(field.Instruction))
+                .SelectMany(field => WordTableOfContents.ParagraphsOf(field) ?? [])
+                .Count(paragraph => paragraph.Descendants<Hyperlink>().Any(link => link.Anchor?.Value is not null) || WordFieldScanner.Scan(paragraph).Any(field => field.Type == "PAGEREF"));
             var headings = WordBlockReader.Read(package).Count(block => block.Kind == WordBlockKind.Heading);
             var tocBlock = WordBlockReader.Read(package).FirstOrDefault(block => block.Kind == WordBlockKind.TableOfContents);
             var text = existing ? "Refreshed the existing table of contents" : "Inserted a table of contents";

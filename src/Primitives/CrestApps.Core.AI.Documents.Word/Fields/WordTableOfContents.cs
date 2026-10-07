@@ -17,8 +17,9 @@ namespace CrestApps.Core.AI.Documents.Word.Fields;
 /// </summary>
 /// <remarks>
 /// The entries are written out, not left for Word to generate, so the table reads correctly in a preview, in
-/// another word processor, and in a PDF made from this host's layout. Word is also asked to update fields when
-/// it opens the file, so its own pagination has the last word.
+/// another word processor, and in a PDF made from this host's layout. Only tables built from heading levels are
+/// rebuilt; a table of figures, or one built from TC entries or custom styles, keeps the entries Word last wrote,
+/// and the document then asks Word to update its fields when it opens.
 /// </remarks>
 internal static partial class WordTableOfContents
 {
@@ -50,7 +51,7 @@ internal static partial class WordTableOfContents
             content.Append(writer.Paragraph(title.Trim(), writer.Style(WordStyleSheet.TocHeading)));
         }
 
-        foreach (var paragraph in BuildEntries(package, writer, instruction, content))
+        foreach (var paragraph in BuildEntries(package, writer, instruction, exclude: null))
         {
             content.Append(paragraph);
         }
@@ -61,28 +62,47 @@ internal static partial class WordTableOfContents
     }
 
     /// <summary>
-    /// Rebuilds every table of contents in a document from its current headings, and fills in its page numbers
-    /// and those of every page reference from this host's layout.
+    /// Rebuilds every heading-based table of contents in a document from its current headings, and fills in its
+    /// page numbers and those of every page reference from this host's layout. Other tables built by a TOC field
+    /// — a table of figures, one built from TC entries or from custom styles — keep the results Word last wrote.
     /// </summary>
     /// <param name="package">The document.</param>
     /// <param name="services">The request services, for the layout limits, or <see langword="null"/>.</param>
-    public static void RefreshAll(WordPackage package, IServiceProvider services)
+    /// <returns>
+    /// <see langword="true"/> when every table of contents and page reference was brought up to date;
+    /// <see langword="false"/> when one was left for Word to update, because it is not built from headings or its
+    /// page is past the end of this host's layout.
+    /// </returns>
+    public static bool RefreshAll(WordPackage package, IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(package);
 
         var rebuilt = false;
+        var complete = true;
+        var kept = new HashSet<Paragraph>(ReferenceEqualityComparer.Instance);
 
         foreach (var field in WordFieldScanner.Scan(package.Body).Where(field => field.Type == "TOC").ToList())
         {
-            Rebuild(package, field);
-            rebuilt = true;
+            if (IsHeadingTable(field.Instruction) && Rebuild(package, field))
+            {
+                rebuilt = true;
+
+                continue;
+            }
+
+            // A table of figures or a table built from TC entries or custom styles keeps its entries, and its page
+            // numbers are Word's to update with the rest of it.
+            kept.UnionWith(ParagraphsOf(field) ?? []);
+            complete = false;
         }
 
-        var pageReferences = WordFieldScanner.Scan(package.Body).Where(field => field.Type == "PAGEREF").ToList();
+        var pageReferences = WordFieldScanner.Scan(package.Body)
+            .Where(field => field.Type == "PAGEREF" && (field.Paragraph is null || !kept.Contains(field.Paragraph)))
+            .ToList();
 
         if (!rebuilt && pageReferences.Count == 0)
         {
-            return;
+            return complete;
         }
 
         var preview = services?.GetService<IOptions<WordPreviewOptions>>()?.Value ?? new WordPreviewOptions();
@@ -108,6 +128,8 @@ internal static partial class WordTableOfContents
                 if (!string.IsNullOrEmpty(page))
                 {
                     WordFieldScanner.SetResult(field, page);
+
+                    continue;
                 }
                 else if (layout.Truncated && string.Concat(field.ResultRuns.Select(run => run.InnerText)) == "0")
                 {
@@ -116,39 +138,98 @@ internal static partial class WordTableOfContents
                     WordFieldScanner.SetResult(field, string.Empty);
                 }
             }
+
+            complete = false;
         }
+
+        return complete;
     }
 
     /// <summary>
-    /// Reads the heading levels a TOC field lists.
+    /// Returns whether a TOC field lists headings — by heading level (<c>\o</c>) or outline level (<c>\u</c>) — so
+    /// it can be rebuilt from the document's headings. A table of figures (<c>\c</c>, <c>\a</c>), one built from TC
+    /// entries (<c>\f</c>, <c>\l</c>), from custom styles (<c>\t</c>), from part of the document (<c>\b</c>) or
+    /// with chapter-page numbers (<c>\s</c>) is not.
+    /// </summary>
+    /// <param name="instruction">The field code.</param>
+    /// <returns><see langword="true"/> when the table lists headings only.</returns>
+    public static bool IsHeadingTable(string instruction)
+    {
+        if (WordFieldScanner.TypeOf(instruction) != "TOC")
+        {
+            return false;
+        }
+
+        var switches = WordFieldScanner.Tokenize(instruction)
+            .Where(token => token.IsSwitch)
+            .Select(token => char.ToLowerInvariant(token.Text[0]))
+            .ToHashSet();
+
+        return (switches.Contains('o') || switches.Contains('u')) && !switches.Overlaps(['c', 'a', 'f', 'l', 't', 'b', 's']);
+    }
+
+    /// <summary>
+    /// Returns whether a TOC field builds a table of figures, tables or equations from captions (<c>\c</c>) or
+    /// from their text without the label (<c>\a</c>), rather than a table of contents.
+    /// </summary>
+    /// <param name="instruction">The field code.</param>
+    /// <returns><see langword="true"/> for a table of figures.</returns>
+    public static bool IsTableOfFigures(string instruction)
+    {
+        return WordFieldScanner.HasSwitch(instruction, 'c') || WordFieldScanner.HasSwitch(instruction, 'a');
+    }
+
+    /// <summary>
+    /// Reads the heading levels a TOC field lists: those of its <c>\o</c> switch, every level when it lists
+    /// outline levels (<c>\u</c>) alone, and 1 to 3 otherwise.
     /// </summary>
     /// <param name="instruction">The field code.</param>
     /// <returns>The highest and lowest levels.</returns>
     public static (int From, int To) ReadLevels(string instruction)
     {
-        var match = LevelsPattern().Match(instruction ?? string.Empty);
-
-        if (match.Success &&
-            int.TryParse(match.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var from) &&
-            int.TryParse(match.Groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var to))
+        if (WordFieldScanner.SwitchArguments(instruction, 'o').FirstOrDefault() is { } levels && TryReadRange(levels, out var range))
         {
-            return (Math.Clamp(Math.Min(from, to), 1, 9), Math.Clamp(Math.Max(from, to), 1, 9));
+            return range;
         }
 
-        return (1, 3);
+        return WordFieldScanner.HasSwitch(instruction, 'u') && !WordFieldScanner.HasSwitch(instruction, 'o') ? (1, 9) : (1, 3);
     }
 
-    private static void Rebuild(WordPackage package, WordField field)
+    private static bool TryReadRange(string text, out (int From, int To) range)
     {
-        var first = field.BeginRun?.Ancestors<Paragraph>().FirstOrDefault();
-        var last = field.EndRun?.Ancestors<Paragraph>().FirstOrDefault();
+        range = default;
+
+        var match = RangePattern().Match(text ?? string.Empty);
+
+        if (!match.Success ||
+            !int.TryParse(match.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var from) ||
+            !int.TryParse(match.Groups[2].Success ? match.Groups[2].Value : match.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var to))
+        {
+            return false;
+        }
+
+        range = (Math.Clamp(Math.Min(from, to), 1, 9), Math.Clamp(Math.Max(from, to), 1, 9));
+
+        return true;
+    }
+
+    /// <summary>
+    /// Returns the paragraphs a field spans, from the one it begins in to the one it ends in.
+    /// </summary>
+    /// <param name="field">The field.</param>
+    /// <returns>The paragraphs, or <see langword="null"/> when the field does not begin and end among siblings.</returns>
+    internal static List<Paragraph> ParagraphsOf(WordField field)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+
+        var first = field.BeginRun?.Ancestors<Paragraph>().FirstOrDefault() ?? field.SimpleField?.Ancestors<Paragraph>().FirstOrDefault();
+        var last = field.EndRun?.Ancestors<Paragraph>().FirstOrDefault() ?? first;
 
         if (first?.Parent is null || last?.Parent is null || !ReferenceEquals(first.Parent, last.Parent))
         {
-            return;
+            return null;
         }
 
-        var container = first.Parent;
         var paragraphs = new List<Paragraph>();
 
         for (var current = (OpenXmlElement)first; current is not null; current = current.NextSibling())
@@ -160,9 +241,24 @@ internal static partial class WordTableOfContents
 
             if (ReferenceEquals(current, last))
             {
-                break;
+                return paragraphs;
             }
         }
+
+        return null;
+    }
+
+    private static bool Rebuild(WordPackage package, WordField field)
+    {
+        var paragraphs = ParagraphsOf(field);
+
+        if (paragraphs is null || field.BeginRun is null)
+        {
+            return false;
+        }
+
+        var first = paragraphs[0];
+        var last = paragraphs[^1];
 
         var section = WordSections.SectionOf(package, first);
         var writer = new WordBlockWriter(package.MainPart, WordDesignReader.Infer(package.MainPart), WordSections.TextWidthTwips(section));
@@ -170,7 +266,16 @@ internal static partial class WordTableOfContents
         // A paragraph that ends a section keeps its section properties on the last new paragraph.
         var sectionProperties = last.ParagraphProperties?.SectionProperties;
 
-        var entries = BuildEntries(package, writer, field.Instruction, container);
+        // The table's own paragraphs — and, in a content control, its title — are not entries of it. A table that
+        // sits directly in the body must not exclude the body, or every heading would be left out.
+        var exclude = new HashSet<OpenXmlElement>(paragraphs, ReferenceEqualityComparer.Instance);
+
+        if (first.Parent is SdtContentBlock content)
+        {
+            exclude.Add(content);
+        }
+
+        var entries = BuildEntries(package, writer, field.Instruction, exclude);
 
         foreach (var entry in entries)
         {
@@ -188,24 +293,37 @@ internal static partial class WordTableOfContents
         {
             paragraph.Remove();
         }
+
+        return true;
     }
 
-    private static List<Paragraph> BuildEntries(WordPackage package, WordBlockWriter writer, string instruction, OpenXmlElement exclude)
+    private static List<Paragraph> BuildEntries(WordPackage package, WordBlockWriter writer, string instruction, HashSet<OpenXmlElement> exclude)
     {
         var (from, to) = ReadLevels(instruction);
-        var hyperlinks = instruction.Contains("\\h", StringComparison.OrdinalIgnoreCase);
-        var pageNumbers = !instruction.Contains("\\n", StringComparison.OrdinalIgnoreCase);
+        var hyperlinks = WordFieldScanner.HasSwitch(instruction, 'h');
+        var outlineLevels = WordFieldScanner.HasSwitch(instruction, 'u');
+        var styles = new WordStyleIndex(package.MainPart);
         var bookmarks = WordBookmarks.For(package);
         var tabPosition = writer.TextWidthTwips;
         var entries = new List<Paragraph>();
 
+        // \n leaves out the page numbers of every level, or of the levels it names, such as \n "1-1".
+        (int From, int To)? withoutPages = null;
+
+        if (WordFieldScanner.HasSwitch(instruction, 'n'))
+        {
+            withoutPages = WordFieldScanner.SwitchArguments(instruction, 'n').FirstOrDefault() is { } levels && TryReadRange(levels, out var range) ? range : (1, 9);
+        }
+
         var headings = WordBlockReader.Read(package)
             .Where(block => block.Kind == WordBlockKind.Heading && block.Level >= from && block.Level <= to && !string.IsNullOrWhiteSpace(block.Text))
-            .Where(block => exclude is null || !block.Element.Ancestors().Contains(exclude))
+            .Where(block => exclude is null || (!exclude.Contains(block.Element) && !block.Element.Ancestors().Any(exclude.Contains)))
+            .Where(block => outlineLevels || block.Element is not Paragraph { ParagraphProperties.OutlineLevel: not null } paragraph || HasHeadingStyle(styles, paragraph))
             .ToList();
 
         foreach (var heading in headings)
         {
+            var pageNumbers = withoutPages is not { } omitted || heading.Level < omitted.From || heading.Level > omitted.To;
             var paragraph = (Paragraph)heading.Element;
             var bookmark = WordBookmarks.FindOn(paragraph, "_Toc");
 
@@ -262,6 +380,26 @@ internal static partial class WordTableOfContents
         return entries;
     }
 
-    [GeneratedRegex("\\\\o\\s+\"?(\\d)\\s*-\\s*(\\d)\"?", RegexOptions.IgnoreCase)]
-    private static partial Regex LevelsPattern();
+    private static bool HasHeadingStyle(WordStyleIndex styles, Paragraph paragraph)
+    {
+        // Without \u a table lists paragraphs by their heading style; an outline level set on the paragraph alone
+        // does not make it an entry.
+        foreach (var style in styles.Chain(styles.StyleOf(paragraph)))
+        {
+            if (style.StyleParagraphProperties?.OutlineLevel?.Val?.Value is { } level)
+            {
+                return level < 9;
+            }
+
+            if (style.StyleName?.Val?.Value is { } name && name.StartsWith("heading ", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    [GeneratedRegex("^\\s*(\\d)\\s*(?:-\\s*(\\d))?\\s*$")]
+    private static partial Regex RangePattern();
 }

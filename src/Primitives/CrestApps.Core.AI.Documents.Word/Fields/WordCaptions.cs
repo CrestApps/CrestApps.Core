@@ -1,5 +1,7 @@
 using System.Globalization;
 using CrestApps.Core.AI.Documents.OpenXml.Word;
+using CrestApps.Core.AI.Documents.Word.Reading;
+using CrestApps.Core.AI.Documents.Word.Rendering;
 using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace CrestApps.Core.AI.Documents.Word.Fields;
@@ -76,6 +78,13 @@ internal static class WordCaptions
     /// Numbers every sequence field — figures, tables, equations — in document order, so captions read 1, 2, 3
     /// however they were inserted.
     /// </summary>
+    /// <remarks>
+    /// The switches keep Word's meaning: <c>\c</c> repeats the current number, <c>\r n</c> resets it to n,
+    /// <c>\s n</c> restarts it after each heading of level n or higher — for chapter numbers such as 2-1 — and
+    /// <c>\h</c> hides it. A <c>\*</c> switch sets how the number is written: <c>ARABIC</c>, <c>ROMAN</c>,
+    /// <c>roman</c>, <c>ALPHABETIC</c> or <c>alphabetic</c>; a field written another way, such as in words, is
+    /// counted but keeps the result Word last wrote.
+    /// </remarks>
     /// <param name="package">The document.</param>
     /// <returns>How many captions each label has.</returns>
     public static Dictionary<string, int> Renumber(WordPackage package)
@@ -83,22 +92,64 @@ internal static class WordCaptions
         ArgumentNullException.ThrowIfNull(package);
 
         var counters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var chapters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var fields = WordFieldScanner.Scan(package.Body).Where(field => field.Type == "SEQ").ToList();
 
-        foreach (var field in WordFieldScanner.Scan(package.Body).Where(field => field.Type == "SEQ"))
+        if (fields.Count == 0)
         {
-            var name = WordFieldScanner.ArgumentOf(field.Instruction);
+            return counters;
+        }
+
+        // The headings before each field, counted by level, tell \s n which chapter the field is in.
+        var styles = new WordStyleIndex(package.MainPart);
+        var headings = new int[9];
+        var byParagraph = fields.Where(field => field.Paragraph is not null).ToLookup(field => field.Paragraph, ReferenceEqualityComparer.Instance);
+        var ordered = new List<(WordField Field, string Chapter)>();
+
+        foreach (var paragraph in package.Body.Descendants<Paragraph>())
+        {
+            if (styles.OutlineLevelOf(paragraph) is { } level)
+            {
+                headings[level]++;
+                Array.Clear(headings, level + 1, headings.Length - level - 1);
+            }
+
+            foreach (var field in byParagraph[paragraph])
+            {
+                ordered.Add((field, string.Join('.', headings)));
+            }
+        }
+
+        foreach (var field in fields.Where(field => field.Paragraph is null))
+        {
+            ordered.Add((field, string.Empty));
+        }
+
+        foreach (var (field, chapter) in ordered)
+        {
+            var instruction = field.Instruction;
+            var name = WordFieldScanner.ArgumentOf(instruction);
 
             if (string.IsNullOrEmpty(name))
             {
                 continue;
             }
 
-            // A field that repeats the current number (\c) or resets it (\r n) keeps Word's meaning.
-            var instruction = field.Instruction;
+            if (ChapterLevel(instruction) is { } chapterLevel)
+            {
+                var key = string.Join('.', chapter.Split('.').Take(chapterLevel));
+
+                if (!chapters.TryGetValue(name, out var previous) || !string.Equals(previous, key, StringComparison.Ordinal))
+                {
+                    chapters[name] = key;
+                    counters[name] = 0;
+                }
+            }
+
             var current = counters.GetValueOrDefault(name);
             int value;
 
-            if (instruction.Contains("\\c", StringComparison.OrdinalIgnoreCase))
+            if (WordFieldScanner.HasSwitch(instruction, 'c'))
             {
                 value = current;
             }
@@ -113,32 +164,75 @@ internal static class WordCaptions
                 counters[name] = value;
             }
 
-            WordFieldScanner.SetResult(field, value.ToString(CultureInfo.InvariantCulture));
+            var formats = WordFieldScanner.SwitchArguments(instruction, '*');
+
+            // A hidden field shows nothing unless it is given a number format.
+            if (WordFieldScanner.HasSwitch(instruction, 'h') && formats.Count == 0)
+            {
+                continue;
+            }
+
+            if (Format(value, formats) is { } result)
+            {
+                WordFieldScanner.SetResult(field, result);
+            }
         }
 
         return counters;
+    }
+
+    /// <summary>
+    /// Writes a sequence number the way a field's <c>\*</c> switches ask.
+    /// </summary>
+    /// <param name="value">The number.</param>
+    /// <param name="formats">The arguments of the field's <c>\*</c> switches.</param>
+    /// <returns>The number as text, or <see langword="null"/> for a format this host does not write.</returns>
+    public static string Format(int value, IReadOnlyList<string> formats)
+    {
+        ArgumentNullException.ThrowIfNull(formats);
+
+        // MERGEFORMAT and CHARFORMAT say how the result is formatted, not how the number is written.
+        var format = formats.FirstOrDefault(item => !item.Equals("MERGEFORMAT", StringComparison.OrdinalIgnoreCase) && !item.Equals("CHARFORMAT", StringComparison.OrdinalIgnoreCase));
+
+        if (format is null || format.Equals("Arabic", StringComparison.OrdinalIgnoreCase))
+        {
+            return value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        // The case of the switch is the case of the number: ROMAN is XIV, roman is xiv.
+        var upper = char.IsUpper(format[0]);
+
+        if (format.Equals("Roman", StringComparison.OrdinalIgnoreCase))
+        {
+            return value is > 0 and < 4000 ? WordListCounter.FormatNumber(value, upper ? "upperRoman" : "lowerRoman") : value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (format.Equals("Alphabetic", StringComparison.OrdinalIgnoreCase))
+        {
+            return value > 0 ? WordListCounter.FormatNumber(value, upper ? "upperLetter" : "lowerLetter") : value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return null;
+    }
+
+    private static int? ChapterLevel(string instruction)
+    {
+        if (!WordFieldScanner.HasSwitch(instruction, 's'))
+        {
+            return null;
+        }
+
+        var argument = WordFieldScanner.SwitchArguments(instruction, 's').FirstOrDefault();
+
+        return int.TryParse(argument, NumberStyles.Integer, CultureInfo.InvariantCulture, out var level) ? Math.Clamp(level, 1, 9) : 1;
     }
 
     private static bool TryReadReset(string instruction, out int value)
     {
         value = 0;
 
-        var index = instruction.IndexOf("\\r", StringComparison.OrdinalIgnoreCase);
-
-        if (index < 0)
-        {
-            return false;
-        }
-
-        var rest = instruction[(index + 2)..].TrimStart();
-        var end = 0;
-
-        while (end < rest.Length && char.IsAsciiDigit(rest[end]))
-        {
-            end++;
-        }
-
-        return end > 0 && int.TryParse(rest.AsSpan(0, end), NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+        return WordFieldScanner.SwitchArguments(instruction, 'r').FirstOrDefault() is { } argument &&
+            int.TryParse(argument, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
     }
 
     private static string Quote(string label)

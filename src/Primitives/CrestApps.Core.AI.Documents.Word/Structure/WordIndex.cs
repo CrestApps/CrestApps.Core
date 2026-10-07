@@ -58,7 +58,11 @@ internal static class WordIndex
     /// </summary>
     /// <param name="package">The document.</param>
     /// <param name="services">The request services, for the layout limits, or <see langword="null"/>.</param>
-    public static void RefreshAll(WordPackage package, IServiceProvider services)
+    /// <returns>
+    /// <see langword="true"/> when every index was rebuilt with all its page numbers; <see langword="false"/> when an
+    /// entry's page is past the end of this host's layout, so Word has to fill it in.
+    /// </returns>
+    public static bool RefreshAll(WordPackage package, IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(package);
 
@@ -66,43 +70,48 @@ internal static class WordIndex
 
         if (indexes.Count == 0)
         {
-            return;
+            return true;
         }
 
         var preview = services?.GetService<IOptions<WordPreviewOptions>>()?.Value ?? new WordPreviewOptions();
         var layout = WordLayoutEngine.Layout(package, new WordLayoutOptions { MaxPages = Math.Max(1, preview.MaxLayoutPages), IncludePictures = false });
         var entries = Entries(package);
-        var pages = entries.ToDictionary(entry => entry.Key, entry => entry.Value.Select(field => layout.DisplayNumberOf(field.Paragraph)).Where(page => page.Length > 0).Distinct().ToList());
+        var complete = true;
+        var pages = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+
+        foreach (var (key, markers) in entries)
+        {
+            var numbers = markers.Select(field => layout.DisplayNumberOf(field.Paragraph)).ToList();
+
+            complete &= numbers.All(page => page.Length > 0);
+            pages[key] = [.. numbers.Where(page => page.Length > 0).Distinct()];
+        }
 
         foreach (var index in indexes)
         {
-            var first = index.BeginRun?.Ancestors<Paragraph>().FirstOrDefault();
-            var last = index.EndRun?.Ancestors<Paragraph>().FirstOrDefault();
+            var old = WordTableOfContents.ParagraphsOf(index);
 
-            if (first?.Parent is null || last?.Parent is null || !ReferenceEquals(first.Parent, last.Parent))
+            if (old is null || index.BeginRun is null)
             {
+                complete = false;
+
                 continue;
             }
 
-            var old = new List<Paragraph>();
+            var built = BuildParagraphs(index.Instruction, entries, pages);
 
-            for (OpenXmlElement current = first; current is not null; current = current.NextSibling())
-            {
-                if (current is Paragraph paragraph)
-                {
-                    old.Add(paragraph);
-                }
-
-                if (ReferenceEquals(current, last))
-                {
-                    break;
-                }
-            }
-
-            foreach (var paragraph in BuildParagraphs(index.Instruction, entries, pages))
+            foreach (var paragraph in built)
             {
                 package.Ids.Assign(paragraph);
-                first.InsertBeforeSelf(paragraph);
+                old[0].InsertBeforeSelf(paragraph);
+            }
+
+            // Word ends an index set in columns with a continuous section break on its last paragraph; the new
+            // last paragraph carries it, so the columns and the section survive the rebuild.
+            if (old[^1].ParagraphProperties?.SectionProperties is { } sectionProperties)
+            {
+                built[^1].ParagraphProperties ??= new ParagraphProperties();
+                built[^1].ParagraphProperties.SectionProperties = (SectionProperties)sectionProperties.CloneNode(true);
             }
 
             foreach (var paragraph in old)
@@ -110,28 +119,36 @@ internal static class WordIndex
                 paragraph.Remove();
             }
         }
+
+        return complete;
     }
 
     /// <summary>
-    /// Reads the index entries a document marks, by entry text.
+    /// Reads the index entries a document marks, by entry text, in an order that does not depend on the culture
+    /// the host runs under.
     /// </summary>
     /// <param name="package">The document.</param>
     /// <returns>The entry markers by "term" or "term:subentry".</returns>
     public static SortedDictionary<string, List<WordField>> Entries(WordPackage package)
     {
-        var entries = new SortedDictionary<string, List<WordField>>(StringComparer.CurrentCultureIgnoreCase);
+        var entries = new SortedDictionary<string, List<WordField>>(StringComparer.InvariantCultureIgnoreCase);
 
         foreach (var field in WordFieldScanner.Scan(package.Body).Where(field => field.Type == "XE"))
         {
-            var start = field.Instruction.IndexOf('"', StringComparison.Ordinal);
-            var end = field.Instruction.LastIndexOf('"');
+            // The entry is the first argument; switches such as \t "See also" or \b come after it.
+            var tokens = WordFieldScanner.Tokenize(field.Instruction.Replace("\\:", "\u0001", StringComparison.Ordinal));
 
-            if (start < 0 || end <= start)
+            if (tokens.Count < 2 || tokens[1].IsSwitch)
             {
                 continue;
             }
 
-            var key = field.Instruction[(start + 1)..end].Replace("\\:", "\u0001", StringComparison.Ordinal).Trim();
+            var key = tokens[1].Text.Trim();
+
+            if (key.Length == 0)
+            {
+                continue;
+            }
 
             if (!entries.TryGetValue(key, out var list))
             {

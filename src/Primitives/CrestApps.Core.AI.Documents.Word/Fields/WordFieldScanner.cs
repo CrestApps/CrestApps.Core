@@ -105,20 +105,124 @@ internal static class WordFieldScanner
     }
 
     /// <summary>
-    /// Returns a field's first argument: the bookmark of a <c>REF</c>, the sequence name of a <c>SEQ</c>.
+    /// Returns a field's first argument: the bookmark of a <c>REF</c>, the sequence name of a <c>SEQ</c>. A quoted
+    /// argument such as <c>SEQ "Code Listing"</c> is read whole, without its quotes.
     /// </summary>
     /// <param name="instruction">The field code.</param>
     /// <returns>The argument, or an empty string.</returns>
     public static string ArgumentOf(string instruction)
     {
-        var parts = (instruction ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var tokens = Tokenize(instruction);
 
-        if (parts.Length < 2 || parts[1].StartsWith('\\'))
+        if (tokens.Count < 2 || tokens[1].IsSwitch)
         {
             return string.Empty;
         }
 
-        return parts[1].Trim('"');
+        return tokens[1].Text;
+    }
+
+    /// <summary>
+    /// Returns whether a field code carries a switch, such as <c>\h</c> or <c>\*</c>. A switch character inside a
+    /// quoted argument does not count.
+    /// </summary>
+    /// <param name="instruction">The field code.</param>
+    /// <param name="name">The switch character, such as <c>h</c> or <c>*</c>. Letters match in either case.</param>
+    /// <returns><see langword="true"/> when the switch is present.</returns>
+    public static bool HasSwitch(string instruction, char name)
+    {
+        return Tokenize(instruction).Any(token => token.IsSwitch && Matches(token, name));
+    }
+
+    /// <summary>
+    /// Returns the arguments that follow every occurrence of a switch, such as <c>ROMAN</c> for <c>\* ROMAN</c> or
+    /// <c>1-3</c> for <c>\o "1-3"</c>.
+    /// </summary>
+    /// <param name="instruction">The field code.</param>
+    /// <param name="name">The switch character. Letters match in either case.</param>
+    /// <returns>The arguments, in order; empty when the switch is absent or has no argument.</returns>
+    public static List<string> SwitchArguments(string instruction, char name)
+    {
+        var tokens = Tokenize(instruction);
+        var arguments = new List<string>();
+
+        for (var index = 0; index < tokens.Count - 1; index++)
+        {
+            if (tokens[index].IsSwitch && Matches(tokens[index], name) && !tokens[index + 1].IsSwitch)
+            {
+                arguments.Add(tokens[index + 1].Text);
+            }
+        }
+
+        return arguments;
+    }
+
+    /// <summary>
+    /// Splits a field code into its words: the field type, its arguments — quoted ones read whole, without their
+    /// quotes — and its switches, such as <c>\h</c>.
+    /// </summary>
+    /// <param name="instruction">The field code.</param>
+    /// <returns>The tokens, in order.</returns>
+    public static List<WordFieldToken> Tokenize(string instruction)
+    {
+        var tokens = new List<WordFieldToken>();
+        var text = instruction ?? string.Empty;
+        var index = 0;
+
+        while (index < text.Length)
+        {
+            var character = text[index];
+
+            if (char.IsWhiteSpace(character))
+            {
+                index++;
+
+                continue;
+            }
+
+            if (character == '\\' && index + 1 < text.Length && !char.IsWhiteSpace(text[index + 1]))
+            {
+                // Every switch is a backslash and one character: \h, \o, \*, \#, \@.
+                tokens.Add(new WordFieldToken(text.Substring(index + 1, 1), IsSwitch: true));
+                index += 2;
+
+                continue;
+            }
+
+            var builder = new StringBuilder();
+
+            if (character == '"')
+            {
+                index++;
+
+                while (index < text.Length && text[index] != '"')
+                {
+                    // A backslash in a quoted argument escapes a quote or another backslash.
+                    if (text[index] == '\\' && index + 1 < text.Length && text[index + 1] is '"' or '\\')
+                    {
+                        index++;
+                    }
+
+                    builder.Append(text[index]);
+                    index++;
+                }
+
+                index++;
+                tokens.Add(new WordFieldToken(builder.ToString(), IsSwitch: false));
+
+                continue;
+            }
+
+            while (index < text.Length && !char.IsWhiteSpace(text[index]) && text[index] != '"' && !(text[index] == '\\' && builder.Length > 0))
+            {
+                builder.Append(text[index]);
+                index++;
+            }
+
+            tokens.Add(new WordFieldToken(builder.ToString(), IsSwitch: false));
+        }
+
+        return tokens;
     }
 
     /// <summary>
@@ -175,7 +279,19 @@ internal static class WordFieldScanner
             field.ResultRuns = [run];
         }
     }
+
+    private static bool Matches(WordFieldToken token, char name)
+    {
+        return token.Text.Length == 1 && char.ToLowerInvariant(token.Text[0]) == char.ToLowerInvariant(name);
+    }
 }
+
+/// <summary>
+/// One word of a field code.
+/// </summary>
+/// <param name="Text">The word: an argument without its quotes, or a switch's character.</param>
+/// <param name="IsSwitch">Whether the word is a switch, such as <c>\h</c>.</param>
+internal readonly record struct WordFieldToken(string Text, bool IsSwitch);
 
 /// <summary>
 /// One field of a document.

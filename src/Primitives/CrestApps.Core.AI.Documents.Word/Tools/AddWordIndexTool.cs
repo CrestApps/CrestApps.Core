@@ -138,11 +138,12 @@ internal sealed class AddWordIndexTool : WordToolBase
     private static int Mark(WordPackage package, string term, string subentry, string find, bool all)
     {
         var count = 0;
+        var skipped = GeneratedParagraphs(package);
 
         foreach (var paragraph in package.Body.Descendants<Paragraph>().ToList())
         {
-            // The index's own entries and headings are not indexed.
-            if (WordFieldScanner.Scan(paragraph).Any(field => field.Type is "INDEX" or "TOC"))
+            // The entries of an index or a table of contents are not indexed themselves.
+            if (skipped.Contains(paragraph))
             {
                 continue;
             }
@@ -174,5 +175,26 @@ internal sealed class AddWordIndexTool : WordToolBase
         }
 
         return count;
+    }
+
+    private static HashSet<Paragraph> GeneratedParagraphs(WordPackage package)
+    {
+        // Every paragraph from the one an INDEX or TOC field begins in to the one it ends in, and the rest of the
+        // content control a table of contents sits in, such as its title.
+        var paragraphs = new HashSet<Paragraph>(ReferenceEqualityComparer.Instance);
+
+        foreach (var field in WordFieldScanner.Scan(package.Body).Where(field => field.Type is "INDEX" or "TOC"))
+        {
+            var spanned = WordTableOfContents.ParagraphsOf(field) ?? (field.Paragraph is null ? [] : [field.Paragraph]);
+
+            paragraphs.UnionWith(spanned);
+
+            if (spanned.Count > 0 && spanned[0].Parent is SdtContentBlock content)
+            {
+                paragraphs.UnionWith(content.Descendants<Paragraph>());
+            }
+        }
+
+        return paragraphs;
     }
 }

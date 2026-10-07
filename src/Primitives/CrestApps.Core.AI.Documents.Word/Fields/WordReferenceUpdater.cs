@@ -16,7 +16,11 @@ internal static class WordReferenceUpdater
     /// </summary>
     /// <param name="package">The document.</param>
     /// <param name="services">The request services, or <see langword="null"/>.</param>
-    public static void Update(WordPackage package, IServiceProvider services)
+    /// <returns>
+    /// <see langword="true"/> when every reference field was brought up to date; <see langword="false"/> when one
+    /// was left for Word to update, such as a reference to a paragraph's number.
+    /// </returns>
+    public static bool Update(WordPackage package, IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(package);
 
@@ -24,9 +28,10 @@ internal static class WordReferenceUpdater
 
         if (!fields.Any(field => field.Type is "REF" or "PAGEREF" or "TOC" or "INDEX"))
         {
-            return;
+            return true;
         }
 
+        var complete = true;
         var texts = ReadBookmarkTexts(package.Body);
         var order = package.Body.Descendants().Select((element, index) => (element, index)).ToDictionary(pair => pair.element, pair => pair.index, ReferenceEqualityComparer.Instance);
         var starts = package.Body.Descendants<BookmarkStart>().Where(start => start.Name?.Value is not null).GroupBy(start => start.Name.Value, StringComparer.OrdinalIgnoreCase).ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
@@ -35,8 +40,17 @@ internal static class WordReferenceUpdater
         {
             var name = WordFieldScanner.ArgumentOf(field.Instruction);
 
+            // \n, \r and \w show the number of the paragraph the bookmark is in — "see 2.3" — not its text, and
+            // only Word's list numbering knows it, so the result Word last wrote is kept.
+            if (WordFieldScanner.HasSwitch(field.Instruction, 'n') || WordFieldScanner.HasSwitch(field.Instruction, 'r') || WordFieldScanner.HasSwitch(field.Instruction, 'w'))
+            {
+                complete = false;
+
+                continue;
+            }
+
             // With \p a reference says where its target is rather than repeating it.
-            if (field.Instruction.Contains("\\p", StringComparison.OrdinalIgnoreCase) && starts.TryGetValue(name, out var start) && field.BeginRun is not null)
+            if (WordFieldScanner.HasSwitch(field.Instruction, 'p') && starts.TryGetValue(name, out var start) && field.BeginRun is not null)
             {
                 WordFieldScanner.SetResult(field, order[start] < order[field.BeginRun] ? "above" : "below");
 
@@ -49,7 +63,7 @@ internal static class WordReferenceUpdater
             }
         }
 
-        WordTableOfContents.RefreshAll(package, services);
+        return WordTableOfContents.RefreshAll(package, services) && complete;
     }
 
     /// <summary>
