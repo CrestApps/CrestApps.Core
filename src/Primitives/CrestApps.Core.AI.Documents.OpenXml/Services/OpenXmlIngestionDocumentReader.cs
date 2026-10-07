@@ -17,6 +17,7 @@ public sealed class OpenXmlIngestionDocumentReader : IngestionDocumentReader
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.openxmlformats-officedocument.presentationml.template",
     };
 
     /// <summary>
@@ -62,7 +63,8 @@ public sealed class OpenXmlIngestionDocumentReader : IngestionDocumentReader
             {
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => ExtractWord(workingStream, cancellationToken),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => ExtractExcel(workingStream, cancellationToken),
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation" => ExtractPowerPoint(workingStream, cancellationToken),
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation" or
+                "application/vnd.openxmlformats-officedocument.presentationml.template" => ExtractPowerPoint(workingStream, cancellationToken),
                 _ => null,
             };
 

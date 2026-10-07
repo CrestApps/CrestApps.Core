@@ -215,7 +215,7 @@ Generated downloads are kept separate from user-uploaded source documents, which
 
 Out of the box, the document features support common text, document, image, and tabular formats. Add the packages you need:
 
-- `AddOpenXml()` for Office formats such as Word, PowerPoint, and Excel
+- `AddOpenXml()` for Office formats such as Word, PowerPoint (`.pptx` and `.potx` templates), and Excel, and for the Presentation Agent
 - `AddPdf()` for PDF reading
 - `AddWord()` for the Word Agent
 - `AddMarkdown()` for Markdown-aware normalization and chunking

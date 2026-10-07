@@ -123,7 +123,7 @@ agent.Put(new AgentMetadata
 });
 ```
 
-When a tool-capable agent is invoked, `AgentProxyTool` runs it through the orchestrator so its configured tools are available. A recursion-depth guard (`AIInvocationContext.AgentInvocationDepth`) suppresses nested agents, so an agent can never invoke another agent — bounding recursion to a single level. This is how the system [Tabular Data Agent](./ai-documents.md#tabular-files) runs its SQL tools.
+When a tool-capable agent is invoked, `AgentProxyTool` runs it through the orchestrator so its configured tools are available. A recursion-depth guard (`AIInvocationContext.AgentInvocationDepth`) suppresses nested agents, so an agent can never invoke another agent — bounding recursion to a single level. This is how the system [Tabular Data Agent](./ai-documents.md#tabular-files) runs its SQL tools, and the system [Presentation Agent](./ai-documents.md#presentations-and-the-presentation-agent) its PowerPoint tools.
 
 ### Code-defined profiles and system agents
 
