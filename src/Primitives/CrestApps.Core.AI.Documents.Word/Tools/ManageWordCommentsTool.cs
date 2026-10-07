@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using CrestApps.Core.AI.Documents.OpenXml.Word;
 using CrestApps.Core.AI.Documents.Word.Editing;
@@ -6,6 +7,8 @@ using CrestApps.Core.AI.Documents.Word.Reading;
 using CrestApps.Core.AI.Documents.Word.Workspace;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Office2013.Word;
+using DocumentFormat.OpenXml.Office2019.Word.Cid;
+using DocumentFormat.OpenXml.Office2021.Word.CommentsExt;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 
@@ -14,6 +17,11 @@ namespace CrestApps.Core.AI.Documents.Word.Tools;
 /// <summary>
 /// Lists, adds, answers, resolves and deletes review comments.
 /// </summary>
+/// <remarks>
+/// Comments form threads: a reply names the comment it answers in the extended comments part. Word itself only
+/// writes replies to a thread's first comment, so a reply always joins the thread's first comment, and a file
+/// that names a reply as the parent of another is read as one thread.
+/// </remarks>
 internal sealed class ManageWordCommentsTool : WordToolBase
 {
     /// <summary>
@@ -30,7 +38,7 @@ internal sealed class ManageWordCommentsTool : WordToolBase
             "id": { "type": "string", "description": "For add: the element the comment is on." },
             "text": { "type": "string", "description": "For add: the phrase inside the element the comment is on. Default: the whole element." },
             "comment": { "type": "string", "description": "The comment's text, for add and reply." },
-            "comment_id": { "type": "string", "description": "For reply, resolve, reopen and delete: the comment's number from 'list'; 'all' deletes or resolves every comment." },
+            "comment_id": { "type": "string", "description": "For reply, resolve, reopen and delete: the comment's number from 'list'; a reply's number stands for its thread when replying, resolving or reopening. 'all' deletes, resolves or reopens every comment." },
             "include_resolved": { "type": "boolean", "description": "For list: also list resolved comments. Default true." },
             {{WordToolSchemas.SaveAs}}
           },
@@ -55,7 +63,23 @@ internal sealed class ManageWordCommentsTool : WordToolBase
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Works with the review comments of a Word document: 'list' them (author, date, the text they are on, replies, resolved or open), 'add' a comment on an element or a phrase in it, 'reply' to one, 'resolve' or 'reopen' it, or 'delete' it (with its replies). Comments are signed with the agent's author name.";
+    public override string Description => "Works with the review comments of a Word document: 'list' them (author, date, the text they are on, replies, resolved or open), 'add' a comment on an element or a phrase in it, 'reply' to a comment thread, 'resolve' or 'reopen' a thread, or 'delete' a comment (with its replies). Comments are signed with the agent's author name.";
+
+    /// <summary>
+    /// Counts the comment threads not yet resolved: replies and resolved threads are not counted.
+    /// </summary>
+    /// <param name="package">The document.</param>
+    /// <returns>The number of open threads.</returns>
+    public static int CountOpenThreads(WordPackage package)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+
+        var comments = AllComments(package);
+        var extended = Extended(package.MainPart, create: false);
+        var parents = Parents(comments, extended);
+
+        return comments.Count(comment => parents[IdOf(comment)] is null && !IsDone(comment, extended));
+    }
 
     /// <summary>
     /// Runs the comment action.
@@ -98,7 +122,7 @@ internal sealed class ManageWordCommentsTool : WordToolBase
 
     private static string List(WordPackage package, bool includeResolved)
     {
-        var comments = package.MainPart.WordprocessingCommentsPart?.Comments?.Elements<Comment>().ToList() ?? [];
+        var comments = AllComments(package);
 
         if (comments.Count == 0)
         {
@@ -106,12 +130,14 @@ internal sealed class ManageWordCommentsTool : WordToolBase
         }
 
         var extended = Extended(package.MainPart, create: false);
-        var parents = comments.ToDictionary(comment => comment.Id.Value, comment => ParentOf(comment, comments, extended), StringComparer.Ordinal);
+        var parents = Parents(comments, extended);
+        var roots = parents.Keys.ToDictionary(id => id, id => RootOf(id, parents), StringComparer.Ordinal);
         var answer = new StringBuilder();
         var listed = 0;
 
-        foreach (var comment in comments.Where(comment => parents[comment.Id.Value] is null))
+        foreach (var comment in comments.Where(comment => parents[IdOf(comment)] is null))
         {
+            var id = IdOf(comment);
             var done = IsDone(comment, extended);
 
             if (done && !includeResolved)
@@ -119,23 +145,31 @@ internal sealed class ManageWordCommentsTool : WordToolBase
                 continue;
             }
 
-            answer.Append("- #").Append(comment.Id.Value).Append(' ').Append(Describe(comment)).Append(done ? " [resolved]" : " [open]");
+            answer.Append("- #").Append(id).Append(' ').Append(Describe(comment)).Append(done ? " [resolved]" : " [open]");
 
-            if (AnchoredText(package, comment.Id.Value) is { Length: > 0 } anchored)
+            if (AnchoredText(package, id) is { Length: > 0 } anchored)
             {
                 answer.Append(" on \"").Append(WordText.Clip(anchored, 80)).Append('"');
             }
 
-            if (Anchor(package, comment.Id.Value) is { } element && WordParagraphIds.Of(element) is { } elementId)
+            if (Anchor(package, id) is { } element && WordParagraphIds.Of(element) is { } elementId)
             {
                 answer.Append(" in [").Append(elementId).Append(']');
             }
 
             answer.Append(": ").AppendLine(WordText.Clip(WordText.Of(comment), 400));
 
-            foreach (var reply in comments.Where(item => parents[item.Id.Value] == comment.Id.Value))
+            // A reply to a reply, which other editors may write, is listed in its thread, saying what it answers.
+            foreach (var reply in comments.Where(item => item != comment && roots[IdOf(item)] == id))
             {
-                answer.Append("  - reply #").Append(reply.Id.Value).Append(' ').Append(Describe(reply)).Append(": ").AppendLine(WordText.Clip(WordText.Of(reply), 400));
+                answer.Append("  - reply #").Append(IdOf(reply));
+
+                if (parents[IdOf(reply)] is { } parent && parent != id)
+                {
+                    answer.Append(" (to #").Append(parent).Append(')');
+                }
+
+                answer.Append(' ').Append(Describe(reply)).Append(": ").AppendLine(WordText.Clip(WordText.Of(reply), 400));
             }
 
             listed++;
@@ -161,45 +195,59 @@ internal sealed class ManageWordCommentsTool : WordToolBase
             throw new WordToolException("That element has no text to comment on.");
         }
 
-        var comment = CreateComment(edit, text);
-        var id = comment.Id.Value;
-
         if (arguments.GetRawString("text") is { Length: > 0 } phrase)
         {
-            var paragraph = paragraphs.FirstOrDefault(item => WordText.Of(item).Contains(phrase, StringComparison.OrdinalIgnoreCase))
-                ?? throw new WordToolException($"\"{phrase}\" is not in that element.");
-            var runs = WordTextEditor.Isolate(paragraph, phrase, matchCase: false);
+            // The phrase can show in a paragraph only as a field's result, such as a cross-reference; the first
+            // paragraph where it is ordinary text is the one commented on.
+            List<Run> runs = [];
+            var shown = false;
+
+            foreach (var paragraph in paragraphs.Where(item => WordText.Of(item).Contains(phrase, StringComparison.OrdinalIgnoreCase)))
+            {
+                shown = true;
+                runs = WordTextEditor.Isolate(paragraph, phrase, matchCase: false);
+
+                if (runs.Count > 0)
+                {
+                    break;
+                }
+            }
 
             if (runs.Count == 0)
             {
-                throw new WordToolException($"\"{phrase}\" is part of a field, such as a page number or a cross-reference; comment on the whole element instead.");
+                throw new WordToolException(shown
+                    ? $"\"{phrase}\" is part of a field, such as a page number or a cross-reference; comment on the whole element instead."
+                    : $"\"{phrase}\" is not in that element.");
             }
+
+            var id = IdOf(CreateComment(edit, text));
 
             runs[0].InsertBeforeSelf(new CommentRangeStart { Id = id });
             runs[^1].InsertAfterSelf(new CommentRangeEnd { Id = id });
             runs[^1].NextSibling().InsertAfterSelf(ReferenceRun(id));
+
+            return $"Added comment #{id} on [{WordParagraphIds.Of(element)}].";
+        }
+
+        var commentId = IdOf(CreateComment(edit, text));
+        var first = paragraphs[0];
+        var last = paragraphs[^1];
+
+        if (first.ParagraphProperties is { } properties)
+        {
+            properties.InsertAfterSelf(new CommentRangeStart { Id = commentId });
         }
         else
         {
-            var first = paragraphs[0];
-            var last = paragraphs[^1];
-
-            if (first.ParagraphProperties is { } properties)
-            {
-                properties.InsertAfterSelf(new CommentRangeStart { Id = id });
-            }
-            else
-            {
-                first.PrependChild(new CommentRangeStart { Id = id });
-            }
-
-            last.Append(new CommentRangeEnd { Id = id }, ReferenceRun(id));
+            first.PrependChild(new CommentRangeStart { Id = commentId });
         }
 
-        return $"Added comment #{id} on [{WordParagraphIds.Of(element)}].";
+        last.Append(new CommentRangeEnd { Id = commentId }, ReferenceRun(commentId));
+
+        return $"Added comment #{commentId} on [{WordParagraphIds.Of(element)}].";
     }
 
-    private static string Reply(WordEditContext edit, Comment parent, string text)
+    private static string Reply(WordEditContext edit, Comment target, string text)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -207,80 +255,122 @@ internal sealed class ManageWordCommentsTool : WordToolBase
         }
 
         var package = edit.Package;
+        var comments = AllComments(package);
+        var rootId = RootOf(IdOf(target), Parents(comments, Extended(package.MainPart, create: false)));
+        var root = comments.First(comment => IdOf(comment) == rootId);
+
+        // The reply joins the thread: it covers the same text as the thread's first comment.
+        var reference = Stories(package).SelectMany(story => story.Descendants<CommentReference>()).FirstOrDefault(item => item.Id?.Value == rootId)?.Parent
+            ?? throw new WordToolException($"Comment #{rootId} is not anchored in the document.");
         var reply = CreateComment(edit, text);
-        var id = reply.Id.Value;
+        var id = IdOf(reply);
 
-        // A reply covers the same text as the comment it answers, and is linked to it in the extended comments.
-        package.Body.Descendants<CommentRangeStart>().FirstOrDefault(item => item.Id?.Value == parent.Id.Value)?.InsertAfterSelf(new CommentRangeStart { Id = id });
-        package.Body.Descendants<CommentRangeEnd>().FirstOrDefault(item => item.Id?.Value == parent.Id.Value)?.InsertAfterSelf(new CommentRangeEnd { Id = id });
-
-        var reference = package.Body.Descendants<CommentReference>().FirstOrDefault(item => item.Id?.Value == parent.Id.Value)?.Parent;
-
-        if (reference is null)
-        {
-            throw new WordToolException($"Comment #{parent.Id.Value} is not anchored in the document body.");
-        }
-
+        Stories(package).SelectMany(story => story.Descendants<CommentRangeStart>()).FirstOrDefault(item => item.Id?.Value == rootId)?.InsertAfterSelf(new CommentRangeStart { Id = id });
+        Stories(package).SelectMany(story => story.Descendants<CommentRangeEnd>()).FirstOrDefault(item => item.Id?.Value == rootId)?.InsertAfterSelf(new CommentRangeEnd { Id = id });
         reference.InsertAfterSelf(ReferenceRun(id));
 
         var extended = Extended(package.MainPart, create: true);
 
-        EnsureEntry(extended, parent).Done ??= false;
-        extended.Append(new CommentEx { ParaId = LastParagraphId(reply), ParaIdParent = LastParagraphId(parent), Done = false });
+        EnsureEntry(extended, root).Done ??= false;
+        extended.Append(new CommentEx { ParaId = LastParagraphId(reply), ParaIdParent = LastParagraphId(root), Done = false });
 
-        return $"Replied to comment #{parent.Id.Value} (reply #{id}).";
+        return rootId == IdOf(target)
+            ? $"Replied to comment #{rootId} (reply #{id})."
+            : $"Replied to the thread of comment #{rootId}, which #{IdOf(target)} belongs to (reply #{id}).";
     }
 
     private static string SetDone(WordPackage package, string commentId, bool done)
     {
-        var targets = Targets(package, commentId);
+        var comments = AllComments(package);
+        var parents = Parents(comments, Extended(package.MainPart, create: false));
+        var all = IsAll(commentId);
+        var target = all ? null : Require(package, commentId);
+        var rootIds = all
+            ? comments.Select(comment => RootOf(IdOf(comment), parents)).ToHashSet(StringComparer.Ordinal)
+            : [RootOf(IdOf(target), parents)];
         var extended = Extended(package.MainPart, create: true);
 
-        foreach (var comment in targets)
+        // A thread's state is its first comment's; the replies are marked the same way, as Word marks them.
+        foreach (var comment in comments.Where(comment => rootIds.Contains(RootOf(IdOf(comment), parents))))
         {
             EnsureEntry(extended, comment).Done = done;
         }
 
-        return $"{(done ? "Resolved" : "Reopened")} {targets.Count} comment(s).";
+        var verb = done ? "Resolved" : "Reopened";
+
+        return target is not null && parents[IdOf(target)] is not null
+            ? $"{verb} the thread of comment #{rootIds.First()}, which reply #{IdOf(target)} belongs to."
+            : $"{verb} {rootIds.Count} comment thread(s).";
     }
 
     private static string Delete(WordPackage package, string commentId)
     {
-        var comments = package.MainPart.WordprocessingCommentsPart?.Comments?.Elements<Comment>().ToList() ?? [];
+        var comments = AllComments(package);
         var extended = Extended(package.MainPart, create: false);
-        var targets = Targets(package, commentId);
-        var ids = targets.Select(comment => comment.Id.Value).ToHashSet(StringComparer.Ordinal);
+        var parents = Parents(comments, extended);
+        var ids = IsAll(commentId)
+            ? comments.Select(IdOf).ToHashSet(StringComparer.Ordinal)
+            : [IdOf(Require(package, commentId))];
 
-        foreach (var reply in comments.Where(comment => ParentOf(comment, comments, extended) is { } parent && ids.Contains(parent)))
-        {
-            ids.Add(reply.Id.Value);
-        }
+        // Replies go with what they answer, however deep they are nested.
+        bool added;
 
-        foreach (var marker in package.Body.Descendants().Where(item => item is CommentRangeStart or CommentRangeEnd).ToList())
+        do
         {
-            if (ids.Contains(marker is CommentRangeStart start ? start.Id?.Value : ((CommentRangeEnd)marker).Id?.Value))
+            added = false;
+
+            foreach (var comment in comments)
             {
-                marker.Remove();
+                if (parents[IdOf(comment)] is { } parent && ids.Contains(parent) && ids.Add(IdOf(comment)))
+                {
+                    added = true;
+                }
+            }
+        }
+        while (added);
+
+        foreach (var story in Stories(package))
+        {
+            foreach (var marker in story.Descendants().Where(item => item is CommentRangeStart or CommentRangeEnd).ToList())
+            {
+                if (ids.Contains((marker is CommentRangeStart start ? start.Id?.Value : ((CommentRangeEnd)marker).Id?.Value) ?? string.Empty))
+                {
+                    marker.Remove();
+                }
+            }
+
+            foreach (var reference in story.Descendants<CommentReference>().Where(item => ids.Contains(item.Id?.Value ?? string.Empty)).ToList())
+            {
+                if (reference.Parent is Run run && run.ChildElements.All(child => child is RunProperties or CommentReference))
+                {
+                    run.Remove();
+                }
+                else
+                {
+                    reference.Remove();
+                }
             }
         }
 
-        foreach (var reference in package.Body.Descendants<CommentReference>().Where(item => ids.Contains(item.Id?.Value)).ToList())
-        {
-            if (reference.Parent is Run run && run.ChildElements.All(child => child is RunProperties or CommentReference))
-            {
-                run.Remove();
-            }
-            else
-            {
-                reference.Remove();
-            }
-        }
+        var mainPart = package.MainPart;
+        var commentIds = mainPart.WordprocessingCommentsIdsPart?.CommentsIds;
+        var extensible = mainPart.WordCommentsExtensiblePart?.CommentsExtensible;
 
-        foreach (var comment in comments.Where(comment => ids.Contains(comment.Id.Value)))
+        foreach (var comment in comments.Where(comment => ids.Contains(IdOf(comment))))
         {
             var paraId = LastParagraphId(comment);
 
-            extended?.Elements<CommentEx>().FirstOrDefault(entry => entry.ParaId?.Value == paraId)?.Remove();
+            if (paraId is not null)
+            {
+                extended?.Elements<CommentEx>().FirstOrDefault(entry => string.Equals(entry.ParaId?.Value, paraId, StringComparison.OrdinalIgnoreCase))?.Remove();
+
+                if (commentIds?.Elements<CommentId>().FirstOrDefault(entry => string.Equals(entry.ParaId?.Value, paraId, StringComparison.OrdinalIgnoreCase)) is { } durable)
+                {
+                    extensible?.Elements<CommentExtensible>().FirstOrDefault(entry => string.Equals(entry.DurableId?.Value, durable.DurableId?.Value, StringComparison.OrdinalIgnoreCase))?.Remove();
+                    durable.Remove();
+                }
+            }
+
             comment.Remove();
         }
 
@@ -289,12 +379,14 @@ internal sealed class ManageWordCommentsTool : WordToolBase
 
     private static Comment CreateComment(WordEditContext edit, string text)
     {
-        var part = edit.Package.MainPart.WordprocessingCommentsPart ?? edit.Package.MainPart.AddNewPart<WordprocessingCommentsPart>();
+        var mainPart = edit.Package.MainPart;
+        var part = mainPart.WordprocessingCommentsPart ?? mainPart.AddNewPart<WordprocessingCommentsPart>();
 
         part.Comments ??= new Comments();
         WordPackage.EnsureNamespaces(part.Comments);
 
-        var next = part.Comments.Elements<Comment>().Select(comment => int.TryParse(comment.Id?.Value, out var value) ? value : -1).DefaultIfEmpty(-1).Max() + 1;
+        // Comment ids continue past the tracked changes' too, so a comment and a revision never share one.
+        var next = WordRevisions.NextCommentId(edit.Package);
         var author = string.IsNullOrWhiteSpace(edit.Author) ? "Author" : edit.Author;
         var paragraph = new Paragraph(
             new Run(new RunProperties(), new AnnotationReferenceMark()));
@@ -311,13 +403,74 @@ internal sealed class ManageWordCommentsTool : WordToolBase
         };
 
         part.Comments.Append(comment);
+        Register(edit, comment, author);
 
         return comment;
+    }
+
+    // A file written by a recent Word keeps a durable id per comment and the list of reviewers; a new comment is
+    // added to the parts the file already has, as Word adds it.
+    private static void Register(WordEditContext edit, Comment comment, string author)
+    {
+        var mainPart = edit.Package.MainPart;
+
+        if (mainPart.WordprocessingCommentsIdsPart?.CommentsIds is { } commentIds && LastParagraphId(comment) is { } paraId)
+        {
+            var extensible = mainPart.WordCommentsExtensiblePart?.CommentsExtensible;
+            var used = commentIds.Elements<CommentId>().Select(entry => entry.DurableId?.Value)
+                .Concat(extensible?.Elements<CommentExtensible>().Select(entry => entry.DurableId?.Value) ?? [])
+                .Where(value => value is not null)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            string durableId;
+
+            do
+            {
+                durableId = RandomNumberGenerator.GetInt32(1, 0x7FFFFFFF).ToString("X8", CultureInfo.InvariantCulture);
+            }
+            while (!used.Add(durableId));
+
+            commentIds.Append(new CommentId { ParaId = paraId, DurableId = durableId });
+
+            if (extensible is not null)
+            {
+                var entry = new CommentExtensible { DurableId = durableId, DateUtc = edit.Now.Kind == DateTimeKind.Local ? edit.Now.ToUniversalTime() : edit.Now };
+
+                if (extensible.GetFirstChild<DocumentFormat.OpenXml.Office2021.Word.CommentsExt.ExtensionList>() is { } extensions)
+                {
+                    extensions.InsertBeforeSelf(entry);
+                }
+                else
+                {
+                    extensible.Append(entry);
+                }
+            }
+        }
+
+        if (mainPart.WordprocessingPeoplePart?.People is { } people && !people.Elements<Person>().Any(person => string.Equals(person.Author?.Value, author, StringComparison.Ordinal)))
+        {
+            people.Append(new Person(new PresenceInfo { ProviderId = "None", UserId = author }) { Author = author });
+        }
     }
 
     private static Run ReferenceRun(string id)
     {
         return new Run(new CommentReference { Id = id });
+    }
+
+    private static List<Comment> AllComments(WordPackage package)
+    {
+        return package.MainPart.WordprocessingCommentsPart?.Comments?.Elements<Comment>().Where(comment => comment.Id?.Value is not null).ToList() ?? [];
+    }
+
+    // The parts comments can be anchored in.
+    private static IEnumerable<OpenXmlElement> Stories(WordPackage package)
+    {
+        var mainPart = package.MainPart;
+
+        return new OpenXmlElement[] { package.Body, mainPart.FootnotesPart?.Footnotes, mainPart.EndnotesPart?.Endnotes }
+            .Concat(mainPart.HeaderParts.Select(part => part.Header))
+            .Concat(mainPart.FooterParts.Select(part => part.Footer))
+            .Where(story => story is not null);
     }
 
     private static CommentsEx Extended(MainDocumentPart mainPart, bool create)
@@ -346,7 +499,7 @@ internal sealed class ManageWordCommentsTool : WordToolBase
     private static CommentEx EnsureEntry(CommentsEx extended, Comment comment)
     {
         var paraId = LastParagraphId(comment);
-        var entry = extended.Elements<CommentEx>().FirstOrDefault(item => item.ParaId?.Value == paraId);
+        var entry = extended.Elements<CommentEx>().FirstOrDefault(item => string.Equals(item.ParaId?.Value, paraId, StringComparison.OrdinalIgnoreCase));
 
         if (entry is null)
         {
@@ -357,16 +510,72 @@ internal sealed class ManageWordCommentsTool : WordToolBase
         return entry;
     }
 
-    private static string ParentOf(Comment comment, List<Comment> comments, CommentsEx extended)
+    // Each comment's parent comment id, or null for the first comment of a thread.
+    private static Dictionary<string, string> Parents(List<Comment> comments, CommentsEx extended)
     {
-        var parentParaId = extended?.Elements<CommentEx>().FirstOrDefault(item => item.ParaId?.Value == LastParagraphId(comment))?.ParaIdParent?.Value;
+        var byParagraph = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var parentParagraphs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        return parentParaId is null ? null : comments.FirstOrDefault(item => LastParagraphId(item) == parentParaId)?.Id?.Value;
+        foreach (var comment in comments)
+        {
+            if (LastParagraphId(comment) is { } paraId)
+            {
+                byParagraph.TryAdd(paraId, IdOf(comment));
+            }
+        }
+
+        foreach (var entry in extended?.Elements<CommentEx>() ?? [])
+        {
+            if (entry.ParaId?.Value is { } paraId && entry.ParaIdParent?.Value is { } parentId)
+            {
+                parentParagraphs.TryAdd(paraId, parentId);
+            }
+        }
+
+        var parents = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var comment in comments)
+        {
+            string parent = null;
+
+            if (LastParagraphId(comment) is { } paraId &&
+                parentParagraphs.TryGetValue(paraId, out var parentParagraph) &&
+                byParagraph.TryGetValue(parentParagraph, out var parentId) &&
+                parentId != IdOf(comment))
+            {
+                parent = parentId;
+            }
+
+            parents.TryAdd(IdOf(comment), parent);
+        }
+
+        return parents;
+    }
+
+    // The first comment of the thread a comment is in, following parents up; a loop stops where it closes.
+    private static string RootOf(string id, Dictionary<string, string> parents)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var current = id;
+
+        while (parents.TryGetValue(current, out var parent) && parent is not null && seen.Add(current))
+        {
+            current = parent;
+        }
+
+        return current;
     }
 
     private static bool IsDone(Comment comment, CommentsEx extended)
     {
-        return extended?.Elements<CommentEx>().FirstOrDefault(item => item.ParaId?.Value == LastParagraphId(comment))?.Done?.Value == true;
+        var paraId = LastParagraphId(comment);
+
+        return extended?.Elements<CommentEx>().FirstOrDefault(item => string.Equals(item.ParaId?.Value, paraId, StringComparison.OrdinalIgnoreCase))?.Done?.Value == true;
+    }
+
+    private static string IdOf(Comment comment)
+    {
+        return comment.Id?.Value ?? string.Empty;
     }
 
     private static string LastParagraphId(Comment comment)
@@ -374,14 +583,9 @@ internal sealed class ManageWordCommentsTool : WordToolBase
         return WordParagraphIds.Of(comment.Elements<Paragraph>().LastOrDefault());
     }
 
-    private static List<Comment> Targets(WordPackage package, string commentId)
+    private static bool IsAll(string commentId)
     {
-        if (string.Equals(commentId?.Trim(), "all", StringComparison.OrdinalIgnoreCase))
-        {
-            return package.MainPart.WordprocessingCommentsPart?.Comments?.Elements<Comment>().ToList() ?? [];
-        }
-
-        return [Require(package, commentId)];
+        return string.Equals(commentId?.Trim(), "all", StringComparison.OrdinalIgnoreCase);
     }
 
     private static Comment Require(WordPackage package, string commentId)
@@ -393,7 +597,7 @@ internal sealed class ManageWordCommentsTool : WordToolBase
             throw new WordToolException("Pass 'comment_id', the comment's number from action 'list'.");
         }
 
-        return package.MainPart.WordprocessingCommentsPart?.Comments?.Elements<Comment>().FirstOrDefault(comment => comment.Id?.Value == id)
+        return AllComments(package).FirstOrDefault(comment => comment.Id?.Value == id)
             ?? throw new WordToolException($"There is no comment #{id}. Call manage_word_comments with action 'list'.");
     }
 
@@ -404,16 +608,21 @@ internal sealed class ManageWordCommentsTool : WordToolBase
             : $"by {comment.Author?.Value}";
     }
 
+    private static CommentRangeStart StartOf(WordPackage package, string id)
+    {
+        return Stories(package).SelectMany(story => story.Descendants<CommentRangeStart>()).FirstOrDefault(item => item.Id?.Value == id);
+    }
+
     private static OpenXmlElement Anchor(WordPackage package, string id)
     {
-        var start = package.Body.Descendants<CommentRangeStart>().FirstOrDefault(item => item.Id?.Value == id);
+        var start = StartOf(package, id);
 
         return start?.Ancestors<Table>().LastOrDefault() as OpenXmlElement ?? start?.Ancestors<Paragraph>().FirstOrDefault();
     }
 
     private static string AnchoredText(WordPackage package, string id)
     {
-        var start = package.Body.Descendants<CommentRangeStart>().FirstOrDefault(item => item.Id?.Value == id);
+        var start = StartOf(package, id);
 
         if (start is null)
         {
@@ -421,8 +630,9 @@ internal sealed class ManageWordCommentsTool : WordToolBase
         }
 
         var text = new StringBuilder();
+        var story = start.Ancestors().Last();
 
-        foreach (var element in package.Body.Descendants().SkipWhile(item => item != start))
+        foreach (var element in story.Descendants().SkipWhile(item => item != start))
         {
             if (element is CommentRangeEnd end && end.Id?.Value == id)
             {
