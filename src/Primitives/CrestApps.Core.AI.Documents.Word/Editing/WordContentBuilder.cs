@@ -268,7 +268,17 @@ internal sealed class WordContentBuilder
         {
             var result = await WordTabularSource.QueryAsync(source, _tools.Services, cancellationToken);
 
-            // Values read from a spreadsheet are data, not Markdown: "C:\temp" or "*.csv" keep every character.
+            // Values read from a spreadsheet are data, not Markdown: "C:\temp" or "*.csv" keep every character. The
+            // headers the agent wrote itself are still inline Markdown, so they are parsed here, before the table is
+            // made literal.
+            foreach (var column in spec.Columns.Where(column => column.Header is not null && column.HeaderSpans is null))
+            {
+                var spans = RichTextParser.ParseInline(column.Header);
+
+                column.HeaderSpans = [.. spans];
+                column.Header = string.Concat(spans.Select(span => span.Text));
+            }
+
             spec.Literal = true;
 
             for (var index = 0; index < result.Headers.Count; index++)

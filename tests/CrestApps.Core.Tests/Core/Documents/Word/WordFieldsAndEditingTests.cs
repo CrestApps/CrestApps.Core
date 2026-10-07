@@ -1,12 +1,19 @@
+using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.OpenXml.Word;
+using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Documents.Word.Editing;
 using CrestApps.Core.AI.Documents.Word.Fields;
 using CrestApps.Core.AI.Documents.Word.Reading;
 using CrestApps.Core.AI.Documents.Word.Structure;
 using CrestApps.Core.AI.Documents.Word.Tools;
+using CrestApps.Core.AI.Ingestion;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using Microsoft.Extensions.DataIngestion;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Moq;
 
 namespace CrestApps.Core.Tests.Core.Documents.Word;
 
@@ -605,6 +612,79 @@ public sealed class WordFieldsAndEditingTests
         var control = Assert.Single(result.Body.Elements<SdtBlock>());
 
         Assert.Equal("Name: Contoso", WordText.Of(control));
+    }
+
+    [Fact]
+    public void ReplaceParagraph_UntrackedWithDeletedNoteReference_DoesNotBringTheReferenceBack()
+    {
+        using var package = WordPackage.Create(new WordDesign());
+        var paragraph = new Paragraph(
+            new Run(new Text("Old")),
+            new DeletedRun(new Run(new FootnoteReference { Id = 1 })) { Id = "3", Author = "Reviewer" },
+            new MoveFromRun(new Run(new EndnoteReference { Id = 1 })) { Id = "4", Author = "Reviewer" },
+            new Run(new FootnoteReference { Id = 2 }));
+
+        Add(package, paragraph);
+
+        WordTextEditor.ReplaceParagraph(paragraph, "New", package.MainPart, revisions: null);
+
+        Assert.Equal("New", WordText.Of(paragraph));
+        Assert.Equal(2L, Assert.Single(paragraph.Descendants<FootnoteReference>()).Id.Value);
+        Assert.Empty(paragraph.Descendants<EndnoteReference>());
+    }
+
+    [Fact]
+    public async Task CreateWordDocument_SourceTableWithMarkdownHeaders_FormatsTheHeadersAndKeepsTheDataLiteral()
+    {
+        var workspace = Path.Combine(Path.GetTempPath(), "word-tool-tests", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            using var host = new WordToolTestHost(configure: services =>
+            {
+                var documentOptions = new ChatDocumentsOptions();
+
+                documentOptions.Add(".csv", embeddable: false, isTabular: true);
+                services.AddSingleton<IOptions<ChatDocumentsOptions>>(Options.Create(documentOptions));
+                services.AddSingleton<IOptions<DocumentFileSystemFileStoreOptions>>(Options.Create(new DocumentFileSystemFileStoreOptions { BasePath = workspace }));
+                services.AddSingleton(new Mock<IAIDocumentChunkStore>().Object);
+                services.AddSingleton<ITabularDocumentArtifactStore, DocumentFileStoreTabularDocumentArtifactStore>();
+                services.AddOptions<TabularWorkspaceOptions>();
+                services.AddSingleton<PlainTextIngestionDocumentReader>();
+                services.AddKeyedSingleton<IngestionDocumentReader>(".csv", (provider, _) => provider.GetRequiredService<PlainTextIngestionDocumentReader>());
+                services.AddScoped<TabularDocumentArtifactFactory>();
+            });
+
+            await host.UploadAsync("sales.csv", "region,pattern\nNorth,*.csv\n"u8.ToArray(), "text/csv");
+
+            await host.InvokeAsync(new CreateWordDocumentTool(), new
+            {
+                name = "report",
+                content = new object[]
+                {
+                    new { type = "table", columns = new[] { "**Region**", "Pattern" }, source = new { sql = "SELECT region, pattern FROM sales" } },
+                },
+            });
+
+            var bytes = await host.ReadWorkingDocumentAsync("report");
+
+            WordAuthoringToolsTests.AssertValid(bytes);
+
+            using var document = WordprocessingDocument.Open(new MemoryStream(bytes), isEditable: false);
+            var rows = document.MainDocumentPart.Document.Body.Descendants<Table>().Single().Elements<TableRow>().ToList();
+            var header = rows[0].Elements<TableCell>().First();
+
+            Assert.Equal("Region", WordText.OfCell(header));
+            Assert.Contains(header.Descendants<Run>(), run => run.RunProperties?.Bold is not null);
+            Assert.Equal("*.csv", WordText.OfCell(rows[1].Elements<TableCell>().Last()));
+        }
+        finally
+        {
+            if (Directory.Exists(workspace))
+            {
+                Directory.Delete(workspace, recursive: true);
+            }
+        }
     }
 
     internal static void Add(WordPackage package, OpenXmlElement element)

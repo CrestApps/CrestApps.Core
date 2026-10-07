@@ -46,11 +46,13 @@ internal static class WordTextEditor
         var baseFormat = BaseFormatOf(paragraph);
         var content = paragraph.ChildElements.Where(child => child is not ParagraphProperties).ToList();
 
-        // With tracking on, what is already a tracked deletion stays as it is, markers included.
+        // With tracking on, what is already a tracked deletion or a move away stays as it is, markers included.
+        // Without, it goes with the old text, but for its range markers: a comment or note reference that was
+        // deleted or moved away must not come back to life.
         var keepers = content
             .SelectMany(child => child.Descendants().Prepend(child))
             .Where(IsKeeper)
-            .Where(element => revisions is null || element.Ancestors<DeletedRun>().FirstOrDefault() is null)
+            .Where(element => !IsDeletedOrMovedAway(element) || (revisions is null && element is not Run))
             .ToList();
 
         foreach (var keeper in keepers)
@@ -336,6 +338,11 @@ internal static class WordTextEditor
         // What points at the paragraph from elsewhere: bookmarks, comment anchors, and comment and note references.
         return element is BookmarkStart or BookmarkEnd or CommentRangeStart or CommentRangeEnd ||
             (element is Run run && run.ChildElements.Any(child => child is CommentReference or FootnoteReference or EndnoteReference));
+    }
+
+    private static bool IsDeletedOrMovedAway(OpenXmlElement element)
+    {
+        return element.Ancestors().Any(ancestor => ancestor is DeletedRun or MoveFromRun);
     }
 
     private static string DescribeDropped(List<OpenXmlElement> content, Paragraph replacement, WordRevisions revisions)
