@@ -6,13 +6,16 @@ namespace CrestApps.Core.AI.Documents.Word;
 public sealed class WordPreviewOptions
 {
     /// <summary>
-    /// Gets or sets the most pages drawn by one preview. The preview says which pages it left out, so the
-    /// reader can ask for them by number. Defaults to 4.
+    /// Gets or sets the number of pages a preview draws when no pages are asked for: the first pages of the
+    /// document, up to this many. The preview says how many pages the document has, so the reader can ask for
+    /// others by number. Defaults to 4.
     /// </summary>
     public int MaxPages { get; set; } = 4;
 
     /// <summary>
-    /// Gets or sets the most pages one rendering call draws when pages are asked for by number. Defaults to 12.
+    /// Gets or sets the most pages one preview draws when pages are asked for by number, such as <c>1-10</c>.
+    /// The preview says which of the requested pages it left out. A value below <see cref="MaxPages"/> is
+    /// treated as <see cref="MaxPages"/>. Defaults to 12.
     /// </summary>
     public int MaxRenderPages { get; set; } = 12;
 

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using CrestApps.Core.AI.Documents.OpenXml.Word;
@@ -32,9 +33,9 @@ internal static class WordPreview
         ArgumentNullException.ThrowIfNull(source);
 
         var key = source.Key + (showMarkup ? "|markup" : string.Empty);
-        var invocation = AIInvocationScope.Current;
+        var cache = Cache(AIInvocationScope.Current);
 
-        if (invocation?.Items.TryGetValue(CacheKey, out var value) == true && value is Dictionary<string, WordLayout> cache && cache.TryGetValue(key, out var cached))
+        if (cache is not null && cache.TryGetValue(key, out var cached))
         {
             return cached;
         }
@@ -43,18 +44,35 @@ internal static class WordPreview
 
         var layout = Layout(package, context.Services, showMarkup);
 
-        if (invocation is not null)
+        if (cache is not null)
         {
-            if (!invocation.Items.TryGetValue(CacheKey, out var store) || store is not Dictionary<string, WordLayout> layouts)
-            {
-                layouts = new Dictionary<string, WordLayout>(StringComparer.Ordinal);
-                invocation.Items[CacheKey] = layouts;
-            }
-
-            layouts[key] = layout;
+            cache[key] = layout;
         }
 
         return layout;
+    }
+
+    // The layouts of this invocation. Tool calls of one invocation may run side by side, so the cache is safe to
+    // share and is added to the invocation's items under a lock.
+    private static ConcurrentDictionary<string, WordLayout> Cache(AIInvocationContext invocation)
+    {
+        if (invocation is null)
+        {
+            return null;
+        }
+
+        lock (invocation.Items)
+        {
+            if (invocation.Items.TryGetValue(CacheKey, out var value) && value is ConcurrentDictionary<string, WordLayout> cache)
+            {
+                return cache;
+            }
+
+            cache = new ConcurrentDictionary<string, WordLayout>(StringComparer.Ordinal);
+            invocation.Items[CacheKey] = cache;
+
+            return cache;
+        }
     }
 
     /// <summary>

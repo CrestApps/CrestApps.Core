@@ -68,10 +68,15 @@ internal sealed class PreviewWordTool : WordToolBase
         }
 
         var options = WordPreview.Options(context.Services);
-        var maxPages = Math.Max(1, options.MaxPages);
-        var requested = arguments.GetPages() is { } pages
-            ? WordPageRange.Parse(pages, layout.PageCount)
-            : [.. Enumerable.Range(1, Math.Min(layout.PageCount, maxPages))];
+
+        // Without a selection the first few pages are drawn; pages asked for by number are drawn up to the larger
+        // per-call limit.
+        var defaultPages = Math.Max(1, options.MaxPages);
+        var explicitPages = arguments.GetPages();
+        var maxPages = explicitPages is null ? defaultPages : Math.Max(defaultPages, options.MaxRenderPages);
+        var requested = explicitPages is not null
+            ? WordPageRange.Parse(explicitPages, layout.PageCount)
+            : [.. Enumerable.Range(1, Math.Min(layout.PageCount, defaultPages))];
 
         if (requested.Count == 0)
         {
