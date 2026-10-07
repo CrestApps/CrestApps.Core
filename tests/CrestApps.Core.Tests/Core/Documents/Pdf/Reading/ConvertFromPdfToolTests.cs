@@ -4,7 +4,7 @@ using System.Text.Json;
 using CrestApps.Core.AI.Documents.Pdf.Tools;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
-using Word = DocumentFormat.OpenXml.Wordprocessing;
+using Wordprocessing = DocumentFormat.OpenXml.Wordprocessing;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf.Reading;
 
@@ -32,7 +32,7 @@ public sealed class ConvertFromPdfToolTests
         Assert.Contains("Quarterly Report", text, StringComparison.Ordinal);
         Assert.Contains("Revenue rose by twelve percent", text, StringComparison.Ordinal);
         Assert.Contains("North grew faster than expected", text, StringComparison.Ordinal);
-        Assert.Single(body.Elements<Word.Table>());
+        Assert.Single(body.Elements<Wordprocessing.Table>());
     }
 
     [Fact]

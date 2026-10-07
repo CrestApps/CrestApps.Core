@@ -1,12 +1,15 @@
 using System.Text;
 using System.Text.Json;
 using CrestApps.Core.AI.Documents.Generation;
+using CrestApps.Core.AI.Documents.Presentations;
+using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Documents.Tabular;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Orchestration;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents.Tools;
 
@@ -27,6 +30,12 @@ public sealed class GenerateFileTool : AIFunction
         ".csv",
         ".tsv",
         ".xlsx",
+    };
+
+    private static readonly HashSet<string> _presentationExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".pptx",
+        ".potx",
     };
 
     private static readonly JsonElement _jsonSchema = JsonSerializer.Deserialize<JsonElement>(
@@ -64,7 +73,7 @@ public sealed class GenerateFileTool : AIFunction
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Creates a downloadable file (PDF, Word, Markdown, HTML, text, CSV, or spreadsheet) from generated content and attaches it to the conversation. Use this whenever the user asks to generate, produce, or download a file from NEW content you author. The 'content' you provide becomes the ENTIRE file verbatim, so never pass a description, summary, or status message about a file instead of its real contents. Do NOT use this tool to export, modify, or re-save an uploaded spreadsheet or tabular file (CSV/Excel); for any uploaded tabular data delegate to the Tabular Data Agent, which exports the actual rows from the in-memory table. Returns a [doc:N] marker that MUST be included exactly as-is in your response so the UI renders the download link.";
+    public override string Description => "Creates a downloadable file (PDF, Word, Markdown, HTML, text, CSV, or spreadsheet) from generated content and attaches it to the conversation. Use this whenever the user asks to generate, produce, or download a file from NEW content you author. The 'content' you provide becomes the ENTIRE file verbatim, so never pass a description, summary, or status message about a file instead of its real contents. Do NOT use this tool to export, modify, or re-save an uploaded spreadsheet or tabular file (CSV/Excel); for any uploaded tabular data delegate to the Tabular Data Agent, which exports the actual rows from the in-memory table. Do NOT use this tool for PowerPoint presentations (.pptx); delegate every slide deck to the Presentation Agent, which designs, previews and exports it. Returns a [doc:N] marker that MUST be included exactly as-is in your response so the UI renders the download link.";
 
     /// <summary>
     /// Gets the json Schema.
@@ -126,6 +135,18 @@ public sealed class GenerateFileTool : AIFunction
             }
 
             return statusMessageError;
+        }
+
+        var presentationError = GetPresentationError(arguments.Services, extension);
+
+        if (!string.IsNullOrEmpty(presentationError))
+        {
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+                logger.LogDebug("AI tool '{ToolName}' sent a presentation request to the presentation agent (call #{InvocationNumber}).", Name, invocationNumber);
+            }
+
+            return presentationError;
         }
 
         var shadowedExportError = GetShadowedExportError(extension)
@@ -300,6 +321,31 @@ public sealed class GenerateFileTool : AIFunction
         var names = string.Join(", ", context.Documents.Select(document => $"\"{document.FileName}\""));
 
         return $"This conversation has tabular data loaded ({names}), so a spreadsheet must not be written by hand: it would contain remembered values rather than the real rows. Use export_tabular_data instead — it exports the live table, including every change already applied — and apply any presentation with format_tabular_data first.";
+    }
+
+    /// <summary>
+    /// Sends a request for a slide deck to the presentation agent while one is available.
+    /// <para>
+    /// A deck written from Markdown in one call has no preview, no design and no way to be revised: asked to
+    /// change a slide later, the model would write a whole new file from memory. The presentation agent keeps
+    /// the deck in the conversation, shows it, and changes it in place, so a deck is only written here when no
+    /// agent is running — or when the agent itself calls this tool.
+    /// </para>
+    /// </summary>
+    /// <param name="services">The request services.</param>
+    /// <param name="extension">The requested file extension.</param>
+    /// <returns>The refusal message, or <see langword="null"/> when the file may be created.</returns>
+    private static string GetPresentationError(IServiceProvider services, string extension)
+    {
+        if (!_presentationExtensions.Contains(extension) ||
+            AIInvocationScope.Current?.AgentInvocationDepth > 0 ||
+            services.GetService<IPresentationEngine>() is null ||
+            services.GetService<IOptions<PresentationAgentOptions>>()?.Value.Enabled != true)
+        {
+            return null;
+        }
+
+        return $"PowerPoint presentations are built by the {PresentationAgentProvider.AgentName} agent, which designs the slides, shows them to the user and can change them later. Delegate this request to that agent with the user's full request and the slide content you planned, instead of writing the file here.";
     }
 
     private static string GetTabularMisuseError(string content, string extension, string fileName)

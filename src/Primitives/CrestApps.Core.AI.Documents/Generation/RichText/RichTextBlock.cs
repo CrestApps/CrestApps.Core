@@ -11,7 +11,7 @@ public sealed class RichTextBlock
     public RichTextBlockKind Kind { get; init; }
 
     /// <summary>
-    /// Gets the heading depth, 1 through 6, for a heading block.
+    /// Gets the heading depth, 1 through 6, for a heading block, or the nesting depth from 0 for a list item.
     /// </summary>
     public int Level { get; init; }
 

@@ -89,6 +89,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
         .AddDocumentProcessing(documentProcessing => documentProcessing
             .AddOpenXml()
             .AddPdf()
+            .AddWord()
         )
         .AddAIMemory()
         .AddA2AClient()

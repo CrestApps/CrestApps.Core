@@ -35,6 +35,7 @@ public static class PdfServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddCoreAIPresentationPdfExport();
         services.AddCoreAIPdfIngestion();
 
         services.AddOptions<PdfCompositionOptions>();

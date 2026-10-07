@@ -37,6 +37,7 @@
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Sftp/CrestApps.Core.AI.Sftp.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Documents.OpenXml/CrestApps.Core.AI.Documents.OpenXml.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Documents.Pdf/CrestApps.Core.AI.Documents.Pdf.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Documents.Word/CrestApps.Core.AI.Documents.Word.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Elasticsearch/CrestApps.Core.AI.Elasticsearch.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.WebCrawlers/CrestApps.Core.AI.WebCrawlers.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Azure.AISearch/CrestApps.Core.AI.Azure.AISearch.csproj" />

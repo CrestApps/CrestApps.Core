@@ -37,6 +37,7 @@
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.Azure.DocumentIntelligence/CrestApps.Core.Azure.DocumentIntelligence.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Documents.OpenXml/CrestApps.Core.AI.Documents.OpenXml.csproj" />
     <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Documents.Pdf/CrestApps.Core.AI.Documents.Pdf.csproj" />
+    <ProjectReference Include="../../src/Primitives/CrestApps.Core.AI.Documents.Word/CrestApps.Core.AI.Documents.Word.csproj" />
     <ProjectReference Include="../../src/Startup/CrestApps.Core.Blazor.Web/CrestApps.Core.Blazor.Web.csproj" />
     <ProjectReference Include="../../src/Startup/CrestApps.Core.Mvc.Web/CrestApps.Core.Mvc.Web.csproj" />
   </ItemGroup>
