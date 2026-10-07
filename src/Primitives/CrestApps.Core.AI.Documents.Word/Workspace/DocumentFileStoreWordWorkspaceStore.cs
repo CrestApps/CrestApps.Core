@@ -36,16 +36,14 @@ internal sealed class DocumentFileStoreWordWorkspaceStore : IWordWorkspaceStore
     }
 
     /// <summary>
-    /// Gets the number of workspaces whose lock is held or waited for, for tests.
+    /// Returns whether a workspace's lock is held or waited for, for tests.
     /// </summary>
-    internal static int LockCount
+    /// <param name="scope">The conversation.</param>
+    internal static bool IsLockTracked(WordWorkspaceScope scope)
     {
-        get
+        lock (_locks)
         {
-            lock (_locks)
-            {
-                return _locks.Count;
-            }
+            return _locks.ContainsKey(scope.Folder);
         }
     }
 
