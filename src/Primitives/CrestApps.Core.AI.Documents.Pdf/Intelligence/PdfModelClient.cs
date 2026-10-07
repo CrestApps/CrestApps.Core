@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -73,7 +74,7 @@ internal sealed class PdfModelClient
             return null;
         }
 
-        var client = await clientFactory.CreateChatClientAsync(deployment, builder => builder.UseDefaultResilience());
+        var client = await clientFactory.CreateChatClientAsync(deployment, builder => builder.UseDefaultResilience().UseUsageLabels(purpose: AIUsagePurposes.DocumentAnalysis));
 
         return client is null
             ? null
@@ -115,7 +116,7 @@ internal sealed class PdfModelClient
             return null;
         }
 
-        var client = await clientFactory.CreateChatClientAsync(deployment, builder => builder.UseDefaultResilience());
+        var client = await clientFactory.CreateChatClientAsync(deployment, builder => builder.UseDefaultResilience().UseUsageLabels(purpose: AIUsagePurposes.ImageAnalysis));
 
         return client is null
             ? null
