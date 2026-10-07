@@ -148,6 +148,11 @@ public static class WordToolNames
     public const string ManageWordRevisions = "manage_word_revisions";
 
     /// <summary>
+    /// Shows, sets and removes editing restrictions, optionally with a password.
+    /// </summary>
+    public const string ManageWordProtection = "manage_word_protection";
+
+    /// <summary>
     /// Shows pages as pictures in the conversation.
     /// </summary>
     public const string PreviewWord = "preview_word";

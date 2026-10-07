@@ -28,7 +28,7 @@ internal sealed class WordAgentProvider : IAIProfileProvider
     private const string AgentItemId = "system-word-agent";
 
     private const string AgentDescription =
-        "Creates, edits, formats, reviews, previews and exports Microsoft Word documents (.docx). Delegate to this agent every request that produces or works on a Word document: writing a report, letter, memo, proposal, contract, resume or manual with a cover page, table of contents, headings, styles, headers and footers, page numbers, tables, images, charts, captions, cross-references and an index, and revising it on follow-ups; showing pages in the chat; working on uploaded .docx files — editing, restyling, adding or removing sections, review comments and tracked changes; extracting text, Markdown, tables, links or pictures; searching, comparing versions, and checking accessibility, references and layout. Pass the user's full request, including every detail they gave. Prefer this agent over generate_file whenever the user wants a Word document that is designed, previewed or changed later.";
+        "Creates, edits, formats, reviews, previews and exports Microsoft Word documents (.docx). Delegate to this agent every request that produces or works on a Word document: writing a report, letter, memo, proposal, contract, resume or manual with a cover page, table of contents, headings, styles, headers and footers, page numbers, tables, images, charts, captions, cross-references and an index, and revising it on follow-ups; showing pages in the chat; working on uploaded .docx files — editing, restyling, adding or removing sections, review comments, tracked changes and editing protection; extracting text, Markdown, tables, links or pictures; searching, comparing versions, and checking accessibility, references and layout. Pass the user's full request, including every detail they gave. Prefer this agent over generate_file whenever the user wants a Word document that is designed, previewed or changed later.";
 
     private static readonly string[] _toolNames =
     [
@@ -60,6 +60,7 @@ internal sealed class WordAgentProvider : IAIProfileProvider
         WordToolNames.AddWordHeaderFooter,
         WordToolNames.ManageWordComments,
         WordToolNames.ManageWordRevisions,
+        WordToolNames.ManageWordProtection,
         WordToolNames.PreviewWord,
         WordToolNames.ExportWord,
         WordToolNames.ImportWord,

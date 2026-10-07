@@ -77,6 +77,9 @@ Change existing content in place — `update_word_content`, `remove_word_content
 - `manage_word_comments` lists, adds (on an element or a phrase in it), answers, resolves and deletes comments.
 - `manage_word_revisions` turns change tracking on or off, lists tracked changes, and accepts or rejects them.
   While tracking is on, text and formatting edits are recorded as revisions signed by the agent.
+- `manage_word_protection` shows, sets or removes editing restrictions: read only, comments only, tracked
+  changes only or form filling only, with an optional password Word asks for to stop them. Use only a
+  password the user gave; it is never shown again, so remind them to keep it. Protection is not encryption.
 
 ## Checking quality
 

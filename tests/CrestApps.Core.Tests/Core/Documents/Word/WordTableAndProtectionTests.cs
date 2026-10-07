@@ -228,6 +228,80 @@ public sealed class WordTableAndProtectionTests
         Assert.Equal(0x0200, Convert.ToInt32(table.GetFirstChild<TableProperties>().TableLook.Val.Value, 16) & 0x0200);
     }
 
+    [Fact]
+    public void LegacyKey_SpecificationExample_MatchesTheDocumentedKey()
+    {
+        // ISO/IEC 29500-1 §17.15.1.29 works the password "Example" through to the key 0x64CEED7E.
+        Assert.Equal(0x64CEED7Eu, WordProtectionHash.LegacyKey("Example"));
+        Assert.Equal(0u, WordProtectionHash.LegacyKey(string.Empty));
+    }
+
+    [Fact]
+    public void Hash_SaltAndSpinCount_HashesTheReversedLegacyKeyAsUnicodeHex()
+    {
+        var salt = Enumerable.Range(1, 16).Select(value => (byte)value).ToArray();
+
+        // The key 0x64CEED7E in reversed byte order is the text 7EEDCE64, hashed in UTF-16LE after the salt.
+        var expected = SHA512.HashData([.. salt, .. Encoding.Unicode.GetBytes("7EEDCE64")]);
+
+        for (var iteration = 0; iteration < 3; iteration++)
+        {
+            var counter = new byte[4];
+
+            BinaryPrimitives.WriteInt32LittleEndian(counter, iteration);
+            expected = SHA512.HashData([.. expected, .. counter]);
+        }
+
+        Assert.Equal(expected, WordProtectionHash.Hash("Example", salt, spinCount: 3));
+    }
+
+    [Fact]
+    public async Task ManageWordProtection_SetWithPasswordThenRemove_WritesHashWithoutEchoingThePassword()
+    {
+        using var host = new WordToolTestHost();
+        await CreateTableAsync(host);
+
+        const string password = "Sup3r-Secret";
+
+        var answer = await host.InvokeAsync(new ManageWordProtectionTool(), new { document = "doc", action = "set", restriction = "comments", password });
+
+        Assert.Contains("only comments can be added", answer, StringComparison.Ordinal);
+        Assert.DoesNotContain(password, answer, StringComparison.Ordinal);
+
+        var protectedBytes = await host.ReadWorkingDocumentAsync("doc");
+
+        WordAuthoringToolsTests.AssertValid(protectedBytes);
+
+        using (var document = Open(protectedBytes))
+        {
+            var protection = document.MainDocumentPart.DocumentSettingsPart.Settings.GetFirstChild<DocumentProtection>();
+
+            Assert.Equal(DocumentProtectionValues.Comments, protection.Edit.Value);
+            Assert.True(protection.Enforcement.Value);
+            Assert.Equal(14, protection.CryptographicAlgorithmSid.Value);
+            Assert.Equal(100_000u, protection.CryptographicSpinCount.Value);
+            Assert.Equal(Convert.ToBase64String(WordProtectionHash.Hash(password, Convert.FromBase64String(protection.Salt.Value))), protection.Hash.Value);
+            Assert.Contains("w:cryptProviderType=\"rsaAES\"", document.MainDocumentPart.DocumentSettingsPart.Settings.OuterXml, StringComparison.Ordinal);
+            Assert.DoesNotContain(password, document.MainDocumentPart.DocumentSettingsPart.Settings.OuterXml, StringComparison.Ordinal);
+        }
+
+        var described = await host.InvokeAsync(new ManageWordProtectionTool(), new { document = "doc" });
+
+        Assert.Contains("only comments can be added, enforced, with a password", described, StringComparison.Ordinal);
+        Assert.DoesNotContain(password, described, StringComparison.Ordinal);
+
+        await host.InvokeAsync(new ManageWordProtectionTool(), new { document = "doc", action = "remove" });
+
+        var unprotected = await host.ReadWorkingDocumentAsync("doc");
+
+        WordAuthoringToolsTests.AssertValid(unprotected);
+
+        using (var document = Open(unprotected))
+        {
+            Assert.Null(document.MainDocumentPart.DocumentSettingsPart.Settings.GetFirstChild<DocumentProtection>());
+        }
+    }
+
     private static async Task CreateTableAsync(WordToolTestHost host)
     {
         await host.InvokeAsync(new CreateWordDocumentTool(), new

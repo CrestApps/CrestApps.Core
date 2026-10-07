@@ -47,6 +47,7 @@ internal static class WordToolRegistrations
         services.AddWordTool<AddWordHeaderFooterTool>(AddWordHeaderFooterTool.TheName, "Add Word Header or Footer", "Sets a header or footer with text, page numbers, fields and a logo.");
         services.AddWordTool<ManageWordCommentsTool>(ManageWordCommentsTool.TheName, "Manage Word Comments", "Lists, adds, answers, resolves and deletes review comments.");
         services.AddWordTool<ManageWordRevisionsTool>(ManageWordRevisionsTool.TheName, "Manage Word Revisions", "Turns change tracking on or off, and lists, accepts or rejects tracked changes.");
+        services.AddWordTool<ManageWordProtectionTool>(ManageWordProtectionTool.TheName, "Manage Word Protection", "Shows, sets and removes editing restrictions, optionally with a password.");
         services.AddWordTool<SearchWordDocumentTool>(SearchWordDocumentTool.TheName, "Search Word Document", "Finds words or a pattern and returns each match with its element, page and context.");
         services.AddWordTool<ExtractWordContentTool>(ExtractWordContentTool.TheName, "Extract Word Content", "Extracts the document as Markdown or text, or its tables, links or pictures.");
         services.AddWordTool<CompareWordDocumentsTool>(CompareWordDocumentsTool.TheName, "Compare Word Documents", "Lists what was added, removed and changed between two documents.");

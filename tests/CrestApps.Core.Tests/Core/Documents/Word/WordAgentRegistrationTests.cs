@@ -33,7 +33,7 @@ public sealed class WordAgentRegistrationTests
         using var provider = services.BuildServiceProvider();
         var tools = provider.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value.Tools;
 
-        Assert.Equal(31, _toolNames.Length);
+        Assert.Equal(32, _toolNames.Length);
 
         foreach (var name in _toolNames)
         {
