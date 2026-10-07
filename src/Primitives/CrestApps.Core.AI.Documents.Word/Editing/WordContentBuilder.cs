@@ -157,7 +157,7 @@ internal sealed class WordContentBuilder
 
             case "bullet_list":
             case "numbered_list":
-                elements.AddRange(_writer.List(ReadItems(block), type == "numbered_list", Math.Max(1, WordJsonValues.GetInt(block, "start") ?? 1)));
+                elements.AddRange(_writer.List(ReadItems(block, type == "numbered_list"), type == "numbered_list", Math.Max(1, WordJsonValues.GetInt(block, "start") ?? 1)));
 
                 break;
 
@@ -274,6 +274,8 @@ internal sealed class WordContentBuilder
                 spec.Columns.Add(ReadColumn(column));
             }
         }
+
+        ReadColumnArrays(block, spec);
 
         if (WordJsonValues.TryGet(block, "source", out var source) && source.ValueKind == JsonValueKind.Object)
         {
@@ -687,7 +689,7 @@ internal sealed class WordContentBuilder
         return null;
     }
 
-    private static List<(string Text, int Level, bool? Numbered)> ReadItems(JsonElement block)
+    private static List<(string Text, int Level, bool? Numbered)> ReadItems(JsonElement block, bool numbered)
     {
         var items = new List<(string Text, int Level, bool? Numbered)>();
 
@@ -708,18 +710,18 @@ internal sealed class WordContentBuilder
             return items;
         }
 
-        Collect(array, 0, null, items);
+        Collect(array, 0, null, numbered, items);
 
         return items;
     }
 
-    private static void Collect(JsonElement array, int level, bool? numbered, List<(string Text, int Level, bool? Numbered)> items)
+    private static void Collect(JsonElement array, int level, bool? numbered, bool listNumbered, List<(string Text, int Level, bool? Numbered)> items)
     {
         foreach (var item in array.EnumerateArray())
         {
             if (item.ValueKind == JsonValueKind.String)
             {
-                items.Add((item.GetString(), level, numbered));
+                items.Add(ReadMarkedItem(item.GetString(), level, numbered, listNumbered, items.Count > 0));
 
                 continue;
             }
@@ -739,9 +741,49 @@ internal sealed class WordContentBuilder
 
             if (WordJsonValues.TryGet(item, "items", out var children) && children.ValueKind == JsonValueKind.Array)
             {
-                Collect(children, Math.Min(itemLevel + 1, 8), ReadListKind(WordJsonValues.GetString(item, "items_type")), items);
+                Collect(children, Math.Min(itemLevel + 1, 8), ReadListKind(WordJsonValues.GetString(item, "items_type")), listNumbered, items);
             }
         }
+    }
+
+    // A string item can carry its own Markdown-style marker and indentation — "  - detail" — the way a model writes
+    // a nested list in plain text. The marker is not written; indentation nests the item, and a bullet marker in a
+    // numbered list makes the item a bullet under the item before it.
+    private static (string Text, int Level, bool? Numbered) ReadMarkedItem(string text, int level, bool? numbered, bool listNumbered, bool hasPrevious)
+    {
+        var value = text ?? string.Empty;
+        var indent = 0;
+        var index = 0;
+
+        while (index < value.Length && value[index] is ' ' or '	')
+        {
+            indent += value[index] == '	' ? 2 : 1;
+            index++;
+        }
+
+        var rest = value[index..];
+        var depth = indent / 2;
+
+        if (rest.Length > 1 && rest[0] is '-' or '*' or '+' or '•' && rest[1] == ' ')
+        {
+            var bulletUnderNumbered = (numbered ?? listNumbered) && hasPrevious;
+
+            return (rest[2..].TrimStart(), Math.Clamp(level + Math.Max(depth, bulletUnderNumbered ? 1 : 0), 0, 8), depth > 0 || bulletUnderNumbered ? false : numbered);
+        }
+
+        var number = 0;
+
+        while (number < rest.Length && char.IsDigit(rest[number]))
+        {
+            number++;
+        }
+
+        if (number > 0 && number + 1 < rest.Length && rest[number] is '.' or ')' && rest[number + 1] == ' ')
+        {
+            return (rest[(number + 2)..].TrimStart(), Math.Clamp(level + depth, 0, 8), depth > 0 ? true : numbered);
+        }
+
+        return (depth > 0 ? rest : value, Math.Clamp(level + depth, 0, 8), numbered);
     }
 
     private static bool? ReadListKind(string value)
@@ -752,6 +794,50 @@ internal sealed class WordContentBuilder
             "number" or "numbered" or "numbers" or "numbered_list" or "ordered" => true,
             _ => null,
         };
+    }
+
+    // Formats and widths given as arrays beside the columns — "formats": ["", "currency", "percent"] — mean the
+    // same as giving them on each column; a column's own format or width wins.
+    private static void ReadColumnArrays(JsonElement block, WordTableSpec spec)
+    {
+        foreach (var name in (string[])["formats", "column_formats", "number_formats", "number_format"])
+        {
+            if (!WordJsonValues.TryGet(block, name, out var formats) || formats.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            var index = 0;
+
+            foreach (var value in formats.EnumerateArray())
+            {
+                if (index < spec.Columns.Count && spec.Columns[index].Format is null && value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString()))
+                {
+                    using var column = JsonDocument.Parse(JsonSerializer.Serialize(new { format = value.GetString(), header = spec.Columns[index].Header }));
+
+                    spec.Columns[index].Format = ReadColumnFormat(column.RootElement);
+                }
+
+                index++;
+            }
+
+            break;
+        }
+
+        if (WordJsonValues.TryGet(block, "column_widths", out var widths) && widths.ValueKind == JsonValueKind.Array)
+        {
+            var index = 0;
+
+            foreach (var value in widths.EnumerateArray())
+            {
+                if (index < spec.Columns.Count && spec.Columns[index].Width is null && value.ValueKind is JsonValueKind.String or JsonValueKind.Number)
+                {
+                    spec.Columns[index].Width = value.ValueKind == JsonValueKind.Number ? value.GetRawText() : value.GetString();
+                }
+
+                index++;
+            }
+        }
     }
 
     private static WordTableColumn ReadColumn(JsonElement column)

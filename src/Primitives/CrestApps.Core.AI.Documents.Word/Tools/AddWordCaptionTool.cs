@@ -65,6 +65,19 @@ internal sealed class AddWordCaptionTool : WordToolBase
         {
             var element = WordBlockLocator.Require(edit.Package, target);
             var block = WordSections.TopLevel(edit.Package.Body, element) ?? element;
+
+            // An element has one caption: a second request changes its words, keeping its number and every
+            // cross-reference to it.
+            if (WordCaptions.FindCaptionOf(block) is { } existing)
+            {
+                WordCaptions.SetText(existing, arguments.GetString("text"), edit.Package.MainPart);
+                WordCaptions.Renumber(edit.Package);
+
+                return Task.FromResult("[" + WordParagraphIds.Of(existing) + "] already captioned it, so its words were changed: " +
+                    WordDescriber.Line(WordBlockReader.ReadParagraph(existing, new WordStyleIndex(edit.Package.MainPart))) +
+                    " Refer to a captioned element by this caption's id.");
+            }
+
             var label = arguments.GetString("label") ?? (block is Table ? "Table" : "Figure");
             var above = string.Equals(arguments.GetString("position") ?? (block is Table ? "above" : "below"), "above", StringComparison.OrdinalIgnoreCase);
             var caption = new WordContentBuilder(edit, context, block).Caption(label, arguments.GetString("text"));

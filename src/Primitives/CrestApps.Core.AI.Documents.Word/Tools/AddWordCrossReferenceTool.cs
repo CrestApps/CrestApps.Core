@@ -131,6 +131,17 @@ internal sealed class AddWordCrossReferenceTool : WordToolBase
                 }
             }
 
+            // Appended to a sentence, the reference is a word of its own: "…analysis. See Table 1", not "analysis.see".
+            if (anchor is null && paragraph.Descendants<Text>().LastOrDefault()?.Text is { Length: > 0 } last && !char.IsWhiteSpace(last[^1]) && last[^1] != '(')
+            {
+                var first = runs[0].GetFirstChild<Text>()?.Text;
+
+                if (first is null || (first.Length > 0 && !char.IsWhiteSpace(first[0]) && first[0] is not ('.' or ',' or ';' or ':' or ')')))
+                {
+                    runs.Insert(0, WordInlineWriter.CreateRun(" "));
+                }
+            }
+
             foreach (var run in runs)
             {
                 if (anchor is null)
@@ -184,6 +195,12 @@ internal sealed class AddWordCrossReferenceTool : WordToolBase
             return bookmarks.Contains(target.Trim())
                 ? (package.Body.Descendants<BookmarkStart>().First(start => string.Equals(start.Name?.Value, target.Trim(), StringComparison.OrdinalIgnoreCase)).Name.Value, false, null)
                 : throw new WordToolException($"\"{target}\" is neither an element id nor a bookmark. Headings and captions are named by their ids from get_word_document.");
+        }
+
+        // A captioned table, picture or chart is referred to by its caption: "see Table 1".
+        if (WordCaptions.FindCaptionOf(WordSections.TopLevel(package.Body, element) ?? element) is { } caption)
+        {
+            element = caption;
         }
 
         if (element is not Paragraph paragraph)

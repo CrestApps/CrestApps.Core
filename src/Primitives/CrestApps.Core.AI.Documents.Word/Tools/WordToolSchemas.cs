@@ -88,6 +88,8 @@ internal static class WordToolSchemas
     /// </summary>
     public const string TableProperties = """
         "columns": { "type": "array", "description": "Column headers as strings, or objects { header, width (\"1.5in\", \"30%\" or a relative weight), alignment, format: currency|accounting|percent|number|integer|date|datetime|text or a format code like \"#,##0.0\", decimals, currency_symbol }. Numeric formats right-align and present raw values (percent takes fractions: 0.12 = 12%).", "items": {} },
+        "formats": { "type": "array", "items": { "type": "string" }, "description": "Per-column formats in column order, the same values as a column's format, such as [\"\", \"currency\", \"currency\", \"percent\"]; \"\" leaves a column as it is." },
+        "column_widths": { "type": "array", "items": { "type": "string" }, "description": "Per-column widths in column order, such as [\"3in\", \"1.5in\"]." },
         "rows": { "type": "array", "description": "Body rows: each an array of cells. A cell is a string (inline Markdown), a number (formatted by its column), or { text | value, bold, italic, color, fill, alignment, vertical_alignment, colspan, rowspan }.", "items": { "type": "array", "items": {} } },
         "source": { "type": ["object", "string"], "description": "For a table or chart: fill it from uploaded tabular data instead of rows — { sql: \"SELECT …\" (SQLite over list_tabular_data tables) | table_name, max_rows, label_column, value_columns }. For an image: the picture." },
         "header_row": { "type": "boolean", "description": "Write the column headers as a header row. Default true." },

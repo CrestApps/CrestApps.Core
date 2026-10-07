@@ -75,6 +75,65 @@ internal static class WordCaptions
     }
 
     /// <summary>
+    /// Finds the caption of a table, picture or chart: the numbered caption paragraph right above or below it.
+    /// </summary>
+    /// <param name="block">The table, or the paragraph holding a picture or chart.</param>
+    /// <returns>The caption, or <see langword="null"/> when the element has none.</returns>
+    public static Paragraph FindCaptionOf(DocumentFormat.OpenXml.OpenXmlElement block)
+    {
+        if (block is null || IsCaption(block))
+        {
+            return null;
+        }
+
+        // A table's caption is usually above it and a figure's below, so that side is looked at first.
+        var (first, second) = block is Table
+            ? (block.PreviousSibling(), block.NextSibling())
+            : (block.NextSibling(), block.PreviousSibling());
+
+        return first is Paragraph one && IsCaption(one) ? one
+            : second is Paragraph two && IsCaption(two) ? two
+            : null;
+    }
+
+    /// <summary>
+    /// Replaces the words of a caption after its label and number, keeping the number field and the bookmark
+    /// cross-references point at.
+    /// </summary>
+    /// <param name="caption">The caption.</param>
+    /// <param name="text">The new words, with inline Markdown.</param>
+    /// <param name="part">The part the caption is in.</param>
+    public static void SetText(Paragraph caption, string text, DocumentFormat.OpenXml.Packaging.OpenXmlPart part)
+    {
+        ArgumentNullException.ThrowIfNull(caption);
+
+        var sequence = WordFieldScanner.Scan(caption).FirstOrDefault(field => field.Type == "SEQ");
+        var end = (DocumentFormat.OpenXml.OpenXmlElement)sequence?.EndRun ?? sequence?.SimpleField;
+
+        if (end is null)
+        {
+            return;
+        }
+
+        // Everything after the number except bookmark ends is the old wording.
+        foreach (var element in end.ElementsAfter().Where(element => element is not BookmarkEnd).ToList())
+        {
+            element.Remove();
+        }
+
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            caption.Append(WordInlineWriter.CreateRun(": "));
+            WordInlineWriter.AppendMarkdown(caption, text.Trim(), part);
+        }
+    }
+
+    private static bool IsCaption(DocumentFormat.OpenXml.OpenXmlElement element)
+    {
+        return element is Paragraph paragraph && WordFieldScanner.Scan(paragraph).Any(field => field.Type == "SEQ");
+    }
+
+    /// <summary>
     /// Numbers every sequence field — figures, tables, equations — in document order, so captions read 1, 2, 3
     /// however they were inserted.
     /// </summary>

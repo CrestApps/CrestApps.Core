@@ -258,6 +258,69 @@ public sealed class StructureToolsTests
     }
 
     [Fact]
+    public async Task AddWordCrossReferenceAndCaption_CaptionedTableByItsId_UsesItsCaption()
+    {
+        using var host = new WordToolTestHost();
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "doc",
+            content = new object[]
+            {
+                new { type = "table", caption = "Budget by phase", columns = new[] { "Item", "Planned", "Variance" }, formats = new[] { "", "currency", "percent" }, rows = new object[] { new object[] { "Design", 12000, -0.042 } } },
+                new { type = "paragraph", text = "Costs are summarized." },
+            },
+        });
+
+        var blocks = await ReadAsync(host);
+        var table = blocks.Single(block => block.Kind == WordBlockKind.Table);
+        var sentence = blocks.Single(block => block.Text == "Costs are summarized.");
+
+        var captioned = await host.InvokeAsync(new AddWordCaptionTool(), new { document = "doc", target = table.Id, text = "Budget by phase and quarter" });
+        var reference = await host.InvokeAsync(new AddWordCrossReferenceTool(), new { document = "doc", id = sentence.Id, target = table.Id, prefix = "See ", suffix = "." });
+
+        Assert.Contains("already captioned", captioned, StringComparison.Ordinal);
+        Assert.Contains("\"Costs are summarized. See Table 1.\"", reference, StringComparison.Ordinal);
+
+        var after = await ReadAsync(host);
+        var caption = Assert.Single(after, block => block.Kind == WordBlockKind.Caption);
+
+        Assert.Equal("Table 1: Budget by phase and quarter", caption.Text);
+
+        var bytes = await host.ReadWorkingDocumentAsync("doc");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+        Assert.Contains("$12,000.00", Text(bytes), StringComparison.Ordinal);
+        Assert.Contains("-4.2%", Text(bytes), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AddWordContent_ListItemsWithTheirOwnMarkers_NestsThemAndDropsTheMarkers()
+    {
+        using var host = new WordToolTestHost();
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "doc",
+            content = new object[]
+            {
+                new { type = "numbered_list", items = new[] { "Grow", "Ship, including:", "- Beta", "- Launch", "Hire" } },
+            },
+        });
+
+        var bytes = await host.ReadWorkingDocumentAsync("doc");
+
+        using var document = WordprocessingDocument.Open(new MemoryStream(bytes), isEditable: false);
+        var items = document.MainDocumentPart.Document.Body.Elements<Paragraph>()
+            .Where(paragraph => paragraph.ParagraphProperties?.NumberingProperties is not null)
+            .Select(paragraph => (Text: WordText.Of(paragraph), Level: paragraph.ParagraphProperties.NumberingProperties.NumberingLevelReference.Val.Value, Id: paragraph.ParagraphProperties.NumberingProperties.NumberingId.Val.Value))
+            .ToList();
+
+        Assert.Equal(["Grow", "Ship, including:", "Beta", "Launch", "Hire"], items.Select(item => item.Text));
+        Assert.Equal([0, 0, 1, 1, 0], items.Select(item => item.Level));
+        Assert.NotEqual(items[0].Id, items[2].Id);
+        Assert.Equal(items[0].Id, items[4].Id);
+    }
+
+    [Fact]
     public async Task CreateWordDocument_TitleRepeatedAndTocBlock_WritesTitleOnceAndFillsTheContents()
     {
         using var host = new WordToolTestHost();
