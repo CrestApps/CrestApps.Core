@@ -302,6 +302,42 @@ public sealed class WordTableAndProtectionTests
         }
     }
 
+    [Fact]
+    public async Task ImportWord_WorkingDocument_DuplicatesItAsASeparateCopy()
+    {
+        using var host = new WordToolTestHost();
+        await CreateTableAsync(host);
+
+        var answer = await host.InvokeAsync(new ImportWordTool(), new { document = "doc", name = "doc-v2" });
+
+        Assert.Contains("as working document \"doc-v2\"", answer, StringComparison.Ordinal);
+        Assert.Equal(await host.ReadWorkingDocumentAsync("doc"), await host.ReadWorkingDocumentAsync("doc-v2"));
+
+        await host.InvokeAsync(new UpdateWordTableTool(), new { document = "doc-v2", cells = new[] { new { row = "One", column = 2, text = "changed" } } });
+
+        using (var original = Open(await host.ReadWorkingDocumentAsync("doc")))
+        {
+            Assert.Equal("a", Texts(Table(original))[1][1]);
+        }
+
+        using (var copy = Open(await host.ReadWorkingDocumentAsync("doc-v2")))
+        {
+            Assert.Equal("changed", Texts(Table(copy))[1][1]);
+        }
+    }
+
+    [Fact]
+    public async Task ImportWord_DuplicateAtTheWorkingDocumentLimit_IsRefused()
+    {
+        using var host = new WordToolTestHost(configure: services => services.Configure<WordAgentOptions>(options => options.MaxWorkingDocuments = 1));
+        await CreateTableAsync(host);
+
+        var answer = await host.InvokeAsync(new ImportWordTool(), new { document = "doc" });
+
+        Assert.Contains("the most it keeps", answer, StringComparison.Ordinal);
+        Assert.Single((await host.LoadWorkspaceAsync()).Documents);
+    }
+
     private static async Task CreateTableAsync(WordToolTestHost host)
     {
         await host.InvokeAsync(new CreateWordDocumentTool(), new

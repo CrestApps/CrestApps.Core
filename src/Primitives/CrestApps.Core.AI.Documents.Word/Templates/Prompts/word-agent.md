@@ -73,7 +73,8 @@ Change existing content in place — `update_word_content`, `remove_word_content
   `save_as_file` it is also a download (the document as Markdown, its tables as CSV). Use it to summarize,
   answer questions or reuse content — cite the ids of the elements you used.
 - `compare_word_documents` lists what changed between two versions, or a working copy and its upload.
-- `import_word` makes a named working copy; any editing tool also makes one on its first change.
+- `import_word` makes a named working copy; any editing tool also makes one on its first change. With
+  `document` instead of `file` it duplicates a working document, so one copy can change while the other stays.
 - `manage_word_comments` lists, adds (on an element or a phrase in it), answers, resolves and deletes comments.
 - `manage_word_revisions` turns change tracking on or off, lists tracked changes, and accepts or rejects them.
   While tracking is on, text and formatting edits are recorded as revisions signed by the agent.
