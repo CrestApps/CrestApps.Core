@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CrestApps.Core.AI.Documents.Pdf.Composition;
 using CrestApps.Core.AI.Documents.Pdf.Editing;
 using CrestApps.Core.AI.Documents.Pdf.Rendering;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
@@ -91,6 +92,61 @@ internal sealed partial class EditPdfMetadataTool : PdfToolBase
     /// </summary>
     public override string Description => "Shows or changes a PDF's document properties: title, author, subject, keywords, creator, language and custom properties. Called with no changes it reports the current values (including XMP metadata and any PDF/A claim) without saving anything. Changes are saved as a working copy, and the XMP metadata is rewritten so viewers show the new values. The producer and the dates are set by the PDF library and cannot be chosen.";
 
+    private static bool TryApplyToDefinition(PdfWorkingDocument document, PdfToolArguments arguments, PdfToolContext context, PdfWorkspaceState state, out string answer)
+    {
+        answer = null;
+
+        // Custom properties and the creator have no place in a definition; those changes go to the file.
+        if (arguments.TryGetElement("custom", out _) || !string.IsNullOrWhiteSpace(arguments.GetString("creator")) || arguments.GetStrings("clear", splitCommas: true).Count > 0)
+        {
+            return false;
+        }
+
+        var definition = document.Definition ??= new PdfDocumentDefinition();
+        var changed = new List<string>();
+
+        void Set(string argument, Func<string> read, Action<string> write)
+        {
+            var value = arguments.GetString(argument);
+
+            if (value is null)
+            {
+                return;
+            }
+
+            value = value.Trim();
+
+            if (!string.Equals(read(), value, StringComparison.Ordinal))
+            {
+                write(value.Length == 0 ? null : value);
+                changed.Add($"{argument} \"{value}\"");
+            }
+        }
+
+        Set("title", () => definition.Title, value => definition.Title = value);
+        Set("author", () => definition.Author, value => definition.Author = value);
+        Set("subject", () => definition.Subject, value => definition.Subject = value);
+        Set("keywords", () => definition.Keywords, value => definition.Keywords = value);
+        Set("language", () => definition.Language, value => definition.Language = value);
+
+        if (changed.Count == 0)
+        {
+            answer = $"\"{document.Name}\" already has these properties; nothing was changed.";
+
+            return true;
+        }
+
+        document.Version++;
+        context.NoteFinishedFileOutdated(state, document);
+        document.UpdatedUtc = context.TimeProvider.GetUtcNow().UtcDateTime;
+        document.History.Add("Properties: " + string.Join(", ", changed));
+        state.ActiveDocument = document.Name;
+
+        answer = $"Set {string.Join(", ", changed)} on \"{document.Name}\", the document being composed, so every preview and export carries them.";
+
+        return true;
+    }
+
     /// <summary>
     /// Reports or changes the metadata.
     /// </summary>
@@ -114,6 +170,15 @@ internal sealed partial class EditPdfMetadataTool : PdfToolBase
         return await context.MutateAsync(async state =>
         {
             var target = context.FindPdf(state, arguments.Pdf());
+
+            // A document being composed keeps its title, author, subject, keywords and language in its
+            // definition, so they are changed there and every later render carries them; writing them into a
+            // file copy would be lost at the next content change.
+            if (target.IsComposed && TryApplyToDefinition(target.Working, arguments, context, state, out var definitionAnswer))
+            {
+                return definitionAnswer;
+            }
+
             var bytes = await context.ReadPdfAsync(target, cancellationToken);
 
             using var document = PdfFiles.OpenForEditing(bytes, arguments.GetString("password"));

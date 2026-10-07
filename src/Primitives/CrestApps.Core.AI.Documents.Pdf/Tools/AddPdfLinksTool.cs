@@ -41,7 +41,7 @@ internal sealed class AddPdfLinksTool : PdfToolBase
                   "height": { "type": "number" },
                   "text": { "type": "string", "description": "Text to place the link over, instead of an area." },
                   "occurrence": { "type": "integer", "description": "One-based: link only this match of 'text', counting in page order." },
-                  "url": { "type": "string", "description": "An http, https or mailto address." },
+                  "url": { "type": "string", "description": "An http, https or mailto address; or #page=3, or # and a heading, for a place in this document." },
                   "target_page": { "type": "integer", "description": "One-based page of this document to go to." }
                 }
               }
@@ -102,8 +102,8 @@ internal sealed class AddPdfLinksTool : PdfToolBase
             {
                 var request = requests[index] ?? throw new PdfToolException($"Link {index + 1} is empty.");
                 var label = string.Create(CultureInfo.InvariantCulture, $"Link {index + 1}");
-                var (url, targetPage) = ReadDestination(request, label, pig.NumberOfPages);
                 var areas = FindAreas(request, label, pig);
+                var (url, targetPage) = ReadDestination(request, label, pig, [.. areas.Select(area => area.Page)]);
 
                 total += areas.Count;
 
@@ -155,8 +155,50 @@ internal sealed class AddPdfLinksTool : PdfToolBase
         }, cancellationToken);
     }
 
-    private static (string Url, int TargetPage) ReadDestination(PdfLinkRequest request, string label, int pageCount)
+    private static int FindAnchor(string anchor, string label, PigDocument pig, IReadOnlyCollection<int> linkPages)
     {
+        var target = Uri.UnescapeDataString(anchor).Trim();
+        var number = target.StartsWith("page", StringComparison.OrdinalIgnoreCase)
+            ? target[4..].TrimStart('=', ' ', '-', '_')
+            : target;
+
+        if (int.TryParse(number, NumberStyles.Integer, CultureInfo.InvariantCulture, out var page))
+        {
+            return page;
+        }
+
+        if (target.Length == 0)
+        {
+            throw new PdfToolException($"{label}: \"#\" names no place in the document. Pass target_page with the page number to link to.");
+        }
+
+        var text = target.Replace('-', ' ').Replace('_', ' ');
+
+        // The text the link is put on usually repeats the heading it goes to, as a table of contents does, so
+        // the link's own page is the last place looked.
+        foreach (var candidate in Enumerable.Range(1, pig.NumberOfPages).OrderBy(candidate => linkPages.Contains(candidate) ? 1 : 0))
+        {
+            if (PdfTextFinder.Find(pig.GetPage(candidate), text, isRegex: false, matchCase: false, wholeWord: false, maxMatches: 1).Count > 0)
+            {
+                return candidate;
+            }
+        }
+
+        throw new PdfToolException($"{label}: \"#{anchor}\" does not name a page or text in the document. Pass target_page with the page number to link to.");
+    }
+
+    private static (string Url, int TargetPage) ReadDestination(PdfLinkRequest request, string label, PigDocument pig, IReadOnlyCollection<int> linkPages)
+    {
+        var pageCount = pig.NumberOfPages;
+
+        // "#page=3", "#3" and "#Revenue Analysis" are how a web page links within itself, and how a model
+        // writes a link to another part of the document: they become a link to that page.
+        if (request.Url?.Trim() is { Length: > 0 } anchor && anchor.StartsWith('#'))
+        {
+            request.TargetPage = FindAnchor(anchor[1..], label, pig, linkPages);
+            request.Url = null;
+        }
+
         var hasUrl = !string.IsNullOrWhiteSpace(request.Url);
 
         if (hasUrl == request.TargetPage.HasValue)

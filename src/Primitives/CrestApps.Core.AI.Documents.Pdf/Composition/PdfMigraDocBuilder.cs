@@ -42,6 +42,10 @@ internal sealed partial class PdfMigraDocBuilder
     // Whether a section before this one already carries the running heads, so this one does not start them.
     private bool _runningHeadsStarted;
 
+    // Whether only the body is numbered: start_at 1 behind a cover or contents page, "number the report from
+    // one and do not count the front matter". Then "of {pages}" counts the body as well.
+    private bool _numberBodyOnly;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="PdfMigraDocBuilder"/> class.
     /// </summary>
@@ -93,6 +97,10 @@ internal sealed partial class PdfMigraDocBuilder
 
         var coverEnabled = IsCoverEnabled();
         var tocEnabled = _definition.TableOfContents?.Enabled == true;
+
+        _numberBodyOnly = _definition.PageNumbers?.StartAt == 1 &&
+            (coverEnabled || tocEnabled) &&
+            (_definition.Sections?.Count ?? 1) <= 1;
 
         // The cover carries no header, footer or number, so with one the document's first page is already
         // behind the running heads, and "skip the first page" has nothing left to skip.
@@ -1492,8 +1500,12 @@ internal sealed partial class PdfMigraDocBuilder
                 case "pages":
                 case "total":
                     {
-                        // "of 3" counts every page of the file, as the page numbers do.
-                        var field = paragraph.AddNumPagesField();
+                        // "of 3" counts the pages the numbers run through: the whole file, or only the body
+                        // when the body is numbered from one. Counting the file while numbering only the body
+                        // printed "Page 4 of 3".
+                        NumericFieldBase field = _numberBodyOnly
+                            ? paragraph.AddSectionPagesField()
+                            : paragraph.AddNumPagesField();
 
                         if (!string.IsNullOrEmpty(format))
                         {

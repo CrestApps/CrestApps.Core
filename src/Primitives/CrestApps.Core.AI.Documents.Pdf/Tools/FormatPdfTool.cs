@@ -71,7 +71,7 @@ internal sealed class FormatPdfTool : PdfToolBase
     {
         return await context.MutateAsync(async state =>
         {
-            var document = PdfCompositionDescriber.RequireComposed(context.FindPdf(state, arguments.Pdf()));
+            var document = context.FindComposed(state, arguments.Pdf());
             var definition = document.Definition ??= new PdfDocumentDefinition();
             var replace = arguments.GetBoolean("replace") == true;
             var sectionId = arguments.GetString("section");
@@ -102,6 +102,7 @@ internal sealed class FormatPdfTool : PdfToolBase
             }
 
             document.Version++;
+            context.NoteFinishedFileOutdated(state, document);
             document.UpdatedUtc = context.TimeProvider.GetUtcNow().UtcDateTime;
             document.History.Add("Formatted: " + string.Join(", ", changed));
             state.ActiveDocument = document.Name;

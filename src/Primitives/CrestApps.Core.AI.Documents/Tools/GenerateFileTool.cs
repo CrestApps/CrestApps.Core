@@ -109,6 +109,14 @@ public sealed class GenerateFileTool : AIFunction
 
         var extension = ResolveExtension(fileName, format);
 
+        // A model asked for a PDF sometimes writes the PDF's own syntax as the content. The writer lays the
+        // content out as text, so the file came back as one page of "%PDF-1.4 1 0 obj ..." that the model then
+        // described as a finished report.
+        if (content.TrimStart().StartsWith("%PDF", StringComparison.Ordinal))
+        {
+            return "The content is PDF syntax, which generate_file would print as text. Pass the document's content as text or Markdown and generate_file lays it out; to create or change a designed PDF, delegate to the PDF agent if one is available.";
+        }
+
         var statusMessageError = GetStatusMessageError(content);
         if (!string.IsNullOrEmpty(statusMessageError))
         {

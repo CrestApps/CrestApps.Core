@@ -77,7 +77,7 @@ internal sealed class AddPdfContentTool : PdfToolBase
 
         return await context.MutateAsync(async state =>
         {
-            var document = PdfCompositionDescriber.RequireComposed(context.FindPdf(state, arguments.Pdf()));
+            var document = context.FindComposed(state, arguments.Pdf());
             var definition = document.Definition ??= new PdfDocumentDefinition();
 
             if (definition.Sections.Count == 0)
@@ -179,6 +179,7 @@ internal sealed class AddPdfContentTool : PdfToolBase
             }
 
             document.Version++;
+            context.NoteFinishedFileOutdated(state, document);
             document.UpdatedUtc = context.TimeProvider.GetUtcNow().UtcDateTime;
             document.History.Add(summary);
             state.ActiveDocument = document.Name;
@@ -226,8 +227,10 @@ internal sealed class AddPdfContentTool : PdfToolBase
             return definition.Sections[^1];
         }
 
+        // A section the document does not have is most often one the model expected a new_section call to
+        // have made; the blocks are kept by adding them to the last section rather than failing the call.
         return definition.Sections.FirstOrDefault(section => string.Equals(section.Id, id.Trim(), StringComparison.OrdinalIgnoreCase))
-            ?? throw new PdfToolException($"There is no section \"{id}\". Sections: {string.Join(", ", definition.Sections.Select(section => section.Id))}.");
+            ?? definition.Sections[^1];
     }
 
     private static (PdfSectionDefinition Section, int Index) FindBlock(PdfDocumentDefinition definition, string id)

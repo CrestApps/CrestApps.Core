@@ -29,6 +29,23 @@ internal sealed class PdfWorkingDocument
     public string Name { get; set; }
 
     /// <summary>
+    /// Gets or sets, for a document being composed, the name of its finished file: the file copy that carries
+    /// the changes only a file can take (bookmarks, links, form fields, signatures and the like).
+    /// </summary>
+    public string FinishedFile { get; set; }
+
+    /// <summary>
+    /// Gets or sets, for a document being composed, the version its finished file was made from. A later
+    /// change to the content or formatting makes the finished file out of date.
+    /// </summary>
+    public int FinishedFromVersion { get; set; }
+
+    /// <summary>
+    /// Gets or sets, for a finished file, the name of the document being composed it was made from.
+    /// </summary>
+    public string FinishedFrom { get; set; }
+
+    /// <summary>
     /// Gets or sets the kind: <see cref="ComposedKind"/> or <see cref="FileKind"/>.
     /// </summary>
     public string Kind { get; set; }

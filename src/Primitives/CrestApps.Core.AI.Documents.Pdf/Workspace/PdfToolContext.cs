@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
 using CrestApps.Core.AI.Documents.Pdf.Editing;
+using CrestApps.Core.AI.Documents.Pdf.Tools;
 using CrestApps.Core.AI.Documents.Tooling;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
@@ -358,7 +359,62 @@ internal sealed class PdfToolContext : IPdfImageSource
             return PdfSource.ForWorking(working);
         }
 
+        // A model also writes the name the way it would say it: "Contoso Quarterly Report PDF", "the
+        // contoso_quarterly_report file". Names that read the same are the same document, and a name that
+        // only one document's name contains, or is contained by, is that document.
+        var wanted = Loosely(name);
+
+        if (wanted.Length > 0)
+        {
+            var candidates = state.Documents.Select(document => (Name: Loosely(document.Name), Source: PdfSource.ForWorking(document)))
+                .Concat(PdfUploads.Select(upload => (Name: Loosely(Path.GetFileNameWithoutExtension(upload.FileName)), Source: PdfSource.ForUpload(upload))))
+                .Where(candidate => candidate.Name.Length > 0)
+                .ToList();
+
+            var same = candidates.Where(candidate => candidate.Name == wanted).ToList();
+
+            if (same.Count == 1)
+            {
+                return same[0].Source;
+            }
+
+            var close = candidates
+                .Where(candidate => wanted.Contains(candidate.Name, StringComparison.Ordinal) || candidate.Name.Contains(wanted, StringComparison.Ordinal))
+                .ToList();
+
+            // Of a document and its finished file, the shorter name is the document itself.
+            if (close.Count > 1)
+            {
+                close = [.. close.Where(candidate => !close.Any(other => !ReferenceEquals(other.Source, candidate.Source) && candidate.Name.StartsWith(other.Name, StringComparison.Ordinal) && candidate.Name.Length > other.Name.Length))];
+            }
+
+            if (close.Count == 1)
+            {
+                return close[0].Source;
+            }
+        }
+
         throw new PdfToolException($"There is no PDF named \"{name}\". " + DescribeAvailable(state));
+    }
+
+    private static string Loosely(string name)
+    {
+        var words = new string((name ?? string.Empty).Select(character => char.IsLetterOrDigit(character) ? char.ToLowerInvariant(character) : ' ').ToArray())
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+
+        // Words that say what kind of thing it is, not which one.
+        while (words.Count > 1 && words[^1] is "pdf" or "file" or "document" or "doc")
+        {
+            words.RemoveAt(words.Count - 1);
+        }
+
+        while (words.Count > 1 && words[0] is "the")
+        {
+            words.RemoveAt(0);
+        }
+
+        return string.Join(' ', words);
     }
 
     /// <summary>
@@ -421,7 +477,16 @@ internal sealed class PdfToolContext : IPdfImageSource
 
         if (source.IsComposed)
         {
-            return (await RenderAsync(source.Working, cancellationToken)).Bytes;
+            // While its finished file is current it is what the document is: previews, exports and further
+            // file changes all see the bookmarks, links and fields already added to it.
+            var finished = CurrentFinishedFile(await GetStateAsync(cancellationToken), source.Working);
+
+            if (finished is null)
+            {
+                return (await RenderAsync(source.Working, cancellationToken)).Bytes;
+            }
+
+            source = PdfSource.ForWorking(finished);
         }
 
         var bytes = source.IsUpload
@@ -542,6 +607,11 @@ internal sealed class PdfToolContext : IPdfImageSource
             throw new PdfToolException($"The result is {bytes.LongLength:N0} bytes, larger than the {Options.MaxDocumentBytes:N0} bytes this agent keeps.");
         }
 
+        if (target?.IsComposed == true && string.IsNullOrWhiteSpace(saveAs))
+        {
+            return await SaveFinishedFileAsync(state, target.Working, bytes, change, cancellationToken);
+        }
+
         var name = ChooseWorkingName(state, target, saveAs);
         var existing = state.Find(name);
 
@@ -607,6 +677,146 @@ internal sealed class PdfToolContext : IPdfImageSource
         state.ActiveDocument = existing.Name;
 
         return existing;
+    }
+
+    /// <summary>
+    /// Returns the finished file of a document being composed, when it was made from the current version.
+    /// </summary>
+    /// <param name="state">The workspace.</param>
+    /// <param name="composed">The document being composed.</param>
+    /// <returns>The finished file, or <see langword="null"/> when there is none or it is out of date.</returns>
+    public static PdfWorkingDocument CurrentFinishedFile(PdfWorkspaceState state, PdfWorkingDocument composed)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        if (composed is not { IsComposed: true } || string.IsNullOrEmpty(composed.FinishedFile) || composed.FinishedFromVersion != composed.Version)
+        {
+            return null;
+        }
+
+        return state.Find(composed.FinishedFile) is { IsComposed: false } finished && !string.IsNullOrEmpty(finished.BlobPath)
+            ? finished
+            : null;
+    }
+
+    /// <summary>
+    /// Finds the document being composed a content or formatting call names. A finished file is answered
+    /// with the document it was made from, since that is where its content and formatting live.
+    /// </summary>
+    /// <param name="state">The workspace.</param>
+    /// <param name="handle">The name the call gave.</param>
+    /// <returns>The document being composed.</returns>
+    public PdfWorkingDocument FindComposed(PdfWorkspaceState state, string handle)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        var source = FindPdf(state, handle);
+
+        if (source.Working is { IsComposed: false, FinishedFrom: { } from } && state.Find(from) is { IsComposed: true } composed)
+        {
+            Notes.Add($"\"{source.Name}\" is the finished file of \"{composed.Name}\", so the change was made to \"{composed.Name}\".");
+
+            return composed;
+        }
+
+        return PdfCompositionDescriber.RequireComposed(source);
+    }
+
+    /// <summary>
+    /// Notes, after a change to a document being composed, that its finished file no longer reflects it.
+    /// </summary>
+    /// <param name="state">The workspace.</param>
+    /// <param name="composed">The document, after its version was raised.</param>
+    public void NoteFinishedFileOutdated(PdfWorkspaceState state, PdfWorkingDocument composed)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(composed);
+
+        if (string.IsNullOrEmpty(composed.FinishedFile) ||
+            composed.FinishedFromVersion != composed.Version - 1 ||
+            state.Find(composed.FinishedFile) is not { IsComposed: false } finished)
+        {
+            return;
+        }
+
+        var lost = finished.History.Except(composed.History, StringComparer.Ordinal).ToList();
+
+        Notes.Add(
+            $"\"{composed.Name}\" changed, so the changes made to its finished file \"{finished.Name}\"" +
+            (lost.Count == 0 ? string.Empty : " (" + string.Join("; ", lost) + ")") +
+            " are not in this version. Make them again as the last step, once the content and formatting are final.");
+    }
+
+    private async Task<PdfWorkingDocument> SaveFinishedFileAsync(
+        PdfWorkspaceState state,
+        PdfWorkingDocument composed,
+        byte[] bytes,
+        string change,
+        CancellationToken cancellationToken)
+    {
+        // One finished file per document, rewritten by every change: a copy per change left the reader with
+        // "-edited", "-edited-2" and "-edited-3" and no way to tell which one held everything.
+        var name = !string.IsNullOrEmpty(composed.FinishedFile) && state.Find(composed.FinishedFile) is { IsComposed: false }
+            ? composed.FinishedFile
+            : UniqueName(state, composed.Name + "-edited");
+        var finished = state.Find(name);
+        var current = finished is not null && composed.FinishedFromVersion == composed.Version;
+
+        if (finished is null)
+        {
+            if (state.Documents.Count >= Options.MaxWorkingDocuments)
+            {
+                throw new PdfToolException($"This conversation already holds {state.Documents.Count} working PDFs, the most it keeps. Delete some with edit_pdf_pages (operation 'discard').");
+            }
+
+            finished = new PdfWorkingDocument
+            {
+                Name = name,
+                Kind = PdfWorkingDocument.FileKind,
+                SourceFileName = composed.SourceFileName,
+                SourceDocumentId = composed.SourceDocumentId,
+            };
+
+            state.Documents.Add(finished);
+        }
+
+        if (!current)
+        {
+            // Made from a newer version of the document, the file starts over from that version's history.
+            finished.History = [.. composed.History];
+        }
+
+        finished.FinishedFrom = composed.Name;
+        composed.FinishedFile = finished.Name;
+        composed.FinishedFromVersion = composed.Version;
+
+        var previousBlob = finished.BlobPath;
+
+        finished.BlobPath = await _workspaceStore.WriteBlobAsync(RequireScope(), bytes, ".pdf", cancellationToken);
+        finished.ByteLength = bytes.LongLength;
+        finished.PageCount = PdfFiles.CountPages(bytes);
+        finished.Version++;
+        finished.UpdatedUtc = TimeProvider.GetUtcNow().UtcDateTime;
+
+        if (!string.IsNullOrWhiteSpace(change))
+        {
+            finished.History.Add(change);
+        }
+
+        if (!string.IsNullOrEmpty(previousBlob) && !string.Equals(previousBlob, finished.BlobPath, StringComparison.Ordinal))
+        {
+            await _workspaceStore.DeleteBlobAsync(previousBlob);
+        }
+
+        // The document being composed stays the one later calls work on; its finished file is what it reads as.
+        state.ActiveDocument = composed.Name;
+
+        Notes.Add(
+            $"\"{composed.Name}\" is a document being composed, so this change is kept in its finished file \"{finished.Name}\". " +
+            $"preview_pdf and export_pdf of \"{composed.Name}\" use that file while the content and formatting stay as they are; " +
+            "a later content or formatting change starts from the document again, so make file changes like this one last.");
+
+        return finished;
     }
 
     /// <summary>
