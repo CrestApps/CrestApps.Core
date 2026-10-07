@@ -21,6 +21,7 @@
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
 <link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/ai-chat.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/chat-image-carousel.css" asp-append-version="true" />
 <link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/document-drop-zone.css" asp-append-version="true" />
 
 <style>
@@ -818,6 +819,7 @@
 
 @section Scripts {
     <script src="~/_content/CrestApps.AI.Resources/scripts/chat-markers.js" asp-append-version="true"></script>
+    <script src="~/_content/CrestApps.AI.Resources/scripts/chat-image-carousel.js" asp-append-version="true"></script>
     <script src="~/_content/CrestApps.AI.Resources/scripts/document-drop-zone.js" asp-append-version="true"></script>
     <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@10.0.11/dist/browser/signalr.min.js"
             integrity="sha384-N+pL/4qXZHZcvsa6hVMd5/7cdF3lC59ZMNHeQyRo5q9jmC7yw0hcJILPjUDSU7ZS"
@@ -1085,7 +1087,8 @@
                     requestAnimationFrame(wireImageDownload);
                 }
 
-                return html;
+                // Optional, shared with every chat surface: a run of pictures becomes one stacked carousel.
+                return window.CoreAIChatImageCarousel ? window.CoreAIChatImageCarousel.stackAdjacentImages(html) : html;
             }
 
             // A picture arrives after this markup is handed back -- Vue writes it, and a streamed answer

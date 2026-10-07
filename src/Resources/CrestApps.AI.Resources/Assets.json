@@ -15,6 +15,13 @@
   },
   {
     "inputs": [
+      "Assets/js/chat-image-carousel.js"
+    ],
+    "output": "wwwroot/scripts/chat-image-carousel.js",
+    "generateSourceMaps": true
+  },
+  {
+    "inputs": [
       "Assets/js/ai-chat.js"
     ],
     "output": "wwwroot/scripts/ai-chat.js",
@@ -67,6 +74,13 @@
       "Assets/css/chat-widget.css"
     ],
     "output": "wwwroot/styles/chat-widget.css",
+    "generateSourceMaps": true
+  },
+  {
+    "inputs": [
+      "Assets/css/chat-image-carousel.css"
+    ],
+    "output": "wwwroot/styles/chat-image-carousel.css",
     "generateSourceMaps": true
   },
   {
