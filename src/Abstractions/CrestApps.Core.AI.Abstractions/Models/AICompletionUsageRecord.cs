@@ -7,9 +7,24 @@ namespace CrestApps.Core.AI.Models;
 public sealed class AICompletionUsageRecord : ExtensibleEntity
 {
     /// <summary>
-    /// Gets or sets the type of context that generated this completion (e.g., "Chat", "Utility").
+    /// Gets or sets the category of the feature that made the request, such as <c>AIChatSession</c> for
+    /// chat sessions, <c>ChatInteraction</c> for chat interactions, or a custom category a caller sets
+    /// through <see cref="Completions.AIUsageScope"/>.
     /// </summary>
     public string ContextType { get; set; }
+
+    /// <summary>
+    /// Gets or sets the kind of request that was metered. Well-known values are listed in
+    /// <see cref="Completions.AIUsageOperationTypes"/>.
+    /// </summary>
+    public string OperationType { get; set; }
+
+    /// <summary>
+    /// Gets or sets why the request was made within its category, such as answering the user, generating a
+    /// search query, or indexing documents. Well-known values are listed in
+    /// <see cref="Completions.AIUsagePurposes"/>, and callers may use their own.
+    /// </summary>
+    public string Purpose { get; set; }
 
     /// <summary>
     /// Gets or sets the chat session identifier associated with this usage.
@@ -95,6 +110,44 @@ public sealed class AICompletionUsageRecord : ExtensibleEntity
     /// Gets or sets the total token count (input + output).
     /// </summary>
     public int TotalTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many of the input tokens were served from the provider's prompt cache. Providers
+    /// usually bill these at a discount, so they are a separate billing meter from regular input tokens.
+    /// </summary>
+    public int CachedInputTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many of the output tokens the model spent on reasoning before answering.
+    /// </summary>
+    public int ReasoningTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many of the input tokens were audio tokens.
+    /// </summary>
+    public int InputAudioTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many of the output tokens were audio tokens.
+    /// </summary>
+    public int OutputAudioTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the length of the audio that was transcribed, in milliseconds, for providers that bill
+    /// speech-to-text by audio duration rather than by tokens.
+    /// </summary>
+    public long AudioDurationMs { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many characters of text were synthesized, for providers that bill text-to-speech by
+    /// character.
+    /// </summary>
+    public int CharacterCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many images were generated, for providers that bill image generation per image.
+    /// </summary>
+    public int ImageCount { get; set; }
 
     /// <summary>
     /// Gets or sets the wall-clock latency in milliseconds from request to first response byte.

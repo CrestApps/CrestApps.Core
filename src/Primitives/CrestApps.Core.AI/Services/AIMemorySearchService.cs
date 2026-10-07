@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
@@ -126,6 +127,7 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
             return [];
         }
 
+        using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Retrieval);
         var embeddings = await embeddingGenerator.GenerateAsync(normalizedQueries, cancellationToken: cancellationToken);
 
         if (embeddings is null || embeddings.Count == 0)

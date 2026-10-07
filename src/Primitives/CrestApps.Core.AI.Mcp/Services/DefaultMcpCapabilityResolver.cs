@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
@@ -198,6 +199,7 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
             return null;
         }
 
+        using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Retrieval);
         var promptEmbeddings = await embeddingGenerator.GenerateAsync([prompt], cancellationToken: cancellationToken);
 
         if (promptEmbeddings is null || promptEmbeddings.Count == 0 || promptEmbeddings[0].Vector.Length == 0)

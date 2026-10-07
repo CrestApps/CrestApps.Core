@@ -129,12 +129,22 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
                 return null;
             }
 
+            stopwatch.Stop();
+
+            // Every round trip is a billed request, including the ones that only asked for tool calls, so each is
+            // recorded on its own. The response reports the usage of all of them together.
+            await RecordUsageAsync(context, connectionName, deployment.ModelName, data.Value.Model, data.Value.Id, AzureOpenAIUsage.ToUsageDetails(data.Value.Usage), stopwatch.Elapsed.TotalMilliseconds, false, cancellationToken);
+            var usage = AzureOpenAIUsage.ToUsageDetails(data.Value.Usage);
             var iterations = 0;
             while (data.Value.FinishReason == ChatFinishReason.ToolCalls && iterations < _defaultOptions.MaximumIterationsPerRequest)
             {
                 await ProcessToolCallsAsync(prompts, data.Value.ToolCalls, allFunctions);
                 // Create a new chat option that excludes references to data sources to address the limitations in Azure OpenAI.
+                stopwatch.Restart();
                 data = await chatClient.CompleteChatAsync(prompts, GetOptions(context, allFunctions, requestOptions.ResolvedOptions), cancellationToken);
+                stopwatch.Stop();
+                await RecordUsageAsync(context, connectionName, deployment.ModelName, data.Value.Model, data.Value.Id, AzureOpenAIUsage.ToUsageDetails(data.Value.Usage), stopwatch.Elapsed.TotalMilliseconds, false, cancellationToken);
+                usage = AzureOpenAIUsage.Add(usage, data.Value.Usage);
                 iterations++;
             }
 
@@ -157,15 +167,8 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
                 CreatedAt = data.Value.CreatedAt,
                 ModelId = data.Value.Model,
                 FinishReason = new Microsoft.Extensions.AI.ChatFinishReason(data.Value.FinishReason.ToString()),
-                Usage = new Microsoft.Extensions.AI.UsageDetails()
-                {
-                    InputTokenCount = data.Value.Usage.InputTokenCount,
-                    OutputTokenCount = data.Value.Usage.OutputTokenCount,
-                    TotalTokenCount = data.Value.Usage.TotalTokenCount,
-                },
+                Usage = usage,
             };
-            stopwatch.Stop();
-            await RecordUsageAsync(context, connectionName, deployment.ModelName, result.ModelId, result.ResponseId, result.Usage, stopwatch.Elapsed.TotalMilliseconds, false, cancellationToken);
 
             return result;
         }
@@ -298,6 +301,23 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
                     // Create a new chat option that excludes references to data sources to address the limitations in Azure OpenAI.
                     chatOptions = subSequenceContext ??= GetOptions(context, allFunctions, requestOptions.ResolvedOptions);
                     hasToolCalls = true;
+
+                    // The round trip that asked for tool calls is a billed request too, and its usage arrives in a
+                    // final update after the finish reason, so read the rest of the stream and record it on its own
+                    // before starting the next one.
+                    usage = AzureOpenAIUsage.Add(usage, update.Usage);
+                    while (await updates.MoveNextAsync())
+                    {
+                        usage = AzureOpenAIUsage.Add(usage, updates.Current.Usage);
+                    }
+
+                    stopwatch.Stop();
+                    await RecordUsageAsync(context, connectionName, deployment.ModelName, update.Model, update.CompletionId, usage, stopwatch.Elapsed.TotalMilliseconds, true, cancellationToken);
+                    usage = null;
+                    responseId = null;
+                    modelId = null;
+                    stopwatch.Restart();
+
                     iterations++;
                     break;
                 }
@@ -307,15 +327,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
 
                     responseId ??= result.ResponseId;
                     modelId ??= result.ModelId;
-                    if (update.Usage is not null)
-                    {
-                        usage = new Microsoft.Extensions.AI.UsageDetails
-                        {
-                            InputTokenCount = update.Usage.InputTokenCount,
-                            OutputTokenCount = update.Usage.OutputTokenCount,
-                            TotalTokenCount = update.Usage.TotalTokenCount,
-                        };
-                    }
+                    usage = AzureOpenAIUsage.Add(usage, update.Usage);
 
                     yield return result;
                 }
@@ -696,7 +708,21 @@ omit optional fields, or split the operation into multiple smaller calls.
             return;
         }
 
-        var record = AICompletionUsageRecordFactory.Create(context, ClientName, connectionName, deploymentName, modelName, responseId, usage?.InputTokenCount ?? 0, usage?.OutputTokenCount ?? 0, usage?.TotalTokenCount ?? 0, responseLatencyMs, isStreaming);
+        // This client answers a profile's conversation, so that is the purpose unless the caller named another.
+        var additionalProperties = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+        {
+            [AICompletionContextKeys.DefaultUsagePurpose] = AIUsagePurposes.Conversation,
+        };
+
+        if (context?.AdditionalProperties is { Count: > 0 } contextProperties)
+        {
+            foreach (var (key, value) in contextProperties)
+            {
+                additionalProperties[key] = value;
+            }
+        }
+
+        var record = AICompletionUsageRecordFactory.Create(additionalProperties, AIUsageOperationTypes.Chat, ClientName, connectionName, deploymentName, modelName, responseId, usage, responseLatencyMs, isStreaming);
 
         await observers.InvokeAsync((observer, usageRecord) => observer.UsageRecordedAsync(usageRecord, cancellationToken), record, _logger);
     }

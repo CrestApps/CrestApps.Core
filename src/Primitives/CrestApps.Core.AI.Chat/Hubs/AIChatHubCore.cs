@@ -544,6 +544,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             return null;
         }
 
+        context.AdditionalProperties[AICompletionContextKeys.UsagePurpose] = AIUsagePurposes.TitleGeneration;
+
         var titleResponse = await completionService.CompleteAsync(chatDeployment, [new(ChatRole.User, userPrompt),], context);
 
         return titleResponse.Messages.Count > 0 ? Truncate(titleResponse.Messages.First().Text, 255) : null;
@@ -2470,7 +2472,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// <param name="cancellationToken">The cancellation token.</param>
     protected async Task StreamSpeechAsync(ITextToSpeechClient textToSpeechClient, string identifier, string text, string voiceName, CancellationToken cancellationToken)
     {
-        var options = new TextToSpeechOptions();
+        var options = new TextToSpeechOptions
+        {
+            AdditionalProperties = SpeechUsageProperties.Create(nameof(AIChatSession), AIUsagePurposes.SpeechSynthesis),
+        };
+
         if (!string.IsNullOrWhiteSpace(voiceName))
         {
             options.VoiceId = voiceName;
@@ -2511,7 +2517,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// <param name="cancellationToken">The cancellation token.</param>
     protected async Task StreamSentencesAsSpeechAsync(ITextToSpeechClient textToSpeechClient, Func<string> getIdentifier, ChannelReader<string> sentenceReader, string voiceName, CancellationToken cancellationToken)
     {
-        var options = new TextToSpeechOptions();
+        var options = new TextToSpeechOptions
+        {
+            AdditionalProperties = SpeechUsageProperties.Create(nameof(AIChatSession), AIUsagePurposes.SpeechSynthesis),
+        };
+
 
         if (!string.IsNullOrWhiteSpace(voiceName))
         {
@@ -2595,6 +2605,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             var sttOptions = new SpeechToTextOptions
             {
                 SpeechLanguage = speechLanguage,
+                AdditionalProperties = SpeechUsageProperties.Create(nameof(AIChatSession), AIUsagePurposes.Transcription),
             };
             if (!string.IsNullOrWhiteSpace(audioFormat))
             {
@@ -2856,6 +2867,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             var sttOptions = new SpeechToTextOptions
             {
                 SpeechLanguage = speechLanguage,
+                AdditionalProperties = SpeechUsageProperties.Create(nameof(AIChatSession), AIUsagePurposes.Transcription),
             };
             if (!string.IsNullOrWhiteSpace(audioFormat))
             {

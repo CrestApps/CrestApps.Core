@@ -20,6 +20,28 @@ public static class AICompletionContextKeys
     public const string ClientName = "ClientName";
 
     /// <summary>
+    /// When set to a string in a request's options additional properties, records that value as the usage
+    /// category (<see cref="Models.AICompletionUsageRecord.ContextType"/>) for that one request, taking precedence
+    /// over <see cref="AIUsageScope"/>.
+    /// </summary>
+    public const string UsageContextType = "UsageContextType";
+
+    /// <summary>
+    /// When set to a string in a request's options additional properties, records that value as the usage
+    /// purpose (<see cref="Models.AICompletionUsageRecord.Purpose"/>) for that one request, taking precedence over
+    /// <see cref="AIUsageScope"/>.
+    /// </summary>
+    public const string UsagePurpose = "UsagePurpose";
+
+    /// <summary>
+    /// When set to a string in a request's additional properties, records that value as the usage purpose only
+    /// when neither the request (<see cref="UsagePurpose"/>) nor the current <see cref="AIUsageScope"/> names one.
+    /// The framework uses it to label general-purpose requests, such as a conversation reply, without overriding a
+    /// purpose the caller chose.
+    /// </summary>
+    public const string DefaultUsagePurpose = "DefaultUsagePurpose";
+
+    /// <summary>
     /// When set to <see langword="true"/> in <see cref="Models.AICompletionContext.AdditionalProperties"/>,
     /// indicates that documents are available for the current session. This enables
     /// document processing system tools (e.g., <c>search_documents</c>, <c>list_documents</c>)

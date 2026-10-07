@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
@@ -159,6 +160,7 @@ public sealed class SearchDocumentsTool : AIFunction
                 return "Failed to create embedding generator for document search.";
             }
 
+            using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Retrieval);
             var embeddings = await embeddingGenerator.GenerateAsync([query], cancellationToken: cancellationToken);
 
             if (embeddings is null || embeddings.Count == 0 || embeddings[0]?.Vector is null)
