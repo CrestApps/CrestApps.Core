@@ -576,7 +576,21 @@ internal sealed class WordToolContext
             throw new WordToolException($"\"{document.FileName}\" is {document.FileSize:N0} bytes, larger than the {Options.MaxDocumentBytes:N0} bytes this agent opens.");
         }
 
-        return await ReadStoredFileAsync(document.StoredFilePath, cancellationToken);
+        var bytes = await ReadStoredFileAsync(document.StoredFilePath, cancellationToken);
+
+        // Every Word upload is opened through here — to read or edit it, import it, start from it as a template
+        // or compare it — so this is where one built to expand into far more than its size is stopped.
+        if (bytes is not null && WordPackage.IsWordFile(document.FileName))
+        {
+            if (bytes.LongLength > Options.MaxDocumentBytes)
+            {
+                throw new WordToolException($"\"{document.FileName}\" is {bytes.LongLength:N0} bytes, larger than the {Options.MaxDocumentBytes:N0} bytes this agent opens.");
+            }
+
+            WordPackageGuard.EnsureSafe(bytes, $"\"{document.FileName}\"", Options.MaxUncompressedDocumentBytes);
+        }
+
+        return bytes;
     }
 
     /// <summary>
@@ -1193,6 +1207,8 @@ internal sealed class WordToolContext
         {
             throw new WordToolException($"The result is {bytes.LongLength:N0} bytes, larger than the {Options.MaxDocumentBytes:N0} bytes this agent keeps.");
         }
+
+        WordPackageGuard.EnsureSafe(bytes, "The result", Options.MaxUncompressedDocumentBytes);
     }
 
     private static WordPackage OpenPackage(byte[] bytes, WordSource source)

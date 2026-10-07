@@ -19,6 +19,14 @@ public sealed class WordAgentOptions
     public long MaxDocumentBytes { get; set; } = 50L * 1024 * 1024;
 
     /// <summary>
+    /// Gets or sets the most bytes a Word document may expand to once unpacked: the parts of a <c>.docx</c> file
+    /// are compressed, and the document is opened in memory. An upload or template that expands beyond it, holds
+    /// more than 10,000 parts, or has a large part compressed far more tightly than a document ever is, is refused
+    /// before it is opened, and an edit is not saved when its result expands beyond it. Defaults to 256 MB.
+    /// </summary>
+    public long MaxUncompressedDocumentBytes { get; set; } = 256L * 1024 * 1024;
+
+    /// <summary>
     /// Gets or sets the most working documents one conversation keeps. Defaults to 40.
     /// </summary>
     public int MaxWorkingDocuments { get; set; } = 40;
