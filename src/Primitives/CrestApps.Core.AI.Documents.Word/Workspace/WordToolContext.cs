@@ -32,7 +32,7 @@ internal sealed class WordToolContext
     private readonly IDocumentFileStore _fileStore;
     private readonly IWordWorkspaceStore _workspaceStore;
     private readonly IGeneratedDocumentService _generatedDocuments;
-    private readonly HashSet<string> _readableReferences;
+    private readonly HashSet<(string ReferenceId, string ReferenceType)> _readableReferences;
     private WordWorkspaceState _state;
     private Mutation _mutation;
 
@@ -45,7 +45,7 @@ internal sealed class WordToolContext
         WordAgentOptions options,
         WordWorkspaceScope? scope,
         IReadOnlyList<AIDocument> uploads,
-        HashSet<string> readableReferences,
+        HashSet<(string ReferenceId, string ReferenceType)> readableReferences,
         TimeProvider timeProvider,
         ILogger logger)
     {
@@ -161,7 +161,7 @@ internal sealed class WordToolContext
 
         var uploads = new List<AIDocument>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        var readable = new HashSet<string>(StringComparer.Ordinal);
+        var readable = new HashSet<(string ReferenceId, string ReferenceType)>();
 
         foreach (var (referenceId, referenceType) in readScopes)
         {
@@ -170,7 +170,7 @@ internal sealed class WordToolContext
                 continue;
             }
 
-            readable.Add(referenceId);
+            readable.Add((referenceId, referenceType));
 
             foreach (var document in await documentStore.GetDocumentsAsync(referenceId, referenceType))
             {
@@ -566,7 +566,7 @@ internal sealed class WordToolContext
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        if (string.IsNullOrWhiteSpace(document.StoredFilePath) || !_readableReferences.Contains(document.ReferenceId ?? string.Empty))
+        if (string.IsNullOrWhiteSpace(document.StoredFilePath) || !IsReadable(document))
         {
             return null;
         }
@@ -1143,7 +1143,7 @@ internal sealed class WordToolContext
 
         var document = await _documentStore.FindByIdAsync(documentId, cancellationToken);
 
-        if (document is null || !_readableReferences.Contains(document.ReferenceId ?? string.Empty))
+        if (document is null || !IsReadable(document))
         {
             return null;
         }
@@ -1155,7 +1155,7 @@ internal sealed class WordToolContext
     {
         var document = await _documentStore.FindByIdAsync(documentId, cancellationToken);
 
-        if (document is null || !_readableReferences.Contains(document.ReferenceId ?? string.Empty))
+        if (document is null || !IsReadable(document))
         {
             return null;
         }
@@ -1165,6 +1165,16 @@ internal sealed class WordToolContext
         return figure is null
             ? null
             : await ReadStoredFileAsync(figure.StoragePath, cancellationToken);
+    }
+
+    /// <summary>
+    /// Returns whether a stored document belongs to this conversation: both its owner and the kind of owner have
+    /// to match, so an identifier shared by two kinds of owner never opens the other's files.
+    /// </summary>
+    private bool IsReadable(AIDocument document)
+    {
+        return !string.IsNullOrEmpty(document.ReferenceId) &&
+            _readableReferences.Contains((document.ReferenceId, document.ReferenceType));
     }
 
     private async Task<byte[]> ReadStoredFileAsync(string path, CancellationToken cancellationToken)
