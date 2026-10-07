@@ -11,16 +11,42 @@ namespace CrestApps.Core.AI.Documents.Word.Rendering;
 /// </content>
 internal sealed partial class WordLayoutEngine
 {
+    // A paragraph longer than this is cut short, so one enormous run of text cannot hold up the layout; it is
+    // far more than the pages a preview lays out can show.
+    private const int MaxParagraphCharacters = 250_000;
+
+    private static readonly HashSet<string> _understoodNamespaces = new(StringComparer.Ordinal)
+    {
+        "http://schemas.microsoft.com/office/word/2010/wordprocessingShape",
+        "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup",
+        "http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas",
+        "http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing",
+        "http://schemas.microsoft.com/office/word/2010/wordml",
+        "http://schemas.microsoft.com/office/drawing/2010/main",
+    };
+
     private string _lastStyle;
     private double _lastSpaceAfter;
     private bool _lastContextual;
 
     private void FlowBlock(OpenXmlElement block)
     {
+        if (_stopped || _page is null)
+        {
+            return;
+        }
+
         switch (block)
         {
             case Paragraph paragraph:
-                PlaceParagraph(paragraph, BuildParagraph(paragraph, ColumnWidth, new LayoutContext(_package.MainPart, null)));
+                var box = BuildParagraph(paragraph, ColumnWidth, new LayoutContext(_package.MainPart, null));
+
+                if (box.Format.KeepNext && !AtTopOfColumn)
+                {
+                    box.KeepWithHeight = MeasureKeepWith(paragraph);
+                }
+
+                PlaceParagraph(paragraph, box);
 
                 break;
 
@@ -29,10 +55,24 @@ internal sealed partial class WordLayoutEngine
 
                 break;
 
+            case SdtBlock or CustomXmlBlock or AlternateContent when _depth >= MaxNesting:
+                Issue("clipped", "Content nested too deeply is left out of the layout.", block);
+
+                break;
+
             case SdtBlock control:
-                foreach (var child in control.SdtContentBlock?.ChildElements ?? Enumerable.Empty<OpenXmlElement>())
+                _depth++;
+
+                try
                 {
-                    FlowBlock(child);
+                    foreach (var child in control.SdtContentBlock?.ChildElements ?? Enumerable.Empty<OpenXmlElement>())
+                    {
+                        FlowBlock(child);
+                    }
+                }
+                finally
+                {
+                    _depth--;
                 }
 
                 if (_layout.FirstPage.TryGetValue(control.SdtContentBlock?.FirstChild ?? control, out var first))
@@ -43,14 +83,130 @@ internal sealed partial class WordLayoutEngine
 
                 break;
 
-            case CustomXmlBlock custom:
-                foreach (var child in custom.ChildElements)
+            case CustomXmlBlock or AlternateContent:
+                _depth++;
+
+                try
                 {
-                    FlowBlock(child);
+                    foreach (var child in block is AlternateContent alternate ? ChooseAlternate(alternate) : block.ChildElements)
+                    {
+                        FlowBlock(child);
+                    }
+                }
+                finally
+                {
+                    _depth--;
                 }
 
                 break;
         }
+    }
+
+    /// <summary>
+    /// Measures what a paragraph kept with the next one must share its page with: the next paragraph's first
+    /// line, or all of it and what follows when it is kept with the next too, or the first row of a table.
+    /// </summary>
+    /// <param name="paragraph">The paragraph kept with the next.</param>
+    /// <returns>The height in points.</returns>
+    private double MeasureKeepWith(Paragraph paragraph)
+    {
+        const int MaxChain = 5;
+
+        var height = 0d;
+        var next = NextBlock(paragraph);
+
+        for (var chained = 0; next is not null && chained < MaxChain; chained++)
+        {
+            switch (next)
+            {
+                case Table table:
+                    return height + Measure(() =>
+                    {
+                        var context = new LayoutContext(_package.MainPart, _resolver.ResolveTable(table));
+                        var rows = LayoutRows(table, [.. table.Elements<TableRow>()], 0, 1, ColumnWidth, context, out _, out _);
+
+                        return rows.Count > 0 ? rows[0].Height : 0;
+                    });
+
+                case Paragraph following:
+                    var box = Measure(() => BuildParagraph(following, ColumnWidth, new LayoutContext(_package.MainPart, null)));
+                    var format = box.Format;
+
+                    height += format.SpaceBefore;
+
+                    // A chain of paragraphs kept with the next stays together with the first line after it.
+                    if (format.KeepNext && chained + 1 < MaxChain && NextBlock(following) is not null)
+                    {
+                        height += box.Lines.Sum(line => line.Height) + format.SpaceAfter;
+                        next = NextBlock(following);
+
+                        continue;
+                    }
+
+                    return height + (box.Lines.Count > 0 ? box.Lines[0].Height : 0);
+
+                default:
+                    return height + 28;
+            }
+        }
+
+        return height;
+    }
+
+    // The block after this one in the flow, looking into and out of content controls.
+    private static OpenXmlElement NextBlock(OpenXmlElement block)
+    {
+        for (var steps = 0; block is not null && steps < MaxNesting; steps++)
+        {
+            var sibling = block.NextSibling();
+
+            while (sibling is not null and not (Paragraph or Table or SdtBlock))
+            {
+                sibling = sibling.NextSibling();
+            }
+
+            if (sibling is SdtBlock control)
+            {
+                var inner = control.SdtContentBlock?.ChildElements.FirstOrDefault(child => child is Paragraph or Table);
+
+                return inner ?? (OpenXmlElement)control;
+            }
+
+            if (sibling is not null)
+            {
+                return sibling;
+            }
+
+            // The end of a content control's content goes on after the control.
+            block = block.Parent is SdtContentBlock content ? content.Parent : null;
+        }
+
+        return null;
+    }
+
+    // The branch of markup compatibility content this layout draws: the first choice whose namespaces it
+    // understands, such as a Word 2010 shape, or the fallback.
+    private static IEnumerable<OpenXmlElement> ChooseAlternate(AlternateContent alternate)
+    {
+        foreach (var choice in alternate.Elements<AlternateContentChoice>())
+        {
+            var requires = choice.Requires?.Value;
+
+            if (string.IsNullOrWhiteSpace(requires))
+            {
+                continue;
+            }
+
+            var understood = requires.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .All(prefix => choice.LookupNamespace(prefix) is { } uri && _understoodNamespaces.Contains(uri));
+
+            if (understood)
+            {
+                return choice.ChildElements;
+            }
+        }
+
+        return alternate.GetFirstChild<AlternateContentFallback>()?.ChildElements ?? Enumerable.Empty<OpenXmlElement>();
     }
 
     private void PlaceParagraph(Paragraph paragraph, ParagraphBox box)
@@ -73,7 +229,7 @@ internal sealed partial class WordLayoutEngine
         }
 
         var sameStyle = string.Equals(_lastStyle, format.StyleId, StringComparison.Ordinal);
-        var spaceBefore = AtTopOfColumn && _page.Index > 1 ? 0 : format.SpaceBefore;
+        var spaceBefore = format.SpaceBefore;
 
         if (format.ContextualSpacing && sameStyle)
         {
@@ -94,11 +250,11 @@ internal sealed partial class WordLayoutEngine
 
         if (format.KeepLines && !AtTopOfColumn && _y + spaceBefore + linesHeight > Bottom && linesHeight <= Bottom - _columnTop)
         {
-            NextColumnOrPage();
+            NextColumnOrPage(flowed: true);
         }
         else if (format.KeepNext && !AtTopOfColumn && box.KeepWithHeight > 0 && _y + spaceBefore + linesHeight + box.KeepWithHeight > Bottom && linesHeight + box.KeepWithHeight < Bottom - _columnTop)
         {
-            NextColumnOrPage();
+            NextColumnOrPage(flowed: true);
         }
 
         if (_stopped)
@@ -109,9 +265,16 @@ internal sealed partial class WordLayoutEngine
         foreach (var floating in box.Floating)
         {
             PlaceFloating(floating, paragraph);
+
+            if (_stopped)
+            {
+                return;
+            }
         }
 
-        if (!AtTopOfColumn)
+        // Word drops the space before a paragraph at the top of a page or column the text flowed onto, but keeps
+        // it on the first page, after a page or column break, and at the start of a section.
+        if (!AtTopOfColumn || !_flowedToTop)
         {
             _y += spaceBefore;
         }
@@ -135,7 +298,7 @@ internal sealed partial class WordLayoutEngine
             {
                 CloseSegment(firstSegment, last: false);
                 firstSegment = false;
-                NextColumnOrPage();
+                NextColumnOrPage(flowed: true);
 
                 if (_stopped)
                 {
@@ -184,6 +347,12 @@ internal sealed partial class WordLayoutEngine
                 CloseSegment(firstSegment, last: false);
                 firstSegment = false;
                 NextColumnOrPage();
+
+                if (_stopped)
+                {
+                    return;
+                }
+
                 segmentTop = _y;
                 segmentStart = _page.Items.Count;
             }
@@ -196,7 +365,8 @@ internal sealed partial class WordLayoutEngine
         _lastStyle = format.StyleId;
         _lastContextual = format.ContextualSpacing;
 
-        // A page break at the very end of a paragraph starts the next block on a new page.
+        // A page break at the very end of a paragraph keeps the paragraph mark on its page, as Word sets it, and
+        // starts the next block on a new page.
         if (box.Lines.Count > 0 && box.Lines[^1].Break == BreakKind.Page)
         {
             NewPage();
@@ -207,23 +377,10 @@ internal sealed partial class WordLayoutEngine
         }
     }
 
+    // The page's picture budget is applied once the page is complete, over everything it draws.
     private void AddToPage(WordDrawItem item)
     {
-        if (item is WordImageItem { Bytes: not null } image)
-        {
-            if (_pictureBytesOnPage + image.Bytes.Length > _options.MaxPictureBytesPerPage)
-            {
-                image.Bytes = null;
-                image.Label ??= "Picture";
-                image.Label += " (not drawn, to keep the preview small)";
-            }
-            else
-            {
-                _pictureBytesOnPage += image.Bytes.Length;
-            }
-        }
-
-        _page.Items.Add(item);
+        _page?.Items.Add(item);
     }
 
     private void DecorateSegment(ParagraphBox box, double top, double bottom, bool first, bool last, Paragraph paragraph, int insertAt)
@@ -329,6 +486,27 @@ internal sealed partial class WordLayoutEngine
 
     private void Collect(OpenXmlElement element, CollectState state, List<Token> tokens, string markup = null)
     {
+        // Inline content nested past any real document's depth — hyperlinks in content controls in hyperlinks —
+        // is left out rather than followed until the stack runs out.
+        if (state.Depth >= MaxNesting || state.Characters >= MaxParagraphCharacters)
+        {
+            return;
+        }
+
+        state.Depth++;
+
+        try
+        {
+            CollectElement(element, state, tokens, markup);
+        }
+        finally
+        {
+            state.Depth--;
+        }
+    }
+
+    private void CollectElement(OpenXmlElement element, CollectState state, List<Token> tokens, string markup)
+    {
         switch (element)
         {
             case ParagraphProperties:
@@ -341,6 +519,14 @@ internal sealed partial class WordLayoutEngine
 
             case Run run:
                 CollectRun(run, state, tokens, markup);
+
+                return;
+
+            case AlternateContent alternate:
+                foreach (var child in ChooseAlternate(alternate))
+                {
+                    Collect(child, state, tokens, markup);
+                }
 
                 return;
 
@@ -386,7 +572,7 @@ internal sealed partial class WordLayoutEngine
 
                     mathFormat.Font = "Cambria Math";
                     mathFormat.Italic = true;
-                    AppendText(mathText, mathFormat, state.Paragraph, tokens, markup);
+                    AppendText(mathText, mathFormat, state, tokens, markup);
                 }
 
                 return;
@@ -411,135 +597,164 @@ internal sealed partial class WordLayoutEngine
 
         foreach (var child in run.ChildElements)
         {
-            switch (child)
-            {
-                case FieldChar character when character.FieldCharType?.Value == FieldCharValues.Begin:
-                    state.Fields.Push(new FieldState());
+            CollectRunChild(child, format, state, tokens, markup);
+        }
+    }
 
-                    break;
+    private void CollectRunChild(OpenXmlElement child, WordResolvedRun format, CollectState state, List<Token> tokens, string markup)
+    {
+        if (state.Characters >= MaxParagraphCharacters || tokens.Count >= MaxParagraphCharacters)
+        {
+            return;
+        }
 
-                case FieldChar character when character.FieldCharType?.Value == FieldCharValues.Separate && state.Fields.Count > 0:
-                    var field = state.Fields.Peek();
+        switch (child)
+        {
+            // Word writes its shapes and text boxes as a choice between the Word 2010 drawing and an older
+            // fallback picture; one of them is drawn.
+            case AlternateContent alternate when state.Depth < MaxNesting:
+                state.Depth++;
 
-                    field.InResult = true;
-
-                    if (DynamicToken(WordFieldScanner.TypeOf(field.Instruction.ToString())) is { } dynamic)
+                try
+                {
+                    foreach (var chosen in ChooseAlternate(alternate))
                     {
-                        field.Replaced = true;
-                        tokens.Add(Text(dynamic, format, state.Paragraph, markup));
+                        CollectRunChild(chosen, format, state, tokens, markup);
                     }
+                }
+                finally
+                {
+                    state.Depth--;
+                }
 
+                break;
+
+            case FieldChar character when character.FieldCharType?.Value == FieldCharValues.Begin:
+                state.Fields.Push(new FieldState());
+
+                break;
+
+            case FieldChar character when character.FieldCharType?.Value == FieldCharValues.Separate && state.Fields.Count > 0:
+                var field = state.Fields.Peek();
+
+                field.InResult = true;
+
+                if (DynamicToken(WordFieldScanner.TypeOf(field.Instruction.ToString())) is { } dynamic)
+                {
+                    field.Replaced = true;
+                    tokens.Add(Text(dynamic, format, state.Paragraph, markup));
+                }
+
+                break;
+
+            case FieldChar character when character.FieldCharType?.Value == FieldCharValues.End && state.Fields.Count > 0:
+                var ended = state.Fields.Pop();
+
+                // A field written without a result still shows its value.
+                if (!ended.InResult && DynamicToken(WordFieldScanner.TypeOf(ended.Instruction.ToString())) is { } value)
+                {
+                    tokens.Add(Text(value, format, state.Paragraph, markup));
+                }
+
+                break;
+
+            case FieldCode code when state.Fields.Count > 0 && !state.Fields.Peek().InResult:
+                state.Fields.Peek().Instruction.Append(code.Text);
+
+                break;
+
+            case FieldCode:
+            case DeletedFieldCode:
+                break;
+
+            case Text text:
+                if (state.Fields.Count > 0 && (!state.Fields.Peek().InResult || state.Fields.Peek().Replaced))
+                {
                     break;
+                }
 
-                case FieldChar character when character.FieldCharType?.Value == FieldCharValues.End && state.Fields.Count > 0:
-                    var ended = state.Fields.Pop();
+                AppendText(text.Text, format, state, tokens, markup);
 
-                    // A field written without a result still shows its value.
-                    if (!ended.InResult && DynamicToken(WordFieldScanner.TypeOf(ended.Instruction.ToString())) is { } value)
-                    {
-                        tokens.Add(Text(value, format, state.Paragraph, markup));
-                    }
+                break;
 
-                    break;
+            case DeletedText deleted when _options.ShowMarkup:
+                AppendText(deleted.Text, format, state, tokens, "deleted");
 
-                case FieldCode code when state.Fields.Count > 0 && !state.Fields.Peek().InResult:
-                    state.Fields.Peek().Instruction.Append(code.Text);
+                break;
 
-                    break;
+            case TabChar:
+            case PositionalTab:
+                tokens.Add(new Token { Kind = TokenKind.Tab, Format = format, Source = state.Paragraph });
 
-                case FieldCode:
-                case DeletedFieldCode:
-                    break;
+                break;
 
-                case Text text:
-                    if (state.Fields.Count > 0 && (!state.Fields.Peek().InResult || state.Fields.Peek().Replaced))
-                    {
-                        break;
-                    }
+            case Break @break:
+                var breakType = @break.Type?.InnerText;
 
-                    AppendText(text.Text, format, state.Paragraph, tokens, markup);
+                tokens.Add(new Token
+                {
+                    Kind = breakType == "page" ? TokenKind.PageBreak : breakType == "column" ? TokenKind.ColumnBreak : TokenKind.LineBreak,
+                    Format = format,
+                    Source = state.Paragraph,
+                });
 
-                    break;
+                break;
 
-                case DeletedText deleted when _options.ShowMarkup:
-                    AppendText(deleted.Text, format, state.Paragraph, tokens, "deleted");
+            case CarriageReturn:
+                tokens.Add(new Token { Kind = TokenKind.LineBreak, Format = format, Source = state.Paragraph });
 
-                    break;
+                break;
 
-                case TabChar:
-                case PositionalTab:
-                    tokens.Add(new Token { Kind = TokenKind.Tab, Format = format, Source = state.Paragraph });
+            case NoBreakHyphen:
+                AppendText("-", format, state, tokens, markup);
 
-                    break;
+                break;
 
-                case Break @break:
-                    var breakType = @break.Type?.InnerText;
+            case SymbolChar symbol when symbol.Char?.Value is { Length: 4 } code && int.TryParse(code, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var symbolValue):
+                AppendText(symbolValue >= 0xF000 ? "•" : ((char)symbolValue).ToString(), format, state, tokens, markup);
 
-                    tokens.Add(new Token
-                    {
-                        Kind = breakType == "page" ? TokenKind.PageBreak : breakType == "column" ? TokenKind.ColumnBreak : TokenKind.LineBreak,
-                        Format = format,
-                        Source = state.Paragraph,
-                    });
+                break;
 
-                    break;
+            case FootnoteReference footnote when footnote.Id?.Value is { } footnoteId:
+                var number = _footnoteNumbers.TryGetValue(footnoteId, out var existing) ? existing : _footnoteNumbers[footnoteId] = _footnoteNumbers.Count + 1;
+                var superscript = format.Clone();
 
-                case CarriageReturn:
-                    tokens.Add(new Token { Kind = TokenKind.LineBreak, Format = format, Source = state.Paragraph });
+                superscript.VerticalPosition = 1;
+                tokens.Add(Text(number.ToString(CultureInfo.InvariantCulture), superscript, state.Paragraph, markup));
+                tokens[^1].FootnoteId = footnoteId;
 
-                    break;
+                break;
 
-                case NoBreakHyphen:
-                    AppendText("-", format, state.Paragraph, tokens, markup);
+            case EndnoteReference:
+                var endnote = format.Clone();
 
-                    break;
+                endnote.VerticalPosition = 1;
+                tokens.Add(Text("i", endnote, state.Paragraph, markup));
 
-                case SymbolChar symbol when symbol.Char?.Value is { Length: 4 } code && int.TryParse(code, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var symbolValue):
-                    AppendText(symbolValue >= 0xF000 ? "•" : ((char)symbolValue).ToString(), format, state.Paragraph, tokens, markup);
+                break;
 
-                    break;
+            case FootnoteReferenceMark:
+                var mark = format.Clone();
 
-                case FootnoteReference footnote when footnote.Id?.Value is { } footnoteId:
-                    var number = _footnoteNumbers.TryGetValue(footnoteId, out var existing) ? existing : _footnoteNumbers[footnoteId] = _footnoteNumbers.Count + 1;
-                    var superscript = format.Clone();
+                mark.VerticalPosition = 1;
+                tokens.Add(Text(state.FootnoteNumber ?? "*", mark, state.Paragraph, markup));
 
-                    superscript.VerticalPosition = 1;
-                    tokens.Add(Text(number.ToString(CultureInfo.InvariantCulture), superscript, state.Paragraph, markup));
-                    tokens[^1].FootnoteId = footnoteId;
+                break;
 
-                    break;
+            case Drawing drawing:
+                AddDrawing(drawing, state, tokens);
 
-                case EndnoteReference:
-                    var endnote = format.Clone();
+                break;
 
-                    endnote.VerticalPosition = 1;
-                    tokens.Add(Text("i", endnote, state.Paragraph, markup));
+            case Picture picture:
+                tokens.Add(LegacyPicture(picture, state));
 
-                    break;
+                break;
 
-                case FootnoteReferenceMark:
-                    var mark = format.Clone();
+            case EmbeddedObject:
+                tokens.Add(Placeholder("Embedded object", 96, 48, state.Paragraph));
 
-                    mark.VerticalPosition = 1;
-                    tokens.Add(Text(state.FootnoteNumber ?? "*", mark, state.Paragraph, markup));
-
-                    break;
-
-                case Drawing drawing:
-                    AddDrawing(drawing, state, tokens);
-
-                    break;
-
-                case Picture picture:
-                    tokens.Add(LegacyPicture(picture, state));
-
-                    break;
-
-                case EmbeddedObject:
-                    tokens.Add(Placeholder("Embedded object", 96, 48, state.Paragraph));
-
-                    break;
-            }
+                break;
         }
     }
 
@@ -556,12 +771,21 @@ internal sealed partial class WordLayoutEngine
         return token is not null && _pageFieldValues?.GetValueOrDefault(token) is { } value ? value : token;
     }
 
-    private static void AppendText(string text, WordResolvedRun format, OpenXmlElement source, List<Token> tokens, string markup)
+    private static void AppendText(string text, WordResolvedRun format, CollectState state, List<Token> tokens, string markup)
     {
-        if (string.IsNullOrEmpty(text))
+        if (string.IsNullOrEmpty(text) || state.Characters >= MaxParagraphCharacters)
         {
             return;
         }
+
+        var source = state.Paragraph;
+
+        if (text.Length > MaxParagraphCharacters - state.Characters)
+        {
+            text = string.Concat(text.AsSpan(0, MaxParagraphCharacters - state.Characters), "…");
+        }
+
+        state.Characters += text.Length;
 
         if (format.Caps || format.SmallCaps)
         {
@@ -733,6 +957,13 @@ internal sealed partial class WordLayoutEngine
             index = end;
         }
 
+        // A paragraph that ends with a page break keeps its mark on the line of the break, as Word sets it, rather
+        // than an empty line at the top of the next page.
+        if (box.Lines.Count > 0 && box.Lines[^1].Break == BreakKind.Page && line.Tokens.All(entry => entry.Token.Kind == TokenKind.Space))
+        {
+            return;
+        }
+
         FinishLine(box, line, right, paragraphRun, BreakKind.None, justify: false, last: true);
     }
 
@@ -740,19 +971,24 @@ internal sealed partial class WordLayoutEngine
     {
         var builder = new StringBuilder();
         var limit = Math.Max(firstWidth, 10);
+        var width = 0d;
 
+        // Widths add up character by character, so each piece is measured as it grows rather than again from
+        // its start for every character.
         foreach (var character in token.Text)
         {
-            var candidate = builder.ToString() + character;
+            var characterWidth = WordTextMeasurer.Measure(character.ToString(), token.Format.Font, token.Format.DrawnSize, token.Format.Bold);
 
-            if (builder.Length > 0 && WordTextMeasurer.Measure(candidate, token.Format.Font, token.Format.DrawnSize, token.Format.Bold) > limit)
+            if (builder.Length > 0 && width + characterWidth > limit)
             {
                 yield return Text(builder.ToString(), token.Format, token.Source, token.Markup);
                 builder.Clear();
+                width = 0;
                 limit = fullWidth;
             }
 
             builder.Append(character);
+            width += characterWidth;
         }
 
         if (builder.Length > 0)
@@ -1014,7 +1250,7 @@ internal sealed partial class WordLayoutEngine
                 continue;
             }
 
-            total += BuildFootnote(id).Height;
+            total += Measure(() => BuildFootnote(id)).Height;
         }
 
         return total > 0 && _pageFootnotes.Count == 0 ? total + 8 : total;
@@ -1056,6 +1292,29 @@ internal sealed partial class WordLayoutEngine
     }
 
     private WordBox LayoutContainer(IEnumerable<OpenXmlElement> children, double width, LayoutContext context, List<(FloatingDrawing Drawing, double Top)> floating = null)
+    {
+        // Tables in tables in tables lay each other out recursively; past a depth no real document reaches, the
+        // content is drawn as a placeholder rather than followed until the stack runs out.
+        if (_depth >= MaxNesting)
+        {
+            Issue("clipped", "Content nested too deeply to lay out is drawn as a placeholder.", children.FirstOrDefault());
+
+            return Placeholder("Nested content", Math.Max(4, width), 24, children.FirstOrDefault()).Object;
+        }
+
+        _depth++;
+
+        try
+        {
+            return LayoutChildren(children, width, context, floating);
+        }
+        finally
+        {
+            _depth--;
+        }
+    }
+
+    private WordBox LayoutChildren(IEnumerable<OpenXmlElement> children, double width, LayoutContext context, List<(FloatingDrawing Drawing, double Top)> floating)
     {
         var box = new WordBox();
         var y = 0d;
@@ -1121,8 +1380,11 @@ internal sealed partial class WordLayoutEngine
 
                     break;
 
-                case SdtBlock control:
-                    var inner = LayoutContainer(control.SdtContentBlock?.ChildElements ?? Enumerable.Empty<OpenXmlElement>(), width, context);
+                case SdtBlock or AlternateContent:
+                    var inner = LayoutContainer(
+                        child is AlternateContent alternate ? ChooseAlternate(alternate) : ((SdtBlock)child).SdtContentBlock?.ChildElements ?? Enumerable.Empty<OpenXmlElement>(),
+                        width,
+                        context);
 
                     box.Items.AddRange(inner.Translate(0, y));
                     y += inner.Height;
@@ -1252,7 +1514,7 @@ internal sealed partial class WordLayoutEngine
 
         public List<FloatingDrawing> Floating { get; } = [];
 
-        public double KeepWithHeight { get; set; } = 28;
+        public double KeepWithHeight { get; set; }
     }
 
     /// <summary>
@@ -1294,5 +1556,9 @@ internal sealed partial class WordLayoutEngine
         public Stack<FieldState> Fields { get; } = new();
 
         public string FootnoteNumber => Context.FootnoteNumber;
+
+        public int Depth { get; set; }
+
+        public int Characters { get; set; }
     }
 }

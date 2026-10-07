@@ -24,6 +24,19 @@ internal sealed partial class WordLayoutEngine
     private const string PagesToken = "\u0001NUMPAGES\u0001";
     private const string SectionPagesToken = "\u0001SECTIONPAGES\u0001";
 
+    // Word sets text in at most 45 columns; a section asking for more is set in 45.
+    private const int MaxSectionColumns = 45;
+
+    // Content nested deeper than this — tables in tables, content controls in content controls — is not laid out,
+    // so a hostile document cannot exhaust the stack. Word itself stops well before it.
+    private const int MaxNesting = 32;
+
+    // Pages Word accepts are at most 22 inches on a side; a page size outside these bounds is clamped.
+    private const double MinPageSide = 72;
+    private const double MaxPageSide = 1584;
+
+    private const string NotDrawnSuffix = " (not drawn, to keep the preview small)";
+
     private readonly WordPackage _package;
     private readonly WordLayoutOptions _options;
     private readonly WordStyleResolver _resolver;
@@ -46,10 +59,12 @@ internal sealed partial class WordLayoutEngine
     private double _y;
     private double _columnTop;
     private int _column;
-    private long _pictureBytesOnPage;
     private double _footnoteReserve;
     private List<FootnoteBox> _pageFootnotes = [];
     private bool _stopped;
+    private bool _flowedToTop;
+    private int _depth;
+    private int _measuring;
     private Dictionary<string, string> _pageFieldValues;
 
     private WordLayoutEngine(WordPackage package, WordLayoutOptions options)
@@ -173,6 +188,14 @@ internal sealed partial class WordLayoutEngine
         var (width, height) = WordSections.PageSize(section);
         var margins = WordSections.Margins(section);
         var (columns, gap) = WordSections.Columns(section);
+
+        // A page of no size would draw at an infinite scale, and thousands of columns would each be laid out, so
+        // the section's geometry is kept within what Word itself accepts.
+        width = PageSide(width, 612);
+        height = PageSide(height, 792);
+        columns = Math.Clamp(columns, 1, MaxSectionColumns);
+        gap = double.IsFinite(gap) ? Math.Clamp(gap, 0, width) : 36;
+
         var textWidth = width - margins.Left - margins.Right - margins.Gutter;
         var numbering = section.GetFirstChild<PageNumberType>();
 
@@ -228,10 +251,16 @@ internal sealed partial class WordLayoutEngine
             _pageInSection = Math.Max(_pageInSection, 1);
             _column = 0;
             _columnTop = _y;
+            _flowedToTop = false;
         }
     }
 
-    private void NewPage(bool sectionStart = false)
+    private static double PageSide(double value, double fallback)
+    {
+        return double.IsFinite(value) && value > 0 ? Math.Clamp(value, MinPageSide, MaxPageSide) : fallback;
+    }
+
+    private void NewPage(bool sectionStart = false, bool flowed = false)
     {
         FinishPage();
 
@@ -262,26 +291,32 @@ internal sealed partial class WordLayoutEngine
         };
 
         _layout.Pages.Add(_page);
-        _pageInfo.Add(new PageInfo(_geometry, _pageInSection == 1, _headers.ToDictionary(pair => pair.Key, pair => pair.Value), _footers.ToDictionary(pair => pair.Key, pair => pair.Value)));
+        _pageInfo.Add(new PageInfo(_geometry, _pageInSection == 1, _displayCounter, _headers.ToDictionary(pair => pair.Key, pair => pair.Value), _footers.ToDictionary(pair => pair.Key, pair => pair.Value)));
         _y = _geometry.ContentTop;
         _columnTop = _y;
         _column = 0;
-        _pictureBytesOnPage = 0;
         _footnoteReserve = 0;
         _pageFootnotes = [];
+        _flowedToTop = flowed;
     }
 
-    private void NextColumnOrPage()
+    /// <summary>
+    /// Moves to the top of the next column, or of a new page after the last column.
+    /// </summary>
+    /// <param name="flowed">Whether the move is the text running out of room, rather than a break the document
+    /// asks for. Word drops the space before a paragraph only at the top of a page or column the text flowed onto.</param>
+    private void NextColumnOrPage(bool flowed = false)
     {
         if (_column + 1 < _geometry.Columns)
         {
             _column++;
             _y = _columnTop;
+            _flowedToTop = flowed;
 
             return;
         }
 
-        NewPage();
+        NewPage(flowed: flowed);
     }
 
     private double ColumnLeft => _geometry.Left + (_column * (_geometry.ColumnWidth + _geometry.ColumnGap));
@@ -326,12 +361,18 @@ internal sealed partial class WordLayoutEngine
         var total = _layout.Pages.Count;
         var sectionCounts = _layout.Pages.GroupBy(page => page.Section).ToDictionary(group => group.Key, group => group.Count());
 
+        // Every page's header and footer is laid out from the same list numbering, so a numbered item in a
+        // header shows the same number on every page.
+        var lists = _lists.Snapshot();
+
         for (var index = 0; index < _layout.Pages.Count; index++)
         {
             var page = _layout.Pages[index];
             var info = _pageInfo[index];
-            var number = int.TryParse(page.DisplayNumber, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : index + 1;
-            var kind = info.Geometry.TitlePage && info.FirstOfSection ? "first" : _evenAndOddHeaders && number % 2 == 0 ? "even" : "default";
+
+            _lists.Restore(lists);
+            // Even and odd pages go by the page's number, whatever format it is printed in (ii, b, 2).
+            var kind = info.Geometry.TitlePage && info.FirstOfSection ? "first" : _evenAndOddHeaders && info.Number % 2 == 0 ? "even" : "default";
             var bodyItems = page.Items.ToList();
 
             page.Items.Clear();
@@ -366,6 +407,10 @@ internal sealed partial class WordLayoutEngine
             }
 
             _pageFieldValues = null;
+
+            // The picture budget covers everything the page draws — body, footnotes, floating pictures, headers
+            // and footers — with the body's pictures served first.
+            LimitPictureBytes(bodyItems.Concat(page.Items));
             page.Items.AddRange(bodyItems);
 
             foreach (var text in page.Items.OfType<WordTextItem>())
@@ -383,6 +428,29 @@ internal sealed partial class WordLayoutEngine
             if (!page.HasBodyContent)
             {
                 _layout.Issues.Add(new WordLayoutIssue("blank_page", page.Index, $"Page {page.Index} has no body content.", null));
+            }
+        }
+    }
+
+    private void LimitPictureBytes(IEnumerable<WordDrawItem> items)
+    {
+        var total = 0L;
+
+        foreach (var item in items)
+        {
+            if (item is not WordImageItem { Bytes: not null } image)
+            {
+                continue;
+            }
+
+            if (total + image.Bytes.Length > _options.MaxPictureBytesPerPage)
+            {
+                image.Bytes = null;
+                image.Label = (image.Label ?? "Picture") + NotDrawnSuffix;
+            }
+            else
+            {
+                total += image.Bytes.Length;
             }
         }
     }
@@ -428,7 +496,7 @@ internal sealed partial class WordLayoutEngine
 
     private double MeasureStory(OpenXmlPart part)
     {
-        return part is null ? 0 : LayoutStory(part, _geometry.Right - _geometry.Left).Height;
+        return part is null ? 0 : Measure(() => LayoutStory(part, _geometry.Right - _geometry.Left).Height);
     }
 
     private WordBox LayoutStory(OpenXmlPart part, double width, List<(FloatingDrawing Drawing, double Top)> floating = null)
@@ -457,9 +525,34 @@ internal sealed partial class WordLayoutEngine
 
     private void Issue(string kind, string message, OpenXmlElement source)
     {
-        if (_layout.Issues.Count < 200)
+        // Content measured ahead of placing it is laid out again when placed, and reports its problems then.
+        if (_measuring == 0 && _layout.Issues.Count < 200)
         {
             _layout.Issues.Add(new WordLayoutIssue(kind, _page?.Index ?? _layout.Pages.Count, message, source));
+        }
+    }
+
+    /// <summary>
+    /// Lays content out to measure it, or to draw it again, without numbering its list items a second time or
+    /// reporting its problems twice.
+    /// </summary>
+    /// <typeparam name="T">The result.</typeparam>
+    /// <param name="layout">Lays the content out.</param>
+    /// <returns>The result.</returns>
+    private T Measure<T>(Func<T> layout)
+    {
+        var lists = _lists.Snapshot();
+
+        _measuring++;
+
+        try
+        {
+            return layout();
+        }
+        finally
+        {
+            _measuring--;
+            _lists.Restore(lists);
         }
     }
 
@@ -504,7 +597,7 @@ internal sealed partial class WordLayoutEngine
     /// <summary>
     /// What a page needs once the whole document is laid out: its geometry and the headers and footers in force.
     /// </summary>
-    private sealed record PageInfo(SectionGeometry Geometry, bool FirstOfSection, Dictionary<string, OpenXmlPart> Headers, Dictionary<string, OpenXmlPart> Footers);
+    private sealed record PageInfo(SectionGeometry Geometry, bool FirstOfSection, int Number, Dictionary<string, OpenXmlPart> Headers, Dictionary<string, OpenXmlPart> Footers);
 
     /// <summary>
     /// A footnote placed at the bottom of a page.

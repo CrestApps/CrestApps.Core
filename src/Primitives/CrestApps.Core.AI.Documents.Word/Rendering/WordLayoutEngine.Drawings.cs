@@ -14,6 +14,10 @@ namespace CrestApps.Core.AI.Documents.Word.Rendering;
 /// </content>
 internal sealed partial class WordLayoutEngine
 {
+    private const int MaxTextBoxNesting = 4;
+
+    private int _textBoxDepth;
+
     private void AddDrawing(Drawing drawing, CollectState state, List<Token> tokens)
     {
         var info = WordDrawingReader.Read(drawing);
@@ -55,7 +59,7 @@ internal sealed partial class WordLayoutEngine
         switch (info.Kind)
         {
             case WordDrawingKind.Picture:
-                var bytes = ReadPicture(context.Part, info.RelationshipId, out var mediaType);
+                var bytes = ReadPicture(context.Part, info.RelationshipId, out var mediaType, out var tooLarge);
 
                 box.Items.Add(new WordImageItem
                 {
@@ -65,7 +69,7 @@ internal sealed partial class WordLayoutEngine
                     Height = info.Height,
                     Bytes = bytes,
                     MediaType = mediaType,
-                    Label = bytes is null ? PictureLabel(info, mediaType) : null,
+                    Label = bytes is null ? PictureLabel(info, mediaType) + (tooLarge ? NotDrawnSuffix : string.Empty) : null,
                     Source = source,
                 });
 
@@ -168,21 +172,43 @@ internal sealed partial class WordLayoutEngine
         var right = Inset("rIns", 7.2);
         var top = Inset("tIns", 3.6);
         var bottom = Inset("bIns", 3.6);
-        var available = Math.Max(4, info.Width - left - right);
-        var text = LayoutContainer(content.ChildElements, available, context);
-
-        // Text that does not wrap keeps each paragraph on one line, running past the box evenly on both sides
-        // when it is wider.
-        if (body?.GetAttributes().FirstOrDefault(attribute => attribute.LocalName == "wrap").Value == "none")
+        // A text box in a text box in a text box is drawn as its outline past a few levels: each level that does
+        // not wrap is measured before it is laid out, so the work would double with every level.
+        if (_textBoxDepth >= MaxTextBoxNesting)
         {
-            var natural = LayoutContainer(content.ChildElements, 100_000, context).Items.OfType<WordTextItem>().ToList();
-            var width = natural.Count == 0 ? 0 : natural.Max(item => item.X + item.Width) - natural.Min(item => item.X);
+            Issue("clipped", $"The text of {WordDrawingReader.Describe(info)} is nested in too many text boxes to draw.", source);
 
-            if (width > available)
+            return;
+        }
+
+        var available = Math.Max(4, info.Width - left - right);
+        var layoutWidth = available;
+        WordBox text;
+
+        _textBoxDepth++;
+
+        try
+        {
+            // Text that does not wrap keeps each paragraph on one line, running past the box evenly on both sides
+            // when it is wider. Its natural width is measured once, then the text is laid out once at the width
+            // it needs.
+            if (body?.GetAttributes().FirstOrDefault(attribute => attribute.LocalName == "wrap").Value == "none")
             {
-                text = LayoutContainer(content.ChildElements, width + 1, context);
-                left -= (width + 1 - available) / 2;
+                var natural = Measure(() => LayoutContainer(content.ChildElements, 100_000, context)).Items.OfType<WordTextItem>().ToList();
+                var width = natural.Count == 0 ? 0 : natural.Max(item => item.X + item.Width) - natural.Min(item => item.X);
+
+                if (width > available)
+                {
+                    layoutWidth = width + 1;
+                    left -= (width + 1 - available) / 2;
+                }
             }
+
+            text = LayoutContainer(content.ChildElements, layoutWidth, context);
+        }
+        finally
+        {
+            _textBoxDepth--;
         }
 
         var anchor = body?.GetAttributes().FirstOrDefault(attribute => attribute.LocalName == "anchor").Value;
@@ -239,19 +265,22 @@ internal sealed partial class WordLayoutEngine
     private Token LegacyPicture(Picture picture, CollectState state)
     {
         var style = picture.Descendants().Select(element => element.GetAttributes().FirstOrDefault(attribute => attribute.LocalName == "style").Value).FirstOrDefault(value => value is not null) ?? string.Empty;
-        var width = ReadCssLength(style, "width") ?? 96;
-        var height = ReadCssLength(style, "height") ?? 72;
+        var width = ReadCssLength(style, "width") is { } cssWidth && double.IsFinite(cssWidth) && cssWidth > 0 ? Math.Min(cssWidth, MaxPageSide) : 96;
+        var height = ReadCssLength(style, "height") is { } cssHeight && double.IsFinite(cssHeight) && cssHeight > 0 ? Math.Min(cssHeight, MaxPageSide) : 72;
         var relationship = picture.Descendants().Select(element => element.GetAttributes().FirstOrDefault(attribute => attribute.LocalName == "id" && attribute.NamespaceUri.Contains("relationships", StringComparison.Ordinal)).Value).FirstOrDefault(value => value is not null);
-        var bytes = relationship is null ? null : ReadPicture(state.Context.Part, relationship, out var mediaType);
+        string mediaType = null;
+        var tooLarge = false;
+        var bytes = relationship is null ? null : ReadPicture(state.Context.Part, relationship, out mediaType, out tooLarge);
 
         if (bytes is null)
         {
-            return Placeholder("Legacy drawing", width, height, state.Paragraph);
+            return Placeholder(tooLarge ? "Legacy drawing" + NotDrawnSuffix : "Legacy drawing", width, height, state.Paragraph);
         }
 
         var box = new WordBox { Height = height };
 
-        box.Items.Add(new WordImageItem { Width = width, Height = height, Bytes = bytes, MediaType = "image/png", Source = state.Paragraph });
+        // The picture is drawn as the type its part declares, which is one the preview can draw.
+        box.Items.Add(new WordImageItem { Width = width, Height = height, Bytes = bytes, MediaType = mediaType, Source = state.Paragraph });
 
         return new Token { Kind = TokenKind.Inline, Width = width, Height = height, Object = box, Format = state.Run, Source = state.Paragraph };
     }
@@ -282,6 +311,11 @@ internal sealed partial class WordLayoutEngine
 
     private void PlaceFloating(FloatingDrawing floating, Paragraph paragraph)
     {
+        if (_stopped || _page is null)
+        {
+            return;
+        }
+
         var info = floating.Info;
         var inFlow = info.Wrap is not ("behind_text" or "in_front_of_text");
 
@@ -308,7 +342,12 @@ internal sealed partial class WordLayoutEngine
             // Text is not flowed beside a floating picture here; the picture takes its own room above the text.
             if (_y + info.Height > Bottom && !AtTopOfColumn)
             {
-                NextColumnOrPage();
+                NextColumnOrPage(flowed: true);
+
+                if (_stopped)
+                {
+                    return;
+                }
             }
 
             foreach (var item in floating.Box.Translate(HorizontalPosition(), _y))
@@ -397,9 +436,10 @@ internal sealed partial class WordLayoutEngine
         }
     }
 
-    private byte[] ReadPicture(OpenXmlPart owner, string relationshipId, out string mediaType)
+    private byte[] ReadPicture(OpenXmlPart owner, string relationshipId, out string mediaType, out bool tooLarge)
     {
         mediaType = null;
+        tooLarge = false;
 
         if (owner is null || string.IsNullOrEmpty(relationshipId) || TryGetPart(owner, relationshipId) is not ImagePart part)
         {
@@ -417,19 +457,46 @@ internal sealed partial class WordLayoutEngine
 
         if (_pictures.TryGetValue(key, out var cached))
         {
+            tooLarge = cached is null;
+
             return cached;
         }
 
-        using var stream = part.GetStream(FileMode.Open, FileAccess.Read);
-        using var buffer = new MemoryStream();
+        // A picture larger than a whole page's budget is never drawn, so no more of it is read than it takes to
+        // find that out.
+        var limit = Math.Max(0, _options.MaxPictureBytesPerPage);
+        var bytes = ReadAtMost(part, limit);
 
-        stream.CopyTo(buffer);
-
-        var bytes = buffer.ToArray();
-
+        tooLarge = bytes is null;
         _pictures[key] = bytes;
 
         return bytes;
+    }
+
+    private static byte[] ReadAtMost(ImagePart part, int limit)
+    {
+        using var stream = part.GetStream(FileMode.Open, FileAccess.Read);
+
+        if (stream.CanSeek && stream.Length > limit)
+        {
+            return null;
+        }
+
+        using var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        int read;
+
+        while ((read = stream.Read(chunk, 0, (int)Math.Min(chunk.Length, (long)limit + 1 - buffer.Length))) > 0)
+        {
+            buffer.Write(chunk, 0, read);
+
+            if (buffer.Length > limit)
+            {
+                return null;
+            }
+        }
+
+        return buffer.ToArray();
     }
 
     private static OpenXmlPart TryGetPart(OpenXmlPart owner, string relationshipId)
