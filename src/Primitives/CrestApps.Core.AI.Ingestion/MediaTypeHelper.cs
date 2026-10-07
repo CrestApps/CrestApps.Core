@@ -36,6 +36,7 @@ public static class MediaTypeHelper
             ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            ".potx" => "application/vnd.openxmlformats-officedocument.presentationml.template",
             ".html" or ".htm" => "text/html",
             ".json" => "application/json",
             ".webp" => "image/webp",
