@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -7,6 +8,7 @@ using CrestApps.Core.AI.Documents.Word;
 using CrestApps.Core.AI.Documents.Word.Editing;
 using CrestApps.Core.AI.Documents.Word.Reading;
 using CrestApps.Core.AI.Documents.Word.Tools;
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +17,8 @@ namespace CrestApps.Core.Tests.Core.Documents.Word;
 
 public sealed class WordTableAndProtectionTests
 {
+    private const string Stamp = "w:author=\"Reviewer\" w:date=\"2024-01-01T00:00:00Z\"";
+
     [Fact]
     public async Task MergeCells_HorizontalAndVerticalRanges_MergesThemAndSplitsBack()
     {
@@ -399,6 +403,191 @@ public sealed class WordTableAndProtectionTests
         }
 
         Assert.Equal(original, await host.ReadWorkingDocumentAsync("report"));
+    }
+
+    [Fact]
+    public async Task ColumnWidths_AfterAddColumn_KeepTheTableWithinItsWidth()
+    {
+        using var host = new WordToolTestHost();
+        await CreateTableAsync(host);
+
+        int before;
+
+        using (var document = Open(await host.ReadWorkingDocumentAsync("doc")))
+        {
+            before = Table(document).GetFirstChild<TableGrid>().Elements<GridColumn>().Sum(column => int.Parse(column.Width.Value, CultureInfo.InvariantCulture));
+        }
+
+        await host.InvokeAsync(new UpdateWordTableTool(), new { document = "doc", add_column = new { header = "D" }, column_widths = new object[] { "2in" } });
+
+        var bytes = await host.ReadWorkingDocumentAsync("doc");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using (var document = Open(bytes))
+        {
+            var table = Table(document);
+            var widths = table.GetFirstChild<TableGrid>().Elements<GridColumn>().Select(column => int.Parse(column.Width.Value, CultureInfo.InvariantCulture)).ToList();
+            var tableWidth = table.GetFirstChild<TableProperties>().TableWidth;
+
+            Assert.Equal(4, widths.Count);
+            Assert.Equal(2880, widths[0]);
+            Assert.InRange(widths.Sum(), before - 8, before + 8);
+            Assert.True(tableWidth?.Type?.Value != TableWidthUnitValues.Dxa || int.Parse(tableWidth.Width.Value, CultureInfo.InvariantCulture) <= before + 8);
+        }
+    }
+
+    [Fact]
+    public async Task AddRows_AfterATrackedInsertedRow_CopiesNoTrackedChanges()
+    {
+        using var host = new WordToolTestHost();
+        await host.UploadAsync("tracked.docx", Build(
+            TableXml(
+                "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"3000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>Keep</w:t></w:r></w:p></w:tc></w:tr>",
+                $"<w:tr><w:trPr><w:ins w:id=\"2\" {Stamp}/></w:trPr><w:tc><w:tcPr><w:tcW w:w=\"3000\" w:type=\"dxa\"/><w:cellIns w:id=\"3\" {Stamp}/></w:tcPr>" +
+                $"<w:p><w:pPr><w:jc w:val=\"center\"/><w:rPr><w:ins w:id=\"4\" {Stamp}/></w:rPr><w:pPrChange w:id=\"5\" {Stamp}><w:pPr/></w:pPrChange></w:pPr>" +
+                $"<w:ins w:id=\"6\" {Stamp}><w:r><w:t>Added</w:t></w:r></w:ins></w:p></w:tc></w:tr>")));
+
+        await host.InvokeAsync(new UpdateWordTableTool(), new { document = "tracked.docx", add_rows = new[] { new[] { "Mine" } } });
+
+        var added = await host.ReadWorkingDocumentAsync("tracked");
+
+        WordAuthoringToolsTests.AssertValid(added);
+
+        using (var document = Open(added))
+        {
+            var row = Table(document).Elements<TableRow>().Last();
+
+            Assert.Equal("Mine", WordText.OfCell(row.Elements<TableCell>().Single()));
+            Assert.DoesNotContain(row.Descendants(), element => element is Inserted or Deleted or CellInsertion or ParagraphPropertiesChange or InsertedRun);
+        }
+
+        var answer = await host.InvokeAsync(new ManageWordRevisionsTool(), new { document = "tracked", action = "reject" });
+
+        Assert.Contains("Rejected 5 tracked change(s); 0 remain.", answer, StringComparison.Ordinal);
+
+        var rejected = await host.ReadWorkingDocumentAsync("tracked");
+
+        WordAuthoringToolsTests.AssertValid(rejected);
+
+        using (var document = Open(rejected))
+        {
+            Assert.Equal([["Keep"], ["Mine"]], Texts(Table(document)));
+        }
+    }
+
+    [Fact]
+    public async Task RepeatHeader_FirstRowWithATrackedInsertion_PutsTheHeaderBeforeTheInsertion()
+    {
+        using var host = new WordToolTestHost();
+        await host.UploadAsync("header.docx", Build(
+            TableXml(
+                $"<w:tr><w:trPr><w:ins w:id=\"2\" {Stamp}/></w:trPr><w:tc><w:tcPr><w:tcW w:w=\"3000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>Head</w:t></w:r></w:p></w:tc></w:tr>",
+                "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"3000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>Body</w:t></w:r></w:p></w:tc></w:tr>")));
+
+        await host.InvokeAsync(new UpdateWordTableTool(), new { document = "header.docx", repeat_header = true });
+
+        var bytes = await host.ReadWorkingDocumentAsync("header");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var document = Open(bytes);
+        var properties = Table(document).Elements<TableRow>().First().TableRowProperties.ChildElements.ToList();
+
+        Assert.True(properties.FindIndex(child => child is TableHeader) < properties.FindIndex(child => child is Inserted));
+    }
+
+    [Fact]
+    public async Task MergeCells_AfterAddRowsInsideAVerticalMerge_MergesTheNewRange()
+    {
+        using var host = new WordToolTestHost();
+        await CreateTableAsync(host);
+
+        await host.InvokeAsync(new UpdateWordTableTool(), new { document = "doc", merge_cells = new[] { new { row = 2, column = 1, to_row = 3 } } });
+
+        var answer = await host.InvokeAsync(new UpdateWordTableTool(), new
+        {
+            document = "doc",
+            add_rows = new[] { new[] { "New", "n", "m" } },
+            after_row = 2,
+            merge_cells = new[] { new { row = 4, column = 1, to_row = 5 } },
+        });
+
+        Assert.Contains("merged 1 range(s) of cells", answer, StringComparison.Ordinal);
+
+        var bytes = await host.ReadWorkingDocumentAsync("doc");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var document = Open(bytes);
+        var rows = Table(document).Elements<TableRow>().ToList();
+
+        Assert.Null(rows[1].Elements<TableCell>().First().TableCellProperties.VerticalMerge);
+        Assert.Equal(MergedCellValues.Restart, rows[3].Elements<TableCell>().First().TableCellProperties.VerticalMerge.Val.Value);
+        Assert.NotNull(rows[4].Elements<TableCell>().First().TableCellProperties.VerticalMerge);
+        Assert.Equal("Three", WordText.OfCell(rows[3].Elements<TableCell>().First()).Trim());
+    }
+
+    [Fact]
+    public async Task Cells_GridNarrowerThanTheRows_ExtendsTheGrid()
+    {
+        using var host = new WordToolTestHost();
+        await host.UploadAsync("narrow.docx", Build(
+            "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"3000\"/><w:gridCol w:w=\"3000\"/></w:tblGrid>" +
+            "<w:tr><w:tc><w:tcPr><w:tcW w:w=\"3000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>A</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w=\"3000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>B</w:t></w:r></w:p></w:tc>" +
+            "<w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>C</w:t></w:r></w:p></w:tc></w:tr></w:tbl>" +
+            "<w:p/>"));
+
+        await host.InvokeAsync(new UpdateWordTableTool(), new { document = "narrow.docx", cells = new[] { new { row = 1, column = 3, text = "Third" } } });
+
+        var bytes = await host.ReadWorkingDocumentAsync("narrow");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var document = Open(bytes);
+        var table = Table(document);
+
+        Assert.Equal(["3000", "3000", "2000"], table.GetFirstChild<TableGrid>().Elements<GridColumn>().Select(column => column.Width.Value));
+        Assert.Equal(["A", "B", "Third"], Texts(table)[0]);
+    }
+
+    [Fact]
+    public async Task Cells_CellHoldingAContentControl_SetsTheTextInsideIt()
+    {
+        using var host = new WordToolTestHost();
+        await host.UploadAsync("control.docx", Build(
+            TableXml("<w:tr><w:tc><w:tcPr><w:tcW w:w=\"3000\" w:type=\"dxa\"/></w:tcPr><w:sdt><w:sdtPr/><w:sdtContent><w:p><w:r><w:t>Old</w:t></w:r></w:p></w:sdtContent></w:sdt></w:tc></w:tr>")));
+
+        await host.InvokeAsync(new UpdateWordTableTool(), new { document = "control.docx", cells = new[] { new { row = 1, column = 1, text = "New" } } });
+
+        var bytes = await host.ReadWorkingDocumentAsync("control");
+
+        WordAuthoringToolsTests.AssertValid(bytes);
+
+        using var document = Open(bytes);
+        var cell = Table(document).Descendants<TableCell>().Single();
+
+        Assert.Empty(cell.Elements<Paragraph>());
+        Assert.Equal("New", WordText.Of(cell.Elements<SdtBlock>().Single()));
+    }
+
+    private static string TableXml(params string[] rows)
+    {
+        return $"<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/></w:tblPr><w:tblGrid><w:gridCol w:w=\"3000\"/></w:tblGrid>{string.Concat(rows)}</w:tbl><w:p/>";
+    }
+
+    private static byte[] Build(string bodyXml)
+    {
+        using var stream = new MemoryStream();
+
+        using (var document = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document))
+        {
+            document.AddMainDocumentPart().Document = new Document(
+                $"<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>{bodyXml}" +
+                "<w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/></w:sectPr></w:body></w:document>");
+        }
+
+        return stream.ToArray();
     }
 
     private static async Task CreateTableAsync(WordToolTestHost host)

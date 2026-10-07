@@ -102,7 +102,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
                 "required": ["row", "column"]
               }
             },
-            "column_widths": { "type": "array", "items": { "type": ["number", "string"] }, "description": "Widths of the columns from the first: a length such as \"1.5in\" or \"3cm\", a percentage of the table's width such as \"30%\", or a number as a relative weight sharing what the lengths leave. Columns not listed keep their width." },
+            "column_widths": { "type": "array", "items": { "type": ["number", "string"] }, "description": "Widths of the columns from the first: a length such as \"1.5in\" or \"3cm\", a percentage of the table's width such as \"30%\", or a number as a relative weight sharing what the lengths leave. Columns not listed keep their width while it fits, or share what the listed widths leave of the table's width." },
             "table_style": { "type": "string", "description": "data (shaded header, banded rows), grid, light (horizontal rules), plain (no borders), or a document table style name." },
             "banded": { "type": "boolean", "description": "Shade every other row, when the table style has banding." },
             "border_color": { "type": "string", "description": "Draw every border in this color." },
@@ -146,6 +146,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
             var part = edit.Package.MainPart;
             var revisions = WordRevisions.IsTracking(edit.Package) ? WordRevisions.For(edit.Package, edit.Author, edit.Now) : null;
             var changes = new List<string>();
+            var warnings = new List<string>();
             var grid = EnsureGrid(table);
             var tableWidth = grid.Elements<GridColumn>().Sum(Width);
             var resized = false;
@@ -165,6 +166,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
                     RemoveRow(table, row);
                 }
 
+                NormalizeVerticalMerges(table);
                 changes.Add($"removed {targets.Count} row(s)");
             }
 
@@ -189,6 +191,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
                     columns[number - 1].Remove();
                 }
 
+                NormalizeVerticalMerges(table);
                 resized = true;
                 changes.Add($"removed {numbers.Count} column(s)");
             }
@@ -215,6 +218,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
                     columns[after - 1].InsertAfterSelf(added);
                 }
 
+                NormalizeVerticalMerges(table);
                 resized = true;
                 changes.Add($"added the column \"{header}\"");
             }
@@ -240,6 +244,12 @@ internal sealed class UpdateWordTableTool : WordToolBase
 
                     for (var cell = 0; cell < cells.Count; cell++)
                     {
+                        // Only the first paragraph's look is kept: a nested table or a content control belongs to the original.
+                        foreach (var child in cells[cell].ChildElements.Where(child => child is not (TableCellProperties or Paragraph)).ToList())
+                        {
+                            child.Remove();
+                        }
+
                         SetText(cells[cell], cell < texts.Count ? texts[cell] : string.Empty, part, null);
                     }
 
@@ -249,6 +259,8 @@ internal sealed class UpdateWordTableTool : WordToolBase
                     added++;
                 }
 
+                // A row added inside a vertically merged cell splits it in two.
+                NormalizeVerticalMerges(table);
                 resized = true;
                 changes.Add($"added {added} row(s)");
             }
@@ -262,6 +274,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
                     count += SplitCell(table, item, edit.Package.Ids);
                 }
 
+                NormalizeVerticalMerges(table);
                 resized = true;
                 changes.Add($"split {count} cell(s)");
             }
@@ -276,6 +289,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
                     count++;
                 }
 
+                NormalizeVerticalMerges(table);
                 resized = true;
                 changes.Add($"merged {count} range(s) of cells");
             }
@@ -288,8 +302,13 @@ internal sealed class UpdateWordTableTool : WordToolBase
                 foreach (var item in cellList.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object))
                 {
                     var row = WordJsonValues.TryGet(item, "row", out var rowValue) ? FindRow(rows, rowValue) : throw new WordToolException("Each cell needs a 'row'.");
+                    var columnNumber = WordJsonValues.GetInt(item, "column") ?? 0;
 
-                    SetText(VisibleCell(table, rows, rows.IndexOf(row), WordJsonValues.GetInt(item, "column") ?? 0), WordJsonValues.GetRawString(item, "text") ?? string.Empty, part, revisions);
+                    if (SetText(VisibleCell(table, rows, rows.IndexOf(row), columnNumber), WordJsonValues.GetRawString(item, "text") ?? string.Empty, part, revisions) is { } dropped)
+                    {
+                        warnings.Add($"Row {rows.IndexOf(row) + 1}, column {columnNumber.ToString(CultureInfo.InvariantCulture)}: {dropped}");
+                    }
+
                     count++;
                 }
 
@@ -310,6 +329,13 @@ internal sealed class UpdateWordTableTool : WordToolBase
 
             if (arguments.TryGetElement("column_widths", out var widths) && widths.ValueKind == JsonValueKind.Array)
             {
+                // Columns added or removed first bring the grid back to the table's width, so the widths not
+                // given are the columns' shares of it, not the widths they were copied with.
+                if (resized)
+                {
+                    Fit(table, tableWidth);
+                }
+
                 tableWidth = SetColumnWidths(table, [.. widths.EnumerateArray()], tableWidth);
                 resized = true;
                 changes.Add("set the column widths");
@@ -342,7 +368,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
 
                 if (repeat)
                 {
-                    (first.TableRowProperties ??= new TableRowProperties()).Append(new TableHeader());
+                    AddRowProperty(first, new TableHeader());
                 }
 
                 changes.Add(repeat ? "the header row repeats on every page" : "the header row no longer repeats");
@@ -361,11 +387,12 @@ internal sealed class UpdateWordTableTool : WordToolBase
             }
 
             var size = $"{table.Elements<TableRow>().Count()} rows × {grid.Elements<GridColumn>().Count()} columns";
+            var notes = warnings.Count == 0 ? string.Empty : " " + string.Join(" ", warnings) + " Use update_word_content with 'find' and 'replace' to change only part of a cell's text.";
 
-            return Task.FromResult($"{string.Join("; ", changes)}. The table [{WordParagraphIds.Of(table)}] has {size}");
+            return Task.FromResult($"{string.Join("; ", changes)}. The table [{WordParagraphIds.Of(table)}] has {size}.{notes}");
         }, arguments.SaveAs(), cancellationToken);
 
-        return $"\"{document.Name}\" (version {document.Version}): {summary}.";
+        return $"\"{document.Name}\" (version {document.Version}): {summary}";
     }
 
     // A cell's place in its row: the first grid column it covers, counted from 1, and how many it covers.
@@ -443,7 +470,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
 
         if (value > 0)
         {
-            (row.TableRowProperties ??= new TableRowProperties()).Append(new GridBefore { Val = value });
+            AddRowProperty(row, new GridBefore { Val = value });
         }
     }
 
@@ -453,7 +480,24 @@ internal sealed class UpdateWordTableTool : WordToolBase
 
         if (value > 0)
         {
-            (row.TableRowProperties ??= new TableRowProperties()).Append(new GridAfter { Val = value });
+            AddRowProperty(row, new GridAfter { Val = value });
+        }
+    }
+
+    // A row's own properties come before its tracked insertion, deletion and formatting change, which the schema
+    // puts last.
+    private static void AddRowProperty(TableRow row, OpenXmlElement property)
+    {
+        var properties = row.TableRowProperties ??= new TableRowProperties();
+        var change = properties.ChildElements.FirstOrDefault(child => child is Inserted or Deleted or TableRowPropertiesChange);
+
+        if (change is null)
+        {
+            properties.Append(property);
+        }
+        else
+        {
+            change.InsertBeforeSelf(property);
         }
     }
 
@@ -496,22 +540,66 @@ internal sealed class UpdateWordTableTool : WordToolBase
     {
         var grid = table.GetFirstChild<TableGrid>();
 
-        if (grid is not null && grid.Elements<GridColumn>().Any())
+        // A table written without a grid, or with a grid narrower than its rows, gets one from its widest row, so
+        // every column can be counted.
+        var count = Math.Max(1, table.Elements<TableRow>().Select(row => GridBefore(row) + row.Elements<TableCell>().Sum(Span) + GridAfter(row)).DefaultIfEmpty(1).Max());
+        var existing = grid?.Elements<GridColumn>().ToList() ?? [];
+
+        if (existing.Count >= count)
         {
             return grid;
         }
 
-        // A table written without a grid gets one from its widest row, so columns can be counted.
-        var count = Math.Max(1, table.Elements<TableRow>().Select(row => GridBefore(row) + row.Elements<TableCell>().Sum(Span) + GridAfter(row)).DefaultIfEmpty(1).Max());
-
         grid ??= table.GetFirstChild<TableProperties>() is { } properties ? properties.InsertAfterSelf(new TableGrid()) : table.PrependChild(new TableGrid());
 
-        for (var index = 0; index < count; index++)
+        // A new column is as wide as the cells that sit in it alone say, or as the columns already there are on average.
+        var known = existing.Select(Width).Where(width => width > 0).ToList();
+        var fallback = known.Count > 0 ? (int)known.Average() : DefaultTableWidthTwips / count;
+        var anchor = existing.LastOrDefault();
+
+        for (var index = existing.Count; index < count; index++)
         {
-            grid.Append(new GridColumn { Width = Invariant(DefaultTableWidthTwips / count) });
+            var column = new GridColumn { Width = Invariant(CellWidthAt(table, index + 1) ?? fallback) };
+
+            if (anchor is null)
+            {
+                // A grid's columns come before any record of its earlier widths.
+                if (grid.GetFirstChild<TableGridChange>() is { } change)
+                {
+                    change.InsertBeforeSelf(column);
+                }
+                else
+                {
+                    grid.Append(column);
+                }
+            }
+            else
+            {
+                anchor.InsertAfterSelf(column);
+            }
+
+            anchor = column;
         }
 
         return grid;
+    }
+
+    // The width the cells that cover only one grid column give it, in twips, or null when none does.
+    private static int? CellWidthAt(Table table, int column)
+    {
+        foreach (var row in table.Elements<TableRow>())
+        {
+            if (SlotAt(row, column) is { Span: 1 } slot &&
+                slot.Cell.TableCellProperties?.TableCellWidth is { } width &&
+                (width.Type is null || width.Type.Value == TableWidthUnitValues.Dxa) &&
+                int.TryParse(width.Width?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var twips) &&
+                twips > 0)
+            {
+                return twips;
+            }
+        }
+
+        return null;
     }
 
     private static int ColumnCount(Table table)
@@ -693,7 +781,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
     // An empty cell with the look of another: its cell properties, without any merge, and an empty paragraph.
     private static TableCell EmptyCopy(TableCell model)
     {
-        var properties = (TableCellProperties)model.TableCellProperties?.CloneNode(true) ?? new TableCellProperties();
+        var properties = WithoutRevisions((TableCellProperties)model.TableCellProperties?.CloneNode(true) ?? new TableCellProperties());
 
         properties.GridSpan = null;
         properties.VerticalMerge = null;
@@ -703,7 +791,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
 
         if (model.Elements<Paragraph>().FirstOrDefault()?.ParagraphProperties is { } paragraphProperties)
         {
-            paragraph.ParagraphProperties = (ParagraphProperties)paragraphProperties.CloneNode(true);
+            paragraph.ParagraphProperties = WithoutRevisions((ParagraphProperties)paragraphProperties.CloneNode(true));
         }
 
         return new TableCell(properties, paragraph);
@@ -1097,13 +1185,16 @@ internal sealed class UpdateWordTableTool : WordToolBase
         var total = tableWidth > 0 ? tableWidth : DefaultTableWidthTwips;
         var widths = grid.Select(column => (double)Width(column)).ToArray();
         var weights = new double[grid.Count];
-        var fixedTotal = 0d;
+        var kept = new bool[grid.Count];
+        var keptTotal = 0d;
+        var lengthTotal = 0d;
 
         for (var index = 0; index < grid.Count; index++)
         {
             if (index >= values.Count || values[index].ValueKind is JsonValueKind.Null)
             {
-                fixedTotal += widths[index];
+                kept[index] = true;
+                keptTotal += widths[index];
 
                 continue;
             }
@@ -1122,7 +1213,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
             else if (WordUnits.TryParseLength(text, WordUnits.FromTwips(total), out var points) && points > 0)
             {
                 widths[index] = WordUnits.ToTwips(points);
-                fixedTotal += widths[index];
+                lengthTotal += widths[index];
             }
             else
             {
@@ -1130,8 +1221,25 @@ internal sealed class UpdateWordTableTool : WordToolBase
             }
         }
 
+        // The columns not listed keep their width while it fits beside the lengths given, and share what is left
+        // when it does not: only lengths that add up to more than the table make it wider.
+        var available = Math.Max(0, total - lengthTotal);
+
+        if (keptTotal > available && keptTotal > 0)
+        {
+            for (var index = 0; index < grid.Count; index++)
+            {
+                if (kept[index])
+                {
+                    widths[index] = widths[index] * available / keptTotal;
+                }
+            }
+
+            keptTotal = available;
+        }
+
         var weightTotal = weights.Sum();
-        var remaining = Math.Max(0, total - fixedTotal);
+        var remaining = Math.Max(0, available - keptTotal);
 
         for (var index = 0; index < grid.Count; index++)
         {
@@ -1250,7 +1358,7 @@ internal sealed class UpdateWordTableTool : WordToolBase
     }
 
     // A copied row or cell keeps only its look: comments, bookmarks and note references belong to the original,
-    // and a second copy of them would make the document invalid.
+    // and a second copy of them would make the document invalid; so do its tracked changes.
     private static T Blank<T>(T element)
         where T : OpenXmlElement
     {
@@ -1264,19 +1372,59 @@ internal sealed class UpdateWordTableTool : WordToolBase
             run.Remove();
         }
 
+        return WithoutRevisions(element);
+    }
+
+    // A copy keeps the look of what it was copied from, not its tracked changes: a copied insertion, deletion or
+    // formatting change would share its revision id with the original, so rejecting the original's would undo the
+    // copy's too. Inserted text stays, as accepted; deleted text goes.
+    private static T WithoutRevisions<T>(T element)
+        where T : OpenXmlElement
+    {
+        foreach (var change in element.Descendants().Where(IsRevision).ToList())
+        {
+            if (change is InsertedRun or MoveToRun)
+            {
+                foreach (var child in change.ChildElements.ToList())
+                {
+                    child.Remove();
+                    change.InsertBeforeSelf(child);
+                }
+            }
+
+            change.Remove();
+        }
+
         return element;
     }
 
-    private static void SetText(TableCell cell, string markdown, OpenXmlPart part, WordRevisions revisions)
+    private static bool IsRevision(OpenXmlElement element)
+    {
+        return element is InsertedRun or DeletedRun or MoveFromRun or MoveToRun or
+            Inserted or Deleted or MoveFrom or MoveTo or
+            CellInsertion or CellDeletion or CellMerge or
+            RunPropertiesChange or ParagraphPropertiesChange or ParagraphMarkRunPropertiesChange or NumberingChange or
+            TableRowPropertiesChange or TableCellPropertiesChange or TablePropertyExceptionsChange or
+            MoveFromRangeStart or MoveFromRangeEnd or MoveToRangeStart or MoveToRangeEnd;
+    }
+
+    // Sets a cell's text in its first paragraph, which keeps its look, and removes the others. A cell whose text is
+    // in a content control has it set there.
+    private static string SetText(TableCell cell, string markdown, OpenXmlPart part, WordRevisions revisions)
     {
         var paragraphs = cell.Elements<Paragraph>().ToList();
+
+        if (paragraphs.Count == 0 && cell.Elements<SdtBlock>().FirstOrDefault()?.SdtContentBlock is { } control)
+        {
+            paragraphs = [.. control.Elements<Paragraph>()];
+        }
 
         if (paragraphs.Count == 0)
         {
             paragraphs.Add(cell.AppendChild(new Paragraph()));
         }
 
-        WordTextEditor.ReplaceParagraph(paragraphs[0], markdown, part, revisions);
+        var dropped = WordTextEditor.ReplaceParagraph(paragraphs[0], markdown, part, revisions);
 
         foreach (var extra in paragraphs.Skip(1))
         {
@@ -1289,6 +1437,8 @@ internal sealed class UpdateWordTableTool : WordToolBase
                 revisions.MarkDeleted(extra);
             }
         }
+
+        return dropped;
     }
 
     // A table's columns are laid out from its grid. After columns change, the grid keeps the table's width,
