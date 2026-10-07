@@ -18,33 +18,56 @@ namespace CrestApps.Core.AI.Documents.Word.Editing;
 /// start halfway through one run and end in another. Runs are split at the edges of the phrase, the runs
 /// inside it are removed — or kept as a tracked deletion — and the new text takes the formatting of the run
 /// it replaces. Bookmarks, comment anchors and note references in a rewritten paragraph are kept, so a
-/// table of contents, a comment or a footnote still points at it.
+/// table of contents, a comment or a footnote still points at it; so are fields, pictures and tabs inside a
+/// phrase that is replaced.
 /// </remarks>
 internal static class WordTextEditor
 {
     /// <summary>
     /// Replaces the whole text of a paragraph.
     /// </summary>
+    /// <remarks>
+    /// Bookmarks, comment anchors and note references are kept wherever they are in the paragraph — in a link, a
+    /// tracked insertion or a content control too — and are never marked as deleted. Pictures, fields, content
+    /// controls and links the new text does not have are removed with the old text, and the result says so.
+    /// </remarks>
     /// <param name="paragraph">The paragraph.</param>
     /// <param name="markdown">The new text, with inline Markdown.</param>
     /// <param name="part">The part the paragraph is in.</param>
     /// <param name="revisions">The revision source when the change is tracked, or <see langword="null"/>.</param>
-    public static void ReplaceParagraph(Paragraph paragraph, string markdown, OpenXmlPart part, WordRevisions revisions)
+    /// <returns>
+    /// A sentence naming what besides text was removed with the old text, such as a picture or a field, or
+    /// <see langword="null"/> when only text was replaced.
+    /// </returns>
+    public static string ReplaceParagraph(Paragraph paragraph, string markdown, OpenXmlPart part, WordRevisions revisions)
     {
         ArgumentNullException.ThrowIfNull(paragraph);
 
         var baseFormat = BaseFormatOf(paragraph);
-        var keepers = new List<OpenXmlElement>();
         var content = paragraph.ChildElements.Where(child => child is not ParagraphProperties).ToList();
+
+        // With tracking on, what is already a tracked deletion stays as it is, markers included.
+        var keepers = content
+            .SelectMany(child => child.Descendants().Prepend(child))
+            .Where(IsKeeper)
+            .Where(element => revisions is null || element.Ancestors<DeletedRun>().FirstOrDefault() is null)
+            .ToList();
+
+        foreach (var keeper in keepers)
+        {
+            keeper.Remove();
+        }
+
+        var replacement = new Paragraph();
+
+        WordInlineWriter.AppendMarkdown(replacement, markdown ?? string.Empty, part, baseFormat);
+
+        var dropped = DescribeDropped(content, replacement, revisions);
 
         foreach (var child in content)
         {
-            if (child is BookmarkStart or BookmarkEnd or CommentRangeStart or CommentRangeEnd ||
-                (child is Run run && run.ChildElements.Any(element => element is CommentReference or FootnoteReference or EndnoteReference)))
+            if (child.Parent is null)
             {
-                child.Remove();
-                keepers.Add(child);
-
                 continue;
             }
 
@@ -64,10 +87,6 @@ internal static class WordTextEditor
             }
         }
 
-        var replacement = new Paragraph();
-
-        WordInlineWriter.AppendMarkdown(replacement, markdown ?? string.Empty, part, baseFormat);
-
         var starts = keepers.Where(keeper => keeper is BookmarkStart or CommentRangeStart).ToList();
         var ends = keepers.Except(starts).ToList();
 
@@ -86,6 +105,8 @@ internal static class WordTextEditor
         {
             paragraph.Append(end);
         }
+
+        return dropped;
     }
 
     /// <summary>
@@ -308,6 +329,46 @@ internal static class WordTextEditor
         };
     }
 
+    private static bool IsKeeper(OpenXmlElement element)
+    {
+        // What points at the paragraph from elsewhere: bookmarks, comment anchors, and comment and note references.
+        return element is BookmarkStart or BookmarkEnd or CommentRangeStart or CommentRangeEnd ||
+            (element is Run run && run.ChildElements.Any(child => child is CommentReference or FootnoteReference or EndnoteReference));
+    }
+
+    private static string DescribeDropped(List<OpenXmlElement> content, Paragraph replacement, WordRevisions revisions)
+    {
+        // What the old text held besides text, counted before it is removed; with tracking on, what is already a
+        // tracked deletion is not counted again.
+        var elements = content
+            .Where(child => child.Parent is not null && (revisions is null || child is not DeletedRun))
+            .SelectMany(child => child.Descendants().Prepend(child))
+            .Where(element => revisions is null || element.Ancestors<DeletedRun>().FirstOrDefault() is null)
+            .ToList();
+
+        var parts = new List<string>();
+
+        Count(parts, elements.Count(element => element is Drawing or Picture or EmbeddedObject), "picture or drawing", "pictures or drawings");
+        Count(parts, elements.Count(element => element is SimpleField || (element is FieldChar character && character.FieldCharType?.Value == FieldCharValues.Begin)), "field", "fields");
+        Count(parts, elements.Count(element => element is SdtRun), "content control", "content controls");
+        Count(parts, Math.Max(0, elements.Count(element => element is Hyperlink) - replacement.Descendants<Hyperlink>().Count()), "link", "links");
+
+        if (parts.Count == 0)
+        {
+            return null;
+        }
+
+        return "Removed with the old text: " + string.Join(", ", parts) + (revisions is null ? "." : " (as a tracked deletion).");
+    }
+
+    private static void Count(List<string> parts, int count, string one, string many)
+    {
+        if (count > 0)
+        {
+            parts.Add(count.ToString(CultureInfo.InvariantCulture) + " " + (count == 1 ? one : many));
+        }
+    }
+
     private static IEnumerable<Run> RunsOf(OpenXmlElement element)
     {
         if (element is Run run)
@@ -339,7 +400,9 @@ internal static class WordTextEditor
 
     private static void ReplaceRange(TextMap map, int start, int length, string replacement, WordRevisions revisions)
     {
-        var runs = SplitRange(map, start, length);
+        // Only the text goes: a field, a picture, a tab or a comment or note reference between the edges of the
+        // phrase stays where it is, and the new text takes the place of the phrase's first run.
+        var runs = TextRunsOf(SplitRange(map, start, length));
 
         if (runs.Count == 0)
         {
@@ -347,7 +410,6 @@ internal static class WordTextEditor
         }
 
         var first = runs[0];
-        var last = runs[^1];
         Run inserted = null;
 
         if (!string.IsNullOrEmpty(replacement))
@@ -366,7 +428,7 @@ internal static class WordTextEditor
         {
             if (inserted is not null)
             {
-                last.InsertAfterSelf(inserted);
+                first.InsertAfterSelf(inserted);
             }
 
             foreach (var run in runs)
@@ -377,17 +439,114 @@ internal static class WordTextEditor
             return;
         }
 
-        DeletedRun lastDeletion = null;
+        DeletedRun firstDeletion = null;
 
         foreach (var run in runs)
         {
-            lastDeletion = revisions.Delete(run);
+            var deletion = revisions.Delete(run);
+
+            firstDeletion ??= deletion;
         }
 
         if (inserted is not null)
         {
-            lastDeletion.InsertAfterSelf(revisions.Insert(inserted));
+            firstDeletion.InsertAfterSelf(revisions.Insert(inserted));
         }
+    }
+
+    private static List<Run> TextRunsOf(List<Run> runs)
+    {
+        var text = new List<Run>();
+        var fieldDepth = 0;
+
+        foreach (var run in runs)
+        {
+            // A run that is part of a field — its code, its result or one of its markers — is kept whole.
+            var inField = fieldDepth > 0;
+
+            foreach (var child in run.ChildElements)
+            {
+                switch (child)
+                {
+                    case FieldChar character when character.FieldCharType?.Value == FieldCharValues.Begin:
+                        fieldDepth++;
+                        inField = true;
+
+                        break;
+
+                    case FieldChar character when character.FieldCharType?.Value == FieldCharValues.End:
+                        fieldDepth = Math.Max(0, fieldDepth - 1);
+                        inField = true;
+
+                        break;
+
+                    case FieldChar or FieldCode:
+                        inField = true;
+
+                        break;
+                }
+            }
+
+            if (!inField)
+            {
+                text.AddRange(SplitText(run));
+            }
+        }
+
+        return text;
+    }
+
+    private static List<Run> SplitText(Run run)
+    {
+        // A run that holds text and something else — a tab, a picture, a reference — is split so that the text
+        // can go without the rest.
+        var children = run.ChildElements.Where(child => child is not RunProperties).ToList();
+
+        if (!children.Any(child => child is Text))
+        {
+            return [];
+        }
+
+        if (children.All(child => child is Text))
+        {
+            return [run];
+        }
+
+        var pieces = new List<Run>();
+        OpenXmlElement anchor = run;
+        Run current = null;
+        var currentIsText = false;
+
+        foreach (var child in children)
+        {
+            var isText = child is Text;
+
+            if (current is null || isText != currentIsText)
+            {
+                current = new Run();
+
+                if (run.RunProperties is not null)
+                {
+                    current.Append(run.RunProperties.CloneNode(true));
+                }
+
+                anchor.InsertAfterSelf(current);
+                anchor = current;
+                currentIsText = isText;
+
+                if (isText)
+                {
+                    pieces.Add(current);
+                }
+            }
+
+            child.Remove();
+            current.Append(child);
+        }
+
+        run.Remove();
+
+        return pieces;
     }
 
     private static List<Run> SplitRange(TextMap map, int start, int length)
