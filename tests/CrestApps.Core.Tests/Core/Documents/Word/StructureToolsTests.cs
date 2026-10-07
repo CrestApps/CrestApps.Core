@@ -405,6 +405,41 @@ public sealed class StructureToolsTests
     }
 
     [Fact]
+    public async Task AddWordContent_ListWrittenAgainWithANewItem_AddsOnlyTheNewItemToTheList()
+    {
+        using var host = new WordToolTestHost();
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "doc",
+            content = new object[]
+            {
+                new { type = "bullet_list", items = new[] { "Resource delays.", "Data migration", "Regulation" } },
+                new { type = "paragraph", text = "Next steps." },
+            },
+        });
+
+        var answer = await host.InvokeAsync(new AddWordContentTool(), new
+        {
+            document = "doc",
+            content = new object[] { new { type = "bullet_list", items = new[] { "Resource delays", "Data migration.", "Regulation", "Vendor delays" } } },
+        });
+
+        Assert.Contains("only the new item(s) were added", answer, StringComparison.Ordinal);
+
+        var texts = (await ReadAsync(host)).Select(block => block.Text).ToList();
+
+        Assert.Equal(["Resource delays.", "Data migration", "Regulation", "Vendor delays", "Next steps."], texts);
+
+        var again = await host.InvokeAsync(new AddWordContentTool(), new
+        {
+            document = "doc",
+            content = new object[] { new { type = "bullet_list", items = new[] { "Resource delays", "Data migration", "Regulation", "Vendor delays" } } },
+        });
+
+        Assert.Contains("already the list", again, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AddWordContent_ListItemsWithTheirOwnMarkers_NestsThemAndDropsTheMarkers()
     {
         using var host = new WordToolTestHost();

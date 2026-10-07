@@ -86,6 +86,16 @@ internal sealed class AddWordContentTool : WordToolBase
                     throw new WordToolException("The content had no blocks to add.");
                 }
 
+                // A list written again with a new item at its end and no position — the three risks and a fourth —
+                // means the new item, added to the list that is already there.
+                if (after is null && before is null && at is null && ExtendExistingList(edit.Package, elements) is { } extended)
+                {
+                    after = extended.After;
+                    anchor = WordBlockLocator.Require(edit.Package, after);
+                    elements = extended.Added;
+                    builder.Warnings.Add($"The first {extended.Repeated} item(s) repeat the list that ends at [{after}], so only the new item(s) were added to it.");
+                }
+
                 WordBlockLocator.Insert(edit.Package, elements, after, before, at);
 
                 if (after is not null)
@@ -130,6 +140,44 @@ internal sealed class AddWordContentTool : WordToolBase
         }
 
         return answer.ToString().TrimEnd();
+    }
+
+    private static (string After, List<DocumentFormat.OpenXml.OpenXmlElement> Added, int Repeated)? ExtendExistingList(WordPackage package, List<DocumentFormat.OpenXml.OpenXmlElement> elements)
+    {
+        if (elements.Any(element => NumberingOf(element) is null))
+        {
+            return null;
+        }
+
+        var added = elements.Select(element => Normalize(WordText.Of(element))).ToList();
+        var run = new List<DocumentFormat.OpenXml.Wordprocessing.Paragraph>();
+
+        // Each run of consecutive list items in the body is one list; the first one the new items start with wins.
+        foreach (var element in package.Body.Elements().Append(null))
+        {
+            if (element is DocumentFormat.OpenXml.Wordprocessing.Paragraph paragraph && NumberingOf(paragraph) is not null)
+            {
+                run.Add(paragraph);
+
+                continue;
+            }
+
+            if (run.Count > 0 && run.Count <= added.Count && run.Select(item => Normalize(WordText.Of(item))).SequenceEqual(added.Take(run.Count)))
+            {
+                if (run.Count == added.Count)
+                {
+                    throw new WordToolException($"These items are already the list that ends at [{WordParagraphIds.Of(run[^1])}]; nothing was added.");
+                }
+
+                return (WordParagraphIds.Of(run[^1]), elements.Skip(run.Count).ToList(), run.Count);
+            }
+
+            run.Clear();
+        }
+
+        return null;
+
+        static string Normalize(string text) => string.Join(' ', (text ?? string.Empty).Split((char[])null, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.', ';').ToUpperInvariant();
     }
 
     // A list added right after an item of a list of the same kind — a fourth risk after the third — continues that
