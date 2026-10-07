@@ -108,6 +108,27 @@ internal static class WordDescriber
             builder.Append(": ").Append(block.Kind == WordBlockKind.Table ? "header " : string.Empty).Append('"').Append(WordText.Clip(block.Text, textLength)).Append('"');
         }
 
+        // The rows by number and first cell, so a row can be named either way without counting from the header.
+        if (block.Kind == WordBlockKind.Table && block.Element is DocumentFormat.OpenXml.Wordprocessing.Table table)
+        {
+            var rows = table.Elements<DocumentFormat.OpenXml.Wordprocessing.TableRow>().ToList();
+            var listed = rows
+                .Skip(1)
+                .Take(30)
+                .Select((row, index) => string.Create(CultureInfo.InvariantCulture, $"{index + 2} \"{WordText.Clip(row.Elements<DocumentFormat.OpenXml.Wordprocessing.TableCell>().FirstOrDefault() is { } cell ? WordText.Of(cell) : string.Empty, 30)}\""))
+                .ToList();
+
+            if (listed.Count > 0)
+            {
+                builder.Append("; rows ").Append(string.Join(", ", listed));
+
+                if (rows.Count > 31)
+                {
+                    builder.Append(CultureInfo.InvariantCulture, $", … {rows.Count - 31} more");
+                }
+            }
+        }
+
         foreach (var drawing in block.Drawings.Take(4))
         {
             builder.Append(" [").Append(WordDrawingReader.Describe(drawing)).Append(']');

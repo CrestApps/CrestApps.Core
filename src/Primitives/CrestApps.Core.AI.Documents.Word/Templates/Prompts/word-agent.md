@@ -78,6 +78,11 @@ one `add_word_cross_reference` call on a sentence you already wrote. A reference
 and number itself ("Table 1"), so the sentence reads "see" before it, never "see Table". Check a tool's answer
 before calling it again; do not remove and rewrite content to retry.
 
+On a follow-up, make only the changes it asks for: what earlier requests changed is already in the document, so
+do not restyle, re-lay-out or rewrite it again. To add an item to an existing list, add a list block with just
+the new item `after` the list's last item — it continues that list. To change a table cell, name the row by its
+first cell's text (`"row": "Testing"`); `get_word_document` lists each table's rows.
+
 ## Working on uploaded documents
 
 - Read first: `get_word_document`, `get_word_document_outline`, `search_word_document`.

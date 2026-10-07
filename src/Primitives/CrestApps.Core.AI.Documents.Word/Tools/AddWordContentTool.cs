@@ -88,6 +88,11 @@ internal sealed class AddWordContentTool : WordToolBase
 
                 WordBlockLocator.Insert(edit.Package, elements, after, before, at);
 
+                if (after is not null)
+                {
+                    ContinueList(edit.Package, anchor, elements);
+                }
+
                 if (builder.HasTableOfContents)
                 {
                     // A table of contents lists the headings around it, so it is filled in once they are placed.
@@ -125,5 +130,54 @@ internal sealed class AddWordContentTool : WordToolBase
         }
 
         return answer.ToString().TrimEnd();
+    }
+
+    // A list added right after an item of a list of the same kind — a fourth risk after the third — continues that
+    // list, so a numbered list keeps counting instead of starting again at 1.
+    private static void ContinueList(WordPackage package, DocumentFormat.OpenXml.OpenXmlElement anchor, List<DocumentFormat.OpenXml.OpenXmlElement> elements)
+    {
+        if (NumberingOf(anchor) is not { } previous ||
+            elements.FirstOrDefault() is not DocumentFormat.OpenXml.Wordprocessing.Paragraph first ||
+            NumberingOf(first) is not { } added ||
+            added.Level != previous.Level ||
+            IsBullet(package, previous.Id, previous.Level) != IsBullet(package, added.Id, added.Level))
+        {
+            return;
+        }
+
+        foreach (var paragraph in elements.OfType<DocumentFormat.OpenXml.Wordprocessing.Paragraph>())
+        {
+            if (paragraph.ParagraphProperties?.NumberingProperties?.NumberingId is not { } numbering)
+            {
+                break;
+            }
+
+            if (numbering.Val?.Value == added.Id)
+            {
+                numbering.Val = previous.Id;
+            }
+        }
+    }
+
+    private static (int Id, int Level)? NumberingOf(DocumentFormat.OpenXml.OpenXmlElement element)
+    {
+        var properties = (element as DocumentFormat.OpenXml.Wordprocessing.Paragraph)?.ParagraphProperties?.NumberingProperties;
+
+        return properties?.NumberingId?.Val?.Value is { } id && id > 0
+            ? (id, properties.NumberingLevelReference?.Val?.Value ?? 0)
+            : null;
+    }
+
+    private static bool IsBullet(WordPackage package, int numberId, int level)
+    {
+        var numbering = package.MainPart.NumberingDefinitionsPart?.Numbering;
+        var abstractId = numbering?.Elements<DocumentFormat.OpenXml.Wordprocessing.NumberingInstance>()
+            .FirstOrDefault(instance => instance.NumberID?.Value == numberId)?.AbstractNumId?.Val?.Value;
+        var definition = numbering?.Elements<DocumentFormat.OpenXml.Wordprocessing.AbstractNum>()
+            .FirstOrDefault(item => item.AbstractNumberId?.Value == abstractId);
+        var format = definition?.Elements<DocumentFormat.OpenXml.Wordprocessing.Level>()
+            .FirstOrDefault(item => item.LevelIndex?.Value == level)?.NumberingFormat?.Val;
+
+        return format is not null && format.Value == DocumentFormat.OpenXml.Wordprocessing.NumberFormatValues.Bullet;
     }
 }

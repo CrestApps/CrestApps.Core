@@ -371,6 +371,40 @@ public sealed class StructureToolsTests
     }
 
     [Fact]
+    public async Task GetWordDocumentAndAddWordContent_TableRowsAndListItem_ListsRowsAndContinuesTheList()
+    {
+        using var host = new WordToolTestHost();
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "doc",
+            content = new object[]
+            {
+                new { type = "table", columns = new[] { "Item", "Actual" }, rows = new object[] { new object[] { "Design", 1 }, new object[] { "Build", 2 }, new object[] { "Testing", 3 } } },
+                new { type = "numbered_list", items = new[] { "First", "Second", "Third" } },
+            },
+        });
+
+        var listing = await host.InvokeAsync(new GetWordDocumentTool(), new { document = "doc" });
+
+        Assert.Contains("rows 2 \"Design\", 3 \"Build\", 4 \"Testing\"", listing, StringComparison.Ordinal);
+
+        var third = (await ReadAsync(host)).Single(block => block.Text == "Third");
+
+        await host.InvokeAsync(new AddWordContentTool(), new { document = "doc", after = third.Id, content = new object[] { new { type = "numbered_list", items = new[] { "Fourth" } } } });
+
+        var bytes = await host.ReadWorkingDocumentAsync("doc");
+
+        using var document = WordprocessingDocument.Open(new MemoryStream(bytes), isEditable: false);
+        var ids = document.MainDocumentPart.Document.Body.Elements<Paragraph>()
+            .Where(paragraph => paragraph.ParagraphProperties?.NumberingProperties is not null)
+            .Select(paragraph => paragraph.ParagraphProperties.NumberingProperties.NumberingId.Val.Value)
+            .ToList();
+
+        Assert.Equal(4, ids.Count);
+        Assert.Single(ids.Distinct());
+    }
+
+    [Fact]
     public async Task AddWordContent_ListItemsWithTheirOwnMarkers_NestsThemAndDropsTheMarkers()
     {
         using var host = new WordToolTestHost();
