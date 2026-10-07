@@ -137,7 +137,15 @@ internal sealed class CreateWordDocumentTool : WordToolBase
             }
 
             WordBlockLocator.Insert(package, elements, after: null, before: null, at: "end");
-            Fields.WordCaptions.Renumber(package);
+
+            if (builder.HasTableOfContents)
+            {
+                Fields.WordDocumentRefresher.Refresh(package, context.Services);
+            }
+            else
+            {
+                Fields.WordCaptions.Renumber(package);
+            }
 
             var blocks = WordBlockReader.Read(package);
             var section0 = WordSections.All(package)[0];

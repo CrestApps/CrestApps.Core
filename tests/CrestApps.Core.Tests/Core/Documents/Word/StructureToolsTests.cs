@@ -606,7 +606,7 @@ public sealed class StructureToolsTests
             title = "Project Falcon",
             content = new object[]
             {
-                new { type = "title", text = "Project  Falcon" },
+                new { type = "heading", text = "Project  Falcon", level = 1 },
                 new { type = "page_break" },
                 new { type = "toc" },
                 new { type = "page_break" },
