@@ -10,6 +10,8 @@ namespace CrestApps.Core.AI.Documents.Word.Editing;
 /// </summary>
 internal sealed class WordRevisions
 {
+    private const string WordNamespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
     private int _nextId;
 
     private WordRevisions(int nextId, string author, DateTime date)
@@ -40,15 +42,140 @@ internal sealed class WordRevisions
     {
         ArgumentNullException.ThrowIfNull(package);
 
-        // New ids continue past every id the body uses — revisions, comments, bookmarks — so none can collide.
-        var largest = package.MainPart.Document.Descendants()
-            .Select(element => element.GetAttributes().FirstOrDefault(attribute => attribute.LocalName == "id" && attribute.NamespaceUri == "http://schemas.openxmlformats.org/wordprocessingml/2006/main"))
-            .Where(attribute => attribute.Value is not null)
-            .Select(attribute => int.TryParse(attribute.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0)
-            .DefaultIfEmpty(0)
-            .Max();
+        // New ids continue past every id the document uses — revisions, comments, bookmarks, in the body, the
+        // headers and footers, the notes and the comments — so none can collide.
+        var largest = LargestId(package, _ => true);
 
-        return new WordRevisions(largest + 1, author, date);
+        return new WordRevisions(Math.Max(0, largest) + 1, author, date);
+    }
+
+    /// <summary>
+    /// Returns the id a new comment takes: one past every comment and tracked change of the document, so a
+    /// comment never shares its id with a revision.
+    /// </summary>
+    /// <param name="package">The document.</param>
+    /// <returns>The id.</returns>
+    public static int NextCommentId(WordPackage package)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+
+        // Bookmarks and notes number themselves separately; only comments and revisions are kept apart.
+        return LargestId(package, element => element is not (BookmarkStart or BookmarkEnd or Footnote or Endnote or FootnoteReference or EndnoteReference)) + 1;
+    }
+
+    /// <summary>
+    /// Lists every tracked change of a document: in the body, the headers and footers, the footnotes, the
+    /// endnotes and the comments.
+    /// </summary>
+    /// <param name="package">The document.</param>
+    /// <returns>The changes, in document order, part by part.</returns>
+    public static List<WordTrackedChange> Changes(WordPackage package)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+
+        var changes = new List<WordTrackedChange>();
+
+        foreach (var (root, part) in Parts(package))
+        {
+            foreach (var element in root.Descendants())
+            {
+                if (IsChange(element))
+                {
+                    changes.Add(new WordTrackedChange(element, root, part));
+                }
+            }
+        }
+
+        return changes;
+    }
+
+    /// <summary>
+    /// Returns whether an element records a tracked change.
+    /// </summary>
+    /// <param name="element">The element.</param>
+    /// <returns><see langword="true"/> for an insertion, deletion, move or formatting change of text, a paragraph
+    /// mark, a table, a row, a cell or a section.</returns>
+    public static bool IsChange(OpenXmlElement element)
+    {
+        return element switch
+        {
+            InsertedRun or DeletedRun or MoveFromRun or MoveToRun => true,
+            RunPropertiesChange or ParagraphPropertiesChange or ParagraphMarkRunPropertiesChange => true,
+            TablePropertiesChange or TablePropertyExceptionsChange or TableGridChange or TableRowPropertiesChange or TableCellPropertiesChange => true,
+            CellInsertion or CellDeletion or CellMerge or SectionPropertiesChange => true,
+            Inserted or Deleted => element.Parent is ParagraphMarkRunProperties or TableRowProperties,
+            MoveFrom or MoveTo => element.Parent is ParagraphMarkRunProperties,
+            _ => !IsSupported(element),
+        };
+    }
+
+    /// <summary>
+    /// Returns whether a tracked change can be accepted or rejected here. Numbering changes, equation changes
+    /// and changes to custom XML markup cannot.
+    /// </summary>
+    /// <param name="element">The change.</param>
+    /// <returns><see langword="false"/> for a change only Word can apply or undo.</returns>
+    public static bool IsSupported(OpenXmlElement element)
+    {
+        return element is not (NumberingChange or InsertedMathControl or DeletedMathControl or MoveFromMathControl or MoveToMathControl or
+            CustomXmlInsRangeStart or CustomXmlDelRangeStart or CustomXmlMoveFromRangeStart or CustomXmlMoveToRangeStart);
+    }
+
+    private static IEnumerable<(OpenXmlElement Root, string Part)> Parts(WordPackage package)
+    {
+        var mainPart = package.MainPart;
+
+        yield return (package.Body, "body");
+
+        foreach (var header in mainPart.HeaderParts.Where(part => part.Header is not null))
+        {
+            yield return (header.Header, "header");
+        }
+
+        foreach (var footer in mainPart.FooterParts.Where(part => part.Footer is not null))
+        {
+            yield return (footer.Footer, "footer");
+        }
+
+        if (mainPart.FootnotesPart?.Footnotes is { } footnotes)
+        {
+            yield return (footnotes, "footnote");
+        }
+
+        if (mainPart.EndnotesPart?.Endnotes is { } endnotes)
+        {
+            yield return (endnotes, "endnote");
+        }
+
+        if (mainPart.WordprocessingCommentsPart?.Comments is { } comments)
+        {
+            yield return (comments, "comment");
+        }
+    }
+
+    private static int LargestId(WordPackage package, Func<OpenXmlElement, bool> include)
+    {
+        var largest = -1;
+
+        foreach (var (root, _) in Parts(package))
+        {
+            foreach (var element in root.Descendants())
+            {
+                if (!element.HasAttributes || !include(element))
+                {
+                    continue;
+                }
+
+                var attribute = element.GetAttributes().FirstOrDefault(item => item.LocalName == "id" && item.NamespaceUri == WordNamespace);
+
+                if (attribute.Value is not null && int.TryParse(attribute.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) && id > largest)
+                {
+                    largest = id;
+                }
+            }
+        }
+
+        return largest;
     }
 
     /// <summary>
@@ -159,3 +286,11 @@ internal sealed class WordRevisions
         properties.ParagraphMarkRunProperties.PrependChild(new Deleted { Id = NextId(), Author = Author, Date = Date });
     }
 }
+
+/// <summary>
+/// A tracked change and the part of the document it is in.
+/// </summary>
+/// <param name="Element">The element recording the change.</param>
+/// <param name="Root">The root of the part the change is in: the body, a header, a footer, the notes or the comments.</param>
+/// <param name="Part">The kind of part: <c>body</c>, <c>header</c>, <c>footer</c>, <c>footnote</c>, <c>endnote</c> or <c>comment</c>.</param>
+internal sealed record WordTrackedChange(OpenXmlElement Element, OpenXmlElement Root, string Part);

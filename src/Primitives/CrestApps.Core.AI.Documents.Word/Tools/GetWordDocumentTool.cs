@@ -113,9 +113,9 @@ internal sealed class GetWordDocumentTool : WordToolBase
             answer.Append("It has comments; see manage_word_comments. ");
         }
 
-        if (package.Body.Descendants<DocumentFormat.OpenXml.Wordprocessing.InsertedRun>().Any() || package.Body.Descendants<DocumentFormat.OpenXml.Wordprocessing.DeletedRun>().Any())
+        if (WordRevisions.Changes(package).Count is > 0 and var revisions)
         {
-            answer.Append("It has tracked changes; see manage_word_revisions.");
+            answer.Append(CultureInfo.InvariantCulture, $"It has {revisions} tracked change(s); see manage_word_revisions.");
         }
 
         answer.AppendLine().AppendLine();
