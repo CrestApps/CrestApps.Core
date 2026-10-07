@@ -15,6 +15,9 @@ namespace CrestApps.Core.AI.Documents.Word.Editing;
 /// </summary>
 internal static class WordImageWriter
 {
+    // The largest picture, border or offset Word accepts: 22 inches, in points.
+    private const double MaxSize = 1584;
+
     /// <summary>
     /// Builds a paragraph holding a picture.
     /// </summary>
@@ -117,7 +120,7 @@ internal static class WordImageWriter
         var current = WordDrawingReader.Read(drawing);
         var targetWidth = width ?? current?.Width ?? image.Info.WidthPoints;
         var targetHeight = height ?? (width is null && height is null ? targetWidth * image.Info.Height / Math.Max(1, image.Info.Width) : null);
-        var (fittedWidth, fittedHeight) = Fit(image.Info, targetWidth, targetHeight, double.MaxValue, double.MaxValue);
+        var (fittedWidth, fittedHeight) = Fit(image.Info, targetWidth, targetHeight, MaxSize, MaxSize);
 
         Resize(drawing, fittedWidth, fittedHeight);
     }
@@ -132,8 +135,8 @@ internal static class WordImageWriter
     {
         ArgumentNullException.ThrowIfNull(drawing);
 
-        var cx = WordUnits.ToEmus(width);
-        var cy = WordUnits.ToEmus(height);
+        var cx = WordUnits.ToEmus(Math.Clamp(width, 1, MaxSize));
+        var cy = WordUnits.ToEmus(Math.Clamp(height, 1, MaxSize));
 
         foreach (var extent in drawing.Descendants<DW.Extent>())
         {
@@ -197,6 +200,15 @@ internal static class WordImageWriter
         {
             resultWidth *= maxHeight / resultHeight;
             resultHeight = maxHeight;
+        }
+
+        // No side is longer than the largest page Word allows, whatever room was given.
+        if (resultWidth > MaxSize || resultHeight > MaxSize)
+        {
+            var scale = MaxSize / Math.Max(resultWidth, resultHeight);
+
+            resultWidth *= scale;
+            resultHeight *= scale;
         }
 
         return (Math.Max(1, resultWidth), Math.Max(1, resultHeight));
@@ -275,7 +287,7 @@ internal static class WordImageWriter
         {
             shapeProperties.Append(new A.Outline(new A.SolidFill(new A.RgbColorModelHex { Val = color }))
             {
-                Width = (int)WordUnits.ToEmus(options.BorderWidth is > 0 ? options.BorderWidth.Value : 1),
+                Width = (int)WordUnits.ToEmus(options.BorderWidth is > 0 ? Math.Clamp(options.BorderWidth.Value, 0.25, MaxSize) : 1),
             });
         }
 
@@ -297,7 +309,7 @@ internal static class WordImageWriter
         var behind = wrap is "behind" or "behind_text";
 
         DW.HorizontalPosition horizontal = options.OffsetX is not null
-            ? new DW.HorizontalPosition(new DW.PositionOffset(WordUnits.ToEmus(options.OffsetX.Value).ToString(System.Globalization.CultureInfo.InvariantCulture)))
+            ? new DW.HorizontalPosition(new DW.PositionOffset(WordUnits.ToEmus(Math.Clamp(options.OffsetX.Value, -MaxSize, MaxSize)).ToString(System.Globalization.CultureInfo.InvariantCulture)))
             {
                 RelativeFrom = DW.HorizontalRelativePositionValues.Margin,
             }
@@ -311,7 +323,7 @@ internal static class WordImageWriter
                 RelativeFrom = DW.HorizontalRelativePositionValues.Margin,
             };
 
-        var vertical = new DW.VerticalPosition(new DW.PositionOffset(WordUnits.ToEmus(options.OffsetY ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture)))
+        var vertical = new DW.VerticalPosition(new DW.PositionOffset(WordUnits.ToEmus(Math.Clamp(options.OffsetY ?? 0, -MaxSize, MaxSize)).ToString(System.Globalization.CultureInfo.InvariantCulture)))
         {
             RelativeFrom = DW.VerticalRelativePositionValues.Paragraph,
         };

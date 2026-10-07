@@ -26,6 +26,10 @@ internal sealed class WordContentBuilder
         "table", "image", "chart", "caption", "page_break", "rule",
     ];
 
+    private const double MinChartSize = 18;
+
+    private const double MaxChartHeight = 1584;
+
     private readonly WordEditContext _edit;
     private readonly WordToolContext _tools;
     private readonly WordBlockWriter _writer;
@@ -367,7 +371,9 @@ internal sealed class WordContentBuilder
     {
         var normalized = WordCaptions.NormalizeLabel(label);
         var count = Fields.WordFieldScanner.Scan(_edit.Package.Body)
-            .Count(field => field.Type == "SEQ" && string.Equals(Fields.WordFieldScanner.ArgumentOf(field.Instruction), normalized, StringComparison.OrdinalIgnoreCase));
+            .Count(field => field.Type == "SEQ" &&
+                string.Equals(Fields.WordFieldScanner.ArgumentOf(field.Instruction), normalized, StringComparison.OrdinalIgnoreCase) &&
+                !Fields.WordFieldScanner.HasSwitch(field.Instruction, 'c'));
 
         _bookmarks ??= WordBookmarks.For(_edit.Package);
 
@@ -471,8 +477,10 @@ internal sealed class WordContentBuilder
     {
         var spec = await ReadChartAsync(block, cancellationToken);
         var textWidth = WordUnits.FromTwips(_writer.TextWidthTwips);
-        var width = Math.Min(WordFormatReader.ReadLength(block, "width", textWidth) ?? textWidth, textWidth);
-        var height = WordFormatReader.ReadLength(block, "height", textWidth) ?? Math.Round(width * 0.6);
+        // A chart is at least a quarter inch each way, no wider than the text and no taller than the largest page
+        // Word allows (22 inches).
+        var width = Math.Clamp(WordFormatReader.ReadLength(block, "width", textWidth) ?? textWidth, MinChartSize, Math.Max(MinChartSize, textWidth));
+        var height = Math.Clamp(WordFormatReader.ReadLength(block, "height", textWidth) ?? Math.Round(width * 0.6), MinChartSize, MaxChartHeight);
         var paragraph = WordChartWriter.CreateParagraph(_edit.Package.MainPart, spec, NextDrawingId(), width, height, WordJsonValues.GetString(block, "alt_text"));
         var caption = WordJsonValues.GetString(block, "caption");
 

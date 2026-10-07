@@ -9,6 +9,9 @@ namespace CrestApps.Core.AI.Documents.Word.Editing;
 /// </summary>
 internal sealed class WordParagraphFormat
 {
+    // The longest spacing or indent Word accepts: 22 inches, in points.
+    private const double MaxLength = 1584;
+
     /// <summary>
     /// Gets or sets the alignment: <c>left</c>, <c>center</c>, <c>right</c> or <c>justify</c>.
     /// </summary>
@@ -135,17 +138,17 @@ internal sealed class WordParagraphFormat
 
             if (SpaceBefore is not null)
             {
-                spacing.Before = WordStyleSheet.Twips(Math.Max(0, SpaceBefore.Value));
+                spacing.Before = WordStyleSheet.Twips(Math.Clamp(SpaceBefore.Value, 0, MaxLength));
             }
 
             if (SpaceAfter is not null)
             {
-                spacing.After = WordStyleSheet.Twips(Math.Max(0, SpaceAfter.Value));
+                spacing.After = WordStyleSheet.Twips(Math.Clamp(SpaceAfter.Value, 0, MaxLength));
             }
 
             if (ExactLineHeight is > 0)
             {
-                spacing.Line = WordStyleSheet.Twips(ExactLineHeight.Value);
+                spacing.Line = WordStyleSheet.Twips(Math.Min(ExactLineHeight.Value, MaxLength));
                 spacing.LineRule = LineSpacingRuleValues.Exact;
             }
             else if (LineSpacing is > 0)
@@ -163,23 +166,23 @@ internal sealed class WordParagraphFormat
 
             if (IndentLeft is not null)
             {
-                indentation.Left = WordStyleSheet.Twips(IndentLeft.Value);
+                indentation.Left = WordStyleSheet.Twips(Math.Clamp(IndentLeft.Value, -MaxLength, MaxLength));
             }
 
             if (IndentRight is not null)
             {
-                indentation.Right = WordStyleSheet.Twips(IndentRight.Value);
+                indentation.Right = WordStyleSheet.Twips(Math.Clamp(IndentRight.Value, -MaxLength, MaxLength));
             }
 
             if (FirstLineIndent is not null)
             {
-                indentation.FirstLine = WordStyleSheet.Twips(Math.Max(0, FirstLineIndent.Value));
+                indentation.FirstLine = WordStyleSheet.Twips(Math.Clamp(FirstLineIndent.Value, 0, MaxLength));
                 indentation.Hanging = null;
             }
 
             if (HangingIndent is not null)
             {
-                indentation.Hanging = WordStyleSheet.Twips(Math.Max(0, HangingIndent.Value));
+                indentation.Hanging = WordStyleSheet.Twips(Math.Clamp(HangingIndent.Value, 0, MaxLength));
                 indentation.FirstLine = null;
             }
 

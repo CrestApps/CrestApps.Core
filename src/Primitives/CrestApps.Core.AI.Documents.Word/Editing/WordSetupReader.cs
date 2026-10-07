@@ -131,7 +131,7 @@ internal static class WordSetupReader
         if (columns is not null)
         {
             var count = Math.Clamp(columns.Value, 1, 6);
-            var spacing = WordFormatReader.ReadLength(setup, "column_spacing") ?? 36;
+            var spacing = Math.Clamp(WordFormatReader.ReadLength(setup, "column_spacing") ?? 36, 0, 288);
 
             WordSchemaOrder.Set(section, new Columns
             {
