@@ -35,6 +35,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The Word writer and the Word agent present table values with the formatter the tabular preview draws with,
+         so a number reads the same in a Word document as in the workbook. The agent also reuses the figure markers
+         the previews are shown with, and the tabular workspace its tables and charts can be filled from. -->
+    <InternalsVisibleTo Include="CrestApps.Core.AI.Documents.OpenXml" />
+    <InternalsVisibleTo Include="CrestApps.Core.AI.Documents.Word" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../../Abstractions/CrestApps.Core.Abstractions/CrestApps.Core.Abstractions.csproj" />
     <ProjectReference Include="../CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
     <ProjectReference Include="../CrestApps.Core.AI.Chat/CrestApps.Core.AI.Chat.csproj" />

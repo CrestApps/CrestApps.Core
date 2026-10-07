@@ -31,6 +31,7 @@
     <Project Path="src/Primitives/CrestApps.Core.AI.Copilot/CrestApps.Core.AI.Copilot.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Documents.OpenXml/CrestApps.Core.AI.Documents.OpenXml.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Documents.Pdf/CrestApps.Core.AI.Documents.Pdf.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.AI.Documents.Word/CrestApps.Core.AI.Documents.Word.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.Elasticsearch/CrestApps.Core.AI.Elasticsearch.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.AI.FileSources/CrestApps.Core.AI.FileSources.csproj" />

@@ -169,6 +169,12 @@ hidden PowerPoint tools work on a per-conversation workspace of decks, and a ste
 primary model to delegate uploaded `.pptx` and `.potx` files to it. Set `PresentationAgentOptions.Enabled =
 false` to leave it out.
 
+So does the built-in **Word Agent** (`word-agent`, registered by `AddWord()`): its 32 hidden Word tools —
+writing, tables, design, comments, tracked changes and protection, reading, preview and export — work on a
+per-conversation workspace of documents, and a steering handler tells the primary model to delegate uploaded
+`.docx` files to it. Set `WordAgentOptions.Enabled = false` to leave it out; the steering handler then stays
+silent too. See [AI Documents](./ai-documents.md#word-documents-and-the-word-agent).
+
 ## Creating Agent Profiles
 
 Agent profiles are standard `AIProfile` objects with `Type = AIProfileType.Agent`. They require a `Name` and `Description` at minimum — the description is what the primary model sees when deciding whether to invoke the agent.
