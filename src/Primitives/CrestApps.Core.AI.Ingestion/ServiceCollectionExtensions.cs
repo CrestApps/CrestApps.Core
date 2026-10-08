@@ -35,6 +35,12 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // A run hands everything it reads to knowledge ingestion, so the runtime brings it rather than
+        // trusting the caller to. File sources ask for it with readers of their own first; a host with web
+        // crawlers alone gets it here, without readers. Every registration is a TryAdd, so neither order
+        // changes what a host that has both ends up with.
+        services.AddCoreAIDocumentIngestion();
+
         services.AddOptions<FileSourceOptions>();
         services.AddOptions<IngestionConnectorOptions>();
 

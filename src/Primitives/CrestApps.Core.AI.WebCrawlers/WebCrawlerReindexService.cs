@@ -121,6 +121,10 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
 
             if (ingested && _ingestionRunService is null)
             {
+                _logger.LogWarning(
+                    "Skipped web crawler '{CrawlerId}': it feeds an ingested data source, but this host has no ingestion run service. Register document ingestion to read it.",
+                    crawler.ItemId);
+
                 continue;
             }
 

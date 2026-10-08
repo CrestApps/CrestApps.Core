@@ -309,10 +309,37 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers EntityCore-backed stores for the web-crawlers feature.
-    /// This includes <see cref="IWebCrawlerStore"/> and <see cref="IWebCrawlStateStore"/>.
+    /// Registers the EntityCore-backed per-item state an ingestion run keeps.
+    /// This includes <see cref="IIngestionItemStateStore"/>.
     /// </summary>
     /// <param name="services">The service collection.</param>
+    /// <remarks>
+    /// The ingestion run service records what it read from a source here, whichever feature owns the source,
+    /// so both the web crawlers and the file sources call it. It is safe to call twice, which is why the
+    /// catalog registrations go through <c>TryAdd</c>.
+    /// </remarks>
+    public static IServiceCollection AddCoreIngestionItemStateStoreEntityCore(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.Replace(ServiceDescriptor.Scoped<IIngestionItemStateStore, EntityCoreIngestionItemStateStore>());
+        services.TryAddScoped<ICatalog<IngestionItemState>>(sp => sp.GetRequiredService<IIngestionItemStateStore>());
+        services.TryAddScoped<ISourceCatalog<IngestionItemState>>(sp => sp.GetRequiredService<IIngestionItemStateStore>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the web-crawlers feature.
+    /// This includes <see cref="IWebCrawlerStore"/>, <see cref="IWebCrawlStateStore"/> and
+    /// <see cref="IIngestionItemStateStore"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <remarks>
+    /// A crawler that feeds an ingested data source is read by the shared ingestion run service, which keeps
+    /// its progress as per-item state. That store is registered here as well as by the file sources, so a
+    /// host with web crawlers alone can build the run service.
+    /// </remarks>
     public static IServiceCollection AddCoreWebCrawlerStoresEntityCore(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -325,6 +352,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICatalog<WebCrawlState>>(sp => sp.GetRequiredService<IWebCrawlStateStore>());
         services.AddScoped<ISourceCatalog<WebCrawlState>>(sp => sp.GetRequiredService<IWebCrawlStateStore>());
 
+        services.AddCoreIngestionItemStateStoreEntityCore();
         services.AddCoreKnowledgeStoresEntityCore();
 
         return services;
@@ -348,10 +376,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICatalog<FileSource>>(sp => sp.GetRequiredService<IFileSourceStore>());
         services.AddScoped<ISourceCatalog<FileSource>>(sp => sp.GetRequiredService<IFileSourceStore>());
 
-        services.Replace(ServiceDescriptor.Scoped<IIngestionItemStateStore, EntityCoreIngestionItemStateStore>());
-        services.AddScoped<ICatalog<IngestionItemState>>(sp => sp.GetRequiredService<IIngestionItemStateStore>());
-        services.AddScoped<ISourceCatalog<IngestionItemState>>(sp => sp.GetRequiredService<IIngestionItemStateStore>());
-
+        services.AddCoreIngestionItemStateStoreEntityCore();
         services.AddCoreKnowledgeStoresEntityCore();
 
         return services;
