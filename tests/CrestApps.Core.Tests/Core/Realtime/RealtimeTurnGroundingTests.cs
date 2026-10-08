@@ -93,6 +93,7 @@ public sealed class RealtimeTurnGroundingTests
             Model = "gpt-realtime",
             SpeechLanguage = "es",
             ReplyLanguage = "en-US",
+            InputTranscriptionModel = "speech-model",
         });
 
         Assert.StartsWith("Always speak and respond in Spanish.", options.Instructions);

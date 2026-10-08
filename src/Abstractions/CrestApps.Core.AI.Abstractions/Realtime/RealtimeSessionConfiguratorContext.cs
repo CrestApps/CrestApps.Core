@@ -50,10 +50,12 @@ public sealed class RealtimeSessionConfiguratorContext
     public int OutputSampleRate { get; init; } = 24000;
 
     /// <summary>
-    /// Gets the transcription model used to transcribe the user's input audio so their words appear in
-    /// the transcript. Defaults to <c>whisper-1</c>. Set to <see langword="null"/> to disable input transcription.
+    /// Gets the speech-to-text model that transcribes the user's input audio so their words appear in the
+    /// transcript, or <see langword="null"/> (the default) to leave the user untranscribed. The orchestrator fills
+    /// it from the request or from the speech-to-text deployment; no model is assumed here, because a model name
+    /// belongs to one provider and means nothing to another.
     /// </summary>
-    public string InputTranscriptionModel { get; init; } = "whisper-1";
+    public string InputTranscriptionModel { get; init; }
 
     /// <summary>
     /// Gets an optional BCP-47 language hint for input transcription (e.g. "en"). When set it also pins the

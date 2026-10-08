@@ -43,6 +43,7 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
 
         var tools = context.Tools ?? [];
         var hasTools = tools.Count > 0;
+        var transcriptionModel = context.InputTranscriptionModel;
 
         return new RealtimeSessionOptions
         {
@@ -68,12 +69,13 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
                 AllowInterruption = context.AllowInterruption,
             },
 
-            // Transcribe the user's input audio so their words also appear in the transcript.
-            TranscriptionOptions = string.IsNullOrWhiteSpace(context.InputTranscriptionModel)
+            // Transcribe the user's input audio so their words also appear in the transcript, with the model the
+            // orchestrator resolved for this session. None means the user is not transcribed.
+            TranscriptionOptions = string.IsNullOrWhiteSpace(transcriptionModel)
                 ? null
                 : new TranscriptionOptions
                 {
-                    ModelId = context.InputTranscriptionModel,
+                    ModelId = transcriptionModel.Trim(),
                     SpeechLanguage = context.SpeechLanguage,
                 },
 

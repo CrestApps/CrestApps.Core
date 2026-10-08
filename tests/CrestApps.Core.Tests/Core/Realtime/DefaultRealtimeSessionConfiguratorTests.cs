@@ -18,6 +18,7 @@ public sealed class DefaultRealtimeSessionConfiguratorTests
             Voice = "cedar",
             MaxOutputTokens = 512,
             SpeechLanguage = "en",
+            InputTranscriptionModel = "speech-model",
         });
 
         Assert.Equal("gpt-realtime", options.Model);
@@ -35,7 +36,7 @@ public sealed class DefaultRealtimeSessionConfiguratorTests
         Assert.Equal(24000, options.OutputAudioFormat?.SampleRate);
         Assert.True(options.VoiceActivityDetection?.Enabled);
         Assert.True(options.VoiceActivityDetection?.AllowInterruption);
-        Assert.Equal("whisper-1", options.TranscriptionOptions?.ModelId);
+        Assert.Equal("speech-model", options.TranscriptionOptions?.ModelId);
         Assert.Equal("en", options.TranscriptionOptions?.SpeechLanguage);
     }
 
@@ -123,12 +124,21 @@ public sealed class DefaultRealtimeSessionConfiguratorTests
     }
 
     [Fact]
-    public void Configure_WithoutTranscriptionModel_LeavesTranscriptionNull()
+    public void Configure_WithAnEmptyTranscriptionModel_LeavesTranscriptionNull()
     {
         var options = new DefaultRealtimeSessionConfigurator().Configure(new RealtimeSessionConfiguratorContext
         {
-            InputTranscriptionModel = null,
+            InputTranscriptionModel = string.Empty,
         });
+
+        Assert.Null(options.TranscriptionOptions);
+    }
+
+    [Fact]
+    public void Configure_WithoutATranscriptionModel_LeavesTheUserUntranscribed()
+    {
+        // No model is assumed: a model name belongs to one provider, so the orchestrator names one or none.
+        var options = new DefaultRealtimeSessionConfigurator().Configure(new RealtimeSessionConfiguratorContext());
 
         Assert.Null(options.TranscriptionOptions);
     }
