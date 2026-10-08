@@ -64,28 +64,6 @@ public sealed class RealtimeTransportOptions
     public string TurnDetectionEagerness { get; set; } = "auto";
 
     /// <summary>
-    /// Gets or sets the speech-to-text model that transcribes what the user says in a realtime session, so their
-    /// words appear in the transcript. Defaults to <see cref="DefaultInputTranscriptionModel"/>. An empty value turns
-    /// input transcription off.
-    /// </summary>
-    /// <remarks>
-    /// A speech-to-speech model hears the user's audio directly and never writes it down: the user's side of the
-    /// transcript comes from a separate transcription model the provider runs on each committed turn. The model's
-    /// replies do not depend on it, but everything that reads the conversation afterwards does -- stored history,
-    /// per-turn knowledge retrieval, summaries and post-call analysis. <c>whisper-1</c>, the previous default, is
-    /// the weakest choice on telephone audio and invents stock phrases ("Bye-bye.", "you") from short sounds and
-    /// noise; <c>gpt-4o-transcribe</c> is far more accurate for about the same price, and <c>gpt-4o-mini-transcribe</c>
-    /// is the cheaper middle ground. A session can still name its own model (see
-    /// <see cref="RealtimeSessionConfiguratorContext.InputTranscriptionModel"/>).
-    /// </remarks>
-    public string InputTranscriptionModel { get; set; } = DefaultInputTranscriptionModel;
-
-    /// <summary>
-    /// The speech-to-text model used for realtime input transcription when nothing else is configured.
-    /// </summary>
-    public const string DefaultInputTranscriptionModel = "gpt-4o-transcribe";
-
-    /// <summary>
     /// Gets or sets a value indicating whether a realtime session with a knowledge base attached retrieves for
     /// every turn before it answers. Defaults to <see langword="true"/>.
     /// </summary>

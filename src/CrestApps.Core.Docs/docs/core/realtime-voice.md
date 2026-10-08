@@ -264,23 +264,19 @@ transcript comes from the model as it speaks; the user's side comes from a separ
 provider runs on each committed turn. The model's replies do not depend on it, but everything that reads the
 conversation afterwards does: stored history, per-turn knowledge grounding, summaries and any post-call analysis.
 
-The transcription model defaults to `gpt-4o-transcribe` and is set with
-`CrestApps:AI:RealtimeTransport:InputTranscriptionModel`. `gpt-4o-mini-transcribe` is cheaper; `whisper-1`, the
-previous default, is the weakest on telephone audio and invents stock phrases ("Bye-bye.", "you") from short sounds
-and noise. An empty value turns input transcription off — and with it per-turn grounding, which is driven by the
-transcript. A host can also choose the model per session with `RealtimeOrchestrationRequest.InputTranscriptionModel`.
+No model name is built in, because a model name belongs to one provider. The orchestrator chooses, in order:
 
-```json
-{
-  "CrestApps": {
-    "AI": {
-      "RealtimeTransport": {
-        "InputTranscriptionModel": "gpt-4o-mini-transcribe"
-      }
-    }
-  }
-}
-```
+1. The model the request names in `RealtimeOrchestrationRequest.InputTranscriptionModel`. An empty string turns
+   input transcription off for that session.
+2. For a [cascaded deployment](#providers-without-a-speech-to-speech-model), its own speech-to-text leg.
+3. The model of the deployment in the **Speech to text** slot, when that deployment is on the same provider as the
+   realtime deployment. A deployment from another provider is not used: its model name means nothing to this
+   provider's session.
+
+With none of these the user is not transcribed and a warning names the deployment. The conversation still works,
+but per-turn knowledge grounding, which is driven by the transcript, falls back to the search tool. For OpenAI,
+`gpt-4o-transcribe` is the accurate choice on telephone audio, `gpt-4o-mini-transcribe` the cheaper one; `whisper-1`
+is the weakest and invents stock phrases ("Bye-bye.", "you") from short sounds and noise.
 
 ## Voice profiles: choosing tools
 
@@ -687,7 +683,6 @@ no I/O should return a completed `ValueTask`, which allocates nothing.
 | `EnableWebRtc` | Whether WebRTC is offered to browsers. Defaults to `true`. Turn it off on hosts with no inbound UDP and no reachable TURN relay — otherwise every session waits out the connect timeout before falling back. |
 | `TurnDetectionType` | `semantic_vad` (default) lets the model decide when the user has finished; `server_vad` ends the turn after a fixed silence. A deployment that rejects semantic detection is switched to server VAD automatically. |
 | `TurnDetectionEagerness` | For `semantic_vad`: `low`, `medium`, `high` or `auto` (default). Lower waits longer for the user to continue. |
-| `InputTranscriptionModel` | The speech-to-text model that transcribes the user. Defaults to `gpt-4o-transcribe`; empty turns input transcription off. See [Transcribing the user](#transcribing-the-user). |
 | `IdleTimeoutSeconds` | How long a session may go with neither side speaking before it ends. Defaults to `30`; `0` disables it. |
 | `MaxSessionDurationSeconds` | The longest a single session may run, however busy. Defaults to `300`; `0` disables it. |
 | `StunUrls` | STUN server URLs. Defaults to a public server when empty. |

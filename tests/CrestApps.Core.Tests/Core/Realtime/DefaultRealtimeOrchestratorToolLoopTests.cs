@@ -74,24 +74,60 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         Assert.Contains("TOOL_RESULT", result!.Result?.ToString());
     }
 
+    [Theory]
+    [InlineData("test", "speech-model", "speech-model")]
+    [InlineData("other-provider", "speech-model", null)]
+    public async Task StartAsync_TranscribesTheUserWithTheSpeechToTextDeployment_OnlyFromTheSameProvider(
+        string speechToTextProvider,
+        string speechToTextModel,
+        string? expected)
+    {
+        // No model name is assumed: the user is transcribed with the deployment the site chose for speech to text.
+        // One from another provider is not used, because its model name means nothing to this provider's session.
+        var transcription = await StartAndReadTranscriptionAsync(
+            new AIDeployment { Name = "stt", ModelName = speechToTextModel, ClientName = speechToTextProvider },
+            requestedModel: null);
+
+        Assert.Equal(expected, transcription?.ModelId);
+    }
+
+    [Fact]
+    public async Task StartAsync_WithNoSpeechToTextDeployment_LeavesTheUserUntranscribed()
+        => Assert.Null(await StartAndReadTranscriptionAsync(speechToText: null, requestedModel: null));
+
     [Fact]
     public async Task StartAsync_TranscribesTheUserWithTheModelTheRequestNames()
     {
         // A host that knows what its sessions carry -- phone audio, say -- picks the speech-to-text model per session.
+        var transcription = await StartAndReadTranscriptionAsync(
+            new AIDeployment { Name = "stt", ModelName = "speech-model", ClientName = "test" },
+            requestedModel: "phone-speech-model");
+
+        Assert.Equal("phone-speech-model", transcription?.ModelId);
+    }
+
+    [Fact]
+    public async Task StartAsync_WithAnEmptyRequestedModel_LeavesTheUserUntranscribed()
+        => Assert.Null(await StartAndReadTranscriptionAsync(
+            new AIDeployment { Name = "stt", ModelName = "speech-model", ClientName = "test" },
+            requestedModel: string.Empty));
+
+    private static async Task<TranscriptionOptions?> StartAndReadTranscriptionAsync(AIDeployment? speechToText, string? requestedModel)
+    {
         var profile = new AIProfile { Type = AIProfileType.Chat };
         var fakeSession = new FakeRealtimeSession([]);
         var fakeClient = new FakeRealtimeClient(fakeSession);
 
         using var requestServices = new ServiceCollection().BuildServiceProvider();
-        var orchestrator = CreateOrchestrator(profile, new EchoTool(), fakeClient, requestServices);
+        var orchestrator = CreateOrchestrator(profile, new EchoTool(), fakeClient, requestServices, speechToText: speechToText);
 
         using var scope = AIInvocationScope.Begin();
 
         await using var conversation = await orchestrator.StartAsync(
-            new RealtimeOrchestrationRequest { Resource = profile, InputTranscriptionModel = "gpt-4o-mini-transcribe" },
+            new RealtimeOrchestrationRequest { Resource = profile, InputTranscriptionModel = requestedModel },
             TestContext.Current.CancellationToken);
 
-        Assert.Equal("gpt-4o-mini-transcribe", fakeSession.Options?.TranscriptionOptions?.ModelId);
+        return fakeSession.Options?.TranscriptionOptions;
     }
 
     [Fact]
@@ -119,8 +155,15 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         var session = new FakeRealtimeSession([]);
         var grounding = new FakeRealtimeTurnGrounding(available: true);
 
+        // Grounding is driven by the user's transcript, so the site has a speech-to-text deployment on this provider.
         using var requestServices = new ServiceCollection().BuildServiceProvider();
-        var orchestrator = CreateOrchestrator(profile, new EchoTool(), new FakeRealtimeClient(session), requestServices, grounding);
+        var orchestrator = CreateOrchestrator(
+            profile,
+            new EchoTool(),
+            new FakeRealtimeClient(session),
+            requestServices,
+            grounding,
+            speechToText: new AIDeployment { Name = "stt", ModelName = "speech-model", ClientName = "test" });
 
         using var scope = AIInvocationScope.Begin();
 
@@ -239,7 +282,8 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         IRealtimeClient client,
         IServiceProvider requestServices,
         IRealtimeTurnGrounding? grounding = null,
-        IReadOnlyList<ToolRegistryEntry>? registryEntries = null)
+        IReadOnlyList<ToolRegistryEntry>? registryEntries = null,
+        AIDeployment? speechToText = null)
     {
         var context = new OrchestrationContext
         {
@@ -265,6 +309,14 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
                 It.IsAny<IReadOnlyDictionary<string, string>?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AIDeployment { Name = "rt", ModelName = "gpt-realtime", ClientName = "test" });
+        deploymentManager
+            .Setup(m => m.ResolveSlotAsync(
+                AIDeploymentSlotNames.SpeechToText,
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<IReadOnlyDictionary<string, string>?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(speechToText!);
 
         var clientFactory = new Mock<IAIClientFactory>();
         clientFactory

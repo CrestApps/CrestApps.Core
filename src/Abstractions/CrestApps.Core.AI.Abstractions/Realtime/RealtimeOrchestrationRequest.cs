@@ -44,9 +44,9 @@ public sealed class RealtimeOrchestrationRequest
     public string ReplyLanguage { get; init; }
 
     /// <summary>
-    /// Gets the speech-to-text model that transcribes the user for this session, or <see langword="null"/> for the
-    /// host's <see cref="RealtimeTransportOptions.InputTranscriptionModel"/>. An empty string disables input
-    /// transcription for this session.
+    /// Gets the speech-to-text model that transcribes the user for this session. <see langword="null"/> (the default)
+    /// uses the model of the deployment in the speech-to-text slot when it is on the realtime deployment's provider;
+    /// an empty string turns input transcription off for this session.
     /// </summary>
     public string InputTranscriptionModel { get; init; }
 

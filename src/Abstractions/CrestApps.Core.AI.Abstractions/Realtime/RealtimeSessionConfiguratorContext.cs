@@ -50,9 +50,10 @@ public sealed class RealtimeSessionConfiguratorContext
     public int OutputSampleRate { get; init; } = 24000;
 
     /// <summary>
-    /// Gets the transcription model used to transcribe the user's input audio so their words appear in the
-    /// transcript. <see langword="null"/> (the default) uses <see cref="RealtimeTransportOptions.InputTranscriptionModel"/>;
-    /// an empty string disables input transcription for this session.
+    /// Gets the speech-to-text model that transcribes the user's input audio so their words appear in the
+    /// transcript, or <see langword="null"/> (the default) to leave the user untranscribed. The orchestrator fills
+    /// it from the request or from the speech-to-text deployment; no model is assumed here, because a model name
+    /// belongs to one provider and means nothing to another.
     /// </summary>
     public string InputTranscriptionModel { get; init; }
 

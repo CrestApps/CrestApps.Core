@@ -43,7 +43,7 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
 
         var tools = context.Tools ?? [];
         var hasTools = tools.Count > 0;
-        var transcriptionModel = context.InputTranscriptionModel ?? _transportOptions.InputTranscriptionModel;
+        var transcriptionModel = context.InputTranscriptionModel;
 
         return new RealtimeSessionOptions
         {
@@ -69,8 +69,8 @@ public sealed class DefaultRealtimeSessionConfigurator : IRealtimeSessionConfigu
                 AllowInterruption = context.AllowInterruption,
             },
 
-            // Transcribe the user's input audio so their words also appear in the transcript. The session's own
-            // model wins; otherwise the host's, and an empty value at either level turns transcription off.
+            // Transcribe the user's input audio so their words also appear in the transcript, with the model the
+            // orchestrator resolved for this session. None means the user is not transcribed.
             TranscriptionOptions = string.IsNullOrWhiteSpace(transcriptionModel)
                 ? null
                 : new TranscriptionOptions
