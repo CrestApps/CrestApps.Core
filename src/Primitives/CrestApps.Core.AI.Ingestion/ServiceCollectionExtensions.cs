@@ -35,21 +35,19 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // A run hands everything it reads to knowledge ingestion, so the runtime brings it rather than
+        // trusting the caller to. File sources ask for it with readers of their own first; a host with web
+        // crawlers alone gets it here, without readers. Every registration is a TryAdd, so neither order
+        // changes what a host that has both ends up with.
+        services.AddCoreAIDocumentIngestion();
+
         services.AddOptions<FileSourceOptions>();
         services.AddOptions<IngestionConnectorOptions>();
 
         // Connectors are scoped, so the resolver has to be too: a singleton holding the root provider cannot
         // resolve a keyed scoped service and throws the first time a source runs.
         services.TryAddScoped<IIngestionConnectorResolver, KeyedIngestionConnectorResolver>();
-
-        // A run hands what it read to knowledge ingestion, which comes with AddCoreAIDocumentIngestion. File
-        // sources always register it; a host with web crawlers alone may not, and still has to be able to build
-        // the re-index service that takes this one. Without it there is no run service: the re-index service
-        // then leaves crawlers that feed an ingested data source alone and says so.
-        services.TryAddScoped<IIngestionRunService>(sp =>
-            sp.GetRequiredService<IServiceProviderIsService>().IsService(typeof(IKnowledgeIngestionService))
-                ? ActivatorUtilities.CreateInstance<DefaultIngestionRunService>(sp)
-                : null);
+        services.TryAddScoped<IIngestionRunService, DefaultIngestionRunService>();
 
         // Replaces the default that answers nothing, so a figure produced by a source is transcribed by the
         // model that source was configured with, whichever feature owns the record.

@@ -1,13 +1,19 @@
+using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.DataSources;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Ingestion.Knowledge;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.WebCrawlers;
 using CrestApps.Core.Data.EntityCore;
 using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Services;
+using CrestApps.Core.Templates.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Moq;
 
 namespace CrestApps.Core.Tests.Core.WebCrawlers;
@@ -16,11 +22,11 @@ namespace CrestApps.Core.Tests.Core.WebCrawlers;
 /// Covers a host that registers the web crawlers feature without the file sources feature.
 /// </summary>
 /// <remarks>
-/// The web crawlers feature registers the shared ingestion run service so a crawler that feeds an ingested
-/// data source can be read. That service once needed a per-item state store only the file sources stores
-/// registered, and knowledge ingestion only document ingestion registers. On a host without them the
-/// container could not build the re-index service at all, so the scheduled re-index failed on every run
-/// before reading a single crawler.
+/// The web crawlers feature registers the shared ingestion run service so a crawler that feeds a File data
+/// source can be read. That service once needed a per-item state store only the file sources stores
+/// registered, and knowledge ingestion only the file sources and document processing registered. On a host
+/// without them the container could not build the re-index service at all, so the scheduled re-index failed
+/// on every run before reading a single crawler.
 /// </remarks>
 public sealed class WebCrawlerWithoutFileSourcesTests
 {
@@ -67,34 +73,23 @@ public sealed class WebCrawlerWithoutFileSourcesTests
     }
 
     /// <summary>
-    /// Verifies that the re-index service can be built without document ingestion, and that no run service
-    /// is offered then.
+    /// Verifies that the ingestion runtime brings the knowledge ingestion its run service hands items to.
     /// </summary>
     [Fact]
-    public void WithoutDocumentIngestion_TheReindexServiceResolvesWithoutARunService()
+    public void IngestionRuntime_RegistersKnowledgeIngestion()
     {
-        using var provider = BuildWebCrawlersHost(withDocumentIngestion: false);
-        using var scope = provider.CreateScope();
+        var services = new ServiceCollection();
 
-        Assert.NotNull(scope.ServiceProvider.GetService<IWebCrawlerReindexService>());
-        Assert.Null(scope.ServiceProvider.GetService<IIngestionRunService>());
+        services.AddCoreAIIngestionRuntime();
+
+        Assert.Contains(services, service => service.ServiceType == typeof(IKnowledgeIngestionService));
     }
 
     /// <summary>
-    /// Verifies that a host with document ingestion but no file sources gets the real run service, so its
-    /// crawlers that feed an ingested data source are read.
+    /// Verifies that a host with web crawlers alone builds the re-index service and the real run service.
     /// </summary>
     [Fact]
-    public void WithDocumentIngestion_TheRunServiceIsBuiltWithoutFileSources()
-    {
-        using var provider = BuildWebCrawlersHost(withDocumentIngestion: true);
-        using var scope = provider.CreateScope();
-
-        Assert.IsType<DefaultIngestionRunService>(scope.ServiceProvider.GetService<IIngestionRunService>());
-        Assert.NotNull(scope.ServiceProvider.GetService<IWebCrawlerReindexService>());
-    }
-
-    private static ServiceProvider BuildWebCrawlersHost(bool withDocumentIngestion)
+    public void WebCrawlersAlone_BuildTheReindexServiceAndTheRunService()
     {
         var services = new ServiceCollection();
 
@@ -102,18 +97,27 @@ public sealed class WebCrawlerWithoutFileSourcesTests
         services.AddCoreWebCrawlers();
         services.AddCoreWebCrawlerStoresEntityCore();
 
-        // The stores need a database a bare container has not got; which services are offered is the question.
+        // The stores need a database a bare container has not got; which services can be built is the question.
         services.Replace(ServiceDescriptor.Scoped(_ => Mock.Of<IWebCrawlerStore>()));
         services.Replace(ServiceDescriptor.Scoped(_ => Mock.Of<IWebCrawlStateStore>()));
         services.Replace(ServiceDescriptor.Scoped(_ => Mock.Of<IIngestionItemStateStore>()));
-        services.Replace(ServiceDescriptor.Scoped(_ => Mock.Of<IWebCrawlerReindexPlanner>()));
+        services.Replace(ServiceDescriptor.Scoped(_ => Mock.Of<IKnowledgeObjectStore>()));
         services.AddScoped(_ => Mock.Of<IAIDataSourceStore>());
+        services.AddScoped(_ => Mock.Of<IAIDataSourceIndexingQueue>());
 
-        if (withDocumentIngestion)
-        {
-            services.AddScoped(_ => Mock.Of<IKnowledgeIngestionService>());
-        }
+        // Supplied by every host. The ingestion file store roots its folder here; nothing is written to it.
+        services.AddSingleton(Mock.Of<IHostEnvironment>(environment => environment.ContentRootPath == Path.GetTempPath()));
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
 
-        return services.BuildServiceProvider();
+        // AI core services, which every host with AI data sources registers.
+        services.AddScoped(_ => Mock.Of<IAIDeploymentManager>());
+        services.AddScoped(_ => Mock.Of<IAIClientFactory>());
+        services.AddScoped(_ => Mock.Of<ITemplateService>());
+
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+
+        Assert.NotNull(scope.ServiceProvider.GetService<IWebCrawlerReindexService>());
+        Assert.IsType<DefaultIngestionRunService>(scope.ServiceProvider.GetService<IIngestionRunService>());
     }
 }
