@@ -257,6 +257,31 @@ Both the algorithm and the semantic *eagerness* are configurable under `CrestApp
 drops, comfortably longer than any pause the detector is willing to wait through, because the gate emits digital
 silence when it closes and whichever of the two expires first is what actually ends the turn.
 
+## Transcribing the user
+
+A speech-to-speech model hears the user's audio directly and never writes it down. The assistant's side of the
+transcript comes from the model as it speaks; the user's side comes from a separate speech-to-text model the
+provider runs on each committed turn. The model's replies do not depend on it, but everything that reads the
+conversation afterwards does: stored history, per-turn knowledge grounding, summaries and any post-call analysis.
+
+The transcription model defaults to `gpt-4o-transcribe` and is set with
+`CrestApps:AI:RealtimeTransport:InputTranscriptionModel`. `gpt-4o-mini-transcribe` is cheaper; `whisper-1`, the
+previous default, is the weakest on telephone audio and invents stock phrases ("Bye-bye.", "you") from short sounds
+and noise. An empty value turns input transcription off — and with it per-turn grounding, which is driven by the
+transcript. A host can also choose the model per session with `RealtimeOrchestrationRequest.InputTranscriptionModel`.
+
+```json
+{
+  "CrestApps": {
+    "AI": {
+      "RealtimeTransport": {
+        "InputTranscriptionModel": "gpt-4o-mini-transcribe"
+      }
+    }
+  }
+}
+```
+
 ## Voice profiles: choosing tools
 
 A voice agent is only as reliable as its tool list is short. Every tool a realtime session carries sits in the
@@ -662,6 +687,7 @@ no I/O should return a completed `ValueTask`, which allocates nothing.
 | `EnableWebRtc` | Whether WebRTC is offered to browsers. Defaults to `true`. Turn it off on hosts with no inbound UDP and no reachable TURN relay — otherwise every session waits out the connect timeout before falling back. |
 | `TurnDetectionType` | `semantic_vad` (default) lets the model decide when the user has finished; `server_vad` ends the turn after a fixed silence. A deployment that rejects semantic detection is switched to server VAD automatically. |
 | `TurnDetectionEagerness` | For `semantic_vad`: `low`, `medium`, `high` or `auto` (default). Lower waits longer for the user to continue. |
+| `InputTranscriptionModel` | The speech-to-text model that transcribes the user. Defaults to `gpt-4o-transcribe`; empty turns input transcription off. See [Transcribing the user](#transcribing-the-user). |
 | `IdleTimeoutSeconds` | How long a session may go with neither side speaking before it ends. Defaults to `30`; `0` disables it. |
 | `MaxSessionDurationSeconds` | The longest a single session may run, however busy. Defaults to `300`; `0` disables it. |
 | `StunUrls` | STUN server URLs. Defaults to a public server when empty. |

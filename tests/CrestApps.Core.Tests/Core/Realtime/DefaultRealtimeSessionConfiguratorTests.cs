@@ -35,7 +35,7 @@ public sealed class DefaultRealtimeSessionConfiguratorTests
         Assert.Equal(24000, options.OutputAudioFormat?.SampleRate);
         Assert.True(options.VoiceActivityDetection?.Enabled);
         Assert.True(options.VoiceActivityDetection?.AllowInterruption);
-        Assert.Equal("whisper-1", options.TranscriptionOptions?.ModelId);
+        Assert.Equal(RealtimeTransportOptions.DefaultInputTranscriptionModel, options.TranscriptionOptions?.ModelId);
         Assert.Equal("en", options.TranscriptionOptions?.SpeechLanguage);
     }
 
@@ -123,12 +123,64 @@ public sealed class DefaultRealtimeSessionConfiguratorTests
     }
 
     [Fact]
-    public void Configure_WithoutTranscriptionModel_LeavesTranscriptionNull()
+    public void Configure_WithAnEmptyTranscriptionModel_LeavesTranscriptionNull()
     {
         var options = new DefaultRealtimeSessionConfigurator().Configure(new RealtimeSessionConfiguratorContext
         {
-            InputTranscriptionModel = null,
+            InputTranscriptionModel = string.Empty,
         });
+
+        Assert.Null(options.TranscriptionOptions);
+    }
+
+    [Fact]
+    public void Configure_TranscribesWithGpt4oTranscribe_ByDefault()
+    {
+        // whisper-1 was the default, and on telephone audio it turned a caller's "Hello?" into "Bye-bye.": the model
+        // heard the caller correctly, but the stored transcript every later step reads did not.
+        var options = new DefaultRealtimeSessionConfigurator().Configure(new RealtimeSessionConfiguratorContext());
+
+        Assert.Equal("gpt-4o-transcribe", options.TranscriptionOptions?.ModelId);
+    }
+
+    [Fact]
+    public void Configure_UsesTheHostsTranscriptionModel_WhenTheSessionNamesNone()
+    {
+        var configurator = new DefaultRealtimeSessionConfigurator(Microsoft.Extensions.Options.Options.Create(new RealtimeTransportOptions
+        {
+            InputTranscriptionModel = "gpt-4o-mini-transcribe",
+        }));
+
+        var options = configurator.Configure(new RealtimeSessionConfiguratorContext());
+
+        Assert.Equal("gpt-4o-mini-transcribe", options.TranscriptionOptions?.ModelId);
+    }
+
+    [Fact]
+    public void Configure_PrefersTheSessionsTranscriptionModel_OverTheHosts()
+    {
+        var configurator = new DefaultRealtimeSessionConfigurator(Microsoft.Extensions.Options.Options.Create(new RealtimeTransportOptions
+        {
+            InputTranscriptionModel = "gpt-4o-mini-transcribe",
+        }));
+
+        var options = configurator.Configure(new RealtimeSessionConfiguratorContext
+        {
+            InputTranscriptionModel = "whisper-1",
+        });
+
+        Assert.Equal("whisper-1", options.TranscriptionOptions?.ModelId);
+    }
+
+    [Fact]
+    public void Configure_WithTranscriptionTurnedOffForTheHost_LeavesTranscriptionNull()
+    {
+        var configurator = new DefaultRealtimeSessionConfigurator(Microsoft.Extensions.Options.Options.Create(new RealtimeTransportOptions
+        {
+            InputTranscriptionModel = string.Empty,
+        }));
+
+        var options = configurator.Configure(new RealtimeSessionConfiguratorContext());
 
         Assert.Null(options.TranscriptionOptions);
     }

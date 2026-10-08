@@ -75,6 +75,26 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
     }
 
     [Fact]
+    public async Task StartAsync_TranscribesTheUserWithTheModelTheRequestNames()
+    {
+        // A host that knows what its sessions carry -- phone audio, say -- picks the speech-to-text model per session.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var fakeSession = new FakeRealtimeSession([]);
+        var fakeClient = new FakeRealtimeClient(fakeSession);
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(profile, new EchoTool(), fakeClient, requestServices);
+
+        using var scope = AIInvocationScope.Begin();
+
+        await using var conversation = await orchestrator.StartAsync(
+            new RealtimeOrchestrationRequest { Resource = profile, InputTranscriptionModel = "gpt-4o-mini-transcribe" },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("gpt-4o-mini-transcribe", fakeSession.Options?.TranscriptionOptions?.ModelId);
+    }
+
+    [Fact]
     public async Task StartAsync_WithToolsButNoInvocationScope_Throws()
     {
         // Every tool call would come back as "requires an active AI execution context" in plain text, and the

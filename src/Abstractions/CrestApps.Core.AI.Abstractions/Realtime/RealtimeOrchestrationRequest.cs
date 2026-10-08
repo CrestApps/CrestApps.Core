@@ -44,6 +44,13 @@ public sealed class RealtimeOrchestrationRequest
     public string ReplyLanguage { get; init; }
 
     /// <summary>
+    /// Gets the speech-to-text model that transcribes the user for this session, or <see langword="null"/> for the
+    /// host's <see cref="RealtimeTransportOptions.InputTranscriptionModel"/>. An empty string disables input
+    /// transcription for this session.
+    /// </summary>
+    public string InputTranscriptionModel { get; init; }
+
+    /// <summary>
     /// Gets an optional server voice-activity silence duration (milliseconds) before the model ends a turn.
     /// </summary>
     public int? SilenceDurationMs { get; init; }
