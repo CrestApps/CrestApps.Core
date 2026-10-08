@@ -131,6 +131,8 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
 
         await WarnWhenToolsCannotBeCalledAsync(deployment, isCascaded ? cascade : null, tools, cancellationToken);
 
+        var transcriptionModel = await ResolveInputTranscriptionModelAsync(request, deployment, isCascaded ? cascade : null, cancellationToken);
+
         // Decided during PREPARE (see above), because the guidance handlers needed to know it too.
         var isGrounded = context.Properties.TryGetValue(RealtimeOrchestrationContextKeys.GroundingEnabled, out var grounding) && grounding is true;
 
@@ -143,6 +145,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             MaxOutputTokens = context.CompletionContext?.MaxTokens,
             SpeechLanguage = request.SpeechLanguage,
             ReplyLanguage = request.ReplyLanguage,
+            InputTranscriptionModel = transcriptionModel,
             SilenceDurationMs = request.SilenceDurationMs,
             VadThreshold = request.VadThreshold,
             AllowInterruption = request.AllowInterruption,
@@ -210,6 +213,62 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
     /// <param name="cascade">The cascade metadata when the deployment chains other deployments; otherwise <see langword="null"/>.</param>
     /// <param name="tools">The tools resolved for the session.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <summary>
+    /// Chooses the speech-to-text model that transcribes the user, or <see langword="null"/> when there is none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A speech-to-speech model hears the user's audio and never writes it down: the user's side of the transcript
+    /// comes from a separate transcription model the provider runs on each turn. Nothing here names one, because a
+    /// model name belongs to a provider. In order: the model the request names (an empty one turns transcription
+    /// off); a cascade's own speech-to-text leg; the model of the deployment in the speech-to-text slot, when it is
+    /// on the realtime deployment's provider -- another provider's model would be rejected, or worse, mean something
+    /// else. Without any of them the user is not transcribed, and the warning says how to fix it, because the
+    /// conversation still works and only what reads it afterwards -- history, grounding, summaries -- goes quiet.
+    /// </para>
+    /// </remarks>
+    private async Task<string> ResolveInputTranscriptionModelAsync(
+        RealtimeOrchestrationRequest request,
+        AIDeployment deployment,
+        CascadedRealtimeMetadata cascade,
+        CancellationToken cancellationToken)
+    {
+        if (request.InputTranscriptionModel is not null)
+        {
+            return string.IsNullOrWhiteSpace(request.InputTranscriptionModel) ? null : request.InputTranscriptionModel.Trim();
+        }
+
+        // A cascade transcribes with its own speech-to-text deployment, which its client uses whatever is named here;
+        // naming it keeps the session marked as transcribed, which per-turn grounding depends on.
+        if (cascade is not null)
+        {
+            return cascade.SpeechToTextDeploymentName;
+        }
+
+        var speechToText = await _deploymentManager.ResolveSlotAsync(
+            AIDeploymentSlotNames.SpeechToText,
+            clientName: deployment.ClientName,
+            cancellationToken: cancellationToken);
+
+        if (speechToText is not null &&
+            string.Equals(speechToText.ClientName, deployment.ClientName, StringComparison.OrdinalIgnoreCase))
+        {
+            var model = !string.IsNullOrWhiteSpace(speechToText.ModelName) ? speechToText.ModelName : speechToText.Name;
+
+            if (!string.IsNullOrWhiteSpace(model))
+            {
+                return model.Trim();
+            }
+        }
+
+        _logger.LogWarning(
+            "The realtime session on deployment '{DeploymentName}' will not transcribe the user: no speech-to-text deployment from provider '{ProviderName}' is available for the speech-to-text slot. The conversation works, but stored history, per-turn grounding and summaries will hold only the assistant's side. Select a speech-to-text deployment from the same provider, or name a model on the request.",
+            deployment.Name,
+            deployment.ClientName);
+
+        return null;
+    }
+
     private async Task WarnWhenToolsCannotBeCalledAsync(
         AIDeployment deployment,
         CascadedRealtimeMetadata cascade,

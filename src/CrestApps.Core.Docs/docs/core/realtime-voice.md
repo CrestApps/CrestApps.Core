@@ -257,6 +257,27 @@ Both the algorithm and the semantic *eagerness* are configurable under `CrestApp
 drops, comfortably longer than any pause the detector is willing to wait through, because the gate emits digital
 silence when it closes and whichever of the two expires first is what actually ends the turn.
 
+## Transcribing the user
+
+A speech-to-speech model hears the user's audio directly and never writes it down. The assistant's side of the
+transcript comes from the model as it speaks; the user's side comes from a separate speech-to-text model the
+provider runs on each committed turn. The model's replies do not depend on it, but everything that reads the
+conversation afterwards does: stored history, per-turn knowledge grounding, summaries and any post-call analysis.
+
+No model name is built in, because a model name belongs to one provider. The orchestrator chooses, in order:
+
+1. The model the request names in `RealtimeOrchestrationRequest.InputTranscriptionModel`. An empty string turns
+   input transcription off for that session.
+2. For a [cascaded deployment](#providers-without-a-speech-to-speech-model), its own speech-to-text leg.
+3. The model of the deployment in the **Speech to text** slot, when that deployment is on the same provider as the
+   realtime deployment. A deployment from another provider is not used: its model name means nothing to this
+   provider's session.
+
+With none of these the user is not transcribed and a warning names the deployment. The conversation still works,
+but per-turn knowledge grounding, which is driven by the transcript, falls back to the search tool. For OpenAI,
+`gpt-4o-transcribe` is the accurate choice on telephone audio, `gpt-4o-mini-transcribe` the cheaper one; `whisper-1`
+is the weakest and invents stock phrases ("Bye-bye.", "you") from short sounds and noise.
+
 ## Voice profiles: choosing tools
 
 A voice agent is only as reliable as its tool list is short. Every tool a realtime session carries sits in the
