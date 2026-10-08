@@ -34,8 +34,6 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<DefaultRealtimeOrchestrator> _logger;
 
-    private const string DefaultVoice = "alloy";
-
     /// <summary>
     /// Initializes a new instance of the <see cref="DefaultRealtimeOrchestrator"/> class.
     /// </summary>
@@ -124,9 +122,6 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
                 "A realtime session was started with tools but without an active AIInvocationScope. Tools such as data source search read their context from that scope and would silently return errors. Call AIInvocationScope.Begin() before StartAsync and keep the scope alive for the whole session.");
         }
 
-        // The fallback voice is an OpenAI voice name. A cascaded deployment speaks through whatever
-        // provider its text-to-speech leg uses, where that name means nothing and would be rejected, so
-        // leave the voice unset and let that provider fall back to its own configured default.
         var isCascaded = deployment.TryGet<CascadedRealtimeMetadata>(out var cascade) && cascade.IsComplete();
 
         await WarnWhenToolsCannotBeCalledAsync(deployment, isCascaded ? cascade : null, tools, cancellationToken);
@@ -138,7 +133,10 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         {
             Model = deployment.ModelName,
             Instructions = context.CompletionContext?.SystemMessage,
-            Voice = string.IsNullOrWhiteSpace(request.Voice) && !isCascaded ? DefaultVoice : request.Voice,
+            // No voice is assumed when none is chosen. A voice name belongs to one provider -- the previous
+            // fallback, "alloy", is OpenAI's -- and means nothing to another, so an unset voice is left unset and
+            // the provider speaks with its own default.
+            Voice = string.IsNullOrWhiteSpace(request.Voice) ? null : request.Voice.Trim(),
             Tools = tools,
             MaxOutputTokens = context.CompletionContext?.MaxTokens,
             SpeechLanguage = request.SpeechLanguage,

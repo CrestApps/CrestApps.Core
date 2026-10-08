@@ -74,6 +74,29 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         Assert.Contains("TOOL_RESULT", result!.Result?.ToString());
     }
 
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("  ", null)]
+    [InlineData("marin", "marin")]
+    public async Task StartAsync_SpeaksWithTheChosenVoice_OrLeavesTheProvidersDefault(string? requested, string? expected)
+    {
+        // A voice name belongs to one provider. The previous fallback, "alloy", is OpenAI's and was sent to every
+        // provider when no voice was chosen.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var fakeSession = new FakeRealtimeSession([]);
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(profile, new EchoTool(), new FakeRealtimeClient(fakeSession), requestServices);
+
+        using var scope = AIInvocationScope.Begin();
+
+        await using var conversation = await orchestrator.StartAsync(
+            new RealtimeOrchestrationRequest { Resource = profile, Voice = requested },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(expected, fakeSession.Options?.Voice);
+    }
+
     [Fact]
     public async Task StartAsync_WithToolsButNoInvocationScope_Throws()
     {
