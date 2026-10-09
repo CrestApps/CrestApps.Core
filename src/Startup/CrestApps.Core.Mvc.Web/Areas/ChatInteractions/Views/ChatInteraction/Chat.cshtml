@@ -1346,7 +1346,14 @@
                     };
                 });
 
-                return content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function (match, label, url) {
+                // An image the figure markers expanded to has the same [label](url) shape as a link. Rewriting
+                // it to its label left a bare "!" in front of the caption, and the reader got text where the
+                // picture should be.
+                return content.replace(/(!?)\[([^\]]+)\]\(([^)]+)\)/g, function (match, imagePrefix, label, url) {
+                    if (imagePrefix) {
+                        return match;
+                    }
+
                     var normalizedLabel = (label || '').trim().toLowerCase();
                     var normalizedUrl = (url || '').trim().toLowerCase();
                     var matchedReference = normalizedReferences.find(function (entry) {
