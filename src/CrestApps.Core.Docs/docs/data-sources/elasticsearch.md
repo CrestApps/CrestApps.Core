@@ -72,6 +72,18 @@ builder.Services.AddCoreElasticsearchServices();
 
 When the `Url` is provided, an `ElasticsearchClient` singleton is also registered.
 
+### Registering only the filter translator
+
+A host that brings its own Elasticsearch client, index managers and data source content manager (for example, the Orchard Core modules) can register only the OData filter translator, keyed by `"Elasticsearch"`:
+
+```csharp
+builder.Services.AddElasticsearchODataFilterTranslator();
+```
+
+`AddCoreElasticsearchServices()` calls this method itself, so a host that calls both still has one translator. Without a translator, a profile or chat interaction filter is ignored and a warning is logged.
+
+The translator prefixes each field with `filters.`, because the knowledge base index stores the source document's fields in a `filters` object (`category eq 'support'` becomes a `term` query on `filters.category`). A field that already starts with `filters.` is not prefixed again, and the typed knowledge columns (`contentType`, `rootId`, `parentId`, `page`) are not prefixed. `eq` and `ne` become `term` queries. When the `filters` object is mapped dynamically, Elasticsearch maps a string as `text` with a `keyword` sub-field, and a `term` query on the analyzed `text` field does not match a mixed-case or multi-word value. Use the `keyword` sub-field for an exact match, for example `category.keyword eq 'Support Docs'`.
+
 AI-specific Elasticsearch registrations now live in `CrestApps.Core.AI.Elasticsearch`. Register that package when you need `AddAIDocuments()`, `AddAIDataSources()`, `AddAIMemory()`, or Elasticsearch-backed AI RAG/search flows.
 
 When you call `AddAIDataSources()`, the feature builder also pulls in the shared asynchronous data-source synchronization stack from `AddCoreAIDataSourceRag()`, including:

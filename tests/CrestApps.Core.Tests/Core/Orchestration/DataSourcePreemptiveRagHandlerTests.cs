@@ -15,6 +15,7 @@ using CrestApps.Core.Templates.Services;
 using CrestApps.Core.Tests.Support;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -259,6 +260,198 @@ public sealed class DataSourcePreemptiveRagHandlerTests
         // references" as "the knowledge sources hold nothing".
         Assert.True(unreachable.Properties.ContainsKey("DataSourceSearchFailed"));
         Assert.False(searchable.Properties.ContainsKey("DataSourceSearchFailed"));
+    }
+
+    /// <summary>
+    /// Verifies that the filter stored on a chat interaction is translated and handed to the search.
+    /// </summary>
+    [Fact]
+    public async Task HandleAsync_WhenAChatInteractionHasAFilter_SearchesWithTheTranslatedFilter()
+    {
+        // Arrange
+        var interaction = new ChatInteraction { ItemId = "interaction-1", };
+        interaction.Put(new AIDataSourceRagMetadata { Filter = "category eq 'docs'", });
+
+        var contentManager = new FilterRecordingContentManager();
+        var logger = new CapturingLogger<DataSourcePreemptiveRagHandler>();
+
+        // Act
+        await SearchAsync(interaction, contentManager, new PrefixingFilterTranslator(), logger);
+
+        // Assert
+        Assert.Equal("translated:category eq 'docs'", contentManager.Filters[0]);
+        Assert.DoesNotContain(logger.Entries, entry => entry.Level == LogLevel.Warning);
+    }
+
+    /// <summary>
+    /// Verifies that a filter the provider cannot translate is reported rather than dropped in silence, because
+    /// the search that follows returns rows the filter was written to keep out.
+    /// </summary>
+    [Fact]
+    public async Task HandleAsync_WhenTheFilterHasNoTranslator_LogsAWarningAndSearchesWithoutIt()
+    {
+        // Arrange
+        var profile = new AIProfile { ItemId = "profile-1", };
+        profile.Put(new AIDataSourceRagMetadata { Filter = "category eq 'docs'", });
+
+        var contentManager = new FilterRecordingContentManager();
+        var logger = new CapturingLogger<DataSourcePreemptiveRagHandler>();
+
+        // Act
+        await SearchAsync(profile, contentManager, filterTranslator: null, logger);
+
+        // Assert
+        var filter = Assert.Single(contentManager.Filters);
+        Assert.Null(filter);
+
+        var warning = Assert.Single(logger.Entries, entry => entry.Level == LogLevel.Warning);
+        Assert.Contains("No OData filter translator available for provider 'test-provider'", warning.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies that a resource with no filter logs nothing about a missing translator, since nothing was
+    /// dropped.
+    /// </summary>
+    [Fact]
+    public async Task HandleAsync_WhenThereIsNoFilter_LogsNoTranslatorWarning()
+    {
+        // Arrange
+        var contentManager = new FilterRecordingContentManager();
+        var logger = new CapturingLogger<DataSourcePreemptiveRagHandler>();
+
+        // Act
+        await SearchAsync(new AIProfile { ItemId = "profile-1", }, contentManager, filterTranslator: null, logger);
+
+        // Assert
+        Assert.DoesNotContain(logger.Entries, entry => entry.Level == LogLevel.Warning);
+    }
+
+    /// <summary>
+    /// Runs the preemptive handler for one resource against a content manager that records the filters it is
+    /// handed.
+    /// </summary>
+    /// <param name="resource">The profile or chat interaction the turn belongs to.</param>
+    /// <param name="contentManager">The provider's vector search service.</param>
+    /// <param name="filterTranslator">The provider's filter translator, or <see langword="null"/> for none.</param>
+    /// <param name="logger">The logger the handler writes to.</param>
+    private static async Task SearchAsync(
+        object resource,
+        IDataSourceContentManager contentManager,
+        IODataFilterTranslator filterTranslator,
+        CapturingLogger<DataSourcePreemptiveRagHandler> logger)
+    {
+        const string userMessage = "Does the handbook cover the calibration steps?";
+
+        var dataSourceStore = new Mock<IAIDataSourceStore>();
+        dataSourceStore.Setup(store => store.FindByIdAsync("data-source-1"))
+            .ReturnsAsync(new AIDataSource
+            {
+                ItemId = "data-source-1",
+                AIKnowledgeBaseIndexProfileName = "kb-index",
+            });
+
+        var indexProfileStore = new Mock<ISearchIndexProfileStore>();
+        indexProfileStore.Setup(store => store.FindByNameAsync("kb-index"))
+            .ReturnsAsync(new SearchIndexProfile
+            {
+                Name = "kb-index",
+                ProviderName = "test-provider",
+                EmbeddingDeploymentName = "embedding",
+            });
+
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        deploymentManager.Setup(manager => manager.FindByNameAsync("embedding"))
+            .ReturnsAsync(new AIDeployment
+            {
+                ItemId = "embedding-id",
+                Name = "embedding",
+                ModelName = "embedding",
+                ClientName = "OpenAI",
+                ConnectionName = "Default",
+            });
+
+        var textNormalizer = new Mock<IAITextNormalizer>();
+        textNormalizer.Setup(normalizer => normalizer.NormalizeTitle(It.IsAny<string>()))
+            .Returns<string>(value => value);
+
+        var serviceCollection = new ServiceCollection()
+            .AddSingleton<IAIDataSourceStore>(dataSourceStore.Object)
+            .AddSingleton<ISearchIndexProfileStore>(indexProfileStore.Object)
+            .AddSingleton<IAIDeploymentManager>(deploymentManager.Object)
+            .AddSingleton<IAIClientFactory>(new FakeAIClientFactory(new FakeEmbeddingGenerator(new Dictionary<string, float[]>
+            {
+                [userMessage] = [1f],
+            })))
+            .AddSingleton<ITemplateService, FakeTemplateService>()
+            .AddSingleton<IAITextNormalizer>(textNormalizer.Object)
+            .AddSingleton<IOptionsMonitor<AIDataSourceOptions>>(new TestOptionsMonitor<AIDataSourceOptions>
+            {
+                CurrentValue = new AIDataSourceOptions
+                {
+                    DefaultStrictness = 3,
+                    DefaultTopNDocuments = 3,
+                },
+            })
+            .AddLogging()
+            .AddKeyedSingleton("test-provider", contentManager);
+
+        if (filterTranslator != null)
+        {
+            serviceCollection.AddKeyedSingleton("test-provider", filterTranslator);
+        }
+
+        await using var services = serviceCollection.BuildServiceProvider();
+
+        var handler = new DataSourcePreemptiveRagHandler(
+            services,
+            services.GetRequiredService<IAIClientFactory>(),
+            services.GetRequiredService<ITemplateService>(),
+            services.GetRequiredService<IAIDeploymentManager>(),
+            services.GetRequiredService<IAITextNormalizer>(),
+            services.GetRequiredService<IOptionsMonitor<AIDataSourceOptions>>(),
+            logger);
+
+        var context = new OrchestrationContext
+        {
+            UserMessage = userMessage,
+            CompletionContext = new AICompletionContext
+            {
+                DataSourceId = "data-source-1",
+            },
+        };
+
+        await handler.HandleAsync(new PreemptiveRagContext(context, resource, []));
+    }
+
+    /// <summary>
+    /// Marks every filter it translates, so a test can tell a translated filter from one passed through as is.
+    /// </summary>
+    private sealed class PrefixingFilterTranslator : IODataFilterTranslator
+    {
+        public string Translate(string odataFilter)
+        {
+            return $"translated:{odataFilter}";
+        }
+    }
+
+    /// <summary>
+    /// Records the provider filter of every search it is asked to run, and matches nothing.
+    /// </summary>
+    private sealed class FilterRecordingContentManager : IDataSourceContentManager
+    {
+        public List<string> Filters { get; } = [];
+
+        public Task<long> DeleteByDataSourceIdAsync(IIndexProfileInfo indexProfile, string dataSourceId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(0L);
+        }
+
+        public Task<IEnumerable<DataSourceSearchResult>> SearchAsync(IIndexProfileInfo indexProfile, float[] embedding, string dataSourceId, int topN, string filter = null, CancellationToken cancellationToken = default)
+        {
+            Filters.Add(filter);
+
+            return Task.FromResult(Enumerable.Empty<DataSourceSearchResult>());
+        }
     }
 
     /// <summary>

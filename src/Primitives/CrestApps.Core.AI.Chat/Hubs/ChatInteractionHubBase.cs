@@ -332,6 +332,11 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     /// <param name="propertyName">The property name.</param>
     protected virtual string GetSettingsValidationMessage(string propertyName)
     {
+        if (propertyName == "filter")
+        {
+            return "Invalid filter value. It must be a valid OData filter.";
+        }
+
         return "One or more settings are invalid.";
     }
 
@@ -542,6 +547,36 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     }
 
     /// <summary>
+    /// Validates the data source filter in the settings payload with the registered <see cref="IODataValidator"/>,
+    /// the same check the AI profile editor applies to its filter.
+    /// </summary>
+    /// <param name="services">The scoped service provider.</param>
+    /// <param name="settings">The settings.</param>
+    /// <returns><c>"filter"</c> when the filter is not a valid OData filter; otherwise, <see langword="null"/>.</returns>
+    /// <remarks>
+    /// An invalid filter rejects the whole save, so the caller gets an error and the interaction keeps the
+    /// settings it had. Storing the filter anyway would let every later search fail or ignore it in silence.
+    /// </remarks>
+    private static string ValidateFilter(IServiceProvider services, JsonElement settings)
+    {
+        var filter = JsonHelper.GetString(settings, "filter");
+
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            return null;
+        }
+
+        var validator = services.GetService<IODataValidator>();
+
+        if (validator == null || validator.IsValidFilter(filter))
+        {
+            return null;
+        }
+
+        return "filter";
+    }
+
+    /// <summary>
     /// Stops the current conversation by cancelling the conversation CTS.
     /// </summary>
     // -------------------------------------------------------------------
@@ -646,7 +681,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 return;
             }
 
-            var invalidSetting = ValidateSettings(settings);
+            var invalidSetting = ValidateSettings(settings) ?? ValidateFilter(services, settings);
             if (invalidSetting != null)
             {
                 await Clients.Caller.ReceiveError(GetSettingsValidationMessage(invalidSetting));

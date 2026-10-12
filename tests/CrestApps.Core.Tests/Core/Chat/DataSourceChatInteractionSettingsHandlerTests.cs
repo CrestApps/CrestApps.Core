@@ -2,6 +2,7 @@ using System.Text.Json;
 using CrestApps.Core.AI.Chat.Handlers;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -64,5 +65,55 @@ public sealed class DataSourceChatInteractionSettingsHandlerTests
         Assert.Equal(8, ragMetadata.TopNDocuments);
         Assert.Equal("category eq 'docs'", ragMetadata.Filter);
         Assert.True(ragMetadata.IsInScope);
+    }
+
+    [Fact]
+    public async Task UpdatingAsync_WithInvalidFilter_KeepsTheStoredFilterAndAppliesTheOtherSettings()
+    {
+        // Arrange
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton<IODataValidator, ODataFilterValidator>()
+            .BuildServiceProvider();
+
+        var handler = new DataSourceChatInteractionSettingsHandler(
+            serviceProvider,
+            NullLogger<DataSourceChatInteractionSettingsHandler>.Instance);
+
+        using var document = JsonDocument.Parse("""{"strictness":4,"topNDocuments":8,"filter":"category eq 'docs"}""");
+        var interaction = new ChatInteraction();
+        interaction.Put(new AIDataSourceRagMetadata { Strictness = 3, TopNDocuments = 5, Filter = "category eq 'news'" });
+
+        // Act
+        await handler.UpdatingAsync(interaction, document.RootElement, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(interaction.TryGet<AIDataSourceRagMetadata>(out var ragMetadata));
+        Assert.Equal("category eq 'news'", ragMetadata.Filter);
+        Assert.Equal(4, ragMetadata.Strictness);
+        Assert.Equal(8, ragMetadata.TopNDocuments);
+    }
+
+    [Fact]
+    public async Task UpdatingAsync_WithValidFilter_StoresTheFilter()
+    {
+        // Arrange
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton<IODataValidator, ODataFilterValidator>()
+            .BuildServiceProvider();
+
+        var handler = new DataSourceChatInteractionSettingsHandler(
+            serviceProvider,
+            NullLogger<DataSourceChatInteractionSettingsHandler>.Instance);
+
+        using var document = JsonDocument.Parse("""{"filter":"category eq 'docs'"}""");
+        var interaction = new ChatInteraction();
+        interaction.Put(new AIDataSourceRagMetadata { Filter = "category eq 'news'" });
+
+        // Act
+        await handler.UpdatingAsync(interaction, document.RootElement, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(interaction.TryGet<AIDataSourceRagMetadata>(out var ragMetadata));
+        Assert.Equal("category eq 'docs'", ragMetadata.Filter);
     }
 }

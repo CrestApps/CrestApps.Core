@@ -97,7 +97,7 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
     /// <param name="context">The context.</param>
     public async Task HandleAsync(PreemptiveRagContext context)
     {
-        var ragMetadata = GetRagMetadata(context.Resource);
+        var ragMetadata = AIDataSourceRagMetadataResolver.Resolve(context.Resource);
 
         try
         {
@@ -239,6 +239,12 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
             if (filterTranslator != null)
             {
                 providerFilter = filterTranslator.Translate(filter);
+            }
+            else
+            {
+                // Said out loud rather than passed over: a filter often scopes what a reader may see, and a
+                // search that drops it returns rows the filter was written to keep out.
+                _logger.LogWarning("No OData filter translator available for provider '{ProviderName}'. Filter will be ignored.", indexProfile.ProviderName);
             }
         }
 
@@ -588,22 +594,5 @@ internal sealed class DataSourcePreemptiveRagHandler : IPreemptiveRagHandler
         }
 
         return queries;
-    }
-
-    private static AIDataSourceRagMetadata GetRagMetadata(object resource)
-    {
-        if (resource is AIProfile profile &&
-            profile.TryGet<AIDataSourceRagMetadata>(out var ragMetadata))
-        {
-            return ragMetadata;
-        }
-
-        if (resource is ChatInteraction interaction &&
-            interaction.TryGet<AIDataSourceRagMetadata>(out var interactionRagMetadata))
-        {
-            return interactionRagMetadata;
-        }
-
-        return null;
     }
 }
