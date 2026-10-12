@@ -332,7 +332,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
                 continue;
             }
 
-            var deployment = CreateConfiguredDeployment(ParseConfiguredDeploymentEntry(deploymentObject));
+            var deployment = ReadConfiguredDeployment(deploymentObject);
             AddDeployment(deployments, names, deployment, sectionPath);
         }
     }
@@ -363,7 +363,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
                     continue;
                 }
 
-                var deployment = CreateConfiguredDeployment(ParseConfiguredDeploymentEntry(standaloneDeploymentObject, clientName));
+                var deployment = ReadConfiguredDeployment(standaloneDeploymentObject, clientName);
                 AddDeployment(deployments, names, deployment, $"{sectionPath}:{clientName}");
             }
         }
@@ -380,12 +380,85 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
             Properties = BuildDeploymentProperties(deploymentObject),
         };
 
+        KeepParameterValuesAsText(entry.Properties);
+
         if (TryGetLegacyPurposes(deploymentObject["Purpose"] ?? deploymentObject["Capability"] ?? deploymentObject["Type"], out var legacyPurposes))
         {
             entry.LegacyPurposes = legacyPurposes;
         }
 
         return entry;
+    }
+
+    /// <summary>
+    /// Reads one configured deployment entry, skipping only that entry when it cannot be read.
+    /// </summary>
+    /// <remarks>
+    /// Without this, an unreadable entry surfaced from the single catch around the whole read, so it took every
+    /// entry after it, and every deployment declared on a connection, down with it.
+    /// </remarks>
+    /// <param name="deploymentObject">The configured deployment entry.</param>
+    /// <param name="clientName">The provider name from a provider-grouped section, or <see langword="null"/>.</param>
+    private AIDeployment ReadConfiguredDeployment(JsonObject deploymentObject, string clientName = null)
+    {
+        try
+        {
+            return CreateConfiguredDeployment(ParseConfiguredDeploymentEntry(deploymentObject, clientName));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "The AI deployment entry '{DeploymentName}' could not be read and was skipped. The other deployments are unaffected.",
+                deploymentObject["Name"].GetStringValue());
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Restores the text form of each parameter's <c>DefaultValue</c> and <c>AllowedValues</c>.
+    /// </summary>
+    /// <remarks>
+    /// Configuration values are untyped text, and <see cref="ReadConfigurationNode"/> turns any value that looks
+    /// like a number or a Boolean into one. <see cref="AIDeploymentParameter.DefaultValue"/> and
+    /// <see cref="AIDeploymentParameter.AllowedValues"/> are text, so a value such as <c>0.7</c> would otherwise
+    /// make the metadata unreadable. The numeric bounds (<c>Minimum</c>, <c>Maximum</c>, <c>Step</c>) stay numbers.
+    /// </remarks>
+    /// <param name="properties">The deployment properties, updated in place, or <see langword="null"/>.</param>
+    private static void KeepParameterValuesAsText(JsonObject properties)
+    {
+        if (properties?[nameof(AIDeploymentMetadata)] is not JsonObject metadata ||
+            metadata[nameof(AIDeploymentMetadata.Parameters)] is not JsonObject parameters)
+        {
+            return;
+        }
+
+        foreach (var (_, parameterNode) in parameters)
+        {
+            if (parameterNode is not JsonObject parameter)
+            {
+                continue;
+            }
+
+            if (parameter[nameof(AIDeploymentParameter.DefaultValue)] is JsonValue defaultValue)
+            {
+                parameter[nameof(AIDeploymentParameter.DefaultValue)] = defaultValue.GetStringValue();
+            }
+
+            if (parameter[nameof(AIDeploymentParameter.AllowedValues)] is not JsonArray allowedValues)
+            {
+                continue;
+            }
+
+            for (var index = 0; index < allowedValues.Count; index++)
+            {
+                if (allowedValues[index] is JsonValue allowedValue)
+                {
+                    allowedValues[index] = allowedValue.GetStringValue();
+                }
+            }
+        }
     }
 
     private AIDeployment CreateConfiguredDeployment(AIDeploymentConfigurationEntry entry)

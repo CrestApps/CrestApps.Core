@@ -1,4 +1,5 @@
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI;
@@ -7,6 +8,7 @@ using CrestApps.Core.AI.Services;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -262,6 +264,127 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         // Assert
         Assert.Single(deployments);
         Assert.Equal("ui-deployment", deployments.Single().ItemId);
+    }
+
+    /// <summary>
+    /// Configuration values are untyped text, but the reader turns any value that looks like a number into a
+    /// number. A parameter's <c>DefaultValue</c> and <c>AllowedValues</c> are text, so a default such as
+    /// <c>0.7</c> used to make the metadata unreadable and the deployment disappear.
+    /// </summary>
+    [Fact]
+    public async Task GetAllAsync_WhenAParameterValueLooksLikeANumber_ShouldKeepItAsText()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Deployments:0:ConnectionName"] = "shared-openai",
+            ["CrestApps:AI:Deployments:0:Name"] = "tuned-chat",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Features:0"] = AIDeploymentFeatureNames.TextGeneration,
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:temperature:DefaultValue"] = "0.7",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:temperature:Minimum"] = "0",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:temperature:Maximum"] = "2",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:seed:AllowedValues:0"] = "1",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:seed:AllowedValues:1"] = "42",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:stream:DefaultValue"] = "true",
+        }).Build();
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(configuration, aiOptions);
+
+        // Act
+        var deployment = Assert.Single(await store.GetAllAsync(TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.True(deployment.TryGet<AIDeploymentMetadata>(out var metadata));
+        var temperature = Assert.Contains("temperature", metadata.Parameters);
+        Assert.Equal("0.7", temperature.DefaultValue);
+        Assert.Equal(0, temperature.Minimum);
+        Assert.Equal(2, temperature.Maximum);
+        Assert.Equal(["1", "42"], Assert.Contains("seed", metadata.Parameters).AllowedValues);
+        Assert.Equal("true", Assert.Contains("stream", metadata.Parameters).DefaultValue);
+    }
+
+    /// <summary>
+    /// One unreadable entry used to surface from the single catch around the whole read, so that entry, every
+    /// entry after it, and every deployment declared on a connection were all lost. An unreadable entry is now
+    /// skipped on its own.
+    /// </summary>
+    [Fact]
+    public async Task GetAllAsync_WhenOneDeploymentCannotBeRead_ShouldStillLoadTheOthers()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Deployments:0:ConnectionName"] = "shared-openai",
+            ["CrestApps:AI:Deployments:0:Name"] = "unreadable-chat",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Features:0"] = AIDeploymentFeatureNames.TextGeneration,
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:temperature"] = "high",
+            ["CrestApps:AI:Deployments:1:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Deployments:1:ConnectionName"] = "shared-openai",
+            ["CrestApps:AI:Deployments:1:Name"] = "readable-chat",
+            ["CrestApps:AI:Deployments:1:Properties:AIDeploymentMetadata:Features:0"] = AIDeploymentFeatureNames.TextGeneration,
+            ["CrestApps:AI:Connections:0:Name"] = "shared-openai",
+            ["CrestApps:AI:Connections:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Connections:0:ChatDeploymentName"] = "connection-chat",
+        }).Build();
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(configuration, aiOptions);
+
+        // Act
+        var deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.DoesNotContain(deployments, deployment => deployment.Name == "unreadable-chat");
+        Assert.Contains(deployments, deployment => deployment.Name == "readable-chat");
+        Assert.Contains(deployments, deployment => deployment.Name == "connection-chat");
+    }
+
+    /// <summary>
+    /// The numeric default must also resolve through the capability service, which is what the editors and
+    /// the request pipeline consult, and be accepted as a valid value for a <c>Number</c> parameter.
+    /// </summary>
+    [Fact]
+    public async Task AddCoreAIOpenAI_WhenANumberParameterDefaultIsConfigured_ShouldExposeItThroughTheCapabilityService()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Deployments:0:ConnectionName"] = "shared-openai",
+            ["CrestApps:AI:Deployments:0:Name"] = "tuned-chat",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Features:0"] = AIDeploymentFeatureNames.TextGeneration,
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:temperature:DefaultValue"] = "0.7",
+        }).Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(TimeProvider.System);
+        services.AddLogging();
+        services.AddCoreAIServices();
+        services.AddCoreAIOpenAI();
+        services.AddAIDeploymentParameter("temperature", new LocalizedString("temperature", "Temperature"), parameter =>
+        {
+            parameter.Kind = AIDeploymentParameterKind.Number;
+            parameter.Minimum = 0;
+            parameter.Maximum = 2;
+        });
+        using var serviceProvider = services.BuildServiceProvider();
+        using var scope = serviceProvider.CreateScope();
+
+        var deploymentStore = scope.ServiceProvider.GetRequiredService<IAIDeploymentStore>();
+        var capabilityService = scope.ServiceProvider.GetRequiredService<IAIDeploymentCapabilityService>();
+
+        // Act
+        var deployment = Assert.Single(await deploymentStore.GetAllAsync(TestContext.Current.CancellationToken));
+        var temperature = capabilityService.GetCapabilities(deployment).GetParameter("temperature");
+
+        // Assert
+        Assert.NotNull(temperature);
+        Assert.Equal("0.7", temperature.DefaultValue);
+        Assert.True(temperature.IsValidValue("0.7"));
     }
 
     [Fact]
