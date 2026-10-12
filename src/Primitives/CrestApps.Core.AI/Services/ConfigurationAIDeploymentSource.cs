@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Services;
 using CrestApps.Core.Support;
@@ -14,7 +15,7 @@ namespace CrestApps.Core.AI.Services;
 /// (e.g., appsettings.json). Registered with Order = 100 so that DB-backed sources
 /// (Order = 0) take precedence when entries share the same name.
 /// </summary>
-public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<AIDeployment>
+public sealed partial class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<AIDeployment>
 {
 
     private readonly IConfiguration _configuration;
@@ -332,7 +333,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
                 continue;
             }
 
-            var deployment = CreateConfiguredDeployment(ParseConfiguredDeploymentEntry(deploymentObject));
+            var deployment = ReadConfiguredDeployment(deploymentObject);
             AddDeployment(deployments, names, deployment, sectionPath);
         }
     }
@@ -363,7 +364,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
                     continue;
                 }
 
-                var deployment = CreateConfiguredDeployment(ParseConfiguredDeploymentEntry(standaloneDeploymentObject, clientName));
+                var deployment = ReadConfiguredDeployment(standaloneDeploymentObject, clientName);
                 AddDeployment(deployments, names, deployment, $"{sectionPath}:{clientName}");
             }
         }
@@ -380,12 +381,87 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
             Properties = BuildDeploymentProperties(deploymentObject),
         };
 
+        KeepParameterValuesAsText(entry.Properties);
+
         if (TryGetLegacyPurposes(deploymentObject["Purpose"] ?? deploymentObject["Capability"] ?? deploymentObject["Type"], out var legacyPurposes))
         {
             entry.LegacyPurposes = legacyPurposes;
         }
 
         return entry;
+    }
+
+    /// <summary>
+    /// Reads one configured deployment entry, skipping only that entry when it cannot be read.
+    /// </summary>
+    /// <remarks>
+    /// Without this, an unreadable entry surfaced from the single catch around the whole read, so it took every
+    /// entry after it, and every deployment declared on a connection, down with it.
+    /// </remarks>
+    /// <param name="deploymentObject">The configured deployment entry.</param>
+    /// <param name="clientName">The provider name from a provider-grouped section, or <see langword="null"/>.</param>
+    private AIDeployment ReadConfiguredDeployment(JsonObject deploymentObject, string clientName = null)
+    {
+        try
+        {
+            return CreateConfiguredDeployment(ParseConfiguredDeploymentEntry(deploymentObject, clientName));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "The AI deployment entry '{DeploymentName}' could not be read and was skipped. The other deployments are unaffected.",
+                deploymentObject["Name"].GetStringValue());
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Restores the text form of each parameter's <c>DefaultValue</c> and <c>AllowedValues</c>.
+    /// </summary>
+    /// <remarks>
+    /// Configuration values are untyped text, and <see cref="ReadConfigurationNode"/> turns any value that looks
+    /// like a number or a Boolean into one. <see cref="AIDeploymentParameter.DefaultValue"/> and
+    /// <see cref="AIDeploymentParameter.AllowedValues"/> are text, so a value such as <c>0.7</c> would otherwise
+    /// make the metadata unreadable. The numeric bounds (<c>Minimum</c>, <c>Maximum</c>, <c>Step</c>) stay numbers.
+    /// A number keeps the exact text it was written with (see <see cref="ParseScalar"/>), so <c>1.0</c> comes back
+    /// as <c>1.0</c> rather than <c>1</c>. A Boolean comes back in lowercase.
+    /// </remarks>
+    /// <param name="properties">The deployment properties, updated in place, or <see langword="null"/>.</param>
+    private static void KeepParameterValuesAsText(JsonObject properties)
+    {
+        if (properties?[nameof(AIDeploymentMetadata)] is not JsonObject metadata ||
+            metadata[nameof(AIDeploymentMetadata.Parameters)] is not JsonObject parameters)
+        {
+            return;
+        }
+
+        foreach (var (_, parameterNode) in parameters)
+        {
+            if (parameterNode is not JsonObject parameter)
+            {
+                continue;
+            }
+
+            if (parameter[nameof(AIDeploymentParameter.DefaultValue)] is JsonValue defaultValue)
+            {
+                parameter[nameof(AIDeploymentParameter.DefaultValue)] = defaultValue.GetStringValue();
+            }
+
+            if (parameter[nameof(AIDeploymentParameter.AllowedValues)] is not JsonArray allowedValues)
+            {
+                continue;
+            }
+
+            for (var index = 0; index < allowedValues.Count; index++)
+            {
+                if (allowedValues[index] is JsonValue allowedValue)
+                {
+                    allowedValues[index] = allowedValue.GetStringValue();
+                }
+            }
+        }
     }
 
     private AIDeployment CreateConfiguredDeployment(AIDeploymentConfigurationEntry entry)
@@ -513,7 +589,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
 
         if (!children.Any())
         {
-            return section.Value is null ? null : JsonValue.Create(ParseScalar(section.Value));
+            return section.Value is null ? null : ParseScalar(section.Value);
         }
 
         if (children.All(static child => int.TryParse(child.Key, out _)))
@@ -536,30 +612,33 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
         return result;
     }
 
-    private static object ParseScalar(string value)
+    /// <summary>
+    /// Reads a configuration value as a Boolean, a number, or text.
+    /// </summary>
+    /// <remarks>
+    /// Only a value written as a JSON number is read as a number, and it keeps the exact text it was written
+    /// with. Parsing it with the server's culture instead read <c>0.7</c> as <c>7</c> wherever <c>.</c> separates
+    /// thousands, and turning it back into text changed <c>1.0</c> to <c>1</c>. Numeric properties still accept
+    /// any other form, such as <c>007</c>, because the deserializer reads numbers from text.
+    /// </remarks>
+    /// <param name="value">The configuration value.</param>
+    private static JsonValue ParseScalar(string value)
     {
         if (bool.TryParse(value, out var booleanValue))
         {
-            return booleanValue;
+            return JsonValue.Create(booleanValue);
         }
 
-        if (int.TryParse(value, out var intValue))
+        if (JsonNumberPattern().IsMatch(value))
         {
-            return intValue;
+            return JsonNode.Parse(value).AsValue();
         }
 
-        if (long.TryParse(value, out var longValue))
-        {
-            return longValue;
-        }
-
-        if (double.TryParse(value, out var doubleValue))
-        {
-            return doubleValue;
-        }
-
-        return value;
+        return JsonValue.Create(value);
     }
+
+    [GeneratedRegex(@"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?\z", RegexOptions.CultureInvariant)]
+    private static partial Regex JsonNumberPattern();
 
     /// <summary>
     /// Reads the legacy purpose names a configured deployment declares, in either the single-value or the
