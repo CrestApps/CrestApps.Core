@@ -1342,9 +1342,17 @@
                 var normalizedReferences = downloadReferences.map(function (entry) {
                     return {
                         key: entry[0],
-                        label: (getCitationLabel(entry[1], entry[0]) || '').trim().toLowerCase()
+                        label: (getCitationLabel(entry[1], entry[0]) || '').trim().toLowerCase(),
+                        link: (typeof entry[1].link === 'string' ? entry[1].link : '').trim().toLowerCase()
                     };
                 });
+                var claimedKeys = {};
+
+                function claim(entry) {
+                    claimedKeys[entry.key] = true;
+
+                    return entry.key;
+                }
 
                 // An image the figure markers expanded to has the same [label](url) shape as a link. Rewriting
                 // it to its label left a bare "!" in front of the caption, and the reader got text where the
@@ -1358,11 +1366,55 @@
                     var normalizedUrl = (url || '').trim().toLowerCase();
                     var matchedReference = normalizedReferences.find(function (entry) {
                         return (normalizedLabel && normalizedLabel === entry.label) ||
-                            normalizedUrl.startsWith('sandbox:/mnt/data/');
+                            (entry.link && normalizedUrl === entry.link);
                     });
 
-                    return matchedReference ? matchedReference.key : label;
+                    if (matchedReference) {
+                        return claim(matchedReference);
+                    }
+
+                    // Only a path to a file the model believes it wrote stands for one of the downloads. A link
+                    // the browser can follow is the model's own, and reducing it to its label took a working
+                    // address out of the answer just because the answer also offered a file.
+                    if (!isGeneratedFilePath(normalizedUrl)) {
+                        return match;
+                    }
+
+                    // Every sandbox path used to resolve to the first download, so an answer offering two
+                    // files linked both to the first. The file name says which one is meant; failing that, the
+                    // model links its files in the order it made them.
+                    var fileName = getPathFileName(normalizedUrl);
+
+                    matchedReference = (fileName && normalizedReferences.find(function (entry) {
+                        return entry.label === fileName;
+                    })) || normalizedReferences.find(function (entry) {
+                        return !claimedKeys[entry.key];
+                    }) || (normalizedReferences.length === 1 ? normalizedReferences[0] : null);
+
+                    return matchedReference ? claim(matchedReference) : label;
                 });
+            }
+
+            // A sandbox, file or bare relative path names a file in the model's own workspace, which the
+            // browser cannot open. Anything with a scheme of its own, or rooted on this site, is a real address.
+            function isGeneratedFilePath(normalizedUrl) {
+                if (/^(?:sandbox|file):/.test(normalizedUrl)) {
+                    return true;
+                }
+
+                return !/^(?:[a-z][a-z0-9+.-]*:|\/|#)/.test(normalizedUrl);
+            }
+
+            function getPathFileName(normalizedUrl) {
+                var path = normalizedUrl.split(/[?#]/)[0];
+                var fileName = path.substring(path.lastIndexOf('/') + 1);
+
+                try {
+                    return decodeURIComponent(fileName).trim();
+                }
+                catch (error) {
+                    return fileName.trim();
+                }
             }
 
             // A download marker only becomes a link when the response carries the matching reference.
