@@ -568,32 +568,33 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
     /// </summary>
     private static bool TryGetLegacyPurposes(JsonNode purposeNode, out string[] legacyPurposes)
     {
-        legacyPurposes = null;
+        var names = ReadNames(purposeNode);
 
-        if (purposeNode is null)
-        {
-            return false;
-        }
+        legacyPurposes = names.Length > 0
+            ? names
+            : null;
 
-        if (purposeNode is JsonArray array)
+        return legacyPurposes is not null;
+    }
+
+    /// <summary>
+    /// Reads a list of names declared in either the single-value or the array shape, skipping blank entries.
+    /// </summary>
+    /// <param name="node">The configuration node holding the names, or <see langword="null"/>.</param>
+    private static string[] ReadNames(JsonNode node)
+    {
+        if (node is JsonArray array)
         {
-            legacyPurposes = [.. array
+            return [.. array
                 .Select(static item => item.GetStringValue())
                 .Where(static name => !string.IsNullOrWhiteSpace(name))];
-
-            return legacyPurposes.Length > 0;
         }
 
-        var singleName = purposeNode.GetStringValue();
+        var singleName = node.GetStringValue();
 
-        if (string.IsNullOrWhiteSpace(singleName))
-        {
-            return false;
-        }
-
-        legacyPurposes = [singleName];
-
-        return true;
+        return string.IsNullOrWhiteSpace(singleName)
+            ? []
+            : [singleName];
     }
 
     private static JsonObject BuildDeploymentProperties(JsonObject deploymentObject)
@@ -610,7 +611,89 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
             properties[key] = value?.DeepClone();
         }
 
+        if (properties is not null)
+        {
+            ApplyMetadataShorthand(deploymentObject, properties);
+        }
+
         return properties;
+    }
+
+    /// <summary>
+    /// Folds the <c>Features</c> and <c>Parameters</c> an entry declares directly into its
+    /// <see cref="AIDeploymentMetadata"/> property, so they mean the same as
+    /// <c>Properties:AIDeploymentMetadata:Features</c> and <c>Properties:AIDeploymentMetadata:Parameters</c>.
+    /// </summary>
+    /// <remarks>
+    /// The shorthand exists because Azure App Service rejects application setting names longer than 100
+    /// characters, and the nested path alone costs about 45 of them before the parameter name. When both
+    /// forms are present the shorthand adds its features and merges each parameter one field at a time, so a
+    /// host can keep the full definition in a JSON file and override a single value from the environment.
+    /// </remarks>
+    /// <param name="deploymentObject">The configured deployment entry.</param>
+    /// <param name="properties">The properties built from the entry, updated in place.</param>
+    private static void ApplyMetadataShorthand(JsonObject deploymentObject, JsonObject properties)
+    {
+        var features = deploymentObject[nameof(AIDeploymentMetadata.Features)];
+        var parameters = deploymentObject[nameof(AIDeploymentMetadata.Parameters)] as JsonObject;
+
+        if (features is null && parameters is null)
+        {
+            return;
+        }
+
+        properties.Remove(nameof(AIDeploymentMetadata.Features));
+        properties.Remove(nameof(AIDeploymentMetadata.Parameters));
+
+        if (properties[nameof(AIDeploymentMetadata)] is not JsonObject metadata)
+        {
+            metadata = [];
+            properties[nameof(AIDeploymentMetadata)] = metadata;
+        }
+
+        if (features is not null)
+        {
+            var featureNames = new List<string>();
+
+            foreach (var name in ReadNames(metadata[nameof(AIDeploymentMetadata.Features)]).Concat(ReadNames(features)))
+            {
+                if (!featureNames.Contains(name, StringComparer.OrdinalIgnoreCase))
+                {
+                    featureNames.Add(name);
+                }
+            }
+
+            metadata[nameof(AIDeploymentMetadata.Features)] = new JsonArray([.. featureNames.Select(static name => JsonValue.Create(name))]);
+        }
+
+        if (parameters is null)
+        {
+            return;
+        }
+
+        if (metadata[nameof(AIDeploymentMetadata.Parameters)] is not JsonObject metadataParameters)
+        {
+            metadataParameters = [];
+            metadata[nameof(AIDeploymentMetadata.Parameters)] = metadataParameters;
+        }
+
+        foreach (var (name, value) in parameters)
+        {
+            // Parameter names are case-insensitive, and an environment variable keeps whatever casing the
+            // operator typed, so an already-declared parameter is matched regardless of case.
+            var existingName = metadataParameters
+                .Select(static parameter => parameter.Key)
+                .FirstOrDefault(key => string.Equals(key, name, StringComparison.OrdinalIgnoreCase)) ?? name;
+
+            if (value is JsonObject parameterObject && metadataParameters[existingName] is JsonObject existingParameter)
+            {
+                AIPropertiesMergeHelper.Merge(existingParameter, parameterObject);
+
+                continue;
+            }
+
+            metadataParameters[existingName] = value?.DeepClone();
+        }
     }
 
     private static string GetNodeTypeName(JsonNode node)

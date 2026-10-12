@@ -1,4 +1,5 @@
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI;
@@ -460,6 +461,162 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         Assert.True(
             metadata.SupportsFeature(AIDeploymentFeatureNames.ToolCalling),
             "A connection-synthesized chat deployment must declare tool calling, or every tool is stripped from every request.");
+    }
+
+    /// <summary>
+    /// Azure App Service rejects application setting names longer than 100 characters, and
+    /// <c>OrchardCore__CrestApps__AI__Deployments__2__Properties__AIDeploymentMetadata__Parameters__reasoningEffort__DefaultValue</c>
+    /// is 119. Declaring <c>Features</c> and <c>Parameters</c> directly on the entry keeps the same setting at 85
+    /// characters, so a host configured only through Azure can still declare its model parameters.
+    /// </summary>
+    [Fact]
+    public async Task GetAllAsync_WhenFeaturesAndParametersAreDeclaredOnTheEntry_ShouldReadThemAsCapabilityMetadata()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Deployments:0:ConnectionName"] = "shared-openai",
+            ["CrestApps:AI:Deployments:0:Name"] = "reasoning-chat",
+            ["CrestApps:AI:Deployments:0:Features:0"] = AIDeploymentFeatureNames.TextGeneration,
+            ["CrestApps:AI:Deployments:0:Features:1"] = AIDeploymentFeatureNames.ToolCalling,
+            ["CrestApps:AI:Deployments:0:Features:2"] = AIDeploymentFeatureNames.Reasoning,
+            ["CrestApps:AI:Deployments:0:Parameters:reasoningEffort:DefaultValue"] = "None",
+            ["CrestApps:AI:Deployments:0:Parameters:reasoningEffort:AllowedValues:0"] = "None",
+            ["CrestApps:AI:Deployments:0:Parameters:reasoningEffort:AllowedValues:1"] = "Low",
+        }).Build();
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(configuration, aiOptions);
+
+        // Act
+        var deployment = Assert.Single(await store.GetAllAsync(TestContext.Current.CancellationToken));
+
+        // Assert
+        AssertDeclaresExactly(
+            deployment,
+            AIDeploymentFeatureNames.TextGeneration,
+            AIDeploymentFeatureNames.ToolCalling,
+            AIDeploymentFeatureNames.Reasoning);
+        Assert.True(deployment.TryGet<AIDeploymentMetadata>(out var metadata));
+        var reasoningEffort = Assert.Contains(AIDeploymentParameterNames.ReasoningEffort, metadata.Parameters);
+        Assert.Equal("None", reasoningEffort.DefaultValue);
+        Assert.Equal(["None", "Low"], reasoningEffort.AllowedValues);
+        Assert.False(deployment.Properties.ContainsKey("Features"), "The shorthand features should be folded into the metadata, not left as a stray property.");
+        Assert.False(deployment.Properties.ContainsKey("Parameters"), "The shorthand parameters should be folded into the metadata, not left as a stray property.");
+    }
+
+    /// <summary>
+    /// A host can keep the full definition in <c>appsettings.json</c> and override a single value from Azure.
+    /// The shorthand therefore adds features and merges parameter fields one key at a time; it never discards
+    /// what the nested form declared.
+    /// </summary>
+    [Fact]
+    public async Task GetAllAsync_WhenBothFormsAreDeclared_ShouldCombineFeaturesAndMergeParameterFields()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Deployments:0:ConnectionName"] = "shared-openai",
+            ["CrestApps:AI:Deployments:0:Name"] = "reasoning-chat",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Features:0"] = AIDeploymentFeatureNames.TextGeneration,
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Features:1"] = AIDeploymentFeatureNames.ToolCalling,
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:reasoningEffort:DefaultValue"] = "Medium",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:reasoningEffort:AllowedValues:0"] = "None",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:reasoningEffort:AllowedValues:1"] = "Medium",
+            ["CrestApps:AI:Deployments:0:Features:0"] = AIDeploymentFeatureNames.Reasoning,
+            ["CrestApps:AI:Deployments:0:Features:1"] = "TOOLCALLING",
+            ["CrestApps:AI:Deployments:0:Parameters:reasoningEffort:DefaultValue"] = "None",
+        }).Build();
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(configuration, aiOptions);
+
+        // Act
+        var deployment = Assert.Single(await store.GetAllAsync(TestContext.Current.CancellationToken));
+
+        // Assert
+        AssertDeclaresExactly(
+            deployment,
+            AIDeploymentFeatureNames.TextGeneration,
+            AIDeploymentFeatureNames.ToolCalling,
+            AIDeploymentFeatureNames.Reasoning);
+        Assert.True(deployment.TryGet<AIDeploymentMetadata>(out var metadata));
+        var reasoningEffort = Assert.Contains(AIDeploymentParameterNames.ReasoningEffort, metadata.Parameters);
+        Assert.Equal("None", reasoningEffort.DefaultValue);
+        Assert.Equal(["None", "Medium"], reasoningEffort.AllowedValues);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_WhenAProviderGroupedEntryDeclaresShorthandMetadata_ShouldReadIt()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:OpenAI:0:Name"] = "grouped-reasoning-chat",
+            ["CrestApps:AI:Deployments:OpenAI:0:ConnectionName"] = "shared-openai",
+            ["CrestApps:AI:Deployments:OpenAI:0:Features:0"] = AIDeploymentFeatureNames.TextGeneration,
+            ["CrestApps:AI:Deployments:OpenAI:0:Features:1"] = AIDeploymentFeatureNames.Reasoning,
+            ["CrestApps:AI:Deployments:OpenAI:0:Parameters:reasoningEffort:DefaultValue"] = "None",
+        }).Build();
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(configuration, aiOptions);
+
+        // Act
+        var deployment = Assert.Single(await store.GetAllAsync(TestContext.Current.CancellationToken));
+
+        // Assert
+        AssertDeclaresExactly(deployment, AIDeploymentFeatureNames.TextGeneration, AIDeploymentFeatureNames.Reasoning);
+        Assert.True(deployment.TryGet<AIDeploymentMetadata>(out var metadata));
+        Assert.Equal("None", Assert.Contains(AIDeploymentParameterNames.ReasoningEffort, metadata.Parameters).DefaultValue);
+    }
+
+    /// <summary>
+    /// Reading the metadata is not enough on its own: the parameter must also resolve through the capability
+    /// service, which is what the chat editors and the request pipeline consult. This proves an operator who
+    /// configures the shorthand can actually run the deployment with a reasoning effort of <c>None</c>.
+    /// </summary>
+    [Fact]
+    public async Task AddCoreAIOpenAI_WhenShorthandDeclaresReasoningEffort_ShouldExposeItThroughTheCapabilityService()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Deployments:0:ConnectionName"] = "shared-openai",
+            ["CrestApps:AI:Deployments:0:Name"] = "reasoning-chat",
+            ["CrestApps:AI:Deployments:0:Features:0"] = AIDeploymentFeatureNames.TextGeneration,
+            ["CrestApps:AI:Deployments:0:Features:1"] = AIDeploymentFeatureNames.ToolCalling,
+            ["CrestApps:AI:Deployments:0:Features:2"] = AIDeploymentFeatureNames.Reasoning,
+            ["CrestApps:AI:Deployments:0:Parameters:reasoningEffort:DefaultValue"] = "None",
+            ["CrestApps:AI:Deployments:0:Parameters:reasoningEffort:AllowedValues:0"] = "None",
+        }).Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(TimeProvider.System);
+        services.AddLogging();
+        services.AddCoreAIServices();
+        services.AddCoreAIOpenAI();
+        using var serviceProvider = services.BuildServiceProvider();
+        using var scope = serviceProvider.CreateScope();
+
+        var deploymentStore = scope.ServiceProvider.GetRequiredService<IAIDeploymentStore>();
+        var capabilityService = scope.ServiceProvider.GetRequiredService<IAIDeploymentCapabilityService>();
+
+        // Act
+        var deployment = Assert.Single(await deploymentStore.GetAllAsync(TestContext.Current.CancellationToken));
+        var capabilities = capabilityService.GetCapabilities(deployment);
+
+        // Assert
+        Assert.True(capabilities.SupportsFeature(AIDeploymentFeatureNames.Reasoning));
+        var reasoningEffort = capabilities.GetParameter(AIDeploymentParameterNames.ReasoningEffort);
+        Assert.NotNull(reasoningEffort);
+        Assert.Equal("None", reasoningEffort.DefaultValue);
+        Assert.True(reasoningEffort.IsValidValue("None"));
+        Assert.False(reasoningEffort.IsValidValue("Medium"));
     }
 
     private static void AssertDeclaresExactly(IEnumerable<AIDeployment> deployments, string name, params string[] expectedFeatures)
