@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -82,22 +83,55 @@ public sealed class DataSourceChatInteractionSettingsHandler : IChatInteractionS
         return Task.CompletedTask;
     }
 
-    private static void ApplyRagSettings(ChatInteraction interaction, JsonElement settings)
+    private void ApplyRagSettings(ChatInteraction interaction, JsonElement settings)
     {
         var isInScope = GetBool(settings, "isInScope") ?? false;
         var topNDocuments = GetInt(settings, "topNDocuments");
         var strictness = GetInt(settings, "strictness");
         var filter = GetString(settings, "filter");
         var objectTypes = SplitObjectTypes(GetString(settings, "objectTypes"));
+        var isValidFilter = IsValidFilter(filter);
+
+        if (!isValidFilter)
+        {
+            _logger.LogWarning("Chat interaction '{InteractionId}' kept its previous data source filter because the new filter is not a valid OData filter.", interaction.ItemId);
+        }
 
         interaction.Alter<AIDataSourceRagMetadata>(metadata =>
         {
             metadata.Strictness = strictness;
             metadata.TopNDocuments = topNDocuments;
             metadata.IsInScope = isInScope;
-            metadata.Filter = filter;
             metadata.ObjectTypes = objectTypes;
+
+            if (isValidFilter)
+            {
+                metadata.Filter = filter;
+            }
         });
+    }
+
+    /// <summary>
+    /// Determines whether the filter can be stored, with the same <see cref="IODataValidator"/> check the AI
+    /// profile editor applies.
+    /// </summary>
+    /// <param name="filter">The filter as sent by the client.</param>
+    /// <returns><see langword="true"/> when the filter is empty, valid, or no validator is registered.</returns>
+    /// <remarks>
+    /// The chat interaction hub rejects an invalid filter before this handler runs. This check covers a host
+    /// that saves the settings another way: the stored filter stays as it was instead of becoming one that
+    /// every later search fails on or ignores.
+    /// </remarks>
+    private bool IsValidFilter(string filter)
+    {
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            return true;
+        }
+
+        var validator = _serviceProvider.GetService<IODataValidator>();
+
+        return validator == null || validator.IsValidFilter(filter);
     }
 
     /// <summary>

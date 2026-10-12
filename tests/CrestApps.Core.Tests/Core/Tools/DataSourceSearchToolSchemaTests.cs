@@ -147,7 +147,68 @@ public sealed class DataSourceSearchToolSchemaTests
         Assert.Null(recorder.Filter);
     }
 
-    private static async Task<string> InvokeAsync(IServiceProvider services, Dictionary<string, object> arguments)
+    /// <summary>
+    /// Verifies that the filter stored on a chat interaction reaches the index when the model calls the tool, as
+    /// it already does for the preemptive search of the same interaction.
+    /// </summary>
+    [Fact]
+    public async Task InvokeAsync_WhenTheResourceIsAChatInteraction_AppliesItsFilter()
+    {
+        var recorder = new SearchRecorder();
+
+        await using var services = BuildServices(recorder);
+
+        var interaction = new ChatInteraction
+        {
+            ItemId = "interaction-1",
+        };
+
+        interaction.Put(new AIDataSourceRagMetadata
+        {
+            Filter = "category eq 'docs'",
+        });
+
+        await InvokeAsync(services, new Dictionary<string, object>
+        {
+            ["query"] = "quarterly figures",
+        },
+        interaction);
+
+        Assert.Equal("category eq 'docs'", recorder.Filter);
+    }
+
+    /// <summary>
+    /// Verifies that the filter stored on an AI profile still reaches the index when the model calls the tool.
+    /// </summary>
+    [Fact]
+    public async Task InvokeAsync_WhenTheResourceIsAProfile_AppliesItsFilter()
+    {
+        var recorder = new SearchRecorder();
+
+        await using var services = BuildServices(recorder);
+
+        var profile = new AIProfile
+        {
+            ItemId = "profile-1",
+            Name = "grounded",
+            Type = AIProfileType.Chat,
+        };
+
+        profile.Put(new AIDataSourceRagMetadata
+        {
+            Filter = "category eq 'docs'",
+        });
+
+        await InvokeAsync(services, new Dictionary<string, object>
+        {
+            ["query"] = "quarterly figures",
+        },
+        profile);
+
+        Assert.Equal("category eq 'docs'", recorder.Filter);
+    }
+
+    private static Task<string> InvokeAsync(IServiceProvider services, Dictionary<string, object> arguments)
     {
         var profile = new AIProfile
         {
@@ -156,10 +217,15 @@ public sealed class DataSourceSearchToolSchemaTests
             Type = AIProfileType.Chat,
         };
 
+        return InvokeAsync(services, arguments, profile);
+    }
+
+    private static async Task<string> InvokeAsync(IServiceProvider services, Dictionary<string, object> arguments, object resource)
+    {
         using var scope = AIInvocationScope.Begin();
 
         AIInvocationScope.Current.DataSourceId = DataSourceId;
-        AIInvocationScope.Current.ToolExecutionContext = new AIToolExecutionContext(profile);
+        AIInvocationScope.Current.ToolExecutionContext = new AIToolExecutionContext(resource);
 
         var result = await new DataSourceSearchTool().InvokeAsync(new AIFunctionArguments(arguments)
         {

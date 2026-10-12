@@ -49,14 +49,34 @@ public static class ServiceCollectionExtensions
         services.TryAddKeyedScoped<IDataSourceDocumentReader>(ElasticsearchConstants.ProviderName, (sp, _)
             => new DataSourceElasticsearchDocumentReader(sp.GetRequiredService<IElasticsearchClientFactory>().Create()));
 
-        services.TryAddKeyedSingleton<IODataFilterTranslator>(ElasticsearchConstants.ProviderName, (_, _)
-            => new ElasticsearchODataFilterTranslator());
+        services.AddElasticsearchODataFilterTranslator();
 
         services.TryAddKeyedScoped<ISearchIndexManager>(ElasticsearchConstants.ProviderName, (sp, _)
             => new ElasticsearchSearchIndexManager(sp.GetRequiredService<IElasticsearchClientFactory>().Create(), sp.GetRequiredService<IOptions<ElasticsearchConnectionOptions>>(), sp.GetRequiredService<ILogger<ElasticsearchSearchIndexManager>>()));
 
         services.TryAddKeyedScoped<ISearchDocumentManager>(ElasticsearchConstants.ProviderName, (sp, _)
             => new ElasticsearchSearchDocumentManager(sp.GetRequiredService<IElasticsearchClientFactory>().Create(), sp.GetServices<ISearchDocumentHandler>(), sp.GetRequiredService<ILogger<ElasticsearchSearchDocumentManager>>()));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers only the Elasticsearch OData filter translator, keyed by
+    /// <see cref="ElasticsearchConstants.ProviderName"/>. The translator turns the OData filter of an AI profile,
+    /// a chat interaction or a data source search into the Elasticsearch query that data source retrieval runs.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="AddCoreElasticsearchServices(IServiceCollection)"/> already calls this method. Call it directly
+    /// when the host brings its own Elasticsearch client, index managers and data source content manager and
+    /// needs only the filter translation, so no other Elasticsearch service is registered.
+    /// </remarks>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddElasticsearchODataFilterTranslator(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddKeyedSingleton<IODataFilterTranslator>(ElasticsearchConstants.ProviderName, (_, _)
+            => new ElasticsearchODataFilterTranslator());
 
         return services;
     }
