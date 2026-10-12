@@ -1,3 +1,4 @@
+using System.Globalization;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Deployments;
@@ -303,6 +304,88 @@ public sealed class ConfigurationAIDeploymentCatalogTests
         Assert.Equal(2, temperature.Maximum);
         Assert.Equal(["1", "42"], Assert.Contains("seed", metadata.Parameters).AllowedValues);
         Assert.Equal("true", Assert.Contains("stream", metadata.Parameters).DefaultValue);
+    }
+
+    /// <summary>
+    /// A number that is restored to text keeps the exact text it was written with, so an allowed value such as
+    /// <c>1.0</c> still matches the value the operator selects. Text that is not a JSON number, such as
+    /// <c>007</c>, is never turned into a number.
+    /// </summary>
+    [Fact]
+    public async Task GetAllAsync_WhenAParameterValueIsANumber_ShouldKeepItsExactText()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Deployments:0:ConnectionName"] = "shared-openai",
+            ["CrestApps:AI:Deployments:0:Name"] = "tuned-chat",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Features:0"] = AIDeploymentFeatureNames.TextGeneration,
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:temperature:DefaultValue"] = "0.70",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:temperature:AllowedValues:0"] = "1.0",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:temperature:AllowedValues:1"] = "1e3",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:temperature:AllowedValues:2"] = "007",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:temperature:Step"] = "0.05",
+        }).Build();
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(configuration, aiOptions);
+
+        // Act
+        var deployment = Assert.Single(await store.GetAllAsync(TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.True(deployment.TryGet<AIDeploymentMetadata>(out var metadata));
+        var temperature = Assert.Contains("temperature", metadata.Parameters);
+        Assert.Equal("0.70", temperature.DefaultValue);
+        Assert.Equal(["1.0", "1e3", "007"], temperature.AllowedValues);
+        Assert.Equal(0.05, temperature.Step);
+    }
+
+    /// <summary>
+    /// Configuration values are read the same way whatever the server's culture. Reading them with a culture that
+    /// separates thousands with <c>.</c> used to turn <c>0.7</c> into <c>7</c> and a minimum of <c>0.25</c> into
+    /// <c>25</c>, with no error.
+    /// </summary>
+    [Fact]
+    public async Task GetAllAsync_WhenTheCultureSeparatesThousandsWithADot_ShouldReadNumbersTheSameWay()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Deployments:0:ConnectionName"] = "shared-openai",
+            ["CrestApps:AI:Deployments:0:Name"] = "tuned-chat",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Features:0"] = AIDeploymentFeatureNames.TextGeneration,
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:temperature:DefaultValue"] = "0.7",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:temperature:Minimum"] = "0.25",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Parameters:temperature:Maximum"] = "1.5",
+        }).Build();
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(configuration, aiOptions);
+        var originalCulture = CultureInfo.CurrentCulture;
+        IEnumerable<AIDeployment> deployments;
+
+        // Act
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+
+            deployments = await store.GetAllAsync(TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+
+        // Assert
+        var deployment = Assert.Single(deployments);
+        Assert.True(deployment.TryGet<AIDeploymentMetadata>(out var metadata));
+        var temperature = Assert.Contains("temperature", metadata.Parameters);
+        Assert.Equal("0.7", temperature.DefaultValue);
+        Assert.Equal(0.25, temperature.Minimum);
+        Assert.Equal(1.5, temperature.Maximum);
     }
 
     /// <summary>
