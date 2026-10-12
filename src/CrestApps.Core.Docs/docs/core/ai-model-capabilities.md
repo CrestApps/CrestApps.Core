@@ -192,7 +192,7 @@ A deployment-level parameter entry may narrow or override the registered definit
 
 A configured deployment may also declare `Features` and `Parameters` directly on the entry. They mean
 exactly the same as `Properties:AIDeploymentMetadata:Features` and
-`Properties:AIDeploymentMetadata:Parameters`, but the keys are about 45 characters shorter.
+`Properties:AIDeploymentMetadata:Parameters`, but each key is 34 characters shorter.
 
 That matters when the configuration comes from environment variables. Azure App Service rejects
 application setting names longer than 100 characters, so the nested form cannot carry a parameter there:

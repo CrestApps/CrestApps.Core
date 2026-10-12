@@ -566,6 +566,8 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
     /// array shape. The names themselves are validated by
     /// <see cref="AIDeploymentPurposeCompatibility"/>, which ignores any it does not recognize.
     /// </summary>
+    /// <param name="purposeNode">The <c>Purpose</c>, <c>Capability</c>, or <c>Type</c> node, or <see langword="null"/>.</param>
+    /// <param name="legacyPurposes">The declared names, or <see langword="null"/> when none are declared.</param>
     private static bool TryGetLegacyPurposes(JsonNode purposeNode, out string[] legacyPurposes)
     {
         var names = ReadNames(purposeNode);
@@ -597,6 +599,11 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
             : [singleName];
     }
 
+    /// <summary>
+    /// Builds the properties stored on a configured deployment from its explicit <c>Properties</c> object and
+    /// its top-level fields, then folds any shorthand <c>Features</c> and <c>Parameters</c> into the metadata.
+    /// </summary>
+    /// <param name="deploymentObject">The configured deployment entry.</param>
     private static JsonObject BuildDeploymentProperties(JsonObject deploymentObject)
     {
         JsonObject properties = null;
@@ -626,7 +633,7 @@ public sealed class ConfigurationAIDeploymentSource : INamedSourceCatalogSource<
     /// </summary>
     /// <remarks>
     /// The shorthand exists because Azure App Service rejects application setting names longer than 100
-    /// characters, and the nested path alone costs about 45 of them before the parameter name. When both
+    /// characters, and the nested <c>Properties__AIDeploymentMetadata__</c> segment alone costs 34 of them. When both
     /// forms are present the shorthand adds its features and merges each parameter one field at a time, so a
     /// host can keep the full definition in a JSON file and override a single value from the environment.
     /// </remarks>
