@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Realtime;
@@ -85,7 +86,7 @@ internal sealed class RealtimeRagGuidanceHandler : IOrchestrationContextBuilderH
             return;
         }
 
-        var ragMetadata = GetRagMetadata(context.Resource);
+        var ragMetadata = AIDataSourceRagMetadataResolver.Resolve(context.Resource);
 
         // IsInScope ON: the model MUST call the search tool and MUST NOT use general knowledge.
         // IsInScope OFF: the model MUST try the search tool first, then may supplement with general knowledge.
@@ -117,20 +118,5 @@ internal sealed class RealtimeRagGuidanceHandler : IOrchestrationContextBuilderH
                 SystemToolNames.SearchDocuments,
             },
         };
-    }
-
-    private static AIDataSourceRagMetadata GetRagMetadata(object resource)
-    {
-        if (resource is AIProfile profile && profile.TryGet<AIDataSourceRagMetadata>(out var ragMetadata))
-        {
-            return ragMetadata;
-        }
-
-        if (resource is ChatInteraction interaction && interaction.TryGet<AIDataSourceRagMetadata>(out var interactionRagMetadata))
-        {
-            return interactionRagMetadata;
-        }
-
-        return null;
     }
 }

@@ -62,6 +62,18 @@ builder.Services.AddCoreAzureAISearchServices();
 
 When the `Endpoint` is provided, a `SearchIndexClient` singleton is also registered.
 
+### Registering only the filter translator
+
+A host that brings its own Azure AI Search clients, index managers and data source content manager can register only the OData filter translator, keyed by `"AzureAISearch"`:
+
+```csharp
+builder.Services.AddAzureAISearchODataFilterTranslator();
+```
+
+`AddCoreAzureAISearchServices()` calls this method itself, so a host that calls both still has one translator. Without a translator, a profile or chat interaction filter is ignored and a warning is logged.
+
+The translator prefixes each field with `filters/` (`category eq 'support'` becomes `filters/category eq 'support'`). Azure AI Search accepts a filter only on a field that the index schema declares as filterable, so the knowledge base index must declare the `filters` complex field and each sub-field that a filter names. Otherwise, the search request fails.
+
 AI-specific Azure AI Search registrations now live in `CrestApps.Core.AI.Azure.AISearch`. Register that package when you need `AddAIDocuments()`, `AddAIDataSources()`, `AddAIMemory()`, or Azure AI Search-backed AI RAG/search flows.
 
 When you call `AddAIDataSources()`, the feature builder also pulls in the shared asynchronous data-source synchronization stack from `AddCoreAIDataSourceRag()`, including:

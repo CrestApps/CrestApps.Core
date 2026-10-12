@@ -92,6 +92,10 @@ The OData filter validator is primarily used by the data source system. When a d
 
 This prevents malformed filters from causing backend errors or unexpected behavior.
 
+The chat interaction hub applies the same check. `ChatInteractionHubBase.SaveSettings` validates the `filter` setting with the registered `IODataValidator` before any settings handler runs. An invalid filter rejects the whole save: the caller receives `ReceiveError` with the message from `GetSettingsValidationMessage("filter")`, and the interaction keeps the settings it had. `DataSourceChatInteractionSettingsHandler` also keeps the stored filter (and logs a warning) when it receives an invalid one, for a host that saves the settings another way.
+
+When a filter is set but no `IODataFilterTranslator` is registered for the knowledge base index provider, the filter cannot be applied. Both the preemptive retrieval and the `search_data_sources` tool (`DataSourceSearchTool`) then log a warning (*"No OData filter translator available for provider '…'. Filter will be ignored."*) and search without the filter.
+
 ```text
 User-provided OData filter
         │

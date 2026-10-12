@@ -423,6 +423,10 @@ public interface IODataFilterTranslator
 
 For example, the Elasticsearch translator converts `category eq 'support'` into an Elasticsearch query DSL filter targeting the `filters.category` field.
 
+The translator is resolved as a keyed service by the knowledge base index profile's `ProviderName`. The filter comes from `AIDataSourceRagMetadata` on the AI profile or on the chat interaction, and the preemptive retrieval and the `search_data_sources` tool (`DataSourceSearchTool`) read it the same way, so both apply the same filter, strictness and top-N to the same resource. When a filter is set and no translator is registered for the provider, both paths log a warning and search without the filter.
+
+`AddCoreElasticsearchServices()` and `AddCoreAzureAISearchServices()` register their translator. A host that brings its own clients and content managers for those providers can register only the translator with `AddElasticsearchODataFilterTranslator()` or `AddAzureAISearchODataFilterTranslator()`.
+
 ## Adding a Custom Backend
 
 To add a custom vector store backend (e.g., Pinecone, Qdrant, Weaviate), implement all six keyed services:

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Realtime;
@@ -214,7 +215,7 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
     /// </summary>
     private async Task AppendScopeGuidanceAsync(OrchestrationContext turnContext, object resource, bool hasReferences, CancellationToken cancellationToken)
     {
-        var ragMetadata = GetRagMetadata(resource);
+        var ragMetadata = AIDataSourceRagMetadataResolver.Resolve(resource);
 
         if (ragMetadata?.IsInScope != true)
         {
@@ -254,21 +255,6 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
             _logger.LogInformation(
                 "Realtime retrieval found nothing for an in-scope profile; the model is instructed to stay within the knowledge base rather than answer from its own knowledge.");
         }
-    }
-
-    private static AIDataSourceRagMetadata GetRagMetadata(object resource)
-    {
-        if (resource is AIProfile profile && profile.TryGet<AIDataSourceRagMetadata>(out var ragMetadata))
-        {
-            return ragMetadata;
-        }
-
-        if (resource is ChatInteraction interaction && interaction.TryGet<AIDataSourceRagMetadata>(out var interactionRagMetadata))
-        {
-            return interactionRagMetadata;
-        }
-
-        return null;
     }
 
     /// <summary>

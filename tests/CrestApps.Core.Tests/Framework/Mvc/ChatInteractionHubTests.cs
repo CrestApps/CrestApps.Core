@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.Handlers;
@@ -261,6 +262,67 @@ public sealed class ChatInteractionHubTests
         managerMock.Verify(manager => manager.FindByIdAsync(interaction.ItemId), Times.Once);
         managerMock.Verify(manager => manager.UpdateAsync(interaction, null), Times.Once);
         callerMock.Verify(client => client.SettingsSaved(interaction.ItemId, interaction.Title), Times.Once);
+    }
+
+    [Fact]
+    public async Task SaveSettings_WithInvalidFilter_ReturnsAnErrorAndSavesNothing()
+    {
+        // Arrange
+        var interaction = new ChatInteraction
+        {
+            ItemId = "chat-3",
+            Title = "Knowledge chat",
+        };
+
+        interaction.Put(new AIDataSourceRagMetadata { Filter = "category eq 'news'" });
+
+        var managerMock = new Mock<ICatalogManager<ChatInteraction>>();
+        managerMock.Setup(manager => manager
+            .FindByIdAsync(interaction.ItemId))
+            .Returns(new ValueTask<ChatInteraction>(interaction));
+
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton(managerMock.Object)
+            .AddSingleton(new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object)
+            .AddSingleton<IODataValidator, ODataFilterValidator>()
+            .AddSingleton<IChatInteractionSettingsHandler, DataSourceChatInteractionSettingsHandler>()
+            .AddSingleton(typeof(ILogger<>), typeof(NullLogger<>))
+            .BuildServiceProvider();
+
+        var callerMock = new Mock<IChatInteractionHubClient>();
+        callerMock.Setup(client => client
+            .ReceiveError(It.IsAny<string>()))
+            .Returns(Task.CompletedTask);
+
+        var clientsMock = new Mock<IHubCallerClients<IChatInteractionHubClient>>();
+        clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
+
+        var hub = new ChatInteractionHub(
+            serviceProvider,
+            TimeProvider.System,
+            CreateCitationCollector(),
+            CreateSiteSettingsStore(),
+            NullLogger<ChatInteractionHub>.Instance)
+        {
+            Clients = clientsMock.Object,
+        };
+
+        using var json = JsonDocument.Parse("""
+            {
+              "title":"Renamed",
+              "filter":"category eq 'docs"
+            }
+            """);
+
+        // Act
+        await hub.SaveSettings(interaction.ItemId, json.RootElement.Clone());
+
+        // Assert
+        callerMock.Verify(client => client.ReceiveError("Invalid filter value. It must be a valid OData filter."), Times.Once);
+        callerMock.Verify(client => client.SettingsSaved(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        managerMock.Verify(manager => manager.UpdateAsync(It.IsAny<ChatInteraction>(), It.IsAny<JsonNode>()), Times.Never);
+        Assert.Equal("Knowledge chat", interaction.Title);
+        Assert.Equal("category eq 'news'", interaction.GetOrCreate<AIDataSourceRagMetadata>().Filter);
     }
 
     [Fact]

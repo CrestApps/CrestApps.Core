@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
@@ -88,7 +89,7 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
             return;
         }
 
-        var ragMetadata = GetRagMetadata(buildContext.Resource);
+        var ragMetadata = AIDataSourceRagMetadataResolver.Resolve(buildContext.Resource);
         // When preemptive RAG is disabled and tools are available, we skip the upfront
         // search but still inject instructions so the model knows to call search tools.
         if (!_settings.EnablePreemptiveRag && !buildContext.OrchestrationContext.DisableTools)
@@ -202,20 +203,5 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
                 SystemToolNames.SearchDocuments,
             },
         };
-    }
-
-    private static AIDataSourceRagMetadata GetRagMetadata(object resource)
-    {
-        if (resource is AIProfile profile && profile.TryGet<AIDataSourceRagMetadata>(out var ragMetadata))
-        {
-            return ragMetadata;
-        }
-
-        if (resource is ChatInteraction interaction && interaction.TryGet<AIDataSourceRagMetadata>(out var interactionRagMetadata))
-        {
-            return interactionRagMetadata;
-        }
-
-        return null;
     }
 }

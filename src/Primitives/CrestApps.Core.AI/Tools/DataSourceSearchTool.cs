@@ -1,6 +1,6 @@
 ﻿using System.Text.Json;
+using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Extensions;
-using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
@@ -98,7 +98,7 @@ public sealed class DataSourceSearchTool : AIFunction
                 return "No data source is configured for this profile.";
             }
 
-            var ragMetadata = GetRagMetadata(executionContext);
+            var ragMetadata = AIDataSourceRagMetadataResolver.Resolve(executionContext.Resource);
 
             return await DataSourceRetrieval.SearchAsync(
                 arguments.Services,
@@ -111,7 +111,7 @@ public sealed class DataSourceSearchTool : AIFunction
                     Filter = ragMetadata?.Filter,
                     ObjectTypes = ReadContentTypes(arguments),
 
-                    // A profile always states a policy, even when it has no RAG metadata, because the
+                    // A profile or chat interaction always states a policy, even when it has no RAG metadata, because the
                     // orchestration handlers put that same policy in the system prompt for the whole turn.
                     IsInScope = ragMetadata?.IsInScope == true,
                 },
@@ -158,15 +158,5 @@ public sealed class DataSourceSearchTool : AIFunction
         };
 
         return requested.Length == 0 ? null : requested;
-    }
-
-    private static AIDataSourceRagMetadata GetRagMetadata(AIToolExecutionContext executionContext)
-    {
-        if (executionContext.Resource is AIProfile profile && profile.TryGet<AIDataSourceRagMetadata>(out var ragMetadata))
-        {
-            return ragMetadata;
-        }
-
-        return null;
     }
 }

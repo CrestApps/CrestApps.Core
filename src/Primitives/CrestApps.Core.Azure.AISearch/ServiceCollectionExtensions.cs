@@ -50,14 +50,34 @@ public static class ServiceCollectionExtensions
         services.TryAddKeyedScoped<IDataSourceDocumentReader>(AISearchConstants.ProviderName, (sp, _)
             => new DataSourceAzureAISearchDocumentReader(sp.GetRequiredService<SearchIndexClient>()));
 
-        services.TryAddKeyedSingleton<IODataFilterTranslator>(AISearchConstants.ProviderName, (_, _)
-            => new AzureAIODataFilterTranslator());
+        services.AddAzureAISearchODataFilterTranslator();
 
         services.TryAddKeyedScoped<ISearchIndexManager>(AISearchConstants.ProviderName, (sp, _)
             => new AzureAISearchIndexManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetRequiredService<IOptions<AzureAISearchConnectionOptions>>(), sp.GetRequiredService<ILogger<AzureAISearchIndexManager>>()));
 
         services.TryAddKeyedScoped<ISearchDocumentManager>(AISearchConstants.ProviderName, (sp, _)
             => new AzureAISearchDocumentManager(sp.GetRequiredService<SearchIndexClient>(), sp.GetServices<ISearchDocumentHandler>(), sp.GetRequiredService<ILogger<AzureAISearchDocumentManager>>()));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers only the Azure AI Search OData filter translator, keyed by
+    /// <see cref="AISearchConstants.ProviderName"/>. The translator turns the OData filter of an AI profile,
+    /// a chat interaction or a data source search into the Azure AI Search filter that data source retrieval runs.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="AddCoreAzureAISearchServices(IServiceCollection)"/> already calls this method. Call it directly
+    /// when the host brings its own Azure AI Search clients, index managers and data source content manager and
+    /// needs only the filter translation, so no other Azure AI Search service is registered.
+    /// </remarks>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddAzureAISearchODataFilterTranslator(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddKeyedSingleton<IODataFilterTranslator>(AISearchConstants.ProviderName, (_, _)
+            => new AzureAIODataFilterTranslator());
 
         return services;
     }
