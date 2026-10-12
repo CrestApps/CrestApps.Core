@@ -188,6 +188,42 @@ A deployment-level parameter entry may narrow or override the registered definit
 | `DefaultValue` | Overrides the registered default. Ignored when the value is not valid for the parameter. |
 | `Minimum`, `Maximum`, `Step` | Overrides the numeric bounds for `Number` and `Integer` parameters. |
 
+### Shorter keys for environment variables and Azure App Service
+
+A configured deployment may also declare `Features` and `Parameters` directly on the entry. They mean
+exactly the same as `Properties:AIDeploymentMetadata:Features` and
+`Properties:AIDeploymentMetadata:Parameters`, but each key is 34 characters shorter.
+
+That matters when the configuration comes from environment variables. Azure App Service rejects
+application setting names longer than 100 characters, so the nested form cannot carry a parameter there:
+
+| Setting name | Length |
+| --- | --- |
+| `CrestApps__AI__Deployments__0__Properties__AIDeploymentMetadata__Parameters__reasoningEffort__AllowedValues__0` | 110 (rejected) |
+| `CrestApps__AI__Deployments__0__Parameters__reasoningEffort__AllowedValues__0` | 76 |
+
+A deployment configured entirely from Azure App Service settings therefore looks like this:
+
+```text
+CrestApps__AI__Deployments__0__ClientName = OpenAI
+CrestApps__AI__Deployments__0__Name = gpt-5-chat
+CrestApps__AI__Deployments__0__ModelName = gpt-5
+CrestApps__AI__Deployments__0__ConnectionName = openai
+CrestApps__AI__Deployments__0__Features__0 = textGeneration
+CrestApps__AI__Deployments__0__Features__1 = toolCalling
+CrestApps__AI__Deployments__0__Features__2 = reasoning
+CrestApps__AI__Deployments__0__Parameters__reasoningEffort__DefaultValue = None
+CrestApps__AI__Deployments__0__Parameters__reasoningEffort__AllowedValues__0 = None
+```
+
+The two forms can be combined, for example a full definition in `appsettings.json` with a single value
+overridden from the environment:
+
+- shorthand `Features` are added to the declared features; a name already declared, in any casing, is not
+  repeated
+- each shorthand parameter is merged into the declared parameter field by field, so overriding only
+  `Parameters:reasoningEffort:DefaultValue` keeps the `AllowedValues` the JSON file declared
+
 ## Resolving capabilities
 
 `IAIDeploymentCapabilityService` merges the registered definitions with the deployment metadata and
