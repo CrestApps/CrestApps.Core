@@ -43,7 +43,11 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     {
         var client = GetOpenAIClient(connection);
 
-        return client.GetChatClient(deploymentName).AsIChatClient();
+#pragma warning disable OPENAI001 // The Responses types from the OpenAI SDK are for evaluation purposes only.
+        return new OpenAIReasoningRoutingChatClient(
+            client.GetChatClient(deploymentName).AsIChatClient(),
+            client.GetResponsesClient().AsIChatClient(deploymentName));
+#pragma warning restore OPENAI001
     }
 
     /// <summary>
