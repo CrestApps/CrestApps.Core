@@ -90,6 +90,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
             .AddOpenXml()
             .AddPdf()
             .AddWord()
+            .AddAnimations()
         )
         .AddAIMemory()
         .AddA2AClient()

@@ -2292,7 +2292,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
         foreach (var reference in references)
         {
-            if (reference.Value?.IsImage != true ||
+            if ((reference.Value?.IsImage != true && reference.Value?.IsVideo != true) ||
                 string.IsNullOrWhiteSpace(reference.Value.Link) ||
                 string.IsNullOrEmpty(reference.Key) ||
                 text.Contains(reference.Key, StringComparison.OrdinalIgnoreCase))

@@ -2,6 +2,8 @@ using CrestApps.Core;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.A2A;
 using CrestApps.Core.AI.A2A.Models;
+using CrestApps.Core.AI.Animations;
+using CrestApps.Core.AI.Animations.Endpoints;
 using CrestApps.Core.AI.Azure.AISearch;
 using CrestApps.Core.AI.AzureAIInference;
 using CrestApps.Core.AI.Chat;
@@ -150,6 +152,7 @@ builder.Services
             .AddOpenXml()
             .AddPdf()
             .AddWord()
+            .AddAnimations()
             .AddReferenceDownloads()
         )
         .AddAIMemory(memory => memory
@@ -345,7 +348,8 @@ app.AddChatApiEndpoints()
     .AddUploadChatInteractionDocumentEndpoint()
     .AddRemoveChatInteractionDocumentEndpoint()
     .AddUploadChatSessionDocumentEndpoint()
-    .AddRemoveChatSessionDocumentEndpoint();
+    .AddRemoveChatSessionDocumentEndpoint()
+    .AddAnimationAssetEndpoint();
 
 app.MapControllerRoute(name: "areas", pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}");
 app.MapControllerRoute(name: "default", pattern: "{controller=Home}/{action=Index}/{id?}");

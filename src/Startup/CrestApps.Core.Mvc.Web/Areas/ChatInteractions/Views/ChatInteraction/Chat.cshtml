@@ -1079,7 +1079,7 @@
             }
 
             function renderMarkdown(text) {
-                var html = DOMPurify.sanitize(styleMarkdownTables(marked.parse(text || '')), { ADD_ATTR: ['target'] });
+                var html = DOMPurify.sanitize(styleMarkdownTables(marked.parse(text || '')), { ADD_TAGS: ['video'], ADD_ATTR: ['target', 'controls', 'poster', 'preload', 'playsinline', 'download'] });
 
                 if (typeof requestAnimationFrame === 'function') {
                     requestAnimationFrame(wireBrokenImageHandlers);
@@ -1261,6 +1261,8 @@
                 normalized.referenceType = normalized.referenceType ?? normalized.ReferenceType ?? null;
                 normalized.isGenerated = (normalized.isGenerated ?? normalized.IsGenerated) === true;
                 normalized.isImage = (normalized.isImage ?? normalized.IsImage) === true;
+                normalized.isVideo = (normalized.isVideo ?? normalized.IsVideo) === true;
+                normalized.posterLink = sanitizeUrl(normalized.posterLink ?? normalized.PosterLink ?? null);
 
                 return normalized;
             }

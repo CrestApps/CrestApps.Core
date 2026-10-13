@@ -180,6 +180,11 @@ per-conversation workspace of documents, and a steering handler tells the primar
 `.docx` files to it. Set `WordAgentOptions.Enabled = false` to leave it out; the steering handler then stays
 silent too. See [AI Documents](./ai-documents.md#word-documents-and-the-word-agent).
 
+The built-in **Animation Agent** (`animation-agent`, registered by `AddAnimations()`) writes a JavaScript program
+for the requested scene, runs it in a sandbox and encodes the frames as an MP4 that plays in the chat. It is
+offered only when FFmpeg can be run.
+Set `AnimationOptions.Enabled = false` to leave it out. See [AI Animations](./ai-animations.md).
+
 ## Creating Agent Profiles
 
 Agent profiles are standard `AIProfile` objects with `Type = AIProfileType.Agent`. They require a `Name` and `Description` at minimum — the description is what the primary model sees when deciding whether to invoke the agent.

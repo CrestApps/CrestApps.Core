@@ -212,6 +212,8 @@ window.coreAIChatManager = function () {
         normalized.referenceType = normalized.referenceType ?? normalized.ReferenceType ?? null;
         normalized.isGenerated = (normalized.isGenerated ?? normalized.IsGenerated) === true;
         normalized.isImage = (normalized.isImage ?? normalized.IsImage) === true;
+        normalized.isVideo = (normalized.isVideo ?? normalized.IsVideo) === true;
+        normalized.posterLink = sanitizeUrl(normalized.posterLink ?? normalized.PosterLink ?? null);
 
         return normalized;
     }
@@ -736,7 +738,7 @@ window.coreAIChatManager = function () {
         _pendingCharts = [];
         const html = styleMarkdownTables(marked.parse(content, { renderer }));
         message._pendingCharts = _pendingCharts.length > 0 ? [..._pendingCharts] : [];
-        const sanitizedHtml = DOMPurify.sanitize(html, { ADD_TAGS: ['canvas'], ADD_ATTR: ['target'] });
+        const sanitizedHtml = DOMPurify.sanitize(html, { ADD_TAGS: ['canvas', 'video'], ADD_ATTR: ['target', 'controls', 'poster', 'preload', 'playsinline', 'download'] });
 
         // Optional, shared with every chat surface: a run of pictures becomes one stacked carousel.
         return window.CoreAIChatImageCarousel ? window.CoreAIChatImageCarousel.stackAdjacentImages(sanitizedHtml) : sanitizedHtml;

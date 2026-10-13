@@ -51,6 +51,20 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
     return text.replace(/[\\\[\]]/g, '\\$&');
   }
 
+  /*
+   * The player for a video marker. Markdown has no syntax for a video, so this is inline HTML, which marked
+   * passes through and DOMPurify then keeps, the hosts adding <video> and its attributes to what they allow.
+   * A span, not a div, for the same reason the image wrapper is one: a marker written mid-sentence must not
+   * tear the paragraph apart. The download link sits below the player rather than over it, where it would
+   * cover the player's own controls.
+   */
+  function videoPlayerHtml(link, posterLink, title) {
+    var caption = typeof title === 'string' && title.trim() ? title.replace(/\s+/g, ' ').trim() : 'Animation';
+    var poster = typeof posterLink === 'string' && posterLink.trim() ? " poster=\"".concat(escapeAttributeValue(posterLink.trim()), "\"") : '';
+    var href = escapeAttributeValue(link);
+    return "<span class=\"generated-video-container\" style=\"display: inline-block; max-width: 100%; margin-top: 0.5rem;\">" + "<video src=\"".concat(href, "\"").concat(poster, " controls preload=\"metadata\" playsinline title=\"").concat(escapeAttributeValue(caption), "\" style=\"display: block; width: 640px; max-width: 100%; height: auto; border-radius: 0.375rem;\"></video>") + "<a href=\"".concat(href, "\" download=\"").concat(escapeAttributeValue(caption), ".mp4\" title=\"Download video\" class=\"btn btn-sm btn-outline-secondary mt-1 ai-download-video\"><i class=\"fa-solid fa-download\"></i> Download</a>") + "</span>";
+  }
+
   // Escapes a literal for use inside a regular expression.
   function escapeRegExp(text) {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -91,13 +105,14 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
     }
     var images = new Map();
     for (var _i = 0, _Object$keys = Object.keys(references); _i < _Object$keys.length; _i++) {
-      var _reference$isImage, _reference$link, _reference$title;
+      var _reference$isVideo, _reference$isImage, _reference$link, _reference$posterLink, _reference$title, _reference$title2;
       var marker = _Object$keys[_i];
       var reference = references[marker];
       if (!marker || !reference || _typeof(reference) !== 'object') {
         continue;
       }
-      if (((_reference$isImage = reference.isImage) !== null && _reference$isImage !== void 0 ? _reference$isImage : reference.IsImage) !== true) {
+      var isVideo = ((_reference$isVideo = reference.isVideo) !== null && _reference$isVideo !== void 0 ? _reference$isVideo : reference.IsVideo) === true;
+      if (!isVideo && ((_reference$isImage = reference.isImage) !== null && _reference$isImage !== void 0 ? _reference$isImage : reference.IsImage) !== true) {
         continue;
       }
       var rawLink = (_reference$link = reference.link) !== null && _reference$link !== void 0 ? _reference$link : reference.Link;
@@ -107,7 +122,7 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || function () {
       }
       images.set(marker, {
         link: link,
-        image: "![".concat(escapeImageAltText((_reference$title = reference.title) !== null && _reference$title !== void 0 ? _reference$title : reference.Title), "](").concat(encodeImageLink(link), ")")
+        image: isVideo ? videoPlayerHtml(link, (_reference$posterLink = reference.posterLink) !== null && _reference$posterLink !== void 0 ? _reference$posterLink : reference.PosterLink, (_reference$title = reference.title) !== null && _reference$title !== void 0 ? _reference$title : reference.Title) : "![".concat(escapeImageAltText((_reference$title2 = reference.title) !== null && _reference$title2 !== void 0 ? _reference$title2 : reference.Title), "](").concat(encodeImageLink(link), ")")
       });
     }
     if (images.size === 0) {

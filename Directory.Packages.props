@@ -15,6 +15,7 @@
     <PackageVersion Include="Elastic.Clients.Elasticsearch" Version="[8.19.25,9.0.0)" />
     <PackageVersion Include="Fluid.Core" Version="2.40.0" />
     <PackageVersion Include="FluentFTP" Version="54.2.1" />
+    <PackageVersion Include="Jint" Version="4.17.0" />
     <PackageVersion Include="Lucene.Net.Analysis.Common" Version="4.8.0-beta00018" />
     <PackageVersion Include="Markdig" Version="1.1.2" />
     <PackageVersion Include="ModelContextProtocol" Version="$(ModelContextProtocolVersion)" />
@@ -28,6 +29,8 @@
     <PackageVersion Include="OllamaSharp" Version="5.4.30" />
     <PackageVersion Include="PdfPig" Version="0.1.16" />
     <PackageVersion Include="PDFsharp-MigraDoc" Version="6.2.4" />
+    <PackageVersion Include="SkiaSharp" Version="3.116.1" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.116.1" />
     <PackageVersion Include="SSH.NET" Version="2026.0.0" />
     <PackageVersion Include="YesSql.Abstractions" Version="6.0.0" />
     <PackageVersion Include="YesSql.Core" Version="6.0.0" />

@@ -25,6 +25,9 @@
     <!-- The PDF agent ships next to the PDF writer and reuses the tabular workspace and the spreadsheet value
          formatting that the preview draws with, so a table taken from uploaded data reads the same in a PDF. -->
     <InternalsVisibleTo Include="CrestApps.Core.AI.Documents.Pdf" />
+    <!-- The animation agent numbers its videos with the figure markers the previews use, and its asset endpoint
+         authorizes with the same owner rule as the document download, so the two cannot drift apart. -->
+    <InternalsVisibleTo Include="CrestApps.Core.AI.Animations" />
   </ItemGroup>
 
   <ItemGroup>

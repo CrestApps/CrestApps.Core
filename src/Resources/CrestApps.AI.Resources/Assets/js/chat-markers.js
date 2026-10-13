@@ -39,6 +39,26 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || (function () {
         return text.replace(/[\\\[\]]/g, '\\$&');
     }
 
+    /*
+     * The player for a video marker. Markdown has no syntax for a video, so this is inline HTML, which marked
+     * passes through and DOMPurify then keeps, the hosts adding <video> and its attributes to what they allow.
+     * A span, not a div, for the same reason the image wrapper is one: a marker written mid-sentence must not
+     * tear the paragraph apart. The download link sits below the player rather than over it, where it would
+     * cover the player's own controls.
+     */
+    function videoPlayerHtml(link, posterLink, title) {
+        const caption = typeof title === 'string' && title.trim() ? title.replace(/\s+/g, ' ').trim() : 'Animation';
+        const poster = typeof posterLink === 'string' && posterLink.trim()
+            ? ` poster="${escapeAttributeValue(posterLink.trim())}"`
+            : '';
+        const href = escapeAttributeValue(link);
+
+        return `<span class="generated-video-container" style="display: inline-block; max-width: 100%; margin-top: 0.5rem;">`
+            + `<video src="${href}"${poster} controls preload="metadata" playsinline title="${escapeAttributeValue(caption)}" style="display: block; width: 640px; max-width: 100%; height: auto; border-radius: 0.375rem;"></video>`
+            + `<a href="${href}" download="${escapeAttributeValue(caption)}.mp4" title="Download video" class="btn btn-sm btn-outline-secondary mt-1 ai-download-video"><i class="fa-solid fa-download"></i> Download</a>`
+            + `</span>`;
+    }
+
     // Escapes a literal for use inside a regular expression.
     function escapeRegExp(text) {
         return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -88,7 +108,9 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || (function () {
                 continue;
             }
 
-            if ((reference.isImage ?? reference.IsImage) !== true) {
+            const isVideo = (reference.isVideo ?? reference.IsVideo) === true;
+
+            if (!isVideo && (reference.isImage ?? reference.IsImage) !== true) {
                 continue;
             }
 
@@ -101,7 +123,9 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || (function () {
 
             images.set(marker, {
                 link: link,
-                image: `![${escapeImageAltText(reference.title ?? reference.Title)}](${encodeImageLink(link)})`,
+                image: isVideo
+                    ? videoPlayerHtml(link, reference.posterLink ?? reference.PosterLink, reference.title ?? reference.Title)
+                    : `![${escapeImageAltText(reference.title ?? reference.Title)}](${encodeImageLink(link)})`,
             });
         }
 

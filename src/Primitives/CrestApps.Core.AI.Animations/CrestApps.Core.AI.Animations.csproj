@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.Animations</RootNamespace>
+    <Title>CrestApps AI Animations</Title>
+    <Description>
+			$(CrestAppsDescription)
+
+			Animated videos drawn in code for CrestApps AI conversations: the system animation agent, a Jint sandbox
+			for the drawing scripts it writes, a SkiaSharp renderer, an FFmpeg encoder, and per-conversation storage
+			the chat plays the video from.
+		</Description>
+    <PackageTags>$(PackageTags) ai animation video mp4 agent</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Templates\Prompts\**\*" />
+    <EmbeddedResource Include="Scripting\*.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Jint" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -63,4 +63,19 @@ public sealed class AICompletionReference
     /// broken image or the raw marker in the middle of a sentence.
     /// </remarks>
     public bool IsImage { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the host plays this reference as a video in place of its
+    /// marker. Registered the same way as an image, under a marker such as <c>[fig:1]</c>, with
+    /// <see cref="Link"/> serving the video and <see cref="PosterLink"/> the still shown before it plays.
+    /// </summary>
+    /// <remarks>
+    /// Like <see cref="IsImage"/>, only ever set when <see cref="Link"/> holds an address this host can serve.
+    /// </remarks>
+    public bool IsVideo { get; set; }
+
+    /// <summary>
+    /// Gets or sets the address of the still a video shows before it plays.
+    /// </summary>
+    public string PosterLink { get; set; }
 }

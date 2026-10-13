@@ -145,7 +145,7 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
     return Math.min(Math.max(value, min), max);
   }
   function normalizeReference(reference) {
-    var _ref, _normalized$index, _ref2, _normalized$text, _ref3, _normalized$title, _ref4, _normalized$link, _ref5, _normalized$reference, _normalized$isGenerat, _normalized$isImage;
+    var _ref, _normalized$index, _ref2, _normalized$text, _ref3, _normalized$title, _ref4, _normalized$link, _ref5, _normalized$reference, _normalized$isGenerat, _normalized$isImage, _normalized$isVideo, _ref6, _normalized$posterLin;
     if (!reference || _typeof(reference) !== 'object') {
       return null;
     }
@@ -157,6 +157,8 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
     normalized.referenceType = (_ref5 = (_normalized$reference = normalized.referenceType) !== null && _normalized$reference !== void 0 ? _normalized$reference : normalized.ReferenceType) !== null && _ref5 !== void 0 ? _ref5 : null;
     normalized.isGenerated = ((_normalized$isGenerat = normalized.isGenerated) !== null && _normalized$isGenerat !== void 0 ? _normalized$isGenerat : normalized.IsGenerated) === true;
     normalized.isImage = ((_normalized$isImage = normalized.isImage) !== null && _normalized$isImage !== void 0 ? _normalized$isImage : normalized.IsImage) === true;
+    normalized.isVideo = ((_normalized$isVideo = normalized.isVideo) !== null && _normalized$isVideo !== void 0 ? _normalized$isVideo : normalized.IsVideo) === true;
+    normalized.posterLink = sanitizeUrl((_ref6 = (_normalized$posterLin = normalized.posterLink) !== null && _normalized$posterLin !== void 0 ? _normalized$posterLin : normalized.PosterLink) !== null && _ref6 !== void 0 ? _ref6 : null);
     return normalized;
   }
   function isDownloadCitationReference(reference) {
@@ -282,15 +284,15 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
         citations: []
       };
     }
-    var citedRefs = referenceEntries.filter(function (_ref6) {
-      var _ref7 = _slicedToArray(_ref6, 1),
-        key = _ref7[0];
+    var citedRefs = referenceEntries.filter(function (_ref7) {
+      var _ref8 = _slicedToArray(_ref7, 1),
+        key = _ref8[0];
       return processedContent.includes(key);
     });
-    var generatedRefs = referenceEntries.filter(function (_ref8) {
-      var _ref9 = _slicedToArray(_ref8, 2),
-        key = _ref9[0],
-        value = _ref9[1];
+    var generatedRefs = referenceEntries.filter(function (_ref9) {
+      var _ref0 = _slicedToArray(_ref9, 2),
+        key = _ref0[0],
+        value = _ref0[1];
       return value.isGenerated && !processedContent.includes(key);
     });
     if (!citedRefs.length && !generatedRefs.length) {
@@ -299,18 +301,18 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
         citations: []
       };
     }
-    citedRefs.sort(function (_ref0, _ref1) {
-      var _ref10 = _slicedToArray(_ref0, 2),
-        a = _ref10[1];
+    citedRefs.sort(function (_ref1, _ref10) {
       var _ref11 = _slicedToArray(_ref1, 2),
-        b = _ref11[1];
+        a = _ref11[1];
+      var _ref12 = _slicedToArray(_ref10, 2),
+        b = _ref12[1];
       return a.index - b.index;
     });
-    generatedRefs.sort(function (_ref12, _ref13) {
-      var _ref14 = _slicedToArray(_ref12, 2),
-        a = _ref14[1];
+    generatedRefs.sort(function (_ref13, _ref14) {
       var _ref15 = _slicedToArray(_ref13, 2),
-        b = _ref15[1];
+        a = _ref15[1];
+      var _ref16 = _slicedToArray(_ref14, 2),
+        b = _ref16[1];
       return a.index - b.index;
     });
     var citations = [];
@@ -394,9 +396,9 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
     }
     return {
       content: processedContent,
-      citations: citations.map(function (_ref16) {
-        var placeholder = _ref16.placeholder,
-          citation = _objectWithoutProperties(_ref16, _excluded);
+      citations: citations.map(function (_ref17) {
+        var placeholder = _ref17.placeholder,
+          citation = _objectWithoutProperties(_ref17, _excluded);
         return citation;
       })
     };
@@ -766,8 +768,8 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
     }));
     message._pendingCharts = _pendingCharts.length > 0 ? _toConsumableArray(_pendingCharts) : [];
     var sanitizedHtml = DOMPurify.sanitize(html, {
-      ADD_TAGS: ['canvas'],
-      ADD_ATTR: ['target']
+      ADD_TAGS: ['canvas', 'video'],
+      ADD_ATTR: ['target', 'controls', 'poster', 'preload', 'playsinline', 'download']
     });
 
     // Optional, shared with every chat surface: a run of pictures becomes one stacked carousel.
@@ -777,9 +779,9 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
     if (!source || _typeof(source) !== 'object') {
       return {};
     }
-    return Object.fromEntries(Object.entries(source).filter(function (_ref17) {
-      var _ref18 = _slicedToArray(_ref17, 2),
-        value = _ref18[1];
+    return Object.fromEntries(Object.entries(source).filter(function (_ref18) {
+      var _ref19 = _slicedToArray(_ref18, 2),
+        value = _ref19[1];
       return value !== undefined;
     }));
   }
@@ -2199,9 +2201,9 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
           var _this0 = this;
           references = normalizeReferences(references);
           if (Object.keys(references).length) {
-            var _ref22, _message$rawContent2;
+            var _ref23, _message$rawContent2;
             var message = this.messages[messageIndex];
-            message.rawContent = (_ref22 = (_message$rawContent2 = message.rawContent) !== null && _message$rawContent2 !== void 0 ? _message$rawContent2 : message.content) !== null && _ref22 !== void 0 ? _ref22 : '';
+            message.rawContent = (_ref23 = (_message$rawContent2 = message.rawContent) !== null && _message$rawContent2 !== void 0 ? _message$rawContent2 : message.content) !== null && _ref23 !== void 0 ? _ref23 : '';
             updateMessagePresentation(message, references);
             this.messages[messageIndex] = message;
             this.$nextTick(function () {
@@ -3295,12 +3297,12 @@ window.coreAIChatManager = function (_window$CoreAIChatMar, _window$CoreAIChatMa
           this.copiedMessageIndex = -1;
         },
         copyResponse: function copyResponse(message, index, event) {
-          var _ref23,
+          var _ref24,
             _message$copyContent,
             _event$target,
             _event$target$closest,
             _this24 = this;
-          var text = message && _typeof(message) === 'object' ? (_ref23 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref23 !== void 0 ? _ref23 : '' : message !== null && message !== void 0 ? message : '';
+          var text = message && _typeof(message) === 'object' ? (_ref24 = (_message$copyContent = message.copyContent) !== null && _message$copyContent !== void 0 ? _message$copyContent : message.content) !== null && _ref24 !== void 0 ? _ref24 : '' : message !== null && message !== void 0 ? message : '';
           var button = (event === null || event === void 0 ? void 0 : event.currentTarget) || (event === null || event === void 0 || (_event$target = event.target) === null || _event$target === void 0 || (_event$target$closest = _event$target.closest) === null || _event$target$closest === void 0 ? void 0 : _event$target$closest.call(_event$target, '[data-copy-message-index]')) || null;
           navigator.clipboard.writeText(text).then(function () {
             _this24.clearCopiedMessageState();

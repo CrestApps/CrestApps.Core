@@ -24,6 +24,8 @@ Start with the smallest set that matches your scenario.
   <PackageReference Include="CrestApps.Core.AI.Documents.Pdf" />
   <!-- Add for the Word Agent, which creates, edits and previews .docx files -->
   <PackageReference Include="CrestApps.Core.AI.Documents.Word" />
+  <!-- Add for the Animation Agent, which draws animated MP4s that play in the chat (needs FFmpeg on the server) -->
+  <PackageReference Include="CrestApps.Core.AI.Animations" />
 
   <!-- Pick at least one provider -->
   <PackageReference Include="CrestApps.Core.AI.OpenAI" />

@@ -35,6 +35,7 @@ const sidebars = {
                     ],
                 },
                 'core/agents',
+                'core/ai-animations',
                 'core/ai-core',
                 'core/ai-documents',
                 'core/ai-memory',

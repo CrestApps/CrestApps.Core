@@ -743,6 +743,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, PreemptiveRagOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, RealtimeRagGuidanceHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, AIToolExecutionContextOrchestrationHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, AgentOrchestrationContextBuilderHandler>());
 
         services.TryAddScoped<CrestApps.Core.AI.Realtime.IRealtimeSessionConfigurator, DefaultRealtimeSessionConfigurator>();
         services.TryAddScoped<CrestApps.Core.AI.Realtime.IRealtimeTurnGrounding, DefaultRealtimeTurnGrounding>();

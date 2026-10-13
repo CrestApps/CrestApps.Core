@@ -982,7 +982,7 @@ public sealed class RealtimeChatSessionRunner
                 figureMarkers.Contains(marker, StringComparer.OrdinalIgnoreCase) ||
                 references is null ||
                 !references.TryGetValue(marker, out var reference) ||
-                !reference.IsImage ||
+                (!reference.IsImage && !reference.IsVideo) ||
                 string.IsNullOrWhiteSpace(reference.Link))
             {
                 continue;
