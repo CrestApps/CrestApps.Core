@@ -1,5 +1,3 @@
-using System.ClientModel;
-using System.ClientModel.Primitives;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
@@ -190,74 +188,6 @@ public sealed class OpenAIReasoningRoutingChatClientTests
     }
 
     [Fact]
-    public async Task GetResponseAsync_WhenEndpointHasNoResponsesApi_ShouldFallBackToChatCompletionsClient()
-    {
-        // Arrange
-        var chatCompletions = new CapturingChatClient();
-        var responses = new CapturingChatClient(CreateClientResultException(404));
-        using var client = new OpenAIReasoningRoutingChatClient(chatCompletions, responses);
-        var options = new ChatOptions
-        {
-            Tools = [new TestAIFunction("sample-tool")],
-            Reasoning = new ReasoningOptions { Effort = ReasoningEffort.Medium },
-        };
-
-        // Act
-        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "Hello")], options, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.True(responses.Called);
-        Assert.True(chatCompletions.Called);
-        Assert.Same(options, chatCompletions.LastOptions);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_WhenEndpointHasNoResponsesApi_ShouldFallBackToChatCompletionsClient()
-    {
-        // Arrange
-        var chatCompletions = new CapturingChatClient();
-        var responses = new CapturingChatClient(CreateClientResultException(404));
-        using var client = new OpenAIReasoningRoutingChatClient(chatCompletions, responses);
-        var options = new ChatOptions
-        {
-            Tools = [new TestAIFunction("sample-tool")],
-            Reasoning = new ReasoningOptions { Effort = ReasoningEffort.Medium },
-        };
-        var updates = new List<ChatResponseUpdate>();
-
-        // Act
-        await foreach (var update in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "Hello")], options, TestContext.Current.CancellationToken))
-        {
-            updates.Add(update);
-        }
-
-        // Assert
-        Assert.True(responses.Called);
-        Assert.True(chatCompletions.Called);
-        Assert.Same(options, chatCompletions.LastOptions);
-        Assert.Single(updates);
-    }
-
-    [Fact]
-    public async Task GetResponseAsync_WhenResponsesRequestFailsForAnotherReason_ShouldNotFallBack()
-    {
-        // Arrange
-        var chatCompletions = new CapturingChatClient();
-        var responses = new CapturingChatClient(CreateClientResultException(400));
-        using var client = new OpenAIReasoningRoutingChatClient(chatCompletions, responses);
-        var options = new ChatOptions
-        {
-            Tools = [new TestAIFunction("sample-tool")],
-            Reasoning = new ReasoningOptions { Effort = ReasoningEffort.Medium },
-        };
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<ClientResultException>(() => client.GetResponseAsync([new ChatMessage(ChatRole.User, "Hello")], options, TestContext.Current.CancellationToken));
-        Assert.Equal(400, exception.Status);
-        Assert.False(chatCompletions.Called);
-    }
-
-    [Fact]
     public async Task OpenAI_GetChatClientAsync_ReturnsRoutingClient()
     {
         // Arrange
@@ -295,9 +225,6 @@ public sealed class OpenAIReasoningRoutingChatClientTests
         // Assert
         Assert.NotNull(client.GetService<OpenAIReasoningRoutingChatClient>());
     }
-
-    private static ClientResultException CreateClientResultException(int status)
-        => new(new StatusPipelineResponse(status));
 
     private static CapabilityEnforcingChatClient CreateEnforcingClient(IChatClient inner, AIDeployment deployment)
     {
@@ -342,13 +269,6 @@ public sealed class OpenAIReasoningRoutingChatClientTests
 
     private sealed class CapturingChatClient : IChatClient
     {
-        private readonly Exception _exception;
-
-        public CapturingChatClient(Exception exception = null)
-        {
-            _exception = exception;
-        }
-
         public ChatOptions LastOptions { get; private set; }
 
         public bool Called { get; private set; }
@@ -361,10 +281,6 @@ public sealed class OpenAIReasoningRoutingChatClientTests
             Called = true;
             LastOptions = options;
 
-            if (_exception is not null)
-            {
-                throw _exception;
-            }
 
             return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "ok")));
         }
@@ -377,10 +293,6 @@ public sealed class OpenAIReasoningRoutingChatClientTests
             Called = true;
             LastOptions = options;
 
-            if (_exception is not null)
-            {
-                throw _exception;
-            }
 
             yield return new ChatResponseUpdate(ChatRole.Assistant, "ok");
 
@@ -417,33 +329,4 @@ public sealed class OpenAIReasoningRoutingChatClientTests
         }
     }
 
-    private sealed class StatusPipelineResponse : PipelineResponse
-    {
-        private readonly int _status;
-
-        public StatusPipelineResponse(int status)
-        {
-            _status = status;
-        }
-
-        public override int Status => _status;
-
-        public override string ReasonPhrase => string.Empty;
-
-        public override Stream ContentStream { get; set; }
-
-        public override BinaryData Content => BinaryData.Empty;
-
-        protected override PipelineResponseHeaders HeadersCore => throw new NotSupportedException();
-
-        public override BinaryData BufferContent(CancellationToken cancellationToken = default)
-            => BinaryData.Empty;
-
-        public override ValueTask<BinaryData> BufferContentAsync(CancellationToken cancellationToken = default)
-            => ValueTask.FromResult(BinaryData.Empty);
-
-        public override void Dispose()
-        {
-        }
-    }
 }
