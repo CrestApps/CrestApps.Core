@@ -1,4 +1,5 @@
 using Microsoft.Extensions.AI;
+using OpenAI.Responses;
 
 namespace CrestApps.Core.AI.OpenAI.Services;
 
@@ -27,13 +28,21 @@ public sealed class OpenAIReasoningRoutingChatClient : IChatClient
 
     /// <inheritdoc/>
     public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions options = null, CancellationToken cancellationToken = default)
-        => SelectClient(options).GetResponseAsync(messages, options, cancellationToken);
+        => RequiresResponsesApi(options)
+            ? _responsesClient.GetResponseAsync(messages, WithoutStoredOutput(options), cancellationToken)
+            : _chatCompletionsClient.GetResponseAsync(messages, options, cancellationToken);
 
     /// <inheritdoc/>
     public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions options = null, CancellationToken cancellationToken = default)
-        => SelectClient(options).GetStreamingResponseAsync(messages, options, cancellationToken);
+        => RequiresResponsesApi(options)
+            ? _responsesClient.GetStreamingResponseAsync(messages, WithoutStoredOutput(options), cancellationToken)
+            : _chatCompletionsClient.GetStreamingResponseAsync(messages, options, cancellationToken);
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Services, such as <see cref="ChatClientMetadata"/>, come from the Chat Completions client even for requests
+    /// that are sent to the Responses API.
+    /// </remarks>
     public object GetService(Type serviceType, object serviceKey = null)
     {
         ArgumentNullException.ThrowIfNull(serviceType);
@@ -58,6 +67,32 @@ public sealed class OpenAIReasoningRoutingChatClient : IChatClient
             options.Reasoning?.Effort is ReasoningEffort effort &&
             effort != ReasoningEffort.None;
 
-    private IChatClient SelectClient(ChatOptions options)
-        => RequiresResponsesApi(options) ? _responsesClient : _chatCompletionsClient;
+#pragma warning disable OPENAI001 // The Responses types from the OpenAI SDK are for evaluation purposes only.
+    /// <summary>
+    /// Keeps the conversation off OpenAI's servers. Without a stored response the model's reasoning cannot be looked
+    /// up between tool-call turns, so it is returned encrypted and sent back with the next turn instead.
+    /// </summary>
+    /// <param name="options">The request options.</param>
+    internal static ChatOptions WithoutStoredOutput(ChatOptions options)
+    {
+        var responsesOptions = options.Clone();
+        var rawRepresentationFactory = options.RawRepresentationFactory;
+
+        responsesOptions.RawRepresentationFactory = client =>
+        {
+            var createOptions = rawRepresentationFactory?.Invoke(client) as CreateResponseOptions ?? new CreateResponseOptions();
+
+            createOptions.StoredOutputEnabled = false;
+
+            if (!createOptions.IncludedProperties.Contains(IncludedResponseProperty.ReasoningEncryptedContent))
+            {
+                createOptions.IncludedProperties.Add(IncludedResponseProperty.ReasoningEncryptedContent);
+            }
+
+            return createOptions;
+        };
+
+        return responsesOptions;
+    }
+#pragma warning restore OPENAI001
 }

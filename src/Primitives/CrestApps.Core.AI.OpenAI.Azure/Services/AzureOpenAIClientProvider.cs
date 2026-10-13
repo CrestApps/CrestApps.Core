@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.OpenAI.Services;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.Infrastructure;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -45,18 +46,26 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
     /// Gets chat client.
     /// </summary>
     /// <remarks>
-    /// Requests that combine function tools with a reasoning effort are sent to the Responses endpoint through a
-    /// temporary client (<c>CrestApps.Core.AI.OpenAI.Azure.Responses</c>) rather than
-    /// <c>AzureOpenAIClient.GetResponsesClient()</c>, because the pinned <c>Azure.AI.OpenAI</c> targets an older
-    /// <c>OpenAI</c> SDK and the SDK path throws <see cref="MissingMethodException"/> at runtime. Replace this with
-    /// the SDK path once a compatible <c>Azure.AI.OpenAI</c> ships.
+    /// Requests that combine function tools with a reasoning effort are sent to the Responses endpoint, unless the
+    /// connection's <c>ChatApi</c> setting is <c>ChatCompletions</c>. They go through a temporary client
+    /// (<c>CrestApps.Core.AI.OpenAI.Azure.Responses</c>) rather than <c>AzureOpenAIClient.GetResponsesClient()</c>,
+    /// because the pinned <c>Azure.AI.OpenAI</c> targets an older <c>OpenAI</c> SDK and the SDK path throws
+    /// <see cref="MissingMethodException"/> at runtime. Replace this with the SDK path once a compatible
+    /// <c>Azure.AI.OpenAI</c> ships.
     /// </remarks>
     /// <param name="connection">The connection.</param>
     /// <param name="deploymentName">The deployment name.</param>
     protected override IChatClient GetChatClient(AIProviderConnectionEntry connection, string deploymentName)
     {
+        var chatClient = GetClient(connection).GetChatClient(deploymentName).AsIChatClient();
+
+        if (string.Equals(connection.GetStringValue("ChatApi", false), OpenAIChatApis.ChatCompletions, StringComparison.OrdinalIgnoreCase))
+        {
+            return chatClient;
+        }
+
         return new OpenAIReasoningRoutingChatClient(
-            GetClient(connection).GetChatClient(deploymentName).AsIChatClient(),
+            chatClient,
             Responses.AzureResponsesClientFactory.Create(connection, deploymentName, _loggerFactory, _azureClientSettings));
     }
 

@@ -6,6 +6,7 @@ namespace CrestApps.Core.Blazor.Web.ViewModels;
 public sealed class AIConnectionViewModel
 {
     private const string ApiKeyAuthenticationType = "ApiKey";
+    private const string AutoChatApi = "Auto";
 
     public string ItemId { get; set; }
 
@@ -20,6 +21,8 @@ public sealed class AIConnectionViewModel
     public string AuthenticationType { get; set; }
 
     public string ApiKey { get; set; }
+
+    public string ChatApi { get; set; } = AutoChatApi;
 
     public bool IsReadOnly { get; set; }
 
@@ -42,6 +45,7 @@ public sealed class AIConnectionViewModel
         {
             model.Endpoint = connection.Properties.TryGetValue("Endpoint", out var ep) ? ep?.ToString() : null;
             model.AuthenticationType = connection.Properties.TryGetValue("AuthenticationType", out var auth) ? auth?.ToString() : null;
+            model.ChatApi = connection.Properties.TryGetValue("ChatApi", out var chatApi) && !string.IsNullOrWhiteSpace(chatApi?.ToString()) ? chatApi.ToString() : AutoChatApi;
         }
 
         return model;
@@ -76,6 +80,15 @@ public sealed class AIConnectionViewModel
         else
         {
             connection.Properties.Remove("AuthenticationType");
+        }
+
+        if (!string.IsNullOrWhiteSpace(ChatApi) && !string.Equals(ChatApi, AutoChatApi, StringComparison.OrdinalIgnoreCase))
+        {
+            connection.Properties["ChatApi"] = ChatApi;
+        }
+        else
+        {
+            connection.Properties.Remove("ChatApi");
         }
     }
 

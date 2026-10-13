@@ -37,16 +37,25 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     /// <summary>
     /// Gets chat client.
     /// </summary>
+    /// <remarks>
+    /// Requests that combine function tools with a reasoning effort are routed to the Responses API on OpenAI's own
+    /// endpoint. Other OpenAI-compatible endpoints often have no Responses API, so they use Chat Completions only
+    /// unless the connection's <c>ChatApi</c> setting says otherwise.
+    /// </remarks>
     /// <param name="connection">The connection.</param>
     /// <param name="deploymentName">The deployment name.</param>
     protected override IChatClient GetChatClient(AIProviderConnectionEntry connection, string deploymentName)
     {
         var client = GetOpenAIClient(connection);
+        var chatClient = client.GetChatClient(deploymentName).AsIChatClient();
+
+        if (!UseResponsesRouting(connection))
+        {
+            return chatClient;
+        }
 
 #pragma warning disable OPENAI001 // The Responses types from the OpenAI SDK are for evaluation purposes only.
-        return new OpenAIReasoningRoutingChatClient(
-            client.GetChatClient(deploymentName).AsIChatClient(),
-            client.GetResponsesClient().AsIChatClient(deploymentName));
+        return new OpenAIReasoningRoutingChatClient(chatClient, client.GetResponsesClient().AsIChatClient(deploymentName));
 #pragma warning restore OPENAI001
     }
 
@@ -153,6 +162,25 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     /// </summary>
     public static void ClearCache()
         => _clientCache.Clear();
+
+    private static bool UseResponsesRouting(AIProviderConnectionEntry connection)
+    {
+        var chatApi = connection.GetStringValue("ChatApi", false);
+
+        if (string.Equals(chatApi, OpenAIChatApis.ChatCompletions, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.Equals(chatApi, OpenAIChatApis.Responses, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var endpoint = connection.GetEndpoint(false);
+
+        return endpoint is null || endpoint.Host.Equals("api.openai.com", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string BuildCacheKey(Uri endpoint, string apiKey)
     {
