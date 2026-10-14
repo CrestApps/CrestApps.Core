@@ -7,6 +7,8 @@ updates:
     # Disable version update PRs; only Dependabot security updates create PRs.
     open-pull-requests-limit: 0
     ignore:
+      # PDFsharp-MigraDoc is pinned to 6.2.4, the last MIT-licensed release; 6.5.0+ is AGPL-3.0-only.
+      - dependency-name: "PDFsharp-MigraDoc"
       - dependency-name: "OrchardCore.*"
       - dependency-name: "SafeMode"
       - dependency-name: "TheAdmin"
