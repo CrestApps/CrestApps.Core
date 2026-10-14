@@ -37,6 +37,12 @@ npm install
 npm run build
 ```
 
+## Package versions
+
+Package versions are managed centrally in `Directory.Packages.props`. Some packages are held at a specific version on purpose; read the comment above a `PackageVersion` before bumping it.
+
+- **Never update `PDFsharp-MigraDoc` past 6.2.4.** 6.2.4 is the last MIT-licensed release. 6.5.0 and later are AGPL-3.0-only and enforce it at runtime (`PdfSharpLicenseException` on every document write without a purchased license), which is incompatible with this MIT-licensed project. Dependabot is configured to ignore it.
+
 ## Repository layout
 
 Important folders:
