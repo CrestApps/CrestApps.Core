@@ -44,6 +44,15 @@
                 <input asp-for="ApiKey" class="form-control" type="password" placeholder="Enter API key" autocomplete="new-password" />
                 <div class="form-text">The API key or secret used for authentication.</div>
             </div>
+            <div class="mb-3" id="chatApiGroup">
+                <label asp-for="ChatApi" class="form-label">Chat API</label>
+                <select asp-for="ChatApi" class="form-select">
+                    <option value="Auto">Auto</option>
+                    <option value="ChatCompletions">Chat Completions</option>
+                    <option value="Responses">Responses</option>
+                </select>
+                <div class="form-text">Auto sends requests with tools and reasoning to the Responses API on OpenAI and Azure OpenAI; other endpoints use Chat Completions. Choose Responses if your provider supports <code>/v1/responses</code>, or Chat Completions if it does not.</div>
+            </div>
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">
                     <i class="fa-solid fa-check"></i> Create
@@ -61,6 +70,7 @@
             var authTypeGroup = document.getElementById('authTypeGroup');
             var apiKeyGroup = document.getElementById('apiKeyGroup');
             var authTypeSelect = document.getElementById('authTypeSelect');
+            var chatApiGroup = document.getElementById('chatApiGroup');
 
             function updateVisibility() {
                 var provider = providerSelect.value;
@@ -74,6 +84,7 @@
                     ((provider === 'Azure' || provider === 'AzureAIInference') && authType === 'ApiKey') ||
                     (provider === 'Ollama');
                 apiKeyGroup.style.display = showApiKey ? '' : 'none';
+                chatApiGroup.style.display = (provider === 'OpenAI' || provider === 'Azure') ? '' : 'none';
             }
 
             providerSelect.addEventListener('change', updateVisibility);

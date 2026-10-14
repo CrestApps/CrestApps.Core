@@ -124,6 +124,36 @@ Common examples include:
 
 Some providers expose both OpenAI-compatible and native APIs. Anthropic is one example: you can use its OpenAI-compatible endpoint through this client, or use the dedicated **[Claude Orchestrator](../orchestration/claude.md)** when you want the native Claude-oriented integration path.
 
+### Chat API
+
+Reasoning models such as `gpt-6-luna` reject function tools together with a reasoning effort on `/v1/chat/completions` and only accept that combination on the Responses API (`/v1/responses`). The connection's optional `ChatApi` setting decides where those requests go:
+
+| `ChatApi` | Behavior |
+| --- | --- |
+| `Auto` (default) | On OpenAI's own endpoint (no `Endpoint`, or host `api.openai.com` or a regional host such as `eu.api.openai.com`), a request that carries function tools and a reasoning effort other than `None` goes to the Responses API. Every other endpoint uses Chat Completions only. |
+| `ChatCompletions` | Every request goes to Chat Completions. |
+| `Responses` | Requests with function tools and a reasoning effort go to the Responses API on any endpoint. Use it for OpenAI-compatible servers that implement `/v1/responses`, such as OpenRouter or xAI. |
+
+Values are not case-sensitive. An unknown value is logged as a warning and treated as `Auto`. All other requests stay on Chat Completions. Responses requests are sent with `store: false`, so conversations are not kept on the provider's servers. A reasoning deployment must declare the `reasoningEffort` parameter: without it no effort is sent, the model applies its own default, and Chat Completions rejects the tools.
+
+```json
+{
+  "CrestApps": {
+    "AI": {
+      "Connections": [
+        {
+          "Name": "openrouter",
+          "ClientName": "OpenAI",
+          "Endpoint": "https://openrouter.ai/api/v1",
+          "ApiKey": "...",
+          "ChatApi": "Responses"
+        }
+      ]
+    }
+  }
+}
+```
+
 :::tip
 Never commit API keys to source control. Use environment variables, user secrets, or a vault provider for the values you map into your `CrestApps:AI:Connections` configuration.
 :::

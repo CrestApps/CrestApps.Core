@@ -116,6 +116,16 @@ compatible with the `OpenAI` SDK version the realtime types require, Azure OpenA
 WebSocket endpoint (`/openai/v1/realtime`) through a temporary built-in transport that supports both API-key and
 Microsoft Entra ID authentication.
 
+Reasoning models such as gpt-6-luna reject function tools together with a reasoning effort on Chat Completions, so
+the chat client sends those requests to the Responses endpoint (`/openai/v1/responses`) and keeps every other request
+on Chat Completions. For the same SDK compatibility reason, the Responses requests go through a temporary built-in
+client that supports both API-key and Microsoft Entra ID authentication. Responses requests are sent with
+`store: false`, so conversations are not kept on the service.
+
+The connection's optional `ChatApi` setting overrides this: `Auto` (the default) and `Responses` route as described,
+and `ChatCompletions` sends every request to Chat Completions, for example in a region where the Responses API is not
+available yet. See [Chat API](./openai.md#chat-api) for the values.
+
 ## Azure Setup
 
 Before configuring the provider, create the required Azure resources:

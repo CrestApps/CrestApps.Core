@@ -6,6 +6,8 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using OpenAI;
 
 namespace CrestApps.Core.AI.OpenAI.Services;
@@ -15,7 +17,11 @@ namespace CrestApps.Core.AI.OpenAI.Services;
 /// </summary>
 public sealed class OpenAIClientProvider : AIClientProviderBase
 {
+    private const string OpenAIApiHost = "api.openai.com";
+
     private static readonly ConcurrentDictionary<string, OpenAIClient> _clientCache = new(StringComparer.Ordinal);
+
+    private readonly ILogger _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenAIClientProvider"/> class.
@@ -24,6 +30,7 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     public OpenAIClientProvider(IServiceProvider serviceProvider)
         : base(serviceProvider)
     {
+        _logger = serviceProvider.GetService<ILogger<OpenAIClientProvider>>();
     }
 
     /// <summary>
@@ -37,13 +44,26 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     /// <summary>
     /// Gets chat client.
     /// </summary>
+    /// <remarks>
+    /// Requests that combine function tools with a reasoning effort are routed to the Responses API on OpenAI's own
+    /// endpoint. Other OpenAI-compatible endpoints often have no Responses API, so they use Chat Completions only
+    /// unless the connection's <c>ChatApi</c> setting says otherwise.
+    /// </remarks>
     /// <param name="connection">The connection.</param>
     /// <param name="deploymentName">The deployment name.</param>
     protected override IChatClient GetChatClient(AIProviderConnectionEntry connection, string deploymentName)
     {
         var client = GetOpenAIClient(connection);
+        var chatClient = client.GetChatClient(deploymentName).AsIChatClient();
 
-        return client.GetChatClient(deploymentName).AsIChatClient();
+        if (!UseResponsesRouting(connection))
+        {
+            return chatClient;
+        }
+
+#pragma warning disable OPENAI001 // The Responses types from the OpenAI SDK are for evaluation purposes only.
+        return new OpenAIReasoningRoutingChatClient(chatClient, client.GetResponsesClient().AsIChatClient(deploymentName));
+#pragma warning restore OPENAI001
     }
 
     /// <summary>
@@ -149,6 +169,34 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     /// </summary>
     public static void ClearCache()
         => _clientCache.Clear();
+
+    private bool UseResponsesRouting(AIProviderConnectionEntry connection)
+    {
+        var chatApi = OpenAIChatApis.GetChatApi(connection, _logger);
+
+        if (chatApi == OpenAIChatApis.ChatCompletions)
+        {
+            return false;
+        }
+
+        if (chatApi == OpenAIChatApis.Responses)
+        {
+            return true;
+        }
+
+        var endpoint = connection.GetEndpoint(false);
+
+        return endpoint is null || IsOpenAIHost(endpoint.Host);
+    }
+
+    /// <summary>
+    /// Determines whether the host is OpenAI's own API, including its regional hosts such as
+    /// <c>eu.api.openai.com</c> for data residency.
+    /// </summary>
+    /// <param name="host">The endpoint host.</param>
+    private static bool IsOpenAIHost(string host)
+        => host.Equals(OpenAIApiHost, StringComparison.OrdinalIgnoreCase) ||
+            host.EndsWith("." + OpenAIApiHost, StringComparison.OrdinalIgnoreCase);
 
     private static string BuildCacheKey(Uri endpoint, string apiKey)
     {

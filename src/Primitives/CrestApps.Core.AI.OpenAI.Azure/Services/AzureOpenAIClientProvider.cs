@@ -1,6 +1,7 @@
 using Azure.AI.OpenAI;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
+using CrestApps.Core.AI.OpenAI.Services;
 using CrestApps.Core.AI.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -43,13 +44,28 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
     /// <summary>
     /// Gets chat client.
     /// </summary>
+    /// <remarks>
+    /// Requests that combine function tools with a reasoning effort are sent to the Responses endpoint, unless the
+    /// connection's <c>ChatApi</c> setting is <c>ChatCompletions</c>. They go through a temporary client
+    /// (<c>CrestApps.Core.AI.OpenAI.Azure.Responses</c>) rather than <c>AzureOpenAIClient.GetResponsesClient()</c>,
+    /// because the pinned <c>Azure.AI.OpenAI</c> targets an older <c>OpenAI</c> SDK and the SDK path throws
+    /// <see cref="MissingMethodException"/> at runtime. Replace this with the SDK path once a compatible
+    /// <c>Azure.AI.OpenAI</c> ships.
+    /// </remarks>
     /// <param name="connection">The connection.</param>
     /// <param name="deploymentName">The deployment name.</param>
     protected override IChatClient GetChatClient(AIProviderConnectionEntry connection, string deploymentName)
     {
-        return GetClient(connection)
-            .GetChatClient(deploymentName)
-            .AsIChatClient();
+        var chatClient = GetClient(connection).GetChatClient(deploymentName).AsIChatClient();
+
+        if (OpenAIChatApis.GetChatApi(connection, _loggerFactory.CreateLogger<AzureOpenAIClientProvider>()) == OpenAIChatApis.ChatCompletions)
+        {
+            return chatClient;
+        }
+
+        return new OpenAIReasoningRoutingChatClient(
+            chatClient,
+            Responses.AzureResponsesClientFactory.Create(connection, deploymentName, _loggerFactory, _azureClientSettings));
     }
 
     /// <summary>
