@@ -41,7 +41,7 @@ internal sealed class AzureOpenAIConnectionHandler : AIProviderConnectionHandler
         context.Values["Endpoint"] = metadata.Endpoint?.ToString();
         context.Values["AuthenticationType"] = metadata.AuthenticationType.ToString();
         context.Values["IdentityId"] = metadata.IdentityId;
-        context.Values["ChatApi"] = metadata.ChatApi;
+        context.Values[OpenAIChatApis.SettingName] = metadata.ChatApi;
 
         if (!string.IsNullOrEmpty(metadata.ApiKey))
         {

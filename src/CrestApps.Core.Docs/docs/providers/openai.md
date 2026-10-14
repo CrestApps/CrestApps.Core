@@ -130,11 +130,11 @@ Reasoning models such as `gpt-6-luna` reject function tools together with a reas
 
 | `ChatApi` | Behavior |
 | --- | --- |
-| `Auto` (default) | On OpenAI's own endpoint (no `Endpoint`, or host `api.openai.com`), a request that carries function tools and a reasoning effort other than `None` goes to the Responses API. Every other endpoint uses Chat Completions only. |
+| `Auto` (default) | On OpenAI's own endpoint (no `Endpoint`, or host `api.openai.com` or a regional host such as `eu.api.openai.com`), a request that carries function tools and a reasoning effort other than `None` goes to the Responses API. Every other endpoint uses Chat Completions only. |
 | `ChatCompletions` | Every request goes to Chat Completions. |
 | `Responses` | Requests with function tools and a reasoning effort go to the Responses API on any endpoint. Use it for OpenAI-compatible servers that implement `/v1/responses`, such as OpenRouter or xAI. |
 
-All other requests stay on Chat Completions. Responses requests are sent with `store: false`, so conversations are not kept on the provider's servers. A reasoning deployment must declare the `reasoningEffort` parameter: without it no effort is sent, the model applies its own default, and Chat Completions rejects the tools.
+Values are not case-sensitive. An unknown value is logged as a warning and treated as `Auto`. All other requests stay on Chat Completions. Responses requests are sent with `store: false`, so conversations are not kept on the provider's servers. A reasoning deployment must declare the `reasoningEffort` parameter: without it no effort is sent, the model applies its own default, and Chat Completions rejects the tools.
 
 ```json
 {

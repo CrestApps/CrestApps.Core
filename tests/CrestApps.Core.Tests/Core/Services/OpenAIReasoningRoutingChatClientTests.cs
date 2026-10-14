@@ -1,6 +1,7 @@
 #pragma warning disable OPENAI001
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Services;
 using CrestApps.Core.AI.OpenAI.Services;
@@ -217,6 +218,10 @@ public sealed class OpenAIReasoningRoutingChatClientTests
     [Theory]
     [InlineData(null, null, true)]
     [InlineData("https://api.openai.com/v1/", null, true)]
+    [InlineData("https://eu.api.openai.com/v1/", null, true)]
+    [InlineData("https://api.openai.com.example.com/v1/", null, false)]
+    [InlineData("https://api.groq.com/openai/v1", "NotAnApi", false)]
+    [InlineData(null, "chatcompletions", false)]
     [InlineData("https://api.groq.com/openai/v1", null, false)]
     [InlineData("https://api.groq.com/openai/v1", "Auto", false)]
     [InlineData(null, "ChatCompletions", false)]
@@ -237,7 +242,7 @@ public sealed class OpenAIReasoningRoutingChatClientTests
 
         if (chatApi is not null)
         {
-            values["ChatApi"] = chatApi;
+            values[OpenAIChatApis.SettingName] = chatApi;
         }
 
         // Act
@@ -268,7 +273,7 @@ public sealed class OpenAIReasoningRoutingChatClientTests
 
         if (chatApi is not null)
         {
-            values["ChatApi"] = chatApi;
+            values[OpenAIChatApis.SettingName] = chatApi;
         }
 
         // Act

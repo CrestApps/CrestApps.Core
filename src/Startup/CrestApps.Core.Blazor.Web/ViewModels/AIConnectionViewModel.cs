@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.Services;
 
 namespace CrestApps.Core.Blazor.Web.ViewModels;
@@ -6,7 +7,7 @@ namespace CrestApps.Core.Blazor.Web.ViewModels;
 public sealed class AIConnectionViewModel
 {
     private const string ApiKeyAuthenticationType = "ApiKey";
-    private const string AutoChatApi = "Auto";
+    private const string AutoChatApi = OpenAIChatApis.Auto;
 
     public string ItemId { get; set; }
 
@@ -45,7 +46,7 @@ public sealed class AIConnectionViewModel
         {
             model.Endpoint = connection.Properties.TryGetValue("Endpoint", out var ep) ? ep?.ToString() : null;
             model.AuthenticationType = connection.Properties.TryGetValue("AuthenticationType", out var auth) ? auth?.ToString() : null;
-            model.ChatApi = connection.Properties.TryGetValue("ChatApi", out var chatApi) && !string.IsNullOrWhiteSpace(chatApi?.ToString()) ? chatApi.ToString() : AutoChatApi;
+            model.ChatApi = connection.Properties.TryGetValue(OpenAIChatApis.SettingName, out var chatApi) && !string.IsNullOrWhiteSpace(chatApi?.ToString()) ? chatApi.ToString() : AutoChatApi;
         }
 
         return model;
@@ -87,11 +88,11 @@ public sealed class AIConnectionViewModel
         if ((string.Equals(connection.Source, "OpenAI", StringComparison.OrdinalIgnoreCase) || string.Equals(connection.Source, "Azure", StringComparison.OrdinalIgnoreCase)) &&
             !string.IsNullOrWhiteSpace(ChatApi) && !string.Equals(ChatApi, AutoChatApi, StringComparison.OrdinalIgnoreCase))
         {
-            connection.Properties["ChatApi"] = ChatApi;
+            connection.Properties[OpenAIChatApis.SettingName] = ChatApi;
         }
         else
         {
-            connection.Properties.Remove("ChatApi");
+            connection.Properties.Remove(OpenAIChatApis.SettingName);
         }
     }
 

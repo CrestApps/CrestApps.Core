@@ -4,7 +4,6 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Services;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
-using CrestApps.Core.Infrastructure;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Services;
@@ -21,14 +20,14 @@ public sealed partial class AzureOpenAICompletionClient
     /// </remarks>
     /// <param name="connection">The connection that serves the request.</param>
     /// <param name="requestOptions">The resolved request options.</param>
-    private static bool UseResponsesApi(AIProviderConnectionEntry connection, AzureRequestOptions requestOptions)
+    private bool UseResponsesApi(AIProviderConnectionEntry connection, AzureRequestOptions requestOptions)
     {
         if (requestOptions.Functions.Count == 0 || !OpenAIReasoningRoutingChatClient.RequiresResponsesApi(requestOptions.ResolvedOptions))
         {
             return false;
         }
 
-        return !string.Equals(connection.GetStringValue("ChatApi", false), OpenAIChatApis.ChatCompletions, StringComparison.OrdinalIgnoreCase);
+        return OpenAIChatApis.GetChatApi(connection, _logger) != OpenAIChatApis.ChatCompletions;
     }
 
     private async Task<ChatResponse> CompleteWithResponsesApiAsync(IEnumerable<ChatMessage> messages, AICompletionContext context, AIDeployment deployment, AIProviderConnectionEntry connection, AzureRequestOptions requestOptions, CancellationToken cancellationToken)
@@ -123,14 +122,32 @@ public sealed partial class AzureOpenAICompletionClient
     }
 
     /// <summary>
-    /// Builds the Responses API prompts the way the provider completion clients do: the system message, then the user
-    /// and assistant messages that carry content, limited to the configured number of past messages.
+    /// Builds the Responses API prompts the way <see cref="AzureOpenAIChatMessageConverter"/> does for Chat Completions:
+    /// the system message, then the user messages that carry content and the text of the assistant answers, limited to
+    /// the configured number of past messages.
     /// </summary>
+    /// <remarks>
+    /// Only the text of an assistant message is kept. A stored function call without its result would make the
+    /// Responses API reject the request.
+    /// </remarks>
     /// <param name="messages">The conversation messages.</param>
     /// <param name="context">The completion context.</param>
     private static List<ChatMessage> GetResponsesPrompts(IEnumerable<ChatMessage> messages, AICompletionContext context)
     {
-        var history = messages.Where(message => (message.Role == ChatRole.User || message.Role == ChatRole.Assistant) && (!string.IsNullOrEmpty(message.Text) || message.Contents.Count > 0));
+        var history = new List<ChatMessage>();
+
+        foreach (var message in messages)
+        {
+            if (message.Role == ChatRole.User && (!string.IsNullOrEmpty(message.Text) || message.Contents.Count > 0))
+            {
+                history.Add(message);
+            }
+            else if (message.Role == ChatRole.Assistant && !string.IsNullOrWhiteSpace(message.Text))
+            {
+                history.Add(new ChatMessage(ChatRole.Assistant, message.Text));
+            }
+        }
+
         var prompts = new List<ChatMessage>();
 
         if (!string.IsNullOrEmpty(context.SystemMessage))

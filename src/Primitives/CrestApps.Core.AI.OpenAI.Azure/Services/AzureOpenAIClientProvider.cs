@@ -3,7 +3,6 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.OpenAI.Services;
 using CrestApps.Core.AI.Services;
-using CrestApps.Core.Infrastructure;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -59,7 +58,7 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
     {
         var chatClient = GetClient(connection).GetChatClient(deploymentName).AsIChatClient();
 
-        if (string.Equals(connection.GetStringValue("ChatApi", false), OpenAIChatApis.ChatCompletions, StringComparison.OrdinalIgnoreCase))
+        if (OpenAIChatApis.GetChatApi(connection, _loggerFactory.CreateLogger<AzureOpenAIClientProvider>()) == OpenAIChatApis.ChatCompletions)
         {
             return chatClient;
         }

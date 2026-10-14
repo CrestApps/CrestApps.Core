@@ -6,6 +6,8 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using OpenAI;
 
 namespace CrestApps.Core.AI.OpenAI.Services;
@@ -15,7 +17,11 @@ namespace CrestApps.Core.AI.OpenAI.Services;
 /// </summary>
 public sealed class OpenAIClientProvider : AIClientProviderBase
 {
+    private const string OpenAIApiHost = "api.openai.com";
+
     private static readonly ConcurrentDictionary<string, OpenAIClient> _clientCache = new(StringComparer.Ordinal);
+
+    private readonly ILogger _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenAIClientProvider"/> class.
@@ -24,6 +30,7 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     public OpenAIClientProvider(IServiceProvider serviceProvider)
         : base(serviceProvider)
     {
+        _logger = serviceProvider.GetService<ILogger<OpenAIClientProvider>>();
     }
 
     /// <summary>
@@ -163,24 +170,33 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     public static void ClearCache()
         => _clientCache.Clear();
 
-    private static bool UseResponsesRouting(AIProviderConnectionEntry connection)
+    private bool UseResponsesRouting(AIProviderConnectionEntry connection)
     {
-        var chatApi = connection.GetStringValue("ChatApi", false);
+        var chatApi = OpenAIChatApis.GetChatApi(connection, _logger);
 
-        if (string.Equals(chatApi, OpenAIChatApis.ChatCompletions, StringComparison.OrdinalIgnoreCase))
+        if (chatApi == OpenAIChatApis.ChatCompletions)
         {
             return false;
         }
 
-        if (string.Equals(chatApi, OpenAIChatApis.Responses, StringComparison.OrdinalIgnoreCase))
+        if (chatApi == OpenAIChatApis.Responses)
         {
             return true;
         }
 
         var endpoint = connection.GetEndpoint(false);
 
-        return endpoint is null || endpoint.Host.Equals("api.openai.com", StringComparison.OrdinalIgnoreCase);
+        return endpoint is null || IsOpenAIHost(endpoint.Host);
     }
+
+    /// <summary>
+    /// Determines whether the host is OpenAI's own API, including its regional hosts such as
+    /// <c>eu.api.openai.com</c> for data residency.
+    /// </summary>
+    /// <param name="host">The endpoint host.</param>
+    private static bool IsOpenAIHost(string host)
+        => host.Equals(OpenAIApiHost, StringComparison.OrdinalIgnoreCase) ||
+            host.EndsWith("." + OpenAIApiHost, StringComparison.OrdinalIgnoreCase);
 
     private static string BuildCacheKey(Uri endpoint, string apiKey)
     {

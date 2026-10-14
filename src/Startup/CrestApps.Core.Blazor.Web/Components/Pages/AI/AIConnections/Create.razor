@@ -95,7 +95,7 @@
                         <option value="ChatCompletions">Chat Completions</option>
                         <option value="Responses">Responses</option>
                     </InputSelect>
-                    <div class="form-text">Auto picks the right API for each message. Leave it on Auto unless your provider requires a specific one.</div>
+                    <div class="form-text">Auto sends requests with tools and reasoning to the Responses API on OpenAI and Azure OpenAI; other endpoints use Chat Completions. Choose Responses if your provider supports <code>/v1/responses</code>, or Chat Completions if it does not.</div>
                 </div>
             }
 

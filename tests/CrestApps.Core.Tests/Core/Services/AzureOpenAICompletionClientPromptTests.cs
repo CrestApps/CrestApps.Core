@@ -666,6 +666,54 @@ public sealed class AzureOpenAICompletionClientPromptTests
     }
 
     /// <summary>
+    /// Verifies the Responses API request keeps only the text of past assistant answers, as Chat Completions does, so a
+    /// stored function call without its result never reaches the Responses API.
+    /// </summary>
+    /// <param name="streaming">Whether to invoke the streaming path.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Completion_WithResponsesApi_SendsOnlyTheTextOfAssistantMessages(bool streaming)
+    {
+        var responsesClient = new CapturingChatClient();
+        var clientFactory = new Mock<IAIClientFactory>(MockBehavior.Strict);
+        clientFactory
+            .Setup(factory => factory.CreateChatClientAsync(It.IsAny<AIDeployment>(), It.IsAny<Action<Microsoft.Extensions.AI.ChatClientBuilder>>()))
+            .ReturnsAsync(responsesClient);
+        using var clientContext = CreateCompletionClient(streaming, [new ToolsAndReasoningHandler(Microsoft.Extensions.AI.ReasoningEffort.Medium)], clientFactory.Object);
+        var functionCall = new Microsoft.Extensions.AI.FunctionCallContent("call-1", "get_time");
+
+        await InvokeCompletionAsync(
+            clientContext.Client,
+            [
+                new AIChatMessage(AIChatRole.User, "What time is it?"),
+                new AIChatMessage(AIChatRole.Assistant, [functionCall]),
+                new AIChatMessage(AIChatRole.Assistant, [new TextContent("It is noon."), functionCall]),
+                new AIChatMessage(AIChatRole.Tool, [new Microsoft.Extensions.AI.FunctionResultContent("call-1", "12:00")]),
+                new AIChatMessage(AIChatRole.User, "And in Paris?"),
+            ],
+            new AICompletionContext
+            {
+                ChatDeploymentName = DeploymentName,
+                SystemMessage = "You are helpful.",
+            },
+            streaming,
+            TestContext.Current.CancellationToken);
+
+        Assert.Collection(
+            responsesClient.LastMessages,
+            message => Assert.Equal(AIChatRole.System, message.Role),
+            message => Assert.Equal("What time is it?", message.Text),
+            message =>
+            {
+                Assert.Equal(AIChatRole.Assistant, message.Role);
+                Assert.Equal("It is noon.", message.Text);
+                Assert.All(message.Contents, content => Assert.IsType<TextContent>(content));
+            },
+            message => Assert.Equal("And in Paris?", message.Text));
+    }
+
+    /// <summary>
     /// Verifies a request that carries function tools without a reasoning effort stays on Chat Completions.
     /// </summary>
     /// <param name="streaming">Whether to invoke the streaming path.</param>
@@ -1306,6 +1354,11 @@ public sealed class AzureOpenAICompletionClientPromptTests
         public Microsoft.Extensions.AI.ChatOptions LastOptions { get; private set; }
 
         /// <summary>
+        /// Gets the messages of the last request.
+        /// </summary>
+        public List<AIChatMessage> LastMessages { get; private set; }
+
+        /// <summary>
         /// Captures the options and returns a fixed response.
         /// </summary>
         /// <param name="messages">The messages.</param>
@@ -1315,6 +1368,7 @@ public sealed class AzureOpenAICompletionClientPromptTests
         public Task<Microsoft.Extensions.AI.ChatResponse> GetResponseAsync(IEnumerable<AIChatMessage> messages, Microsoft.Extensions.AI.ChatOptions options = null, CancellationToken cancellationToken = default)
         {
             LastOptions = options;
+            LastMessages = [.. messages];
 
             return Task.FromResult(new Microsoft.Extensions.AI.ChatResponse(new AIChatMessage(AIChatRole.Assistant, "done")));
         }
@@ -1329,6 +1383,7 @@ public sealed class AzureOpenAICompletionClientPromptTests
         public async IAsyncEnumerable<Microsoft.Extensions.AI.ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<AIChatMessage> messages, Microsoft.Extensions.AI.ChatOptions options = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             LastOptions = options;
+            LastMessages = [.. messages];
 
             yield return new Microsoft.Extensions.AI.ChatResponseUpdate(AIChatRole.Assistant, "done");
 
