@@ -14,4 +14,9 @@ public sealed class OpenAIConnectionMetadata
     /// Gets or sets the api Key.
     /// </summary>
     public string ApiKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the API that chat requests are sent to. See <see cref="OpenAIChatApis"/>.
+    /// </summary>
+    public string ChatApi { get; set; }
 }

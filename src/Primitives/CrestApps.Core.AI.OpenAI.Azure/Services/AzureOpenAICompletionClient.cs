@@ -24,7 +24,7 @@ namespace CrestApps.Core.AI.OpenAI.Azure.Services;
 /// <summary>
 /// Represents the azure Open AI Completion Client.
 /// </summary>
-public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICompletionClient
+public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBase, IAICompletionClient
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILoggerFactory _loggerFactory;
@@ -34,6 +34,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
     private readonly IAIProviderConnectionStore _connectionStore;
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly AzureClientOptions _azureClientOptions;
+    private readonly IAIClientFactory _clientFactory;
     private readonly ILogger<AzureOpenAICompletionClient> _logger;
 
     /// <summary>
@@ -49,6 +50,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
     /// <param name="connectionStore">The connection store.</param>
     /// <param name="dataProtectionProvider">The data protection provider.</param>
     /// <param name="azureClientOptions">The azure client options.</param>
+    /// <param name="clientFactory">The AI client factory, used for requests that go to the Responses API.</param>
     public AzureOpenAICompletionClient(
         IServiceProvider serviceProvider,
         ILoggerFactory loggerFactory,
@@ -59,7 +61,8 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         IAIDeploymentManager deploymentManager,
         IAIProviderConnectionStore connectionStore,
         IDataProtectionProvider dataProtectionProvider,
-        IOptionsSnapshot<AzureClientOptions> azureClientOptions)
+        IOptionsSnapshot<AzureClientOptions> azureClientOptions,
+        IAIClientFactory clientFactory)
         : base(aiTemplateService, deploymentManager)
     {
         _serviceProvider = serviceProvider;
@@ -70,6 +73,7 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         _connectionStore = connectionStore;
         _dataProtectionProvider = dataProtectionProvider;
         _azureClientOptions = azureClientOptions.Value;
+        _clientFactory = clientFactory;
         _logger = loggerFactory.CreateLogger<AzureOpenAICompletionClient>();
     }
 
@@ -108,6 +112,13 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
             return null;
         }
 
+        var requestOptions = await ResolveRequestOptionsAsync(context, deployment, isStreaming: false);
+
+        if (UseResponsesApi(connectionProperties, requestOptions))
+        {
+            return await CompleteWithResponsesApiAsync(messages, context, deployment, connectionProperties, requestOptions, cancellationToken);
+        }
+
         var azureMessages = AzureOpenAIChatMessageConverter.Convert(
             messages,
             context.PastMessagesCount);
@@ -115,7 +126,6 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
         var connectionName = deployment.ConnectionName;
         var azureClient = GetChatClient(connectionProperties);
         var chatClient = azureClient.GetChatClient(deployment.ModelName);
-        var requestOptions = await ResolveRequestOptionsAsync(context, deployment, isStreaming: false);
         var functions = requestOptions.Functions;
         var chatOptions = GetOptions(context, functions, requestOptions.ResolvedOptions);
         var systemFunctions = await ConfigureOptionsAsync(chatOptions, context, prompts);
@@ -232,13 +242,24 @@ public sealed class AzureOpenAICompletionClient : AICompletionServiceBase, IAICo
             yield break;
         }
 
+        var requestOptions = await ResolveRequestOptionsAsync(context, deployment, isStreaming: true);
+
+        if (UseResponsesApi(connection, requestOptions))
+        {
+            await foreach (var update in CompleteStreamingWithResponsesApiAsync(messages, context, deployment, connection, requestOptions, cancellationToken))
+            {
+                yield return update;
+            }
+
+            yield break;
+        }
+
         var azureMessages = AzureOpenAIChatMessageConverter.Convert(
             messages,
             context.PastMessagesCount);
         var connectionName = deployment.ConnectionName;
         var azureClient = GetChatClient(connection);
         var chatClient = azureClient.GetChatClient(deployment.ModelName);
-        var requestOptions = await ResolveRequestOptionsAsync(context, deployment, isStreaming: true);
         var functions = requestOptions.Functions;
         var chatOptions = GetOptions(context, functions, requestOptions.ResolvedOptions);
         ChatCompletionOptions subSequenceContext = null;

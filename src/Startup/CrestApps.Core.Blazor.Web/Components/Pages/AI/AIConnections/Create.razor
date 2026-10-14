@@ -86,6 +86,19 @@
                     </div>
                 }
 
+            @if (ShowChatApi)
+            {
+                <div class="mb-3">
+                    <label for="chatApi" class="form-label">Chat API</label>
+                    <InputSelect id="chatApi" class="form-select" @bind-Value="_model.ChatApi">
+                        <option value="Auto">Auto</option>
+                        <option value="ChatCompletions">Chat Completions</option>
+                        <option value="Responses">Responses</option>
+                    </InputSelect>
+                    <div class="form-text">Auto sends requests with tools and reasoning to the Responses API on OpenAI and Azure OpenAI; other endpoints use Chat Completions. Choose Responses if your provider supports <code>/v1/responses</code>, or Chat Completions if it does not.</div>
+                </div>
+            }
+
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">
                     <i class="fa-solid fa-check"></i> Create
@@ -128,6 +141,10 @@
           string.Equals(_model.Source, "AzureAIInference", StringComparison.OrdinalIgnoreCase)) &&
          string.Equals(_model.AuthenticationType, "ApiKey", StringComparison.OrdinalIgnoreCase)) ||
         string.Equals(_model.Source, "Ollama", StringComparison.OrdinalIgnoreCase);
+
+    private bool ShowChatApi =>
+        string.Equals(_model.Source, "OpenAI", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(_model.Source, "Azure", StringComparison.OrdinalIgnoreCase);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

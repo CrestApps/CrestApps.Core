@@ -24,4 +24,10 @@ public class AzureConnectionMetadata
     /// Gets or sets the I Dentity ID.
     /// </summary>
     public string IdentityId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the API that Azure OpenAI chat requests are sent to: <c>Auto</c> (the default), <c>ChatCompletions</c>
+    /// or <c>Responses</c>.
+    /// </summary>
+    public string ChatApi { get; set; }
 }
