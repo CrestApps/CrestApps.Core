@@ -81,8 +81,7 @@ jobs:
         if: steps.resolve.outputs.should_evaluate == 'true'
         uses: actions/setup-node@v6
         with:
-          # Not node-version-file: this job checks out a release tag, and tags older than .node-version do not have it.
-          node-version: 24
+          node-version-file: ".node-version"
           cache: npm
           cache-dependency-path: src/CrestApps.Core.Docs/package-lock.json
 

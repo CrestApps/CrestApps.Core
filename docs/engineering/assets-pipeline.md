@@ -23,8 +23,7 @@ prefix).
 ## Requirements
 
 - **Node.js 24**, pinned in `.node-version`. The Node major decides the npm major, and npm majors disagree about the
-  lockfile, so CI fails on a mismatch and a local build warns. Every workflow reads `.node-version`, except
-  `create_docs_version_pr.yml`, which checks out release tags that predate it.
+  lockfile, so CI fails on a mismatch and a local build warns. Every workflow reads `.node-version`.
 - **npm workspaces.** The root `package.json` lists `src/Resources/*` as workspaces, so one `npm install` at the root
   installs every project's packages into one lockfile. There are no per-project lockfiles. The docs site
   (`src/CrestApps.Core.Docs`) is not a workspace; it keeps its own lockfile and workflows.
