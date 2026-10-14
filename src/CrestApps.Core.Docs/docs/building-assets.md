@@ -131,10 +131,12 @@ Groups whose `dest` ends in `.css` compile their `.scss` and `.css` sources with
 
 ### Third-party libraries
 
-Add the package to the `package.json` of the project that ships it, from the repository root:
+Add the package to the `package.json` of the project that ships it, from the repository root. Add it as a
+development dependency: that `package.json` is also the published `@crestapps/ai-chat-ui` package, which ships the
+built files rather than asking its consumers to install the library:
 
 ```bash
-npm install some-library@1.2.3 -w @crestapps/ai-chat-ui
+npm install -D some-library@1.2.3 -w @crestapps/ai-chat-ui
 ```
 
 Then copy the files the package already builds with a `copy` group, or bundle a package that ships only ES modules

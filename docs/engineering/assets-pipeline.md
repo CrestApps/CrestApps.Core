@@ -34,10 +34,10 @@ prefix).
 | File | Holds |
 | --- | --- |
 | Root `package.json` | Build and test tooling only: Vite, Sass, glob and Playwright. |
-| A project's `package.json` | The libraries that project ships in its `wwwroot`. `CrestApps.AI.Resources` ships none; its `package.json` is also the `@crestapps/ai-chat-ui` npm package. |
+| A project's `package.json` | The libraries that project ships in its `wwwroot`, as `devDependencies`. `CrestApps.AI.Resources` ships none; its `package.json` is also the `@crestapps/ai-chat-ui` npm package, so a library in `dependencies` would be installed by every consumer of the package. |
 
-Add a library to the project that copies or bundles it (`npm install <pkg> -w <workspace name>`). Pin a version that
-should not float exactly.
+Add a library to the project that copies or bundles it (`npm install -D <pkg> -w <workspace name>`). Pin a version
+that should not float exactly.
 
 ## Assets.json
 
