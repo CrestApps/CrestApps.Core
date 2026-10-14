@@ -1,5 +1,7 @@
 # CrestApps.Core
 
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/MikeAlhayek)
+
 ![CrestApps.Core for .NET](src/CrestApps.Core.Docs/static/img/docs/crestapps.core-dotnet-project.png)
 
 **CrestApps.Core is a composable AI management and application framework for .NET.** It gives you the building blocks to ship AI chat, agents, RAG, document workflows, MCP, A2A, reporting, and custom AI tooling without stitching together a pile of disconnected provider SDK samples.
@@ -142,6 +144,12 @@ tests/
 ## Community
 
 This project is actively evolving to help the .NET community adopt AI with strong architecture, extensibility, security-minded defaults, and support for modern protocols. If it helps you, please open issues, share feedback, report bugs, star the repository, or contribute code.
+
+## ❤️ Sponsor
+
+This project is free and open source, built and maintained alongside full-time work. If it saves you time or powers something you ship, please consider [sponsoring on GitHub](https://github.com/sponsors/MikeAlhayek). Sponsorship funds new features, faster fixes, documentation and long-term maintenance, and companies using it in production are especially encouraged to sponsor.
+
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor_on_GitHub-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white&style=for-the-badge)](https://github.com/sponsors/MikeAlhayek)
 
 ## License
 
