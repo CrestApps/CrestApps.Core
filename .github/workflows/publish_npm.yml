@@ -86,7 +86,8 @@ jobs:
         }
 
         $assetPaths = @(
-          'gulpfile.js',
+          '.node-version',
+          '.scripts/assets',
           'package.json',
           'package-lock.json',
           'src/Resources/CrestApps.AI.Resources/Assets.json',
@@ -114,7 +115,7 @@ jobs:
     - uses: actions/setup-node@v6
       if: steps.check-publish.outputs.should-publish == 'true'
       with:
-        node-version: "20"
+        node-version-file: ".node-version"
         # Deliberately no registry-url/scope: those make setup-node write an
         # .npmrc with `_authToken=${NODE_AUTH_TOKEN}` and export a placeholder
         # NODE_AUTH_TOKEN. npm would then treat that placeholder as credentials
@@ -123,15 +124,15 @@ jobs:
 
     - name: Update npm for trusted publishing
       if: steps.check-publish.outputs.should-publish == 'true'
-      # npm trusted publishing (OIDC) requires npm >= 11.5.1; Node 20 ships npm 10.x.
-      # Pin to the 11.x line: npm 12+ dropped Node 20 support (EBADENGINE).
+      # npm trusted publishing (OIDC) requires npm >= 11.5.1, and early Node 24 releases ship an older npm 11.
+      # Stay on the 11.x line, the npm major the lockfile is written with.
       run: npm install -g npm@11
 
     - name: Build assets
       if: steps.check-publish.outputs.should-publish == 'true'
       run: |
         npm ci
-        gulp rebuild
+        npm run rebuild
 
     - name: Publish to npm
       if: steps.check-publish.outputs.should-publish == 'true'

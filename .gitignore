@@ -288,7 +288,7 @@ FakesAssemblies/
 .ntvs_analysis.dat
 node_modules/
 
-# npm publish dist (generated from gulp build output)
+# npm publish dist (copied from the assets build output)
 src/Resources/CrestApps.AI.Resources/dist/
 
 # MvcWeb npm-managed assets (copied from @crestapps/ai-chat-ui by postinstall)

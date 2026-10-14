@@ -200,7 +200,7 @@ typed send and a live voice session. Add to `ai-chat.js`, `ai-chat-widget.js`, a
   `data-end-*` attributes; the textarea should be visually de-emphasised (not disabled — see above) while
   a session is live.
 
-Assets under `Assets/` require `npx gulp rebuild` and the regenerated `.map` files committed, or
+Assets under `Assets/` require `npm run rebuild` and the regenerated `.map` files committed, or
 `assets_validation` fails.
 
 ### 3.5 The hubs
@@ -297,7 +297,7 @@ change to an existing deployment's behavior and belongs in release notes.
 3. **Editors.** Chat picker narrowed to the chat slot; new conversation deployment picker under chat mode.
    Six editors across MVC and Blazor (profiles, templates, interactions).
 4. **Chat surfaces.** New mode resolution, `d-none` removed, help text reworked. Four surfaces.
-5. **Client.** Send-while-live arbitration and button state in the three JS bundles; `npx gulp rebuild`.
+5. **Client.** Send-while-live arbitration and button state in the three JS bundles; `npm run rebuild`.
 6. **Remove the text-rejection guards.** Do this last — it is the step that makes a mixed thread possible,
    and it should land with the UI that exercises it.
 7. **History bridging (3.7, option A).**
