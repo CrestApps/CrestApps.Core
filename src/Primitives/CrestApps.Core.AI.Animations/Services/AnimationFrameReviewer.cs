@@ -26,7 +26,6 @@ internal sealed class AnimationFrameReviewer
         "Then list the most important fixes, at most six, each as a concrete instruction for the drawing code: sizes as fractions of the frame, positions, shapes, colours and timing. " +
         "End with a line that reads exactly \"VERDICT: PASS\" when the frames already match the request well, or \"VERDICT: REVISE\" when any subject is unrecognisable, too small, missing, or the action asked for is not visible.";
 
-    private readonly AnimationRenderService _renderService;
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _clientFactory;
     private readonly ILogger<AnimationFrameReviewer> _logger;
@@ -34,43 +33,55 @@ internal sealed class AnimationFrameReviewer
     /// <summary>
     /// Initializes a new instance of the <see cref="AnimationFrameReviewer"/> class.
     /// </summary>
-    /// <param name="renderService">The render service that draws the frames.</param>
     /// <param name="deploymentManager">The deployment manager, for the vision deployment.</param>
     /// <param name="clientFactory">The client factory.</param>
     /// <param name="logger">The logger.</param>
     public AnimationFrameReviewer(
-        AnimationRenderService renderService,
         IAIDeploymentManager deploymentManager,
         IAIClientFactory clientFactory,
         ILogger<AnimationFrameReviewer> logger)
     {
-        _renderService = renderService;
         _deploymentManager = deploymentManager;
         _clientFactory = clientFactory;
         _logger = logger;
     }
 
     /// <summary>
-    /// Reviews a script.
+    /// Returns the moments a review looks at: the opening, the held middle and the late action, where a shot most
+    /// often fails.
+    /// </summary>
+    /// <param name="durationSeconds">The length of the video in seconds.</param>
+    public static double[] KeyFrameTimes(double durationSeconds)
+    {
+        return [durationSeconds * 0.15, durationSeconds * 0.5, durationSeconds * 0.8];
+    }
+
+    /// <summary>
+    /// Reviews a script's key frames.
     /// </summary>
     /// <param name="request">The script and the video it should make.</param>
     /// <param name="userRequest">What the user asked for.</param>
+    /// <param name="times">The moments the stills show, in seconds, left to right.</param>
+    /// <param name="stills">The stills side by side in one PNG.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The review, or <see langword="null"/> when no vision deployment is configured.</returns>
-    /// <exception cref="AnimationScriptException">The script failed while drawing the frames.</exception>
-    public async Task<AnimationFrameReview> ReviewAsync(AnimationScriptRequest request, string userRequest, CancellationToken cancellationToken)
+    /// <returns>
+    /// The review, or <see langword="null"/> when no vision deployment is configured or the review could not be
+    /// made; the script is then rendered without one.
+    /// </returns>
+    public async Task<AnimationFrameReview> ReviewAsync(
+        AnimationScriptRequest request,
+        string userRequest,
+        IReadOnlyList<double> times,
+        byte[] stills,
+        CancellationToken cancellationToken)
     {
         var deployment = await _deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Vision, cancellationToken: cancellationToken);
 
-        if (deployment is null)
+        if (deployment is null || stills is null)
         {
             return null;
         }
 
-        // The opening, the held middle and the late action are where a shot most often fails.
-        double[] times = [request.DurationSeconds * 0.15, request.DurationSeconds * 0.5, request.DurationSeconds * 0.8];
-        var stills = await _renderService.RenderStillsAsync(request, times, cancellationToken);
-        var chatClient = await _clientFactory.CreateChatClientAsync(deployment, builder => builder.UseUsageLabels(purpose: AIUsagePurposes.ImageAnalysis));
         var labels = string.Join(", ", times.Select(time => time.ToString("0.0", CultureInfo.InvariantCulture) + " s"));
         var messages = new List<ChatMessage>
         {
@@ -82,7 +93,23 @@ internal sealed class AnimationFrameReviewer
             ]),
         };
 
-        var response = await chatClient.GetResponseAsync(messages, cancellationToken: cancellationToken);
+        ChatResponse response;
+
+        try
+        {
+            using var chatClient = await _clientFactory.CreateChatClientAsync(deployment, builder => builder.UseUsageLabels(purpose: AIUsagePurposes.ImageAnalysis));
+
+            response = await chatClient.GetResponseAsync(messages, cancellationToken: cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The review is optional: a throttled, filtered or failing vision deployment must not cost the user the
+            // video, so the script is rendered without it.
+            _logger.LogWarning(ex, "The key frames of an animation could not be reviewed by '{Deployment}'. The script is rendered without a review.", deployment.Name);
+
+            return null;
+        }
+
         var critique = response?.Text?.Trim();
 
         if (string.IsNullOrEmpty(critique))

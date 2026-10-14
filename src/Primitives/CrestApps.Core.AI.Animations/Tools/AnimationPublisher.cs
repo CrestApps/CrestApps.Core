@@ -139,9 +139,7 @@ internal static class AnimationPublisher
             ["asset"] = asset == AnimationAsset.Poster ? "poster" : "video",
         };
 
-        return services.HttpContext is null
-            ? services.LinkGenerator.GetPathByName(AnimationAssetEndpoint.DefaultRouteName, values)
-            : services.LinkGenerator.GetPathByName(services.HttpContext, AnimationAssetEndpoint.DefaultRouteName, values);
+        return services.LinkGenerator.GetPathByName(AnimationAssetEndpoint.DefaultRouteName, values, services.PathBase);
     }
 
     /// <summary>
@@ -149,13 +147,14 @@ internal static class AnimationPublisher
     /// </summary>
     /// <remarks>
     /// A render can outlive the request that asked for it: some providers keep running a tool after the turn is
-    /// cancelled, by which time the request's services are disposed. Resolving them up front lets the video still
-    /// be stored rather than failing at the last step.
+    /// cancelled, by which time the request's services are disposed and its <see cref="HttpContext"/> may be reused.
+    /// Resolving what publishing needs up front, and copying the path base rather than keeping the context, lets
+    /// the video still be stored rather than failing at the last step.
     /// </remarks>
     /// <param name="Store">The animation store.</param>
     /// <param name="LinkGenerator">The link generator, or <see langword="null"/> when the host has none.</param>
-    /// <param name="HttpContext">The current request, or <see langword="null"/>.</param>
-    public sealed record PublishingServices(IAnimationStore Store, LinkGenerator LinkGenerator, HttpContext HttpContext)
+    /// <param name="PathBase">The path base of the request that asked for the video.</param>
+    public sealed record PublishingServices(IAnimationStore Store, LinkGenerator LinkGenerator, PathString PathBase)
     {
         /// <summary>
         /// Resolves the services publishing needs from the tool's service provider.
@@ -166,7 +165,7 @@ internal static class AnimationPublisher
             return new PublishingServices(
                 services.GetRequiredService<IAnimationStore>(),
                 services.GetService<LinkGenerator>(),
-                services.GetService<IHttpContextAccessor>()?.HttpContext);
+                services.GetService<IHttpContextAccessor>()?.HttpContext?.Request.PathBase ?? PathString.Empty);
         }
     }
 }

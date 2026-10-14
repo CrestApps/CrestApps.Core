@@ -141,21 +141,25 @@ internal sealed class RenderAnimationTool : AIFunction
         var reviewer = services.GetRequiredService<AnimationFrameReviewer>();
         var publishing = AnimationPublisher.PublishingServices.From(services);
 
+        // A script is looked at before it is rendered, as a test shot is, and sent back with the director's notes when
+        // it falls short.
+        var reviews = invocation.Items.TryGetValue(ReviewCountItemKey, out var count) && count is int reviewCount
+            ? reviewCount
+            : 0;
+        var reviewing = options.ReviewScriptsBeforeRender && !string.IsNullOrWhiteSpace(request.Request) && reviews < MaxReviews;
+        double[] keyFrameTimes = reviewing
+            ? AnimationFrameReviewer.KeyFrameTimes(durationSeconds)
+            : [];
+
         try
         {
-            await renderService.TestScriptAsync(scriptRequest, cancellationToken);
+            var stills = await renderService.TestScriptAsync(scriptRequest, keyFrameTimes, cancellationToken);
 
-            // A script is looked at before it is rendered, as a test shot is, and sent back with the director's notes
-            // when it falls short.
-            var reviews = invocation.Items.TryGetValue(ReviewCountItemKey, out var count) && count is int reviewCount
-                ? reviewCount
-                : 0;
-
-            if (options.ReviewScriptsBeforeRender && !string.IsNullOrWhiteSpace(request.Request) && reviews < MaxReviews)
+            if (reviewing)
             {
                 invocation.Items[ReviewCountItemKey] = reviews + 1;
 
-                var review = await reviewer.ReviewAsync(scriptRequest, request.Request, cancellationToken);
+                var review = await reviewer.ReviewAsync(scriptRequest, request.Request, keyFrameTimes, stills, cancellationToken);
 
                 if (review is { Passed: false })
                 {
@@ -180,7 +184,9 @@ internal sealed class RenderAnimationTool : AIFunction
 
             // The settings are kept beside the script, so an edit can keep the length, size and look the same.
             var settings = JsonSerializer.Serialize(request with { Code = null, Request = null }, _argumentSerializerOptions);
-            var (animationId, marker) = await AnimationPublisher.PublishAsync(publishing, invocation, owner, output, title, settings, request.Code, cancellationToken);
+            // Once the video exists it is stored even if the turn was cancelled meanwhile, rather than thrown away
+            // after the whole render.
+            var (animationId, marker) = await AnimationPublisher.PublishAsync(publishing, invocation, owner, output, title, settings, request.Code, CancellationToken.None);
 
             if (marker is null)
             {

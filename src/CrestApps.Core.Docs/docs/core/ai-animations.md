@@ -89,12 +89,12 @@ starting again.
 | Setting | Default | Notes |
 | --- | --- | --- |
 | `Enabled` | `true` | Turning it off removes the agent and its description from every request. |
-| `FFmpegPath` | `ffmpeg` | A full path, or a name on the `PATH`. Checked once per process. |
+| `FFmpegPath` | `ffmpeg` | A full path, or a name on the `PATH`. Checked on first use; FFmpeg that cannot be started is tried again a minute later. |
 | `VideoEncoder` | first available | `libx264`, `libopenh264` or `h264_mf`. |
 | `ConstantRateFactor` / `BitRateKilobits` | `20` / `6000` | Quality for libx264, and the bit rate for encoders without a rate factor. |
 | `BasePath` | `App_Data/Animations` | Relative to the content root. |
 | `TempDirectory` | system temp | Where a render works before the video is stored. |
-| `AgentDeploymentName` | default chat deployment | The chat deployment the agent writes its drawing code with. The agent does not use the deployment of the chat that called it, so set this to a strong model. |
+| `AgentDeploymentName` | the calling chat's deployment | The chat deployment the agent writes its drawing code with, when it should differ from the one the chat uses — for example a stronger model. |
 | `ReviewScriptsBeforeRender` | `true` | The director's review of key frames. Needs a vision deployment. |
 | `DefaultWidth` / `DefaultHeight` / `DefaultFrameRate` | `1280` / `720` / `30` | Used when the request gives none. |
 | `MaxWidth` / `MaxHeight` / `MaxFrameRate` | `1920` / `1080` / `60` | |

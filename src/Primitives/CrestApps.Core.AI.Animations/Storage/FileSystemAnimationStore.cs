@@ -45,7 +45,9 @@ internal sealed partial class FileSystemAnimationStore : IAnimationStore
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(content);
 
-        var animationId = Guid.NewGuid().ToString("N");
+        // A version 7 GUID starts with its creation time, so the latest animation sorts last by name on every file
+        // system, including ones that do not record when a folder was created.
+        var animationId = Guid.CreateVersion7().ToString("N");
         var folder = AnimationFolder(owner, animationId);
 
         Directory.CreateDirectory(folder);
@@ -90,14 +92,17 @@ internal sealed partial class FileSystemAnimationStore : IAnimationStore
         var fileName = asset == AnimationAsset.Poster ? PosterFileName : VideoFileName;
         var path = Path.Combine(AnimationFolder(owner, animationId), fileName);
 
-        if (!File.Exists(path))
+        try
         {
+            Stream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, bufferSize: 81_920, FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+            return Task.FromResult(stream);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            // Never stored, or deleted with the conversation or its history, possibly a moment ago.
             return Task.FromResult<Stream>(null);
         }
-
-        Stream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, bufferSize: 81_920, FileOptions.Asynchronous | FileOptions.SequentialScan);
-
-        return Task.FromResult(stream);
     }
 
     /// <inheritdoc />
@@ -120,7 +125,7 @@ internal sealed partial class FileSystemAnimationStore : IAnimationStore
         var latest = conversationFolder
             .EnumerateDirectories()
             .Where(folder => IsAnimationId(folder.Name))
-            .OrderByDescending(folder => folder.CreationTimeUtc)
+            .OrderByDescending(folder => folder.Name, StringComparer.Ordinal)
             .FirstOrDefault();
 
         if (latest is null)

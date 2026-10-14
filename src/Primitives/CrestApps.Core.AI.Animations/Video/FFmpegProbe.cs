@@ -6,34 +6,41 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.AI.Animations.Video;
 
 /// <summary>
-/// Finds out once whether FFmpeg can be run and which H.264 encoder it offers, and remembers the answer for the
-/// life of the process.
+/// Finds out whether FFmpeg can be run and which H.264 encoder it offers, and remembers the answer.
 /// </summary>
 /// <remarks>
-/// Asked on every turn by the agent provider, so the executable is started only the first time. A server that
-/// gains FFmpeg later has to be restarted before the agent is offered.
+/// Asked on every turn by the agent provider. A definite answer — FFmpeg works, or it offers no usable encoder —
+/// is kept for the life of the process. FFmpeg that could not be started or did not answer in time, as a slow
+/// first start on a cold server may not, is tried again a minute later, so it is offered once it can be run.
 /// </remarks>
 internal sealed class FFmpegProbe
 {
     private static readonly string[] _preferredEncoders = ["libx264", "libopenh264", "h264_mf"];
     private static readonly TimeSpan _probeTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan _retryDelay = TimeSpan.FromMinutes(1);
 
     private readonly AnimationOptions _options;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<FFmpegProbe> _logger;
-    private readonly Lazy<Task<FFmpegProbeResult>> _result;
+    private readonly Lock _syncLock = new();
+    private Task<FFmpegProbeResult> _result;
+    private long _retryAtTicks;
+    private int _failureReported;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FFmpegProbe"/> class.
     /// </summary>
     /// <param name="options">The animation options.</param>
+    /// <param name="timeProvider">The time provider, for when a failed probe is tried again.</param>
     /// <param name="logger">The logger.</param>
     public FFmpegProbe(
         IOptions<AnimationOptions> options,
+        TimeProvider timeProvider,
         ILogger<FFmpegProbe> logger)
     {
         _options = options.Value;
+        _timeProvider = timeProvider;
         _logger = logger;
-        _result = new Lazy<Task<FFmpegProbeResult>>(ProbeAsync);
     }
 
     /// <summary>
@@ -41,7 +48,18 @@ internal sealed class FFmpegProbe
     /// </summary>
     public Task<FFmpegProbeResult> GetResultAsync()
     {
-        return _result.Value;
+        lock (_syncLock)
+        {
+            var retryAt = Interlocked.Read(ref _retryAtTicks);
+
+            if (_result is null || (retryAt > 0 && _timeProvider.GetUtcNow().UtcTicks >= retryAt))
+            {
+                Interlocked.Exchange(ref _retryAtTicks, 0);
+                _result = ProbeAsync();
+            }
+
+            return _result;
+        }
     }
 
     private async Task<FFmpegProbeResult> ProbeAsync()
@@ -102,8 +120,18 @@ internal sealed class FFmpegProbe
         {
             var reason = $"FFmpeg could not be run from '{_options.FFmpegPath}'. Install FFmpeg or set {AnimationOptions.ConfigurationSectionName}:FFmpegPath.";
 
-            // Expected wherever FFmpeg is not installed, so the reason is logged without the stack trace.
-            _logger.LogWarning("The animation agent is unavailable: {Reason} ({Error})", reason, ex.Message);
+            Interlocked.Exchange(ref _retryAtTicks, (_timeProvider.GetUtcNow() + _retryDelay).UtcTicks);
+
+            // Expected wherever FFmpeg is not installed, so the reason is logged without the stack trace, and only
+            // once at warning level although it is tried again every minute.
+            if (Interlocked.Exchange(ref _failureReported, 1) == 0)
+            {
+                _logger.LogWarning("The animation agent is unavailable: {Reason} ({Error})", reason, ex.Message);
+            }
+            else if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("FFmpeg still could not be run: {Error}", ex.Message);
+            }
 
             return FFmpegProbeResult.Unavailable(reason);
         }

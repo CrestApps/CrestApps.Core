@@ -20,7 +20,7 @@ public sealed class AnimationOptions
 
     /// <summary>
     /// Gets or sets the FFmpeg executable: a full path, or a name found on the <c>PATH</c>. Defaults to
-    /// <c>ffmpeg</c>. The agent is not offered when no usable FFmpeg is found.
+    /// <c>ffmpeg</c>. The agent is not offered while no usable FFmpeg is found.
     /// </summary>
     public string FFmpegPath { get; set; } = "ffmpeg";
 
@@ -118,7 +118,7 @@ public sealed class AnimationOptions
 
     /// <summary>
     /// Gets or sets the chat deployment the animation agent writes its drawing code with. A stronger model draws
-    /// noticeably better. Empty, the default, uses the site's default chat deployment.
+    /// noticeably better. Empty, the default, uses the deployment of the chat that called the agent.
     /// </summary>
     public string AgentDeploymentName { get; set; }
 

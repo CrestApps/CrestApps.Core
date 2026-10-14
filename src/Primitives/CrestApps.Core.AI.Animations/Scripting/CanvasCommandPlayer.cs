@@ -30,6 +30,8 @@ internal sealed class CanvasCommandPlayer : IDisposable
     private readonly SKPaint _fill = new() { IsAntialias = true, Style = SKPaintStyle.Fill };
     private readonly SKPaint _stroke = new() { IsAntialias = true, Style = SKPaintStyle.Stroke };
     private readonly Dictionary<long, int> _specksBySpot = [];
+    private readonly SKTypeface[] _typefaces = new SKTypeface[4];
+    private readonly SKFont _font = new();
     private DrawingState _state;
     private JsArray _commands;
     private JsArray _strings;
@@ -94,6 +96,12 @@ internal sealed class CanvasCommandPlayer : IDisposable
         _path.Dispose();
         _fill.Dispose();
         _stroke.Dispose();
+        _font.Dispose();
+
+        foreach (var typeface in _typefaces)
+        {
+            typeface?.Dispose();
+        }
     }
 
     private void Execute(SKCanvas canvas, int command)
@@ -429,17 +437,31 @@ internal sealed class CanvasCommandPlayer : IDisposable
         var bold = Next() != 0;
         var italic = Next() != 0;
         var align = (int)Next() switch { 1 => SKTextAlign.Center, 2 => SKTextAlign.Right, _ => SKTextAlign.Left };
-        var weight = bold
-            ? SKFontStyleWeight.Bold
-            : SKFontStyleWeight.Normal;
-        var slant = italic
-            ? SKFontStyleSlant.Italic
-            : SKFontStyleSlant.Upright;
-        var style = new SKFontStyle(weight, SKFontStyleWidth.Normal, slant);
-        using var typeface = SKTypeface.FromFamilyName(null, style);
-        using var font = new SKFont(typeface, size);
 
-        canvas.DrawText(text, x, y, align, font, fill ? PrepareFill() : PrepareStroke());
+        _font.Typeface = GetTypeface(bold, italic);
+        _font.Size = size;
+
+        canvas.DrawText(text, x, y, align, _font, fill ? PrepareFill() : PrepareStroke());
+    }
+
+    private SKTypeface GetTypeface(bool bold, bool italic)
+    {
+        // Looking a typeface up asks the platform's font manager, so each of the four styles is looked up once.
+        var index = (bold ? 1 : 0) + (italic ? 2 : 0);
+
+        if (_typefaces[index] is null)
+        {
+            var weight = bold
+                ? SKFontStyleWeight.Bold
+                : SKFontStyleWeight.Normal;
+            var slant = italic
+                ? SKFontStyleSlant.Italic
+                : SKFontStyleSlant.Upright;
+
+            _typefaces[index] = SKTypeface.FromFamilyName(null, new SKFontStyle(weight, SKFontStyleWidth.Normal, slant));
+        }
+
+        return _typefaces[index];
     }
 
     private SKShader NextGradient()

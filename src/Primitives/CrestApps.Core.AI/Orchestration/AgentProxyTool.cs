@@ -158,6 +158,12 @@ internal sealed class AgentProxyTool : AIFunction
                     {
                         // Sub-agents never delegate to other agents.
                         ctx.CompletionContext.AgentNames = [];
+
+                        // An agent that names no deployment of its own runs on the one the calling chat uses.
+                        if (string.IsNullOrEmpty(ctx.CompletionContext.ChatDeploymentName))
+                        {
+                            ctx.CompletionContext.ChatDeploymentName = invocationContext.CompletionContext?.ChatDeploymentName;
+                        }
                     }
                 },
                 cancellationToken);
@@ -204,6 +210,12 @@ internal sealed class AgentProxyTool : AIFunction
         var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();
 
         var context = await contextBuilder.BuildAsync(agentProfile, cancellationToken: cancellationToken);
+
+        // An agent that names no deployment of its own runs on the one the calling chat uses.
+        if (string.IsNullOrEmpty(context.ChatDeploymentName))
+        {
+            context.ChatDeploymentName = AIInvocationScope.Current?.CompletionContext?.ChatDeploymentName;
+        }
 
         // Disable tools on the agent's context to prevent infinite recursion.
         context.DisableTools = true;

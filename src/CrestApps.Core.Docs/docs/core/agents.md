@@ -213,7 +213,7 @@ await profileManager.CreateAsync(translatorAgent);
 | `Type` | Must be `AIProfileType.Agent` |
 | `Name` | Unique identifier used as the tool name (becomes `agent:{name}` in the registry) |
 | `Description` | Shown to the primary model — drives its decision to invoke this agent |
-| `ChatDeploymentName` | The AI deployment used for the agent's completion |
+| `ChatDeploymentName` | The AI deployment used for the agent's completion. When empty, the agent runs on the deployment of the chat that called it, and on the default chat deployment when that chat names none |
 
 ### Optional Configuration
 
@@ -248,7 +248,7 @@ When the primary model invokes an agent tool, the following sequence occurs insi
 2. **Resolve agent profile** — Look up the agent by name via `IAIProfileManager.GetAsync(AIProfileType.Agent)`
 3. **Build agent context** — Call `IAICompletionContextBuilder.BuildAsync(agentProfile)` to construct the agent's own completion context (system message, settings, etc.)
 4. **Disable tools** — Set `context.DisableTools = true` on the agent's context (see [Recursion Prevention](#recursion-prevention))
-5. **Resolve deployment** — Find the chat deployment via `IAIDeploymentManager.ResolveOrDefaultAsync()`
+5. **Resolve deployment** — Use the agent's own deployment, else the calling chat's, else the default chat deployment
 6. **Send prompt** — Create a single `ChatMessage` with `ChatRole.User` containing the prompt
 7. **Execute completion** — Call `IAICompletionService.CompleteAsync()` with the agent's deployment, messages, and context
 8. **Return response** — Extract the assistant's response text and return it to the primary model
