@@ -2,6 +2,8 @@
 using System.ClientModel;
 using System.ClientModel.Primitives;
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
 using Azure.Identity;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
@@ -46,9 +48,17 @@ internal static class AzureResponsesClientFactory
         var endpoint = new Uri(connection.GetEndpoint(), "/openai/v1/");
         var authType = connection.GetAzureAuthenticationType();
         var identityId = connection.GetIdentityId();
+        var apiKeyHash = authType == AzureAuthenticationType.ApiKey ? Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(connection.GetApiKey() ?? string.Empty))) : null;
         var enableLogging = options?.EnableLogging ?? false;
+        var enableMessageLogging = options?.EnableMessageLogging ?? false;
+        var enableMessageContentLogging = options?.EnableMessageContentLogging ?? false;
         var enableDefaultRetryPolicy = options?.EnableDefaultRetryPolicy ?? true;
-        var cacheKey = $"{endpoint.AbsoluteUri}|{authType}|{identityId}|{enableLogging}|{enableDefaultRetryPolicy}";
+        var maxRetryAttempts = Math.Max(options?.MaxRetryAttempts ?? 5, 0);
+        var retryDelay = options?.RateLimitRetryDelay ?? TimeSpan.FromSeconds(1);
+        var backoffType = options?.BackoffType ?? AzureRetryBackoffType.Exponential;
+        var useJitter = options?.UseJitter ?? true;
+        var maxRetryDelay = options?.MaxRetryDelay ?? TimeSpan.FromSeconds(32);
+        var cacheKey = $"{endpoint.AbsoluteUri}|{authType}|{identityId}|{apiKeyHash}|{enableLogging}|{enableMessageLogging}|{enableMessageContentLogging}|{enableDefaultRetryPolicy}|{maxRetryAttempts}|{retryDelay}|{backoffType}|{useJitter}|{maxRetryDelay}";
 
         var client = _clientCache.GetOrAdd(cacheKey, _ =>
         {
@@ -59,19 +69,19 @@ internal static class AzureResponsesClientFactory
                 {
                     LoggerFactory = loggerFactory,
                     EnableLogging = enableLogging,
-                    EnableMessageLogging = options?.EnableMessageLogging ?? false,
-                    EnableMessageContentLogging = options?.EnableMessageContentLogging ?? false,
+                    EnableMessageLogging = enableMessageLogging,
+                    EnableMessageContentLogging = enableMessageContentLogging,
                 },
             };
 
             if (enableDefaultRetryPolicy)
             {
                 clientOptions.RetryPolicy = new CrestAppsAzureOpenAIClientRetryPolicy(
-                    Math.Max(options?.MaxRetryAttempts ?? 5, 0),
-                    options?.RateLimitRetryDelay ?? TimeSpan.FromSeconds(1),
-                    options?.BackoffType ?? AzureRetryBackoffType.Exponential,
-                    options?.UseJitter ?? true,
-                    options?.MaxRetryDelay ?? TimeSpan.FromSeconds(32),
+                    maxRetryAttempts,
+                    retryDelay,
+                    backoffType,
+                    useJitter,
+                    maxRetryDelay,
                     enableLogging,
                     loggerFactory);
             }

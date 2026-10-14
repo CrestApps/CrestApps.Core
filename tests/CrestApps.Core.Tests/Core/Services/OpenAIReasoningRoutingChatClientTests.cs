@@ -19,6 +19,7 @@ namespace CrestApps.Core.Tests.Core.Services;
 /// Verifies that chat requests combining function tools with a reasoning effort are sent to the Responses API,
 /// which reasoning models such as gpt-6-luna require, while every other request stays on Chat Completions.
 /// </summary>
+[Collection(AzureOpenAIClientCacheCollection.Name)]
 public sealed class OpenAIReasoningRoutingChatClientTests
 {
     [Fact]

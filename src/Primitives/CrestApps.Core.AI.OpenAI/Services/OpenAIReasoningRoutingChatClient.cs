@@ -62,7 +62,12 @@ public sealed class OpenAIReasoningRoutingChatClient : IChatClient
         _responsesClient.Dispose();
     }
 
-    internal static bool RequiresResponsesApi(ChatOptions options)
+    /// <summary>
+    /// Determines whether a request must be sent to the Responses API: it carries function tools and a reasoning
+    /// effort other than <see cref="ReasoningEffort.None"/>.
+    /// </summary>
+    /// <param name="options">The request options.</param>
+    public static bool RequiresResponsesApi(ChatOptions options)
         => options?.Tools is { Count: > 0 } &&
             options.Reasoning?.Effort is ReasoningEffort effort &&
             effort != ReasoningEffort.None;

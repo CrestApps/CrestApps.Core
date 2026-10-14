@@ -7,9 +7,12 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Azure.AI.OpenAI;
+using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Services;
@@ -31,8 +34,22 @@ using TextContent = Microsoft.Extensions.AI.TextContent;
 namespace CrestApps.Core.Tests.Core.Services;
 
 /// <summary>
+/// Prevents tests that create Azure OpenAI clients from running in parallel, because they share the static client
+/// cache of <see cref="AzureOpenAIClientFactory"/>.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class AzureOpenAIClientCacheCollection
+{
+    /// <summary>
+    /// The collection name.
+    /// </summary>
+    public const string Name = "AzureOpenAIClientCache";
+}
+
+/// <summary>
 /// Verifies the Azure OpenAI adapter's exact raw-message conversion and history-selection contract.
 /// </summary>
+[Collection(AzureOpenAIClientCacheCollection.Name)]
 public sealed class AzureOpenAICompletionClientPromptTests
 {
     private const string ApiKey = "test-api-key";
@@ -617,6 +634,87 @@ public sealed class AzureOpenAICompletionClientPromptTests
     }
 
     /// <summary>
+    /// Verifies a request that carries function tools and a reasoning effort goes to the Responses API client
+    /// instead of Chat Completions, which reasoning models reject for that combination.
+    /// </summary>
+    /// <param name="streaming">Whether to invoke the streaming path.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Completion_WithToolsAndReasoningEffort_UsesResponsesApi(bool streaming)
+    {
+        var responsesClient = new CapturingChatClient();
+        var clientFactory = new Mock<IAIClientFactory>(MockBehavior.Strict);
+        clientFactory
+            .Setup(factory => factory.CreateChatClientAsync(It.IsAny<AIDeployment>(), It.IsAny<Action<Microsoft.Extensions.AI.ChatClientBuilder>>()))
+            .ReturnsAsync(responsesClient);
+        using var clientContext = CreateCompletionClient(streaming, [new ToolsAndReasoningHandler(Microsoft.Extensions.AI.ReasoningEffort.Medium)], clientFactory.Object);
+
+        await InvokeCompletionAsync(
+            clientContext.Client,
+            [new AIChatMessage(AIChatRole.User, "What time is it?")],
+            new AICompletionContext
+            {
+                ChatDeploymentName = DeploymentName,
+            },
+            streaming,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(Microsoft.Extensions.AI.ReasoningEffort.Medium, responsesClient.LastOptions.Reasoning.Effort);
+        Assert.Single(responsesClient.LastOptions.Tools);
+        Assert.Null(clientContext.Handler.RequestUri);
+    }
+
+    /// <summary>
+    /// Verifies a request that carries function tools without a reasoning effort stays on Chat Completions.
+    /// </summary>
+    /// <param name="streaming">Whether to invoke the streaming path.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Completion_WithToolsAndNoReasoningEffort_UsesChatCompletions(bool streaming)
+    {
+        using var clientContext = CreateCompletionClient(streaming, [new ToolsAndReasoningHandler(Microsoft.Extensions.AI.ReasoningEffort.None)], new Mock<IAIClientFactory>(MockBehavior.Strict).Object);
+
+        await InvokeCompletionAsync(
+            clientContext.Client,
+            [new AIChatMessage(AIChatRole.User, "What time is it?")],
+            new AICompletionContext
+            {
+                ChatDeploymentName = DeploymentName,
+            },
+            streaming,
+            TestContext.Current.CancellationToken);
+
+        Assert.Contains("chat/completions", clientContext.Handler.RequestUri.AbsoluteUri, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies a connection whose <c>ChatApi</c> setting is <c>ChatCompletions</c> keeps a request with function tools
+    /// and a reasoning effort on Chat Completions.
+    /// </summary>
+    /// <param name="streaming">Whether to invoke the streaming path.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Completion_WhenChatApiIsChatCompletions_UsesChatCompletions(bool streaming)
+    {
+        using var clientContext = CreateCompletionClient(streaming, [new ToolsAndReasoningHandler(Microsoft.Extensions.AI.ReasoningEffort.Medium)], new Mock<IAIClientFactory>(MockBehavior.Strict).Object, OpenAIChatApis.ChatCompletions);
+
+        await InvokeCompletionAsync(
+            clientContext.Client,
+            [new AIChatMessage(AIChatRole.User, "What time is it?")],
+            new AICompletionContext
+            {
+                ChatDeploymentName = DeploymentName,
+            },
+            streaming,
+            TestContext.Current.CancellationToken);
+
+        Assert.Contains("chat/completions", clientContext.Handler.RequestUri.AbsoluteUri, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies Azure streaming update conversion preserves metadata and content order.
     /// </summary>
     [Fact]
@@ -724,8 +822,15 @@ public sealed class AzureOpenAICompletionClientPromptTests
     /// Creates a fully configured completion client backed by an in-memory HTTP handler.
     /// </summary>
     /// <param name="streaming">Whether the handler should return a streaming response.</param>
+    /// <param name="completionServiceHandlers">The handlers that configure each request, or none.</param>
+    /// <param name="clientFactory">The AI client factory that serves Responses API requests, or a default mock.</param>
+    /// <param name="chatApi">The connection's <c>ChatApi</c> setting, or <see langword="null"/> to leave it unset.</param>
     /// <returns>The disposable client context.</returns>
-    private static CompletionClientContext CreateCompletionClient(bool streaming)
+    private static CompletionClientContext CreateCompletionClient(
+        bool streaming,
+        IEnumerable<IAICompletionServiceHandler> completionServiceHandlers = null,
+        IAIClientFactory clientFactory = null,
+        string chatApi = null)
     {
         AzureOpenAIClientFactory.ClearCache();
 
@@ -749,6 +854,12 @@ public sealed class AzureOpenAICompletionClientPromptTests
                 ["ApiKey"] = ApiKey,
             },
         };
+
+        if (chatApi is not null)
+        {
+            connection.Properties["ChatApi"] = chatApi;
+        }
+
         var connectionEntry = AIProviderConnectionEntryFactory.Create(connection, []);
 
         _ = AzureOpenAIClientFactory.Create(
@@ -801,7 +912,7 @@ public sealed class AzureOpenAICompletionClientPromptTests
         var client = new AzureOpenAICompletionClient(
             services,
             NullLoggerFactory.Instance,
-            [],
+            completionServiceHandlers ?? [],
             [],
             new DefaultAIOptions
             {
@@ -811,7 +922,8 @@ public sealed class AzureOpenAICompletionClientPromptTests
             deploymentManager.Object,
             connectionStore.Object,
             Mock.Of<IDataProtectionProvider>(),
-            optionsSnapshot.Object);
+            optionsSnapshot.Object,
+            clientFactory ?? Mock.Of<IAIClientFactory>());
 
         return new CompletionClientContext(client, handler, httpClient, services);
     }
@@ -1149,6 +1261,94 @@ public sealed class AzureOpenAICompletionClientPromptTests
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
+        }
+    }
+
+    /// <summary>
+    /// Gives every request one function tool and the given reasoning effort.
+    /// </summary>
+    private sealed class ToolsAndReasoningHandler : IAICompletionServiceHandler
+    {
+        private readonly Microsoft.Extensions.AI.ReasoningEffort _effort;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ToolsAndReasoningHandler"/> class.
+        /// </summary>
+        /// <param name="effort">The reasoning effort to apply.</param>
+        public ToolsAndReasoningHandler(Microsoft.Extensions.AI.ReasoningEffort effort)
+        {
+            _effort = effort;
+        }
+
+        /// <summary>
+        /// Adds the tool and the reasoning effort to the request options.
+        /// </summary>
+        /// <param name="context">The configure context.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A completed task.</returns>
+        public Task ConfigureAsync(CompletionServiceConfigureContext context, CancellationToken cancellationToken = default)
+        {
+            context.ChatOptions.Tools = [Microsoft.Extensions.AI.AIFunctionFactory.Create(() => "12:00", "current_time")];
+            context.ChatOptions.Reasoning = new Microsoft.Extensions.AI.ReasoningOptions { Effort = _effort };
+
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// Captures the options of the last request and answers it with fixed text.
+    /// </summary>
+    private sealed class CapturingChatClient : Microsoft.Extensions.AI.IChatClient
+    {
+        /// <summary>
+        /// Gets the options of the last request.
+        /// </summary>
+        public Microsoft.Extensions.AI.ChatOptions LastOptions { get; private set; }
+
+        /// <summary>
+        /// Captures the options and returns a fixed response.
+        /// </summary>
+        /// <param name="messages">The messages.</param>
+        /// <param name="options">The options.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>The fixed response.</returns>
+        public Task<Microsoft.Extensions.AI.ChatResponse> GetResponseAsync(IEnumerable<AIChatMessage> messages, Microsoft.Extensions.AI.ChatOptions options = null, CancellationToken cancellationToken = default)
+        {
+            LastOptions = options;
+
+            return Task.FromResult(new Microsoft.Extensions.AI.ChatResponse(new AIChatMessage(AIChatRole.Assistant, "done")));
+        }
+
+        /// <summary>
+        /// Captures the options and streams a fixed update.
+        /// </summary>
+        /// <param name="messages">The messages.</param>
+        /// <param name="options">The options.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>The fixed update.</returns>
+        public async IAsyncEnumerable<Microsoft.Extensions.AI.ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<AIChatMessage> messages, Microsoft.Extensions.AI.ChatOptions options = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            LastOptions = options;
+
+            yield return new Microsoft.Extensions.AI.ChatResponseUpdate(AIChatRole.Assistant, "done");
+
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Gets no services.
+        /// </summary>
+        /// <param name="serviceType">The service type.</param>
+        /// <param name="serviceKey">The service key.</param>
+        /// <returns>Always <see langword="null"/>.</returns>
+        public object GetService(Type serviceType, object serviceKey = null)
+            => null;
+
+        /// <summary>
+        /// Releases nothing.
+        /// </summary>
+        public void Dispose()
+        {
         }
     }
 

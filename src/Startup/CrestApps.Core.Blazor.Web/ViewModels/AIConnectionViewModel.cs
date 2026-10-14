@@ -82,7 +82,10 @@ public sealed class AIConnectionViewModel
             connection.Properties.Remove("AuthenticationType");
         }
 
-        if (!string.IsNullOrWhiteSpace(ChatApi) && !string.Equals(ChatApi, AutoChatApi, StringComparison.OrdinalIgnoreCase))
+        // The Chat API setting only applies to OpenAI and Azure OpenAI. The editor hides it for other providers, but
+        // the hidden field still posts, so its value is not kept for them.
+        if ((string.Equals(connection.Source, "OpenAI", StringComparison.OrdinalIgnoreCase) || string.Equals(connection.Source, "Azure", StringComparison.OrdinalIgnoreCase)) &&
+            !string.IsNullOrWhiteSpace(ChatApi) && !string.Equals(ChatApi, AutoChatApi, StringComparison.OrdinalIgnoreCase))
         {
             connection.Properties["ChatApi"] = ChatApi;
         }
