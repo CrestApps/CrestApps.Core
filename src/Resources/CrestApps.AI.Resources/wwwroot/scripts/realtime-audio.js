@@ -489,7 +489,8 @@
 				var s = sel[name];
 				return s ? document.querySelector(s) : null;
 			}
-			var isRealtimeActive = false, realtimeLifecycleBound = false, realtimeEndedNotice = null, realtimeCompatibilityNoticeEl = null, realtimeStatusEl = null;
+			var isRealtimeActive = false;
+			var realtimeLifecycleBound = false, realtimeEndedNotice = null, realtimeCompatibilityNoticeEl = null, realtimeStatusEl = null;
 			var realtimeStream = null, realtimeAudioCtx = null, realtimeSubject = null, realtimeProcessor = null, realtimeMicSource = null, realtimeZeroGain = null, realtimeGain = null, realtimePlayHead = 0, realtimeSources = [];
 			var realtimeIsWebRtc = false, realtimePc = null, realtimeRemoteAudioEl = null, realtimeWebRtcHandlersBound = false, realtimeRemoteDescriptionSet = false, realtimePendingIce = [];
 			var realtimeWebRtcConnected = false, realtimeWebRtcConnectTimer = null, realtimeFellBack = false;
@@ -499,7 +500,8 @@
 			var REALTIME_WEBRTC_BLOCKED_KEY = "coreai.realtime.webrtcBlocked";
 			var realtimeAttemptIceServers = null;
 			var realtimeAttemptToken = 0;
-			var realtimeSawRelayCandidate = false, realtimeGate = null, realtimeGatePendingRemoteStream = null;
+			var realtimeSawRelayCandidate = false;
+			var realtimeGate = null, realtimeGatePendingRemoteStream = null;
 			var realtimeBargeIn = true, realtimePushToTalk = false, realtimePttActive = false, realtimePttBound = false, realtimePttKeyDown = null, realtimePttKeyUp = null, realtimePttButton = null, realtimePttUiEl = null, realtimeVolume = 1, realtimeMicDeviceId = "", realtimeOutputDeviceId = "", realtimeLanguage = "", realtimeSpeechSpeed = null, realtimeSessionSpeechSpeed = 1, realtimeSpeechSpeedAdjustable = false, realtimeAudioSettingsBuilt = false, realtimeAudioSettingsElement = null;
 			var REALTIME_WS_ECHO_HANGOVER_SEC = .5;
 			var REALTIME_PREFS_VERSION = 3;

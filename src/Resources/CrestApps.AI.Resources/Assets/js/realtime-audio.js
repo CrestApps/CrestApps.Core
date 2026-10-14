@@ -374,7 +374,7 @@
 
         return ctx.audioWorklet.addModule(blobUrl)
             .then(function () {
-                try { URL.revokeObjectURL(blobUrl); } catch (e) { }
+                try { URL.revokeObjectURL(blobUrl); } catch (e) { /* best effort */ }
 
                 var node = new AudioWorkletNode(ctx, 'coreai-pcm-capture', {
                     numberOfInputs: 1,
@@ -387,7 +387,7 @@
                 return node;
             })
             .catch(function (err) {
-                try { URL.revokeObjectURL(blobUrl); } catch (e) { }
+                try { URL.revokeObjectURL(blobUrl); } catch (e) { /* best effort */ }
                 if (window.console && console.warn) {
                     console.warn('The realtime capture worklet could not be loaded; falling back to a ScriptProcessorNode.', err);
                 }
@@ -431,7 +431,7 @@
             setMode: function (next) {
                 mode = next || mode;
                 if (state.node && state.node.port) {
-                    try { state.node.port.postMessage(mode); } catch (e) { }
+                    try { state.node.port.postMessage(mode); } catch (e) { /* best effort */ }
                 }
                 if (state.fallback) { state.fallback.mode = mode; }
             },
@@ -440,15 +440,15 @@
             },
             stop: function () {
                 state.stopped = true;
-                if (state.timer) { try { window.clearInterval(state.timer); } catch (e) { } state.timer = 0; }
+                if (state.timer) { try { window.clearInterval(state.timer); } catch (e) { /* best effort */ } state.timer = 0; }
                 if (state.node) {
-                    try { state.node.port.onmessage = null; state.node.disconnect(); } catch (e) { }
+                    try { state.node.port.onmessage = null; state.node.disconnect(); } catch (e) { /* best effort */ }
                     state.node = null;
                 }
-                if (state.micSource) { try { state.micSource.disconnect(); } catch (e) { } state.micSource = null; }
-                if (state.remoteSource) { try { state.remoteSource.disconnect(); } catch (e) { } state.remoteSource = null; }
-                if (state.dest) { try { state.dest.disconnect(); } catch (e) { } state.dest = null; }
-                if (state.ctx) { try { state.ctx.close(); } catch (e) { } state.ctx = null; }
+                if (state.micSource) { try { state.micSource.disconnect(); } catch (e) { /* best effort */ } state.micSource = null; }
+                if (state.remoteSource) { try { state.remoteSource.disconnect(); } catch (e) { /* best effort */ } state.remoteSource = null; }
+                if (state.dest) { try { state.dest.disconnect(); } catch (e) { /* best effort */ } state.dest = null; }
+                if (state.ctx) { try { state.ctx.close(); } catch (e) { /* best effort */ } state.ctx = null; }
                 state.fallback = null;
             }
         };
@@ -488,7 +488,7 @@
 
         return state.ctx.audioWorklet.addModule(blobUrl)
             .then(function () {
-                try { URL.revokeObjectURL(blobUrl); } catch (e) { }
+                try { URL.revokeObjectURL(blobUrl); } catch (e) { /* best effort */ }
                 if (state.stopped) { return gate; }
 
                 var node = new AudioWorkletNode(state.ctx, 'coreai-mic-gate', {
@@ -519,7 +519,7 @@
                 return gate;
             })
             .catch(function (err) {
-                try { URL.revokeObjectURL(blobUrl); } catch (e) { }
+                try { URL.revokeObjectURL(blobUrl); } catch (e) { /* best effort */ }
                 if (window.console && console.warn) {
                     console.warn('The realtime microphone gate worklet could not be loaded; using the simpler gate.', err);
                 }
@@ -533,7 +533,7 @@
         state.pendingRemoteStream = remoteStream || null;
         if (!state.ctx || !remoteStream || state.stopped) { return; }
         try {
-            if (state.remoteSource) { try { state.remoteSource.disconnect(); } catch (e) { } }
+            if (state.remoteSource) { try { state.remoteSource.disconnect(); } catch (e) { /* best effort */ } }
             var src = state.ctx.createMediaStreamSource(remoteStream);
             state.remoteSource = src;
 
@@ -633,7 +633,7 @@
         if (!el || typeof el.setSinkId !== 'function') { return; }
 
         if (chosenDeviceId) {
-            try { el.setSinkId(chosenDeviceId).catch(function () { }); } catch (e) { }
+            try { el.setSinkId(chosenDeviceId).catch(function () { }); } catch (e) { /* best effort */ }
 
             return;
         }
@@ -666,7 +666,7 @@
             }
 
             if (target) {
-                try { el.setSinkId(target).catch(function () { }); } catch (e) { }
+                try { el.setSinkId(target).catch(function () { }); } catch (e) { /* best effort */ }
             }
         }).catch(function () { });
     }
@@ -739,7 +739,7 @@
         var isRealtimeActive = false;
         // Server-driven session lifecycle (see bindRealtimeLifecycleHandlers): the server tells us when the
         // provider session is live, when the user interrupted, and when the session ended for any reason.
-        var realtimeLifecycleBound = false, realtimeSessionReady = false, realtimeEndedNotice = null,
+        var realtimeLifecycleBound = false, realtimeEndedNotice = null,
             realtimeCompatibilityNoticeEl = null, realtimeStatusEl = null;
         var realtimeStream = null, realtimeAudioCtx = null, realtimeSubject = null, realtimeProcessor = null,
             realtimeMicSource = null, realtimeZeroGain = null, realtimeGain = null, realtimePlayHead = 0, realtimeSources = [];
@@ -772,7 +772,7 @@
         // the assistant's remote audio and silences the outbound track unless the user is genuinely speaking, so
         // the model cannot hear itself even when AEC underperforms against loud open-room speakers. It also
         // enforces push-to-talk on the WebRTC mic track.
-        var realtimeWebRtcMicTrack = null, realtimeGate = null, realtimeGatePendingRemoteStream = null;
+        var realtimeGate = null, realtimeGatePendingRemoteStream = null;
 
         // Per-device audio preferences (interruptions, push-to-talk, volume, devices, language). They live in
         // localStorage because they depend on the listener's hardware, not on the interaction.
@@ -837,7 +837,7 @@
         }
 
         function saveRealtimeAudioPrefs(prefs) {
-            try { window.localStorage.setItem('coreai.realtime.audioPrefs', JSON.stringify(prefs)); } catch (err) { }
+            try { window.localStorage.setItem('coreai.realtime.audioPrefs', JSON.stringify(prefs)); } catch (err) { /* best effort */ }
         }
 
         function applyRealtimeAudioPrefs(prefs) {
@@ -892,8 +892,8 @@
             if (!realtimePttBound) { return; }
             realtimePttBound = false;
             realtimePttActive = false;
-            try { document.removeEventListener('keydown', realtimePttKeyDown, true); } catch (err) { }
-            try { document.removeEventListener('keyup', realtimePttKeyUp, true); } catch (err) { }
+            try { document.removeEventListener('keydown', realtimePttKeyDown, true); } catch (err) { /* best effort */ }
+            try { document.removeEventListener('keyup', realtimePttKeyUp, true); } catch (err) { /* best effort */ }
         }
 
         function setRealtimePttActive(active) {
@@ -941,7 +941,7 @@
 
         function removeRealtimePttUi() {
             realtimePttButton = null;
-            if (realtimePttUiEl) { try { realtimePttUiEl.remove(); } catch (err) { } realtimePttUiEl = null; }
+            if (realtimePttUiEl) { try { realtimePttUiEl.remove(); } catch (err) { /* best effort */ } realtimePttUiEl = null; }
         }
 
         // Builds a gear-triggered popover next to the realtime button with the per-device audio settings.
@@ -1244,7 +1244,7 @@
         // still interrupts itself — so a change during a live session is sent on to the other two.
         function pushRealtimeSettingsToServer() {
             if (!isRealtimeActive || !connection || typeof connection.send !== 'function') { return; }
-            try { connection.send('UpdateRealtimeSettings', realtimeBargeIn, null, null); } catch (err) { }
+            try { connection.send('UpdateRealtimeSettings', realtimeBargeIn, null, null); } catch (err) { /* best effort */ }
         }
 
         function formatRealtimeSpeechSpeed(speed) {
@@ -1273,7 +1273,7 @@
 
         function pushRealtimeSpeechSpeedToServer() {
             if (!isRealtimeActive || !realtimeSpeechSpeedAdjustable || !connection || typeof connection.send !== 'function') { return; }
-            try { connection.send('UpdateRealtimeSpeechSpeed', effectiveRealtimeSpeechSpeed()); } catch (err) { }
+            try { connection.send('UpdateRealtimeSpeechSpeed', effectiveRealtimeSpeechSpeed()); } catch (err) { /* best effort */ }
         }
 
         // An empty payload means this session's speed can't change; otherwise a saved speed is applied before anyone speaks.
@@ -1307,7 +1307,7 @@
             else if (state === 'idle') { clearRealtimeStatus(); }
 
             try { onStateChange({ state: state, transport: realtimeIsWebRtc ? 'webrtc' : 'websocket', detail: detail || null }); }
-            catch (err) { }
+            catch (err) { /* best effort */ }
         }
 
         // The server owns the session's lifecycle; the browser cannot infer it from the audio it happens to
@@ -1324,7 +1324,6 @@
                 if (type === 'speech_speed') {
                     applySessionSpeechSpeed(payload);
                 } else if (type === 'session_ready') {
-                    realtimeSessionReady = true;
                     setRealtimeState('listening');
                 } else if (type === 'session_ended') {
                     endRealtimeSessionFromServer(payload || 'completed');
@@ -1429,7 +1428,7 @@
 
         function clearRealtimeStatus() {
             if (!realtimeStatusEl) { return; }
-            try { realtimeStatusEl.remove(); } catch (err) { }
+            try { realtimeStatusEl.remove(); } catch (err) { /* best effort */ }
             realtimeStatusEl = null;
         }
 
@@ -1489,7 +1488,7 @@
 
         function rememberWebRtcBlocked() {
             try { window.sessionStorage.setItem(REALTIME_WEBRTC_BLOCKED_KEY, iceServersFingerprint(realtimeAttemptIceServers || webRtcIceServers)); }
-            catch (err) { }
+            catch (err) { /* best effort */ }
         }
 
         // A one-line, dismissible note under the realtime button. Shown once per browser session when voice falls
@@ -1513,7 +1512,7 @@
 
         function removeCompatibilityModeNotice() {
             if (!realtimeCompatibilityNoticeEl) { return; }
-            try { realtimeCompatibilityNoticeEl.remove(); } catch (err) { }
+            try { realtimeCompatibilityNoticeEl.remove(); } catch (err) { /* best effort */ }
             realtimeCompatibilityNoticeEl = null;
         }
 
@@ -1524,7 +1523,6 @@
             realtimeAttemptIceServers = null;
             var attempt = ++realtimeAttemptToken;
             realtimeFellBack = false;
-            realtimeSessionReady = false;
             // Hidden until this session reports its own speed.
             realtimeSpeechSpeedAdjustable = false;
             syncRealtimeSpeechSpeedControl();
@@ -1570,7 +1568,7 @@
             attachRealtimePushToTalk();
             // Drop focus from the just-clicked button so Space acts as push-to-talk, not a re-click.
             var focusedBtn = q('realtimeButton');
-            if (focusedBtn) { try { focusedBtn.blur(); } catch (err) { } }
+            if (focusedBtn) { try { focusedBtn.blur(); } catch (err) { /* best effort */ } }
 
             var audioConstraints = {
                 channelCount: 1,
@@ -1657,7 +1655,7 @@
                             // graph; it streams silence until the gated microphone is attached below.
                             createRealtimeCaptureNode(realtimeAudioCtx, sendCapturedFrame).then(function (captureNode) {
                                 if (!isRealtimeActive || realtimeAudioCtx !== ctxAtStart) {
-                                    try { captureNode.disconnect(); } catch (err) { }
+                                    try { captureNode.disconnect(); } catch (err) { /* best effort */ }
 
                                     return;
                                 }
@@ -1746,7 +1744,7 @@
 
                             attachRealtimePushToTalk();
                             var focusedBtn = q('realtimeButton');
-                            if (focusedBtn) { try { focusedBtn.blur(); } catch (err) { } }
+                            if (focusedBtn) { try { focusedBtn.blur(); } catch (err) { /* best effort */ } }
                             if (realtimePushToTalk) { buildRealtimePttUi(); }
 
                             // Play the assistant's remote track through a hidden <audio> element. This gives the
@@ -1771,7 +1769,7 @@
                                     if (e.receiver && 'jitterBufferTarget' in e.receiver) {
                                         e.receiver.jitterBufferTarget = REALTIME_WEBRTC_JITTER_BUFFER_TARGET_MS;
                                     }
-                                } catch (err) { }
+                                } catch (err) { /* best effort */ }
 
                                 if (e.streams && e.streams[0]) {
                                     audioEl.srcObject = e.streams[0];
@@ -1789,7 +1787,7 @@
                                     if (e.candidate.candidate && e.candidate.candidate.indexOf(' relay ') !== -1) {
                                         realtimeSawRelayCandidate = true;
                                     }
-                                    try { connection.send('AddRealtimeIceCandidate', e.candidate.candidate, e.candidate.sdpMid || '', e.candidate.sdpMLineIndex || 0); } catch (err) { }
+                                    try { connection.send('AddRealtimeIceCandidate', e.candidate.candidate, e.candidate.sdpMid || '', e.candidate.sdpMLineIndex || 0); } catch (err) { /* best effort */ }
 
                                     return;
                                 }
@@ -1894,7 +1892,7 @@
                         var pending = realtimePendingIce;
                         realtimePendingIce = [];
                         pending.forEach(function (init) {
-                            try { realtimePc.addIceCandidate(init).catch(function () { }); } catch (err) { }
+                            try { realtimePc.addIceCandidate(init).catch(function () { }); } catch (err) { /* best effort */ }
                         });
                     })
                     .catch(function (err) { console.error('Failed to apply the WebRTC answer.', err); });
@@ -1904,7 +1902,7 @@
                 var init = { candidate: candidate, sdpMid: sdpMid, sdpMLineIndex: sdpMLineIndex };
                 // A candidate can only be added after the remote description (answer) is set; buffer until then.
                 if (realtimeRemoteDescriptionSet) {
-                    try { realtimePc.addIceCandidate(init).catch(function () { }); } catch (err) { }
+                    try { realtimePc.addIceCandidate(init).catch(function () { }); } catch (err) { /* best effort */ }
                 } else {
                     realtimePendingIce.push(init);
                 }
@@ -1913,13 +1911,12 @@
 
         function stopRealtimeWebRtc() {
             stopWebRtcEchoGuard();
-            realtimeWebRtcMicTrack = null;
             if (realtimePc) {
-                try { realtimePc.close(); } catch (err) { }
+                try { realtimePc.close(); } catch (err) { /* best effort */ }
                 realtimePc = null;
             }
             if (realtimeRemoteAudioEl) {
-                try { realtimeRemoteAudioEl.srcObject = null; realtimeRemoteAudioEl.remove(); } catch (err) { }
+                try { realtimeRemoteAudioEl.srcObject = null; realtimeRemoteAudioEl.remove(); } catch (err) { /* best effort */ }
                 realtimeRemoteAudioEl = null;
             }
             realtimeIsWebRtc = false;
@@ -1958,7 +1955,6 @@
         function setupMicGate(rawStream) {
             stopWebRtcEchoGuard();
             var rawTrack = (rawStream && rawStream.getAudioTracks()[0]) || null;
-            realtimeWebRtcMicTrack = rawTrack;
 
             return createMicGate(rawStream, realtimeGateModeMessage()).then(function (gate) {
                 realtimeGate = gate;
@@ -1980,7 +1976,7 @@
 
         function stopWebRtcEchoGuard() {
             if (realtimeGate) {
-                try { realtimeGate.stop(); } catch (e) { }
+                try { realtimeGate.stop(); } catch (e) { /* best effort */ }
                 realtimeGate = null;
             }
             realtimeGatePendingRemoteStream = null;
@@ -2029,7 +2025,7 @@
             rememberWebRtcBlocked();
             showCompatibilityModeNotice();
 
-            try { if (realtimeStream) { realtimeStream.getTracks().forEach(function (t) { t.stop(); }); } } catch (err) { }
+            try { if (realtimeStream) { realtimeStream.getTracks().forEach(function (t) { t.stop(); }); } } catch (err) { /* best effort */ }
             realtimeStream = null;
             stopRealtimeWebRtc();
             realtimeIsWebRtc = false;
@@ -2045,7 +2041,6 @@
             if (realtimeWebRtcConnectTimer) { clearTimeout(realtimeWebRtcConnectTimer); realtimeWebRtcConnectTimer = null; }
 
             isRealtimeActive = false;
-            realtimeSessionReady = false;
             onDeactivate();
             updateRealtimeButton();
             detachRealtimePushToTalk();
@@ -2054,7 +2049,7 @@
 
             if (realtimeIsWebRtc) {
                 stopRealtimeWebRtc();
-                try { if (realtimeStream) { realtimeStream.getTracks().forEach(function (t) { t.stop(); }); } } catch (err) { }
+                try { if (realtimeStream) { realtimeStream.getTracks().forEach(function (t) { t.stop(); }); } } catch (err) { /* best effort */ }
                 realtimeStream = null;
 
                 return;
@@ -2076,11 +2071,11 @@
                         realtimeProcessor.port.close();
                     }
                 }
-            } catch (err) { }
-            try { if (realtimeMicSource) { realtimeMicSource.disconnect(); } } catch (err) { }
-            try { if (realtimeZeroGain) { realtimeZeroGain.disconnect(); } } catch (err) { }
-            try { if (realtimeGain) { realtimeGain.disconnect(); } } catch (err) { }
-            try { if (realtimeStream) { realtimeStream.getTracks().forEach(function (t) { t.stop(); }); } } catch (err) { }
+            } catch (err) { /* best effort */ }
+            try { if (realtimeMicSource) { realtimeMicSource.disconnect(); } } catch (err) { /* best effort */ }
+            try { if (realtimeZeroGain) { realtimeZeroGain.disconnect(); } } catch (err) { /* best effort */ }
+            try { if (realtimeGain) { realtimeGain.disconnect(); } } catch (err) { /* best effort */ }
+            try { if (realtimeStream) { realtimeStream.getTracks().forEach(function (t) { t.stop(); }); } } catch (err) { /* best effort */ }
             realtimeProcessor = null;
             realtimeMicSource = null;
             realtimeZeroGain = null;
@@ -2088,7 +2083,7 @@
             realtimeStream = null;
 
             flushRealtimePlayback();
-            try { if (realtimeAudioCtx) { realtimeAudioCtx.close(); } } catch (err) { }
+            try { if (realtimeAudioCtx) { realtimeAudioCtx.close(); } } catch (err) { /* best effort */ }
             realtimeAudioCtx = null;
         }
 
@@ -2171,7 +2166,7 @@
         }
 
         function flushRealtimePlayback() {
-            realtimeSources.forEach(function (s) { try { s.stop(); } catch (err) { } });
+            realtimeSources.forEach(function (s) { try { s.stop(); } catch (err) { /* best effort */ } });
             realtimeSources = [];
             if (realtimeAudioCtx) { realtimePlayHead = realtimeAudioCtx.currentTime; }
         }

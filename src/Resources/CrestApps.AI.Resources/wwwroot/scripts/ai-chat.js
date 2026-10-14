@@ -756,7 +756,6 @@
 						}
 						for (var m = 0; m < this.uploadErrors.length; m++) {
 							var failedItem = this.uploadErrors[m];
-							failedItem.fileName;
 							var errorMsg = failedItem.error || "Upload failed";
 							html += "<span class=\"alert alert-danger d-flex align-items-start gap-2 w-100 mb-1 py-1 px-2\" role=\"alert\" style=\"font-size: 0.8rem;\">";
 							html += "<i class=\"fa-solid fa-circle-exclamation mt-1\" style=\"font-size: 0.7rem;\"></i>";
@@ -1032,7 +1031,7 @@
 								if (this.realtimeController) this.realtimeController.receivePcm(bytes);
 							} else this.audioChunks.push(bytes);
 						});
-						this.connection.on("ReceiveAudioComplete", (sessionId) => {
+						this.connection.on("ReceiveAudioComplete", () => {
 							this.playCollectedAudio();
 						});
 						this.connection.on("ReceiveNotification", (notification) => {
@@ -1420,7 +1419,7 @@
 								icons[i].classList.add("ai-bot-icon");
 							}
 						}
-						for (var i = 0; i < this.messages.length; i++) if (this.messages[i].isStreaming) this.messages[i].isStreaming = false;
+						for (i = 0; i < this.messages.length; i++) if (this.messages[i].isStreaming) this.messages[i].isStreaming = false;
 					},
 					handleExternalTtsStop(e) {
 						if (e?.detail?.sourceId === this.ttsInstanceId) return;
@@ -2007,7 +2006,7 @@
 							this.generatePrompt(e.target);
 						});
 						const chatSessions = document.getElementsByClassName("chat-session-history-item");
-						for (var i = 0; i < chatSessions.length; i++) chatSessions[i].addEventListener("click", (e) => {
+						for (i = 0; i < chatSessions.length; i++) chatSessions[i].addEventListener("click", (e) => {
 							e.preventDefault();
 							var sessionId = e.target.getAttribute("data-session-id");
 							if (!sessionId) {
@@ -2144,7 +2143,7 @@
 							if (msg) this.updateFeedbackIcons(containers[i], msg.userRating);
 						}
 					},
-					rateMessage(message, isPositive, event) {
+					rateMessage(message, isPositive) {
 						var sessionId = this.getSessionId();
 						if (!sessionId || !message.id || !this.connection) return;
 						var newRating = message.userRating === isPositive ? null : isPositive;

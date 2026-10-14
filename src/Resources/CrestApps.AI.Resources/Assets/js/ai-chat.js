@@ -182,23 +182,6 @@ window.coreAIChatManager = function () {
         return observer;
     }
 
-    function parsePixelValue(value) {
-        if (typeof value === 'number' && Number.isFinite(value)) {
-            return value;
-        }
-
-        if (typeof value !== 'string') {
-            return null;
-        }
-
-        var parsed = parseFloat(value);
-        return Number.isFinite(parsed) ? parsed : null;
-    }
-
-    function clamp(value, min, max) {
-        return Math.min(Math.max(value, min), max);
-    }
-
     function normalizeReference(reference) {
         if (!reference || typeof reference !== 'object') {
             return null;
@@ -383,6 +366,7 @@ window.coreAIChatManager = function () {
 
         return {
             content: processedContent,
+            // eslint-disable-next-line no-unused-vars -- the placeholder is left out of each citation on purpose.
             citations: citations.map(({ placeholder, ...citation }) => citation),
         };
     }
@@ -463,11 +447,11 @@ window.coreAIChatManager = function () {
             if (lang && hljs.getLanguage(lang)) {
                 try {
                     highlighted = hljs.highlight(code, { language: lang }).value;
-                } catch (_) { }
+                } catch (_) { /* best effort */ }
             } else {
                 try {
                     highlighted = hljs.highlightAuto(code).value;
-                } catch (_) { }
+                } catch (_) { /* best effort */ }
             }
         } else {
             highlighted = escapeHtmlEntities(code);
@@ -1118,7 +1102,6 @@ window.coreAIChatManager = function () {
 
                     for (var m = 0; m < this.uploadErrors.length; m++) {
                         var failedItem = this.uploadErrors[m];
-                        var failedName = failedItem.fileName || 'File';
                         var errorMsg = failedItem.error || 'Upload failed';
                         // The reason is shown, not hidden behind a tooltip. A pill reading "quarterly-report-2..."
                         // tells a reader their upload failed and nothing about why, and a title attribute is
@@ -1543,7 +1526,7 @@ window.coreAIChatManager = function () {
                         }
                     });
 
-                    this.connection.on("ReceiveAudioComplete", (sessionId) => {
+                    this.connection.on("ReceiveAudioComplete", () => {
                         this.playCollectedAudio();
                     });
 
@@ -1861,10 +1844,10 @@ window.coreAIChatManager = function () {
                     if (!capture) {
                         return;
                     }
-                    try { if (capture.processor) { capture.processor.onaudioprocess = null; capture.processor.disconnect(); } } catch (e) { }
-                    try { if (capture.source) { capture.source.disconnect(); } } catch (e) { }
-                    try { if (capture.stream) { capture.stream.getTracks().forEach(function (t) { t.stop(); }); } } catch (e) { }
-                    try { if (capture.audioContext) { capture.audioContext.close(); } } catch (e) { }
+                    try { if (capture.processor) { capture.processor.onaudioprocess = null; capture.processor.disconnect(); } } catch (e) { /* best effort */ }
+                    try { if (capture.source) { capture.source.disconnect(); } } catch (e) { /* best effort */ }
+                    try { if (capture.stream) { capture.stream.getTracks().forEach(function (t) { t.stop(); }); } } catch (e) { /* best effort */ }
+                    try { if (capture.audioContext) { capture.audioContext.close(); } } catch (e) { /* best effort */ }
                 },
                 // Converts a Float32 sample block to 16-bit PCM, resampling from srcRate to dstRate when needed.
                 _downsampleToInt16(input, srcRate, dstRate) {
@@ -2110,7 +2093,7 @@ window.coreAIChatManager = function () {
                     }
 
                     // Also update Vue data for consistency.
-                    for (var i = 0; i < this.messages.length; i++) {
+                    for (i = 0; i < this.messages.length; i++) {
                         if (this.messages[i].isStreaming) {
                             this.messages[i].isStreaming = false;
                         }
@@ -2974,7 +2957,7 @@ window.coreAIChatManager = function () {
 
                     const chatSessions = document.getElementsByClassName('chat-session-history-item');
 
-                    for (var i = 0; i < chatSessions.length; i++) {
+                    for (i = 0; i < chatSessions.length; i++) {
                         chatSessions[i].addEventListener('click', (e) => {
                             e.preventDefault();
 
@@ -3193,7 +3176,7 @@ window.coreAIChatManager = function () {
                         }
                     }
                 },
-                rateMessage(message, isPositive, event) {
+                rateMessage(message, isPositive) {
                     var sessionId = this.getSessionId();
 
                     if (!sessionId || !message.id || !this.connection) {

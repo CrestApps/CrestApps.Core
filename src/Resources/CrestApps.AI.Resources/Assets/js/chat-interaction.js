@@ -305,6 +305,7 @@ window.chatInteractionManager = function () {
 
         return {
             content: processedContent,
+            // eslint-disable-next-line no-unused-vars -- the placeholder is left out of each citation on purpose.
             citations: citations.map(({ placeholder, ...citation }) => citation),
         };
     }
@@ -385,11 +386,11 @@ window.chatInteractionManager = function () {
             if (lang && hljs.getLanguage(lang)) {
                 try {
                     highlighted = hljs.highlight(code, { language: lang }).value;
-                } catch (_) { }
+                } catch (_) { /* best effort */ }
             } else {
                 try {
                     highlighted = hljs.highlightAuto(code).value;
-                } catch (_) { }
+                } catch (_) { /* best effort */ }
             }
         } else {
             highlighted = escapeHtmlEntities(code);
@@ -959,11 +960,11 @@ window.chatInteractionManager = function () {
                         }
                     });
 
-                    this.connection.on("ReceiveAudioComplete", (itemId) => {
+                    this.connection.on("ReceiveAudioComplete", () => {
                         this.playCollectedAudio();
                     });
 
-                    this.connection.on("HistoryCleared", (itemId) => {
+                    this.connection.on("HistoryCleared", () => {
                         // Clear messages and show placeholder
                         this.messages = [];
                         this.showPlaceholder();
@@ -1312,7 +1313,7 @@ window.chatInteractionManager = function () {
                     }
 
                     // Also update Vue data for consistency.
-                    for (var i = 0; i < this.messages.length; i++) {
+                    for (i = 0; i < this.messages.length; i++) {
                         if (this.messages[i].isStreaming) {
                             this.messages[i].isStreaming = false;
                         }
@@ -2094,7 +2095,7 @@ window.chatInteractionManager = function () {
                         }
                     });
 
-                    this.inputElement.addEventListener('paste', (e) => {
+                    this.inputElement.addEventListener('paste', () => {
                         // Use setTimeout to allow the paste to complete before checking the value
                         setTimeout(() => {
                             this.prompt = this.inputElement.value;

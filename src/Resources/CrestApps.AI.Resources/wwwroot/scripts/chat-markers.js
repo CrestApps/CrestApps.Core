@@ -10,7 +10,7 @@
 		function escapeImageAltText(title) {
 			const text = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
 			if (!text) return defaultImageAltText;
-			return text.replace(/[\\\[\]]/g, "\\$&");
+			return text.replace(/[\\[\]]/g, "\\$&");
 		}
 		function escapeRegExp(text) {
 			return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
