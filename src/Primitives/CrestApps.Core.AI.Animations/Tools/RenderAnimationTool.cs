@@ -114,6 +114,8 @@ internal sealed class RenderAnimationTool : AIFunction
         }
         catch (JsonException ex)
         {
+            logger.LogWarning("The arguments of an animation could not be read: {Reason}", ex.Message);
+
             return $"The arguments could not be read: {ex.Message} Fix them and call {TheName} again.";
         }
 
@@ -124,6 +126,8 @@ internal sealed class RenderAnimationTool : AIFunction
 
         if (request.Code.Length > options.MaxScriptCharacters)
         {
+            logger.LogWarning("An animation script of {Length} characters was refused; the limit is {Limit}.", request.Code.Length, options.MaxScriptCharacters);
+
             return $"The script is {request.Code.Length} characters long; the limit is {options.MaxScriptCharacters}. Shorten it and call {TheName} again.";
         }
 
@@ -171,6 +175,11 @@ internal sealed class RenderAnimationTool : AIFunction
                     }
                     else
                     {
+                        if (logger.IsEnabled(LogLevel.Debug))
+                        {
+                            logger.LogDebug("Review {Review} sent the script for animation '{Title}' back to the agent.", reviews + 1, title);
+                        }
+
                         var next = reviews + 1 < MaxSendBacks
                             ? "It is reviewed again before rendering."
                             : "That call is rendered even if the review still finds problems, and you will be told what they are.";
@@ -182,7 +191,7 @@ internal sealed class RenderAnimationTool : AIFunction
         }
         catch (AnimationScriptException ex)
         {
-            return ScriptFailure("testing", ex.Message);
+            return ScriptFailure(logger, title, "testing", ex, request.Code);
         }
 
         try
@@ -204,6 +213,11 @@ internal sealed class RenderAnimationTool : AIFunction
                 return "The video was rendered, but this site cannot play animations in the chat yet: the animation endpoint is not set up.";
             }
 
+            if (remainingIssues is not null && logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Animation '{AnimationId}' was rendered although the final review still found problems: {Critique}", animationId, remainingIssues);
+            }
+
             if (logger.IsEnabled(LogLevel.Debug))
             {
                 logger.LogDebug("Animation '{AnimationId}' rendered: {FrameCount} frames, {VideoBytes} bytes, marker '{Marker}'.", animationId, format.FrameCount, output.VideoBytes, marker);
@@ -213,7 +227,7 @@ internal sealed class RenderAnimationTool : AIFunction
         }
         catch (AnimationScriptException ex)
         {
-            return ScriptFailure("rendering", ex.Message);
+            return ScriptFailure(logger, title, "rendering", ex, request.Code);
         }
         catch (AnimationRenderException ex)
         {
@@ -229,9 +243,18 @@ internal sealed class RenderAnimationTool : AIFunction
         }
     }
 
-    private static string ScriptFailure(string stage, string message)
+    private static string ScriptFailure(ILogger logger, string title, string stage, AnimationScriptException exception, string script)
     {
-        return $"The script failed while {stage}: {message}\nFix the script and call {TheName} again with the whole corrected script. If it still fails after three attempts, tell the user plainly what could not be drawn.";
+        // A script that fails is the model's mistake rather than the server's, so the reason is logged without a stack
+        // trace, and the script itself at debug level so the failure can be replayed.
+        logger.LogWarning("The script for animation '{Title}' failed while {Stage}: {Reason}", title, stage, exception.Message);
+
+        if (logger.IsEnabled(LogLevel.Debug))
+        {
+            logger.LogDebug("The script for animation '{Title}' that failed while {Stage}:\n{Script}", title, stage, script);
+        }
+
+        return $"The script failed while {stage}: {exception.Message}\nFix the script and call {TheName} again with the whole corrected script. If it still fails after three attempts, tell the user plainly what could not be drawn.";
     }
 
     private sealed record RenderArguments
