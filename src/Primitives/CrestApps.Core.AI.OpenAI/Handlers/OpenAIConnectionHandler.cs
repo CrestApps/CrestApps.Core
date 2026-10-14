@@ -44,5 +44,6 @@ internal sealed class OpenAIConnectionHandler : AIProviderConnectionHandlerBase
         }
 
         context.Values["Endpoint"] = metadata.Endpoint?.ToString();
+        context.Values[OpenAIChatApis.SettingName] = metadata.ChatApi;
     }
 }

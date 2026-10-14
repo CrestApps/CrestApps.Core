@@ -18,6 +18,7 @@ namespace CrestApps.Core.Tests.Core.Services;
 /// OpenAI and Azure OpenAI construct a real <see cref="IRealtimeClient"/> from the connection, while
 /// providers without a realtime API (Ollama, Azure AI Inference, Azure Speech) surface <see cref="NotSupportedException"/>.
 /// </summary>
+[Collection(AzureOpenAIClientCacheCollection.Name)]
 public sealed class AIClientProviderRealtimeTests
 {
     private static ServiceProvider EmptyServices()

@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.Services;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -8,6 +9,7 @@ namespace CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 public sealed class AIConnectionViewModel
 {
     private const string ApiKeyAuthenticationType = "ApiKey";
+    private const string AutoChatApi = OpenAIChatApis.Auto;
 
     public string ItemId { get; set; }
     public string Name { get; set; }
@@ -17,6 +19,7 @@ public sealed class AIConnectionViewModel
     public string Endpoint { get; set; }
     public string AuthenticationType { get; set; }
     public string ApiKey { get; set; }
+    public string ChatApi { get; set; } = AutoChatApi;
     public bool IsReadOnly { get; set; }
 
     [BindNever]
@@ -41,6 +44,7 @@ public sealed class AIConnectionViewModel
         {
             model.Endpoint = connection.Properties.TryGetValue("Endpoint", out var ep) ? ep?.ToString() : null;
             model.AuthenticationType = connection.Properties.TryGetValue("AuthenticationType", out var auth) ? auth?.ToString() : null;
+            model.ChatApi = connection.Properties.TryGetValue(OpenAIChatApis.SettingName, out var chatApi) && !string.IsNullOrWhiteSpace(chatApi?.ToString()) ? chatApi.ToString() : AutoChatApi;
         }
 
         return model;
@@ -75,6 +79,18 @@ public sealed class AIConnectionViewModel
         else
         {
             connection.Properties.Remove("AuthenticationType");
+        }
+
+        // The Chat API setting only applies to OpenAI and Azure OpenAI. The editor hides it for other providers, but
+        // the hidden field still posts, so its value is not kept for them.
+        if ((string.Equals(connection.Source, "OpenAI", StringComparison.OrdinalIgnoreCase) || string.Equals(connection.Source, "Azure", StringComparison.OrdinalIgnoreCase)) &&
+            !string.IsNullOrWhiteSpace(ChatApi) && !string.Equals(ChatApi, AutoChatApi, StringComparison.OrdinalIgnoreCase))
+        {
+            connection.Properties[OpenAIChatApis.SettingName] = ChatApi;
+        }
+        else
+        {
+            connection.Properties.Remove(OpenAIChatApis.SettingName);
         }
     }
 
