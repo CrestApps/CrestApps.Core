@@ -37,15 +37,16 @@ agents: always available to the primary model, hidden from the agent pickers, an
 1. The primary model hands the request to the agent.
 2. The agent writes a JavaScript program for that one video: `setup(info)` lays the scene out once, and
    `frame(ctx, t, state)` draws one frame at time `t` on a canvas-like `ctx` — paths, curves, gradients, blend
-   modes, blur, shadows and text, plus `draw` helpers for smooth organic outlines, tapered limbs, shading, easing
-   and noise, and scene helpers for skies, glows, light rays, hills, grass fields, contact shadows and camera moves.
+   modes, blur, shadows and text, plus general `draw` helpers for smooth organic outlines, tapered limbs, shading,
+   gradients, glows, light shafts, layered silhouettes, contact shadows, camera moves, easing and noise. None of
+   them is tied to a subject: everything the request is about, the agent draws itself.
 3. The script runs in the **Jint** JavaScript interpreter, inside the app, with no file, network, process or .NET
    access. Every call — setup and each frame — has its own time, statement, memory and recursion limits.
 4. A short test run checks the script first. A JavaScript error comes back with its line; a script too slow to
    finish, or one that draws a whole subject into a few pixels, comes back with what to fix.
 5. A **director's review** looks at key frames before rendering: they are drawn and judged against the request by
-   the vision deployment, and a script that falls short goes back to the agent with concrete notes. A first draft
-   and one revision are reviewed; the next attempt is rendered.
+   the vision deployment, and a script that falls short goes back to the agent with concrete notes. A script can
+   be sent back twice; the third is rendered as it stands, and the user is told what may not match.
 6. The frames are replayed onto a SkiaSharp canvas and piped to FFmpeg, which writes an H.264 MP4 (`yuv420p`,
    `+faststart`). An optional film look — letterbox, vignette, grain — is laid over each frame.
 7. The video, a poster still, the script and its settings are stored with the conversation, and a `[fig:N]` marker

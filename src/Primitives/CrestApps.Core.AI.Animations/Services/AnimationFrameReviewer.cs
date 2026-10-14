@@ -21,10 +21,12 @@ internal sealed class AnimationFrameReviewer
 {
     private const string ReviewerInstructions =
         "You are a demanding film director and illustrator reviewing still frames of a short animation that a program drew from code. " +
-        "Judge the frames strictly against the request. Say plainly whether each subject is recognisable as exactly what was asked (species or breed, colours and markings, pose and action), " +
-        "whether the main subject is large enough and well framed, and whether the lighting, depth, colour and composition look like a film shot. " +
+        "Judge the frames strictly against the request. Say plainly whether each subject is recognisable as exactly what was asked (kind, colours and markings, pose and action), " +
+        "whether every subject the request names is clearly visible — large enough, sharp and in contrast with what is behind it, not lost in the background — " +
+        "whether the main subject is large enough and well framed, whether the action the request describes visibly happens when the frames are read in order, " +
+        "and whether the lighting, depth, colour and composition look like a film shot. " +
         "Then list the most important fixes, at most six, each as a concrete instruction for the drawing code: sizes as fractions of the frame, positions, shapes, colours and timing. " +
-        "End with a line that reads exactly \"VERDICT: PASS\" when the frames already match the request well, or \"VERDICT: REVISE\" when any subject is unrecognisable, too small, missing, or the action asked for is not visible.";
+        "End with a line that reads exactly \"VERDICT: PASS\" when the frames already match the request well, or \"VERDICT: REVISE\" when any subject is unrecognisable, too small, blurred into the background or missing, or the action asked for does not visibly happen across the frames.";
 
     private readonly IAIDeploymentManager _deploymentManager;
     private readonly IAIClientFactory _clientFactory;
@@ -47,13 +49,13 @@ internal sealed class AnimationFrameReviewer
     }
 
     /// <summary>
-    /// Returns the moments a review looks at: the opening, the held middle and the late action, where a shot most
-    /// often fails.
+    /// Returns the moments a review looks at: six frames spread over the whole shot, enough to see whether the action
+    /// happens, not only how single frames look.
     /// </summary>
     /// <param name="durationSeconds">The length of the video in seconds.</param>
     public static double[] KeyFrameTimes(double durationSeconds)
     {
-        return [durationSeconds * 0.15, durationSeconds * 0.5, durationSeconds * 0.8];
+        return [.. new[] { 0.08, 0.25, 0.42, 0.58, 0.75, 0.92 }.Select(fraction => durationSeconds * fraction)];
     }
 
     /// <summary>
@@ -88,7 +90,7 @@ internal sealed class AnimationFrameReviewer
             new(ChatRole.System, ReviewerInstructions),
             new(ChatRole.User,
             [
-                new TextContent($"The request: {userRequest}\n\nThe picture shows the frames at {labels}, left to right, out of a {request.DurationSeconds.ToString("0.#", CultureInfo.InvariantCulture)}-second video."),
+                new TextContent($"The request: {userRequest}\n\nThe picture shows the frames at {labels}, in reading order (left to right, then the next row), out of a {request.DurationSeconds.ToString("0.#", CultureInfo.InvariantCulture)}-second video. Compare them in order to judge the motion."),
                 new DataContent(stills, "image/png"),
             ]),
         };

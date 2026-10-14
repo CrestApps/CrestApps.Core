@@ -29,9 +29,9 @@ internal sealed class RenderAnimationTool : AIFunction
 
     private const string ReviewCountItemKey = "CrestApps.Animations.ScriptReviews";
 
-    // A first draft and one revision are judged before rendering; after that the script is rendered as it stands,
-    // so a request never loops on reviews.
-    private const int MaxReviews = 2;
+    // A script can be sent back with the director's notes this many times. The next one is still reviewed, but it is
+    // rendered whatever the review finds and the user is told what falls short, so a request never loops on reviews.
+    private const int MaxSendBacks = 2;
 
     private static readonly JsonSerializerOptions _argumentSerializerOptions = new()
     {
@@ -146,10 +146,12 @@ internal sealed class RenderAnimationTool : AIFunction
         var reviews = invocation.Items.TryGetValue(ReviewCountItemKey, out var count) && count is int reviewCount
             ? reviewCount
             : 0;
-        var reviewing = options.ReviewScriptsBeforeRender && !string.IsNullOrWhiteSpace(request.Request) && reviews < MaxReviews;
+        var reviewing = options.ReviewScriptsBeforeRender && !string.IsNullOrWhiteSpace(request.Request) && reviews <= MaxSendBacks;
         double[] keyFrameTimes = reviewing
             ? AnimationFrameReviewer.KeyFrameTimes(durationSeconds)
             : [];
+
+        string remainingIssues = null;
 
         try
         {
@@ -163,11 +165,18 @@ internal sealed class RenderAnimationTool : AIFunction
 
                 if (review is { Passed: false })
                 {
-                    var next = reviews + 1 < MaxReviews
-                        ? "It is reviewed once more before rendering."
-                        : "That call is rendered.";
+                    if (reviews >= MaxSendBacks)
+                    {
+                        remainingIssues = review.Critique;
+                    }
+                    else
+                    {
+                        var next = reviews + 1 < MaxSendBacks
+                            ? "It is reviewed again before rendering."
+                            : "That call is rendered even if the review still finds problems, and you will be told what they are.";
 
-                    return $"Before rendering, the key frames of your script were reviewed against the request, and they need work:\n\n{review.Critique}\n\nRevise the script to fix these, then call {TheName} again with the whole revised script. {next}";
+                        return $"Before rendering, the key frames of your script were reviewed against the request, and they need work:\n\n{review.Critique}\n\nRevise the script to fix these, then call {TheName} again with the whole revised script. {next}";
+                    }
                 }
             }
         }
@@ -200,7 +209,7 @@ internal sealed class RenderAnimationTool : AIFunction
                 logger.LogDebug("Animation '{AnimationId}' rendered: {FrameCount} frames, {VideoBytes} bytes, marker '{Marker}'.", animationId, format.FrameCount, output.VideoBytes, marker);
             }
 
-            return AnimationPublisher.Instructions(marker, format, durationSeconds, adjustments);
+            return AnimationPublisher.Instructions(marker, format, durationSeconds, adjustments, remainingIssues);
         }
         catch (AnimationScriptException ex)
         {

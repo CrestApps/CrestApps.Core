@@ -309,11 +309,11 @@ const draw = Object.freeze({
         return gradient;
     },
 
-    sky(ctx, width, horizonY, colors) {
+    sky(ctx, width, bottomY, colors) {
         const list = colors && colors.length > 1 ? colors : ["#35406e", "#d9825a", "#ffd48a"];
 
-        ctx.fillStyle = draw.gradient(ctx, 0, 0, 0, horizonY, list.map(function (color, index) { return [index / (list.length - 1), color]; }));
-        ctx.fillRect(-width, -horizonY, width * 3, horizonY * 3);
+        ctx.fillStyle = draw.gradient(ctx, 0, 0, 0, bottomY, list.map(function (color, index) { return [index / (list.length - 1), color]; }));
+        ctx.fillRect(-width, -bottomY, width * 3, bottomY * 3);
     },
 
     glow(ctx, x, y, radius, color, strength) {
@@ -385,56 +385,6 @@ const draw = Object.freeze({
         ctx.translate(focusX + __num(shakeX), focusY + __num(shakeY));
         ctx.scale(zoom, zoom);
         ctx.translate(-focusX, -focusY);
-    },
-
-    makeGrass(width, horizonY, height, count, colors) {
-        const palette = colors && colors.length > 1 ? colors : ["#8a6a2a", "#e8c46a"];
-        const blades = [];
-
-        for (let index = 0; index < count; index++) {
-            const depth = Math.random();
-
-            blades.push({
-                x: Math.random() * width * 1.3 - width * 0.15,
-                y: horizonY + (height - horizonY) * (0.05 + depth * 1.0),
-                height: (height - horizonY) * (0.06 + depth * 0.32) * (0.7 + Math.random() * 0.6),
-                width: 0.6 + depth * 2.6,
-                depth: depth,
-                phase: Math.random() * Math.PI * 2,
-                color: draw.mix(palette[0], palette[palette.length - 1], Math.random()),
-            });
-        }
-
-        return blades.sort(function (a, b) { return a.depth - b.depth; });
-    },
-
-    grass(ctx, blades, t, options) {
-        const settings = options || {};
-        const from = settings.fromDepth === undefined ? 0 : settings.fromDepth;
-        const to = settings.toDepth === undefined ? 1 : settings.toDepth;
-        const wind = settings.wind === undefined ? 0.12 : settings.wind;
-        const lean = settings.lean === undefined ? 0.06 : settings.lean;
-
-        ctx.save();
-        ctx.lineCap = "round";
-
-        for (const blade of blades) {
-            if (blade.depth < from || blade.depth >= to) {
-                continue;
-            }
-
-            const sway = (Math.sin(t * 1.8 + blade.phase + blade.x * 0.004) * wind + lean) * blade.height;
-
-            ctx.filter = blade.depth > 0.93 ? "blur(2px)" : "none";
-            ctx.strokeStyle = blade.color;
-            ctx.lineWidth = blade.width;
-            ctx.beginPath();
-            ctx.moveTo(blade.x, blade.y);
-            ctx.quadraticCurveTo(blade.x + sway * 0.3, blade.y - blade.height * 0.6, blade.x + sway, blade.y - blade.height);
-            ctx.stroke();
-        }
-
-        ctx.restore();
     },
 
     clamp(value, low, high) { return Math.min(high, Math.max(low, value)); },

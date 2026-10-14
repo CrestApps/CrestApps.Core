@@ -111,8 +111,9 @@ public sealed class AnimationOptions
 
     /// <summary>
     /// Gets or sets a value indicating whether a script's key frames are judged by the vision deployment before it is
-    /// rendered — a first draft and one revision — and sent back to the agent with the director's critique when they
-    /// fall short. Has no effect when no vision deployment is configured. Defaults to <see langword="true"/>.
+    /// rendered. A script that falls short is sent back to the agent with the director's critique, at most twice; the
+    /// next one is rendered whatever the review finds, and the user is told what may not match. Has no effect when no
+    /// vision deployment is configured. Defaults to <see langword="true"/>.
     /// </summary>
     public bool ReviewScriptsBeforeRender { get; set; } = true;
 

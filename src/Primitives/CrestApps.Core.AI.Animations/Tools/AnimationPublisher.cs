@@ -93,7 +93,15 @@ internal static class AnimationPublisher
     /// <param name="format">The video's frames.</param>
     /// <param name="durationSeconds">The video's length.</param>
     /// <param name="adjustments">What was changed to fit the limits.</param>
-    public static string Instructions(string marker, AnimationFrameFormat format, double durationSeconds, IReadOnlyList<string> adjustments)
+    /// <param name="remainingIssues">
+    /// What the last review still found wrong with the video, or <see langword="null"/> when it passed.
+    /// </param>
+    public static string Instructions(
+        string marker,
+        AnimationFrameFormat format,
+        double durationSeconds,
+        IReadOnlyList<string> adjustments,
+        string remainingIssues)
     {
         var builder = new StringBuilder();
 
@@ -119,6 +127,14 @@ internal static class AnimationPublisher
             {
                 builder.Append("- ").AppendLine(adjustment);
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(remainingIssues))
+        {
+            builder
+                .AppendLine()
+                .AppendLine("The final review still found problems, and the video was made as it stands. Tell the user honestly, in a sentence or two, what may not match their request, and that they can ask for a change:")
+                .AppendLine(remainingIssues);
         }
 
         return builder.ToString().TrimEnd();

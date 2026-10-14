@@ -224,10 +224,13 @@ internal sealed class AnimationRenderService : IDisposable
     private static byte[] DrawStills(ScriptFrameSource source, SKSurface frameSurface, AnimationScriptRequest request, IReadOnlyList<double> times, double earliest)
     {
         const int StillWidth = 640;
+        const int MaxColumns = 3;
 
         var format = request.Format;
         var stillHeight = (int)Math.Round((double)StillWidth * format.Height / format.Width);
-        var sheetInfo = new SKImageInfo(StillWidth * times.Count, stillHeight, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var columns = Math.Min(MaxColumns, times.Count);
+        var rows = (times.Count + columns - 1) / columns;
+        var sheetInfo = new SKImageInfo(StillWidth * columns, stillHeight * rows, SKColorType.Rgba8888, SKAlphaType.Premul);
 
         using var sheetSurface = SKSurface.Create(sheetInfo) ?? throw new AnimationRenderException("The review surface could not be created.");
         using var labelFont = new SKFont(SKTypeface.Default, 22);
@@ -243,11 +246,11 @@ internal sealed class AnimationRenderService : IDisposable
             source.Render(frameSurface.Canvas, time);
 
             using var frame = frameSurface.Snapshot();
-            var target = SKRect.Create(position * StillWidth, 0, StillWidth, stillHeight);
+            var target = SKRect.Create(position % columns * StillWidth, position / columns * stillHeight, StillWidth, stillHeight);
 
             sheetSurface.Canvas.DrawImage(frame, target, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear), sampling);
-            sheetSurface.Canvas.DrawRect(target.Left + 8, 8, 110, 32, labelBackground);
-            sheetSurface.Canvas.DrawText($"t = {time:0.0} s", target.Left + 16, 32, SKTextAlign.Left, labelFont, labelPaint);
+            sheetSurface.Canvas.DrawRect(target.Left + 8, target.Top + 8, 110, 32, labelBackground);
+            sheetSurface.Canvas.DrawText($"t = {time:0.0} s", target.Left + 16, target.Top + 32, SKTextAlign.Left, labelFont, labelPaint);
         }
 
         using var sheet = sheetSurface.Snapshot();
