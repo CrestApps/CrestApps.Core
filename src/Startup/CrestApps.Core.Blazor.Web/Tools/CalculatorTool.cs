@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CrestApps.Core.AI.Extensions;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.Blazor.Web.Tools;
@@ -57,7 +58,7 @@ public sealed class CalculatorTool : AIFunction
     protected override ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(arguments);
-        if (!arguments.TryGetValue("operation", out var opVal) || opVal is not string operation)
+        if (!arguments.TryGetFirstString("operation", out var operation))
         {
             return ValueTask.FromResult<object>("""{"error":"Missing required parameter: operation"}""");
         }
