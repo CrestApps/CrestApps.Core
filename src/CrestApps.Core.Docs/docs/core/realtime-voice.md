@@ -89,6 +89,18 @@ What to expect from each leg:
 - **Text-to-speech** speaks the reply. The reply is spoken a sentence at a time so audio starts playing while
   the model is still writing, and the voice picker for the deployment lists this leg's voices.
 
+A reply nobody spoke to ask for, such as the opening line of a phone call or a prompt after a silence, is asked
+for the same way as on a native provider (`IRealtimeConversation.RequestUnpromptedResponseAsync`, which sends
+`response.create`). The chat leg writes it from the conversation so far. Instructions sent with the request apply
+to that reply only, in place of the session's. A reply marked `ExcludeFromConversation` is spoken but not kept in
+the history.
+
+A cascaded session honors the same grounding contract as a native one. When per-turn knowledge retrieval is on,
+the session is created with automatic replies off: a finished utterance is added to the conversation but not
+answered, the retrieved knowledge arrives as a conversation item and is added to the history the chat leg writes
+from, and the reply is given when the host sends `response.create`. Without grounding, the cascade answers each
+utterance on its own.
+
   It must answer with **raw PCM** at the session's output sample rate — `audio/L16` or `audio/pcm`. Realtime
   audio is played as headerless samples, so a reply encoded as MP3 or wrapped in a WAV container would be
   played as noise. The session refuses anything else rather than emitting it, naming the format it was given.
