@@ -76,7 +76,7 @@ jobs:
     - uses: actions/setup-node@v6
       if: steps.check-publish.outputs.should-publish == 'true'
       with:
-        node-version: "20"
+        node-version-file: ".node-version"
     - uses: actions/setup-dotnet@v5
       if: steps.check-publish.outputs.should-publish == 'true'
       with:

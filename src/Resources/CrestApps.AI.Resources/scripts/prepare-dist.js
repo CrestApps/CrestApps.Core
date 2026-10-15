@@ -1,5 +1,5 @@
 /**
- * Copies the Gulp-built assets from wwwroot/ into the dist/ directory
+ * Copies the built assets from wwwroot/ into the dist/ directory
  * that npm publishes. Run automatically via the "prepublishOnly" lifecycle hook.
  */
 const fs = require('fs');
@@ -10,7 +10,7 @@ const dest = path.join(root, 'dist');
 
 const sources = [
     { dir: path.join(root, 'wwwroot', 'scripts'), exts: ['.js', '.js.map'] },
-    { dir: path.join(root, 'wwwroot', 'styles'), exts: ['.css', '.css.map'] },
+    { dir: path.join(root, 'wwwroot', 'styles'), exts: ['.css'] },
 ];
 
 fs.mkdirSync(dest, { recursive: true });

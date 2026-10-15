@@ -1,93 +1,89 @@
 [
   {
-    "inputs": [
-      "Assets/js/realtime-audio.js"
-    ],
-    "output": "wwwroot/scripts/realtime-audio.js",
-    "generateSourceMaps": true
+    "action": "vite",
+    "name": "realtime-audio.js",
+    "source": "Assets/js/realtime-audio.js",
+    "dest": "wwwroot/scripts/realtime-audio.js",
+    "sourceMap": true
   },
   {
-    "inputs": [
-      "Assets/js/chat-markers.js"
-    ],
-    "output": "wwwroot/scripts/chat-markers.js",
-    "generateSourceMaps": true
+    "action": "vite",
+    "name": "chat-markers.js",
+    "source": "Assets/js/chat-markers.js",
+    "dest": "wwwroot/scripts/chat-markers.js",
+    "sourceMap": true
   },
   {
-    "inputs": [
-      "Assets/js/chat-image-carousel.js"
-    ],
-    "output": "wwwroot/scripts/chat-image-carousel.js",
-    "generateSourceMaps": true
+    "action": "vite",
+    "name": "chat-image-carousel.js",
+    "source": "Assets/js/chat-image-carousel.js",
+    "dest": "wwwroot/scripts/chat-image-carousel.js",
+    "sourceMap": true
   },
   {
-    "inputs": [
-      "Assets/js/ai-chat.js"
-    ],
-    "output": "wwwroot/scripts/ai-chat.js",
-    "generateSourceMaps": true
+    "action": "vite",
+    "name": "ai-chat.js",
+    "source": "Assets/js/ai-chat.js",
+    "dest": "wwwroot/scripts/ai-chat.js",
+    "sourceMap": true
   },
   {
-    "inputs": [
-      "Assets/js/ai-chat-widget.js"
-    ],
-    "output": "wwwroot/scripts/ai-chat-widget.js",
-    "generateSourceMaps": true
+    "action": "vite",
+    "name": "ai-chat-widget.js",
+    "source": "Assets/js/ai-chat-widget.js",
+    "dest": "wwwroot/scripts/ai-chat-widget.js",
+    "sourceMap": true
   },
   {
-    "inputs": [
-      "Assets/js/chat-interaction.js"
-    ],
-    "output": "wwwroot/scripts/chat-interaction.js",
-    "generateSourceMaps": true
+    "action": "vite",
+    "name": "chat-interaction.js",
+    "source": "Assets/js/chat-interaction.js",
+    "dest": "wwwroot/scripts/chat-interaction.js",
+    "sourceMap": true
   },
   {
-    "inputs": [
-      "Assets/js/chat-interaction-settings.js"
-    ],
-    "output": "wwwroot/scripts/chat-interaction-settings.js",
-    "generateSourceMaps": true
+    "action": "vite",
+    "name": "chat-interaction-settings.js",
+    "source": "Assets/js/chat-interaction-settings.js",
+    "dest": "wwwroot/scripts/chat-interaction-settings.js",
+    "sourceMap": true
   },
   {
-    "inputs": [
-      "Assets/js/document-drop-zone.js"
-    ],
-    "output": "wwwroot/scripts/document-drop-zone.js",
-    "generateSourceMaps": true
+    "action": "vite",
+    "name": "document-drop-zone.js",
+    "source": "Assets/js/document-drop-zone.js",
+    "dest": "wwwroot/scripts/document-drop-zone.js",
+    "sourceMap": true
   },
   {
-    "inputs": [
-      "Assets/js/technical-name-generator.js"
-    ],
-    "output": "wwwroot/scripts/technical-name-generator.js",
-    "generateSourceMaps": true
+    "action": "vite",
+    "name": "technical-name-generator.js",
+    "source": "Assets/js/technical-name-generator.js",
+    "dest": "wwwroot/scripts/technical-name-generator.js",
+    "sourceMap": true
   },
   {
-    "inputs": [
-      "Assets/css/ai-chat.css"
-    ],
-    "output": "wwwroot/styles/ai-chat.css",
-    "generateSourceMaps": true
+    "action": "vite",
+    "name": "ai-chat.css",
+    "source": "Assets/css/ai-chat.css",
+    "dest": "wwwroot/styles/ai-chat.css"
   },
   {
-    "inputs": [
-      "Assets/css/chat-widget.css"
-    ],
-    "output": "wwwroot/styles/chat-widget.css",
-    "generateSourceMaps": true
+    "action": "vite",
+    "name": "chat-widget.css",
+    "source": "Assets/css/chat-widget.css",
+    "dest": "wwwroot/styles/chat-widget.css"
   },
   {
-    "inputs": [
-      "Assets/css/chat-image-carousel.css"
-    ],
-    "output": "wwwroot/styles/chat-image-carousel.css",
-    "generateSourceMaps": true
+    "action": "vite",
+    "name": "chat-image-carousel.css",
+    "source": "Assets/css/chat-image-carousel.css",
+    "dest": "wwwroot/styles/chat-image-carousel.css"
   },
   {
-    "inputs": [
-      "Assets/css/document-drop-zone.css"
-    ],
-    "output": "wwwroot/styles/document-drop-zone.css",
-    "generateSourceMaps": true
+    "action": "vite",
+    "name": "document-drop-zone.css",
+    "source": "Assets/css/document-drop-zone.css",
+    "dest": "wwwroot/styles/document-drop-zone.css"
   }
 ]

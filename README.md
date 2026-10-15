@@ -141,6 +141,10 @@ tests/
 └── CrestApps.Core.Tests/
 ```
 
+The chat UI's JavaScript and CSS are built with Vite (Node.js 24): run `npm install` and `npm run rebuild` at the
+repository root after changing a file under `src/Resources/CrestApps.AI.Resources/Assets/`. See
+[Building Front-End Assets](https://core.crestapps.com/docs/building-assets).
+
 ## Community
 
 This project is actively evolving to help the .NET community adopt AI with strong architecture, extensibility, security-minded defaults, and support for modern protocols. If it helps you, please open issues, share feedback, report bugs, star the repository, or contribute code.

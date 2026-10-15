@@ -81,7 +81,7 @@ jobs:
         if: steps.resolve.outputs.should_evaluate == 'true'
         uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version-file: ".node-version"
           cache: npm
           cache-dependency-path: src/CrestApps.Core.Docs/package-lock.json
 

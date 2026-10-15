@@ -58,7 +58,6 @@
     "./realtime-audio.min.js.map": "./dist/realtime-audio.min.js.map",
     "./ai-chat.css": "./dist/ai-chat.css",
     "./ai-chat.min.css": "./dist/ai-chat.min.css",
-    "./ai-chat.css.map": "./dist/ai-chat.css.map",
     "./document-drop-zone": "./dist/document-drop-zone.js",
     "./document-drop-zone.min": "./dist/document-drop-zone.min.js",
     "./document-drop-zone.js.map": "./dist/document-drop-zone.js.map",
@@ -69,13 +68,10 @@
     "./technical-name-generator.min.js.map": "./dist/technical-name-generator.min.js.map",
     "./chat-widget.css": "./dist/chat-widget.css",
     "./chat-widget.min.css": "./dist/chat-widget.min.css",
-    "./chat-widget.css.map": "./dist/chat-widget.css.map",
     "./chat-image-carousel.css": "./dist/chat-image-carousel.css",
     "./chat-image-carousel.min.css": "./dist/chat-image-carousel.min.css",
-    "./chat-image-carousel.css.map": "./dist/chat-image-carousel.css.map",
     "./document-drop-zone.css": "./dist/document-drop-zone.css",
     "./document-drop-zone.min.css": "./dist/document-drop-zone.min.css",
-    "./document-drop-zone.css.map": "./dist/document-drop-zone.css.map",
     "./dist/*": "./dist/*"
   },
   "scripts": {

@@ -5,6 +5,7 @@ const sidebars = {
     docsSidebar: [
         'intro',
         'getting-started',
+        'building-assets',
         {
             type: 'category',
             label: 'Core',

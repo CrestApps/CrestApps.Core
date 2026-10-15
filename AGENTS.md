@@ -18,6 +18,10 @@ dotnet build .\CrestApps.Core.slnx -c Release /p:NuGetAudit=false
 dotnet test .\tests\CrestApps.Core.Tests\CrestApps.Core.Tests.csproj -c Release /p:NuGetAudit=false
 ```
 
+Front-end assets are built with Vite from each project's `Assets.json` (Node.js 24, see `.node-version`). After
+changing a file under `Assets/`, run `npm run rebuild` and commit the changed `wwwroot` files; see
+[`docs/engineering/assets-pipeline.md`](docs/engineering/assets-pipeline.md).
+
 ## Documentation and changelog discipline
 
 When a change affects public behavior, configuration, setup, or project guidance,
