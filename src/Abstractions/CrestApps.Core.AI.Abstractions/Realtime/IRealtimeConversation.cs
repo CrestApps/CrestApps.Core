@@ -65,6 +65,21 @@ public interface IRealtimeConversation : IAsyncDisposable
         => RequestResponseAsync(cancellationToken);
 
     /// <summary>
+    /// Asks the model to speak a message from its instructions alone, answering nothing said so far: the message
+    /// left on a voicemail, for example.
+    /// </summary>
+    /// <remarks>
+    /// The response has a context of its own instead of the conversation, so the model cannot take the last thing it
+    /// heard (an answering machine's greeting) for something to answer, and it cannot call tools, which would end the
+    /// response before anything is said. It is not added to the conversation. Like
+    /// <see cref="RequestUnpromptedResponseAsync"/>, it is sent whether or not the session responds automatically.
+    /// </remarks>
+    /// <param name="instructions">Everything the model needs for the message: who it is and what to say.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    Task RequestStandaloneMessageAsync(string instructions, CancellationToken cancellationToken = default)
+        => RequestUnpromptedResponseAsync(instructions, cancellationToken);
+
+    /// <summary>
     /// Asks the model to speak a short acknowledgement — "let me look that up" — to cover a wait the user would
     /// otherwise hear as silence.
     /// </summary>

@@ -320,6 +320,17 @@ internal static class AzureRealtimeProtocol
             writer.WriteString("conversation", "none");
         }
 
+        if (message.Items is { Count: > 0 })
+        {
+            writer.WriteStartArray("input");
+            foreach (var item in message.Items)
+            {
+                WriteConversationItem(writer, item);
+            }
+
+            writer.WriteEndArray();
+        }
+
         WriteTools(writer, message.Tools);
         WriteToolChoice(writer, message.ToolMode);
 

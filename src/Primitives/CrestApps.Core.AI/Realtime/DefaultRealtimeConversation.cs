@@ -21,6 +21,9 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
     // still talking when the answer it was covering for is ready.
     private const int AcknowledgementMaxOutputTokens = 64;
 
+    // The context of a standalone message: the instructions say what to say, so the item only asks for it.
+    private const string StandaloneMessageCue = "Say the message now, as your instructions describe it.";
+
     private readonly IRealtimeClientSession _session;
     private readonly Func<string, CancellationToken, Task<string?>>? _groundTurnAsync;
     private readonly bool _supportsSpeechSpeed;
@@ -109,6 +112,26 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
         var message = string.IsNullOrWhiteSpace(instructions)
             ? new CreateResponseRealtimeClientMessage()
             : new CreateResponseRealtimeClientMessage { Instructions = instructions };
+
+        return _session.SendAsync(message, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task RequestStandaloneMessageAsync(string instructions, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instructions);
+
+        var message = new CreateResponseRealtimeClientMessage
+        {
+            Instructions = instructions,
+
+            // Out-of-band, with one item for its whole context instead of the conversation so far.
+            ExcludeFromConversation = true,
+            Items = [new RealtimeConversationItem([new TextContent(StandaloneMessageCue)], id: null, ChatRole.System)],
+
+            // A tool call would end the response with nothing said.
+            ToolMode = ChatToolMode.None,
+        };
 
         return _session.SendAsync(message, cancellationToken);
     }
