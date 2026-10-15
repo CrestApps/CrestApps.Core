@@ -135,14 +135,48 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
             new AIDeployment { Name = "stt", ModelName = "speech-model", ClientName = "test" },
             requestedModel: string.Empty));
 
-    private static async Task<TranscriptionOptions?> StartAndReadTranscriptionAsync(AIDeployment? speechToText, string? requestedModel)
+    [Fact]
+    public async Task StartAsync_WhenTheSiteDefaultIsFromAnotherProvider_TranscribesWithThisProvidersSpeechToTextDeployment()
+    {
+        // The site's default speech-to-text deployment serves dictation and is often a dedicated speech service.
+        // It must not hide the transcription deployment the realtime deployment's own provider has.
+        var transcription = await StartAndReadTranscriptionAsync(
+            new AIDeployment { Name = "dictation", ModelName = "dictation-model", ClientName = "other-provider" },
+            requestedModel: null,
+            providerSpeechToText: [new AIDeployment { Name = "stt", ModelName = "speech-model", ClientName = "test" }]);
+
+        Assert.Equal("speech-model", transcription?.ModelId);
+    }
+
+    [Fact]
+    public async Task StartAsync_WhenTheSiteDefaultIsFromThisProvider_TranscribesWithTheSiteDefault()
+    {
+        // The provider's other speech-to-text deployments are only a fallback; the site's choice still comes first.
+        var transcription = await StartAndReadTranscriptionAsync(
+            new AIDeployment { Name = "stt", ModelName = "speech-model", ClientName = "test" },
+            requestedModel: null,
+            providerSpeechToText: [new AIDeployment { Name = "other-stt", ModelName = "other-speech-model", ClientName = "test" }]);
+
+        Assert.Equal("speech-model", transcription?.ModelId);
+    }
+
+    private static async Task<TranscriptionOptions?> StartAndReadTranscriptionAsync(
+        AIDeployment? speechToText,
+        string? requestedModel,
+        IEnumerable<AIDeployment>? providerSpeechToText = null)
     {
         var profile = new AIProfile { Type = AIProfileType.Chat };
         var fakeSession = new FakeRealtimeSession([]);
         var fakeClient = new FakeRealtimeClient(fakeSession);
 
         using var requestServices = new ServiceCollection().BuildServiceProvider();
-        var orchestrator = CreateOrchestrator(profile, new EchoTool(), fakeClient, requestServices, speechToText: speechToText);
+        var orchestrator = CreateOrchestrator(
+            profile,
+            new EchoTool(),
+            fakeClient,
+            requestServices,
+            speechToText: speechToText,
+            providerSpeechToText: providerSpeechToText);
 
         using var scope = AIInvocationScope.Begin();
 
@@ -306,7 +340,8 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         IServiceProvider requestServices,
         IRealtimeTurnGrounding? grounding = null,
         IReadOnlyList<ToolRegistryEntry>? registryEntries = null,
-        AIDeployment? speechToText = null)
+        AIDeployment? speechToText = null,
+        IEnumerable<AIDeployment>? providerSpeechToText = null)
     {
         var context = new OrchestrationContext
         {
@@ -340,6 +375,9 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
                 It.IsAny<IReadOnlyDictionary<string, string>?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(speechToText!);
+        deploymentManager
+            .Setup(m => m.GetAllBySlotAsync(AIDeploymentSlotNames.SpeechToText, "test", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(providerSpeechToText ?? []);
 
         var clientFactory = new Mock<IAIClientFactory>();
         clientFactory

@@ -272,6 +272,9 @@ No model name is built in, because a model name belongs to one provider. The orc
 3. The model of the deployment in the **Speech to text** slot, when that deployment is on the same provider as the
    realtime deployment. A deployment from another provider is not used: its model name means nothing to this
    provider's session.
+4. Otherwise, the model of the first speech-to-text deployment on the realtime deployment's provider. The
+   **Speech to text** default can stay on a dedicated speech service (Azure AI Speech, ElevenLabs) for dictation
+   while realtime sessions transcribe with their own provider's model.
 
 With none of these the user is not transcribed and a warning names the deployment. The conversation still works,
 but per-turn knowledge grounding, which is driven by the transcript, falls back to the search tool. For OpenAI,
