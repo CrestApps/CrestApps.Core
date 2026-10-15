@@ -454,8 +454,9 @@ application can save it to the chat history and send it to the sink, which is wh
 
 Like `RequestUnpromptedResponseAsync`, it is sent even on a session that responds automatically, so call it only when
 no response is in flight and the user's turn is not about to be answered. An `IRealtimeConversation` implementation
-that does not override it gets the default, which falls back to `RequestUnpromptedResponseAsync`: the response runs
-inside the conversation with tools on, and the instructions are dropped.
+that does not override it gets the default, which falls back to `RequestUnpromptedResponseAsync`, so the response runs
+inside the conversation with tools on. If that method is not overridden either, the instructions are also dropped,
+and nothing is sent on a session that responds automatically.
 
 With the conversation gone, the instructions have to carry everything the message needs, including the language
 the call was held in. Quoting the assistant's own opening line in them is enough for the model to keep it.

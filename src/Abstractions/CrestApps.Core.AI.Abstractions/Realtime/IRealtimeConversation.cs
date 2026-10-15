@@ -82,9 +82,9 @@ public interface IRealtimeConversation : IAsyncDisposable
     /// </para>
     /// <para>
     /// The default implementation falls back to <see cref="RequestUnpromptedResponseAsync"/>, which keeps existing
-    /// implementations compiling but not the guarantees above: unless an implementation overrides both methods, the
-    /// response runs inside the conversation with tools on, the instructions are dropped, and on a session that
-    /// responds automatically nothing is sent. Implementations should override this method.
+    /// implementations compiling but not the guarantees above: the response runs inside the conversation with tools
+    /// on. If that method is not overridden either, the instructions are also dropped, and nothing is sent on a
+    /// session that responds automatically. Implementations should override this method.
     /// </para>
     /// </remarks>
     /// <param name="instructions">Everything the model needs for the message: who it is and what to say.</param>
