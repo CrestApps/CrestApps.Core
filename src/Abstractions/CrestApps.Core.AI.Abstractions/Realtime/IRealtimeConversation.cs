@@ -65,6 +65,34 @@ public interface IRealtimeConversation : IAsyncDisposable
         => RequestResponseAsync(cancellationToken);
 
     /// <summary>
+    /// Asks the model to speak a message from its instructions alone, answering nothing said so far: the message
+    /// left on a voicemail, for example.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The response has a context of its own instead of the conversation, so the model cannot take the last thing it
+    /// heard (an answering machine's greeting) for something to answer, and it cannot call tools, which would end the
+    /// response before anything is said. It is not added to the model's conversation context; the application still
+    /// sees the message like any other response, so it can be saved to the chat history or sent to the sink.
+    /// </para>
+    /// <para>
+    /// Like <see cref="RequestUnpromptedResponseAsync"/>, it is sent whether or not the session responds
+    /// automatically, so only call it when no response is in flight and the user's turn is not about to be answered;
+    /// on a session that answers by itself, anything else produces two replies talking over each other.
+    /// </para>
+    /// <para>
+    /// The default implementation falls back to <see cref="RequestUnpromptedResponseAsync"/>, which keeps existing
+    /// implementations compiling but not the guarantees above: the response runs inside the conversation with tools
+    /// on. If that method is not overridden either, the instructions are also dropped, and nothing is sent on a
+    /// session that responds automatically. Implementations should override this method.
+    /// </para>
+    /// </remarks>
+    /// <param name="instructions">Everything the model needs for the message: who it is and what to say.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    Task RequestStandaloneMessageAsync(string instructions, CancellationToken cancellationToken = default)
+        => RequestUnpromptedResponseAsync(instructions, cancellationToken);
+
+    /// <summary>
     /// Asks the model to speak a short acknowledgement — "let me look that up" — to cover a wait the user would
     /// otherwise hear as silence.
     /// </summary>

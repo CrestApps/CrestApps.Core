@@ -217,6 +217,25 @@ public sealed class RealtimeTurnGroundingTests
     }
 
     [Fact]
+    public async Task RequestStandaloneMessageAsync_LeavesTheConversationAndToolsOut()
+    {
+        // A voicemail message: asked for after an answering machine's greeting, which the model must not answer, and
+        // spoken in one go, since a tool call would end the response before anything was said.
+        var session = new RecordingSession();
+        var conversation = new DefaultRealtimeConversation(session);
+
+        await conversation.RequestStandaloneMessageAsync("Leave a short message.", TestContext.Current.CancellationToken);
+
+        var message = Assert.IsType<CreateResponseRealtimeClientMessage>(Assert.Single(session.Sent));
+        Assert.Equal("Leave a short message.", message.Instructions);
+        Assert.True(message.ExcludeFromConversation);
+        Assert.Same(ChatToolMode.None, message.ToolMode);
+
+        var item = Assert.Single(message.Items!);
+        Assert.Equal(ChatRole.System, item.Role);
+    }
+
+    [Fact]
     public async Task RequestResponseAsync_OnAutomaticSession_IsANoOp()
     {
         // The provider already answers for this session; a second response.create would produce a duplicate reply.

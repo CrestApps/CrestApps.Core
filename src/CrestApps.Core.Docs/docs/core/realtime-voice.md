@@ -445,6 +445,25 @@ order-based pairing by one turn, which silently removes an answered prompt from 
 With barge-in off, whether an utterance gets answered is decided when the provider *commits* it, not when speech
 starts — so an utterance that began over the assistant but committed after it finished is answered normally.
 
+## A message that answers nothing said
+
+Some things the assistant says answer nothing on the line: the message it leaves when a call reaches voicemail is
+the usual one. `IRealtimeConversation.RequestStandaloneMessageAsync(instructions)` asks for such a message. The
+response is out of band (`conversation: "none"`), its context is one system item instead of the conversation so
+far, and tools are off. Asked for inside the conversation, the model can take the last thing it heard (an
+answering machine's greeting) for something to answer, or call a tool and end the response before saying anything.
+"Not added to the conversation" means the model's context: the message is still a response like any other, so the
+application can save it to the chat history and send it to the sink, which is what a voicemail record needs.
+
+Like `RequestUnpromptedResponseAsync`, it is sent even on a session that responds automatically, so call it only when
+no response is in flight and the user's turn is not about to be answered. An `IRealtimeConversation` implementation
+that does not override it gets the default, which falls back to `RequestUnpromptedResponseAsync`, so the response runs
+inside the conversation with tools on. If that method is not overridden either, the instructions are also dropped,
+and nothing is sent on a session that responds automatically.
+
+With the conversation gone, the instructions have to carry everything the message needs, including the language
+the call was held in. Quoting the assistant's own opening line in them is enough for the model to keep it.
+
 ## Interruptions
 
 When the user barges in, the server tells the provider how much of the reply was actually heard
