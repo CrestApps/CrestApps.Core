@@ -7,7 +7,7 @@ description: Connect to Azure OpenAI Service for enterprise-grade AI completions
 
 # Azure OpenAI Provider
 
-> Connect to Azure OpenAI Service for enterprise-grade completions with Azure-specific optimizations for `max_tokens` and stream handling.
+> Connect to Azure OpenAI through the OpenAI SDK on the resource's `/openai/v1/` endpoint, with API key or Microsoft Entra ID authentication.
 
 ## Quick Start
 
@@ -50,13 +50,26 @@ Azure OpenAI requires an endpoint URL and either an API key or Azure AD credenti
 }
 ```
 
+### The v1 endpoint
+
+Azure OpenAI serves the OpenAI API on every resource at `https://<resource>.openai.azure.com/openai/v1/`, and the
+provider talks to it through the plain `OpenAI` SDK. Keep `Endpoint` set to the resource URL (a
+`https://<resource>.services.ai.azure.com/` endpoint works too); the provider appends `/openai/v1/` itself, sends the
+deployment name as the model, and needs no `api-version`. Chat, Responses, embeddings, images, audio and realtime all
+go through this one client.
+
+An API key is sent as a bearer token on HTTP requests and as the `api-key` header on realtime WebSocket handshakes.
+Managed identity and `DefaultAzureCredential` connections request a Microsoft Entra ID token for the
+`https://cognitiveservices.azure.com/.default` scope, which the identity needs the `Cognitive Services OpenAI User`
+role for; realtime sessions acquire a fresh token when they start.
+
 ### Constants and global client settings
 
 | Constant | Value |
 |----------|-------|
 | `AzureOpenAIConstants.ClientName` | `"Azure"` |
 
-Use `CrestApps:AI:AzureClient` for Azure SDK settings shared by all Azure OpenAI connections, including logging plus the default SDK retry policy used by the framework's Azure OpenAI completion path:
+Use `CrestApps:AI:AzureClient` for the OpenAI SDK client settings shared by all Azure OpenAI connections, including logging plus the default SDK retry policy used by the framework's Azure OpenAI completion path:
 
 ```json
 {
@@ -78,7 +91,7 @@ Use `CrestApps:AI:AzureClient` for Azure SDK settings shared by all Azure OpenAI
 }
 ```
 
-The Azure SDK retry defaults now match the framework resilience defaults:
+The SDK retry defaults match the framework resilience defaults:
 
 | Setting | Default |
 |---|---|
@@ -111,16 +124,13 @@ The Azure provider includes `AzurePatchOpenAIDataSourceHandler` which automatica
 | Realtime (speech-to-speech) | ✅ (`gpt-realtime`) |
 
 Realtime is exposed through `IAIClientFactory.CreateRealtimeClientAsync` (see
-[Real-time clients](./index.md#real-time-speech-to-speech-clients)). Because the pinned `Azure.AI.OpenAI` is not yet
-compatible with the `OpenAI` SDK version the realtime types require, Azure OpenAI connects to the GA realtime
-WebSocket endpoint (`/openai/v1/realtime`) through a temporary built-in transport that supports both API-key and
-Microsoft Entra ID authentication.
+[Real-time clients](./index.md#real-time-speech-to-speech-clients)). Azure OpenAI connects to the realtime WebSocket
+endpoint (`/openai/v1/realtime`) through the OpenAI SDK's realtime client, with the connection's API key or a
+Microsoft Entra ID token on every session's handshake.
 
 Reasoning models such as gpt-6-luna reject function tools together with a reasoning effort on Chat Completions, so
 the chat client sends those requests to the Responses endpoint (`/openai/v1/responses`) and keeps every other request
-on Chat Completions. For the same SDK compatibility reason, the Responses requests go through a temporary built-in
-client that supports both API-key and Microsoft Entra ID authentication. Responses requests are sent with
-`store: false`, so conversations are not kept on the service.
+on Chat Completions. Responses requests are sent with `store: false`, so conversations are not kept on the service.
 
 The connection's optional `ChatApi` setting overrides this: `Auto` (the default) and `Responses` route as described,
 and `ChatCompletions` sends every request to Chat Completions, for example in a region where the Responses API is not

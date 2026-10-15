@@ -1,11 +1,12 @@
-using Azure.AI.OpenAI;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.OpenAI.Services;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.Infrastructure;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenAI;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Services;
 
@@ -45,27 +46,24 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
     /// Gets chat client.
     /// </summary>
     /// <remarks>
-    /// Requests that combine function tools with a reasoning effort are sent to the Responses endpoint, unless the
-    /// connection's <c>ChatApi</c> setting is <c>ChatCompletions</c>. They go through a temporary client
-    /// (<c>CrestApps.Core.AI.OpenAI.Azure.Responses</c>) rather than <c>AzureOpenAIClient.GetResponsesClient()</c>,
-    /// because the pinned <c>Azure.AI.OpenAI</c> targets an older <c>OpenAI</c> SDK and the SDK path throws
-    /// <see cref="MissingMethodException"/> at runtime. Replace this with the SDK path once a compatible
-    /// <c>Azure.AI.OpenAI</c> ships.
+    /// Requests that combine function tools with a reasoning effort are sent to the Responses API, unless the
+    /// connection's <c>ChatApi</c> setting is <c>ChatCompletions</c>.
     /// </remarks>
     /// <param name="connection">The connection.</param>
     /// <param name="deploymentName">The deployment name.</param>
     protected override IChatClient GetChatClient(AIProviderConnectionEntry connection, string deploymentName)
     {
-        var chatClient = GetClient(connection).GetChatClient(deploymentName).AsIChatClient();
+        var client = GetClient(connection);
+        var chatClient = client.GetChatClient(deploymentName).AsIChatClient();
 
         if (OpenAIChatApis.GetChatApi(connection, _loggerFactory.CreateLogger<AzureOpenAIClientProvider>()) == OpenAIChatApis.ChatCompletions)
         {
             return chatClient;
         }
 
-        return new OpenAIReasoningRoutingChatClient(
-            chatClient,
-            Responses.AzureResponsesClientFactory.Create(connection, deploymentName, _loggerFactory, _azureClientSettings));
+#pragma warning disable OPENAI001 // The Responses types from the OpenAI SDK are for evaluation purposes only.
+        return new OpenAIReasoningRoutingChatClient(chatClient, client.GetResponsesClient().AsIChatClient(deploymentName));
+#pragma warning restore OPENAI001
     }
 
     /// <summary>
@@ -110,18 +108,21 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
     /// <summary>
     /// Gets a real-time client.
     /// </summary>
-    /// <remarks>
-    /// This uses a temporary WebSocket transport (<c>CrestApps.Core.AI.OpenAI.Azure.Realtime</c>) rather than
-    /// <c>AzureOpenAIClient.GetRealtimeClient()</c>, because the pinned <c>Azure.AI.OpenAI</c> targets an older
-    /// <c>OpenAI</c> SDK than <c>Microsoft.Extensions.AI.OpenAI</c> requires and the SDK path throws
-    /// <see cref="MissingMethodException"/> at runtime. Replace this with the SDK path once a compatible
-    /// <c>Azure.AI.OpenAI</c> ships.
-    /// </remarks>
     /// <param name="connection">The connection.</param>
     /// <param name="deploymentName">The deployment name.</param>
     public override ValueTask<IRealtimeClient> GetRealtimeClientAsync(AIProviderConnectionEntry connection, string deploymentName = null)
     {
-        return ValueTask.FromResult(Realtime.AzureRealtimeClientFactory.Create(connection, deploymentName));
+        if (string.IsNullOrEmpty(deploymentName))
+        {
+            deploymentName = connection.GetStringValue("RealtimeDeploymentName", false);
+        }
+
+        if (string.IsNullOrEmpty(deploymentName))
+        {
+            throw new ArgumentException("A realtime deployment name must be provided, either directly or as a default in the connection settings.");
+        }
+
+        return ValueTask.FromResult<IRealtimeClient>(new OpenAIRealtimeClient(AzureOpenAIClientFactory.CreateRealtimeClient(connection), deploymentName));
     }
 #pragma warning restore MEAI001 // The realtime API from Microsoft.Extensions.AI is for evaluation purposes only and requires explicit opt-in at each usage site.
 
@@ -135,7 +136,7 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
         return Task.FromResult(OpenAIRealtimeVoices.All);
     }
 
-    private AzureOpenAIClient GetClient(AIProviderConnectionEntry connection)
+    private OpenAIClient GetClient(AIProviderConnectionEntry connection)
     {
         return AzureOpenAIClientFactory.Create(connection, _loggerFactory, _azureClientSettings);
     }

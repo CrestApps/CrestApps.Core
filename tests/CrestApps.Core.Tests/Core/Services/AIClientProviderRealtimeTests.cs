@@ -60,11 +60,8 @@ public sealed class AIClientProviderRealtimeTests
     }
 
     [Fact]
-    public async Task AzureOpenAI_GetRealtimeClientAsync_ReturnsClient()
+    public async Task AzureOpenAI_GetRealtimeClientAsync_UsesConnectionRealtimeDeployment_ReturnsClient()
     {
-        // Azure OpenAI realtime uses the temporary WebSocket transport (CrestApps.Core.AI.OpenAI.Azure.Realtime)
-        // rather than the SDK, because the pinned Azure.AI.OpenAI is version-incompatible with the OpenAI SDK
-        // required by Microsoft.Extensions.AI.OpenAI.
         var options = Mock.Of<IOptionsSnapshot<AzureClientOptions>>(snapshot => snapshot.Value == new AzureClientOptions());
         var provider = new AzureOpenAIClientProvider(EmptyServices(), NullLoggerFactory.Instance, options);
         var connection = Connection(
@@ -75,7 +72,25 @@ public sealed class AIClientProviderRealtimeTests
 
         var client = await provider.GetRealtimeClientAsync(connection);
 
-        Assert.NotNull(client);
+        Assert.IsType<OpenAIRealtimeClient>(client);
+    }
+
+    [Theory]
+    [InlineData("ApiKey")]
+    [InlineData("ManagedIdentity")]
+    [InlineData("Default")]
+    public async Task AzureOpenAI_GetRealtimeClientAsync_UsesExplicitDeployment_ReturnsClient(string authenticationType)
+    {
+        var options = Mock.Of<IOptionsSnapshot<AzureClientOptions>>(snapshot => snapshot.Value == new AzureClientOptions());
+        var provider = new AzureOpenAIClientProvider(EmptyServices(), NullLoggerFactory.Instance, options);
+        var connection = Connection(
+            ("Endpoint", "https://unit-test.openai.azure.com/"),
+            ("ApiKey", "azure-test-key"),
+            ("AuthenticationType", authenticationType));
+
+        var client = await provider.GetRealtimeClientAsync(connection, "gpt-realtime");
+
+        Assert.IsType<OpenAIRealtimeClient>(client);
     }
 
     [Fact]
