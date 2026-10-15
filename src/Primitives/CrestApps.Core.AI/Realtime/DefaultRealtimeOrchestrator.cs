@@ -202,16 +202,6 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
     }
 
     /// <summary>
-    /// Reports a session whose tools will never reach the model because the deployment that would call them does
-    /// not declare the tool-calling feature. The enforcement that removes them lives deep in the chat pipeline and
-    /// says nothing about realtime, so without this the session looks healthy while every knowledge question is
-    /// answered from the model's own memory.
-    /// </summary>
-    /// <param name="deployment">The resolved realtime deployment.</param>
-    /// <param name="cascade">The cascade metadata when the deployment chains other deployments; otherwise <see langword="null"/>.</param>
-    /// <param name="tools">The tools resolved for the session.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <summary>
     /// Chooses the speech-to-text model that transcribes the user, or <see langword="null"/> when there is none.
     /// </summary>
     /// <remarks>
@@ -220,11 +210,16 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
     /// comes from a separate transcription model the provider runs on each turn. Nothing here names one, because a
     /// model name belongs to a provider. In order: the model the request names (an empty one turns transcription
     /// off); a cascade's own speech-to-text leg; the model of the deployment in the speech-to-text slot, when it is
-    /// on the realtime deployment's provider -- another provider's model would be rejected, or worse, mean something
-    /// else. Without any of them the user is not transcribed, and the warning says how to fix it, because the
-    /// conversation still works and only what reads it afterwards -- history, grounding, summaries -- goes quiet.
+    /// on the realtime deployment's provider; otherwise the first speech-to-text deployment on that provider --
+    /// another provider's model would be rejected, or worse, mean something else. Without any of them the user is
+    /// not transcribed, and the warning says how to fix it, because the conversation still works and only what
+    /// reads it afterwards -- history, grounding, summaries -- goes quiet.
     /// </para>
     /// </remarks>
+    /// <param name="request">The realtime orchestration request.</param>
+    /// <param name="deployment">The resolved realtime deployment.</param>
+    /// <param name="cascade">The cascade metadata when the deployment chains other deployments; otherwise <see langword="null"/>.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     private async Task<string> ResolveInputTranscriptionModelAsync(
         RealtimeOrchestrationRequest request,
         AIDeployment deployment,
@@ -248,8 +243,21 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             clientName: deployment.ClientName,
             cancellationToken: cancellationToken);
 
+        // The slot's site-wide default is chosen before its provider scope is applied, and that default is usually
+        // picked for dictation, often from a dedicated speech service. When it belongs to another provider, it must
+        // not hide a speech-to-text deployment this provider does have.
         if (speechToText is not null &&
-            string.Equals(speechToText.ClientName, deployment.ClientName, StringComparison.OrdinalIgnoreCase))
+            !string.Equals(speechToText.ClientName, deployment.ClientName, StringComparison.OrdinalIgnoreCase))
+        {
+            var providerDeployments = await _deploymentManager.GetAllBySlotAsync(
+                AIDeploymentSlotNames.SpeechToText,
+                deployment.ClientName,
+                cancellationToken);
+
+            speechToText = providerDeployments.FirstOrDefault();
+        }
+
+        if (speechToText is not null)
         {
             var model = !string.IsNullOrWhiteSpace(speechToText.ModelName) ? speechToText.ModelName : speechToText.Name;
 
@@ -260,13 +268,23 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         }
 
         _logger.LogWarning(
-            "The realtime session on deployment '{DeploymentName}' will not transcribe the user: no speech-to-text deployment from provider '{ProviderName}' is available for the speech-to-text slot. The conversation works, but stored history, per-turn grounding and summaries will hold only the assistant's side. Select a speech-to-text deployment from the same provider, or name a model on the request.",
+            "The realtime session on deployment '{DeploymentName}' will not transcribe the user: provider '{ProviderName}' has no speech-to-text deployment. The conversation works, but stored history, per-turn grounding and summaries will hold only the assistant's side. Add a speech-to-text deployment on that provider (it does not need to be the site's default), or name a model on the request.",
             deployment.Name,
             deployment.ClientName);
 
         return null;
     }
 
+    /// <summary>
+    /// Reports a session whose tools will never reach the model because the deployment that would call them does
+    /// not declare the tool-calling feature. The enforcement that removes them lives deep in the chat pipeline and
+    /// says nothing about realtime, so without this the session looks healthy while every knowledge question is
+    /// answered from the model's own memory.
+    /// </summary>
+    /// <param name="deployment">The resolved realtime deployment.</param>
+    /// <param name="cascade">The cascade metadata when the deployment chains other deployments; otherwise <see langword="null"/>.</param>
+    /// <param name="tools">The tools resolved for the session.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     private async Task WarnWhenToolsCannotBeCalledAsync(
         AIDeployment deployment,
         CascadedRealtimeMetadata cascade,

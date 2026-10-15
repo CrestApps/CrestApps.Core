@@ -1252,7 +1252,7 @@
 					getSettingInputs() {
 						const explicitInputs = document.querySelectorAll(".setting-input[data-setting]");
 						if (explicitInputs.length > 0) return explicitInputs;
-						return document.querySelectorAll("input[name^=\"ChatInteraction.\"]:not([name*=\".Tools[\"]):not([name*=\".Connections[\"]), select[name^=\"ChatInteraction.\"]:not([name*=\".Tools[\"]):not([name*=\".Connections[\"]), textarea[name^=\"ChatInteraction.\"]:not([name*=\".Tools[\"]):not([name*=\".Connections[\"])");
+						return document.querySelectorAll("input[name^=\"ChatInteraction.\"]:not([name*=\".Tools[\"]):not([name*=\".Connections[\"]):not([name*=\".Instances[\"]), select[name^=\"ChatInteraction.\"]:not([name*=\".Tools[\"]):not([name*=\".Connections[\"]):not([name*=\".Instances[\"]), textarea[name^=\"ChatInteraction.\"]:not([name*=\".Tools[\"]):not([name*=\".Connections[\"]):not([name*=\".Instances[\"])");
 					},
 					getSelectedGroupValues(groupName, fallbackSelector) {
 						const explicitSelections = document.querySelectorAll(`.capability-checkbox[data-save-group="${groupName}"]:checked, .capability-checkbox[data-group="${groupName}"]:checked`);
@@ -1633,6 +1633,12 @@
 					getSelectedAgentNames() {
 						return this.getSelectedGroupValues("agentNames", "input[type=\"checkbox\"][name$=\"].IsSelected\"][name^=\"ChatInteraction.Agents[\"]:checked");
 					},
+					hasToolInstanceSelector() {
+						return document.querySelector(".capability-checkbox[data-save-group=\"toolInstanceNames\"], .capability-checkbox[data-group=\"toolInstanceNames\"]") !== null;
+					},
+					getSelectedToolInstanceNames() {
+						return this.getSelectedGroupValues("toolInstanceNames");
+					},
 					saveSettings() {
 						const itemId = this.getItemId();
 						if (!itemId) return Promise.resolve();
@@ -1652,6 +1658,7 @@
 						settings.mcpConnectionIds = this.getSelectedMcpConnectionIds();
 						settings.a2aConnectionIds = this.getSelectedA2AConnectionIds();
 						settings.agentNames = this.getSelectedAgentNames();
+						if (this.hasToolInstanceSelector()) settings.toolInstanceNames = this.getSelectedToolInstanceNames();
 						const promptTemplates = this.getPromptTemplateSelections();
 						if (promptTemplates.length > 0) {
 							settings.promptTemplates = promptTemplates;
