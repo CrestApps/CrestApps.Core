@@ -1927,9 +1927,9 @@ window.chatInteractionManager = function () {
                     }
 
                     return document.querySelectorAll(
-                        'input[name^="ChatInteraction."]:not([name*=".Tools["]):not([name*=".Connections["]), ' +
-                        'select[name^="ChatInteraction."]:not([name*=".Tools["]):not([name*=".Connections["]), ' +
-                        'textarea[name^="ChatInteraction."]:not([name*=".Tools["]):not([name*=".Connections["])'
+                        'input[name^="ChatInteraction."]:not([name*=".Tools["]):not([name*=".Connections["]):not([name*=".Instances["]), ' +
+                        'select[name^="ChatInteraction."]:not([name*=".Tools["]):not([name*=".Connections["]):not([name*=".Instances["]), ' +
+                        'textarea[name^="ChatInteraction."]:not([name*=".Tools["]):not([name*=".Connections["]):not([name*=".Instances["])'
                     );
                 },
                 getSelectedGroupValues(groupName, fallbackSelector) {
@@ -2525,6 +2525,12 @@ window.chatInteractionManager = function () {
                         'input[type="checkbox"][name$="].IsSelected"][name^="ChatInteraction.Agents["]:checked'
                     );
                 },
+                hasToolInstanceSelector() {
+                    return document.querySelector('.capability-checkbox[data-save-group="toolInstanceNames"], .capability-checkbox[data-group="toolInstanceNames"]') !== null;
+                },
+                getSelectedToolInstanceNames() {
+                    return this.getSelectedGroupValues('toolInstanceNames');
+                },
                 saveSettings() {
                     const itemId = this.getItemId();
                     if (!itemId) {
@@ -2565,6 +2571,12 @@ window.chatInteractionManager = function () {
                     settings.mcpConnectionIds = this.getSelectedMcpConnectionIds();
                     settings.a2aConnectionIds = this.getSelectedA2AConnectionIds();
                     settings.agentNames = this.getSelectedAgentNames();
+
+                    // Sent only when the page renders the selector, so a page without one cannot clear a
+                    // selection made elsewhere.
+                    if (this.hasToolInstanceSelector()) {
+                        settings.toolInstanceNames = this.getSelectedToolInstanceNames();
+                    }
 
                     const promptTemplates = this.getPromptTemplateSelections();
                     if (promptTemplates.length > 0) {
