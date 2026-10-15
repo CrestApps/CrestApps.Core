@@ -25,6 +25,16 @@ namespace CrestApps.Core.AI.Realtime;
 /// read by a single caller, so they meet in an unbounded channel rather than being yielded directly.
 /// That also means messages produced before the caller starts enumerating are kept rather than lost.
 /// </para>
+/// <para>
+/// Everything that changes the conversation -- what the user said, knowledge the host adds, a reply to give -- is
+/// queued as work for a single consumer. That keeps the history ordered, lets work be queued without waiting for the
+/// reply in progress, and means only one reply is ever being written and spoken.
+/// </para>
+/// <para>
+/// Whether a finished utterance is answered on its own follows the session's turn detection, as it does for a
+/// native provider: a session that does not respond automatically waits for the host to ask, after adding whatever
+/// knowledge the reply should draw on.
+/// </para>
 /// </remarks>
 internal sealed class CascadedRealtimeSession : IRealtimeClientSession
 {
@@ -43,7 +53,21 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     private readonly ITextToSpeechClient _speechClient;
     private readonly ChatOptions? _chatOptions;
     private readonly TextToSpeechOptions _speechOptions;
+    private readonly string? _instructions;
+    private readonly bool _respondsAutomatically;
+
+    // The conversation so far, without the session's instructions. Only the work consumer reads or changes it.
     private readonly List<ChatMessage> _history = [];
+
+    private readonly Channel<QueuedWork> _work = Channel.CreateUnbounded<QueuedWork>(new UnboundedChannelOptions
+    {
+        SingleReader = true,
+        SingleWriter = false,
+    });
+
+    // The cancellation of every reply that is queued or speaking, so that talking over the assistant can stop all
+    // of them, not just the one that happens to be speaking.
+    private readonly HashSet<CancellationTokenSource> _replies = [];
     private readonly Channel<RealtimeServerMessage> _messages = Channel.CreateUnbounded<RealtimeServerMessage>(new UnboundedChannelOptions
     {
         SingleReader = true,
@@ -51,15 +75,10 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     });
 
     private readonly CancellationTokenSource _sessionCancellation = new();
-    private readonly SemaphoreSlim _turnGate = new(1, 1);
     private readonly ILogger _logger;
 
     private Task? _pump;
-    private Task _turn = Task.CompletedTask;
-    private CancellationTokenSource? _turnCancellation;
-
-    // Set when a turn is queued and read by the transcription pump; turns are queued from the caller too.
-    private volatile bool _speaking;
+    private Task? _consumer;
     private int _disposed;
 
     /// <inheritdoc />
@@ -92,10 +111,11 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         _speechOptions = speechOptions;
         _logger = logger;
 
-        if (!string.IsNullOrWhiteSpace(options?.Instructions))
-        {
-            _history.Add(new ChatMessage(ChatRole.System, options!.Instructions));
-        }
+        _instructions = string.IsNullOrWhiteSpace(options?.Instructions) ? null : options.Instructions;
+
+        // The same signal a native provider is given: a host that grounds each turn turns automatic replies off and
+        // asks for the reply itself once the knowledge is in.
+        _respondsAutomatically = options?.RawRepresentationFactory?.Invoke() is not RealtimeTurnDetectionOverrides { CreateResponse: false };
     }
 
     /// <summary>
@@ -103,6 +123,7 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     /// </summary>
     public void Start()
     {
+        _consumer ??= Task.Run(() => ConsumeWorkAsync(_sessionCancellation.Token));
         _pump ??= Task.Run(() => PumpTranscriptionAsync(_sessionCancellation.Token));
     }
 
@@ -111,14 +132,24 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        // A reply nobody spoke to ask for (the opening line of a call, a prompt after a silence) is the cascade's
-        // own to give. The transcription leg only hears audio: handed this, it had no reply to write, and a phone
-        // call opened in silence until the caller spoke.
-        if (message is CreateResponseRealtimeClientMessage response)
+        switch (message)
         {
-            await StartTurnAsync(userText: null, response, _sessionCancellation.Token);
+            // A reply nobody spoke to ask for (the opening line of a call, a prompt after a silence), or the reply a
+            // host asks for once it has added knowledge to the conversation, is the cascade's own to give. The
+            // transcription leg only hears audio: handed this, it had no reply to write.
+            case CreateResponseRealtimeClientMessage response:
+                Enqueue(new QueuedWork(Message: null, Respond: true, response, NewReplyCancellation()));
 
-            return;
+                return;
+
+            // Knowledge the host adds goes where the reply is written from, the chat leg's history.
+            case CreateConversationItemRealtimeClientMessage { Item: { } item }:
+                if (ToChatMessage(item) is { } chatMessage)
+                {
+                    Enqueue(new QueuedWork(chatMessage, Respond: false, Response: null, Cancellation: null));
+                }
+
+                return;
         }
 
         // Everything else the caller sends is about the user's audio, which only the transcription leg can act
@@ -165,19 +196,17 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
 
         await _sessionCancellation.CancelAsync();
 
-        CancelTurn();
+        _work.Writer.TryComplete();
 
-        // The pump and the turn own the inner clients while they run, so let them unwind before disposing.
+        // The pump and the consumer own the inner clients while they run, so let them unwind before disposing.
         await SafeAwaitAsync(_pump);
-        await SafeAwaitAsync(_turn);
+        await SafeAwaitAsync(_consumer);
 
         await _transcription.DisposeAsync();
 
         _chatClient.Dispose();
         _speechClient.Dispose();
         _sessionCancellation.Dispose();
-        _turnCancellation?.Dispose();
-        _turnGate.Dispose();
     }
 
     /// <summary>
@@ -204,7 +233,13 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
                     message is InputAudioTranscriptionRealtimeServerMessage transcription &&
                     !string.IsNullOrWhiteSpace(transcription.Transcription))
                 {
-                    await StartTurnAsync(transcription.Transcription!, response: null, cancellationToken);
+                    // What the user said always joins the conversation. Answering it is left to the host when the
+                    // session does not respond on its own: it has knowledge to add first, and then asks.
+                    Enqueue(new QueuedWork(
+                        new ChatMessage(ChatRole.User, transcription.Transcription),
+                        _respondsAutomatically,
+                        Response: null,
+                        _respondsAutomatically ? NewReplyCancellation() : null));
                 }
             }
         }
@@ -220,28 +255,41 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         }
         finally
         {
-            // The reply to the last thing the user said is still being written and spoken on its own task.
-            // Completing the channel here would cut it off mid-sentence.
-            await SafeAwaitAsync(_turn);
+            // The reply to the last thing the user said is still being written and spoken by the consumer.
+            // Completing the channel here would cut it off mid-sentence, so the work already queued is finished
+            // first. Work queued after this point has no one left to hear it and is refused.
+            _work.Writer.TryComplete();
+
+            await SafeAwaitAsync(_consumer);
 
             _messages.Writer.TryComplete();
         }
     }
 
     /// <summary>
-    /// Stops a reply that is still being spoken because the user started talking over it.
+    /// Stops the replies that are being spoken or are waiting to be, because the user started talking over them.
     /// </summary>
     /// <param name="message">The partial transcript that revealed the user is speaking.</param>
     private async Task BargeInAsync(RealtimeServerMessage message)
     {
-        if (!_speaking)
+        var interrupted = false;
+
+        lock (_replies)
+        {
+            foreach (var reply in _replies)
+            {
+                if (!reply.IsCancellationRequested)
+                {
+                    reply.Cancel();
+                    interrupted = true;
+                }
+            }
+        }
+
+        if (!interrupted)
         {
             return;
         }
-
-        _speaking = false;
-
-        CancelTurn();
 
         // Mirrors what a native provider emits when it detects speech over its own audio, which is what a
         // caller listens for to drop whatever it has already buffered for playback.
@@ -253,46 +301,114 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     }
 
     /// <summary>
-    /// Queues an assistant turn: a reply to the utterance the user just finished, or one the caller asked for.
+    /// Creates the cancellation for a reply that is about to be queued, and registers it so an interruption reaches it.
     /// </summary>
-    /// <param name="userText">The transcript of the user's utterance, or <see langword="null"/> for a reply the caller asked for.</param>
-    /// <param name="response">The caller's request for the reply, or <see langword="null"/> for a reply to the user.</param>
-    /// <param name="cancellationToken">A token that ends the session.</param>
-    private async Task StartTurnAsync(string? userText, CreateResponseRealtimeClientMessage? response, CancellationToken cancellationToken)
+    /// <remarks>
+    /// Created when the reply is queued rather than when it starts: an interruption arriving in the moment between
+    /// queueing the reply and the reply starting must still be recognized as one.
+    /// </remarks>
+    private CancellationTokenSource? NewReplyCancellation()
     {
-        // Turns are queued from the transcription pump and from the caller, so one queues at a time.
-        await _turnGate.WaitAsync(cancellationToken);
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return null;
+        }
 
+        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_sessionCancellation.Token);
+
+        lock (_replies)
+        {
+            _replies.Add(cancellation);
+        }
+
+        return cancellation;
+    }
+
+    /// <summary>
+    /// Queues work for the consumer, without waiting for the work in front of it.
+    /// </summary>
+    /// <param name="work">The work to queue.</param>
+    private void Enqueue(QueuedWork work)
+    {
+        if (_work.Writer.TryWrite(work))
+        {
+            return;
+        }
+
+        // The session is over, so there is nobody left to answer.
+        ReleaseReply(work.Cancellation);
+    }
+
+    private void ReleaseReply(CancellationTokenSource? cancellation)
+    {
+        if (cancellation is null)
+        {
+            return;
+        }
+
+        lock (_replies)
+        {
+            _replies.Remove(cancellation);
+        }
+
+        cancellation.Dispose();
+    }
+
+    /// <summary>
+    /// Works through the queue one item at a time: the history and the audio timeline are both ordered, so a
+    /// reply is finished before the next item is looked at.
+    /// </summary>
+    /// <param name="cancellationToken">A token that ends the session.</param>
+    private async Task ConsumeWorkAsync(CancellationToken cancellationToken)
+    {
         try
         {
-            // Turns are strictly sequential: the history and the audio timeline are both ordered, so a new
-            // turn waits for the previous reply to finish unwinding before it starts its own.
-            await SafeAwaitAsync(_turn);
+            await foreach (var work in _work.Reader.ReadAllAsync(cancellationToken))
+            {
+                try
+                {
+                    if (work.Message is not null)
+                    {
+                        _history.Add(work.Message);
+                    }
 
-            _turnCancellation?.Dispose();
-            _turnCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-            var turnCancellation = _turnCancellation.Token;
-
-            // Marked here rather than inside the turn: an interruption arriving in the moment between queueing
-            // the reply and the reply starting would otherwise not be recognized as one.
-            _speaking = true;
-
-            _turn = Task.Run(() => RunTurnAsync(userText, response, turnCancellation), CancellationToken.None);
+                    if (work.Respond && work.Cancellation is not null)
+                    {
+                        await RunTurnAsync(work.Response, work.Cancellation.Token);
+                    }
+                }
+                finally
+                {
+                    ReleaseReply(work.Cancellation);
+                }
+            }
         }
-        finally
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            _turnGate.Release();
+            // The session was disposed.
         }
+    }
+
+    /// <summary>
+    /// Converts an item the host adds to the conversation into a chat message, or <see langword="null"/> when it
+    /// carries nothing the chat leg can read.
+    /// </summary>
+    /// <param name="item">The conversation item.</param>
+    private static ChatMessage? ToChatMessage(RealtimeConversationItem item)
+    {
+        var text = string.Concat(item.Contents.OfType<TextContent>().Select(content => content.Text));
+
+        return string.IsNullOrWhiteSpace(text)
+            ? null
+            : new ChatMessage(item.Role ?? ChatRole.System, text);
     }
 
     /// <summary>
     /// Generates and speaks one reply.
     /// </summary>
-    /// <param name="userText">The transcript of the user's utterance, or <see langword="null"/> for a reply the caller asked for.</param>
     /// <param name="response">The caller's request for the reply, or <see langword="null"/> for a reply to the user.</param>
-    /// <param name="cancellationToken">A token that cancels this turn, including on barge-in.</param>
-    private async Task RunTurnAsync(string? userText, CreateResponseRealtimeClientMessage? response, CancellationToken cancellationToken)
+    /// <param name="cancellationToken">A token that cancels this reply, including on barge-in.</param>
+    private async Task RunTurnAsync(CreateResponseRealtimeClientMessage? response, CancellationToken cancellationToken)
     {
         var responseId = Guid.NewGuid().ToString("n");
         var reply = new StringBuilder();
@@ -303,11 +419,6 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
 
         try
         {
-            if (userText is not null)
-            {
-                _history.Add(new ChatMessage(ChatRole.User, userText));
-            }
-
             await WriteAsync(new ResponseCreatedRealtimeServerMessage(RealtimeServerMessageType.ResponseCreated)
             {
                 ResponseId = responseId,
@@ -380,26 +491,25 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
 
             await WriteErrorAsync(exception);
         }
-        finally
-        {
-            _speaking = false;
-        }
     }
 
     /// <summary>
-    /// The conversation a reply is written from: the history, with a request's own instructions in place of the
-    /// session's for that reply only, as a speech-to-speech provider treats them.
+    /// The conversation a reply is written from: the history under the session's instructions, or under a request's
+    /// own for that reply only, as a speech-to-speech provider treats them.
     /// </summary>
     /// <param name="response">The caller's request for the reply, or <see langword="null"/> for a reply to the user.</param>
     private List<ChatMessage> ConversationFor(CreateResponseRealtimeClientMessage? response)
     {
-        if (string.IsNullOrWhiteSpace(response?.Instructions))
+        var instructions = string.IsNullOrWhiteSpace(response?.Instructions) ? _instructions : response.Instructions;
+
+        List<ChatMessage> conversation = [];
+
+        if (instructions is not null)
         {
-            return _history;
+            conversation.Add(new ChatMessage(ChatRole.System, instructions));
         }
 
-        List<ChatMessage> conversation = [new ChatMessage(ChatRole.System, response.Instructions)];
-        conversation.AddRange(_history.Where(message => message.Role != ChatRole.System));
+        conversation.AddRange(_history);
 
         return conversation;
     }
@@ -509,26 +619,11 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         return false;
     }
 
-    private void CancelTurn()
-    {
-        try
-        {
-            _turnCancellation?.Cancel();
-        }
-        catch (ObjectDisposedException)
-        {
-            // The turn already finished and its source was replaced.
-        }
-    }
-
     private Task WriteAsync(RealtimeServerMessage message)
     {
-        // A reply the caller asked for can still be speaking when the transcription leg ends and the channel is
-        // completed. What it says after that has nobody to reach, so it is dropped rather than thrown.
-        if (Volatile.Read(ref _disposed) == 0)
-        {
-            _messages.Writer.TryWrite(message);
-        }
+        // Writing to a channel that is already complete is refused rather than thrown, which is what a reply that is
+        // still speaking when the session is disposed needs: what it says then has nobody to reach.
+        _messages.Writer.TryWrite(message);
 
         return Task.CompletedTask;
     }
@@ -557,4 +652,13 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
             // Faults are reported through the message channel; this only waits for the work to stop.
         }
     }
+
+    /// <summary>
+    /// One item for the consumer: a message to add to the conversation, a reply to give, or both.
+    /// </summary>
+    /// <param name="Message">The message to add to the history, or <see langword="null"/> for none.</param>
+    /// <param name="Respond">Whether to give a reply once the message is added.</param>
+    /// <param name="Response">The caller's request for the reply, or <see langword="null"/> for a reply to the user.</param>
+    /// <param name="Cancellation">The cancellation of the reply, or <see langword="null"/> when there is none.</param>
+    private sealed record QueuedWork(ChatMessage? Message, bool Respond, CreateResponseRealtimeClientMessage? Response, CancellationTokenSource? Cancellation);
 }

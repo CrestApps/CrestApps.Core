@@ -95,6 +95,12 @@ for the same way as on a native provider (`IRealtimeConversation.RequestUnprompt
 to that reply only, in place of the session's. A reply marked `ExcludeFromConversation` is spoken but not kept in
 the history.
 
+A cascaded session honors the same grounding contract as a native one. When per-turn knowledge retrieval is on,
+the session is created with automatic replies off: a finished utterance is added to the conversation but not
+answered, the retrieved knowledge arrives as a conversation item and is added to the history the chat leg writes
+from, and the reply is given when the host sends `response.create`. Without grounding, the cascade answers each
+utterance on its own.
+
   It must answer with **raw PCM** at the session's output sample rate — `audio/L16` or `audio/pcm`. Realtime
   audio is played as headerless samples, so a reply encoded as MP3 or wrapped in a WAV container would be
   played as noise. The session refuses anything else rather than emitting it, naming the format it was given.

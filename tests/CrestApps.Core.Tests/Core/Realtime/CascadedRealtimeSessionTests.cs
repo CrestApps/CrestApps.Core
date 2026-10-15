@@ -321,6 +321,105 @@ public sealed class CascadedRealtimeSessionTests
         Assert.Equal(RealtimeResponseStatus.Cancelled, done.Status);
     }
 
+    // A session that grounds each turn stops replying on its own: the host adds the knowledge and then asks. The
+    // cascade used to answer every transcript regardless, so the host's request produced a second reply, and the
+    // knowledge never reached the chat leg because the item was handed to the transcription leg.
+    [Fact(Timeout = 30000)]
+    public async Task GroundedSession_AnswersOnceWhenAskedAndWritesTheReplyFromTheKnowledge()
+    {
+        var transcription = new FakeTranscriptionSession();
+        var chatClient = new FakeChatClient(["The office opens at nine."]);
+
+        await using var session = CreateGroundedSession(transcription, chatClient, instructions: "You answer the phone.");
+
+        transcription.Emit(Completed("when do you open"));
+
+        // The host reacts to the transcript it has been shown, which is what orders the knowledge after the question.
+        await using var enumerator = session.GetStreamingResponseAsync(TestContext.Current.CancellationToken).GetAsyncEnumerator(TestContext.Current.CancellationToken);
+
+        List<RealtimeServerMessage> messages = [];
+
+        do
+        {
+            Assert.True(await enumerator.MoveNextAsync());
+            messages.Add(enumerator.Current);
+        }
+        while (enumerator.Current.Type != RealtimeServerMessageType.InputAudioTranscriptionCompleted);
+
+        // Nothing is said until the host asks.
+        Assert.Empty(chatClient.Requests);
+
+        var knowledge = new RealtimeConversationItem([new TextContent("Opening hours: 9am to 5pm.")], id: null, ChatRole.System);
+
+        await session.SendAsync(new CreateConversationItemRealtimeClientMessage(knowledge), TestContext.Current.CancellationToken);
+        await session.SendAsync(new CreateResponseRealtimeClientMessage(), TestContext.Current.CancellationToken);
+
+        transcription.Complete();
+
+        while (await enumerator.MoveNextAsync())
+        {
+            messages.Add(enumerator.Current);
+        }
+
+        // Exactly one reply...
+        Assert.Single(messages.OfType<ResponseCreatedRealtimeServerMessage>(), message => message.Type == RealtimeServerMessageType.ResponseDone);
+
+        // ...written from the question and the knowledge, under the session's instructions, and none of it went
+        // to the transcription leg.
+        var request = Assert.Single(chatClient.Requests);
+        Assert.Equal(["You answer the phone.", "when do you open", "Opening hours: 9am to 5pm."], request.Select(message => message.Text));
+        Assert.Equal([ChatRole.System, ChatRole.User, ChatRole.System], request.Select(message => message.Role));
+        Assert.Empty(transcription.Sent);
+    }
+
+    // Asking for a reply while another is speaking only queues it. Waiting for the speaking reply would hold up the
+    // transcription pump, which is what has to notice the user talking over it.
+    [Fact(Timeout = 30000)]
+    public async Task SendAsync_ResponseRequest_DoesNotWaitForTheReplyInProgress()
+    {
+        var transcription = new FakeTranscriptionSession();
+        var chatClient = new FakeChatClient(["Part one. ", "Part two. ", "Part three. "]);
+
+        await using var session = new CascadedRealtimeSession(
+            transcription,
+            chatClient,
+            new FakeSpeechClient(_audioChunk),
+            new RealtimeSessionOptions(),
+            chatOptions: null,
+            speechOptions: new TextToSpeechOptions(),
+            NullLogger.Instance);
+
+        session.Start();
+
+        transcription.Emit(Completed("tell me a story"));
+        await chatClient.Streaming.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        // Returns while the story is still being told.
+        await session.SendAsync(new CreateResponseRealtimeClientMessage(), TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        // The pump is free, so it still hears the user talk over it.
+        transcription.Emit(new InputAudioTranscriptionRealtimeServerMessage(RealtimeServerMessageType.InputAudioTranscriptionDelta)
+        {
+            Transcription = "actually",
+        });
+
+        transcription.Complete();
+
+        var messages = await ReadAllAsync(session);
+
+        Assert.Contains(messages, message => message.Type == RealtimeServerMessageType.RawContentOnly);
+
+        // The story is stopped, and so is the reply that was waiting behind it: it was meant for a moment that has passed.
+        var done = messages
+            .OfType<ResponseCreatedRealtimeServerMessage>()
+            .Where(message => message.Type == RealtimeServerMessageType.ResponseDone)
+            .ToList();
+
+        Assert.Equal(2, done.Count);
+        Assert.All(done, message => Assert.Equal(RealtimeResponseStatus.Cancelled, message.Status));
+    }
+
     [Theory]
     // A complete sentence past the minimum length is spoken on its own.
     [InlineData("The lights are now on in the kitchen. And ", "The lights are now on in the kitchen.", " And ")]
@@ -357,6 +456,28 @@ public sealed class CascadedRealtimeSessionTests
             chatClient,
             new FakeSpeechClient(_audioChunk),
             new RealtimeSessionOptions { Instructions = instructions },
+            chatOptions: null,
+            speechOptions: new TextToSpeechOptions(),
+            NullLogger.Instance);
+
+        session.Start();
+
+        return session;
+    }
+
+    private static CascadedRealtimeSession CreateGroundedSession(FakeTranscriptionSession transcription, FakeChatClient chatClient, string? instructions = null)
+    {
+        var session = new CascadedRealtimeSession(
+            transcription,
+            chatClient,
+            new FakeSpeechClient(_audioChunk),
+            new RealtimeSessionOptions
+            {
+                Instructions = instructions,
+
+                // How the orchestrator configures a session whose turns are grounded.
+                RawRepresentationFactory = () => new RealtimeTurnDetectionOverrides { CreateResponse = false },
+            },
             chatOptions: null,
             speechOptions: new TextToSpeechOptions(),
             NullLogger.Instance);
