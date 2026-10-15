@@ -36,7 +36,7 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || (function () {
 
         // The backslash is escaped as well, or a caption ending in one would escape the bracket that closes
         // the alt text and the image would swallow the rest of the line.
-        return text.replace(/[\\\[\]]/g, '\\$&');
+        return text.replace(/[\\[\]]/g, '\\$&');
     }
 
     // Escapes a literal for use inside a regular expression.

@@ -26,10 +26,12 @@ For the front-end assets (Node.js 24, pinned in `.node-version`):
 
 ```bash
 npm install
+npm run lint
+npm run check
 npm run rebuild
 ```
 
-Scripts and stylesheets are edited under a project's `Assets/` folder and built by Vite into its `wwwroot/`, as declared in its `Assets.json`; never edit `wwwroot` files by hand. Commit the rebuilt `wwwroot` files with the source change, because CI fails when they differ from what the sources build. A bundled script publishes its API by assigning to `window` explicitly; a top-level `var` or function no longer becomes a global. See `docs/engineering/assets-pipeline.md`.
+Scripts and stylesheets are edited under a project's `Assets/` folder and built by Vite into its `wwwroot/`, as declared in its `Assets.json`; never edit `wwwroot` files by hand. Commit the rebuilt `wwwroot` files with the source change, because CI fails when they differ from what the sources build. A bundled script publishes its API by assigning to `window` explicitly; a top-level `var` or function no longer becomes a global. Run `npm run lint` and `npm run check` before committing; CI fails on any error. See `docs/engineering/assets-pipeline.md`.
 
 For the docs site:
 

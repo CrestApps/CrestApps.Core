@@ -66,6 +66,22 @@ when its contents change, so an unchanged output never shows up as modified. A p
 and fails when the committed `wwwroot` does not match what the sources build.
 :::
 
+## Lint and type-check
+
+| Command | What it does |
+| --- | --- |
+| `npm run lint` | Lints every source under a project's `Assets/` folder, and the build scripts, with ESLint. |
+| `npm run check` | Type-checks, with TypeScript, the sources whose first line is `// @ts-check`. It writes nothing. |
+
+A pull request runs both before it rebuilds the assets, and fails on any error. Two habits keep the lint clean:
+
+- A script that reads a library the page loads first, such as `marked` or `DOMPurify`, needs it listed in
+  `pageGlobals` in `eslint.config.mjs`.
+- A failure ignored on purpose is written `catch (error) { /* best effort */ }`; an empty block is reported.
+
+Add `// @ts-check` as the first line of a source once `npm run check` passes with it, so the type checks keep
+covering it.
+
 ## How a project declares its assets
 
 A project lists its assets in an `Assets.json` file next to its `.csproj`. The file holds an array of asset groups:

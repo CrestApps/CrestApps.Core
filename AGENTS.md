@@ -19,7 +19,8 @@ dotnet test .\tests\CrestApps.Core.Tests\CrestApps.Core.Tests.csproj -c Release 
 ```
 
 Front-end assets are built with Vite from each project's `Assets.json` (Node.js 24, see `.node-version`). After
-changing a file under `Assets/`, run `npm run rebuild` and commit the changed `wwwroot` files; see
+changing a file under `Assets/`, run `npm run lint`, `npm run check` and `npm run rebuild`, and commit the changed
+`wwwroot` files; see
 [`docs/engineering/assets-pipeline.md`](docs/engineering/assets-pipeline.md).
 
 ## Documentation and changelog discipline

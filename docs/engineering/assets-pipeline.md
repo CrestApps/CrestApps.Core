@@ -14,6 +14,8 @@ npm run rebuild      # build every group
 npm run watch        # rebuild a group when one of its sources changes
 npm run dry-run      # list groups and the files each one writes
 npm run clean        # delete outputs and the build cache
+npm run lint         # lint the asset sources and the build scripts (ESLint)
+npm run check        # type-check the sources marked // @ts-check (TypeScript, no output)
 ```
 
 Filters work with every command: `npm run build -- -n ai-chat.js` (group names, comma-separated) and
@@ -93,10 +95,23 @@ definition and the build tooling, of every module that went into its last bundle
 group is rebuilt when any of those change, or when an output was edited or deleted. Content hashes, not timestamps,
 so switching branches or cloning fresh rebuilds what actually differs. `npm run rebuild` ignores the cache.
 
+## Lint and type checks
+
+- **`npm run lint`** runs ESLint with the flat config in `eslint.config.mjs`: `@eslint/js` recommended rules and
+  `globals.browser` over every `src/*/*/Assets/**/*.js`, linted as `sourceType: "module"` because the build bundles
+  each source as a module. The libraries a page loads before the chat scripts (`Vue`, `signalR`, `marked`,
+  `DOMPurify`, `hljs`, `Chart`, `mediumZoom`, `confirmDialog`) are declared as page globals. `no-unused-vars` uses
+  `caughtErrors: "none"`, and a deliberately ignored failure is written `catch (error) { /* best effort */ }`. The
+  build scripts in `.scripts/` are linted with `globals.node`.
+- **`npm run check`** runs `tsc` with the `tsconfig.json` at the root: `allowJs`, `checkJs: false` and `noEmit`, so
+  only a source whose first line is `// @ts-check` is type-checked. A source opts in once it passes. None does yet:
+  every chat script publishes its API through a `window.<name>` property TypeScript does not know about, and most
+  read DOM properties from untyped `querySelector` results.
+
 ## CI
 
-`assets_validation.yml` runs `npm ci` and `npm run rebuild`, renormalizes line endings, and fails if git reports
-any change: the committed `wwwroot` must be what the sources build. Fix a failure by running `npm run rebuild`
+`assets_validation.yml` runs `npm ci`, `npm run lint`, `npm run check` and `npm run rebuild`, renormalizes line
+endings, and fails if git reports any change: the committed `wwwroot` must be what the sources build. Fix a failure by running `npm run rebuild`
 locally and committing the result. `publish_npm.yml` rebuilds the same way before it publishes
 `@crestapps/ai-chat-ui`. `pr_ci.yml` and `main_ci.yml` run the client unit tests (`npm run test:unit`), which read the
 sources under `Assets/`, not the built files.
@@ -118,7 +133,5 @@ prefix and source maps adapted to this repository:
 
 ## Next steps
 
-1. Lint and type checks: ESLint (flat config) over `Assets/**/*.js` and `tsc --checkJs` for files that opt in with
-   `// @ts-check`, both run in CI before the rebuild.
-2. Convert multi-file bundles, if any appear, to real ES modules that `import`/`export` their helpers. Output stays
+1. Convert multi-file bundles, if any appear, to real ES modules that `import`/`export` their helpers. Output stays
    IIFE.

@@ -622,10 +622,10 @@
 								else this.audioChunks.push(bytes);
 							}
 						});
-						this.connection.on("ReceiveAudioComplete", (itemId) => {
+						this.connection.on("ReceiveAudioComplete", () => {
 							this.playCollectedAudio();
 						});
-						this.connection.on("HistoryCleared", (itemId) => {
+						this.connection.on("HistoryCleared", () => {
 							this.messages = [];
 							this.showPlaceholder();
 							const clearHistoryBtn = document.getElementById("clearHistoryBtn");
@@ -846,7 +846,7 @@
 								icons[i].classList.add("ai-bot-icon");
 							}
 						}
-						for (var i = 0; i < this.messages.length; i++) if (this.messages[i].isStreaming) this.messages[i].isStreaming = false;
+						for (i = 0; i < this.messages.length; i++) if (this.messages[i].isStreaming) this.messages[i].isStreaming = false;
 						if (this.settingsDirty) this.debouncedSaveSettings();
 					},
 					handleExternalTtsStop(e) {
@@ -1361,7 +1361,7 @@
 							if (e.target.value.trim()) this.buttonElement.removeAttribute("disabled");
 							else this.buttonElement.setAttribute("disabled", true);
 						});
-						this.inputElement.addEventListener("paste", (e) => {
+						this.inputElement.addEventListener("paste", () => {
 							setTimeout(() => {
 								this.prompt = this.inputElement.value;
 								if (this.inputElement.value.trim()) this.buttonElement.removeAttribute("disabled");
