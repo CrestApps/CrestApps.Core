@@ -6,7 +6,6 @@ using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using Azure.AI.OpenAI;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Connections;
@@ -23,6 +22,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
+using OpenAI;
 using OpenAI.Chat;
 using AIChatMessage = Microsoft.Extensions.AI.ChatMessage;
 using AIChatRole = Microsoft.Extensions.AI.ChatRole;
@@ -63,7 +63,7 @@ public sealed class AzureOpenAICompletionClientPromptTests
     private static readonly Func<AICompletionContext, List<SdkChatMessage>, List<SdkChatMessage>> _getPrompts =
         CreateGetPromptsDelegate();
 
-    private static readonly ConcurrentDictionary<string, AzureOpenAIClient> _clientCache =
+    private static readonly ConcurrentDictionary<string, OpenAIClient> _clientCache =
         GetClientCache();
 
     /// <summary>
@@ -598,11 +598,13 @@ public sealed class AzureOpenAICompletionClientPromptTests
 
         Assert.Equal(1, messages.GetEnumeratorCount);
         Assert.True(clientContext.Handler.CancellationToken.CanBeCanceled);
-        Assert.Contains($"/openai/deployments/{ModelName}/chat/completions", clientContext.Handler.RequestUri.AbsolutePath, StringComparison.Ordinal);
-        Assert.Contains("api-version=", clientContext.Handler.RequestUri.Query, StringComparison.Ordinal);
+        Assert.Equal("/openai/v1/chat/completions", clientContext.Handler.RequestUri.AbsolutePath);
+        Assert.Empty(clientContext.Handler.RequestUri.Query);
 
         using var document = JsonDocument.Parse(clientContext.Handler.RequestBody);
         var root = document.RootElement;
+
+        Assert.Equal(ModelName, root.GetProperty("model").GetString());
         var requestMessages = root.GetProperty("messages");
 
         Assert.Equal(3, requestMessages.GetArrayLength());
@@ -916,15 +918,13 @@ public sealed class AzureOpenAICompletionClientPromptTests
             azureOptions);
 
         var cacheKey = Assert.Single(_clientCache.Keys);
-        var sdkOptions = new AzureOpenAIClientOptions
+        var sdkOptions = new OpenAIClientOptions
         {
+            Endpoint = AzureOpenAIClientFactory.GetEndpoint(connectionEntry),
             Transport = new HttpClientPipelineTransport(httpClient),
         };
 
-        _clientCache[cacheKey] = new AzureOpenAIClient(
-            endpoint,
-            new ApiKeyCredential(ApiKey),
-            sdkOptions);
+        _clientCache[cacheKey] = new OpenAIClient(new ApiKeyCredential(ApiKey), sdkOptions);
 
         var deployment = new AIDeployment
         {
@@ -1043,14 +1043,14 @@ public sealed class AzureOpenAICompletionClientPromptTests
     /// Gets the Azure client factory's cache for test transport substitution.
     /// </summary>
     /// <returns>The shared client cache.</returns>
-    private static ConcurrentDictionary<string, AzureOpenAIClient> GetClientCache()
+    private static ConcurrentDictionary<string, OpenAIClient> GetClientCache()
     {
         var field = typeof(AzureOpenAIClientFactory).GetField(
             "_clientCache",
             BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException("Unable to find the Azure OpenAI client cache.");
 
-        return (ConcurrentDictionary<string, AzureOpenAIClient>)field.GetValue(null);
+        return (ConcurrentDictionary<string, OpenAIClient>)field.GetValue(null);
     }
 
     /// <summary>

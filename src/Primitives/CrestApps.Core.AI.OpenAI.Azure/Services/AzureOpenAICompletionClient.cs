@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using Azure.AI.OpenAI;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
@@ -17,6 +16,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenAI;
 using OpenAI.Chat;
 
 namespace CrestApps.Core.AI.OpenAI.Azure.Services;
@@ -531,7 +531,7 @@ omit optional fields, or split the operation into multiple smaller calls.
         return AIDeploymentConnectionEntryFactory.Create(deployment, _dataProtectionProvider);
     }
 
-    private AzureOpenAIClient GetChatClient(AIProviderConnectionEntry connection)
+    private OpenAIClient GetChatClient(AIProviderConnectionEntry connection)
     {
         return AzureOpenAIClientFactory.Create(connection, _loggerFactory, _azureClientOptions);
     }

@@ -260,8 +260,6 @@ public sealed class OpenAIReasoningRoutingChatClientTests
     public async Task AzureOpenAI_GetChatClientAsync_RoutesUnlessChatApiIsChatCompletions(string chatApi, bool expectRouting)
     {
         // Arrange
-        // AzureOpenAIClient.GetResponsesClient() throws MissingMethodException with the pinned Azure.AI.OpenAI, so
-        // creating the chat client also guards against routing the Responses client back through the SDK too early.
         var options = Mock.Of<IOptionsSnapshot<AzureClientOptions>>(snapshot => snapshot.Value == new AzureClientOptions());
         var provider = new AzureOpenAIClientProvider(new ServiceCollection().BuildServiceProvider(), NullLoggerFactory.Instance, options);
         var values = new Dictionary<string, object>
