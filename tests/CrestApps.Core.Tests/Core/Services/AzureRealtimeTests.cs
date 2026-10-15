@@ -188,6 +188,39 @@ public sealed class AzureRealtimeTests
         Assert.Equal("Reply in French.", json.GetProperty("response").GetProperty("instructions").GetString());
     }
 
+    [Fact]
+    public void WriteClientMessage_StandaloneResponseCreate_WritesItemsAsInputOutOfBandWithToolsOff()
+    {
+        var message = new CreateResponseRealtimeClientMessage
+        {
+            Instructions = "Leave a short message.",
+            ExcludeFromConversation = true,
+            Items = [new RealtimeConversationItem([new TextContent("Say the message now.")], id: null, ChatRole.System)],
+            ToolMode = ChatToolMode.None,
+        };
+
+        var response = WriteToJson(message).GetProperty("response");
+
+        Assert.Equal("none", response.GetProperty("conversation").GetString());
+        Assert.Equal("none", response.GetProperty("tool_choice").GetString());
+
+        var item = Assert.Single(response.GetProperty("input").EnumerateArray());
+        Assert.Equal("message", item.GetProperty("type").GetString());
+        Assert.Equal("system", item.GetProperty("role").GetString());
+
+        var content = Assert.Single(item.GetProperty("content").EnumerateArray());
+        Assert.Equal("input_text", content.GetProperty("type").GetString());
+        Assert.Equal("Say the message now.", content.GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public void WriteClientMessage_ResponseCreateWithoutItems_OmitsInput()
+    {
+        var response = WriteToJson(new CreateResponseRealtimeClientMessage { Instructions = "Reply in French." }).GetProperty("response");
+
+        Assert.False(response.TryGetProperty("input", out _));
+    }
+
     // ---- AzureRealtimeProtocol: JSON -> server message ----
 
     [Fact]
