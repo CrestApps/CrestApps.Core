@@ -51,12 +51,15 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     });
 
     private readonly CancellationTokenSource _sessionCancellation = new();
+    private readonly SemaphoreSlim _turnGate = new(1, 1);
     private readonly ILogger _logger;
 
     private Task? _pump;
     private Task _turn = Task.CompletedTask;
     private CancellationTokenSource? _turnCancellation;
-    private bool _speaking;
+
+    // Set when a turn is queued and read by the transcription pump; turns are queued from the caller too.
+    private volatile bool _speaking;
     private int _disposed;
 
     /// <inheritdoc />
@@ -104,13 +107,23 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     }
 
     /// <inheritdoc />
-    public Task SendAsync(RealtimeClientMessage message, CancellationToken cancellationToken = default)
+    public async Task SendAsync(RealtimeClientMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        // Everything the caller sends is about the user's audio, which only the transcription leg can act
+        // A reply nobody spoke to ask for (the opening line of a call, a prompt after a silence) is the cascade's
+        // own to give. The transcription leg only hears audio: handed this, it had no reply to write, and a phone
+        // call opened in silence until the caller spoke.
+        if (message is CreateResponseRealtimeClientMessage response)
+        {
+            await StartTurnAsync(userText: null, response, _sessionCancellation.Token);
+
+            return;
+        }
+
+        // Everything else the caller sends is about the user's audio, which only the transcription leg can act
         // on. It decides for itself what it cannot honor.
-        return _transcription.SendAsync(message, cancellationToken);
+        await _transcription.SendAsync(message, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -164,6 +177,7 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         _speechClient.Dispose();
         _sessionCancellation.Dispose();
         _turnCancellation?.Dispose();
+        _turnGate.Dispose();
     }
 
     /// <summary>
@@ -190,7 +204,7 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
                     message is InputAudioTranscriptionRealtimeServerMessage transcription &&
                     !string.IsNullOrWhiteSpace(transcription.Transcription))
                 {
-                    await StartTurnAsync(transcription.Transcription!, cancellationToken);
+                    await StartTurnAsync(transcription.Transcription!, response: null, cancellationToken);
                 }
             }
         }
@@ -239,49 +253,67 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     }
 
     /// <summary>
-    /// Queues an assistant turn for the utterance the user just finished.
+    /// Queues an assistant turn: a reply to the utterance the user just finished, or one the caller asked for.
     /// </summary>
-    /// <param name="userText">The transcript of the user's utterance.</param>
+    /// <param name="userText">The transcript of the user's utterance, or <see langword="null"/> for a reply the caller asked for.</param>
+    /// <param name="response">The caller's request for the reply, or <see langword="null"/> for a reply to the user.</param>
     /// <param name="cancellationToken">A token that ends the session.</param>
-    private async Task StartTurnAsync(string userText, CancellationToken cancellationToken)
+    private async Task StartTurnAsync(string? userText, CreateResponseRealtimeClientMessage? response, CancellationToken cancellationToken)
     {
-        // Turns are strictly sequential: the history and the audio timeline are both ordered, so a new
-        // utterance waits for the previous reply to finish unwinding before it starts its own.
-        await SafeAwaitAsync(_turn);
+        // Turns are queued from the transcription pump and from the caller, so one queues at a time.
+        await _turnGate.WaitAsync(cancellationToken);
 
-        _turnCancellation?.Dispose();
-        _turnCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        try
+        {
+            // Turns are strictly sequential: the history and the audio timeline are both ordered, so a new
+            // turn waits for the previous reply to finish unwinding before it starts its own.
+            await SafeAwaitAsync(_turn);
 
-        var turnCancellation = _turnCancellation.Token;
+            _turnCancellation?.Dispose();
+            _turnCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        // Marked here, on the pump, rather than inside the turn: an interruption arriving in the moment
-        // between queueing the reply and the reply starting would otherwise not be recognized as one.
-        _speaking = true;
+            var turnCancellation = _turnCancellation.Token;
 
-        _turn = Task.Run(() => RunTurnAsync(userText, turnCancellation), CancellationToken.None);
+            // Marked here rather than inside the turn: an interruption arriving in the moment between queueing
+            // the reply and the reply starting would otherwise not be recognized as one.
+            _speaking = true;
+
+            _turn = Task.Run(() => RunTurnAsync(userText, response, turnCancellation), CancellationToken.None);
+        }
+        finally
+        {
+            _turnGate.Release();
+        }
     }
 
     /// <summary>
     /// Generates and speaks one reply.
     /// </summary>
-    /// <param name="userText">The transcript of the user's utterance.</param>
+    /// <param name="userText">The transcript of the user's utterance, or <see langword="null"/> for a reply the caller asked for.</param>
+    /// <param name="response">The caller's request for the reply, or <see langword="null"/> for a reply to the user.</param>
     /// <param name="cancellationToken">A token that cancels this turn, including on barge-in.</param>
-    private async Task RunTurnAsync(string userText, CancellationToken cancellationToken)
+    private async Task RunTurnAsync(string? userText, CreateResponseRealtimeClientMessage? response, CancellationToken cancellationToken)
     {
         var responseId = Guid.NewGuid().ToString("n");
         var reply = new StringBuilder();
         var pending = new StringBuilder();
 
+        // An out-of-band reply ("let me look that up") is spoken but never becomes part of the conversation.
+        var keepInHistory = response?.ExcludeFromConversation != true;
+
         try
         {
-            _history.Add(new ChatMessage(ChatRole.User, userText));
+            if (userText is not null)
+            {
+                _history.Add(new ChatMessage(ChatRole.User, userText));
+            }
 
             await WriteAsync(new ResponseCreatedRealtimeServerMessage(RealtimeServerMessageType.ResponseCreated)
             {
                 ResponseId = responseId,
             });
 
-            await foreach (var update in _chatClient.GetStreamingResponseAsync(_history, _chatOptions, cancellationToken))
+            await foreach (var update in _chatClient.GetStreamingResponseAsync(ConversationFor(response), OptionsFor(response), cancellationToken))
             {
                 var text = update.Text;
 
@@ -316,7 +348,7 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
                 ResponseId = responseId,
             });
 
-            if (reply.Length > 0)
+            if (reply.Length > 0 && keepInHistory)
             {
                 _history.Add(new ChatMessage(ChatRole.Assistant, reply.ToString()));
             }
@@ -331,7 +363,7 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         {
             // Interrupted by the user or by disposal. Whatever was said before the interruption stays in
             // history, because the user heard it.
-            if (reply.Length > 0)
+            if (reply.Length > 0 && keepInHistory)
             {
                 _history.Add(new ChatMessage(ChatRole.Assistant, reply.ToString()));
             }
@@ -352,6 +384,42 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         {
             _speaking = false;
         }
+    }
+
+    /// <summary>
+    /// The conversation a reply is written from: the history, with a request's own instructions in place of the
+    /// session's for that reply only, as a speech-to-speech provider treats them.
+    /// </summary>
+    /// <param name="response">The caller's request for the reply, or <see langword="null"/> for a reply to the user.</param>
+    private List<ChatMessage> ConversationFor(CreateResponseRealtimeClientMessage? response)
+    {
+        if (string.IsNullOrWhiteSpace(response?.Instructions))
+        {
+            return _history;
+        }
+
+        List<ChatMessage> conversation = [new ChatMessage(ChatRole.System, response.Instructions)];
+        conversation.AddRange(_history.Where(message => message.Role != ChatRole.System));
+
+        return conversation;
+    }
+
+    /// <summary>
+    /// The chat options for a reply: the session's, with what a request limits for its reply alone.
+    /// </summary>
+    /// <param name="response">The caller's request for the reply, or <see langword="null"/> for a reply to the user.</param>
+    private ChatOptions? OptionsFor(CreateResponseRealtimeClientMessage? response)
+    {
+        if (response?.ToolMode is null && response?.MaxOutputTokens is null)
+        {
+            return _chatOptions;
+        }
+
+        var options = _chatOptions?.Clone() ?? new ChatOptions();
+        options.ToolMode = response.ToolMode ?? options.ToolMode;
+        options.MaxOutputTokens = response.MaxOutputTokens ?? options.MaxOutputTokens;
+
+        return options;
     }
 
     /// <summary>
@@ -453,14 +521,16 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         }
     }
 
-    private async Task WriteAsync(RealtimeServerMessage message)
+    private Task WriteAsync(RealtimeServerMessage message)
     {
-        if (Volatile.Read(ref _disposed) != 0)
+        // A reply the caller asked for can still be speaking when the transcription leg ends and the channel is
+        // completed. What it says after that has nobody to reach, so it is dropped rather than thrown.
+        if (Volatile.Read(ref _disposed) == 0)
         {
-            return;
+            _messages.Writer.TryWrite(message);
         }
 
-        await _messages.Writer.WriteAsync(message);
+        return Task.CompletedTask;
     }
 
     private async Task WriteErrorAsync(Exception exception)

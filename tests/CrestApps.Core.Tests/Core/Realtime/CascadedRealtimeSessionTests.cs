@@ -202,6 +202,125 @@ public sealed class CascadedRealtimeSessionTests
         Assert.Same(message, Assert.Single(transcription.Sent));
     }
 
+    // A phone call opens with the assistant's greeting before anyone has said anything, and a silence is broken the
+    // same way. Neither has a transcript to start from, so the caller asks for the reply, and the cascade gives it
+    // instead of handing the request to the transcription leg, which could only drop it.
+    [Fact]
+    public async Task SendAsync_ResponseRequest_IsSpokenWithoutATranscript()
+    {
+        var transcription = new FakeTranscriptionSession();
+        await using var session = CreateSession(transcription, out var chatClient, reply: "Hello, this is the front desk.", instructions: "You answer the phone.");
+
+        await session.SendAsync(new CreateResponseRealtimeClientMessage(), TestContext.Current.CancellationToken);
+        transcription.Complete();
+
+        var messages = await ReadAllAsync(session);
+
+        Assert.Contains(messages, message => message.Type == RealtimeServerMessageType.OutputAudioDelta);
+
+        var done = messages
+            .OfType<ResponseCreatedRealtimeServerMessage>()
+            .Single(message => message.Type == RealtimeServerMessageType.ResponseDone);
+
+        Assert.Equal(RealtimeResponseStatus.Completed, done.Status);
+
+        var request = Assert.Single(chatClient.Requests);
+        Assert.DoesNotContain(request, message => message.Role == ChatRole.User);
+        Assert.Empty(transcription.Sent);
+    }
+
+    // Instructions given with one response replace the session's for that response, as a speech-to-speech
+    // provider treats them; the next reply is written under the session's own again.
+    [Fact]
+    public async Task SendAsync_ResponseInstructions_ApplyToThatReplyOnly()
+    {
+        var transcription = new FakeTranscriptionSession();
+        await using var session = CreateSession(transcription, out var chatClient, reply: "Are you still there?", instructions: "You are terse.");
+
+        await session.SendAsync(new CreateResponseRealtimeClientMessage { Instructions = "Ask whether they are still there." }, TestContext.Current.CancellationToken);
+        transcription.Emit(Completed("yes, sorry"));
+        transcription.Complete();
+
+        await ReadAllAsync(session);
+
+        Assert.Equal(2, chatClient.Requests.Count);
+        Assert.Equal("Ask whether they are still there.", Assert.Single(chatClient.Requests[0], message => message.Role == ChatRole.System).Text);
+
+        // The prompt was said, so the next reply knows it was, under the session's instructions.
+        Assert.Equal("You are terse.", Assert.Single(chatClient.Requests[1], message => message.Role == ChatRole.System).Text);
+        Assert.Contains(chatClient.Requests[1], message => message.Role == ChatRole.Assistant && message.Text == "Are you still there?");
+    }
+
+    // A filler ("let me look that up") is spoken out of band: the model must not later see itself having said it,
+    // and it must not call tools or run long.
+    [Fact]
+    public async Task SendAsync_OutOfBandResponse_IsSpokenButNotKeptInHistory()
+    {
+        var transcription = new FakeTranscriptionSession();
+        await using var session = CreateSession(transcription, out var chatClient, reply: "One moment.");
+
+        await session.SendAsync(
+            new CreateResponseRealtimeClientMessage
+            {
+                Instructions = "Say you are checking.",
+                ExcludeFromConversation = true,
+                ToolMode = ChatToolMode.None,
+                MaxOutputTokens = 20,
+            },
+            TestContext.Current.CancellationToken);
+
+        transcription.Emit(Completed("thanks"));
+        transcription.Complete();
+
+        await ReadAllAsync(session);
+
+        Assert.Equal(2, chatClient.Requests.Count);
+        Assert.DoesNotContain(chatClient.Requests[1], message => message.Role == ChatRole.Assistant);
+
+        Assert.Same(ChatToolMode.None, chatClient.Options[0]?.ToolMode);
+        Assert.Equal(20, chatClient.Options[0]?.MaxOutputTokens);
+
+        // The next reply is back on the session's own options.
+        Assert.Null(chatClient.Options[1]);
+    }
+
+    // A reply the caller asked for is interrupted like any other: the caller talking over the greeting stops it.
+    [Fact(Timeout = 30000)]
+    public async Task SendAsync_ResponseRequest_StopsWhenTheUserTalksOverIt()
+    {
+        var transcription = new FakeTranscriptionSession();
+        var chatClient = new FakeChatClient(["Hello, this is the front desk. ", "How can I help you today? "]);
+
+        await using var session = new CascadedRealtimeSession(
+            transcription,
+            chatClient,
+            new FakeSpeechClient(_audioChunk),
+            new RealtimeSessionOptions(),
+            chatOptions: null,
+            speechOptions: new TextToSpeechOptions(),
+            NullLogger.Instance);
+
+        session.Start();
+
+        await session.SendAsync(new CreateResponseRealtimeClientMessage(), TestContext.Current.CancellationToken);
+        await chatClient.Streaming.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        transcription.Emit(new InputAudioTranscriptionRealtimeServerMessage(RealtimeServerMessageType.InputAudioTranscriptionDelta)
+        {
+            Transcription = "hello?",
+        });
+
+        transcription.Complete();
+
+        var messages = await ReadAllAsync(session);
+
+        var done = messages
+            .OfType<ResponseCreatedRealtimeServerMessage>()
+            .Last(message => message.Type == RealtimeServerMessageType.ResponseDone);
+
+        Assert.Equal(RealtimeResponseStatus.Cancelled, done.Status);
+    }
+
     [Theory]
     // A complete sentence past the minimum length is spoken on its own.
     [InlineData("The lights are now on in the kitchen. And ", "The lights are now on in the kitchen.", " And ")]
@@ -328,12 +447,15 @@ public sealed class CascadedRealtimeSessionTests
 
         public List<IReadOnlyList<ChatMessage>> Requests { get; } = [];
 
+        public List<ChatOptions?> Options { get; } = [];
+
         public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
             IEnumerable<ChatMessage> messages,
             ChatOptions? options = null,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             Requests.Add([.. messages]);
+            Options.Add(options);
 
             for (var index = 0; index < _updates.Length; index++)
             {
