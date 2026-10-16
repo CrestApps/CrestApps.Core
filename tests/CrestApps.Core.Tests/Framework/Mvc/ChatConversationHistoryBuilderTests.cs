@@ -14,6 +14,42 @@ public sealed class ChatConversationHistoryBuilderTests
         new(2026, 7, 13, 12, 0, 0, DateTimeKind.Utc);
 
     /// <summary>
+    /// Verifies an earlier answer's download and picture markers reach the model as names, while citations
+    /// of searched sources keep their markers.
+    /// </summary>
+    [Fact]
+    public void Build_RetiresFileMarkersOfEarlierAnswers()
+    {
+        var answer = new ChatInteractionPrompt
+        {
+            ItemId = "answer",
+            Role = ChatRole.Assistant,
+            Text = "Download: [doc:1] Preview: [fig:1] Source: [doc:2] Broken: [doc:9]",
+            CreatedUtc = _originUtc,
+            References = new Dictionary<string, AICompletionReference>
+            {
+                ["[doc:1]"] = new() { Title = "report.pdf", IsGenerated = true },
+                ["[fig:1]"] = new() { Title = "report — page 1", IsImage = true },
+                ["[doc:2]"] = new() { Title = "handbook.pdf" },
+            },
+        };
+
+        var history = ChatConversationHistoryBuilder.Build(
+            [answer],
+            new ChatInteractionPrompt { ItemId = "new", Role = ChatRole.User, Text = "give me the link", CreatedUtc = _originUtc.AddMinutes(1) });
+
+        var text = history[0].Text;
+
+        Assert.DoesNotContain("[doc:1]", text);
+        Assert.DoesNotContain("[fig:1]", text);
+        Assert.DoesNotContain("[doc:9]", text);
+        Assert.Contains("\"report.pdf\"", text);
+        Assert.Contains("\"report — page 1\"", text);
+        Assert.Contains("[doc:2]", text);
+        Assert.Equal("give me the link", history[1].Text);
+    }
+
+    /// <summary>
     /// Verifies an empty stored history includes the newly created user prompt.
     /// </summary>
     [Fact]

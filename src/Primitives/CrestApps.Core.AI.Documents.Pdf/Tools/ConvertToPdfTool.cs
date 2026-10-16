@@ -153,7 +153,7 @@ internal sealed class ConvertToPdfTool : PdfToolBase
                 definition.PageSetup.Orientation = "landscape";
             }
 
-            warnings.AddRange(await PdfBlockPreparer.PrepareAsync(definition, blocks, arguments.Services, cancellationToken));
+            warnings.AddRange(await PdfBlockPreparer.PrepareAsync(definition, blocks, arguments.Services, cancellationToken, requireChartData: false));
             definition.Sections[0].Blocks.AddRange(blocks);
 
             var document = existing ?? new PdfWorkingDocument { Name = name };

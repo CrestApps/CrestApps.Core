@@ -23,12 +23,18 @@ internal static class PdfBlockPreparer
     /// <param name="blocks">The blocks.</param>
     /// <param name="services">The request services, used to reach the tabular workspace.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <param name="requireChartData">
+    /// Whether a chart block that ends up with nothing to plot fails the call. Blocks the model wrote do: a
+    /// chart left out with only a warning was reported to the user as "the charts are embedded" while the
+    /// file had headings over empty space.
+    /// </param>
     /// <returns>Notes about data that could not be read as asked.</returns>
     public static async Task<List<string>> PrepareAsync(
         PdfDocumentDefinition definition,
         List<PdfBlockDefinition> blocks,
         IServiceProvider services,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool requireChartData = true)
     {
         ArgumentNullException.ThrowIfNull(definition);
 
@@ -61,9 +67,26 @@ internal static class PdfBlockPreparer
                     block.Type = type;
                 }
 
+                ChartFromImageSource(block);
+
+                if (block.Chart?.ConversationChart is { } number)
+                {
+                    await ReadConversationChartAsync(block.Chart, number, services);
+                }
+
                 if (block.Chart is { } chart && !string.IsNullOrWhiteSpace(chart.ChartJs))
                 {
                     ReadChartJs(chart, warnings);
+                }
+
+                if (requireChartData && block.Type == PdfBlockTypes.Chart && block.Chart?.Source is null && !HasValues(block.Chart))
+                {
+                    var listed = PdfConversationCharts.Describe(await PdfConversationCharts.GetAsync(services));
+
+                    throw new PdfToolException(
+                        $"Nothing was added: the chart{(string.IsNullOrWhiteSpace(block.Chart?.Title) ? string.Empty : $" \"{block.Chart.Title}\"")} has no data to plot, so it would be an empty space in the document. " +
+                        "Give it labels and series with the real values, conversation_chart with the number of a chart shown earlier, source over uploaded tabular data, or chart_js with the whole [chart:…] marker." +
+                        (listed is null ? string.Empty : Environment.NewLine + listed));
                 }
 
                 var needsTabular = block.Table?.Source is not null || block.Chart?.Source is not null;
@@ -203,6 +226,103 @@ internal static class PdfBlockPreparer
     private static string Plain(string text)
     {
         return (text ?? string.Empty).Replace("**", string.Empty, StringComparison.Ordinal).Replace("__", string.Empty, StringComparison.Ordinal).Trim();
+    }
+
+    /// <summary>
+    /// Turns an image block that points at a chart — a <c>[chart:…]</c> marker, Chart.js JSON, or a chart of
+    /// the conversation — into the chart block it was meant to be.
+    /// </summary>
+    /// <remarks>
+    /// Asked to put "the actual chart images" in the document, a model reaches for an image block with the
+    /// marker as its source. No picture can be read from that, and the block was left out.
+    /// </remarks>
+    /// <param name="block">The block.</param>
+    internal static void ChartFromImageSource(PdfBlockDefinition block)
+    {
+        if (block.Type != PdfBlockTypes.Image || block.Image?.Source is not { } source)
+        {
+            return;
+        }
+
+        var trimmed = source.Trim();
+        var chart = new PdfChartDefinition { Caption = block.Image.Caption };
+
+        if (trimmed.StartsWith("[chart:", StringComparison.OrdinalIgnoreCase) || trimmed.StartsWith('{'))
+        {
+            chart.ChartJs = trimmed;
+        }
+        else if (TryReadChartNumber(trimmed, out var number))
+        {
+            chart.ConversationChart = number;
+        }
+        else
+        {
+            return;
+        }
+
+        block.Type = PdfBlockTypes.Chart;
+        block.Chart = chart;
+        block.Image = null;
+    }
+
+    private static bool TryReadChartNumber(string source, out int number)
+    {
+        number = 0;
+
+        // "chart:2", "chart 2", "conversation_chart:2".
+        var lower = source.ToLowerInvariant();
+        var prefix = lower.StartsWith("conversation_chart", StringComparison.Ordinal)
+            ? "conversation_chart".Length
+            : lower.StartsWith("chart", StringComparison.Ordinal) ? "chart".Length : -1;
+
+        if (prefix < 0)
+        {
+            return false;
+        }
+
+        var rest = source[prefix..].TrimStart(':', ' ', '#', '_');
+
+        return int.TryParse(rest, NumberStyles.Integer, CultureInfo.InvariantCulture, out number) && number > 0;
+    }
+
+    private static bool HasValues(PdfChartDefinition chart)
+    {
+        return chart?.Series is { Count: > 0 } series && series.Any(candidate => candidate?.Values?.Any(value => value.HasValue) == true);
+    }
+
+    private static async Task ReadConversationChartAsync(PdfChartDefinition chart, int number, IServiceProvider services)
+    {
+        var charts = await PdfConversationCharts.GetAsync(services);
+
+        if (number < 1 || number > charts.Count)
+        {
+            throw new PdfToolException(charts.Count == 0
+                ? $"Nothing was added: conversation_chart {number} was asked for, but no chart was shown earlier in this conversation. Give the chart labels and series with the real values, or source over uploaded tabular data."
+                : $"Nothing was added: there is no conversation chart {number}.{Environment.NewLine}{PdfConversationCharts.Describe(charts)}");
+        }
+
+        var read = charts[number - 1];
+
+        chart.ChartType ??= read.ChartType;
+        chart.Title ??= read.Title;
+
+        if (chart.Labels is not { Count: > 0 })
+        {
+            chart.Labels = [.. read.Labels];
+        }
+
+        if (!HasValues(chart))
+        {
+            chart.Series = [.. read.Series.Select(series => new PdfChartSeriesDefinition
+            {
+                Name = series.Name,
+                Color = series.Color,
+                Values = [.. series.Values],
+            })];
+        }
+
+        chart.SourceDescription ??= "Chart from the conversation";
+        chart.ConversationChart = null;
     }
 
     private static void ReadChartJs(PdfChartDefinition chart, List<string> warnings)

@@ -51,6 +51,99 @@ internal static class PdfChartJsReader
     }
 
     /// <summary>
+    /// Finds the <c>[chart:…]</c> markers in a message, in the order they appear.
+    /// </summary>
+    /// <remarks>
+    /// A marker's JSON can hold brackets and braces of its own, inside strings or arrays, so its end is the
+    /// <c>]</c> that follows the object's closing brace, found by counting braces outside strings.
+    /// </remarks>
+    /// <param name="text">The message text.</param>
+    /// <returns>The configuration JSON of each marker.</returns>
+    public static List<string> FindMarkers(string text)
+    {
+        var markers = new List<string>();
+
+        if (string.IsNullOrEmpty(text))
+        {
+            return markers;
+        }
+
+        var start = text.IndexOf(MarkerPrefix, StringComparison.OrdinalIgnoreCase);
+
+        while (start >= 0)
+        {
+            var open = start + MarkerPrefix.Length;
+
+            while (open < text.Length && char.IsWhiteSpace(text[open]))
+            {
+                open++;
+            }
+
+            var end = open < text.Length && text[open] == '{' ? FindObjectEnd(text, open) : -1;
+
+            if (end < 0)
+            {
+                start = text.IndexOf(MarkerPrefix, start + MarkerPrefix.Length, StringComparison.OrdinalIgnoreCase);
+
+                continue;
+            }
+
+            markers.Add(text[open..(end + 1)]);
+            start = text.IndexOf(MarkerPrefix, end + 1, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return markers;
+    }
+
+    private static int FindObjectEnd(string text, int open)
+    {
+        var depth = 0;
+        var inString = false;
+
+        for (var index = open; index < text.Length; index++)
+        {
+            var character = text[index];
+
+            if (inString)
+            {
+                if (character == '\\')
+                {
+                    index++;
+                }
+                else if (character == '"')
+                {
+                    inString = false;
+                }
+
+                continue;
+            }
+
+            switch (character)
+            {
+                case '"':
+                    inString = true;
+
+                    break;
+
+                case '{':
+                    depth++;
+
+                    break;
+
+                case '}':
+                    if (--depth == 0)
+                    {
+                        return index;
+                    }
+
+                    break;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
     /// Reads a Chart.js configuration element.
     /// </summary>
     /// <param name="root">The configuration.</param>
