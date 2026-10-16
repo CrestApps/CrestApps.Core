@@ -12,6 +12,12 @@ public sealed class Template
     public string Id { get; set; }
 
     /// <summary>
+    /// Gets or sets alternate identifiers that also find this template, such as an identifier
+    /// an earlier version stored. <see cref="Id"/> is matched before any alias.
+    /// </summary>
+    public IReadOnlyList<string> Aliases { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets the metadata extracted from the front matter section.
     /// </summary>
     public TemplateMetadata Metadata { get; set; } = new();

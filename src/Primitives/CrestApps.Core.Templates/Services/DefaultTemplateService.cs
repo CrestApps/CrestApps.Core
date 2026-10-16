@@ -10,9 +10,15 @@ namespace CrestApps.Core.Templates.Services;
 /// Default implementation of <see cref="ITemplateService"/> that aggregates
 /// templates from all registered <see cref="ITemplateProvider"/>s.
 /// </summary>
+/// <remarks>
+/// Templates are read once per service instance. Templates from providers that are not
+/// <see cref="IDynamicTemplateProvider"/>s come first, so they take precedence over dynamic
+/// templates with the same identifier.
+/// </remarks>
 public class DefaultTemplateService : ITemplateService
 {
-    private readonly IEnumerable<ITemplateProvider> _providers;
+    private readonly ITemplateProvider[] _staticProviders;
+    private readonly ITemplateProvider[] _dynamicProviders;
     private readonly ITemplateEngine _renderer;
 
     private IReadOnlyList<Template> _cachedTemplates;
@@ -26,7 +32,8 @@ public class DefaultTemplateService : ITemplateService
         IEnumerable<ITemplateProvider> providers,
         ITemplateEngine renderer)
     {
-        _providers = providers;
+        _staticProviders = providers.Where(provider => provider is not IDynamicTemplateProvider).ToArray();
+        _dynamicProviders = providers.OfType<IDynamicTemplateProvider>().ToArray();
         _renderer = renderer;
     }
 
@@ -45,26 +52,37 @@ public class DefaultTemplateService : ITemplateService
         var allTemplates = new List<Template>();
         var templateIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var provider in _providers)
+        AddTemplates(allTemplates, templateIds, await GetStaticTemplatesAsync(cancellationToken));
+
+        foreach (var provider in _dynamicProviders)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var templates = await provider.GetTemplatesAsync(cancellationToken);
-
-            foreach (var template in templates ?? [])
-            {
-                if (template == null ||
-                    string.IsNullOrWhiteSpace(template.Id) ||
-                    !templateIds.Add(template.Id))
-                {
-                    continue;
-                }
-
-                allTemplates.Add(template);
-            }
+            AddTemplates(allTemplates, templateIds, await provider.GetTemplatesAsync(cancellationToken));
         }
 
         _cachedTemplates = allTemplates;
+
+        return allTemplates;
+    }
+
+    /// <summary>
+    /// Reads the templates from the registered providers that are not <see cref="IDynamicTemplateProvider"/>s.
+    /// Override this method to keep these templates for longer than the lifetime of the service instance.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The templates, without duplicate identifiers, in provider registration order.</returns>
+    protected virtual async Task<IReadOnlyList<Template>> GetStaticTemplatesAsync(CancellationToken cancellationToken = default)
+    {
+        var allTemplates = new List<Template>();
+        var templateIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var provider in _staticProviders)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            AddTemplates(allTemplates, templateIds, await provider.GetTemplatesAsync(cancellationToken));
+        }
 
         return allTemplates;
     }
@@ -74,15 +92,15 @@ public class DefaultTemplateService : ITemplateService
     /// </summary>
     /// <param name="id">The template identifier.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The matching template, or <see langword="null"/> if none was found.</returns>
+    /// <returns>The template whose identifier matches, otherwise the first template with a matching alias, or <see langword="null"/> if none was found.</returns>
     public virtual async Task<Template> GetAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
         var allTemplates = await ListAsync(cancellationToken);
 
-        return allTemplates.FirstOrDefault(t =>
-            string.Equals(t.Id, id, StringComparison.OrdinalIgnoreCase));
+        return allTemplates.FirstOrDefault(t => string.Equals(t.Id, id, StringComparison.OrdinalIgnoreCase))
+            ?? allTemplates.FirstOrDefault(t => t.Aliases?.Contains(id, StringComparer.OrdinalIgnoreCase) == true);
     }
 
     /// <summary>
@@ -154,5 +172,20 @@ public class DefaultTemplateService : ITemplateService
         }
 
         return builder.ToString();
+    }
+
+    private static void AddTemplates(List<Template> allTemplates, HashSet<string> templateIds, IEnumerable<Template> templates)
+    {
+        foreach (var template in templates ?? [])
+        {
+            if (template == null ||
+                string.IsNullOrWhiteSpace(template.Id) ||
+                !templateIds.Add(template.Id))
+            {
+                continue;
+            }
+
+            allTemplates.Add(template);
+        }
     }
 }

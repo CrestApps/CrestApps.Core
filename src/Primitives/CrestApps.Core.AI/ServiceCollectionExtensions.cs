@@ -23,6 +23,7 @@ using CrestApps.Core.Services;
 using CrestApps.Core.Templates;
 using CrestApps.Core.Templates.Extensions;
 using CrestApps.Core.Templates.Parsing;
+using CrestApps.Core.Templates.Providers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -73,6 +74,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ISourceCatalogManager<AIProfileTemplate>>(sp => (ISourceCatalogManager<AIProfileTemplate>)sp.GetRequiredService<IAIProfileTemplateManager>());
         services.TryAddScoped<INamedSourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProfileTemplate>, AIProfileTemplateCatalogHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ITemplateProvider, AIProfileSystemPromptTemplateProvider>());
 
         return services;
     }

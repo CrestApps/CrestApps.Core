@@ -43,7 +43,6 @@ internal static class EntityCoreSampleServiceCollectionExtensions
 
         services
             .AddSharedArticleServices()
-            .AddSharedTemplateProviders()
             .AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLinkResolver>(IndexProfileTypes.Articles)
             .AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>()
             .AddScoped<Areas.AI.Services.AIProfileDocumentService>()
