@@ -22,7 +22,6 @@ public sealed class GenerateFileTool : AIFunction
 {
     public const string TheName = "generate_file";
 
-    private const string DefaultExtension = ".md";
     private const string InvocationCountKey = nameof(GenerateFileTool) + ".InvocationCount";
 
     private static readonly HashSet<string> _tabularExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -49,11 +48,11 @@ public sealed class GenerateFileTool : AIFunction
         },
         "file_name": {
           "type": "string",
-          "description": "Optional file name to show to the user, including the desired extension (for example 'summary.pdf'). The extension determines the output format."
+          "description": "File name to show to the user, including the desired extension (for example 'summary.pdf'). The extension determines the output format. Give this or 'format'."
         },
         "format": {
           "type": "string",
-          "description": "Optional output format/extension (for example 'pdf', 'docx', 'md', 'html', 'csv', 'xlsx'). Used only when 'file_name' has no extension."
+          "description": "Output format/extension (for example 'pdf', 'docx', 'md', 'html', 'csv', 'xlsx'). Used only when 'file_name' has no extension. Give this or a 'file_name' with an extension."
         },
         "title": {
           "type": "string",
@@ -135,6 +134,13 @@ public sealed class GenerateFileTool : AIFunction
             }
 
             return statusMessageError;
+        }
+
+        // With no file name and no format the file used to be written as Markdown. Asked for "a PDF of
+        // that", the model passed neither, and the user was handed generated-file.md as their PDF.
+        if (extension is null)
+        {
+            return "Say which kind of file to create: pass 'file_name' with an extension (for example 'report.pdf') or 'format' (pdf, docx, md, html, txt, csv, xlsx), matching what the user asked for.";
         }
 
         var presentationError = GetPresentationError(arguments.Services, extension);
@@ -501,7 +507,7 @@ public sealed class GenerateFileTool : AIFunction
 
         return !string.IsNullOrEmpty(fromFormat)
             ? fromFormat
-            : DefaultExtension;
+            : null;
     }
 
     private static string NormalizeFileName(string fileName, string title, string extension)

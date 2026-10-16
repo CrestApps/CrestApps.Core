@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
+using CrestApps.Core.AI.Documents.Pdf.Services;
 using CrestApps.Core.AI.Documents.Pdf.Tools;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
 using CrestApps.Core.AI.Models;
@@ -16,6 +17,28 @@ public sealed class PdfConversationChartTests
     private const string TopItems = """[chart:{"type":"bar","data":{"labels":["Alpha [v2]","Beta"],"datasets":[{"label":"Total","data":[12,7]}]},"options":{"indexAxis":"y","plugins":{"title":{"text":"Top items {grouped}"}}}}]""";
 
     private const string Amounts = """[chart:{"type":"bar","data":{"labels":["Gamma"],"datasets":[{"label":"Amount","data":[30]}]}}]""";
+
+    [Fact]
+    public async Task OrchestrationHandler_KeepsTheAgentsCoreToolsThroughRelevanceScoping()
+    {
+        var handler = new PdfDocumentOrchestrationHandler(
+            Mock.Of<CrestApps.Core.Templates.Services.ITemplateService>(),
+            workspaceStore: null,
+            new ServiceCollection().BuildServiceProvider());
+
+        var context = new OrchestrationContext { CompletionContext = new AICompletionContext() };
+
+        using var scope = AIInvocationScope.Begin();
+        scope.Context.AgentInvocationDepth = 1;
+
+        await handler.BuiltAsync(
+            new OrchestrationContextBuiltContext(new AIProfile { Name = PdfAgentProvider.AgentName }, context),
+            TestContext.Current.CancellationToken);
+
+        Assert.Contains("export_pdf", context.MustIncludeTools);
+        Assert.Contains("preview_pdf", context.MustIncludeTools);
+        Assert.Contains("add_pdf_content", context.MustIncludeTools);
+    }
 
     [Fact]
     public void FindMarkers_ReadsEveryMarker_WhenTheirStringsHoldBracketsAndBraces()
@@ -43,6 +66,47 @@ public sealed class PdfConversationChartTests
             PdfBlockPreparer.PrepareAsync(new PdfDocumentDefinition(), blocks, new ServiceCollection().BuildServiceProvider(), TestContext.Current.CancellationToken));
 
         Assert.Contains("no data to plot", exception.Message);
+    }
+
+    [Fact]
+    public async Task PrepareAsync_ReadsAChartWrittenFlatOnItsBlock()
+    {
+        // The shape a live model sent: the chart's fields on the block instead of inside "chart".
+        var blocks = PdfDefinitionJson.FromNode<List<PdfBlockDefinition>>(System.Text.Json.Nodes.JsonNode.Parse(
+            """[{"type":"chart","chart_type":"horizontal_bar","title":"By rank","labels":["A","B"],"series":[{"name":"Rank","values":[1,2]}]},{"type":"image","source":"[chart:{\"type\":\"bar\",\"data\":{\"labels\":[\"C\"],\"datasets\":[{\"data\":[3]}]}}]"}]"""));
+
+        await PdfBlockPreparer.PrepareAsync(new PdfDocumentDefinition(), blocks, new ServiceCollection().BuildServiceProvider(), TestContext.Current.CancellationToken);
+
+        Assert.Equal("horizontal_bar", blocks[0].Chart.ChartType);
+        Assert.Equal("By rank", blocks[0].Chart.Title);
+        Assert.Equal(["A", "B"], blocks[0].Chart.Labels);
+        Assert.Equal([1d, 2d], blocks[0].Chart.Series[0].Values.Select(value => value.Value));
+        Assert.Null(blocks[0].Unrecognized);
+        Assert.Equal(PdfBlockTypes.Chart, blocks[1].Type);
+        Assert.Equal(["C"], blocks[1].Chart.Labels);
+    }
+
+    [Fact]
+    public async Task PrepareAsync_ReadsAFlatConversationChartNumber()
+    {
+        var interaction = new ChatInteraction { ItemId = "interaction-1" };
+        var store = new Mock<IChatInteractionPromptStore>();
+
+        store.Setup(candidate => candidate.GetPromptsAsync("interaction-1"))
+            .ReturnsAsync([new ChatInteractionPrompt { Role = ChatRole.Assistant, Text = TopItems }]);
+
+        var services = new ServiceCollection().AddSingleton(store.Object).BuildServiceProvider();
+
+        using var scope = AIInvocationScope.Begin();
+        scope.Context.ToolExecutionContext = new AIToolExecutionContext(interaction);
+
+        var blocks = PdfDefinitionJson.FromNode<List<PdfBlockDefinition>>(System.Text.Json.Nodes.JsonNode.Parse(
+            """[{"type":"chart","conversation_chart":1,"title":"Chosen title"}]"""));
+
+        await PdfBlockPreparer.PrepareAsync(new PdfDocumentDefinition(), blocks, services, TestContext.Current.CancellationToken);
+
+        Assert.Equal("Chosen title", blocks[0].Chart.Title);
+        Assert.Equal([12d, 7d], blocks[0].Chart.Series[0].Values.Select(value => value.Value));
     }
 
     [Fact]
