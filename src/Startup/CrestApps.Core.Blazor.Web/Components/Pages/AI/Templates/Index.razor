@@ -1,5 +1,6 @@
 @page "/ai/templates"
 @attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.Services
 @inject ICatalog<AIProfileTemplate> Catalog
@@ -53,7 +54,7 @@ else
                         </td>
                         <td><code>@template.Name</code></td>
                         <td>
-                            <span class="badge @(template.Source == "SystemPrompt" ? "bg-info" : "bg-success")">
+                            <span class="badge @GetSourceBadgeClass(template.Source)">
                                 @template.Source
                             </span>
                         </td>
@@ -100,6 +101,16 @@ else
         _templates = templates
             .OrderBy(t => t.DisplayText ?? t.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static string GetSourceBadgeClass(string source)
+    {
+        return source switch
+        {
+            AITemplateSources.SystemPrompt => "bg-info",
+            AITemplateSources.Persona => "bg-primary",
+            _ => "bg-success",
+        };
     }
 
     private async Task DeleteAsync(string id)

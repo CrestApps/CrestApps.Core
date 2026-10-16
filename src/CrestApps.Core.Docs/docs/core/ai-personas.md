@@ -101,6 +101,13 @@ and ask one question at a time when you need more detail.
 A saved persona with the same name replaces the file, as with other AI profile templates. A profile template can
 name the persona its profiles start with by adding `PersonaId: friendly-assistant` to its own front matter.
 
+## Sample hosts
+
+Both sample hosts, MVC and Blazor, include the UI: choose **AI persona** as the source when you add an AI template
+to edit its instructions, assistant name, language, voice and avatar, then pick the persona on an AI profile (or a
+Profile template) with the **AI persona** field. When the profile leaves its voice empty, the voice picker shows
+which persona voice will be used.
+
 ## Related docs
 
 - [AI Profiles](./ai-profiles.md)

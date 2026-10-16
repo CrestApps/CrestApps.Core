@@ -59,6 +59,22 @@ public sealed class AIProfileViewModel
     // AI Parameters (from AIProfileMetadata)
     public string SystemMessage { get; set; }
 
+    /// <summary>
+    /// Gets or sets the technical name of the persona this profile links to, or <see langword="null"/> for none.
+    /// </summary>
+    public string PersonaId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Liquid arguments of the persona link. They are not edited here; they are carried so a
+    /// profile created from a template keeps the arguments the template set.
+    /// </summary>
+    public Dictionary<string, object> PersonaParameters { get; set; }
+
+    /// <summary>
+    /// Gets or sets the personas offered by the persona picker.
+    /// </summary>
+    public List<PersonaSelectionItem> AvailablePersonas { get; set; } = [];
+
     public float? Temperature { get; set; }
 
     public float? TopP { get; set; }
@@ -374,6 +390,12 @@ public sealed class AIProfileViewModel
             vm.UseCaching = metadata.UseCaching;
         }
 
+        if (profile.TryGet<AIPersonaMetadata>(out var personaMetadata))
+        {
+            vm.PersonaId = personaMetadata.PersonaId;
+            vm.PersonaParameters = personaMetadata.Parameters;
+        }
+
         if (profile.TryGet<FunctionInvocationMetadata>(out var toolMetadata))
         {
             vm.SelectedToolNames = toolMetadata.Names ?? [];
@@ -531,6 +553,19 @@ public sealed class AIProfileViewModel
             m.Values = SelectedModelParameters(ModelParameters);
             m.UtilityValues = SelectedModelParameters(UtilityModelParameters);
         });
+
+        var personaId = PersonaSelectList.NormalizePersonaId(PersonaId);
+
+        // Altered rather than replaced so the persona's Liquid arguments survive; a profile that never linked
+        // a persona gets no empty record.
+        if (personaId is not null || profile.TryGet<AIPersonaMetadata>(out _))
+        {
+            profile.Alter<AIPersonaMetadata>(metadata =>
+            {
+                metadata.PersonaId = personaId;
+                metadata.Parameters ??= PersonaParameters;
+            });
+        }
 
         profile.AlterSettings<AIProfileSettings>(s =>
         {

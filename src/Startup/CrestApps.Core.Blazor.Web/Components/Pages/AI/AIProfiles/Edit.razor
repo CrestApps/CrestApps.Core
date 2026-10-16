@@ -40,6 +40,7 @@
 @inject IAIDocumentStore DocumentStore
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject ITemplateService TemplateService
+@inject IAIPersonaResolver PersonaResolver
 @inject IOptions<OrchestratorOptions> OrchestratorOpts
 @inject IOptionsSnapshot<ClaudeOptions> ClaudeOpts
 @inject ClaudeClientService ClaudeClientService
@@ -206,7 +207,7 @@ else if (_model != null)
                                         <div class="mb-3">
                                             <label class="form-label">Voice</label>
                                             <InputSelect class="form-select" @bind-Value="_model.VoiceName">
-                                                <option value="">Default voice</option>
+                                                <option value="">@DefaultVoiceLabel</option>
                                                 @foreach (var group in voiceList.GroupBy(v => GetVoiceGroupLabel(v, _conversationIsRealtime)).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
                                                 {
                                                     <optgroup label="@group.Key">
@@ -531,6 +532,8 @@ else if (_model != null)
                                 }
                             </div>
                         }
+
+                        <PersonaPicker @bind-Value="_model.PersonaId" Options="_model.AvailablePersonas" />
 
                         <div class="mb-3">
                             <label class="form-label">System message</label>
@@ -1653,6 +1656,7 @@ else if (_model != null)
 
         _supportedExtensionsAccept = ChatDocumentOptions.Value.GetEmbeddableFileExtensionsAcceptValue();
         _supportedExtensionsDisplay = ChatDocumentOptions.Value.GetEmbeddableFileExtensionsDisplayValue();
+        _model.AvailablePersonas = PersonaSelectList.Build(await PersonaResolver.ListAsync(), _model.PersonaId);
         _model.AvailableSystemPromptTemplates = (await TemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
             .Where(template => template.Metadata.IsListable)
             .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
@@ -1835,6 +1839,19 @@ else if (_model != null)
         if (Enum.TryParse<AIProfileType>(e.Value?.ToString(), out var value))
         {
             _model.Type = value;
+        }
+    }
+
+    // When a persona with a voice is linked, leaving the profile voice empty speaks with the persona's voice.
+    private string DefaultVoiceLabel
+    {
+        get
+        {
+            var personaVoice = _model.AvailablePersonas
+                .FirstOrDefault(persona => string.Equals(persona.PersonaId, _model.PersonaId, StringComparison.OrdinalIgnoreCase))?
+                .VoiceName;
+
+            return string.IsNullOrWhiteSpace(personaVoice) ? "Default voice" : $"Use persona voice ({personaVoice})";
         }
     }
 

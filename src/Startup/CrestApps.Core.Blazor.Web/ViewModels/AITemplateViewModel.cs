@@ -30,7 +30,51 @@ public sealed class AITemplateViewModel
     // SystemPrompt source fields.
     public string SystemMessage { get; set; }
 
+    // Persona source fields.
+
+    /// <summary>
+    /// Gets or sets the persona instructions, a Liquid template placed at the top of the system message.
+    /// </summary>
+    public string PersonaInstructions { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name the persona's assistant uses for itself.
+    /// </summary>
+    public string PersonaAssistantName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the language the persona speaks, as a BCP-47 tag such as <c>en-US</c>.
+    /// </summary>
+    public string PersonaLanguage { get; set; }
+
+    /// <summary>
+    /// Gets or sets the deployment the persona voice was chosen from.
+    /// </summary>
+    public string PersonaVoiceDeploymentName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the voice the persona speaks with.
+    /// </summary>
+    public string PersonaVoiceName { get; set; }
+
+    /// <summary>
+    /// Gets or sets an optional avatar image URL for the persona.
+    /// </summary>
+    public string PersonaAvatarUrl { get; set; }
+
     // Profile source fields.
+
+    /// <summary>
+    /// Gets or sets the technical name of the persona profiles created from this template start with, or
+    /// <see langword="null"/> for none.
+    /// </summary>
+    public string PersonaId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the personas offered by the persona picker.
+    /// </summary>
+    public List<PersonaSelectionItem> AvailablePersonas { get; set; } = [];
+
     public AIProfileType? ProfileType { get; set; }
 
     public string ChatDeploymentName { get; set; }
@@ -274,8 +318,25 @@ public sealed class AITemplateViewModel
                 model.SystemMessage = sysMetadata.SystemMessage;
             }
         }
+        else if (template.Source == AITemplateSources.Persona)
+        {
+            if (template.TryGet<PersonaTemplateMetadata>(out var personaMetadata))
+            {
+                model.PersonaInstructions = personaMetadata.Instructions;
+                model.PersonaAssistantName = personaMetadata.AssistantName;
+                model.PersonaLanguage = personaMetadata.Language;
+                model.PersonaVoiceDeploymentName = personaMetadata.VoiceDeploymentName;
+                model.PersonaVoiceName = personaMetadata.VoiceName;
+                model.PersonaAvatarUrl = personaMetadata.AvatarUrl;
+            }
+        }
         else if (template.Source == AITemplateSources.Profile)
         {
+            if (template.TryGet<AIPersonaMetadata>(out var personaLink))
+            {
+                model.PersonaId = personaLink.PersonaId;
+            }
+
             if (template.TryGet<AIDeploymentParametersMetadata>(out var modelParameters))
             {
                 if (modelParameters.Values is { Count: > 0 })
@@ -483,6 +544,15 @@ public sealed class AITemplateViewModel
         {
             var toolNames = SelectedToolNames?.Where(n => !string.IsNullOrWhiteSpace(n)).ToArray();
             var agentNames = SelectedAgentNames?.Where(n => !string.IsNullOrWhiteSpace(n)).ToArray();
+            var personaId = PersonaSelectList.NormalizePersonaId(PersonaId);
+
+            // Altered rather than replaced so the persona's Liquid arguments survive; a template that never
+            // linked a persona gets no empty record.
+            if (personaId is not null || template.TryGet<AIPersonaMetadata>(out _))
+            {
+                template.Alter<AIPersonaMetadata>(metadata => metadata.PersonaId = personaId);
+            }
+
             template.Put(new AIDeploymentParametersMetadata
             {
                 Values = SelectedModelParameters(ModelParameters),
@@ -695,8 +765,31 @@ public sealed class AITemplateViewModel
         }
         else
         {
+            if (Source == AITemplateSources.Persona)
+            {
+                var voiceName = Normalize(PersonaVoiceName);
+
+                template.Put(new PersonaTemplateMetadata
+                {
+                    Instructions = PersonaInstructions?.Trim(),
+                    AssistantName = Normalize(PersonaAssistantName),
+                    Language = Normalize(PersonaLanguage),
+                    VoiceName = voiceName,
+
+                    // The deployment only qualifies the voice, so it means nothing without one.
+                    VoiceDeploymentName = voiceName is null ? null : Normalize(PersonaVoiceDeploymentName),
+                    AvatarUrl = Normalize(PersonaAvatarUrl),
+                });
+            }
+
             template.Remove<ClaudeSessionMetadata>();
             template.Remove<CopilotSessionMetadata>();
+        }
+
+        // Only a profile template links to a persona; a persona never links to another one.
+        if (Source != AITemplateSources.Profile)
+        {
+            template.Remove<AIPersonaMetadata>();
         }
 
         var securitySettings = new PromptSecurityProfileSettings
@@ -722,6 +815,11 @@ public sealed class AITemplateViewModel
         {
             template.Remove<PromptSecurityProfileSettings>();
         }
+    }
+
+    private static string Normalize(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     private static Dictionary<string, string> SelectedModelParameters(Dictionary<string, string> values)

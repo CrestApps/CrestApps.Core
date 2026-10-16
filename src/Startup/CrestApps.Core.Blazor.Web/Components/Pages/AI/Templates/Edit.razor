@@ -36,6 +36,7 @@
 @inject IAIDataSourceStore DataSourceStore
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject ITemplateService TemplateService
+@inject IAIPersonaResolver PersonaResolver
 @inject IOptions<OrchestratorOptions> OrchestratorOpts
 @inject IOptionsSnapshot<ClaudeOptions> ClaudeOpts
 @inject ClaudeClientService ClaudeClientService
@@ -99,12 +100,13 @@
                 <select class="form-select" value="@_model.Source" @onchange="OnSourceChanged">
                     <option value="@AITemplateSources.SystemPrompt">System prompt</option>
                     <option value="@AITemplateSources.Profile">AI profile</option>
+                    <option value="@AITemplateSources.Persona">AI persona</option>
                 </select>
                 @if (!string.IsNullOrEmpty(_sourceError))
                 {
                     <div class="text-danger">@_sourceError</div>
                 }
-                <div class="form-text">System prompt templates define only a system message. Profile templates include full AI profile configuration.</div>
+                <div class="form-text">System prompt templates define only a system message. Profile templates include full AI profile configuration. Persona templates describe who the assistant is and how it speaks, for profiles and chats to link to.</div>
             </div>
 
             @if (_model.Source == AITemplateSources.SystemPrompt)
@@ -114,6 +116,10 @@
                     <InputTextArea class="form-control" rows="8" @bind-Value="_model.SystemMessage" placeholder="You are a helpful assistant that..." />
                     <div class="form-text">The system message that defines the AI's behavior and role.</div>
                 </div>
+            }
+            else if (_model.Source == AITemplateSources.Persona)
+            {
+                <PersonaTemplateFields Model="_model" InstructionsError="@_personaInstructionsError" />
             }
             else if (_model.Source == AITemplateSources.Profile)
             {
@@ -448,6 +454,10 @@
                             </div>
                         }
 
+                        <PersonaPicker @bind-Value="_model.PersonaId"
+                                       Options="_model.AvailablePersonas"
+                                       HelpText="The persona profiles created from this template start with. Its instructions come before the system message." />
+
                         <div class="mb-3">
                             <label class="form-label">System message</label>
                             <InputTextArea class="form-control" rows="5" @bind-Value="_model.SystemMessage" />
@@ -695,6 +705,7 @@
     private AITemplateViewModel _model = new();
     private string _activeTab = "basic";
     private string _sourceError;
+    private string _personaInstructionsError;
     private string _promptTemplateSearchTerm;
     private IReadOnlyList<CrestApps.Core.AI.Models.SpeechVoice> _realtimeVoices = [];
 
@@ -773,9 +784,11 @@
     private async Task HandleSubmitAsync()
     {
         _sourceError = null;
+        _personaInstructionsError = null;
 
         if (string.IsNullOrWhiteSpace(_model.Source)) _sourceError = "Source is required.";
-        if (_sourceError != null) return;
+        if (_model.Source == AITemplateSources.Persona && string.IsNullOrWhiteSpace(_model.PersonaInstructions)) _personaInstructionsError = "Persona instructions are required.";
+        if (_sourceError != null || _personaInstructionsError != null) return;
 
         SyncCheckboxSelections();
         _model.SelectedToolNames = await GetValidToolNamesAsync(_model.SelectedToolNames);
@@ -879,6 +892,7 @@
 
         var dataSources = await DataSourceStore.GetAllAsync();
         _model.DataSources = dataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).Select(ds => new KeyValuePair<string, string>(ds.DisplayText, ds.ItemId)).ToList();
+        _model.AvailablePersonas = PersonaSelectList.Build(await PersonaResolver.ListAsync(), _model.PersonaId);
         _model.AvailableSystemPromptTemplates = (await TemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
             .Where(template => template.Metadata.IsListable)
             .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)

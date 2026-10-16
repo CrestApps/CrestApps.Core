@@ -38,6 +38,7 @@
 @inject IAIDataSourceStore DataSourceStore
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject ITemplateService TemplateService
+@inject IAIPersonaResolver PersonaResolver
 @inject IOptions<OrchestratorOptions> OrchestratorOpts
 @inject IOptionsSnapshot<ClaudeOptions> ClaudeOpts
 @inject ClaudeClientService ClaudeClientService
@@ -221,7 +222,7 @@
                                     <div class="mb-3">
                                         <label class="form-label">Voice</label>
                                         <InputSelect class="form-select" @bind-Value="_model.VoiceName">
-                                            <option value="">Default voice</option>
+                                            <option value="">@DefaultVoiceLabel</option>
                                             @foreach (var group in voiceList.GroupBy(v => GetVoiceGroupLabel(v, _conversationIsRealtime)).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
                                             {
                                                 <optgroup label="@group.Key">
@@ -577,6 +578,8 @@
                             }
                         </div>
                     }
+
+                    <PersonaPicker @bind-Value="_model.PersonaId" Options="_model.AvailablePersonas" />
 
                     <div class="mb-3">
                         <label class="form-label">System message</label>
@@ -1743,6 +1746,7 @@
             .Where(t => string.Equals(t.Source, AITemplateSources.Profile, StringComparison.OrdinalIgnoreCase))
             .Select(t => new KeyValuePair<string, string>(t.DisplayText ?? t.Name, t.ItemId))
             .ToList();
+        _model.AvailablePersonas = PersonaSelectList.Build(await PersonaResolver.ListAsync(), _model.PersonaId);
         _model.AvailableSystemPromptTemplates = (await TemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
             .Where(template => template.Metadata.IsListable)
             .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
@@ -2044,6 +2048,20 @@
             });
         }
 
+        // The template names the persona its profiles start with. The link is copied, not the persona, so
+        // later edits to the persona still reach the profile.
+        if (template.TryGet<AIPersonaMetadata>(out var templatePersona) &&
+            !string.IsNullOrWhiteSpace(templatePersona.PersonaId))
+        {
+            profile.Put(new AIPersonaMetadata
+            {
+                PersonaId = templatePersona.PersonaId,
+                Parameters = templatePersona.Parameters is null
+                    ? null
+                    : new Dictionary<string, object>(templatePersona.Parameters, StringComparer.OrdinalIgnoreCase),
+            });
+        }
+
         if (!template.TryGet<ProfileTemplateMetadata>(out var metadata))
         {
             return;
@@ -2169,6 +2187,19 @@
         if (Enum.TryParse<AIProfileType>(e.Value?.ToString(), out var value))
         {
             _model.Type = value;
+        }
+    }
+
+    // When a persona with a voice is linked, leaving the profile voice empty speaks with the persona's voice.
+    private string DefaultVoiceLabel
+    {
+        get
+        {
+            var personaVoice = _model.AvailablePersonas
+                .FirstOrDefault(persona => string.Equals(persona.PersonaId, _model.PersonaId, StringComparison.OrdinalIgnoreCase))?
+                .VoiceName;
+
+            return string.IsNullOrWhiteSpace(personaVoice) ? "Default voice" : $"Use persona voice ({personaVoice})";
         }
     }
 

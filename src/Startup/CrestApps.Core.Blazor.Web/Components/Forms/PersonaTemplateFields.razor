@@ -1,0 +1,216 @@
+@using CrestApps.Core.AI.Deployments
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Services
+@using CrestApps.Core.AI.Speech
+@using CrestApps.Core.Blazor.Web.ViewModels
+@using CrestApps.Core.Services
+@inject IAIDeploymentManager DeploymentManager
+@inject ICatalog<AIDeployment> DeploymentCatalog
+@inject IRealtimeVoiceResolver RealtimeVoiceResolver
+@inject ISpeechVoiceResolver SpeechVoiceResolver
+
+<div class="mb-3">
+    <label class="form-label" for="personaInstructions">Persona instructions <span class="text-danger">*</span></label>
+    <InputTextArea id="personaInstructions" class="form-control" rows="8" @bind-Value="Model.PersonaInstructions" placeholder="You are Ava, a warm and patient assistant who speaks in short, friendly sentences..." />
+    @if (!string.IsNullOrEmpty(InstructionsError))
+    {
+        <div class="text-danger">@InstructionsError</div>
+    }
+    <div class="form-text">Who the assistant is and how it speaks. Liquid syntax is supported. These instructions are placed before the system message of every profile or chat interaction that uses this persona; what the assistant does stays with the profile.</div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="mb-3">
+            <label class="form-label" for="personaAssistantName">Assistant name</label>
+            <InputText id="personaAssistantName" class="form-control" @bind-Value="Model.PersonaAssistantName" placeholder="e.g., Ava" />
+            <div class="form-text">The name the assistant uses for itself.</div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="mb-3">
+            <label class="form-label" for="personaLanguage">Language</label>
+            <InputText id="personaLanguage" class="form-control" @bind-Value="Model.PersonaLanguage" placeholder="e.g., en-US" />
+            <div class="form-text">A BCP-47 language tag. It is used as the speech language when the caller does not name one.</div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="mb-3">
+            <label class="form-label" for="personaVoiceDeploymentName">Voice deployment</label>
+            <InputSelect id="personaVoiceDeploymentName" class="form-select" @bind-Value="Model.PersonaVoiceDeploymentName" @bind-Value:after="OnVoiceDeploymentChangedAsync">
+                <option value="">Choose a deployment to list its voices</option>
+                @if (_realtimeDeployments.Count > 0)
+                {
+                    <optgroup label="Realtime">
+                        @foreach (var deployment in _realtimeDeployments)
+                        {
+                            <option value="@deployment.Name">@BuildDeploymentLabel(deployment)</option>
+                        }
+                    </optgroup>
+                }
+                @if (_textToSpeechDeployments.Count > 0)
+                {
+                    <optgroup label="Text to speech">
+                        @foreach (var deployment in _textToSpeechDeployments)
+                        {
+                            <option value="@deployment.Name">@BuildDeploymentLabel(deployment)</option>
+                        }
+                    </optgroup>
+                }
+                @if (IsMissingDeployment)
+                {
+                    <option value="@Model.PersonaVoiceDeploymentName">@Model.PersonaVoiceDeploymentName (missing)</option>
+                }
+            </InputSelect>
+            <div class="form-text">The deployment the voice is chosen from. Voice names belong to a provider, so the voice is only used when a deployment of the same provider speaks.</div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="mb-3">
+            <label class="form-label" for="personaVoiceName">Voice</label>
+            <InputSelect id="personaVoiceName" class="form-select" @bind-Value="Model.PersonaVoiceName">
+                <option value="">No voice</option>
+                @foreach (var group in _voices.GroupBy(voice => GetVoiceGroupLabel(voice, _voicesAreRealtime)).OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    <optgroup label="@group.Key">
+                        @foreach (var voice in group.OrderBy(voice => voice.Name, StringComparer.OrdinalIgnoreCase))
+                        {
+                            <option value="@voice.Id">@voice.Name</option>
+                        }
+                    </optgroup>
+                }
+                @if (IsUnlistedVoice)
+                {
+                    <option value="@Model.PersonaVoiceName">@Model.PersonaVoiceName (not offered by this deployment)</option>
+                }
+            </InputSelect>
+            <div class="form-text">The voice the persona speaks with. A profile or chat that chooses its own voice keeps it; leave this empty to use the default voice.</div>
+        </div>
+    </div>
+</div>
+
+<div class="mb-3">
+    <label class="form-label" for="personaAvatarUrl">Avatar URL</label>
+    <InputText id="personaAvatarUrl" type="url" class="form-control" @bind-Value="Model.PersonaAvatarUrl" placeholder="https://example.com/avatar.png" />
+    <div class="form-text">An optional image hosts may show next to the assistant's messages.</div>
+</div>
+
+@code {
+    private List<AIDeployment> _realtimeDeployments = [];
+    private List<AIDeployment> _textToSpeechDeployments = [];
+    private IReadOnlyList<SpeechVoice> _voices = [];
+    private bool _voicesAreRealtime;
+
+    /// <summary>
+    /// Gets or sets the template view model whose persona fields are edited.
+    /// </summary>
+    [Parameter]
+    [EditorRequired]
+    public AITemplateViewModel Model { get; set; }
+
+    /// <summary>
+    /// Gets or sets the validation message shown under the persona instructions, if any.
+    /// </summary>
+    [Parameter]
+    public string InstructionsError { get; set; }
+
+    private bool IsMissingDeployment =>
+        !string.IsNullOrWhiteSpace(Model.PersonaVoiceDeploymentName) &&
+        !_realtimeDeployments.Concat(_textToSpeechDeployments).Any(deployment => string.Equals(deployment.Name, Model.PersonaVoiceDeploymentName, StringComparison.OrdinalIgnoreCase));
+
+    private bool IsUnlistedVoice =>
+        !string.IsNullOrWhiteSpace(Model.PersonaVoiceName) &&
+        !_voices.Any(voice => string.Equals(voice.Id, Model.PersonaVoiceName, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The deployments that can speak: a realtime model speaks for itself, and a text-to-speech model speaks
+        // for a speech cascade.
+        _realtimeDeployments = (await DeploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Realtime))
+            .OrderBy(deployment => deployment.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var realtimeNames = _realtimeDeployments
+            .Select(deployment => deployment.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        _textToSpeechDeployments = (await DeploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.TextToSpeech))
+            .Where(deployment => !realtimeNames.Contains(deployment.Name))
+            .OrderBy(deployment => deployment.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        await LoadVoicesAsync();
+    }
+
+    private async Task OnVoiceDeploymentChangedAsync()
+    {
+        await LoadVoicesAsync();
+
+        // Voice names belong to a provider, so a voice the new deployment does not offer would never be used.
+        if (IsUnlistedVoice)
+        {
+            Model.PersonaVoiceName = null;
+        }
+    }
+
+    private async Task LoadVoicesAsync()
+    {
+        _voices = [];
+        _voicesAreRealtime = false;
+
+        var deploymentName = Model.PersonaVoiceDeploymentName;
+
+        if (string.IsNullOrWhiteSpace(deploymentName))
+        {
+            return;
+        }
+
+        var realtimeDeployment = _realtimeDeployments.FirstOrDefault(deployment => string.Equals(deployment.Name, deploymentName, StringComparison.OrdinalIgnoreCase));
+
+        if (realtimeDeployment is not null)
+        {
+            _voicesAreRealtime = true;
+            _voices = (await RealtimeVoiceResolver.GetVoicesAsync(realtimeDeployment))
+                .Where(voice => !string.IsNullOrWhiteSpace(voice.Id))
+                .ToList();
+
+            return;
+        }
+
+        var deployment = _textToSpeechDeployments.FirstOrDefault(item => string.Equals(item.Name, deploymentName, StringComparison.OrdinalIgnoreCase))
+            ?? (await DeploymentCatalog.GetAllAsync()).FirstOrDefault(item => string.Equals(item.Name, deploymentName, StringComparison.OrdinalIgnoreCase));
+
+        if (deployment is null)
+        {
+            return;
+        }
+
+        _voices = (await SpeechVoiceResolver.GetSpeechVoicesAsync(deployment))
+            .Where(voice => !string.IsNullOrWhiteSpace(voice.Id))
+            .ToList();
+    }
+
+    private static string GetVoiceGroupLabel(SpeechVoice voice, bool isRealtime)
+    {
+        // Realtime voices are a provider-fixed set with no language, so they are grouped by gender like the
+        // profile editor does. Text-to-speech voices are grouped by their language.
+        if (isRealtime)
+        {
+            return voice.Gender.ToString();
+        }
+
+        var displayName = SpeechVoiceLocalizationHelper.GetCultureDisplayName(voice.Language);
+
+        return string.IsNullOrWhiteSpace(displayName) ? "Other" : displayName;
+    }
+
+    private static string BuildDeploymentLabel(AIDeployment deployment)
+    {
+        return string.Equals(deployment.Name, deployment.ModelName, StringComparison.OrdinalIgnoreCase)
+            ? deployment.Name
+            : $"{deployment.Name} ({deployment.ModelName})";
+    }
+}

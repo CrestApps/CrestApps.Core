@@ -1,0 +1,72 @@
+@using CrestApps.Core.Blazor.Web.ViewModels
+
+<div class="mb-3">
+    <label class="form-label" for="@ElementId">AI persona</label>
+    <select id="@ElementId" class="form-select" value="@(Value ?? string.Empty)" @onchange="OnChangedAsync">
+        <option value="">No persona</option>
+        @foreach (var item in Options.Where(option => option.Category is null))
+        {
+            <option value="@item.PersonaId" selected="@IsSelected(item)">@item.DisplayText</option>
+        }
+        @foreach (var group in Options.Where(option => option.Category is not null).GroupBy(option => option.Category, StringComparer.OrdinalIgnoreCase).OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            <optgroup label="@group.Key">
+                @foreach (var item in group)
+                {
+                    <option value="@item.PersonaId" selected="@IsSelected(item)">@item.DisplayText</option>
+                }
+            </optgroup>
+        }
+    </select>
+    @if (Options.Any(option => option.IsMissing && IsSelected(option)))
+    {
+        <div class="form-text text-warning">The linked persona no longer exists. Saving keeps the link until you choose another.</div>
+    }
+    <div class="form-text">@HelpText</div>
+</div>
+
+@code {
+    /// <summary>
+    /// Gets or sets the technical name of the selected persona, or <see langword="null"/> for none.
+    /// </summary>
+    [Parameter]
+    public string Value { get; set; }
+
+    /// <summary>
+    /// Gets or sets the callback raised when the selection changes.
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>
+    /// Gets or sets the personas to offer.
+    /// </summary>
+    [Parameter]
+    public IReadOnlyList<PersonaSelectionItem> Options { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the id of the select element.
+    /// </summary>
+    [Parameter]
+    public string ElementId { get; set; } = "personaId";
+
+    /// <summary>
+    /// Gets or sets the help text shown under the picker.
+    /// </summary>
+    [Parameter]
+    public string HelpText { get; set; } = "Who the assistant is and how it speaks. The persona's instructions come before the system message, and its voice is used when no voice is chosen here.";
+
+    private bool IsSelected(PersonaSelectionItem item)
+    {
+        return string.Equals(item.PersonaId, Value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private Task OnChangedAsync(ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString();
+
+        Value = string.IsNullOrWhiteSpace(value) ? null : value;
+
+        return ValueChanged.InvokeAsync(Value);
+    }
+}

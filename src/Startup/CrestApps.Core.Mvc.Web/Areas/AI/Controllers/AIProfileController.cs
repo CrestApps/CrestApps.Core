@@ -328,6 +328,8 @@ public sealed class AIProfileController : Controller
         model.ChatDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.UtilityDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.RealtimeDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Realtime)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        model.AvailablePersonas = await AIPersonaSelectListBuilder.BuildAsync(_templateManager, model.PersonaId);
+        model.PersonaVoices = await AIPersonaSelectListBuilder.GetVoicesAsync(_templateManager);
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();
         var hasAnthropicOptions = _anthropicOptions.TryGetValidValue(out var anthropicOptions);
         model.Orchestrators = orchestrators.Select(o => new SelectListItem(o.Value.Title ?? o.Key, o.Key)).ToList();
@@ -550,6 +552,12 @@ public sealed class AIProfileController : Controller
                     m.UtilityValues[entry.Key] = entry.Value;
                 }
             });
+        }
+
+        // The template names the persona its profiles start with; the link is copied, not the persona.
+        if (template.TryGet<AIPersonaMetadata>(out var personaLink) && !string.IsNullOrWhiteSpace(personaLink.PersonaId))
+        {
+            profile.Alter<AIPersonaMetadata>(m => m.PersonaId = personaLink.PersonaId);
         }
 
         if (!template.TryGet<ProfileTemplateMetadata>(out var metadata))
