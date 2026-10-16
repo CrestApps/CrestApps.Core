@@ -103,7 +103,7 @@
     <!-- Transitive Packages -->
     <PackageVersion Include="Microsoft.Bcl.Memory" Version="10.0.13" />
     <PackageVersion Include="Nerdbank.MessagePack" Version="1.2.4" />
-    <PackageVersion Include="MessagePack" Version="3.1.7" />
+    <PackageVersion Include="MessagePack" Version="3.1.12" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.13" />
     <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />

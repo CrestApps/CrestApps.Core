@@ -75,6 +75,8 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         // session, so the shared preemptive RAG handler self-skips and RealtimeRagGuidanceHandler adds
         // search-tool guidance. Retrieval instead runs per turn through IRealtimeTurnGrounding, once the
         // provider has transcribed what the user actually said.
+        SetChatResourcesOnInvocationScope(request);
+
         var context = await _contextBuilder.BuildAsync(
             request.Resource,
             ctx =>
@@ -381,8 +383,9 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
     private bool PopulateInvocationScope(OrchestrationContext context, RealtimeOrchestrationRequest request)
     {
         // AIToolExecutionContextOrchestrationHandler already set ToolExecutionContext during BuildAsync
-        // (it ran under this ambient scope). Fill in the remaining fields tools read, mirroring
-        // AIChatResponseHandler so existing tools work unchanged.
+        // (it ran under this ambient scope), and SetChatResourcesOnInvocationScope set the chat session and the
+        // chat interaction before it. Fill in the remaining fields tools read, mirroring AIChatResponseHandler so
+        // existing tools work unchanged.
         var invocation = AIInvocationScope.Current;
 
         if (invocation is null)
@@ -398,6 +401,23 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         invocation.CompletionContext = context.CompletionContext;
         invocation.DataSourceId = context.CompletionContext?.DataSourceId;
 
+        return true;
+    }
+
+    /// <summary>
+    /// Stores the chat session and the chat interaction of the request in the ambient invocation scope before the
+    /// orchestration context is built, so profile providers and orchestration handlers that run during the build can
+    /// resolve them, as they do on the text path in AIChatResponseHandler.
+    /// </summary>
+    private static void SetChatResourcesOnInvocationScope(RealtimeOrchestrationRequest request)
+    {
+        var invocation = AIInvocationScope.Current;
+
+        if (invocation is null)
+        {
+            return;
+        }
+
         if (request.ChatSession is not null)
         {
             invocation.ChatSession = request.ChatSession;
@@ -408,7 +428,5 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         {
             invocation.ChatInteraction = request.Interaction;
         }
-
-        return true;
     }
 }
