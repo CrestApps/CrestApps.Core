@@ -17,6 +17,7 @@ internal static class PdfBlockPreparer
 {
     private const int DefaultMaxRows = 1000;
     private const int MaxRowsLimit = 5000;
+    private const string ChartMarkerPrefix = "[chart:";
 
     /// <summary>
     /// Readies blocks for a document.
@@ -26,17 +27,20 @@ internal static class PdfBlockPreparer
     /// <param name="services">The request services, used to reach the tabular workspace.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <param name="requireChartData">
-    /// Whether a chart block that ends up with nothing to plot fails the call. Blocks the model wrote do: a
-    /// chart left out with only a warning was reported to the user as "the charts are embedded" while the
-    /// file had headings over empty space.
+    /// Whether the blocks are the model's own writing, as opposed to content converted from a file. For them, a
+    /// chart block that ends up with nothing to plot fails the call — a chart left out with only a warning was
+    /// reported to the user as "the charts are embedded" while the file had headings over empty space — and so
+    /// does chart marker text, and a heading that repeats the one right before it is left out.
     /// </param>
+    /// <param name="precedingBlock">The block the new blocks follow in the document, when there is one.</param>
     /// <returns>Notes about data that could not be read as asked.</returns>
     public static async Task<List<string>> PrepareAsync(
         PdfDocumentDefinition definition,
         List<PdfBlockDefinition> blocks,
         IServiceProvider services,
         CancellationToken cancellationToken,
-        bool requireChartData = true)
+        bool requireChartData = true,
+        PdfBlockDefinition precedingBlock = null)
     {
         ArgumentNullException.ThrowIfNull(definition);
 
@@ -48,6 +52,12 @@ internal static class PdfBlockPreparer
         }
 
         ReplaceHandWrittenContents(definition, blocks, warnings);
+
+        if (requireChartData)
+        {
+            await ChartsFromMarkerTextAsync(blocks, services);
+            RemoveRepeatedHeadings(blocks, precedingBlock, warnings);
+        }
 
         TabularToolRunner.PreparationResult? tabular = null;
 
@@ -289,6 +299,131 @@ internal static class PdfBlockPreparer
         {
             // Properties that do not read as the block's object are left out, as unknown ones always were.
         }
+    }
+
+    /// <summary>
+    /// Turns a paragraph that is a whole <c>[chart:…]</c> marker into the chart, and refuses any other text that
+    /// carries one.
+    /// </summary>
+    /// <remarks>
+    /// Text is printed as it is written, so a marker in it reached the reader as its characters. Asked to put
+    /// the charts of the conversation in a report, gpt-4.1 wrote <c>[chart:Refer to chart marker above]</c> as a
+    /// paragraph under each chart's heading — a placeholder for a chart it never named — and the file showed
+    /// that line where the chart should be. A marker that holds a chart is drawn; anything else names no chart
+    /// this host can find, so the call is refused with the ways to add one, rather than printing the marker.
+    /// </remarks>
+    /// <param name="blocks">The blocks of the call, changed in place.</param>
+    /// <param name="services">The request services, used to list the charts of the conversation.</param>
+    private static async Task ChartsFromMarkerTextAsync(List<PdfBlockDefinition> blocks, IServiceProvider services)
+    {
+        for (var index = 0; index < blocks.Count; index++)
+        {
+            var block = blocks[index];
+
+            if (block is null)
+            {
+                continue;
+            }
+
+            var type = PdfMigraDocBuilder.NormalizeType(block);
+            var text = block.Text?.Trim();
+
+            if (type is PdfBlockTypes.Paragraph or PdfBlockTypes.Markdown &&
+                text is not null &&
+                text.StartsWith(ChartMarkerPrefix, StringComparison.OrdinalIgnoreCase) &&
+                text.EndsWith(']') &&
+                PdfChartJsReader.FindMarkers(text).Count == 1 &&
+                PdfChartJsReader.TryRead(text, out _))
+            {
+                block.Type = PdfBlockTypes.Chart;
+                block.Chart = new PdfChartDefinition { ChartJs = text };
+                block.Text = null;
+
+                continue;
+            }
+
+            if (type == PdfBlockTypes.Code)
+            {
+                // Code is shown as written on purpose; a marker in it is an example, not a chart.
+                continue;
+            }
+
+            var marked = new[] { block.Text, block.Title }
+                .Concat(block.Items ?? [])
+                .FirstOrDefault(value => value?.Contains(ChartMarkerPrefix, StringComparison.OrdinalIgnoreCase) == true);
+
+            if (marked is null)
+            {
+                continue;
+            }
+
+            var listed = PdfConversationCharts.Describe(await PdfConversationCharts.GetAsync(services));
+
+            throw new PdfToolException(
+                $"Nothing was added: block {index + 1} ({type}) has a chart marker in its text — \"{Excerpt(marked)}\" — and text is printed as written, so the reader would see the marker instead of a chart. " +
+                "Add the chart as its own block: {\"type\": \"chart\", \"conversation_chart\": N} for a chart shown earlier in the conversation, labels and series with the real values, source over uploaded tabular data, or chart_js with the whole [chart:{…}] marker. Never write a marker in text." +
+                (listed is null ? string.Empty : Environment.NewLine + listed));
+        }
+    }
+
+    /// <summary>
+    /// Leaves out a heading that repeats the heading right before it.
+    /// </summary>
+    /// <remarks>
+    /// gpt-4.1 put the document's title heading in <c>create_pdf</c> and then sent the content again starting
+    /// with the same heading, and the report opened with its title twice. Two headings with the same words and
+    /// nothing between them are never two sections, so the second is left out and the model is told. A heading
+    /// used again further on, with content between, is kept.
+    /// </remarks>
+    /// <param name="blocks">The blocks of the call, changed in place.</param>
+    /// <param name="precedingBlock">The block the new blocks follow in the document, when there is one.</param>
+    /// <param name="notes">Receives a note for each heading left out.</param>
+    internal static void RemoveRepeatedHeadings(List<PdfBlockDefinition> blocks, PdfBlockDefinition precedingBlock, List<string> notes)
+    {
+        ArgumentNullException.ThrowIfNull(blocks);
+        ArgumentNullException.ThrowIfNull(notes);
+
+        var previous = precedingBlock;
+
+        for (var index = 0; index < blocks.Count; index++)
+        {
+            var block = blocks[index];
+
+            if (block is null)
+            {
+                continue;
+            }
+
+            if (IsHeading(block) && IsHeading(previous) && string.Equals(HeadingKey(block), HeadingKey(previous), StringComparison.Ordinal))
+            {
+                notes.Add($"Left out the heading \"{block.Text.Trim()}\": it is already the heading before it. Do not send content the document already has; append only what is new.");
+                blocks.RemoveAt(index);
+                index--;
+
+                continue;
+            }
+
+            previous = block;
+        }
+    }
+
+    private static bool IsHeading(PdfBlockDefinition block)
+    {
+        return block is not null &&
+            PdfMigraDocBuilder.NormalizeType(block) == PdfBlockTypes.Heading &&
+            !string.IsNullOrWhiteSpace(block.Text);
+    }
+
+    private static string HeadingKey(PdfBlockDefinition block)
+    {
+        return string.Join(' ', block.Text.Split((char[])null, StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();
+    }
+
+    private static string Excerpt(string text)
+    {
+        var trimmed = text.Trim();
+
+        return trimmed.Length <= 80 ? trimmed : trimmed[..80] + "…";
     }
 
     /// <summary>
