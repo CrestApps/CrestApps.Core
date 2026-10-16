@@ -250,11 +250,6 @@ public static class AIProfileTemplateParser
             persona.AssistantName = assistantName;
         }
 
-        if (props.TryGetValue(nameof(PersonaTemplateMetadata.Greeting), out var greeting))
-        {
-            persona.Greeting = greeting;
-        }
-
         if (props.TryGetValue(nameof(PersonaTemplateMetadata.Language), out var language))
         {
             persona.Language = language;

@@ -27,11 +27,6 @@ public sealed class AIPersona
     public string AssistantName { get; init; }
 
     /// <summary>
-    /// Gets the optional greeting.
-    /// </summary>
-    public string Greeting { get; init; }
-
-    /// <summary>
     /// Gets the language the persona speaks, as a BCP-47 tag.
     /// </summary>
     public string Language { get; init; }

@@ -75,7 +75,6 @@ public sealed class EmbeddedResourceAIProfileTemplateProviderTests
                 {
                     [nameof(AIProfileTemplate.Source)] = "persona",
                     [nameof(PersonaTemplateMetadata.AssistantName)] = "Ava",
-                    [nameof(PersonaTemplateMetadata.Greeting)] = "Hi, I'm Ava.",
                     [nameof(PersonaTemplateMetadata.Language)] = "en-US",
                     [nameof(PersonaTemplateMetadata.VoiceName)] = "marin",
                     [nameof(PersonaTemplateMetadata.VoiceDeploymentName)] = "realtime",
@@ -90,7 +89,6 @@ public sealed class EmbeddedResourceAIProfileTemplateProviderTests
         Assert.True(template.TryGet<PersonaTemplateMetadata>(out var persona));
         Assert.Equal("You are Ava, a warm and patient assistant.", persona.Instructions);
         Assert.Equal("Ava", persona.AssistantName);
-        Assert.Equal("Hi, I'm Ava.", persona.Greeting);
         Assert.Equal("en-US", persona.Language);
         Assert.Equal("marin", persona.VoiceName);
         Assert.Equal("realtime", persona.VoiceDeploymentName);

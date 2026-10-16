@@ -126,7 +126,6 @@ public sealed class DefaultAIPersonaResolver : IAIPersonaResolver
             DisplayText = string.IsNullOrWhiteSpace(template.DisplayText) ? template.Name : template.DisplayText,
             Instructions = string.IsNullOrWhiteSpace(instructions) ? null : instructions.Trim(),
             AssistantName = NullIfWhiteSpace(metadata.AssistantName),
-            Greeting = NullIfWhiteSpace(metadata.Greeting),
             Language = NullIfWhiteSpace(metadata.Language),
             VoiceName = NullIfWhiteSpace(metadata.VoiceName),
             VoiceDeploymentName = NullIfWhiteSpace(metadata.VoiceDeploymentName),

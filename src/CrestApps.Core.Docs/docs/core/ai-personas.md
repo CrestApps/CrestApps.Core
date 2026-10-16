@@ -2,7 +2,7 @@
 sidebar_label: AI Personas
 sidebar_position: 5
 title: AI Personas
-description: Give AI profiles and chat interactions a reusable character, with its own instructions, name, greeting and voice, that is linked rather than copied.
+description: Give AI profiles and chat interactions a reusable character, with its own instructions, name and voice, that is linked rather than copied.
 ---
 
 # AI Personas
@@ -22,7 +22,6 @@ Persona templates store a `PersonaTemplateMetadata` in their properties:
 | --- | --- |
 | `Instructions` | The persona prompt, rendered as Liquid and placed at the top of the system message |
 | `AssistantName` | The name the assistant uses for itself; hosts may show it on assistant messages |
-| `Greeting` | An optional first assistant message, used when the profile has no welcome message of its own |
 | `Language` | A BCP-47 tag such as `en-US`, used as the speech language when the caller does not name one |
 | `VoiceName` | The provider-specific voice the persona speaks with |
 | `VoiceDeploymentName` | The deployment the voice was chosen from, so it is only used on a deployment of the same provider |
@@ -92,7 +91,6 @@ Description: Warm, patient and plain-spoken.
 Category: Personas
 Source: Persona
 AssistantName: Ava
-Greeting: Hi, I'm Ava. How can I help?
 Language: en-US
 ---
 

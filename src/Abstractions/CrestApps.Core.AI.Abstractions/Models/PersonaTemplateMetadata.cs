@@ -20,12 +20,6 @@ public sealed class PersonaTemplateMetadata
     public string AssistantName { get; set; }
 
     /// <summary>
-    /// Gets or sets an optional greeting used as the first assistant message when the profile has no
-    /// welcome message of its own.
-    /// </summary>
-    public string Greeting { get; set; }
-
-    /// <summary>
     /// Gets or sets the language the persona speaks, as a BCP-47 tag such as <c>en-US</c>. It is used as the
     /// speech language when the caller does not name one.
     /// </summary>
