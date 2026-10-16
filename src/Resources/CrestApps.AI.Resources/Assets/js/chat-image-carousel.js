@@ -5,7 +5,9 @@
  * line of their own, and each one renders at full thumbnail size: eight slides is eight thumbnails running down
  * the conversation. Here a run of two or more pictures with nothing but whitespace between them becomes a stack
  * of cards instead: the current picture in front, its neighbours fanned out behind it, moved through by swiping,
- * clicking a neighbour, the arrows, the dots or the arrow keys. A picture written mid-sentence keeps its place.
+ * clicking a neighbour, the arrows, the dots or the arrow keys. A single picture on a line of its own -- a
+ * one-page document, one sheet -- becomes a stack of one, so it gets the same caption and size control and the
+ * reader can make it smaller. A picture written mid-sentence keeps its place.
  *
  * It works on the sanitized HTML every chat surface already produces, so the surfaces share one implementation
  * without sharing a renderer, and the carousel is written in the same pass as the message -- there is no frame
@@ -56,9 +58,7 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || (function () 
             return html;
         }
 
-        const firstContainerIndex = html.indexOf(imageContainerClass);
-
-        if (firstContainerIndex < 0 || html.indexOf(imageContainerClass, firstContainerIndex + imageContainerClass.length) < 0) {
+        if (html.indexOf(imageContainerClass) < 0) {
             return html;
         }
 
@@ -102,7 +102,38 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || (function () 
 
         runs.push(run);
 
-        return runs.filter(candidate => candidate.length > 1);
+        return runs.filter(candidate => candidate.length > 1 || (candidate.length === 1 && isOnLineOfItsOwn(candidate[0])));
+    }
+
+
+    // A picture with nothing but whitespace between it and the start of its line, and between it and the end of
+    // its line. A preview tool writes its markers on a line of their own, often with the download on the next
+    // line of the same paragraph, so the end of a line counts as much as the end of the paragraph.
+    function isOnLineOfItsOwn(container) {
+        return isOnlySpaceTo(container, 'previousSibling') && isOnlySpaceTo(container, 'nextSibling');
+    }
+
+
+    function isOnlySpaceTo(container, direction) {
+        for (let sibling = container[direction]; sibling && sibling.nodeName !== 'BR'; sibling = sibling[direction]) {
+            if (sibling.nodeType !== Node.TEXT_NODE) {
+                return false;
+            }
+
+            // Only the part of the text on the picture's own line matters.
+            const lines = sibling.textContent.split('\n');
+            const sameLine = direction === 'previousSibling' ? lines[lines.length - 1] : lines[0];
+
+            if (sameLine.trim() !== '') {
+                return false;
+            }
+
+            if (lines.length > 1) {
+                return true;
+            }
+        }
+
+        return true;
     }
 
 
@@ -130,7 +161,7 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || (function () 
         carousel.tabIndex = 0;
         carousel.setAttribute('role', 'region');
         carousel.setAttribute('aria-roledescription', 'carousel');
-        carousel.setAttribute('aria-label', `${containers.length} images`);
+        carousel.setAttribute('aria-label', containers.length === 1 ? '1 image' : `${containers.length} images`);
         carousel.dataset.carouselKey = getCarouselKey(containers);
         carousel.dataset.carouselSize = getPreferredSize();
 
@@ -176,6 +207,8 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || (function () 
         controls.append(caption, createSizePicker(ownerDocument, carousel.dataset.carouselSize), navigation);
         carousel.append(stage, controls);
 
+        removeSeparatorsAfter(carousel);
+
         for (const paragraph of vacatedParagraphs) {
             if (paragraph.textContent.trim() === '' && !paragraph.querySelector(contentBetweenSelector)) {
                 paragraph.remove();
@@ -195,6 +228,21 @@ window.CoreAIChatImageCarousel = window.CoreAIChatImageCarousel || (function () 
             const previousSibling = sibling.previousSibling;
             sibling.remove();
             sibling = previousSibling;
+        }
+    }
+
+
+    // The line break that ended the last picture's line now follows a carousel that already ends its own line, and
+    // would leave a blank line between the carousel and whatever the answer says next -- often its download.
+    function removeSeparatorsAfter(carousel) {
+        let sibling = carousel.nextSibling;
+
+        while (sibling && sibling.nodeType === Node.TEXT_NODE && sibling.textContent.trim() === '') {
+            sibling = sibling.nextSibling;
+        }
+
+        if (sibling && sibling.nodeName === 'BR') {
+            sibling.remove();
         }
     }
 

@@ -73,7 +73,7 @@ Everything else the agent does answers a question *about* the data. The hidden `
 
 It is what lets a user check for themselves that the right worksheet was read and the header row was found where they expect it, rather than taking the answer's word for it. The agent calls it whenever the user asks to see, view or preview a table, once after the first question about a newly uploaded file, and — given a `sql` argument — to show what an export will contain before the file is created.
 
-The picture is written as SVG and served through the same authorized document download endpoint as any other generated file, so it needs no drawing library, no fonts on the host, and no extra registration. The tool returns one `[fig:N]` marker per table, which the chat surfaces replace with the picture.
+The picture is written as SVG and served through the same authorized document download endpoint as any other generated file, so it needs no drawing library, no fonts on the host, and no extra registration. The tool returns one `[fig:N]` marker per table, which the chat surfaces replace with the picture, and a `[doc:N]` download of the data it shows in the format of the uploaded file — see [Previews always come with the file](#previews-always-come-with-the-file).
 
 Previews are bounded on purpose and say what they left out — *"Showing 50 of 4,812 rows and 12 of 20 columns"* — because a grid large enough to hold everything is scaled down by the chat surface until none of it is readable. The limits are configurable:
 
@@ -160,8 +160,9 @@ has a tabular workspace keeps the number formats and colours the tabular preview
 
 `preview_pdf` shows pages in the chat as pictures. Like the tabular preview they are SVG — drawn from the
 page's own text, paths and images, so no rasterizer or fonts are needed on the host — stored through
-`IGeneratedDocumentService`, and returned as `[fig:N]` markers. A preview is bounded, says which pages it left
-out, and falls back to the pages' text on a host that cannot serve pictures. The preview format is
+`IGeneratedDocumentService`, and returned as `[fig:N]` markers together with a `[doc:N]` download of the PDF
+they show (see [Previews always come with the file](#previews-always-come-with-the-file)). A preview is bounded,
+says which pages it left out, and falls back to the pages' text on a host that cannot serve pictures. The preview format is
 resolvable but not requestable, so `generate_file` cannot produce one.
 
 #### Generated PDFs
@@ -278,8 +279,9 @@ slide's data comes from.
 `preview_presentation` shows slides in the chat as pictures. Each slide is drawn as SVG from a display list
 built by the same text layout the engine uses when it fits text into boxes, so a line that wraps in the
 preview wraps at the same word in PowerPoint and in the exported PDF. The pictures are stored through
-`IGeneratedDocumentService` and returned as `[fig:N]` markers, a preview is bounded and says which slides it
-left out, and on a host that cannot serve pictures the slides are described in text instead. Content the
+`IGeneratedDocumentService` and returned as `[fig:N]` markers together with a `[doc:N]` download of the
+`.pptx` (see [Previews always come with the file](#previews-always-come-with-the-file)), a preview is bounded
+and says which slides it left out, and on a host that cannot serve pictures the slides are described in text instead. Content the
 renderer cannot draw — SmartArt, 3D models, embedded objects, video frames — is shown as a labelled box, and
 `check_presentation` says which slides have it. The preview format is resolvable but not requestable, so
 `generate_file` cannot produce one.
@@ -409,7 +411,9 @@ number past the layout limit.
 pages — styles, lists, tables, pictures, charts, headers and footers, sections and columns — and draws each
 page as SVG; the same layout gives the table of contents and cross-references their page numbers. Text is
 measured with standard font metrics, so line and page breaks are close to Word's but not exact for every
-typeface. The pictures are stored through `IGeneratedDocumentService` and returned as `[fig:N]` markers;
+typeface. The pictures are stored through `IGeneratedDocumentService` and returned as `[fig:N]` markers,
+together with a `[doc:N]` download of the `.docx` (see
+[Previews always come with the file](#previews-always-come-with-the-file));
 every colour taken from a document is validated before it is drawn, and links only keep web, mail and
 in-document targets. On a host that cannot serve pictures the pages are described in text instead.
 
@@ -467,6 +471,25 @@ app.AddChatApiEndpoints()
 ```
 
 Generated downloads are kept separate from user-uploaded source documents, which helps hosts clean up conversation artifacts without touching knowledge uploads.
+
+### Previews always come with the file
+
+A reader who is shown a file is also given it. `preview_pdf`, `preview_word`, `preview_presentation` and
+`preview_tabular_data` each return a `[doc:N]` download of the file they show together with the `[fig:N]`
+pictures: the PDF, the `.docx`, the `.pptx`, or the previewed data in the format of the uploaded file (under the
+upload's name when the preview shows one upload or one of its tables). The model
+does not have to call the export tool as well.
+
+- **One file per version.** The download is kept for the turn by file and version. An export of the same version
+  later in the turn (`export_pdf`, `export_word` or `export_presentation` with the default name and format)
+  returns the same marker instead of writing a second copy, and a preview of a newer version replaces the copy
+  an earlier preview gave. A file the model exported on purpose, under another name or format, is kept.
+- **Shown even when the model leaves the marker out.** Every chat surface lists a generated download that the
+  answer does not cite under the answer, so the file reaches the reader either way.
+- **Only pictures count.** A preview written out as text — because the reader asked for text, or because the
+  host cannot serve pictures — gives no download.
+
+The pictures themselves are shown as a [stacked carousel](./chat.md#stacked-image-carousel).
 
 ## File Types
 

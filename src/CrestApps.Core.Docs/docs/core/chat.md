@@ -773,7 +773,7 @@ This is the mechanism `[doc:n]` citations already use — a reference registered
 
 ### Stacked Image Carousel
 
-When a response shows two or more pictures one after another — slide previews, spreadsheet previews, before/after comparisons, or any run of images separated only by whitespace — the chat UI stacks them into a single carousel instead of rendering each one at full size. The current picture sits in front with its neighbours fanned out behind it; the reader moves between them by swiping, clicking a picture behind, using the arrows or dots, or pressing the arrow keys while the carousel has focus. An S / M / L control beside the caption lets the reader pick small, medium or large previews; the choice applies to every carousel on the page and is remembered in the browser. A picture written mid-sentence keeps its place in the text.
+When a response shows two or more pictures one after another — slide previews, spreadsheet previews, before/after comparisons, or any run of images separated only by whitespace — the chat UI stacks them into a single carousel instead of rendering each one at full size. A single picture on a line of its own, such as the preview of a one-page document or one sheet, is shown the same way as a stack of one: it gets the caption (`1 / 1 · report.pdf — page 1 of 1`) and the size control, without the pager. The current picture sits in front with its neighbours fanned out behind it; the reader moves between them by swiping, clicking a picture behind, using the arrows or dots, or pressing the arrow keys while the carousel has focus. An S / M / L control beside the caption lets the reader pick small, medium or large previews; the choice applies to every carousel on the page and is remembered in the browser. A picture written mid-sentence keeps its place in the text.
 
 The carousel is shared by every chat surface (AI Chat sessions, Chat Interactions and the chat widget) and is optional. Load `chat-image-carousel.js` and `chat-image-carousel.css` alongside the chat scripts to enable it; without them, pictures render as before.
 
@@ -801,7 +801,7 @@ messageElement.innerHTML = window.CoreAIChatImageCarousel
     : html;
 ```
 
-`stackAdjacentImages` returns the input string unchanged when it finds no run of two or more pictures. Swiping, clicking, keyboard navigation and the S / M / L size picker are wired once on the document, so carousels inserted later — including on every chunk of a streamed response — work without further setup.
+`stackAdjacentImages` returns the input string unchanged when it finds no run of two or more pictures and no picture on a line of its own. Swiping, clicking, keyboard navigation and the S / M / L size picker are wired once on the document, so carousels inserted later — including on every chunk of a streamed response — work without further setup.
 
 ## Client-Side Assets
 

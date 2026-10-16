@@ -75,7 +75,7 @@ public sealed class PreviewTabularDataTool : AIFunction
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Shows the user what the tabular data looks like, as a picture of a spreadsheet with its header row, lettered columns and numbered rows. Call this whenever the user asks to see, view, preview, or 'show me' an uploaded or exported table, and once after loading a file so they can confirm the right data was read. The preview is truncated to the first rows and columns so it stays readable, and says what it left out. It reflects the current in-memory data, including every change applied with execute_tabular_command. Returns one [fig:N] marker per previewed table that MUST be included exactly as-is in your response so the picture is drawn; never write the file name in brackets or invent your own link. This is not a download: use export_tabular_data when the user wants the file itself.";
+    public override string Description => "Shows the user what the tabular data looks like, as a picture of a spreadsheet with its header row, lettered columns and numbered rows. Call this whenever the user asks to see, view, preview, or 'show me' an uploaded or exported table, and once after loading a file so they can confirm the right data was read. The preview is truncated to the first rows and columns so it stays readable, and says what it left out. It reflects the current in-memory data, including every change applied with execute_tabular_command. Returns one [fig:N] marker per previewed table that MUST be included exactly as-is in your response so the picture is drawn; never write the file name in brackets or invent your own link. The data shown is also given as a download in the format of the uploaded file, and its [doc:N] marker MUST be included too; use export_tabular_data for another format or another shape of the data.";
 
     /// <summary>
     /// Gets the json Schema.
@@ -92,7 +92,7 @@ public sealed class PreviewTabularDataTool : AIFunction
         };
 
     /// <summary>
-    /// Invokes core.
+    /// Draws the preview and gives the data it shows as a download.
     /// </summary>
     /// <param name="arguments">The arguments.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -100,11 +100,134 @@ public sealed class PreviewTabularDataTool : AIFunction
         AIFunctionArguments arguments,
         CancellationToken cancellationToken)
     {
+        // The download is written after the preview has closed its workspace, because the export opens one of
+        // its own over the same database.
+        var response = await PreviewAsync(arguments, cancellationToken);
+
+        return await OfferDownloadAsync(arguments, response, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gives the data a preview showed as a download, so the reader who is shown a file can also take it.
+    /// </summary>
+    /// <param name="arguments">The preview's arguments.</param>
+    /// <param name="response">The preview's answer.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The answer, with the download marker added when one was given.</returns>
+    private static async Task<string> OfferDownloadAsync(
+        AIFunctionArguments arguments,
+        string response,
+        CancellationToken cancellationToken)
+    {
+        var invocationContext = AIInvocationScope.Current;
+
+        if (invocationContext is null || string.IsNullOrEmpty(response))
+        {
+            return response;
+        }
+
+        // Only a preview drawn as pictures shows the reader a file. The markers it wrote are also what tells one
+        // preview from another: data that changed is drawn again under new markers, and is a new download.
+        var shown = invocationContext.ToolReferences
+            .Where(entry => entry.Value.IsImage && response.Contains(entry.Key, StringComparison.Ordinal))
+            .Select(entry => entry.Key)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        if (shown.Count == 0)
+        {
+            return response;
+        }
+
+        arguments.TryGetFirstString("table_name", out var tableName);
+        arguments.TryGetFirstString("sql", out var sql);
+
+        // The export is asked for exactly what the preview showed: one table, the query's result, or every
+        // loaded table, in the format of the uploaded file.
+        var exportSql = !string.IsNullOrWhiteSpace(tableName)
+            ? $"SELECT * FROM \"{tableName.Replace("\"", "\"\"", StringComparison.Ordinal)}\""
+            : sql;
+        var marker = await PreviewDownloads.OfferAsync(
+            string.Join('|', TheName, tableName ?? string.Empty, exportSql ?? string.Empty),
+            string.Join(',', shown),
+            async () =>
+            {
+                var exportArguments = new AIFunctionArguments
+                {
+                    Services = arguments.Services,
+                };
+
+                if (!string.IsNullOrWhiteSpace(exportSql))
+                {
+                    exportArguments["sql"] = exportSql;
+                }
+
+                // What was shown is the data of the one upload — all of it, or one of its tables — so the reader
+                // gets it back under the upload's name rather than a generic one. A query's result is data of the
+                // model's making and keeps the export's own name. The extension is left off so the export keeps
+                // the upload's format.
+                if ((string.IsNullOrWhiteSpace(exportSql) || !string.IsNullOrWhiteSpace(tableName)) &&
+                    await ResolveSingleUploadNameAsync(arguments.Services, cancellationToken) is { } uploadName)
+                {
+                    exportArguments["file_name"] = uploadName;
+                }
+
+                var exportResponse = await new ExportTabularDataTool().InvokeAsync(exportArguments, cancellationToken) as string;
+
+                // The export says what went wrong in words, and registers a download only when it wrote one.
+                return string.IsNullOrEmpty(exportResponse)
+                    ? null
+                    : invocationContext.ToolReferences
+                        .Where(entry => entry.Value.IsGenerated && exportResponse.Contains(entry.Key, StringComparison.Ordinal))
+                        .Select(entry => entry.Key)
+                        .FirstOrDefault();
+            });
+
+        if (string.IsNullOrEmpty(marker))
+        {
+            return response;
+        }
+
+        var fileName = invocationContext.ToolReferences.TryGetValue(marker, out var reference) ? reference.Title : null;
+
+        return response + Environment.NewLine + Environment.NewLine + PreviewDownloads.Instructions(marker, fileName ?? "the data");
+    }
+
+    /// <summary>
+    /// Gets the name, without its extension, of the one tabular file attached to the conversation.
+    /// </summary>
+    /// <param name="services">The services.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The name, or <see langword="null"/> when there is not exactly one tabular file.</returns>
+    private static async Task<string> ResolveSingleUploadNameAsync(IServiceProvider services, CancellationToken cancellationToken)
+    {
+        var context = await TabularToolContext.ResolveAsync(services, cancellationToken);
+
+        if (context?.Documents is not { Count: 1 } documents)
+        {
+            return null;
+        }
+
+        var name = Path.GetFileNameWithoutExtension(documents[0].FileName ?? string.Empty);
+
+        return string.IsNullOrWhiteSpace(name) ? null : name;
+    }
+
+    /// <summary>
+    /// Draws the data as pictures, or writes it as a table when pictures cannot be shown or were not asked for.
+    /// </summary>
+    /// <param name="arguments">The arguments.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The tool response.</returns>
+    private static async Task<string> PreviewAsync(
+        AIFunctionArguments arguments,
+        CancellationToken cancellationToken)
+    {
         var logger = arguments.Services.GetRequiredService<ILogger<PreviewTabularDataTool>>();
 
         if (logger.IsEnabled(LogLevel.Debug))
         {
-            logger.LogDebug("AI tool '{ToolName}' invoked.", Name);
+            logger.LogDebug("AI tool '{ToolName}' invoked.", TheName);
         }
 
         arguments.TryGetFirstString("table_name", out var tableName);
@@ -139,7 +262,7 @@ public sealed class PreviewTabularDataTool : AIFunction
 
             if (logger.IsEnabled(LogLevel.Debug))
             {
-                logger.LogDebug("AI tool '{ToolName}' returned a cached preview for this turn.", Name);
+                logger.LogDebug("AI tool '{ToolName}' returned a cached preview for this turn.", TheName);
             }
 
             return cachedResponse;
@@ -195,7 +318,7 @@ public sealed class PreviewTabularDataTool : AIFunction
         {
             if (logger.IsEnabled(LogLevel.Debug))
             {
-                logger.LogDebug(ex, "Tabular preview failed for tool '{ToolName}'.", Name);
+                logger.LogDebug(ex, "Tabular preview failed for tool '{ToolName}'.", TheName);
             }
 
             return $"The preview query could not be executed: {ex.Message}";
@@ -211,7 +334,7 @@ public sealed class PreviewTabularDataTool : AIFunction
         {
             logger.LogDebug(
                 "AI tool '{ToolName}' completed. Grids={GridCount}, Format={Format}, MutationVersion={MutationVersion}.",
-                Name,
+                TheName,
                 grids.Count,
                 asTable ? TableFormat : ImageFormat,
                 workspace.MutationVersion);

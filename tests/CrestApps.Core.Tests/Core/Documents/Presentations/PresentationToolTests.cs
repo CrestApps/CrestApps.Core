@@ -80,6 +80,39 @@ public sealed partial class PresentationToolTests
     }
 
     /// <summary>
+    /// A reader shown slides is given the deck as well, and an export of the same revision in the same turn
+    /// hands back that download rather than a second copy.
+    /// </summary>
+    [Fact]
+    public async Task PreviewPresentation_GivesTheDeckItShows_AndTheExportReusesIt()
+    {
+        using var host = new PresentationToolTestHost();
+
+        await host.UploadAsync("launch.pptx", await CreateDeckAsync(host, "Launch plan", ["Why now", "The plan"]));
+
+        var preview = await host.InvokeAsync(PresentationToolNames.PreviewPresentation, new { slides = 1 });
+
+        Assert.Contains("[fig:1]", preview, StringComparison.Ordinal);
+        Assert.Contains("[doc:1]", preview, StringComparison.Ordinal);
+
+        var (document, bytes) = await host.ReadMarkerAsync("[doc:1]");
+        var model = await host.Engine.ReadAsync(bytes, PresentationReadOptions.TextOnly, TestContext.Current.CancellationToken);
+
+        Assert.EndsWith(".pptx", document.FileName, StringComparison.Ordinal);
+        Assert.Contains(model.Slides, slide => slide.Title == "The plan");
+
+        var exported = await host.InvokeAsync(PresentationToolNames.ExportPresentation, new { });
+
+        Assert.Contains("[doc:1]", exported, StringComparison.Ordinal);
+        Assert.DoesNotContain("[doc:2]", exported, StringComparison.Ordinal);
+
+        // A PDF is another file, so it is written as its own download.
+        var pdf = await host.InvokeAsync(PresentationToolNames.ExportPresentation, new { format = "pdf" });
+
+        Assert.DoesNotContain("[doc:1]", pdf, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Changes made in one call are there in the next, in the preview and in the exported file, while the
     /// upload itself is never changed.
     /// </summary>

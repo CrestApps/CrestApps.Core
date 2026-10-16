@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Presentations;
 using CrestApps.Core.AI.Documents.Presentations.Models;
 using CrestApps.Core.AI.Documents.Presentations.Rendering;
@@ -33,7 +34,7 @@ internal sealed class PreviewPresentationTool : PresentationToolBase
     public PreviewPresentationTool()
         : base(
             TheName,
-            "Shows slides to the user as pictures, drawn from the presentation as it is now, including every change made in this conversation. Call it after creating or changing slides so the user sees the result, and whenever they ask to see the deck. Returns [fig:N] markers that MUST be written in your answer exactly as given, or the user sees nothing. Shows up to 8 slides per call; name the slides that changed rather than the whole deck. This is not a download: use export_presentation for the file.",
+            "Shows slides to the user as pictures, drawn from the presentation as it is now, including every change made in this conversation. Call it after creating or changing slides so the user sees the result, and whenever they ask to see the deck. Returns [fig:N] markers that MUST be written in your answer exactly as given, or the user sees nothing. Shows up to 8 slides per call; name the slides that changed rather than the whole deck. It also returns a [doc:N] download marker for the PowerPoint file shown that MUST be written too; use export_presentation for a PDF or another file name.",
             PresentationSchemas.Expand("""
             {
               "type": "object",
@@ -127,6 +128,17 @@ internal sealed class PreviewPresentationTool : PresentationToolBase
             response.AppendLine().AppendLine().Append("Only ").Append(options.MaxSlides.ToString(CultureInfo.InvariantCulture))
                 .Append(" slides are shown per call; slides ").Append(PresentationDescriber.Range(omitted))
                 .Append(" were not. Tell the user, and preview them with slides \"").Append(PresentationDescriber.Range(omitted)).Append("\" if they want to see them.");
+        }
+
+        // The reader is shown the slides of a file, so the file itself is given with them.
+        var download = await PreviewDownloads.OfferAsync(
+            ExportPresentationTool.DownloadKey(deck),
+            ExportPresentationTool.DownloadVersion(deck),
+            () => ExportPresentationTool.ExportPowerPointAsync(call, deck, cancellationToken));
+
+        if (!string.IsNullOrEmpty(download))
+        {
+            response.AppendLine().AppendLine().Append(PreviewDownloads.Instructions(download, ExportPresentationTool.DefaultFileName(deck)));
         }
 
         var text = response.ToString();

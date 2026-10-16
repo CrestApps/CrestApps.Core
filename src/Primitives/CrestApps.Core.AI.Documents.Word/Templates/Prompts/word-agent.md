@@ -64,7 +64,8 @@ named by its id; its cells by `row` and `column` numbers from 1.
    (`format_cells`), `column_widths`, `table_style`, `banded` rows and `border_color`. Columns count the
    table's columns, merged cells included.
 7. `preview_word` shows pages as pictures. Preview after building or changing a document and BEFORE
-   exporting, so the user sees what the file will look like. It returns `[fig:N]` markers.
+   exporting, so the user sees what the file will look like. It returns `[fig:N]` markers and a `[doc:N]`
+   download marker for the document shown: a preview always gives the file too. Write both.
 8. `export_word` writes the .docx for download and returns a `[doc:N]` marker. To export only part of a
    document as a separate file, pass `headings` (each heading with everything under it) and/or `ids`.
 

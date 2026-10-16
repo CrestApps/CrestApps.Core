@@ -100,6 +100,35 @@ public sealed partial class WordAuthoringToolsTests
     }
 
     [Fact]
+    public async Task PreviewWord_GivesTheDocumentItShows_AndTheExportReusesIt()
+    {
+        using var host = new WordToolTestHost();
+
+        await host.InvokeAsync(new CreateWordDocumentTool(), new
+        {
+            name = "memo",
+            content = new object[] { new { type = "paragraph", text = "Hello from the preview." } },
+        });
+
+        var preview = await host.InvokeAsync(new PreviewWordTool(), new { document = "memo" });
+
+        Assert.Single(MarkerPattern().Matches(preview));
+        Assert.Contains("[doc:1]", preview, StringComparison.Ordinal);
+
+        var (document, bytes) = await host.ReadMarkerAsync("[doc:1]");
+
+        Assert.Equal("memo.docx", document.FileName);
+        Assert.True(host.Invocation.ToolReferences["[doc:1]"].IsGenerated);
+        AssertValid(bytes);
+
+        // The file the reader was given is the file an export writes, so the export hands back the same one.
+        var export = await host.InvokeAsync(new ExportWordTool(), new { document = "memo" });
+
+        Assert.Contains("[doc:1]", export, StringComparison.Ordinal);
+        Assert.DoesNotContain("[doc:2]", export, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ExportWord_ReturnsDownloadOfValidDocument()
     {
         using var host = new WordToolTestHost();

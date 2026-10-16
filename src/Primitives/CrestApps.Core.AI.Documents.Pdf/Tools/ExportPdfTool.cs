@@ -1,4 +1,5 @@
 using System.Globalization;
+using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
 using CrestApps.Core.AI.Orchestration;
 
@@ -56,7 +57,15 @@ internal sealed class ExportPdfTool : PdfToolBase
     {
         var source = await context.FindPdfAsync(arguments.Pdf(), cancellationToken);
         var fileName = PdfToolContext.SanitizeName(arguments.GetString("file_name") ?? source.Name) + ".pdf";
-        var key = string.Join('|', source.Name, source.Working?.Version.ToString(CultureInfo.InvariantCulture) ?? source.Upload?.ItemId, fileName);
+        var key = string.Join('|', source.Name, DownloadVersion(source), fileName);
+        var isDefaultFile = string.Equals(fileName, DefaultFileName(source), StringComparison.OrdinalIgnoreCase);
+
+        // A preview in this turn already gave this version of the file as a download; a second copy of the same
+        // file would only make the reader wonder which one to take.
+        if (isDefaultFile && PreviewDownloads.TryGet(DownloadKey(source), DownloadVersion(source), out var offered))
+        {
+            return $"This version of \"{source.Name}\" was already given as a download in this turn. Return the same marker exactly as given: {offered}";
+        }
 
         if (AIInvocationScope.Current?.Items.TryGetValue(CacheKey, out var value) == true &&
             value is Dictionary<string, string> cache &&
@@ -86,6 +95,11 @@ internal sealed class ExportPdfTool : PdfToolBase
             markers[key] = marker;
         }
 
+        if (isDefaultFile)
+        {
+            PreviewDownloads.Record(DownloadKey(source), DownloadVersion(source), marker);
+        }
+
         var pages = PdfFiles.CountPages(bytes);
         var note = source.IsUpload
             ? " This is the uploaded file unchanged; nothing has been edited."
@@ -94,5 +108,35 @@ internal sealed class ExportPdfTool : PdfToolBase
         return string.Create(
             CultureInfo.InvariantCulture,
             $"Created the download \"{fileName}\" ({pages} page(s), {bytes.Length / 1024.0:N0} KB) from {source.Describe()}.{note} Return this marker in your answer exactly as given: {marker}");
+    }
+
+    /// <summary>
+    /// Gets the file name a PDF is downloaded under when no other name is asked for.
+    /// </summary>
+    /// <param name="source">The PDF.</param>
+    /// <returns>The file name.</returns>
+    internal static string DefaultFileName(PdfSource source)
+    {
+        return PdfToolContext.SanitizeName(source.Name) + ".pdf";
+    }
+
+    /// <summary>
+    /// Gets what identifies a PDF among the downloads given in a turn.
+    /// </summary>
+    /// <param name="source">The PDF.</param>
+    /// <returns>The key.</returns>
+    internal static string DownloadKey(PdfSource source)
+    {
+        return "pdf|" + source.Name;
+    }
+
+    /// <summary>
+    /// Gets what identifies the version of a PDF that is downloaded.
+    /// </summary>
+    /// <param name="source">The PDF.</param>
+    /// <returns>The working copy's version, or the upload's identifier.</returns>
+    internal static string DownloadVersion(PdfSource source)
+    {
+        return source.Working?.Version.ToString(CultureInfo.InvariantCulture) ?? source.Upload?.ItemId;
     }
 }
