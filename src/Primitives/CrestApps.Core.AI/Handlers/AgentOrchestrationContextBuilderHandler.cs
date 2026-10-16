@@ -65,7 +65,8 @@ internal sealed class AgentOrchestrationContextBuilderHandler : IOrchestrationCo
             return;
         }
 
-        var availableAgents = new List<AgentInfo>();
+        // Each agent is a dictionary because the template engine denies member access on types it does not know.
+        var availableAgents = new List<Dictionary<string, object>>();
         foreach (var agent in agents)
         {
             if (string.IsNullOrEmpty(agent.Name) || string.IsNullOrEmpty(agent.Description))
@@ -77,7 +78,11 @@ internal sealed class AgentOrchestrationContextBuilderHandler : IOrchestrationCo
                 && agentMetadata.Availability == AgentAvailability.AlwaysAvailable;
             if (isAlwaysAvailable || (requestedAgentNames is { Length: > 0 } && requestedAgentNames.Contains(agent.Name, StringComparer.OrdinalIgnoreCase)))
             {
-                availableAgents.Add(new AgentInfo { Name = agent.Name, Description = agent.Description, });
+                availableAgents.Add(new Dictionary<string, object>
+                {
+                    ["Name"] = agent.Name,
+                    ["Description"] = agent.Description,
+                });
             }
         }
 
@@ -97,11 +102,5 @@ internal sealed class AgentOrchestrationContextBuilderHandler : IOrchestrationCo
             context.OrchestrationContext.SystemMessageBuilder.AppendLine();
             context.OrchestrationContext.SystemMessageBuilder.Append(header);
         }
-    }
-
-    private sealed class AgentInfo
-    {
-        public string Name { get; set; }
-        public string Description { get; set; }
     }
 }
