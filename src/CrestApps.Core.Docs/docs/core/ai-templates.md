@@ -40,6 +40,12 @@ Hard-coding system prompts in C# makes them difficult to maintain, localize, and
 | `OptionsTemplateProvider` | — | Singleton | Templates registered via code |
 | `FileSystemTemplateProvider` | — | Singleton | Generic templates discovered directly from `Templates/` |
 | `PromptsFileSystemTemplateProvider` | — | Singleton | System prompt templates discovered from `Templates/Prompts/` |
+| `AIProfileSystemPromptTemplateProvider` | — | Scoped | `SystemPrompt` AI profile templates from the AI profile template store, identified by name |
+
+`AIProfileSystemPromptTemplateProvider` exposes each `SystemPrompt` AI profile template under its name, so a
+prompt selection on an AI profile or chat interaction can store the name. The earlier identifiers,
+`ai-profile:` followed by the item id or the name, are kept as aliases. When no AI profile template store is
+registered, the provider returns no templates.
 
 ## Key Interfaces
 
@@ -447,3 +453,28 @@ builder.Services.AddSingleton<ITemplateProvider, DatabaseAITemplateProvider>();
 :::info
 All registered `ITemplateProvider` instances are queried by `ITemplateService`. Templates from multiple providers are merged into a single collection. If two providers return templates with the same `Id`, the first discovered template wins and later duplicates are ignored.
 :::
+
+### Templates that change while the application runs
+
+When users can add or edit the templates a provider returns, implement `IDynamicTemplateProvider` instead of
+`ITemplateProvider`. It adds no members; it tells the template service how to treat the provider:
+
+- `DefaultTemplateService` reads every other provider first, so a dynamic template never replaces a template
+  with the same `Id` that the application ships with.
+- A template service that caches templates for longer than a scope overrides `GetStaticTemplatesAsync` and
+  caches only what it returns. Dynamic providers are read again in every scope, so an edit applies to the
+  next request.
+
+```csharp
+public sealed class DatabaseAITemplateProvider(
+    ISession session,
+    ITemplateParser parser) : IDynamicTemplateProvider
+{
+    // Same GetTemplatesAsync as above.
+}
+
+builder.Services.AddScoped<ITemplateProvider, DatabaseAITemplateProvider>();
+```
+
+A template can also list `Aliases`, identifiers it was stored under before. `ITemplateService.GetAsync` and
+`RenderAsync` match an `Id` first and an alias second.

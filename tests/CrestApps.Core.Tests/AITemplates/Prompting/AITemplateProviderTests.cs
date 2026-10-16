@@ -2,7 +2,7 @@ using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
-using CrestApps.Core.Startup.Shared.Services;
+using CrestApps.Core.Services;
 using CrestApps.Core.Templates;
 using CrestApps.Core.Templates.Models;
 using CrestApps.Core.Templates.Parsing;
@@ -595,38 +595,135 @@ public sealed class RuntimeEmbeddedPromptRegistrationTests
 public sealed class AIProfileSystemPromptTemplateProviderTests
 {
     [Fact]
-    public async Task GetTemplatesAsync_ExposesListableSystemPromptTemplatesFromTemplateManager()
+    public async Task GetTemplatesAsync_ExposesSystemPromptTemplatesByNameWithEarlierIdsAsAliases()
     {
-        var dbTemplate = new CrestApps.Core.AI.Models.AIProfileTemplate
-        {
-            ItemId = "db-template-1",
-            Name = "DbTemplate",
-            DisplayText = "DB Template",
-            Description = "Stored in the catalog",
-            Category = "Database",
-            IsListable = true,
-            Source = CrestApps.Core.AI.AITemplateSources.SystemPrompt,
-        };
-        dbTemplate.Put(new CrestApps.Core.AI.Models.SystemPromptTemplateMetadata
-        {
-            SystemMessage = "You are a database-backed template.",
-        });
+        var dbTemplate = CreateTemplate("db-template-1", "DbTemplate", "You are a database-backed template.");
+        dbTemplate.DisplayText = "DB Template";
+        dbTemplate.Description = "Stored in the catalog";
+        dbTemplate.Category = "Database";
 
-        var templateManager = new Mock<CrestApps.Core.AI.Profiles.IAIProfileTemplateManager>();
-        templateManager.Setup(x => x.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync([dbTemplate]);
+        var profileTemplate = CreateTemplate("profile-1", "ProfileTemplate", null);
+        profileTemplate.Source = CrestApps.Core.AI.AITemplateSources.Profile;
 
-        var provider = new AIProfileSystemPromptTemplateProvider(templateManager.Object);
+        await using var serviceProvider = CreateServiceProvider([dbTemplate, profileTemplate]);
+        await using var scope = serviceProvider.CreateAsyncScope();
+
+        var provider = new AIProfileSystemPromptTemplateProvider(scope.ServiceProvider);
 
         var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
 
         var template = Assert.Single(templates);
-        Assert.Equal("ai-profile:db-template-1", template.Id);
+        Assert.Equal("DbTemplate", template.Id);
+        Assert.Equal(["ai-profile:db-template-1", "ai-profile:DbTemplate"], template.Aliases);
         Assert.Equal(CrestApps.Core.AI.AITemplateSources.SystemPrompt, template.Kind);
-        Assert.Equal("AIProfileTemplate", template.Source);
+        Assert.Equal(AIProfileSystemPromptTemplateProvider.ProviderSource, template.Source);
         Assert.Equal("DB Template", template.Metadata.Title);
         Assert.Equal("Stored in the catalog", template.Metadata.Description);
         Assert.Equal("Database", template.Metadata.Category);
         Assert.True(template.Metadata.IsListable);
         Assert.Equal("You are a database-backed template.", template.Content);
+    }
+
+    [Fact]
+    public async Task GetTemplatesAsync_TemplateWithoutSystemMessage_ExposesEmptyContent()
+    {
+        await using var serviceProvider = CreateServiceProvider([CreateTemplate("empty-1", "EmptyTemplate", null)]);
+        await using var scope = serviceProvider.CreateAsyncScope();
+
+        var provider = new AIProfileSystemPromptTemplateProvider(scope.ServiceProvider);
+
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
+
+        var template = Assert.Single(templates);
+        Assert.Equal(string.Empty, template.Content);
+    }
+
+    [Fact]
+    public async Task GetTemplatesAsync_NoTemplateStore_ReturnsNoTemplates()
+    {
+        await using var serviceProvider = new ServiceCollection().BuildServiceProvider();
+
+        var provider = new AIProfileSystemPromptTemplateProvider(serviceProvider);
+
+        var templates = await provider.GetTemplatesAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(templates);
+    }
+
+    [Fact]
+    public async Task AddCoreAITemplating_SavedTemplate_RendersByNameAndEarlierIdAndPicksUpEdits()
+    {
+        var dbTemplate = CreateTemplate("db-template-1", "SupportTone", "Answer as {{ brand }} support.");
+        var arguments = new Dictionary<string, object> { ["brand"] = "Contoso" };
+
+        await using var serviceProvider = CreateServiceProvider([dbTemplate]);
+
+        string byName;
+        string byEarlierId;
+
+        await using (var scope = serviceProvider.CreateAsyncScope())
+        {
+            var templateService = scope.ServiceProvider.GetRequiredService<ITemplateService>();
+
+            byName = await templateService.RenderAsync("SupportTone", arguments, TestContext.Current.CancellationToken);
+            byEarlierId = await templateService.RenderAsync("ai-profile:db-template-1", arguments, TestContext.Current.CancellationToken);
+        }
+
+        dbTemplate.Put(new CrestApps.Core.AI.Models.SystemPromptTemplateMetadata
+        {
+            SystemMessage = "Answer as {{ brand }} support, in a friendly tone.",
+        });
+
+        string edited;
+
+        await using (var scope = serviceProvider.CreateAsyncScope())
+        {
+            var templateService = scope.ServiceProvider.GetRequiredService<ITemplateService>();
+
+            edited = await templateService.RenderAsync("SupportTone", arguments, TestContext.Current.CancellationToken);
+        }
+
+        Assert.Equal("Answer as Contoso support.", byName);
+        Assert.Equal("Answer as Contoso support.", byEarlierId);
+        Assert.Equal("Answer as Contoso support, in a friendly tone.", edited);
+    }
+
+    private static ServiceProvider CreateServiceProvider(CrestApps.Core.AI.Models.AIProfileTemplate[] templates)
+    {
+        var services = new ServiceCollection();
+
+        var catalog = new Mock<INamedSourceCatalog<CrestApps.Core.AI.Models.AIProfileTemplate>>();
+        var templateManager = new Mock<CrestApps.Core.AI.Profiles.IAIProfileTemplateManager>();
+        templateManager
+            .Setup(x => x.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(templates);
+
+        services.AddLogging();
+        services.AddScoped(_ => catalog.Object);
+        services.AddScoped(_ => templateManager.Object);
+        services.AddCoreAITemplating();
+
+        return services.BuildServiceProvider(validateScopes: true);
+    }
+
+    private static CrestApps.Core.AI.Models.AIProfileTemplate CreateTemplate(string itemId, string name, string systemMessage)
+    {
+        var template = new CrestApps.Core.AI.Models.AIProfileTemplate
+        {
+            ItemId = itemId,
+            Name = name,
+            IsListable = true,
+            Source = CrestApps.Core.AI.AITemplateSources.SystemPrompt,
+        };
+
+        if (systemMessage is not null)
+        {
+            template.Put(new CrestApps.Core.AI.Models.SystemPromptTemplateMetadata
+            {
+                SystemMessage = systemMessage,
+            });
+        }
+
+        return template;
     }
 }

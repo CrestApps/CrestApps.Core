@@ -94,7 +94,6 @@ internal static class YesSqlServiceCollectionExtensions
             .AddYesSqlDocumentCatalog<Article, ArticleIndex>()
             .AddScoped<ICatalogEntryHandler<Article>, ArticleHandler>()
             .AddSharedArticleServices()
-            .AddSharedTemplateProviders()
             .AddKeyedScoped<IAIReferenceLinkResolver, ArticleAIReferenceLinkResolver>(IndexProfileTypes.Articles)
             .AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>()
             .AddScoped<ICopilotCredentialStore, JsonFileCopilotCredentialStore>();
