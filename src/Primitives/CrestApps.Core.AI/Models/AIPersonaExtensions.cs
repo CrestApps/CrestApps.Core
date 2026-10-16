@@ -57,4 +57,28 @@ public static class AIPersonaExtensions
             ? nameLine + "\n" + persona.Instructions
             : nameLine;
     }
+
+    /// <summary>
+    /// Maps a persona to what a chat surface shows on assistant messages: the assistant name and avatar.
+    /// </summary>
+    /// <param name="persona">The resolved persona, or <see langword="null"/> when there is none.</param>
+    /// <returns>The display values; <see cref="AIChatAssistantDisplay.Default"/> when there is no persona.</returns>
+    public static AIChatAssistantDisplay ToChatAssistantDisplay(this AIPersona persona)
+    {
+        if (persona is null)
+        {
+            return AIChatAssistantDisplay.Default;
+        }
+
+        return new AIChatAssistantDisplay
+        {
+            AssistantName = NullIfWhiteSpace(persona.AssistantName),
+            AvatarUrl = NullIfWhiteSpace(persona.AvatarUrl),
+        };
+    }
+
+    private static string NullIfWhiteSpace(string value)
+        => string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Trim();
 }

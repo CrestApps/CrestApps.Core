@@ -3,11 +3,13 @@
 @using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.AI.Deployments
 @using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Profiles
 @using Microsoft.Extensions.Options
 @model CrestApps.Core.AI.Models.AIProfile
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject CrestApps.Core.Startup.Shared.Services.SiteSettingsStore SiteSettings
 @inject CrestApps.Core.AI.Deployments.IAIDeploymentManager DeploymentManager
+@inject IAIPersonaResolver PersonaResolver
 @{
     var session = ViewData["Session"] as AIChatSession;
     var prompts = ViewData["Prompts"] as IReadOnlyList<AIChatSessionPrompt>;
@@ -31,6 +33,8 @@
     object[] messages = promptMessages.Length == 0 && !string.IsNullOrWhiteSpace(initialPrompt)
         ? [new { role = "assistant", content = initialPrompt, id = (string)null, title = Model.PromptSubject, references = (IDictionary<string, AICompletionReference>)null }]
         : promptMessages;
+    // The linked persona names the assistant and gives it an avatar.
+    var assistantDisplay = await PersonaResolver.ResolveChatAssistantDisplayAsync(Model);
     var placeholderMessage = !string.IsNullOrWhiteSpace(Model.WelcomeMessage)
         ? Model.WelcomeMessage
         : "What do you want to know?";
@@ -229,7 +233,8 @@
      data-coreai-chat-allowed-extensions="@supportedExtensionsAccept"
      data-coreai-chat-supported-extensions-text="@supportedExtensionsDisplay"
      data-coreai-chat-user-label="You"
-     data-coreai-chat-assistant-label="Assistant">
+     data-coreai-chat-assistant-label="@assistantDisplay.GetAssistantLabel("Assistant")"
+     data-coreai-chat-assistant-avatar-url="@assistantDisplay.AvatarUrl">
     <div class="d-flex justify-content-between align-items-center mb-3 flex-shrink-0">
         <h2><i class="fa-solid fa-comment-dots"></i> @(Model.DisplayText ?? Model.Name)</h2>
         <a asp-area="AI" asp-controller="AIProfile" asp-action="Index" class="btn btn-outline-secondary">

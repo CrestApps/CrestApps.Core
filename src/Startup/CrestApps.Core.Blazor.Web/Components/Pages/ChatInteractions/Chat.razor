@@ -42,6 +42,7 @@
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject IAIDocumentStore DocumentStore
 @inject IAIDeploymentManager DeploymentManager
+@inject IAIPersonaResolver PersonaResolver
 @inject IAIDeploymentCapabilityService CapabilityService
 @inject IServiceProvider ServiceProvider
 
@@ -811,6 +812,9 @@ else
             downloadDocumentBaseUrl = "/ai/documents/",
         });
 
+        // The linked persona names the assistant and gives it an avatar.
+        var assistantDisplay = await PersonaResolver.ResolveChatAssistantDisplayAsync(interaction);
+
         _chatInteractionConfigJson = JsonSerializer.Serialize(new
         {
             signalRHubUrl = "/hubs/chat-interaction",
@@ -837,6 +841,8 @@ else
             realtimeVoiceSelectElementSelector = "#chat-setting-realtimeVoice",
             realtimeVoiceGroupElementSelector = "#chat-setting-realtimeVoice-group",
             realtimeVoicesUrl = "/api/chat/realtime-voices",
+            assistantLabel = assistantDisplay.GetAssistantLabel("Assistant"),
+            assistantAvatarUrl = assistantDisplay.AvatarUrl,
         });
     }
 

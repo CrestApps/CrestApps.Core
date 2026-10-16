@@ -28,6 +28,8 @@ window.coreAIChatManager = function () {
         downloadChartButtonText: 'Download',
         userLabel: 'You',
         assistantLabel: 'Assistant',
+        // The persona's avatar shown on assistant messages in place of the robot icon, when set.
+        assistantAvatarUrl: null,
         thumbsUpTitle: 'Thumbs up',
         thumbsDownTitle: 'Thumbs down',
         copyTitle: 'Click here to copy response to clipboard.',
@@ -61,7 +63,7 @@ window.coreAIChatManager = function () {
                     </div>
                     <div v-else-if="message.role !== 'indicator'" class="ai-chat-message-heading ai-chat-message-heading-assistant">
                         <div :class="getAssistantRoleClasses(message)">
-                            <span :class="getAssistantIconClasses(message, index)"><i :class="getAssistantIcon(message)"></i></span>
+                            <span :class="getAssistantIconClasses(message, index)"><img v-if="getAssistantAvatarUrl(message)" class="ai-chat-assistant-avatar" :src="getAssistantAvatarUrl(message)" alt="" /><i v-else :class="getAssistantIcon(message)"></i></span>
                             <span class="ai-chat-message-role-label">{{ getAssistantLabel(message) }}</span>
                         </div>
                     </div>
@@ -115,8 +117,8 @@ window.coreAIChatManager = function () {
         indicatorTemplate: `
         <div class="ai-chat-message-heading ai-chat-message-heading-assistant">
             <div class="ai-chat-msg-role ai-chat-msg-role-assistant">
-                <span class="ai-streaming-icon"><i class="fa fa-robot" style="display: inline-block;"></i></span>
-                <span class="ai-chat-message-role-label">Assistant</span>
+                {{ assistantIcon }}
+                <span class="ai-chat-message-role-label">{{ assistantLabel }}</span>
             </div>
         </div>
     `
@@ -736,13 +738,26 @@ window.coreAIChatManager = function () {
         );
     }
 
-    function resolveIndicatorTemplate(template, assistantLabel) {
+    // Fills the {{ assistantLabel }} and {{ assistantIcon }} tokens of the typing indicator. The icon is the avatar
+    // image when one is configured and the animated robot otherwise.
+    function resolveIndicatorTemplate(template, assistantLabel, assistantAvatarUrl) {
         if (!template) {
             return template;
         }
 
         const encodedAssistantLabel = escapeHtmlEntities(assistantLabel || 'Assistant');
-        return template.replace(/\{\{\s*assistantLabel\s*\}\}/g, encodedAssistantLabel);
+        const avatarUrl = sanitizeUrl(assistantAvatarUrl);
+        const assistantIcon = avatarUrl
+            ? '<span class="ai-streaming-avatar"><img class="ai-chat-assistant-avatar" src="' + escapeHtmlAttribute(avatarUrl) + '" alt="" /></span>'
+            : '<span class="ai-streaming-icon"><i class="fa fa-robot" style="display: inline-block;"></i></span>';
+
+        return template
+            .replace(/\{\{\s*assistantLabel\s*\}\}/g, encodedAssistantLabel)
+            .replace(/\{\{\s*assistantIcon\s*\}\}/g, assistantIcon);
+    }
+
+    function escapeHtmlAttribute(text) {
+        return escapeHtmlEntities(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     const initialize = (instanceConfig) => {
@@ -750,7 +765,7 @@ window.coreAIChatManager = function () {
         const normalizedWidgetConfig = compactObject(normalizedInstanceConfig.widget);
         const config = Object.assign({}, defaultConfig, normalizedInstanceConfig);
         config.widget = Object.assign({}, defaultConfig.widget || {}, normalizedWidgetConfig);
-        config.indicatorTemplate = resolveIndicatorTemplate(config.indicatorTemplate, config.assistantLabel);
+        config.indicatorTemplate = resolveIndicatorTemplate(config.indicatorTemplate, config.assistantLabel, config.assistantAvatarUrl);
         const hasWidgetConfig = !!(normalizedWidgetConfig.chatWidgetContainer && normalizedWidgetConfig.chatWidgetStateName);
         const widgetBehavior = window.coreAIChatWidgetBehavior || null;
         // Keep defaultConfig in sync so renderers use overridden values
@@ -807,6 +822,7 @@ window.coreAIChatManager = function () {
                     metricsEnabled: !!config.metricsEnabled,
                     userLabel: config.userLabel,
                     assistantLabel: config.assistantLabel,
+                    assistantAvatarUrl: sanitizeUrl(config.assistantAvatarUrl) || null,
                     thumbsUpTitle: config.thumbsUpTitle,
                     thumbsDownTitle: config.thumbsDownTitle,
                     copyTitle: config.copyTitle,
@@ -1257,7 +1273,22 @@ window.coreAIChatManager = function () {
                 },
                 getAssistantIconClasses(message, index) {
                     var appearance = message ? this.normalizeAssistantAppearance(message.appearance) : null;
+
+                    // An avatar pulses while streaming; spinning a face like the robot icon would look wrong.
+                    if (this.getAssistantAvatarUrl(message)) {
+                        return [this.shouldAnimateAssistantIcon(message, index) ? 'ai-streaming-avatar' : 'ai-bot-avatar'];
+                    }
+
                     return [this.shouldAnimateAssistantIcon(message, index) ? 'ai-streaming-icon' : 'ai-bot-icon', appearance && appearance.cssClass ? appearance.cssClass : ''];
+                },
+                getAssistantAvatarUrl(message) {
+                    // A message with its own appearance (for example a human agent's reply) keeps that look rather
+                    // than the configured assistant's avatar.
+                    if (!this.assistantAvatarUrl || (message && this.normalizeAssistantAppearance(message.appearance))) {
+                        return null;
+                    }
+
+                    return this.assistantAvatarUrl;
                 },
                 getAssistantIcon(message) {
                     var appearance = message ? this.normalizeAssistantAppearance(message.appearance) : null;
@@ -3386,6 +3417,7 @@ window.coreAIChatManager = function () {
             sessionUrlTemplate: getAttributeValue(element, 'data-coreai-chat-session-url-template'),
             userLabel: getAttributeValue(element, 'data-coreai-chat-user-label'),
             assistantLabel: getAttributeValue(element, 'data-coreai-chat-assistant-label'),
+            assistantAvatarUrl: getAttributeValue(element, 'data-coreai-chat-assistant-avatar-url'),
             copyTitle: getAttributeValue(element, 'data-coreai-chat-copy-title'),
             copiedTitle: getAttributeValue(element, 'data-coreai-chat-copied-title'),
         };

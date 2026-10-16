@@ -909,6 +909,33 @@ The AI Chat widget supports draggable and resizable floating shells through dedi
 
 When `enableDragging` is on, both the widget window and its floating toggle button can be repositioned. When `enableResizing` is on, the widget can be resized from the browser resize handle and the optional reset-size button can restore the default dimensions. Set either flag to `false` to opt out for a specific host.
 
+### Assistant name and avatar
+
+A chat surface can show who the assistant is. Two optional settings change the look of assistant messages; leave
+them out and the chat looks as it always has, with the robot icon and the `assistantLabel` text.
+
+| Setting | Data attribute | What it does |
+|---------|----------------|--------------|
+| `assistantLabel` | `data-coreai-chat-assistant-label` | The name shown on assistant messages and on the typing indicator. |
+| `assistantAvatarUrl` | `data-coreai-chat-assistant-avatar-url` | An image shown as a small round avatar in place of the robot icon. It pulses while a reply streams. |
+
+Chat Interactions take the same two settings as properties of `data-chat-interaction-config`. A message that sets
+its own `appearance` keeps that look instead of the avatar. Custom message templates show the avatar by calling
+`getAssistantAvatarUrl(message)`; custom typing indicator templates can use the `{{ assistantIcon }}` and
+`{{ assistantLabel }}` tokens.
+
+The values usually come from the [persona](./ai-personas.md) the profile or interaction links to.
+`IAIPersonaResolver.ResolveChatAssistantDisplayAsync` returns them as an `AIChatAssistantDisplay`:
+
+```csharp
+var display = await personaResolver.ResolveChatAssistantDisplayAsync(profile);
+```
+
+```cshtml
+<div data-coreai-chat-assistant-label="@display.GetAssistantLabel("Assistant")"
+     data-coreai-chat-assistant-avatar-url="@display.AvatarUrl">
+```
+
 ### Text-to-Speech Play Icon
 
 When a text-to-speech (TTS) deployment is configured, each completed assistant message shows a play icon that reads the message aloud via server-side speech synthesis. Clicking the icon calls `SynthesizeSpeech` on the SignalR hub, which streams audio chunks back to the client and plays them as MP3. While audio is active, the icon switches to pause, the action buttons stay anchored at the bottom-right of the message just above the divider, and starting playback on a different message automatically stops the current player.

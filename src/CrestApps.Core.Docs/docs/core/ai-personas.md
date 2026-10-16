@@ -142,6 +142,17 @@ persona behaves the same in chat, chat interactions, realtime sessions and voice
 
 New chat sessions record the persona their profile linked to in `AIChatSession.PersonaId`, for reporting.
 
+## Showing the persona in chat
+
+AI Chat sessions, the chat widget and Chat Interactions show the persona the profile or interaction links to.
+Assistant messages and the typing indicator show the persona's `AssistantName` and its `AvatarUrl` as a small round
+image. Without a persona, or when a value is empty, the chat keeps its usual label and robot icon. How a chat opens
+stays with the profile's welcome message.
+
+A host gets these values from `IAIPersonaResolver.ResolveChatAssistantDisplayAsync(resource)`, or maps a persona it
+already resolved with `AIPersonaExtensions.ToChatAssistantDisplay`. Both return an `AIChatAssistantDisplay`. See
+[Assistant name and avatar](./chat.md#assistant-name-and-avatar) for the chat UI settings they feed.
+
 ## Persona files
 
 Personas can ship as Markdown files. Put them in the content root's `Templates/Personas` folder, or embed them in an

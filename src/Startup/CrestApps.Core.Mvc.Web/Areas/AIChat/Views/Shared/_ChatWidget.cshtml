@@ -11,6 +11,7 @@
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject CrestApps.Core.Startup.Shared.Services.SiteSettingsStore SiteSettings
 @inject CrestApps.Core.AI.Deployments.IAIDeploymentManager DeploymentManager
+@inject IAIPersonaResolver PersonaResolver
 
 @{
     var adminWidgetSettings = SiteSettings.Get<AIChatAdminWidgetSettings>();
@@ -94,6 +95,9 @@
         return;
     }
 
+    // The linked persona names the assistant and gives it an avatar.
+    var assistantDisplay = await PersonaResolver.ResolveChatAssistantDisplayAsync(selectedProfile);
+
     var widgetStyle = string.IsNullOrWhiteSpace(adminWidgetSettings.PrimaryColor)
         ? null
         : $"--ai-widget-primary: {adminWidgetSettings.PrimaryColor.Trim()};";
@@ -156,7 +160,8 @@
      data-coreai-chat-allowed-extensions="@supportedExtensionsAccept"
      data-coreai-chat-supported-extensions-text="@supportedExtensionsDisplay"
      data-coreai-chat-user-label="You"
-     data-coreai-chat-assistant-label="Assistant">
+     data-coreai-chat-assistant-label="@assistantDisplay.GetAssistantLabel("Assistant")"
+     data-coreai-chat-assistant-avatar-url="@assistantDisplay.AvatarUrl">
     <link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/chat-widget.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/_content/CrestApps.AI.Resources/styles/chat-image-carousel.css" asp-append-version="true" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" />
@@ -170,7 +175,7 @@
                     </div>
                     <div v-else-if="message.role !== 'indicator'" class="ai-chat-message-heading ai-chat-message-heading-assistant">
                         <div :class="getAssistantRoleClasses(message)">
-                            <span :class="getAssistantIconClasses(message, index)"><i :class="getAssistantIcon(message)"></i></span>
+                            <span :class="getAssistantIconClasses(message, index)"><img v-if="getAssistantAvatarUrl(message)" class="ai-chat-assistant-avatar" :src="getAssistantAvatarUrl(message)" alt="" /><i v-else :class="getAssistantIcon(message)"></i></span>
                             <span class="ai-chat-message-role-label">{{ getAssistantLabel(message) }}</span>
                         </div>
                     </div>
@@ -225,7 +230,7 @@
     <template id="widget-chat-indicator-template">
         <div class="ai-chat-message-heading ai-chat-message-heading-assistant">
             <div class="ai-chat-msg-role ai-chat-msg-role-assistant">
-                <span class="ai-streaming-icon"><i class="fa fa-robot" style="display: inline-block;"></i></span>
+                {{ assistantIcon }}
                 <span class="ai-chat-message-role-label">{{ assistantLabel }}</span>
             </div>
         </div>
