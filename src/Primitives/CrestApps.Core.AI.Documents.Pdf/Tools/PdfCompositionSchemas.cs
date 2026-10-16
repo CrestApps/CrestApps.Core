@@ -110,7 +110,7 @@ internal static class PdfCompositionSchemas
               },
               "chart": {
                 "type": "object",
-                "description": "A vector chart. Give labels and series with the real values, or source over uploaded tabular data, or chart_js with a [chart:…] marker returned earlier.",
+                "description": "A vector chart. Give labels and series with the real values, or conversation_chart for a chart shown earlier in the conversation, or source over uploaded tabular data, or chart_js with a [chart:…] marker returned earlier. A chart with no data fails the call.",
                 "properties": {
                   "chart_type": { "type": "string", "enum": ["bar", "column", "horizontal_bar", "stacked_bar", "stacked_horizontal_bar", "line", "area", "pie"], "description": "bar and column draw upright bars; horizontal_bar draws them sideways, for long category names." },
                   "title": { "type": "string" },
@@ -138,6 +138,7 @@ internal static class PdfCompositionSchemas
                     }
                   },
                   "chart_js": { "type": "string" },
+                  "conversation_chart": { "type": "integer", "description": "The number of a chart shown earlier in the conversation, as get_pdf_info lists them (1 is the first). Its labels, values, series names and colours are used." },
                   "x_axis_title": { "type": "string" },
                   "y_axis_title": { "type": "string" },
                   "legend": { "type": "boolean" },

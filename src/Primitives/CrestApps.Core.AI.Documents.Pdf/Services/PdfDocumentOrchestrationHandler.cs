@@ -25,18 +25,22 @@ internal sealed class PdfDocumentOrchestrationHandler : IOrchestrationContextBui
 
     private readonly ITemplateService _templateService;
     private readonly IPdfWorkspaceStore _workspaceStore;
+    private readonly IServiceProvider _services;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PdfDocumentOrchestrationHandler"/> class.
     /// </summary>
     /// <param name="templateService">The template service.</param>
     /// <param name="workspaceStore">The store of the PDFs the agent keeps for each conversation.</param>
+    /// <param name="services">The request services, used to read the conversation's charts.</param>
     public PdfDocumentOrchestrationHandler(
         ITemplateService templateService,
-        IPdfWorkspaceStore workspaceStore)
+        IPdfWorkspaceStore workspaceStore,
+        IServiceProvider services)
     {
         _templateService = templateService;
         _workspaceStore = workspaceStore;
+        _services = services;
     }
 
     /// <summary>
@@ -58,9 +62,21 @@ internal sealed class PdfDocumentOrchestrationHandler : IOrchestrationContextBui
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        // The agent's own orchestration must not be told to delegate to itself.
-        if (AIInvocationScope.Current?.AgentInvocationDepth > 0 || context.OrchestrationContext?.CompletionContext is null)
+        if (context.OrchestrationContext?.CompletionContext is null)
         {
+            return;
+        }
+
+        // The agent's own orchestration must not be told to delegate to itself. It is told instead which
+        // charts the reader has already seen, because it receives only the request written for it and not
+        // the conversation those charts are in.
+        if (AIInvocationScope.Current?.AgentInvocationDepth > 0)
+        {
+            if (context.Resource is AIProfile { Name: PdfAgentProvider.AgentName })
+            {
+                await AppendConversationChartsAsync(context);
+            }
+
             return;
         }
 
@@ -122,5 +138,20 @@ internal sealed class PdfDocumentOrchestrationHandler : IOrchestrationContextBui
             context.OrchestrationContext.SystemMessageBuilder.AppendLine();
             context.OrchestrationContext.SystemMessageBuilder.Append(text);
         }
+    }
+
+    private async Task AppendConversationChartsAsync(OrchestrationContextBuiltContext context)
+    {
+        var charts = PdfConversationCharts.Describe(await PdfConversationCharts.GetAsync(_services));
+
+        if (charts is null)
+        {
+            return;
+        }
+
+        context.OrchestrationContext.SystemMessageBuilder.AppendLine();
+        context.OrchestrationContext.SystemMessageBuilder.AppendLine();
+        context.OrchestrationContext.SystemMessageBuilder.AppendLine("[Charts in the conversation]");
+        context.OrchestrationContext.SystemMessageBuilder.Append(charts);
     }
 }

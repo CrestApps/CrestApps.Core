@@ -81,6 +81,12 @@ internal sealed class PdfChartDefinition
     public string ChartJs { get; set; }
 
     /// <summary>
+    /// Gets or sets the one-based number of a chart shown earlier in the conversation, which the labels and
+    /// series are read from when the block is added. Cleared once it is read.
+    /// </summary>
+    public int? ConversationChart { get; set; }
+
+    /// <summary>
     /// Gets or sets a description of where the data was read from.
     /// </summary>
     public string SourceDescription { get; set; }

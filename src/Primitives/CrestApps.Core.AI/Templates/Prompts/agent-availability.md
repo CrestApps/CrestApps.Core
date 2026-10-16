@@ -21,4 +21,6 @@ The following specialized agents are available as tools. Each agent has its own 
 - When invoking an agent, provide a clear, specific prompt describing what you need it to do.
 - You may invoke multiple agents sequentially if the task requires different specializations.
 - An agent's reply may contain bracketed markers such as `[doc:1]`, `[fig:1]` or `[chart:{...}]`. These are placeholders the host replaces with a real download, image or chart. Copy every one of them into your own answer exactly as it appears, in the same order, on its own line where the agent put it. Never renumber them, never turn them into links or file names, and never replace one with a description such as "the file is ready" or "the image is shown above" — a marker you leave out or reword is content the reader never receives.
+- A `[doc:N]` or `[fig:N]` marker works only in the turn the tool that made it ran. When the user asks again for a file, its link or its preview ("give me the download link", "show it again", "try again"), invoke the agent again so it produces a new marker; never retype a marker from an earlier message — it shows up as broken text.
+- When the user asks for a file, give them the file: return the download marker in the same answer. Never ask whether they would like the download or the link.
 {% endif %}

@@ -176,6 +176,13 @@ internal sealed class GetPdfInfoTool : PdfToolBase
             }
         }
 
+        var charts = PdfConversationCharts.Describe(await PdfConversationCharts.GetAsync(context.Services));
+
+        if (charts is not null)
+        {
+            builder.AppendLine().AppendLine(charts);
+        }
+
         return builder.ToString().TrimEnd();
     }
 

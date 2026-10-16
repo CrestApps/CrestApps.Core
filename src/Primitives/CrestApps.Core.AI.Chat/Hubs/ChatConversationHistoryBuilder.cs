@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.AI;
 
@@ -6,7 +7,7 @@ namespace CrestApps.Core.AI.Chat.Hubs;
 /// <summary>
 /// Builds the conversation history supplied to chat response handlers.
 /// </summary>
-internal static class ChatConversationHistoryBuilder
+internal static partial class ChatConversationHistoryBuilder
 {
     /// <summary>
     /// Builds conversation history from chat interaction prompts.
@@ -225,10 +226,63 @@ internal static class ChatConversationHistoryBuilder
     private static ChatMessage CreateMessage<TPrompt, TAccessor>(TPrompt prompt)
         where TAccessor : IPromptAccessor<TPrompt>
     {
-        return new ChatMessage(
-            TAccessor.GetRole(prompt),
-            TAccessor.GetText(prompt));
+        var role = TAccessor.GetRole(prompt);
+        var text = TAccessor.GetText(prompt);
+
+        if (role == ChatRole.Assistant)
+        {
+            text = RetireFileMarkers(text, TAccessor.GetReferences(prompt));
+        }
+
+        return new ChatMessage(role, text);
     }
+
+    /// <summary>
+    /// Replaces the download and picture markers of an earlier answer with the names of what they showed.
+    /// </summary>
+    /// <remarks>
+    /// A <c>[doc:N]</c> or <c>[fig:N]</c> marker resolves only in the turn whose tool made it. Left in the
+    /// history, it teaches the model that writing the marker again gives the reader the file: asked for "the
+    /// download link" again, it answered with a bare <c>[doc:1]</c> and no tool call, and the reader saw the
+    /// marker as text. Naming the file instead keeps what the answer said without a marker to copy.
+    /// Citations of searched sources are left alone; only generated files and pictures are retired.
+    /// </remarks>
+    /// <param name="text">The answer text.</param>
+    /// <param name="references">The references the answer was stored with.</param>
+    /// <returns>The text with its file markers replaced.</returns>
+    internal static string RetireFileMarkers(string text, IReadOnlyDictionary<string, AICompletionReference> references)
+    {
+        if (string.IsNullOrEmpty(text) || !text.Contains('[', StringComparison.Ordinal))
+        {
+            return text;
+        }
+
+        return FileMarkerRegex().Replace(text, match =>
+        {
+            if (references is null || !references.TryGetValue(match.Value, out var reference) || reference is null)
+            {
+                // A marker no tool returned showed the reader as broken text; it must not be copied either.
+                return "(no file was attached here)";
+            }
+
+            var name = !string.IsNullOrWhiteSpace(reference.Title) ? reference.Title : reference.Text;
+
+            if (reference.IsImage)
+            {
+                return $"(picture shown in that answer: \"{name}\")";
+            }
+
+            if (reference.IsGenerated)
+            {
+                return $"(download \"{name}\" given in that answer; its link does not carry over)";
+            }
+
+            return match.Value;
+        });
+    }
+
+    [GeneratedRegex(@"\[(?:doc|fig):\d+\]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex FileMarkerRegex();
 
     /// <summary>
     /// Provides model-specific prompt property access.
@@ -270,6 +324,13 @@ internal static class ChatConversationHistoryBuilder
         /// <param name="prompt">The prompt.</param>
         /// <returns>The prompt text.</returns>
         static abstract string GetText(TPrompt prompt);
+
+        /// <summary>
+        /// Gets the references the prompt was stored with.
+        /// </summary>
+        /// <param name="prompt">The prompt.</param>
+        /// <returns>The references, keyed by marker.</returns>
+        static abstract IReadOnlyDictionary<string, AICompletionReference> GetReferences(TPrompt prompt);
     }
 
     /// <summary>
@@ -292,6 +353,9 @@ internal static class ChatConversationHistoryBuilder
 
         /// <inheritdoc />
         public static string GetText(ChatInteractionPrompt prompt) => prompt.Text;
+
+        /// <inheritdoc />
+        public static IReadOnlyDictionary<string, AICompletionReference> GetReferences(ChatInteractionPrompt prompt) => prompt.References;
     }
 
     /// <summary>
@@ -314,5 +378,8 @@ internal static class ChatConversationHistoryBuilder
 
         /// <inheritdoc />
         public static string GetText(AIChatSessionPrompt prompt) => prompt.Content;
+
+        /// <inheritdoc />
+        public static IReadOnlyDictionary<string, AICompletionReference> GetReferences(AIChatSessionPrompt prompt) => prompt.References;
     }
 }
