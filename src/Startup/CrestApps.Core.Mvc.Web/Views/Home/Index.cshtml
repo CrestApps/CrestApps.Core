@@ -134,6 +134,23 @@
                 </div>
             </div>
         </div>
+        @if (Context.RequestServices.GetService(typeof(CrestApps.Core.AI.Profiles.IAIPersonaManager)) is not null)
+        {
+            <div class="col">
+                <div class="card h-100 border-secondary">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <i class="fa-solid fa-masks-theater fs-2 text-secondary me-3"></i>
+                            <h5 class="card-title mb-0">Personas</h5>
+                        </div>
+                        <p class="card-text">Create reusable characters, with their own instructions, name, avatar and voice, that AI profiles and chat interactions link to.</p>
+                        <a asp-area="AI" asp-controller="AIPersona" asp-action="Index" class="btn btn-secondary text-white">
+                            <i class="fa-solid fa-arrow-right"></i> Manage Personas
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
         </div>
     </section>
     <section class="mb-5">
