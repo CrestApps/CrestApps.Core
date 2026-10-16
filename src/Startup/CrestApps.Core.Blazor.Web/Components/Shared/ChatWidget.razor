@@ -14,7 +14,6 @@
 @inject SiteSettingsStore SiteSettings
 @inject NavigationManager NavigationManager
 @inject IAIDeploymentManager DeploymentManager
-@inject IAIPersonaResolver PersonaResolver
 @inject SiteSettingsChangedNotifier SettingsChangedNotifier
 
 @if (_profile != null)
@@ -289,7 +288,7 @@
         }
 
         _profile = selectedProfile;
-        _assistantDisplay = await PersonaResolver.ResolveChatAssistantDisplayAsync(selectedProfile);
+        _assistantDisplay = await ServiceProvider.ResolveChatAssistantDisplayAsync(selectedProfile);
         _welcomeMessage = !string.IsNullOrWhiteSpace(selectedProfile.WelcomeMessage)
             ? selectedProfile.WelcomeMessage
             : "What do you want to know?";

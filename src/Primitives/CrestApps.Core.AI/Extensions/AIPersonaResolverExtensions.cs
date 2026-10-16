@@ -30,4 +30,24 @@ public static class AIPersonaResolverExtensions
 
         return persona.ToChatAssistantDisplay();
     }
+
+    /// <summary>
+    /// Resolves the persona a profile or chat interaction links to and maps it to what a chat surface shows. Personas
+    /// are an opt-in feature, so when the host did not add it the surface keeps its default look.
+    /// </summary>
+    /// <param name="services">The service provider.</param>
+    /// <param name="resource">The AI profile, chat interaction or other entity that may link to a persona.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The display values; <see cref="AIChatAssistantDisplay.Default"/> when no persona applies.</returns>
+    public static async Task<AIChatAssistantDisplay> ResolveChatAssistantDisplayAsync(
+        this IServiceProvider services,
+        ExtensibleEntity resource,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        var persona = await services.ResolvePersonaAsync(resource, cancellationToken);
+
+        return persona.ToChatAssistantDisplay();
+    }
 }

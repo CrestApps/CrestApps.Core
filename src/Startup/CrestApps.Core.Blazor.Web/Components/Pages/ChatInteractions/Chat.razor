@@ -42,7 +42,6 @@
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject IAIDocumentStore DocumentStore
 @inject IAIDeploymentManager DeploymentManager
-@inject IAIPersonaResolver PersonaResolver
 @inject IAIDeploymentCapabilityService CapabilityService
 @inject IServiceProvider ServiceProvider
 
@@ -813,7 +812,7 @@ else
         });
 
         // The linked persona names the assistant and gives it an avatar.
-        var assistantDisplay = await PersonaResolver.ResolveChatAssistantDisplayAsync(interaction);
+        var assistantDisplay = await ServiceProvider.ResolveChatAssistantDisplayAsync(interaction);
 
         _chatInteractionConfigJson = JsonSerializer.Serialize(new
         {

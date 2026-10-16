@@ -63,7 +63,7 @@ public static class AIPersonaExtensions
     /// </summary>
     /// <param name="persona">The resolved persona, or <see langword="null"/> when there is none.</param>
     /// <returns>The display values; <see cref="AIChatAssistantDisplay.Default"/> when there is no persona.</returns>
-    public static AIChatAssistantDisplay ToChatAssistantDisplay(this AIPersona persona)
+    public static AIChatAssistantDisplay ToChatAssistantDisplay(this ResolvedAIPersona persona)
     {
         if (persona is null)
         {

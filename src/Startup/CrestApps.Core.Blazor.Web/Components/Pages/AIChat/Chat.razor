@@ -17,7 +17,6 @@
 @inject NavigationManager Navigation
 @inject SiteSettingsStore SiteSettings
 @inject IAIDeploymentManager DeploymentManager
-@inject IAIPersonaResolver PersonaResolver
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 
 <PageTitle>Chat - @(_profileDisplayText ?? "AI Chat") - Blazor AI Integration Sample</PageTitle>
@@ -245,7 +244,7 @@ else
         }
 
         _profileDisplayText = _profile.DisplayText ?? _profile.Name;
-        _assistantDisplay = await PersonaResolver.ResolveChatAssistantDisplayAsync(_profile);
+        _assistantDisplay = await ServiceProvider.ResolveChatAssistantDisplayAsync(_profile);
         _welcomeMessage = !string.IsNullOrWhiteSpace(_profile.WelcomeMessage)
             ? _profile.WelcomeMessage
             : "What do you want to know?";

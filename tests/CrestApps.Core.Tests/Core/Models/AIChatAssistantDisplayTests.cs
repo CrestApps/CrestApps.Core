@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 
 namespace CrestApps.Core.Tests.Core.Models;
@@ -9,7 +10,7 @@ public sealed class AIChatAssistantDisplayTests
     [Fact]
     public void ToChatAssistantDisplay_NoPersona_ReturnsDefault()
     {
-        AIPersona persona = null;
+        ResolvedAIPersona persona = null;
 
         var display = persona.ToChatAssistantDisplay();
 
@@ -30,7 +31,7 @@ public sealed class AIChatAssistantDisplayTests
     [Fact]
     public void ToChatAssistantDisplay_BlankPersonaValues_AreNull()
     {
-        var persona = new AIPersona
+        var persona = new ResolvedAIPersona
         {
             Id = "plain",
             AssistantName = "  ",
@@ -46,7 +47,7 @@ public sealed class AIChatAssistantDisplayTests
     [Fact]
     public void ToChatAssistantDisplay_TrimsValues()
     {
-        var persona = new AIPersona
+        var persona = new ResolvedAIPersona
         {
             Id = "padded",
             AssistantName = " Ava ",
@@ -95,7 +96,7 @@ public sealed class AIChatAssistantDisplayTests
         var resolver = new Mock<IAIPersonaResolver>();
         resolver
             .Setup(r => r.ResolveAsync(interaction, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((AIPersona)null);
+            .ReturnsAsync((ResolvedAIPersona)null);
 
         var display = await resolver.Object.ResolveChatAssistantDisplayAsync(interaction, TestContext.Current.CancellationToken);
 
@@ -112,7 +113,35 @@ public sealed class AIChatAssistantDisplayTests
         Assert.Same(AIChatAssistantDisplay.Default, display);
     }
 
-    private static AIPersona CreatePersona()
+    [Fact]
+    public async Task ResolveChatAssistantDisplayAsync_ServiceProviderWithoutPersonas_ReturnsDefault()
+    {
+        var services = new ServiceCollection().BuildServiceProvider();
+        var profile = new AIProfile();
+        profile.Put(new AIPersonaMetadata { PersonaId = "ava" });
+
+        var display = await services.ResolveChatAssistantDisplayAsync(profile, TestContext.Current.CancellationToken);
+
+        Assert.Same(AIChatAssistantDisplay.Default, display);
+    }
+
+    [Fact]
+    public async Task ResolveChatAssistantDisplayAsync_ServiceProviderWithPersonas_MapsResolvedPersona()
+    {
+        var profile = new AIProfile();
+        var resolver = new Mock<IAIPersonaResolver>();
+        resolver
+            .Setup(r => r.ResolveAsync(profile, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreatePersona());
+        var services = new ServiceCollection().AddSingleton(resolver.Object).BuildServiceProvider();
+
+        var display = await services.ResolveChatAssistantDisplayAsync(profile, TestContext.Current.CancellationToken);
+
+        Assert.Equal("Ava", display.AssistantName);
+        Assert.Equal("/media/personas/ava.png", display.AvatarUrl);
+    }
+
+    private static ResolvedAIPersona CreatePersona()
         => new()
         {
             Id = "ava",

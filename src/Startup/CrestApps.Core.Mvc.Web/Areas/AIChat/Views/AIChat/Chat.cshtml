@@ -9,7 +9,6 @@
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject CrestApps.Core.Startup.Shared.Services.SiteSettingsStore SiteSettings
 @inject CrestApps.Core.AI.Deployments.IAIDeploymentManager DeploymentManager
-@inject IAIPersonaResolver PersonaResolver
 @{
     var session = ViewData["Session"] as AIChatSession;
     var prompts = ViewData["Prompts"] as IReadOnlyList<AIChatSessionPrompt>;
@@ -34,7 +33,7 @@
         ? [new { role = "assistant", content = initialPrompt, id = (string)null, title = Model.PromptSubject, references = (IDictionary<string, AICompletionReference>)null }]
         : promptMessages;
     // The linked persona names the assistant and gives it an avatar.
-    var assistantDisplay = await PersonaResolver.ResolveChatAssistantDisplayAsync(Model);
+    var assistantDisplay = await Context.RequestServices.ResolveChatAssistantDisplayAsync(Model);
     var placeholderMessage = !string.IsNullOrWhiteSpace(Model.WelcomeMessage)
         ? Model.WelcomeMessage
         : "What do you want to know?";

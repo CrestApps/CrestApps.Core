@@ -925,10 +925,11 @@ its own `appearance` keeps that look instead of the avatar. Custom message templ
 `{{ assistantLabel }}` tokens.
 
 The values usually come from the [persona](./ai-personas.md) the profile or interaction links to.
-`IAIPersonaResolver.ResolveChatAssistantDisplayAsync` returns them as an `AIChatAssistantDisplay`:
+`ResolveChatAssistantDisplayAsync` returns them as an `AIChatAssistantDisplay`. Call it on the `IServiceProvider` so a
+host without the persona feature simply gets the default look:
 
 ```csharp
-var display = await personaResolver.ResolveChatAssistantDisplayAsync(profile);
+var display = await services.ResolveChatAssistantDisplayAsync(profile);
 ```
 
 ```cshtml
