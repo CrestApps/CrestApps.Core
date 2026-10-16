@@ -74,6 +74,44 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         Assert.Contains("TOOL_RESULT", result!.Result?.ToString());
     }
 
+    [Fact]
+    public async Task StartAsync_SetsTheChatSessionAndInteractionOnTheScopeBeforeTheBuild()
+    {
+        // Profile providers and orchestration handlers that run during the build read the chat from the scope, for
+        // example to offer an agent only in a given chat.
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var session = new AIChatSession { SessionId = "session-1" };
+        var interaction = new ChatInteraction { ItemId = "interaction-1" };
+        AIChatSession? sessionDuringBuild = null;
+        object? sessionItemDuringBuild = null;
+        ChatInteraction? interactionDuringBuild = null;
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(
+            profile,
+            new EchoTool(),
+            new FakeRealtimeClient(new FakeRealtimeSession([])),
+            requestServices,
+            onBuild: () =>
+            {
+                var invocation = AIInvocationScope.Current!;
+                sessionDuringBuild = invocation.ChatSession;
+                sessionItemDuringBuild = invocation.Items.TryGetValue(nameof(AIChatSession), out var item) ? item : null;
+                interactionDuringBuild = invocation.ChatInteraction;
+            });
+
+        using var scope = AIInvocationScope.Begin();
+
+        await using var conversation = await orchestrator.StartAsync(
+            new RealtimeOrchestrationRequest { Resource = profile, ChatSession = session, Interaction = interaction },
+            TestContext.Current.CancellationToken);
+
+        Assert.Same(session, sessionDuringBuild);
+        Assert.Same(session, sessionItemDuringBuild);
+        Assert.Same(interaction, interactionDuringBuild);
+        Assert.Equal("ds-1", AIInvocationScope.Current!.DataSourceId);
+    }
+
     [Theory]
     [InlineData(null, null)]
     [InlineData("  ", null)]
@@ -341,7 +379,8 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         IRealtimeTurnGrounding? grounding = null,
         IReadOnlyList<ToolRegistryEntry>? registryEntries = null,
         AIDeployment? speechToText = null,
-        IEnumerable<AIDeployment>? providerSpeechToText = null)
+        IEnumerable<AIDeployment>? providerSpeechToText = null,
+        Action? onBuild = null)
     {
         var context = new OrchestrationContext
         {
@@ -352,7 +391,7 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
             },
         };
 
-        var contextBuilder = new FakeContextBuilder(context);
+        var contextBuilder = new FakeContextBuilder(context, onBuild);
 
         var capabilityService = new Mock<IAIDeploymentCapabilityService>();
 
@@ -427,16 +466,19 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
     private sealed class FakeContextBuilder : IOrchestrationContextBuilder
     {
         private readonly OrchestrationContext _context;
+        private readonly Action? _onBuild;
 
-        public FakeContextBuilder(OrchestrationContext context)
+        public FakeContextBuilder(OrchestrationContext context, Action? onBuild)
         {
             _context = context;
+            _onBuild = onBuild;
         }
 
         public ValueTask<OrchestrationContext> BuildAsync(object resource, Action<OrchestrationContext>? configure = null, CancellationToken cancellationToken = default)
         {
             // Mirror the real builder: run the caller configuration, and set the tool execution context on
             // the ambient scope the way AIToolExecutionContextOrchestrationHandler does.
+            _onBuild?.Invoke();
             configure?.Invoke(_context);
 
             if (AIInvocationScope.Current is { } invocation)
