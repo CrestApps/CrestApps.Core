@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CrestApps.Core.AI.Chat.Handlers;
 using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Templates.Services;
@@ -50,15 +51,16 @@ public sealed class PersonaChatInteractionTests
     }
 
     [Fact]
-    public async Task BuildingAsync_InteractionWithPersona_PlacesPersonaInstructionsFirst()
+    public async Task BuiltAsync_InteractionWithPersona_PlacesPersonaInstructionsFirst()
     {
-        var persona = new AIPersona { Id = "friendly", Instructions = "You are Ava." };
+        var persona = new ResolvedAIPersona { Id = "friendly", Instructions = "You are Ava." };
         var personaResolver = new Mock<IAIPersonaResolver>();
         personaResolver
             .Setup(resolver => resolver.ResolveAsync(It.IsAny<ExtensibleEntity>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(persona);
 
-        var handler = new ChatInteractionCompletionContextBuilderHandler(Mock.Of<ITemplateService>(), personaResolver.Object);
+        var interactionHandler = new ChatInteractionCompletionContextBuilderHandler(Mock.Of<ITemplateService>());
+        var personaHandler = new AIPersonaCompletionContextBuilderHandler(personaResolver.Object);
         var interaction = new ChatInteraction
         {
             ItemId = "interaction-1",
@@ -66,7 +68,9 @@ public sealed class PersonaChatInteractionTests
         };
         var completionContext = new AICompletionContext();
 
-        await handler.BuildingAsync(new AICompletionContextBuildingContext(interaction, completionContext));
+        // The interaction builds its own system message first; the persona handler leads it once it is built.
+        await interactionHandler.BuildingAsync(new AICompletionContextBuildingContext(interaction, completionContext));
+        await personaHandler.BuiltAsync(new AICompletionContextBuiltContext(interaction, completionContext));
 
         Assert.Equal("You are Ava.\n\nHelp with orders.", completionContext.SystemMessage);
         Assert.Same(persona, completionContext.AdditionalProperties[AICompletionContextKeys.Persona]);

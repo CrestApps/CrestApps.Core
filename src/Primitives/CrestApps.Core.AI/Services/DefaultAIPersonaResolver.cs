@@ -8,12 +8,11 @@ using Microsoft.Extensions.Logging;
 namespace CrestApps.Core.AI.Services;
 
 /// <summary>
-/// Resolves personas from the persona templates known to <see cref="IAIProfileTemplateManager"/>, which merges
-/// saved templates with file-based ones.
+/// Resolves personas from <see cref="IAIPersonaManager"/>, which merges saved personas with persona files.
 /// </summary>
 public sealed class DefaultAIPersonaResolver : IAIPersonaResolver
 {
-    private readonly IAIProfileTemplateManager _templateManager;
+    private readonly IAIPersonaManager _personaManager;
     private readonly ITemplateEngine _templateEngine;
     private readonly IAIDeploymentStore _deploymentStore;
     private readonly ILogger _logger;
@@ -21,46 +20,20 @@ public sealed class DefaultAIPersonaResolver : IAIPersonaResolver
     /// <summary>
     /// Initializes a new instance of the <see cref="DefaultAIPersonaResolver"/> class.
     /// </summary>
-    /// <param name="templateManager">The manager that merges saved and file-based templates.</param>
+    /// <param name="personaManager">The manager that merges saved personas with persona files.</param>
     /// <param name="templateEngine">The engine that renders the persona instructions.</param>
     /// <param name="deploymentStore">The store used to compare the providers of two deployments.</param>
     /// <param name="logger">The logger.</param>
     public DefaultAIPersonaResolver(
-        IAIProfileTemplateManager templateManager,
+        IAIPersonaManager personaManager,
         ITemplateEngine templateEngine,
         IAIDeploymentStore deploymentStore,
         ILogger<DefaultAIPersonaResolver> logger)
     {
-        _templateManager = templateManager;
+        _personaManager = personaManager;
         _templateEngine = templateEngine;
         _deploymentStore = deploymentStore;
         _logger = logger;
-    }
-
-    /// <summary>
-    /// Lists every persona template, saved and file-based.
-    /// </summary>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    public ValueTask<IEnumerable<AIProfileTemplate>> ListAsync(CancellationToken cancellationToken = default)
-    {
-        return _templateManager.GetAsync(AITemplateSources.Persona, cancellationToken);
-    }
-
-    /// <summary>
-    /// Finds a persona template by its technical name.
-    /// </summary>
-    /// <param name="personaId">The technical name of the persona template.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    public async ValueTask<AIProfileTemplate> FindAsync(string personaId, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(personaId))
-        {
-            return null;
-        }
-
-        var personas = await ListAsync(cancellationToken);
-
-        return personas.FirstOrDefault(template => string.Equals(template.Name, personaId.Trim(), StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -68,13 +41,13 @@ public sealed class DefaultAIPersonaResolver : IAIPersonaResolver
     /// </summary>
     /// <param name="resource">The entity that may link to a persona.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public Task<AIPersona> ResolveAsync(ExtensibleEntity resource, CancellationToken cancellationToken = default)
+    public Task<ResolvedAIPersona> ResolveAsync(ExtensibleEntity resource, CancellationToken cancellationToken = default)
     {
         if (resource is null ||
             !resource.TryGet<AIPersonaMetadata>(out var metadata) ||
             string.IsNullOrWhiteSpace(metadata.PersonaId))
         {
-            return Task.FromResult<AIPersona>(null);
+            return Task.FromResult<ResolvedAIPersona>(null);
         }
 
         return ResolveAsync(metadata.PersonaId, metadata.Parameters, cancellationToken);
@@ -83,19 +56,19 @@ public sealed class DefaultAIPersonaResolver : IAIPersonaResolver
     /// <summary>
     /// Resolves a persona by its technical name and renders its instructions.
     /// </summary>
-    /// <param name="personaId">The technical name of the persona template.</param>
+    /// <param name="personaId">The technical name of the persona.</param>
     /// <param name="parameters">The Liquid arguments used to render the instructions.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    public async Task<AIPersona> ResolveAsync(string personaId, IDictionary<string, object> parameters = null, CancellationToken cancellationToken = default)
+    public async Task<ResolvedAIPersona> ResolveAsync(string personaId, IDictionary<string, object> parameters = null, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(personaId))
         {
             return null;
         }
 
-        var template = await FindAsync(personaId, cancellationToken);
+        var persona = await _personaManager.FindByNameAsync(personaId.Trim(), cancellationToken);
 
-        if (template is null)
+        if (persona is null)
         {
             // A persona deleted after profiles linked to it must not break their chats: they carry on as if no
             // persona was chosen, and the log says why the character went away.
@@ -104,32 +77,31 @@ public sealed class DefaultAIPersonaResolver : IAIPersonaResolver
             return null;
         }
 
-        var metadata = template.GetOrCreate<PersonaTemplateMetadata>();
         string instructions = null;
 
-        if (!string.IsNullOrWhiteSpace(metadata.Instructions))
+        if (!string.IsNullOrWhiteSpace(persona.Instructions))
         {
             try
             {
-                instructions = await _templateEngine.RenderAsync(metadata.Instructions, parameters, cancellationToken);
+                instructions = await _templateEngine.RenderAsync(persona.Instructions, parameters, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // A Liquid mistake in the persona should cost the persona, not the conversation.
-                _logger.LogWarning(ex, "The instructions of the AI persona '{PersonaId}' could not be rendered; continuing without them.", template.Name);
+                _logger.LogWarning(ex, "The instructions of the AI persona '{PersonaId}' could not be rendered; continuing without them.", persona.Name);
             }
         }
 
-        return new AIPersona
+        return new ResolvedAIPersona
         {
-            Id = template.Name,
-            DisplayText = string.IsNullOrWhiteSpace(template.DisplayText) ? template.Name : template.DisplayText,
+            Id = persona.Name,
+            DisplayText = string.IsNullOrWhiteSpace(persona.DisplayText) ? persona.Name : persona.DisplayText,
             Instructions = string.IsNullOrWhiteSpace(instructions) ? null : instructions.Trim(),
-            AssistantName = NullIfWhiteSpace(metadata.AssistantName),
-            Language = NullIfWhiteSpace(metadata.Language),
-            VoiceName = NullIfWhiteSpace(metadata.VoiceName),
-            VoiceDeploymentName = NullIfWhiteSpace(metadata.VoiceDeploymentName),
-            AvatarUrl = NullIfWhiteSpace(metadata.AvatarUrl),
+            AssistantName = NullIfWhiteSpace(persona.AssistantName),
+            Language = NullIfWhiteSpace(persona.Language),
+            VoiceName = NullIfWhiteSpace(persona.VoiceName),
+            VoiceDeploymentName = NullIfWhiteSpace(persona.VoiceDeploymentName),
+            AvatarUrl = NullIfWhiteSpace(persona.AvatarUrl),
         };
     }
 
@@ -142,7 +114,7 @@ public sealed class DefaultAIPersonaResolver : IAIPersonaResolver
     /// <param name="defaultVoice">The fallback voice.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     public async Task<string> SelectVoiceAsync(
-        AIPersona persona,
+        ResolvedAIPersona persona,
         string explicitVoice,
         string speakingDeploymentName,
         string defaultVoice,

@@ -38,9 +38,8 @@
                         <select asp-for="Source" class="form-select" id="sourceSelect">
                             <option value="SystemPrompt">System prompt</option>
                             <option value="Profile">AI profile</option>
-                            <option value="Persona">AI persona</option>
                         </select>
-                        <div class="form-text">System prompt templates define only a system message. Profile templates include full AI profile configuration. AI persona templates describe a reusable character that profiles can link to.</div>
+                        <div class="form-text">System prompt templates define only a system message. Profile templates include full AI profile configuration.</div>
                     </div>
                 </div>
                 <div class="col-md-6">
@@ -73,7 +72,6 @@
                 </div>
             </div>
 
-            <partial name="_PersonaFields" />
 
             <!-- Profile fields (shown for Profile source, tabbed like AI Profile) -->
             <div id="profileFields" style="display: none;">
@@ -253,13 +251,21 @@
 
                     <!-- AI Parameters Tab -->
                     <div class="tab-pane fade" id="params" role="tabpanel">
-                        <div class="mb-3">
-                            <label asp-for="PersonaId" class="form-label">AI persona</label>
-                            <select asp-for="PersonaId" class="form-select" asp-items="Model.AvailablePersonas">
-                                <option value="">No persona</option>
-                            </select>
-                            <div class="form-text">The persona profiles created from this template start with. The persona says who the assistant is; its instructions come before the system message.</div>
-                        </div>
+                        @if (Context.RequestServices.GetService(typeof(CrestApps.Core.AI.Profiles.IAIPersonaManager)) is not null)
+                        {
+                            <div class="mb-3">
+                                <label asp-for="PersonaId" class="form-label">AI persona</label>
+                                <select asp-for="PersonaId" class="form-select" asp-items="Model.AvailablePersonas">
+                                    <option value="">No persona</option>
+                                </select>
+                                <div class="form-text">The persona profiles created from this template start with. The persona says who the assistant is; its instructions come before the system message.</div>
+                            </div>
+                        }
+                        else
+                        {
+                            @* Personas are not enabled; keep any existing link rather than clearing it on save. *@
+                            <input type="hidden" asp-for="PersonaId" />
+                        }
                         <div class="mb-3">
                             <label class="form-label">
                                 Prompt templates
@@ -1105,13 +1111,8 @@
 
         function updateVisibility() {
         var isProfile = sourceSelect.value === 'Profile';
-        var isPersona = sourceSelect.value === 'Persona';
-        var personaFields = document.getElementById('personaFields');
         profileFields.style.display = isProfile ? '' : 'none';
-        systemPromptFields.style.display = isProfile || isPersona ? 'none' : '';
-        if (personaFields) {
-            personaFields.style.display = isPersona ? '' : 'none';
-        }
+        systemPromptFields.style.display = isProfile ? 'none' : '';
         if (isProfile) {
         toggleProfileTypeFields();
         } else {

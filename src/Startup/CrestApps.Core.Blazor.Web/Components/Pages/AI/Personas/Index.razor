@@ -1,0 +1,152 @@
+@page "/ai/personas"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.Services
+@inject IServiceProvider ServiceProvider
+@inject IStoreCommitter StoreCommitter
+@inject IJSRuntime JS
+@inject ToastNotificationService ToastNotifications
+
+<PageTitle>Personas - Blazor AI Integration Sample</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="fa-solid fa-masks-theater"></i> Personas</h2>
+    @if (_personaManager is not null)
+    {
+        <a href="/ai/personas/create" class="btn btn-primary">
+            <i class="fa-solid fa-plus"></i> New Persona
+        </a>
+    }
+</div>
+
+<p class="text-muted">A persona is who the assistant is and how it speaks. AI profiles, profile templates and chat interactions link to a persona by its technical name, so an edit reaches everything that uses it from the next message.</p>
+
+@if (_personaManager is null)
+{
+    <div class="alert alert-warning">
+        <i class="fa-solid fa-triangle-exclamation"></i> AI personas are not enabled on this host.
+    </div>
+}
+else if (_personas == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (_personas.Count == 0)
+{
+    <div class="alert alert-info">
+        <i class="fa-solid fa-circle-info"></i> No personas configured yet.
+        <a href="/ai/personas/create">Create your first persona</a>.
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Title</th>
+                    <th>Technical Name</th>
+                    <th>Assistant Name</th>
+                    <th>Source</th>
+                    <th style="min-width: 190px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var persona in _personas)
+                {
+                    var isFileBased = _fileBasedIds.Contains(persona.ItemId);
+
+                    <tr>
+                        <td>
+                            <a href="@GetEditUrl(persona)" class="text-decoration-none fw-semibold">
+                                @(persona.DisplayText ?? persona.Name)
+                            </a>
+                        </td>
+                        <td><code>@persona.Name</code></td>
+                        <td>@(persona.AssistantName ?? "—")</td>
+                        <td>
+                            @if (isFileBased)
+                            {
+                                <span class="badge bg-secondary" title="Defined in a persona file. Saving it creates a saved copy that replaces the file.">File</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success">Saved</span>
+                            }
+                        </td>
+                        <td class="text-nowrap">
+                            <div class="d-inline-flex flex-nowrap gap-2">
+                                <a href="@GetEditUrl(persona)" class="btn btn-sm btn-outline-primary">
+                                    <i class="fa-solid fa-pencil"></i> Edit
+                                </a>
+                                @if (!isFileBased)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(persona.ItemId)">
+                                        <i class="fa-solid fa-trash"></i> Delete
+                                    </button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private IAIPersonaManager _personaManager;
+    private List<AIPersona> _personas;
+    private HashSet<string> _fileBasedIds = new(StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Personas are an opt-in feature; without it there is nothing to list.
+        _personaManager = ServiceProvider.GetService<IAIPersonaManager>();
+
+        if (_personaManager is null)
+        {
+            return;
+        }
+
+        await LoadPersonasAsync();
+    }
+
+    private async Task LoadPersonasAsync()
+    {
+        _fileBasedIds = await AIPersonaViewModel.GetFileBasedIdsAsync(ServiceProvider.GetServices<IAIPersonaProvider>());
+
+        _personas = (await _personaManager.GetAllAsync())
+            .OrderBy(persona => persona.DisplayText ?? persona.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string GetEditUrl(AIPersona persona)
+    {
+        return $"/ai/personas/edit/{Uri.EscapeDataString(persona.ItemId)}";
+    }
+
+    private async Task DeleteAsync(string id)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Delete this persona? Anything that links to it uses a persona file with the same name, if there is one, or runs without a persona.");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        var persona = await _personaManager.FindByIdAsync(id);
+
+        if (persona == null || _fileBasedIds.Contains(persona.ItemId))
+        {
+            ToastNotifications.ShowError("Persona not found.");
+
+            return;
+        }
+
+        await _personaManager.DeleteAsync(persona);
+        await StoreCommitter.CommitAsync();
+        await LoadPersonasAsync();
+    }
+}

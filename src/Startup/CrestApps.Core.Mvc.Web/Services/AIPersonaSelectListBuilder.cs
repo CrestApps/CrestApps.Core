@@ -1,51 +1,32 @@
-using CrestApps.Core.AI;
-using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace CrestApps.Core.Mvc.Web.Services;
 
 /// <summary>
-/// Builds the persona drop-down shown on the AI profile and profile template editors.
+/// Builds the options of the persona pickers. Personas are an opt-in feature, so a <see langword="null"/> manager
+/// means the host did not add it and there is nothing to pick.
 /// </summary>
 internal static class AIPersonaSelectListBuilder
 {
     /// <summary>
-    /// Lists the listable persona templates, grouped by category. A selected persona that is no longer listed is
-    /// still offered so saving the editor does not silently unlink it.
+    /// Builds the persona options. A linked persona that no longer exists stays selectable, so saving the form does
+    /// not drop the link silently.
     /// </summary>
-    /// <param name="templateManager">The manager that merges saved and file-based templates.</param>
-    /// <param name="selectedPersonaId">The technical name of the persona the entity links to, if any.</param>
-    public static async Task<List<SelectListItem>> BuildAsync(IAIProfileTemplateManager templateManager, string selectedPersonaId)
+    /// <param name="personaManager">The persona manager, or <see langword="null"/> when personas are not enabled.</param>
+    /// <param name="selectedPersonaId">The technical name of the linked persona, if any.</param>
+    public static async Task<List<SelectListItem>> BuildAsync(IAIPersonaManager personaManager, string selectedPersonaId)
     {
-        ArgumentNullException.ThrowIfNull(templateManager);
-
-        var personas = await templateManager.GetAsync(AITemplateSources.Persona);
-        var groups = new Dictionary<string, SelectListGroup>(StringComparer.OrdinalIgnoreCase);
+        var personas = personaManager is null
+            ? []
+            : await personaManager.GetAllAsync();
 
         var items = personas
-            .Where(template => template.IsListable ||
-                string.Equals(template.Name, selectedPersonaId, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(template => template.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(template => template.DisplayText ?? template.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(template =>
-            {
-                SelectListGroup group = null;
-
-                if (!string.IsNullOrWhiteSpace(template.Category) && !groups.TryGetValue(template.Category, out group))
-                {
-                    group = new SelectListGroup { Name = template.Category };
-                    groups[template.Category] = group;
-                }
-
-                return new SelectListItem(
-                    string.IsNullOrWhiteSpace(template.DisplayText) ? template.Name : template.DisplayText,
-                    template.Name,
-                    string.Equals(template.Name, selectedPersonaId, StringComparison.OrdinalIgnoreCase))
-                {
-                    Group = group,
-                };
-            })
+            .OrderBy(persona => persona.DisplayText ?? persona.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(persona => new SelectListItem(
+                string.IsNullOrWhiteSpace(persona.DisplayText) ? persona.Name : persona.DisplayText,
+                persona.Name,
+                string.Equals(persona.Name, selectedPersonaId, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
         if (!string.IsNullOrWhiteSpace(selectedPersonaId) &&
@@ -58,29 +39,23 @@ internal static class AIPersonaSelectListBuilder
     }
 
     /// <summary>
-    /// Maps each persona's technical name to its voice, so a voice picker can say which voice an empty selection
-    /// falls back to.
+    /// Maps each persona's technical name to its voice, for the "Use persona voice" hint of the voice pickers.
     /// </summary>
-    /// <param name="templateManager">The manager that merges saved and file-based templates.</param>
-    public static async Task<Dictionary<string, string>> GetVoicesAsync(IAIProfileTemplateManager templateManager)
+    /// <param name="personaManager">The persona manager, or <see langword="null"/> when personas are not enabled.</param>
+    public static async Task<Dictionary<string, string>> GetVoicesAsync(IAIPersonaManager personaManager)
     {
-        ArgumentNullException.ThrowIfNull(templateManager);
-
-        var personas = await templateManager.GetAsync(AITemplateSources.Persona);
         var voices = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var template in personas)
+        if (personaManager is null)
         {
-            if (string.IsNullOrWhiteSpace(template.Name))
-            {
-                continue;
-            }
+            return voices;
+        }
 
-            var voiceName = template.GetOrCreate<PersonaTemplateMetadata>().VoiceName;
-
-            if (!string.IsNullOrWhiteSpace(voiceName))
+        foreach (var persona in await personaManager.GetAllAsync())
+        {
+            if (!string.IsNullOrWhiteSpace(persona.Name) && !string.IsNullOrWhiteSpace(persona.VoiceName))
             {
-                voices[template.Name] = voiceName;
+                voices[persona.Name] = persona.VoiceName;
             }
         }
 

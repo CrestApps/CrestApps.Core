@@ -35,25 +35,6 @@ public sealed class AITemplateViewModel
     // SystemPrompt source fields.
     public string SystemMessage { get; set; }
 
-    // Persona source fields.
-    public string PersonaInstructions { get; set; }
-
-    public string PersonaAssistantName { get; set; }
-
-    public string PersonaLanguage { get; set; }
-
-    public string PersonaVoiceDeploymentName { get; set; }
-
-    public string PersonaVoiceName { get; set; }
-
-    public string PersonaAvatarUrl { get; set; }
-
-    [BindNever]
-    public IEnumerable<SelectListItem> PersonaVoiceDeployments { get; set; } = [];
-
-    [BindNever]
-    public string[] PersonaRealtimeDeploymentNames { get; set; } = [];
-
     // Profile source: the persona profiles created from this template start with.
     public string PersonaId { get; set; }
 
@@ -268,18 +249,6 @@ public sealed class AITemplateViewModel
                 model.SystemMessage = sysMetadata.SystemMessage;
             }
         }
-        else if (template.Source == AITemplateSources.Persona)
-        {
-            if (template.TryGet<PersonaTemplateMetadata>(out var persona))
-            {
-                model.PersonaInstructions = persona.Instructions;
-                model.PersonaAssistantName = persona.AssistantName;
-                model.PersonaLanguage = persona.Language;
-                model.PersonaVoiceDeploymentName = persona.VoiceDeploymentName;
-                model.PersonaVoiceName = persona.VoiceName;
-                model.PersonaAvatarUrl = persona.AvatarUrl;
-            }
-        }
         else if (template.Source == AITemplateSources.Profile)
         {
             if (template.TryGet<AIPersonaMetadata>(out var personaLink))
@@ -489,24 +458,6 @@ public sealed class AITemplateViewModel
             template.Put(new SystemPromptTemplateMetadata
             {
                 SystemMessage = SystemMessage,
-            });
-        }
-        else if (Source == AITemplateSources.Persona)
-        {
-            var voiceName = NullIfWhiteSpace(PersonaVoiceName);
-
-            template.Put(new PersonaTemplateMetadata
-            {
-                Instructions = PersonaInstructions,
-                AssistantName = NullIfWhiteSpace(PersonaAssistantName),
-                Language = NullIfWhiteSpace(PersonaLanguage),
-                VoiceName = voiceName,
-
-                // The deployment only qualifies a voice; without one there is nothing to qualify.
-                VoiceDeploymentName = voiceName is null
-                    ? null
-                    : NullIfWhiteSpace(PersonaVoiceDeploymentName),
-                AvatarUrl = NullIfWhiteSpace(PersonaAvatarUrl),
             });
         }
         else if (Source == AITemplateSources.Profile)

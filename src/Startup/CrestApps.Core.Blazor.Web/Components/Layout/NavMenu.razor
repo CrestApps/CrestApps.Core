@@ -1,3 +1,7 @@
+@using CrestApps.Core.AI.Profiles
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceProviderIsService ServiceProviderIsService
+
 <nav id="sidebar" class="bg-light border-end p-3" style="min-width: 220px;">
     <h6 class="text-muted text-uppercase mb-3">Admin</h6>
     <ul class="nav flex-column">
@@ -45,6 +49,14 @@
                 <i class="fa-solid fa-file-lines"></i> Templates
             </NavLink>
         </li>
+        @if (_personasEnabled)
+        {
+            <li class="nav-item">
+                <NavLink class="nav-link" href="/ai/personas">
+                    <i class="fa-solid fa-masks-theater"></i> Personas
+                </NavLink>
+            </li>
+        }
 
         <li class="nav-item">
             <span class="nav-link text-uppercase small text-muted disabled ps-2">RAG</span>
@@ -122,3 +134,13 @@
         </li>
     </ul>
 </nav>
+
+@code {
+    // Personas are an opt-in feature, so their pages are linked only when the host registered it.
+    private bool _personasEnabled;
+
+    protected override void OnInitialized()
+    {
+        _personasEnabled = ServiceProviderIsService.IsService(typeof(IAIPersonaManager));
+    }
+}

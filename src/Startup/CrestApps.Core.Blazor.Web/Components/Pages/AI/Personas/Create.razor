@@ -1,0 +1,161 @@
+@page "/ai/personas/create"
+@attribute [Authorize(Policy = "Admin")]
+@using System.Text.RegularExpressions
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.Models
+@using CrestApps.Core.Services
+@inject IServiceProvider ServiceProvider
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+
+<PageTitle>Create AI Persona - Blazor AI Integration Sample</PageTitle>
+
+<h2><i class="fa-solid fa-plus"></i> Create AI Persona</h2>
+<hr />
+
+@if (_personaManager is null)
+{
+    <div class="alert alert-warning">AI personas are not enabled on this host.</div>
+    return;
+}
+
+<EditForm FormName="ai-personas-create" Model="_model" OnValidSubmit="HandleSubmitAsync">
+    <div class="row">
+        <div class="col-12">
+            @if (_errors.Count > 0)
+            {
+                <div class="alert alert-danger">
+                    @foreach (var error in _errors)
+                    {
+                        <div>@error</div>
+                    }
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label">Title</label>
+                <input id="personaTitle" class="form-control" value="@_model.DisplayText" @oninput="OnDisplayTextInput" placeholder="e.g., Friendly Guide" />
+                <div class="form-text">The name shown in persona pickers. The technical name is used when it is empty.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Technical name <span class="text-danger">*</span></label>
+                <input id="personaName" class="form-control" value="@_model.Name" @oninput="OnNameInput" placeholder="e.g., FriendlyGuide" />
+                @if (!string.IsNullOrEmpty(_nameError))
+                {
+                    <div class="text-danger">@_nameError</div>
+                }
+
+                <div class="form-text">Auto-generated from the title. Profiles and chats link to the persona by this name, so it cannot be changed after creation.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Description</label>
+                <InputText class="form-control" @bind-Value="_model.Description" placeholder="Brief description" />
+            </div>
+
+            <PersonaFields Model="_model" InstructionsError="@_instructionsError" />
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Create</button>
+                <a href="/ai/personas" class="btn btn-secondary">Cancel</a>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private readonly AIPersonaViewModel _model = new();
+    private IAIPersonaManager _personaManager;
+    private List<string> _errors = [];
+    private string _nameError;
+    private string _instructionsError;
+    private bool _nameWasManuallyEdited;
+
+    protected override void OnInitialized()
+    {
+        // Personas are an opt-in feature; without it there is nothing to create.
+        _personaManager = ServiceProvider.GetService<IAIPersonaManager>();
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _errors = [];
+        _nameError = null;
+        _instructionsError = null;
+
+        var persona = await _personaManager.NewAsync(_model.ToJson());
+        var validation = await _personaManager.ValidateAsync(persona);
+
+        if (!validation.Succeeded)
+        {
+            ShowErrors(validation);
+
+            return;
+        }
+
+        await _personaManager.CreateAsync(persona);
+        await StoreCommitter.CommitAsync();
+
+        Navigation.NavigateTo("/ai/personas");
+    }
+
+    private void ShowErrors(ValidationResultDetails validation)
+    {
+        foreach (var error in validation.Errors)
+        {
+            if (error.MemberNames.Contains(nameof(AIPersona.Name)))
+            {
+                _nameError = error.ErrorMessage;
+            }
+            else if (error.MemberNames.Contains(nameof(AIPersona.Instructions)))
+            {
+                _instructionsError = error.ErrorMessage;
+            }
+            else
+            {
+                _errors.Add(error.ErrorMessage);
+            }
+        }
+    }
+
+    private void OnDisplayTextInput(ChangeEventArgs e)
+    {
+        _model.DisplayText = e.Value?.ToString();
+
+        if (!_nameWasManuallyEdited)
+        {
+            _model.Name = GenerateTechnicalName(_model.DisplayText);
+        }
+    }
+
+    private void OnNameInput(ChangeEventArgs e)
+    {
+        _model.Name = e.Value?.ToString();
+
+        if (string.IsNullOrWhiteSpace(_model.Name))
+        {
+            _nameWasManuallyEdited = false;
+            _model.Name = GenerateTechnicalName(_model.DisplayText);
+
+            return;
+        }
+
+        _nameWasManuallyEdited = true;
+    }
+
+    private static string GenerateTechnicalName(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var parts = Regex.Split(value.Trim(), "[^A-Za-z0-9]+")
+            .Where(static part => part.Length > 0)
+            .Select(static part => char.ToUpperInvariant(part[0]) + part[1..].ToLowerInvariant());
+
+        return string.Concat(parts);
+    }
+}

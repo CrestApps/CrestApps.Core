@@ -1,0 +1,40 @@
+@model CrestApps.Core.Mvc.Web.Areas.AI.ViewModels.AIPersonaViewModel
+@{
+    ViewData["Title"] = "Edit Persona";
+}
+
+<h2><i class="fa-solid fa-pencil"></i> Edit Persona</h2>
+<hr />
+
+@if (Model.IsFromFile)
+{
+    <div class="alert alert-info">
+        <i class="fa-solid fa-circle-info"></i> This persona comes from a file. Saving it creates a saved persona with the
+        same name, which replaces the file from then on.
+    </div>
+}
+
+<form asp-action="Edit" method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <input type="hidden" asp-for="ItemId" />
+    <div class="mb-3">
+        <label asp-for="DisplayText" class="form-label">Title</label>
+        <input asp-for="DisplayText" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label asp-for="Name" class="form-label">Technical name</label>
+        <input asp-for="Name" class="form-control" disabled />
+        <input type="hidden" asp-for="Name" />
+        <span asp-validation-for="Name" class="text-danger"></span>
+        <div class="form-text">Profiles link to the persona by this name, so it cannot be changed.</div>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Description" class="form-label">Description</label>
+        <textarea asp-for="Description" class="form-control" rows="2"></textarea>
+    </div>
+
+    <partial name="_PersonaFields" />
+
+    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+    <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+</form>

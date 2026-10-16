@@ -127,7 +127,6 @@ public sealed class AITemplateController : Controller
             ModelState.AddModelError(nameof(model.Source), "Source is required.");
         }
 
-        ValidatePersona(model);
         await ValidateDeploymentCapabilitiesAsync(model);
 
         if (!ModelState.IsValid)
@@ -173,7 +172,6 @@ public sealed class AITemplateController : Controller
             ModelState.AddModelError(nameof(model.Name), "Technical name is required.");
         }
 
-        ValidatePersona(model);
         await ValidateDeploymentCapabilitiesAsync(model);
 
         if (!ModelState.IsValid)
@@ -242,31 +240,9 @@ public sealed class AITemplateController : Controller
         }
     }
 
-    private void ValidatePersona(AITemplateViewModel model)
-    {
-        if (string.Equals(model.Source, AITemplateSources.Persona, StringComparison.OrdinalIgnoreCase) &&
-            string.IsNullOrWhiteSpace(model.PersonaInstructions))
-        {
-            ModelState.AddModelError(nameof(model.PersonaInstructions), "Persona instructions are required.");
-        }
-    }
-
     private async Task PopulatePersonaOptionsAsync(AITemplateViewModel model)
     {
-        model.AvailablePersonas = await AIPersonaSelectListBuilder.BuildAsync(_templateManager, model.PersonaId);
-
-        // A voice name only means something to the provider it came from, so the persona's voice is picked from a
-        // deployment that can speak and that deployment is remembered with it.
-        var realtimeGroup = new SelectListGroup { Name = "Realtime (speech-to-speech)" };
-        var speechGroup = new SelectListGroup { Name = "Text-to-speech" };
-        var realtimeDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Realtime)).ToList();
-        var speechDeployments = await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.TextToSpeech);
-
-        model.PersonaRealtimeDeploymentNames = realtimeDeployments.Select(deployment => deployment.Name).ToArray();
-        model.PersonaVoiceDeployments = realtimeDeployments
-            .Select(deployment => new SelectListItem(BuildDeploymentLabel(deployment), deployment.Name) { Group = realtimeGroup })
-            .Concat(speechDeployments.Select(deployment => new SelectListItem(BuildDeploymentLabel(deployment), deployment.Name) { Group = speechGroup }))
-            .ToList();
+        model.AvailablePersonas = await AIPersonaSelectListBuilder.BuildAsync(HttpContext.RequestServices.GetService<IAIPersonaManager>(), model.PersonaId);
     }
 
     private async Task PopulateDropdownsAsync(AITemplateViewModel model)

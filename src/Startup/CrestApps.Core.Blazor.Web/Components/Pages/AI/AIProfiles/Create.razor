@@ -38,7 +38,7 @@
 @inject IAIDataSourceStore DataSourceStore
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject ITemplateService TemplateService
-@inject IAIPersonaResolver PersonaResolver
+@inject IServiceProvider ServiceProvider
 @inject IOptions<OrchestratorOptions> OrchestratorOpts
 @inject IOptionsSnapshot<ClaudeOptions> ClaudeOpts
 @inject ClaudeClientService ClaudeClientService
@@ -579,7 +579,10 @@
                         </div>
                     }
 
-                    <PersonaPicker @bind-Value="_model.PersonaId" Options="_model.AvailablePersonas" />
+                    @if (_personaManager is not null)
+                    {
+                        <PersonaPicker @bind-Value="_model.PersonaId" Options="_model.AvailablePersonas" />
+                    }
 
                     <div class="mb-3">
                         <label class="form-label">System message</label>
@@ -1364,6 +1367,7 @@
     private string _nameError;
     private string _selectedApplyTemplateId;
     private string _promptTemplateSearchTerm;
+    private IAIPersonaManager _personaManager;
     private IReadOnlyList<SpeechVoice> _availableVoices = [];
     private IReadOnlyList<SpeechVoice> _realtimeVoices = [];
 
@@ -1746,7 +1750,15 @@
             .Where(t => string.Equals(t.Source, AITemplateSources.Profile, StringComparison.OrdinalIgnoreCase))
             .Select(t => new KeyValuePair<string, string>(t.DisplayText ?? t.Name, t.ItemId))
             .ToList();
-        _model.AvailablePersonas = PersonaSelectList.Build(await PersonaResolver.ListAsync(), _model.PersonaId);
+
+        // Personas are an opt-in feature, so the picker is offered only when the host registered it.
+        _personaManager = ServiceProvider.GetService<IAIPersonaManager>();
+
+        if (_personaManager is not null)
+        {
+            _model.AvailablePersonas = PersonaSelectList.Build(await _personaManager.GetAllAsync(), _model.PersonaId);
+        }
+
         _model.AvailableSystemPromptTemplates = (await TemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
             .Where(template => template.Metadata.IsListable)
             .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)

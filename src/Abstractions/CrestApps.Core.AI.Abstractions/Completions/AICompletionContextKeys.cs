@@ -20,8 +20,8 @@ public static class AICompletionContextKeys
     public const string ClientName = "ClientName";
 
     /// <summary>
-    /// Holds the <see cref="Models.AIPersona"/> resolved for the request when the profile or interaction links to
-    /// one, so downstream consumers can read its name, greeting or voice without resolving it again.
+    /// Holds the <see cref="Models.ResolvedAIPersona"/> resolved for the request when the profile or interaction links to
+    /// one, so downstream consumers can read its name, avatar or voice without resolving it again.
     /// </summary>
     public const string Persona = "Persona";
 

@@ -272,13 +272,21 @@
 
                 <!-- AI Parameters Tab -->
                 <div class="tab-pane fade" id="params" role="tabpanel">
-                    <div class="mb-3">
-                        <label asp-for="PersonaId" class="form-label">AI persona</label>
-                        <select asp-for="PersonaId" class="form-select" asp-items="Model.AvailablePersonas" id="profilePersonaSelect">
-                            <option value="">No persona</option>
-                        </select>
-                        <div class="form-text">The character the assistant plays: its personality, the name it uses and the voice it speaks with. Its instructions come before the prompt templates and the system message, which still decide what the assistant does.</div>
-                    </div>
+                    @if (Context.RequestServices.GetService(typeof(CrestApps.Core.AI.Profiles.IAIPersonaManager)) is not null)
+                    {
+                        <div class="mb-3">
+                            <label asp-for="PersonaId" class="form-label">AI persona</label>
+                            <select asp-for="PersonaId" class="form-select" asp-items="Model.AvailablePersonas" id="profilePersonaSelect">
+                                <option value="">No persona</option>
+                            </select>
+                            <div class="form-text">The character the assistant plays: its personality, the name it uses and the voice it speaks with. Its instructions come before the prompt templates and the system message, which still decide what the assistant does.</div>
+                        </div>
+                    }
+                    else
+                    {
+                        @* Personas are not enabled; keep any existing link rather than clearing it on save. *@
+                        <input type="hidden" asp-for="PersonaId" />
+                    }
 
                     @if (Model.AvailablePromptTemplates.Count > 0)
                     {

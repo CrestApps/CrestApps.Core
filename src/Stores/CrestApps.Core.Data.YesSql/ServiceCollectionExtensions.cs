@@ -141,6 +141,20 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers YesSql-backed stores for the AI persona feature on the persona builder.
+    /// This includes a catalog for <see cref="AIPersona"/>.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    public static CrestAppsAIPersonasBuilder AddYesSqlStores(this CrestAppsAIPersonasBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIPersonaStoresYesSql();
+
+        return builder;
+    }
+
+    /// <summary>
     /// Registers YesSql-backed stores for the A2A client feature on the A2A client builder.
     /// This includes a catalog for <see cref="A2AConnection"/>.
     /// </summary>
@@ -314,6 +328,22 @@ public static class ServiceCollectionExtensions
         AddYesSqlNamedSourceDocumentCatalog<AIProfileTemplate, AIProfileTemplateIndex>(services, static o => o.AICollectionName);
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProfileTemplateIndexProvider>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers YesSql-backed stores for the AI persona feature.
+    /// This includes a catalog for <see cref="AIPersona"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIPersonaStoresYesSql(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        AddYesSqlNamedDocumentCatalog<AIPersona, AIPersonaIndex>(services, static o => o.AICollectionName);
+
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIPersonaIndexProvider>());
 
         return services;
     }

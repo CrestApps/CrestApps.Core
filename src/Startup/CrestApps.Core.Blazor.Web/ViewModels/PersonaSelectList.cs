@@ -8,31 +8,24 @@ namespace CrestApps.Core.Blazor.Web.ViewModels;
 public static class PersonaSelectList
 {
     /// <summary>
-    /// Builds the persona options, sorted by category and then by display text. When the selected persona is
-    /// not among <paramref name="personas"/>, it is added as a missing option so the link survives a save.
+    /// Builds the persona options, sorted by display text. When the selected persona is not among
+    /// <paramref name="personas"/>, it is added as a missing option so the link survives a save.
     /// </summary>
-    /// <param name="personas">The persona templates to offer.</param>
+    /// <param name="personas">The personas to offer.</param>
     /// <param name="selectedPersonaId">The technical name of the persona currently linked, if any.</param>
-    public static List<PersonaSelectionItem> Build(IEnumerable<AIProfileTemplate> personas, string selectedPersonaId)
+    public static List<PersonaSelectionItem> Build(IEnumerable<AIPersona> personas, string selectedPersonaId)
     {
         var items = (personas ?? [])
             .Where(persona => persona is not null && !string.IsNullOrWhiteSpace(persona.Name))
             .GroupBy(persona => persona.Name, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
-            .Select(persona =>
+            .Select(persona => new PersonaSelectionItem
             {
-                persona.TryGet<PersonaTemplateMetadata>(out var metadata);
-
-                return new PersonaSelectionItem
-                {
-                    PersonaId = persona.Name,
-                    DisplayText = string.IsNullOrWhiteSpace(persona.DisplayText) ? persona.Name : persona.DisplayText,
-                    Category = string.IsNullOrWhiteSpace(persona.Category) ? null : persona.Category.Trim(),
-                    VoiceName = string.IsNullOrWhiteSpace(metadata?.VoiceName) ? null : metadata.VoiceName,
-                };
+                PersonaId = persona.Name,
+                DisplayText = string.IsNullOrWhiteSpace(persona.DisplayText) ? persona.Name : persona.DisplayText,
+                VoiceName = string.IsNullOrWhiteSpace(persona.VoiceName) ? null : persona.VoiceName,
             })
-            .OrderBy(item => item.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(item => item.DisplayText, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(item => item.DisplayText, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         if (!string.IsNullOrWhiteSpace(selectedPersonaId) &&

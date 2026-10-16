@@ -1,7 +1,7 @@
 namespace CrestApps.Core.AI.Models;
 
 /// <summary>
-/// Provides extension methods for <see cref="AIPersona"/>.
+/// Provides extension methods for <see cref="ResolvedAIPersona"/>.
 /// </summary>
 public static class AIPersonaExtensions
 {
@@ -12,7 +12,7 @@ public static class AIPersonaExtensions
     /// <param name="persona">The resolved persona, or <see langword="null"/> when there is none.</param>
     /// <param name="systemMessage">The system message composed from prompt templates and the resource's own text.</param>
     /// <returns>The combined system message, or <see langword="null"/> when both parts are empty.</returns>
-    public static string PrependTo(this AIPersona persona, string systemMessage)
+    public static string PrependTo(this ResolvedAIPersona persona, string systemMessage)
     {
         if (string.IsNullOrWhiteSpace(persona?.Instructions))
         {

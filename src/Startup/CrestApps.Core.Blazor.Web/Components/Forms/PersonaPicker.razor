@@ -4,18 +4,9 @@
     <label class="form-label" for="@ElementId">AI persona</label>
     <select id="@ElementId" class="form-select" value="@(Value ?? string.Empty)" @onchange="OnChangedAsync">
         <option value="">No persona</option>
-        @foreach (var item in Options.Where(option => option.Category is null))
+        @foreach (var item in Options)
         {
             <option value="@item.PersonaId" selected="@IsSelected(item)">@item.DisplayText</option>
-        }
-        @foreach (var group in Options.Where(option => option.Category is not null).GroupBy(option => option.Category, StringComparer.OrdinalIgnoreCase).OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
-        {
-            <optgroup label="@group.Key">
-                @foreach (var item in group)
-                {
-                    <option value="@item.PersonaId" selected="@IsSelected(item)">@item.DisplayText</option>
-                }
-            </optgroup>
         }
     </select>
     @if (Options.Any(option => option.IsMissing && IsSelected(option)))

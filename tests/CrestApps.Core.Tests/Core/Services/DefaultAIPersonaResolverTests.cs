@@ -84,7 +84,7 @@ public sealed class DefaultAIPersonaResolverTests
         var resolver = CreateResolver([]);
 
         var voice = await resolver.SelectVoiceAsync(
-            new AIPersona { VoiceName = "marin" },
+            new ResolvedAIPersona { VoiceName = "marin" },
             "cedar",
             "realtime",
             "alloy",
@@ -99,7 +99,7 @@ public sealed class DefaultAIPersonaResolverTests
         var resolver = CreateResolver([]);
 
         var voice = await resolver.SelectVoiceAsync(
-            new AIPersona { VoiceName = "marin" },
+            new ResolvedAIPersona { VoiceName = "marin" },
             null,
             "realtime",
             "alloy",
@@ -120,7 +120,7 @@ public sealed class DefaultAIPersonaResolverTests
             ]);
 
         var voice = await resolver.SelectVoiceAsync(
-            new AIPersona { VoiceName = "marin", VoiceDeploymentName = "realtime-a" },
+            new ResolvedAIPersona { VoiceName = "marin", VoiceDeploymentName = "realtime-a" },
             null,
             "realtime-b",
             "alloy",
@@ -141,7 +141,7 @@ public sealed class DefaultAIPersonaResolverTests
             ]);
 
         var voice = await resolver.SelectVoiceAsync(
-            new AIPersona { VoiceName = "marin", VoiceDeploymentName = "openai-realtime" },
+            new ResolvedAIPersona { VoiceName = "marin", VoiceDeploymentName = "openai-realtime" },
             null,
             "azure-speech",
             "en-US-AvaNeural",
@@ -171,7 +171,7 @@ public sealed class DefaultAIPersonaResolverTests
             ]);
 
         var voice = await resolver.SelectVoiceAsync(
-            new AIPersona { VoiceName = "en-US-AvaNeural", VoiceDeploymentName = "azure-tts-2" },
+            new ResolvedAIPersona { VoiceName = "en-US-AvaNeural", VoiceDeploymentName = "azure-tts-2" },
             null,
             "cascaded",
             "alloy",
@@ -190,33 +190,26 @@ public sealed class DefaultAIPersonaResolverTests
         Assert.Null(voice);
     }
 
-    private static AIProfileTemplate CreatePersona(string name, string instructions, string voiceName = null)
+    private static AIPersona CreatePersona(string name, string instructions, string voiceName = null)
     {
-        var template = new AIProfileTemplate
+        return new AIPersona
         {
             ItemId = name,
             Name = name,
-            Source = AITemplateSources.Persona,
-        };
-
-        template.Put(new PersonaTemplateMetadata
-        {
             Instructions = instructions,
             VoiceName = voiceName,
-        });
-
-        return template;
+        };
     }
 
     private static DefaultAIPersonaResolver CreateResolver(
-        IEnumerable<AIProfileTemplate> personas,
+        IEnumerable<AIPersona> personas,
         ITemplateEngine engine = null,
         IEnumerable<AIDeployment> deployments = null)
     {
-        var templateManager = new Mock<IAIProfileTemplateManager>();
-        templateManager
-            .Setup(manager => manager.GetAsync(AITemplateSources.Persona, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(personas);
+        var personaManager = new Mock<IAIPersonaManager>();
+        personaManager
+            .Setup(manager => manager.FindByNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string name, CancellationToken _) => personas.FirstOrDefault(persona => string.Equals(persona.Name, name, StringComparison.OrdinalIgnoreCase)));
 
         if (engine is null)
         {
@@ -237,7 +230,7 @@ public sealed class DefaultAIPersonaResolverTests
         }
 
         return new DefaultAIPersonaResolver(
-            templateManager.Object,
+            personaManager.Object,
             engine,
             deploymentStore.Object,
             NullLogger<DefaultAIPersonaResolver>.Instance);

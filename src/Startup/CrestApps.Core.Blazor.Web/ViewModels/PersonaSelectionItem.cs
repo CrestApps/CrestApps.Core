@@ -6,7 +6,7 @@ namespace CrestApps.Core.Blazor.Web.ViewModels;
 public sealed class PersonaSelectionItem
 {
     /// <summary>
-    /// Gets or sets the technical name of the persona template, stored as <c>AIPersonaMetadata.PersonaId</c>.
+    /// Gets or sets the technical name of the persona, stored as <c>AIPersonaMetadata.PersonaId</c>.
     /// </summary>
     public string PersonaId { get; set; }
 
@@ -14,11 +14,6 @@ public sealed class PersonaSelectionItem
     /// Gets or sets the text shown for the persona.
     /// </summary>
     public string DisplayText { get; set; }
-
-    /// <summary>
-    /// Gets or sets the category the persona is grouped under, or <see langword="null"/> for none.
-    /// </summary>
-    public string Category { get; set; }
 
     /// <summary>
     /// Gets or sets the voice the persona speaks with, or <see langword="null"/> when it has none.

@@ -107,6 +107,14 @@
                             <i class="fa-solid fa-file-lines"></i> Templates
                         </a>
                     </li>
+                    @if (Context.RequestServices.GetService(typeof(CrestApps.Core.AI.Profiles.IAIPersonaManager)) is not null)
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="AI" asp-controller="AIPersona" asp-action="Index">
+                                <i class="fa-solid fa-masks-theater"></i> Personas
+                            </a>
+                        </li>
+                    }
 
                     <li class="nav-item">
                         <span class="nav-link text-uppercase small text-muted disabled ps-2">RAG</span>

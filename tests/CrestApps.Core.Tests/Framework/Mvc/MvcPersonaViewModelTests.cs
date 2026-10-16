@@ -7,70 +7,76 @@ namespace CrestApps.Core.Tests.Framework.Mvc;
 public sealed class MvcPersonaViewModelTests
 {
     [Fact]
-    public void ApplyTo_PersonaSource_StoresPersonaMetadata()
+    public void ToJson_SendsTheFormFieldsAndClearsEmptyOnes()
     {
-        var model = new AITemplateViewModel
+        var model = new AIPersonaViewModel
         {
-            Name = "front-desk",
-            Source = AITemplateSources.Persona,
-            PersonaInstructions = "You are Ava.",
-            PersonaAssistantName = " Ava ",
-            PersonaLanguage = "en-US",
-            PersonaVoiceDeploymentName = "realtime",
-            PersonaVoiceName = "marin",
-            PersonaAvatarUrl = " ",
+            Name = " front-desk ",
+            DisplayText = " Front desk ",
+            Instructions = "You are Ava.",
+            AssistantName = " Ava ",
+            Language = "en-US",
+            VoiceDeploymentName = "realtime",
+            VoiceName = "marin",
+            AvatarUrl = " ",
         };
-        var template = new AIProfileTemplate();
 
-        model.ApplyTo(template);
+        var json = model.ToJson();
 
-        Assert.Equal(AITemplateSources.Persona, template.Source);
-        Assert.True(template.TryGet<PersonaTemplateMetadata>(out var persona));
-        Assert.Equal("You are Ava.", persona.Instructions);
-        Assert.Equal("Ava", persona.AssistantName);
-        Assert.Equal("en-US", persona.Language);
-        Assert.Equal("marin", persona.VoiceName);
-        Assert.Equal("realtime", persona.VoiceDeploymentName);
-        Assert.Null(persona.AvatarUrl);
-        Assert.False(template.TryGet<SystemPromptTemplateMetadata>(out _));
+        Assert.Equal("front-desk", json[nameof(AIPersona.Name)]!.GetValue<string>());
+        Assert.Equal("Front desk", json[nameof(AIPersona.DisplayText)]!.GetValue<string>());
+        Assert.Equal("You are Ava.", json[nameof(AIPersona.Instructions)]!.GetValue<string>());
+        Assert.Equal("Ava", json[nameof(AIPersona.AssistantName)]!.GetValue<string>());
+        Assert.Equal("marin", json[nameof(AIPersona.VoiceName)]!.GetValue<string>());
+        Assert.Equal("realtime", json[nameof(AIPersona.VoiceDeploymentName)]!.GetValue<string>());
+
+        // An empty value is sent rather than left out, so clearing a field on the form clears it on the persona.
+        Assert.Equal(string.Empty, json[nameof(AIPersona.AvatarUrl)]!.GetValue<string>());
+        Assert.Equal(string.Empty, json[nameof(AIPersona.Description)]!.GetValue<string>());
     }
 
     [Fact]
-    public void ApplyTo_PersonaWithoutVoice_DropsTheVoiceDeployment()
+    public void ToJson_WithoutVoice_DropsTheVoiceDeployment()
     {
-        var model = new AITemplateViewModel
+        var json = new AIPersonaViewModel
         {
-            Source = AITemplateSources.Persona,
-            PersonaInstructions = "You are Ava.",
-            PersonaVoiceDeploymentName = "realtime",
-        };
-        var template = new AIProfileTemplate();
+            Name = "ava",
+            Instructions = "You are Ava.",
+            VoiceDeploymentName = "realtime",
+        }.ToJson();
 
-        model.ApplyTo(template);
-
-        var persona = template.GetOrCreate<PersonaTemplateMetadata>();
-        Assert.Null(persona.VoiceName);
-        Assert.Null(persona.VoiceDeploymentName);
+        Assert.Equal(string.Empty, json[nameof(AIPersona.VoiceDeploymentName)]!.GetValue<string>());
     }
 
     [Fact]
-    public void FromTemplate_PersonaSource_RoundTrips()
+    public void FromPersona_MapsThePersona()
     {
-        var template = new AIProfileTemplate { Source = AITemplateSources.Persona };
-        template.Put(new PersonaTemplateMetadata
+        var persona = new AIPersona
         {
+            ItemId = "saved-1",
+            Name = "ava",
+            DisplayText = "Ava",
             Instructions = "You are Ava.",
             AssistantName = "Ava",
             VoiceName = "marin",
             VoiceDeploymentName = "realtime",
-        });
+            AvatarUrl = "/images/ava.png",
+        };
 
-        var model = AITemplateViewModel.FromTemplate(template);
+        var saved = AIPersonaViewModel.FromPersona(persona, isFromFile: false);
+        var fromFile = AIPersonaViewModel.FromPersona(persona, isFromFile: true);
 
-        Assert.Equal("You are Ava.", model.PersonaInstructions);
-        Assert.Equal("Ava", model.PersonaAssistantName);
-        Assert.Equal("marin", model.PersonaVoiceName);
-        Assert.Equal("realtime", model.PersonaVoiceDeploymentName);
+        Assert.Equal("saved-1", saved.ItemId);
+        Assert.Equal("ava", saved.Name);
+        Assert.Equal("You are Ava.", saved.Instructions);
+        Assert.Equal("marin", saved.VoiceName);
+        Assert.Equal("realtime", saved.VoiceDeploymentName);
+        Assert.Equal("/images/ava.png", saved.AvatarUrl);
+        Assert.False(saved.IsFromFile);
+
+        // A file-based persona has no saved identifier: saving it creates the copy that replaces the file.
+        Assert.Null(fromFile.ItemId);
+        Assert.True(fromFile.IsFromFile);
     }
 
     [Fact]

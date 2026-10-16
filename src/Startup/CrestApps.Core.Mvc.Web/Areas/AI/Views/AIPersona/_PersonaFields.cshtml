@@ -1,25 +1,24 @@
-@model CrestApps.Core.Mvc.Web.Areas.AI.ViewModels.AITemplateViewModel
+@model CrestApps.Core.Mvc.Web.Areas.AI.ViewModels.AIPersonaViewModel
 
-<!-- Persona fields (shown for Persona source) -->
-<div id="personaFields" style="display: none;">
+<div id="personaFields">
     <div class="mb-3">
-        <label asp-for="PersonaInstructions" class="form-label">Persona instructions <span class="text-danger">*</span></label>
-        <textarea asp-for="PersonaInstructions" class="form-control" rows="6" placeholder="You are Ava, a warm and efficient assistant..."></textarea>
-        <span asp-validation-for="PersonaInstructions" class="text-danger"></span>
+        <label asp-for="Instructions" class="form-label">Persona instructions <span class="text-danger">*</span></label>
+        <textarea asp-for="Instructions" class="form-control" rows="6" placeholder="You are Ava, a warm and efficient assistant..."></textarea>
+        <span asp-validation-for="Instructions" class="text-danger"></span>
         <div class="form-text">Who the assistant is and how it talks: personality, tone and manners. They go before the system message of every profile that uses this persona, so leave the task and the rules to the profile. Liquid is supported.</div>
     </div>
     <div class="row">
         <div class="col-md-6">
             <div class="mb-3">
-                <label asp-for="PersonaAssistantName" class="form-label">Assistant name</label>
-                <input asp-for="PersonaAssistantName" class="form-control" placeholder="e.g., Ava" />
+                <label asp-for="AssistantName" class="form-label">Assistant name</label>
+                <input asp-for="AssistantName" class="form-control" placeholder="e.g., Ava" />
                 <div class="form-text">The name the assistant uses for itself.</div>
             </div>
         </div>
         <div class="col-md-6">
             <div class="mb-3">
-                <label asp-for="PersonaLanguage" class="form-label">Language</label>
-                <input asp-for="PersonaLanguage" class="form-control" placeholder="en-US" />
+                <label asp-for="Language" class="form-label">Language</label>
+                <input asp-for="Language" class="form-control" placeholder="en-US" />
                 <div class="form-text">Spoken conversations listen in this language when nothing else sets one.</div>
             </div>
         </div>
@@ -27,20 +26,20 @@
     <div class="row">
         <div class="col-md-6">
             <div class="mb-3">
-                <label asp-for="PersonaVoiceDeploymentName" class="form-label">Voice deployment</label>
-                <select asp-for="PersonaVoiceDeploymentName" class="form-select" asp-items="Model.PersonaVoiceDeployments" id="personaVoiceDeploymentSelect">
+                <label asp-for="VoiceDeploymentName" class="form-label">Voice deployment</label>
+                <select asp-for="VoiceDeploymentName" class="form-select" asp-items="Model.VoiceDeployments" id="personaVoiceDeploymentSelect">
                     <option value="">Choose the deployment to pick a voice from</option>
                 </select>
             </div>
         </div>
         <div class="col-md-6">
             <div class="mb-3">
-                <label asp-for="PersonaVoiceName" class="form-label">Voice</label>
-                <select asp-for="PersonaVoiceName" class="form-select" id="personaVoiceSelect">
+                <label asp-for="VoiceName" class="form-label">Voice</label>
+                <select asp-for="VoiceName" class="form-select" id="personaVoiceSelect">
                     <option value="">No voice</option>
-                    @if (!string.IsNullOrWhiteSpace(Model.PersonaVoiceName))
+                    @if (!string.IsNullOrWhiteSpace(Model.VoiceName))
                     {
-                        <option value="@Model.PersonaVoiceName" selected="selected">@Model.PersonaVoiceName</option>
+                        <option value="@Model.VoiceName" selected="selected">@Model.VoiceName</option>
                     }
                 </select>
             </div>
@@ -48,8 +47,8 @@
     </div>
     <div class="form-text mb-3">Voices belong to one provider, so the persona speaks with this voice only on deployments of the same provider and uses the deployment's default voice elsewhere. A profile that picks its own voice overrides it.</div>
     <div class="mb-3">
-        <label asp-for="PersonaAvatarUrl" class="form-label">Avatar URL</label>
-        <input asp-for="PersonaAvatarUrl" class="form-control" placeholder="/images/avatars/ava.png" />
+        <label asp-for="AvatarUrl" class="form-label">Avatar URL</label>
+        <input asp-for="AvatarUrl" class="form-control" placeholder="/images/avatars/ava.png" />
     </div>
 </div>
 
@@ -62,7 +61,7 @@
             return;
         }
 
-        var realtimeDeploymentNames = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.PersonaRealtimeDeploymentNames ?? []));
+        var realtimeDeploymentNames = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RealtimeDeploymentNames ?? []));
         var speechVoicesUrl = '@Url.Action("GetVoices", "Settings", new { area = "Admin" })';
         var realtimeVoicesUrl = '@Url.Action("GetRealtimeVoices", "Settings", new { area = "Admin" })';
         var selectedVoice = voiceSelect.value || '';

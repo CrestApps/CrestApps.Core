@@ -11,7 +11,7 @@
 
 <div class="mb-3">
     <label class="form-label" for="personaInstructions">Persona instructions <span class="text-danger">*</span></label>
-    <InputTextArea id="personaInstructions" class="form-control" rows="8" @bind-Value="Model.PersonaInstructions" placeholder="You are Ava, a warm and patient assistant who speaks in short, friendly sentences..." />
+    <InputTextArea id="personaInstructions" class="form-control" rows="8" @bind-Value="Model.Instructions" placeholder="You are Ava, a warm and patient assistant who speaks in short, friendly sentences..." />
     @if (!string.IsNullOrEmpty(InstructionsError))
     {
         <div class="text-danger">@InstructionsError</div>
@@ -23,14 +23,14 @@
     <div class="col-md-6">
         <div class="mb-3">
             <label class="form-label" for="personaAssistantName">Assistant name</label>
-            <InputText id="personaAssistantName" class="form-control" @bind-Value="Model.PersonaAssistantName" placeholder="e.g., Ava" />
+            <InputText id="personaAssistantName" class="form-control" @bind-Value="Model.AssistantName" placeholder="e.g., Ava" />
             <div class="form-text">The name the assistant uses for itself.</div>
         </div>
     </div>
     <div class="col-md-6">
         <div class="mb-3">
             <label class="form-label" for="personaLanguage">Language</label>
-            <InputText id="personaLanguage" class="form-control" @bind-Value="Model.PersonaLanguage" placeholder="e.g., en-US" />
+            <InputText id="personaLanguage" class="form-control" @bind-Value="Model.Language" placeholder="e.g., en-US" />
             <div class="form-text">A BCP-47 language tag. It is used as the speech language when the caller does not name one.</div>
         </div>
     </div>
@@ -40,7 +40,7 @@
     <div class="col-md-6">
         <div class="mb-3">
             <label class="form-label" for="personaVoiceDeploymentName">Voice deployment</label>
-            <InputSelect id="personaVoiceDeploymentName" class="form-select" @bind-Value="Model.PersonaVoiceDeploymentName" @bind-Value:after="OnVoiceDeploymentChangedAsync">
+            <InputSelect id="personaVoiceDeploymentName" class="form-select" @bind-Value="Model.VoiceDeploymentName" @bind-Value:after="OnVoiceDeploymentChangedAsync">
                 <option value="">Choose a deployment to list its voices</option>
                 @if (_realtimeDeployments.Count > 0)
                 {
@@ -62,7 +62,7 @@
                 }
                 @if (IsMissingDeployment)
                 {
-                    <option value="@Model.PersonaVoiceDeploymentName">@Model.PersonaVoiceDeploymentName (missing)</option>
+                    <option value="@Model.VoiceDeploymentName">@Model.VoiceDeploymentName (missing)</option>
                 }
             </InputSelect>
             <div class="form-text">The deployment the voice is chosen from. Voice names belong to a provider, so the voice is only used when a deployment of the same provider speaks.</div>
@@ -71,7 +71,7 @@
     <div class="col-md-6">
         <div class="mb-3">
             <label class="form-label" for="personaVoiceName">Voice</label>
-            <InputSelect id="personaVoiceName" class="form-select" @bind-Value="Model.PersonaVoiceName">
+            <InputSelect id="personaVoiceName" class="form-select" @bind-Value="Model.VoiceName">
                 <option value="">No voice</option>
                 @foreach (var group in _voices.GroupBy(voice => GetVoiceGroupLabel(voice, _voicesAreRealtime)).OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
                 {
@@ -84,7 +84,7 @@
                 }
                 @if (IsUnlistedVoice)
                 {
-                    <option value="@Model.PersonaVoiceName">@Model.PersonaVoiceName (not offered by this deployment)</option>
+                    <option value="@Model.VoiceName">@Model.VoiceName (not offered by this deployment)</option>
                 }
             </InputSelect>
             <div class="form-text">The voice the persona speaks with. A profile or chat that chooses its own voice keeps it; leave this empty to use the default voice.</div>
@@ -94,7 +94,7 @@
 
 <div class="mb-3">
     <label class="form-label" for="personaAvatarUrl">Avatar URL</label>
-    <InputText id="personaAvatarUrl" type="url" class="form-control" @bind-Value="Model.PersonaAvatarUrl" placeholder="https://example.com/avatar.png" />
+    <InputText id="personaAvatarUrl" type="url" class="form-control" @bind-Value="Model.AvatarUrl" placeholder="https://example.com/avatar.png" />
     <div class="form-text">An optional image hosts may show next to the assistant's messages.</div>
 </div>
 
@@ -105,11 +105,11 @@
     private bool _voicesAreRealtime;
 
     /// <summary>
-    /// Gets or sets the template view model whose persona fields are edited.
+    /// Gets or sets the persona view model whose fields are edited.
     /// </summary>
     [Parameter]
     [EditorRequired]
-    public AITemplateViewModel Model { get; set; }
+    public AIPersonaViewModel Model { get; set; }
 
     /// <summary>
     /// Gets or sets the validation message shown under the persona instructions, if any.
@@ -118,12 +118,12 @@
     public string InstructionsError { get; set; }
 
     private bool IsMissingDeployment =>
-        !string.IsNullOrWhiteSpace(Model.PersonaVoiceDeploymentName) &&
-        !_realtimeDeployments.Concat(_textToSpeechDeployments).Any(deployment => string.Equals(deployment.Name, Model.PersonaVoiceDeploymentName, StringComparison.OrdinalIgnoreCase));
+        !string.IsNullOrWhiteSpace(Model.VoiceDeploymentName) &&
+        !_realtimeDeployments.Concat(_textToSpeechDeployments).Any(deployment => string.Equals(deployment.Name, Model.VoiceDeploymentName, StringComparison.OrdinalIgnoreCase));
 
     private bool IsUnlistedVoice =>
-        !string.IsNullOrWhiteSpace(Model.PersonaVoiceName) &&
-        !_voices.Any(voice => string.Equals(voice.Id, Model.PersonaVoiceName, StringComparison.OrdinalIgnoreCase));
+        !string.IsNullOrWhiteSpace(Model.VoiceName) &&
+        !_voices.Any(voice => string.Equals(voice.Id, Model.VoiceName, StringComparison.OrdinalIgnoreCase));
 
     protected override async Task OnInitializedAsync()
     {
@@ -152,7 +152,7 @@
         // Voice names belong to a provider, so a voice the new deployment does not offer would never be used.
         if (IsUnlistedVoice)
         {
-            Model.PersonaVoiceName = null;
+            Model.VoiceName = null;
         }
     }
 
@@ -161,7 +161,7 @@
         _voices = [];
         _voicesAreRealtime = false;
 
-        var deploymentName = Model.PersonaVoiceDeploymentName;
+        var deploymentName = Model.VoiceDeploymentName;
 
         if (string.IsNullOrWhiteSpace(deploymentName))
         {

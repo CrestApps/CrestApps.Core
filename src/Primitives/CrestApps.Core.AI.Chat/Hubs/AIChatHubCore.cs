@@ -966,9 +966,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
                 using var speechToTextClient = await clientFactory.CreateSpeechToTextClientAsync(sttDeployment);
                 using var textToSpeechClient = await clientFactory.CreateTextToSpeechClientAsync(ttsDeployment);
-                var personaResolver = services.GetRequiredService<IAIPersonaResolver>();
-                var persona = await personaResolver.ResolveAsync(profile, cancellationToken);
-                var effectiveVoiceName = await personaResolver.SelectVoiceAsync(persona, chatModeSettings.VoiceName, ttsDeployment.Name, deploymentSettings.DefaultTextToSpeechVoiceId, cancellationToken);
+                var persona = await services.ResolvePersonaAsync(profile, cancellationToken);
+                var effectiveVoiceName = await services.SelectPersonaVoiceAsync(persona, chatModeSettings.VoiceName, ttsDeployment.Name, deploymentSettings.DefaultTextToSpeechVoiceId, cancellationToken);
                 var speechLanguage = !string.IsNullOrWhiteSpace(language)
                     ? language
                     : persona?.Language ?? "en-US";
@@ -1083,12 +1082,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
 
                 // The caller's voice, then the profile's own choice, then the persona's, then the deployment default.
-                var personaResolver = services.GetRequiredService<IAIPersonaResolver>();
                 var explicitVoice = !string.IsNullOrWhiteSpace(voice)
                     ? voice
                     : chatModeSettings.VoiceName;
-                var effectiveVoice = await personaResolver.SelectVoiceAsync(
-                    await personaResolver.ResolveAsync(profile, cancellationToken),
+                var effectiveVoice = await services.SelectPersonaVoiceAsync(
+                    await services.ResolvePersonaAsync(profile, cancellationToken),
                     explicitVoice,
                     realtimeDeploymentName,
                     deploymentSettings.DefaultRealtimeVoiceId,
@@ -1267,12 +1265,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
 
                 // The caller's voice, then the profile's own choice, then the persona's, then the deployment default.
-                var personaResolver = services.GetRequiredService<IAIPersonaResolver>();
                 var explicitVoice = !string.IsNullOrWhiteSpace(voice)
                     ? voice
                     : chatModeSettings.VoiceName;
-                var effectiveVoice = await personaResolver.SelectVoiceAsync(
-                    await personaResolver.ResolveAsync(profile, cancellationToken),
+                var effectiveVoice = await services.SelectPersonaVoiceAsync(
+                    await services.ResolvePersonaAsync(profile, cancellationToken),
                     explicitVoice,
                     realtimeDeploymentName,
                     deploymentSettings.DefaultRealtimeVoiceId,
@@ -1773,12 +1770,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 }
 
                 using var textToSpeechClient = await clientFactory.CreateTextToSpeechClientAsync(deployment);
-                var personaResolver = services.GetRequiredService<IAIPersonaResolver>();
                 var explicitVoice = !string.IsNullOrWhiteSpace(voiceName)
                     ? voiceName
                     : chatModeSettings?.VoiceName;
-                var effectiveVoiceName = await personaResolver.SelectVoiceAsync(
-                    await personaResolver.ResolveAsync(profile, cancellationToken),
+                var effectiveVoiceName = await services.SelectPersonaVoiceAsync(
+                    await services.ResolvePersonaAsync(profile, cancellationToken),
                     explicitVoice,
                     deployment.Name,
                     deploymentSettings.DefaultTextToSpeechVoiceId,

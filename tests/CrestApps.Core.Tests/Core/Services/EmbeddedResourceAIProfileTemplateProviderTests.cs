@@ -62,39 +62,6 @@ public sealed class EmbeddedResourceAIProfileTemplateProviderTests
         Assert.False(template.TryGet<ProfileTemplateMetadata>(out _));
     }
 
-    [Fact]
-    public void Parse_WhenSourceIsPersona_MapsFrontMatterToPersonaMetadata()
-    {
-        var parseResult = new TemplateParseResult
-        {
-            Body = "You are Ava, a warm and patient assistant.",
-            Metadata = new TemplateMetadata
-            {
-                Title = "Friendly assistant",
-                AdditionalProperties =
-                {
-                    [nameof(AIProfileTemplate.Source)] = "persona",
-                    [nameof(PersonaTemplateMetadata.AssistantName)] = "Ava",
-                    [nameof(PersonaTemplateMetadata.Language)] = "en-US",
-                    [nameof(PersonaTemplateMetadata.VoiceName)] = "marin",
-                    [nameof(PersonaTemplateMetadata.VoiceDeploymentName)] = "realtime",
-                    [nameof(PersonaTemplateMetadata.AvatarUrl)] = "/media/ava.png",
-                },
-            },
-        };
-
-        var template = AIProfileTemplateParser.Parse("friendly-assistant", parseResult);
-
-        Assert.Equal(AITemplateSources.Persona, template.Source);
-        Assert.True(template.TryGet<PersonaTemplateMetadata>(out var persona));
-        Assert.Equal("You are Ava, a warm and patient assistant.", persona.Instructions);
-        Assert.Equal("Ava", persona.AssistantName);
-        Assert.Equal("en-US", persona.Language);
-        Assert.Equal("marin", persona.VoiceName);
-        Assert.Equal("realtime", persona.VoiceDeploymentName);
-        Assert.Equal("/media/ava.png", persona.AvatarUrl);
-        Assert.False(template.TryGet<ProfileTemplateMetadata>(out _));
-    }
 
     [Fact]
     public void Parse_ProfileTemplateNamingPersona_LinksThePersona()

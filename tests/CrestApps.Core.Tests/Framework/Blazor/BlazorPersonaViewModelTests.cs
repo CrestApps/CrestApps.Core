@@ -7,79 +7,82 @@ namespace CrestApps.Core.Tests.Framework.Blazor;
 public sealed class BlazorPersonaViewModelTests
 {
     [Fact]
-    public void TemplateFromTemplate_ShouldReadPersonaFields()
+    public void PersonaFromPersona_ShouldReadPersonaFields()
     {
-        var template = new AIProfileTemplate
+        var persona = new AIPersona
         {
+            ItemId = "persona-1",
             Name = "FriendlyGuide",
-            Source = AITemplateSources.Persona,
-        };
-
-        template.Put(new PersonaTemplateMetadata
-        {
+            DisplayText = "Friendly guide",
+            Description = "A patient guide.",
             Instructions = "You are {{ Name }}.",
             AssistantName = "Guide",
             Language = "en-US",
             VoiceName = "alloy",
             VoiceDeploymentName = "realtime-model",
             AvatarUrl = "https://example.com/guide.png",
-        });
+        };
 
-        var model = AITemplateViewModel.FromTemplate(template);
+        var model = AIPersonaViewModel.FromPersona(persona, isFileBased: true);
 
-        Assert.Equal("You are {{ Name }}.", model.PersonaInstructions);
-        Assert.Equal("Guide", model.PersonaAssistantName);
-        Assert.Equal("en-US", model.PersonaLanguage);
-        Assert.Equal("alloy", model.PersonaVoiceName);
-        Assert.Equal("realtime-model", model.PersonaVoiceDeploymentName);
-        Assert.Equal("https://example.com/guide.png", model.PersonaAvatarUrl);
+        Assert.Equal("persona-1", model.ItemId);
+        Assert.Equal("FriendlyGuide", model.Name);
+        Assert.Equal("Friendly guide", model.DisplayText);
+        Assert.Equal("A patient guide.", model.Description);
+        Assert.Equal("You are {{ Name }}.", model.Instructions);
+        Assert.Equal("Guide", model.AssistantName);
+        Assert.Equal("en-US", model.Language);
+        Assert.Equal("alloy", model.VoiceName);
+        Assert.Equal("realtime-model", model.VoiceDeploymentName);
+        Assert.Equal("https://example.com/guide.png", model.AvatarUrl);
+        Assert.True(model.IsFileBased);
     }
 
     [Fact]
-    public void TemplateApplyTo_WhenPersonaHasNoVoice_ShouldClearVoiceDeployment()
+    public void PersonaToJson_WhenPersonaHasNoVoice_ShouldClearVoiceDeployment()
     {
-        var model = new AITemplateViewModel
+        var model = new AIPersonaViewModel
+        {
+            Name = " FriendlyGuide ",
+            Instructions = "  Be kind.  ",
+            AssistantName = " ",
+            Language = " fr-FR ",
+            VoiceDeploymentName = "tts-model",
+            VoiceName = "",
+        };
+
+        var json = model.ToJson();
+
+        Assert.Equal("FriendlyGuide", json[nameof(AIPersona.Name)]?.GetValue<string>());
+        Assert.Equal("Be kind.", json[nameof(AIPersona.Instructions)]?.GetValue<string>());
+        Assert.Equal("fr-FR", json[nameof(AIPersona.Language)]?.GetValue<string>());
+
+        // Cleared fields are present as null so an update clears them on the persona.
+        Assert.True(json.ContainsKey(nameof(AIPersona.AssistantName)));
+        Assert.Null(json[nameof(AIPersona.AssistantName)]);
+        Assert.True(json.ContainsKey(nameof(AIPersona.VoiceName)));
+        Assert.Null(json[nameof(AIPersona.VoiceName)]);
+        Assert.True(json.ContainsKey(nameof(AIPersona.VoiceDeploymentName)));
+        Assert.Null(json[nameof(AIPersona.VoiceDeploymentName)]);
+        Assert.True(json.ContainsKey(nameof(AIPersona.AvatarUrl)));
+        Assert.Null(json[nameof(AIPersona.AvatarUrl)]);
+    }
+
+    [Fact]
+    public void PersonaToJson_WhenPersonaHasVoice_ShouldKeepVoiceDeployment()
+    {
+        var model = new AIPersonaViewModel
         {
             Name = "FriendlyGuide",
-            Source = AITemplateSources.Persona,
-            PersonaInstructions = "  Be kind.  ",
-            PersonaAssistantName = " ",
-            PersonaLanguage = " fr-FR ",
-            PersonaVoiceDeploymentName = "tts-model",
-            PersonaVoiceName = "",
+            Instructions = "Be kind.",
+            VoiceDeploymentName = "tts-model",
+            VoiceName = "en-US-AvaNeural",
         };
 
-        var template = new AIProfileTemplate();
+        var json = model.ToJson();
 
-        model.ApplyTo(template);
-
-        Assert.True(template.TryGet<PersonaTemplateMetadata>(out var metadata));
-        Assert.Equal("Be kind.", metadata.Instructions);
-        Assert.Null(metadata.AssistantName);
-        Assert.Equal("fr-FR", metadata.Language);
-        Assert.Null(metadata.VoiceName);
-        Assert.Null(metadata.VoiceDeploymentName);
-        Assert.Null(metadata.AvatarUrl);
-    }
-
-    [Fact]
-    public void TemplateApplyTo_WhenPersonaHasVoice_ShouldKeepVoiceDeployment()
-    {
-        var model = new AITemplateViewModel
-        {
-            Source = AITemplateSources.Persona,
-            PersonaInstructions = "Be kind.",
-            PersonaVoiceDeploymentName = "tts-model",
-            PersonaVoiceName = "en-US-AvaNeural",
-        };
-
-        var template = new AIProfileTemplate();
-
-        model.ApplyTo(template);
-
-        Assert.True(template.TryGet<PersonaTemplateMetadata>(out var metadata));
-        Assert.Equal("en-US-AvaNeural", metadata.VoiceName);
-        Assert.Equal("tts-model", metadata.VoiceDeploymentName);
+        Assert.Equal("en-US-AvaNeural", json[nameof(AIPersona.VoiceName)]?.GetValue<string>());
+        Assert.Equal("tts-model", json[nameof(AIPersona.VoiceDeploymentName)]?.GetValue<string>());
     }
 
     [Fact]
@@ -143,6 +146,8 @@ public sealed class BlazorPersonaViewModelTests
         model.ApplyTo(template);
 
         Assert.False(template.TryGet<AIPersonaMetadata>(out _));
+        Assert.True(template.TryGet<SystemPromptTemplateMetadata>(out var systemPrompt));
+        Assert.Equal("Hello", systemPrompt.SystemMessage);
     }
 
     [Fact]
@@ -189,19 +194,21 @@ public sealed class BlazorPersonaViewModelTests
     }
 
     [Fact]
-    public void PersonaSelectList_ShouldSortByCategoryThenDisplayTextAndKeepMissingSelection()
+    public void PersonaSelectList_ShouldSortByDisplayTextAndKeepMissingSelection()
     {
         var personas = new[]
         {
-            CreatePersona("Zed", "Zed persona", "Support", voiceName: "alloy"),
-            CreatePersona("Amy", "Amy persona", "Support"),
-            CreatePersona("Bob", "Bob persona", null),
+            CreatePersona("Zed", "Zed persona", voiceName: "alloy"),
+            CreatePersona("Amy", "Amy persona"),
+            CreatePersona("Bob", null),
         };
 
         var items = PersonaSelectList.Build(personas, "Deleted");
 
-        Assert.Equal(["Bob", "Amy", "Zed", "Deleted"], items.Select(item => item.PersonaId));
+        Assert.Equal(["Amy", "Bob", "Zed", "Deleted"], items.Select(item => item.PersonaId));
+        Assert.Equal("Bob", items.Single(item => item.PersonaId == "Bob").DisplayText);
         Assert.Equal("alloy", items.Single(item => item.PersonaId == "Zed").VoiceName);
+        Assert.Null(items.Single(item => item.PersonaId == "Amy").VoiceName);
         Assert.True(items.Single(item => item.PersonaId == "Deleted").IsMissing);
         Assert.DoesNotContain(items, item => item.IsMissing && item.PersonaId != "Deleted");
     }
@@ -209,28 +216,35 @@ public sealed class BlazorPersonaViewModelTests
     [Fact]
     public void PersonaSelectList_WhenSelectionExists_ShouldNotAddMissingOption()
     {
-        var items = PersonaSelectList.Build([CreatePersona("Amy", "Amy persona", null)], "amy");
+        var items = PersonaSelectList.Build([CreatePersona("Amy", "Amy persona")], "amy");
 
         Assert.Single(items);
         Assert.False(items[0].IsMissing);
     }
 
-    private static AIProfileTemplate CreatePersona(string name, string displayText, string category, string voiceName = null)
+    [Fact]
+    public void PersonaSelectList_WhenNamesRepeat_ShouldKeepFirstPersona()
     {
-        var template = new AIProfileTemplate
+        var items = PersonaSelectList.Build(
+            [
+                CreatePersona("Amy", "Saved Amy"),
+                CreatePersona("amy", "File Amy"),
+            ],
+            null);
+
+        var item = Assert.Single(items);
+        Assert.Equal("Saved Amy", item.DisplayText);
+    }
+
+    private static AIPersona CreatePersona(string name, string displayText, string voiceName = null)
+    {
+        return new AIPersona
         {
+            ItemId = name,
             Name = name,
             DisplayText = displayText,
-            Category = category,
-            Source = AITemplateSources.Persona,
-        };
-
-        template.Put(new PersonaTemplateMetadata
-        {
             Instructions = "Be kind.",
             VoiceName = voiceName,
-        });
-
-        return template;
+        };
     }
 }
