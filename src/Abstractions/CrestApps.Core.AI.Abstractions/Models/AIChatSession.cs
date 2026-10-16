@@ -21,6 +21,12 @@ public sealed class AIChatSession : ExtensibleEntity, IModifiedUtcAwareModel
     public string ProfileId { get; set; }
 
     /// <summary>
+    /// Gets or sets the technical name of the persona the profile linked to when the session started, for
+    /// reporting. The persona used for each reply is still resolved from the profile.
+    /// </summary>
+    public string PersonaId { get; set; }
+
+    /// <summary>
     /// Gets or sets the title of the chat session.
     /// This can be a descriptive name or label for the session, such as "Customer Support Chat".
     /// </summary>

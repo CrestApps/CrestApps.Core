@@ -159,6 +159,12 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
             session.ClientId = visitorIdentity.VisitorId;
         }
 
+        if (profile.TryGet<AIPersonaMetadata>(out var personaMetadata) &&
+            !string.IsNullOrWhiteSpace(personaMetadata.PersonaId))
+        {
+            session.PersonaId = personaMetadata.PersonaId;
+        }
+
         if (profile.Type == AIProfileType.Chat)
         {
             var handlerSettings = profile.GetOrCreateSettings<ResponseHandlerProfileSettings>();

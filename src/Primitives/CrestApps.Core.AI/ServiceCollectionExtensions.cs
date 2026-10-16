@@ -1,3 +1,4 @@
+using System.Reflection;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Clients;
@@ -641,6 +642,80 @@ public static class ServiceCollectionExtensions
         {
             configure(new CrestAppsAIMemoryBuilder(builder.Services));
         }
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the AI persona services: the persona manager, which merges saved personas with those of every
+    /// <see cref="IAIPersonaProvider"/>, the <see cref="IAIPersonaResolver"/>, and the completion handler that places
+    /// a linked persona's instructions at the top of the system message. Persona files in the content root's
+    /// <c>Templates/Personas</c> folder are read too. Register the persona stores separately, for example with
+    /// <c>AddYesSqlStores()</c> or <c>AddEntityCoreStores()</c> on the persona builder.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIPersonas(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+        services.TryAddScoped<IAIPersonaManager, DefaultAIPersonaManager>();
+        services.TryAddScoped<INamedCatalogManager<AIPersona>>(sp => sp.GetRequiredService<IAIPersonaManager>());
+        services.TryAddScoped<IAIPersonaResolver, DefaultAIPersonaResolver>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIPersona>, AIPersonaCatalogHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, AIPersonaCompletionContextBuilderHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAIPersonaProvider, AIPersonaFileSystemProvider>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Reads persona files embedded in an assembly under <c>Templates/Personas</c>. Each file is a persona whose
+    /// front matter holds its fields and whose body holds its instructions.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="assembly">The assembly that embeds the persona files.</param>
+    public static IServiceCollection AddCoreAIPersonasFromAssembly(this IServiceCollection services, Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(assembly);
+
+        services.AddSingleton<IAIPersonaProvider>(sp => new EmbeddedResourceAIPersonaProvider(assembly, sp.GetServices<ITemplateParser>()));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds AI personas: reusable characters that AI profiles and chat interactions link to. Personas are an
+    /// opt-in feature; without it, persona links are ignored and chats run with the profile's own instructions.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">Configures the persona feature, for example its stores.</param>
+    public static CrestAppsAISuiteBuilder AddPersonas(this CrestAppsAISuiteBuilder builder, Action<CrestAppsAIPersonasBuilder> configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIPersonas();
+
+        if (configure is not null)
+        {
+            configure(new CrestAppsAIPersonasBuilder(builder.Services));
+        }
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Reads persona files embedded in an assembly under <c>Templates/Personas</c>.
+    /// </summary>
+    /// <param name="builder">The persona builder.</param>
+    /// <param name="assembly">The assembly that embeds the persona files.</param>
+    public static CrestAppsAIPersonasBuilder AddEmbeddedPersonas(this CrestAppsAIPersonasBuilder builder, Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIPersonasFromAssembly(assembly);
 
         return builder;
     }

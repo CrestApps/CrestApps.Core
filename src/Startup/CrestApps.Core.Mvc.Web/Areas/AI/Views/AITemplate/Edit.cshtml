@@ -71,6 +71,7 @@
                 </div>
             </div>
 
+
             <!-- Profile fields (shown for Profile source, tabbed like AI Profile) -->
             <div id="profileFields" style="display: none;">
                 <ul class="nav nav-tabs" id="profileTabs" role="tablist">
@@ -248,6 +249,21 @@
 
                     <!-- AI Parameters Tab -->
                     <div class="tab-pane fade" id="params" role="tabpanel">
+                        @if (Context.RequestServices.GetService(typeof(CrestApps.Core.AI.Profiles.IAIPersonaManager)) is not null)
+                        {
+                            <div class="mb-3">
+                                <label asp-for="PersonaId" class="form-label">AI persona</label>
+                                <select asp-for="PersonaId" class="form-select" asp-items="Model.AvailablePersonas">
+                                    <option value="">No persona</option>
+                                </select>
+                                <div class="form-text">The persona profiles created from this template start with. The persona says who the assistant is; its instructions come before the system message.</div>
+                            </div>
+                        }
+                        else
+                        {
+                            @* Personas are not enabled; keep any existing link rather than clearing it on save. *@
+                            <input type="hidden" asp-for="PersonaId" />
+                        }
                         <div class="mb-3">
                             <label class="form-label">
                                 Prompt templates

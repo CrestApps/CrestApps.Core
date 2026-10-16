@@ -16,13 +16,14 @@
 			copiedTitle: "Response copied to clipboard.",
 			copyResetDelayMs: 2e3,
 			assistantLabel: "Assistant",
+			assistantAvatarUrl: null,
 			messageTemplate: `
             <div class="ai-chat-messages">
                 <div v-for="(message, index) in messages" :key="index" class="ai-chat-message-item">
                     <div>
                         <div v-if="message.role === 'user'" class="ai-chat-msg-role ai-chat-msg-role-user">You</div>
                         <div v-else-if="message.role !== 'indicator'" :class="getAssistantRoleClasses(message)">
-                            <span :class="getAssistantIconClasses(message, index)"><i :class="getAssistantIcon(message)"></i></span>
+                            <span :class="getAssistantIconClasses(message, index)"><img v-if="getAssistantAvatarUrl(message)" class="ai-chat-assistant-avatar" :src="getAssistantAvatarUrl(message)" alt="" /><i v-else :class="getAssistantIcon(message)"></i></span>
                             {{ getAssistantLabel(message) }}
                         </div>
                         <div class="ai-chat-message-body lh-base">
@@ -64,8 +65,8 @@
         `,
 			indicatorTemplate: `
             <div class="ai-chat-msg-role ai-chat-msg-role-assistant">
-                <span class="ai-streaming-icon"><i class="fa fa-robot" style="display: inline-block;"></i></span>
-                Assistant
+                {{ assistantIcon }}
+                {{ assistantLabel }}
             </div>
         `,
 			untitledText: "Untitled",
@@ -381,8 +382,19 @@
 			if (!source || typeof source !== "object") return {};
 			return Object.fromEntries(Object.entries(source).filter(([, value]) => value !== void 0));
 		}
+		function resolveIndicatorTemplate(template, assistantLabel, assistantAvatarUrl) {
+			if (!template) return template;
+			const encodedAssistantLabel = escapeHtmlEntities(assistantLabel || "Assistant");
+			const avatarUrl = sanitizeUrl(assistantAvatarUrl);
+			const assistantIcon = avatarUrl ? "<span class=\"ai-streaming-avatar\"><img class=\"ai-chat-assistant-avatar\" src=\"" + escapeHtmlAttribute(avatarUrl) + "\" alt=\"\" /></span>" : "<span class=\"ai-streaming-icon\"><i class=\"fa fa-robot\" style=\"display: inline-block;\"></i></span>";
+			return template.replace(/\{\{\s*assistantLabel\s*\}\}/g, encodedAssistantLabel).replace(/\{\{\s*assistantIcon\s*\}\}/g, assistantIcon);
+		}
+		function escapeHtmlAttribute(text) {
+			return escapeHtmlEntities(text).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+		}
 		const initialize = (instanceConfig) => {
 			const config = Object.assign({}, defaultConfig, compactObject(instanceConfig));
+			config.indicatorTemplate = resolveIndicatorTemplate(config.indicatorTemplate, config.assistantLabel, config.assistantAvatarUrl);
 			defaultConfig = config;
 			if (!config.signalRHubUrl) {
 				console.error("The signalRHubUrl is required.");
@@ -448,6 +460,7 @@
 						notificationDismissTimers: {},
 						copyTitle: config.copyTitle,
 						copiedTitle: config.copiedTitle,
+						assistantAvatarUrl: sanitizeUrl(config.assistantAvatarUrl) || null,
 						copiedMessageIndex: -1,
 						copyResetTimeoutId: null,
 						activeCopyButton: null
@@ -716,7 +729,12 @@
 					},
 					getAssistantIconClasses(message, index) {
 						var appearance = message ? this.normalizeAssistantAppearance(message.appearance) : null;
+						if (this.getAssistantAvatarUrl(message)) return [this.shouldAnimateAssistantIcon(message, index) ? "ai-streaming-avatar" : "ai-bot-avatar"];
 						return [this.shouldAnimateAssistantIcon(message, index) ? "ai-streaming-icon" : "ai-bot-icon", appearance && appearance.cssClass ? appearance.cssClass : ""];
+					},
+					getAssistantAvatarUrl(message) {
+						if (!this.assistantAvatarUrl || message && this.normalizeAssistantAppearance(message.appearance)) return null;
+						return this.assistantAvatarUrl;
 					},
 					getAssistantIcon(message) {
 						var appearance = message ? this.normalizeAssistantAppearance(message.appearance) : null;

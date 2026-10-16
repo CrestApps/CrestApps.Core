@@ -1,0 +1,185 @@
+@page "/ai/personas/edit/{Id}"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Profiles
+@using CrestApps.Core.Models
+@using CrestApps.Core.Services
+@inject IServiceProvider ServiceProvider
+@inject IStoreCommitter StoreCommitter
+@inject NavigationManager Navigation
+
+<PageTitle>Edit AI Persona - Blazor AI Integration Sample</PageTitle>
+
+@if (_personaManager is null)
+{
+    <div class="alert alert-warning">AI personas are not enabled on this host.</div>
+    return;
+}
+
+@if (_notFound)
+{
+    <div class="alert alert-warning">Persona not found.</div>
+    return;
+}
+
+@if (_model == null)
+{
+    <p><em>Loading...</em></p>
+    return;
+}
+
+<h2><i class="fa-solid fa-pen-to-square"></i> Edit AI Persona</h2>
+<hr />
+
+<EditForm FormName="ai-personas-edit" Model="_model" OnValidSubmit="HandleSubmitAsync">
+    <div class="row">
+        <div class="col-12">
+            @if (_model.IsFileBased)
+            {
+                <div class="alert alert-info">
+                    <i class="fa-solid fa-circle-info"></i> This persona is defined in a persona file. Saving creates a saved persona with the same technical name, which replaces the file; deleting the saved persona later brings the file back.
+                </div>
+            }
+
+            @if (_errors.Count > 0)
+            {
+                <div class="alert alert-danger">
+                    @foreach (var error in _errors)
+                    {
+                        <div>@error</div>
+                    }
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label">Title</label>
+                <InputText class="form-control" @bind-Value="_model.DisplayText" placeholder="e.g., Friendly Guide" />
+                <div class="form-text">The name shown in persona pickers. The technical name is used when it is empty.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Technical name</label>
+                <input type="text" class="form-control" value="@_model.Name" readonly disabled />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Description</label>
+                <InputText class="form-control" @bind-Value="_model.Description" placeholder="Brief description" />
+            </div>
+
+            <PersonaFields Model="_model" InstructionsError="@_instructionsError" />
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Save</button>
+                <a href="/ai/personas" class="btn btn-secondary">Cancel</a>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter]
+    public string Id { get; set; }
+
+    private IAIPersonaManager _personaManager;
+    private AIPersonaViewModel _model;
+    private bool _notFound;
+    private List<string> _errors = [];
+    private string _instructionsError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Personas are an opt-in feature; without it there is nothing to edit.
+        _personaManager = ServiceProvider.GetService<IAIPersonaManager>();
+
+        if (_personaManager is null)
+        {
+            return;
+        }
+
+        var persona = await _personaManager.FindByIdAsync(Id);
+
+        if (persona == null)
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        var fileBasedIds = await AIPersonaViewModel.GetFileBasedIdsAsync(ServiceProvider.GetServices<IAIPersonaProvider>());
+
+        _model = AIPersonaViewModel.FromPersona(persona, fileBasedIds.Contains(persona.ItemId));
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _errors = [];
+        _instructionsError = null;
+
+        var data = _model.ToJson();
+
+        if (_model.IsFileBased)
+        {
+            // A persona file is read-only, so the edit is saved as a persona with the same name, which replaces it.
+            var copy = await _personaManager.NewAsync(data);
+            var copyValidation = await _personaManager.ValidateAsync(copy);
+
+            if (!copyValidation.Succeeded)
+            {
+                ShowErrors(copyValidation);
+
+                return;
+            }
+
+            await _personaManager.CreateAsync(copy);
+            await StoreCommitter.CommitAsync();
+
+            Navigation.NavigateTo("/ai/personas");
+
+            return;
+        }
+
+        var persona = await _personaManager.FindByIdAsync(_model.ItemId);
+
+        if (persona == null)
+        {
+            _notFound = true;
+
+            return;
+        }
+
+        // UpdateAsync applies the data and saves without validating, so the form is validated first on a probe
+        // filled the same way. The probe keeps the persona's id so the unique-name check matches the persona itself.
+        var probe = await _personaManager.NewAsync(data);
+        probe.ItemId = persona.ItemId;
+
+        var validation = await _personaManager.ValidateAsync(probe);
+
+        if (!validation.Succeeded)
+        {
+            ShowErrors(validation);
+
+            return;
+        }
+
+        await _personaManager.UpdateAsync(persona, data);
+        await StoreCommitter.CommitAsync();
+
+        Navigation.NavigateTo("/ai/personas");
+    }
+
+    private void ShowErrors(ValidationResultDetails validation)
+    {
+        foreach (var error in validation.Errors)
+        {
+            if (error.MemberNames.Contains(nameof(AIPersona.Instructions)))
+            {
+                _instructionsError = error.ErrorMessage;
+            }
+            else
+            {
+                _errors.Add(error.ErrorMessage);
+            }
+        }
+    }
+}

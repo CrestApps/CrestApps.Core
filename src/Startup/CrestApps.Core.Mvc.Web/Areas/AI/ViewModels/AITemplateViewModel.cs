@@ -35,6 +35,12 @@ public sealed class AITemplateViewModel
     // SystemPrompt source fields.
     public string SystemMessage { get; set; }
 
+    // Profile source: the persona profiles created from this template start with.
+    public string PersonaId { get; set; }
+
+    [BindNever]
+    public IEnumerable<SelectListItem> AvailablePersonas { get; set; } = [];
+
     // Profile source fields.
     public AIProfileType? ProfileType { get; set; }
 
@@ -245,6 +251,11 @@ public sealed class AITemplateViewModel
         }
         else if (template.Source == AITemplateSources.Profile)
         {
+            if (template.TryGet<AIPersonaMetadata>(out var personaLink))
+            {
+                model.PersonaId = personaLink.PersonaId;
+            }
+
             if (template.TryGet<AIDeploymentParametersMetadata>(out var modelParameters))
             {
                 if (modelParameters.Values is { Count: > 0 })
@@ -451,6 +462,10 @@ public sealed class AITemplateViewModel
         }
         else if (Source == AITemplateSources.Profile)
         {
+            var personaId = NullIfWhiteSpace(PersonaId);
+
+            template.Alter<AIPersonaMetadata>(metadata => metadata.PersonaId = personaId);
+
             var toolNames = SelectedToolNames?.Where(n => !string.IsNullOrWhiteSpace(n)).ToArray();
             var agentNames = SelectedAgentNames?.Where(n => !string.IsNullOrWhiteSpace(n)).ToArray();
 
@@ -693,5 +708,12 @@ public sealed class AITemplateViewModel
         return new Dictionary<string, string>(
             values.Where(static entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value)),
             StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string NullIfWhiteSpace(string value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Trim();
     }
 }

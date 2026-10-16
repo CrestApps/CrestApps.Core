@@ -162,6 +162,20 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers EntityCore-backed stores for the AI persona feature.
+    /// This includes a catalog for <see cref="AIPersona"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIPersonaStoresEntityCore(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddNamedDocumentCatalog<AIPersona, NamedDocumentCatalog<AIPersona>>();
+
+        return services;
+    }
+
+    /// <summary>
     /// Registers EntityCore-backed stores for the A2A client feature.
     /// This includes a catalog for <see cref="A2AConnection"/>.
     /// </summary>
@@ -505,6 +519,20 @@ public static class ServiceCollectionExtensions
         builder.Services.AddCoreAIServicesStoresEntityCore();
         builder.Services.AddCoreAIProfileTemplateStoresEntityCore();
         builder.Services.AddCoreAIChatSessionStoresEntityCore();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers EntityCore-backed stores for the AI persona feature on the persona builder.
+    /// This includes a catalog for <see cref="AIPersona"/>.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    public static CrestAppsAIPersonasBuilder AddEntityCoreStores(this CrestAppsAIPersonasBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIPersonaStoresEntityCore();
 
         return builder;
     }

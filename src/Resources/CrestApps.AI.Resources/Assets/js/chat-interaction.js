@@ -31,6 +31,8 @@ window.chatInteractionManager = function () {
         copiedTitle: 'Response copied to clipboard.',
         copyResetDelayMs: 2000,
         assistantLabel: 'Assistant',
+        // The persona's avatar shown on assistant messages in place of the robot icon, when set.
+        assistantAvatarUrl: null,
 
         messageTemplate: `
             <div class="ai-chat-messages">
@@ -38,7 +40,7 @@ window.chatInteractionManager = function () {
                     <div>
                         <div v-if="message.role === 'user'" class="ai-chat-msg-role ai-chat-msg-role-user">You</div>
                         <div v-else-if="message.role !== 'indicator'" :class="getAssistantRoleClasses(message)">
-                            <span :class="getAssistantIconClasses(message, index)"><i :class="getAssistantIcon(message)"></i></span>
+                            <span :class="getAssistantIconClasses(message, index)"><img v-if="getAssistantAvatarUrl(message)" class="ai-chat-assistant-avatar" :src="getAssistantAvatarUrl(message)" alt="" /><i v-else :class="getAssistantIcon(message)"></i></span>
                             {{ getAssistantLabel(message) }}
                         </div>
                         <div class="ai-chat-message-body lh-base">
@@ -80,8 +82,8 @@ window.chatInteractionManager = function () {
         `,
         indicatorTemplate: `
             <div class="ai-chat-msg-role ai-chat-msg-role-assistant">
-                <span class="ai-streaming-icon"><i class="fa fa-robot" style="display: inline-block;"></i></span>
-                Assistant
+                {{ assistantIcon }}
+                {{ assistantLabel }}
             </div>
         `,
         // Localizable strings
@@ -646,8 +648,31 @@ window.chatInteractionManager = function () {
         );
     }
 
+    // Fills the {{ assistantLabel }} and {{ assistantIcon }} tokens of the typing indicator. The icon is the avatar
+    // image when one is configured and the animated robot otherwise.
+    function resolveIndicatorTemplate(template, assistantLabel, assistantAvatarUrl) {
+        if (!template) {
+            return template;
+        }
+
+        const encodedAssistantLabel = escapeHtmlEntities(assistantLabel || 'Assistant');
+        const avatarUrl = sanitizeUrl(assistantAvatarUrl);
+        const assistantIcon = avatarUrl
+            ? '<span class="ai-streaming-avatar"><img class="ai-chat-assistant-avatar" src="' + escapeHtmlAttribute(avatarUrl) + '" alt="" /></span>'
+            : '<span class="ai-streaming-icon"><i class="fa fa-robot" style="display: inline-block;"></i></span>';
+
+        return template
+            .replace(/\{\{\s*assistantLabel\s*\}\}/g, encodedAssistantLabel)
+            .replace(/\{\{\s*assistantIcon\s*\}\}/g, assistantIcon);
+    }
+
+    function escapeHtmlAttribute(text) {
+        return escapeHtmlEntities(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     const initialize = (instanceConfig) => {
         const config = Object.assign({}, defaultConfig, compactObject(instanceConfig));
+        config.indicatorTemplate = resolveIndicatorTemplate(config.indicatorTemplate, config.assistantLabel, config.assistantAvatarUrl);
         // Keep defaultConfig in sync so renderers use overridden values
         defaultConfig = config;
 
@@ -724,6 +749,7 @@ window.chatInteractionManager = function () {
                     notificationDismissTimers: {},
                     copyTitle: config.copyTitle,
                     copiedTitle: config.copiedTitle,
+                    assistantAvatarUrl: sanitizeUrl(config.assistantAvatarUrl) || null,
                     copiedMessageIndex: -1,
                     copyResetTimeoutId: null,
                     activeCopyButton: null,
@@ -1097,7 +1123,21 @@ window.chatInteractionManager = function () {
                 },
                 getAssistantIconClasses(message, index) {
                     var appearance = message ? this.normalizeAssistantAppearance(message.appearance) : null;
+
+                    // An avatar pulses while streaming; spinning a face like the robot icon would look wrong.
+                    if (this.getAssistantAvatarUrl(message)) {
+                        return [this.shouldAnimateAssistantIcon(message, index) ? 'ai-streaming-avatar' : 'ai-bot-avatar'];
+                    }
+
                     return [this.shouldAnimateAssistantIcon(message, index) ? 'ai-streaming-icon' : 'ai-bot-icon', appearance && appearance.cssClass ? appearance.cssClass : ''];
+                },
+                getAssistantAvatarUrl(message) {
+                    // A message with its own appearance keeps that look rather than the configured assistant's avatar.
+                    if (!this.assistantAvatarUrl || (message && this.normalizeAssistantAppearance(message.appearance))) {
+                        return null;
+                    }
+
+                    return this.assistantAvatarUrl;
                 },
                 getAssistantIcon(message) {
                     var appearance = message ? this.normalizeAssistantAppearance(message.appearance) : null;

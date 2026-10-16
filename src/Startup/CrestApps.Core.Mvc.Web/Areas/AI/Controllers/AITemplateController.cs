@@ -240,8 +240,15 @@ public sealed class AITemplateController : Controller
         }
     }
 
+    private async Task PopulatePersonaOptionsAsync(AITemplateViewModel model)
+    {
+        model.AvailablePersonas = await AIPersonaSelectListBuilder.BuildAsync(HttpContext.RequestServices.GetService<IAIPersonaManager>(), model.PersonaId);
+    }
+
     private async Task PopulateDropdownsAsync(AITemplateViewModel model)
     {
+        await PopulatePersonaOptionsAsync(model);
+
         model.ModelParameterEditor = await _modelParameterViewService.BuildAsync(
             model.ModelParameters);
         model.UtilityModelParameterEditor = await _modelParameterViewService.BuildAsync(

@@ -192,7 +192,7 @@
                                 <select asp-for="VoiceName" class="form-select">
                                     <option value="">Default voice</option>
                                 </select>
-                                <div class="form-text">The voice this profile speaks with. Leave this empty to use the site's default voice.</div>
+                                <div class="form-text">The voice this profile speaks with. Leave this empty to use the persona's voice, or the site's default voice when the profile has no persona or the persona has no voice.</div>
                             </div>
                         </div>
                     </div>
@@ -296,6 +296,22 @@
 
                 <!-- AI Parameters Tab -->
                 <div class="tab-pane fade" id="params" role="tabpanel">
+                    @if (Context.RequestServices.GetService(typeof(CrestApps.Core.AI.Profiles.IAIPersonaManager)) is not null)
+                    {
+                        <div class="mb-3">
+                            <label asp-for="PersonaId" class="form-label">AI persona</label>
+                            <select asp-for="PersonaId" class="form-select" asp-items="Model.AvailablePersonas" id="profilePersonaSelect">
+                                <option value="">No persona</option>
+                            </select>
+                            <div class="form-text">The character the assistant plays: its personality, the name it uses and the voice it speaks with. Its instructions come before the prompt templates and the system message, which still decide what the assistant does.</div>
+                        </div>
+                    }
+                    else
+                    {
+                        @* Personas are not enabled; keep any existing link rather than clearing it on save. *@
+                        <input type="hidden" asp-for="PersonaId" />
+                    }
+
                     @if (Model.AvailablePromptTemplates.Count > 0)
                     {
                         <div class="mb-3">
@@ -1318,12 +1334,36 @@
                 loadVoiceOptions();
             }
 
+            // With a persona that has a voice, leaving the voice empty means "speak with the persona's voice".
+            var personaVoices = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.PersonaVoices ?? new Dictionary<string, string>()));
+            var profilePersonaSelect = document.getElementById('profilePersonaSelect');
+
+            function defaultVoiceLabel() {
+                var personaVoice = profilePersonaSelect ? personaVoices[profilePersonaSelect.value] : null;
+
+                return personaVoice ? 'Use persona voice (' + personaVoice + ')' : 'Default voice';
+            }
+
+            if (profilePersonaSelect) {
+                profilePersonaSelect.addEventListener('change', function () {
+                    var emptyOption = profileVoiceSelector ? profileVoiceSelector.querySelector('option[value=""]') : null;
+
+                    if (emptyOption) {
+                        emptyOption.textContent = defaultVoiceLabel();
+                    }
+                });
+            }
+
             function resetVoiceOptions() {
                 if (!profileVoiceSelector) {
                     return;
                 }
 
-                profileVoiceSelector.innerHTML = '<option value="">Default voice</option>';
+                profileVoiceSelector.innerHTML = '';
+                var emptyOption = document.createElement('option');
+                emptyOption.value = '';
+                emptyOption.textContent = defaultVoiceLabel();
+                profileVoiceSelector.appendChild(emptyOption);
             }
 
             var voiceLoadToken = 0;

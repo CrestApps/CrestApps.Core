@@ -155,6 +155,9 @@ builder.Services
         .AddAIMemory(memory => memory
             .AddYesSqlStores()
         )
+        .AddPersonas(personas => personas
+            .AddYesSqlStores()
+        )
         .AddA2AClient(a2a => a2a
             .AddYesSqlStores()
         )

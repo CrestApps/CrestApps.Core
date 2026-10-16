@@ -347,6 +347,20 @@ internal sealed class AIProfileHandler : CatalogEntryHandlerBase<AIProfile>
             profile.WithSettings(chatModeSettings);
         }
 
+        // An empty value unlinks the persona; leaving the key out keeps whatever the profile links to.
+        if (json.TryGetPropertyValue(nameof(AIPersonaMetadata.PersonaId), out var personaNode))
+        {
+            var personaId = personaNode?.GetValueKind() == JsonValueKind.String
+                ? personaNode.GetValue<string>()?.Trim()
+                : null;
+
+            profile.Alter<AIPersonaMetadata>(metadata =>
+            {
+                metadata.PersonaId = string.IsNullOrEmpty(personaId)
+                    ? null
+                    : personaId;
+            });
+        }
     }
 
     private async Task<string> ResolveLegacyDeploymentSelectionAsync(string selector, CancellationToken cancellationToken)

@@ -31,6 +31,18 @@ public sealed class AITemplateViewModel
     public string SystemMessage { get; set; }
 
     // Profile source fields.
+
+    /// <summary>
+    /// Gets or sets the technical name of the persona profiles created from this template start with, or
+    /// <see langword="null"/> for none.
+    /// </summary>
+    public string PersonaId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the personas offered by the persona picker.
+    /// </summary>
+    public List<PersonaSelectionItem> AvailablePersonas { get; set; } = [];
+
     public AIProfileType? ProfileType { get; set; }
 
     public string ChatDeploymentName { get; set; }
@@ -276,6 +288,11 @@ public sealed class AITemplateViewModel
         }
         else if (template.Source == AITemplateSources.Profile)
         {
+            if (template.TryGet<AIPersonaMetadata>(out var personaLink))
+            {
+                model.PersonaId = personaLink.PersonaId;
+            }
+
             if (template.TryGet<AIDeploymentParametersMetadata>(out var modelParameters))
             {
                 if (modelParameters.Values is { Count: > 0 })
@@ -483,6 +500,15 @@ public sealed class AITemplateViewModel
         {
             var toolNames = SelectedToolNames?.Where(n => !string.IsNullOrWhiteSpace(n)).ToArray();
             var agentNames = SelectedAgentNames?.Where(n => !string.IsNullOrWhiteSpace(n)).ToArray();
+            var personaId = PersonaSelectList.NormalizePersonaId(PersonaId);
+
+            // Altered rather than replaced so the persona's Liquid arguments survive; a template that never
+            // linked a persona gets no empty record.
+            if (personaId is not null || template.TryGet<AIPersonaMetadata>(out _))
+            {
+                template.Alter<AIPersonaMetadata>(metadata => metadata.PersonaId = personaId);
+            }
+
             template.Put(new AIDeploymentParametersMetadata
             {
                 Values = SelectedModelParameters(ModelParameters),
@@ -697,6 +723,12 @@ public sealed class AITemplateViewModel
         {
             template.Remove<ClaudeSessionMetadata>();
             template.Remove<CopilotSessionMetadata>();
+        }
+
+        // Only a profile template links to a persona.
+        if (Source != AITemplateSources.Profile)
+        {
+            template.Remove<AIPersonaMetadata>();
         }
 
         var securitySettings = new PromptSecurityProfileSettings

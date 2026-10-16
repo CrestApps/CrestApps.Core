@@ -1216,7 +1216,16 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         CancellationToken cancellationToken)
     {
         var deploymentSettings = await GetDeploymentSettingsAsync(services);
-        var effectiveVoice = !string.IsNullOrWhiteSpace(voice) ? voice : deploymentSettings.DefaultRealtimeVoiceId;
+        // The caller's voice, then the interaction's own choice, then the persona's, then the deployment default.
+        var explicitVoice = !string.IsNullOrWhiteSpace(voice)
+            ? voice
+            : interaction.RealtimeVoiceName;
+        var effectiveVoice = await services.SelectPersonaVoiceAsync(
+            await services.ResolvePersonaAsync(interaction, cancellationToken),
+            explicitVoice,
+            realtimeDeploymentName,
+            deploymentSettings.DefaultRealtimeVoiceId,
+            cancellationToken);
 
         var titleUpdated = false;
 
@@ -1420,8 +1429,13 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 using var speechToTextClient = await clientFactory.CreateSpeechToTextClientAsync(speechToTextDeployment);
                 using var textToSpeechClient = await clientFactory.CreateTextToSpeechClientAsync(textToSpeechDeployment);
 
-                var effectiveVoiceName = deploymentSettings.DefaultTextToSpeechVoiceId;
-                var speechLanguage = !string.IsNullOrWhiteSpace(language) ? language : "en-US";
+                // The interaction's realtime voice belongs to its conversation deployment, not to this
+                // text-to-speech deployment, so only the persona's voice can stand in for the default here.
+                var persona = await services.ResolvePersonaAsync(interaction, cancellationToken);
+                var effectiveVoiceName = await services.SelectPersonaVoiceAsync(persona, null, textToSpeechDeployment.Name, deploymentSettings.DefaultTextToSpeechVoiceId, cancellationToken);
+                var speechLanguage = !string.IsNullOrWhiteSpace(language)
+                    ? language
+                    : persona?.Language ?? "en-US";
 
                 using var conversationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 Context.Items[_conversationCtsKey] = conversationCts;
@@ -1599,9 +1613,12 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 }
 
                 using var textToSpeechClient = await clientFactory.CreateTextToSpeechClientAsync(textToSpeechDeployment);
-                var effectiveVoiceName = !string.IsNullOrWhiteSpace(voiceName)
-                    ? voiceName
-                    : deploymentSettings.DefaultTextToSpeechVoiceId;
+                var effectiveVoiceName = await services.SelectPersonaVoiceAsync(
+                    await services.ResolvePersonaAsync(interaction, cancellationToken),
+                    voiceName,
+                    textToSpeechDeployment.Name,
+                    deploymentSettings.DefaultTextToSpeechVoiceId,
+                    cancellationToken);
 
                 await StreamSpeechAsync(textToSpeechClient, itemId, text, effectiveVoiceName, cancellationToken);
             });

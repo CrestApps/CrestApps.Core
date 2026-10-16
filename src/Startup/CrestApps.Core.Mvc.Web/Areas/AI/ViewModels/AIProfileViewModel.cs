@@ -63,6 +63,16 @@ public sealed class AIProfileViewModel
     // The model that carries a Conversation-mode chat. Empty inherits the site's default realtime deployment.
     public string ConversationDeploymentName { get; set; }
 
+    // The persona this profile links to, by the persona template's technical name.
+    public string PersonaId { get; set; }
+
+    [BindNever]
+    public IEnumerable<SelectListItem> AvailablePersonas { get; set; } = [];
+
+    // Persona technical name to voice, so the voice picker can say which voice an empty selection falls back to.
+    [BindNever]
+    public Dictionary<string, string> PersonaVoices { get; set; } = [];
+
     // AI Parameters (from AIProfileMetadata)
     public string SystemMessage { get; set; }
 
@@ -392,6 +402,11 @@ public sealed class AIProfileViewModel
             vm.SelectedToolInstanceNames = toolInstanceMetadata.ToolInstanceNames ?? [];
         }
 
+        if (profile.TryGet<AIPersonaMetadata>(out var personaMetadata))
+        {
+            vm.PersonaId = personaMetadata.PersonaId;
+        }
+
         if (profile.TryGet<PromptTemplateMetadata>(out var promptMetadata))
         {
             vm.PromptTemplates = (promptMetadata.Templates ?? [])
@@ -613,6 +628,12 @@ public sealed class AIProfileViewModel
             x.Filter = DataSourceFilter;
             x.ObjectTypes = SplitObjectTypes(DataSourceObjectTypes);
         });
+
+        // Linked by name, not copied; Liquid parameters already stored on the link are kept.
+        var personaId = string.IsNullOrWhiteSpace(PersonaId)
+            ? null
+            : PersonaId.Trim();
+        profile.Alter<AIPersonaMetadata>(metadata => metadata.PersonaId = personaId);
 
         profile.Alter<PromptTemplateMetadata>(metadata =>
         {

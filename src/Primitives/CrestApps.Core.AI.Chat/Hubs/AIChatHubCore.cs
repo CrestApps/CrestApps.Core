@@ -966,8 +966,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
                 using var speechToTextClient = await clientFactory.CreateSpeechToTextClientAsync(sttDeployment);
                 using var textToSpeechClient = await clientFactory.CreateTextToSpeechClientAsync(ttsDeployment);
-                var effectiveVoiceName = !string.IsNullOrWhiteSpace(chatModeSettings.VoiceName) ? chatModeSettings.VoiceName : deploymentSettings.DefaultTextToSpeechVoiceId;
-                var speechLanguage = !string.IsNullOrWhiteSpace(language) ? language : "en-US";
+                var persona = await services.ResolvePersonaAsync(profile, cancellationToken);
+                var effectiveVoiceName = await services.SelectPersonaVoiceAsync(persona, chatModeSettings.VoiceName, ttsDeployment.Name, deploymentSettings.DefaultTextToSpeechVoiceId, cancellationToken);
+                var speechLanguage = !string.IsNullOrWhiteSpace(language)
+                    ? language
+                    : persona?.Language ?? "en-US";
                 using var conversationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 Context.Items[_conversationCtsKey] = conversationCts;
                 try
@@ -1078,11 +1081,16 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
                 await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
 
-                var effectiveVoice = !string.IsNullOrWhiteSpace(voice)
+                // The caller's voice, then the profile's own choice, then the persona's, then the deployment default.
+                var explicitVoice = !string.IsNullOrWhiteSpace(voice)
                     ? voice
-                    : !string.IsNullOrWhiteSpace(chatModeSettings.VoiceName)
-                        ? chatModeSettings.VoiceName
-                        : deploymentSettings.DefaultRealtimeVoiceId;
+                    : chatModeSettings.VoiceName;
+                var effectiveVoice = await services.SelectPersonaVoiceAsync(
+                    await services.ResolvePersonaAsync(profile, cancellationToken),
+                    explicitVoice,
+                    realtimeDeploymentName,
+                    deploymentSettings.DefaultRealtimeVoiceId,
+                    cancellationToken);
 
                 var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
                 var promptStore = services.GetRequiredService<IAIChatSessionPromptStore>();
@@ -1256,11 +1264,16 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
                 await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
 
-                var effectiveVoice = !string.IsNullOrWhiteSpace(voice)
+                // The caller's voice, then the profile's own choice, then the persona's, then the deployment default.
+                var explicitVoice = !string.IsNullOrWhiteSpace(voice)
                     ? voice
-                    : !string.IsNullOrWhiteSpace(chatModeSettings.VoiceName)
-                        ? chatModeSettings.VoiceName
-                        : deploymentSettings.DefaultRealtimeVoiceId;
+                    : chatModeSettings.VoiceName;
+                var effectiveVoice = await services.SelectPersonaVoiceAsync(
+                    await services.ResolvePersonaAsync(profile, cancellationToken),
+                    explicitVoice,
+                    realtimeDeploymentName,
+                    deploymentSettings.DefaultRealtimeVoiceId,
+                    cancellationToken);
 
                 var registry = services.GetRequiredService<WebRtcRealtimePeerRegistry>();
                 var caller = Clients.Caller;
@@ -1757,7 +1770,15 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 }
 
                 using var textToSpeechClient = await clientFactory.CreateTextToSpeechClientAsync(deployment);
-                var effectiveVoiceName = !string.IsNullOrWhiteSpace(voiceName) ? voiceName : !string.IsNullOrWhiteSpace(chatModeSettings?.VoiceName) ? chatModeSettings.VoiceName : deploymentSettings.DefaultTextToSpeechVoiceId;
+                var explicitVoice = !string.IsNullOrWhiteSpace(voiceName)
+                    ? voiceName
+                    : chatModeSettings?.VoiceName;
+                var effectiveVoiceName = await services.SelectPersonaVoiceAsync(
+                    await services.ResolvePersonaAsync(profile, cancellationToken),
+                    explicitVoice,
+                    deployment.Name,
+                    deploymentSettings.DefaultTextToSpeechVoiceId,
+                    cancellationToken);
                 await StreamSpeechAsync(textToSpeechClient, sessionId ?? string.Empty, text, effectiveVoiceName, cancellationToken);
             });
         }

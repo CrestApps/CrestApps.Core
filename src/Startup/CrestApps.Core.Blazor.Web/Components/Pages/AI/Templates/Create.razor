@@ -37,6 +37,7 @@
 @inject IAIDataSourceStore DataSourceStore
 @inject ISearchIndexProfileStore IndexProfileStore
 @inject ITemplateService TemplateService
+@inject IServiceProvider ServiceProvider
 @inject IOptions<OrchestratorOptions> OrchestratorOpts
 @inject IOptionsSnapshot<ClaudeOptions> ClaudeOpts
 @inject ClaudeClientService ClaudeClientService
@@ -432,6 +433,13 @@
                             </div>
                         }
 
+                        @if (_personaManager is not null)
+                        {
+                            <PersonaPicker @bind-Value="_model.PersonaId"
+                                           Options="_model.AvailablePersonas"
+                                           HelpText="The persona profiles created from this template start with. Its instructions come before the system message." />
+                        }
+
                         <div class="mb-3">
                             <label class="form-label">System message</label>
                             <InputTextArea class="form-control" rows="5" @bind-Value="_model.SystemMessage" />
@@ -674,6 +682,7 @@
     private string _activeTab = "basic";
     private string _nameError;
     private string _sourceError;
+    private IAIPersonaManager _personaManager;
     private string _promptTemplateSearchTerm;
     private bool _nameWasManuallyEdited;
     private IReadOnlyList<CrestApps.Core.AI.Models.SpeechVoice> _realtimeVoices = [];
@@ -883,6 +892,15 @@
 
         var dataSources = await DataSourceStore.GetAllAsync();
         _model.DataSources = dataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).Select(ds => new KeyValuePair<string, string>(ds.DisplayText, ds.ItemId)).ToList();
+
+        // Personas are an opt-in feature, so the picker is offered only when the host registered it.
+        _personaManager = ServiceProvider.GetService<IAIPersonaManager>();
+
+        if (_personaManager is not null)
+        {
+            _model.AvailablePersonas = PersonaSelectList.Build(await _personaManager.GetAllAsync(), _model.PersonaId);
+        }
+
         _model.AvailableSystemPromptTemplates = (await TemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
             .Where(template => template.Metadata.IsListable)
             .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)

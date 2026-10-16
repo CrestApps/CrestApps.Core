@@ -149,6 +149,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, ChatInteractionCompletionContextBuilderHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, DataSourceChatInteractionSettingsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, PromptTemplateChatInteractionSettingsHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, PersonaChatInteractionSettingsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<ChatInteraction>, ChatInteractionEntryHandler>());
 
         return services;

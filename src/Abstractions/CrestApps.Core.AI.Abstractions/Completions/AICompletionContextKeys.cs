@@ -20,6 +20,12 @@ public static class AICompletionContextKeys
     public const string ClientName = "ClientName";
 
     /// <summary>
+    /// Holds the <see cref="Models.ResolvedAIPersona"/> resolved for the request when the profile or interaction links to
+    /// one, so downstream consumers can read its name, avatar or voice without resolving it again.
+    /// </summary>
+    public const string Persona = "Persona";
+
+    /// <summary>
     /// When set to a string in a request's options additional properties, records that value as the usage
     /// category (<see cref="Models.AICompletionUsageRecord.ContextType"/>) for that one request, taking precedence
     /// over <see cref="AIUsageScope"/>.

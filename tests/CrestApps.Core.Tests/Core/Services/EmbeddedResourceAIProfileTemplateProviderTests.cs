@@ -61,4 +61,27 @@ public sealed class EmbeddedResourceAIProfileTemplateProviderTests
         Assert.Equal("You are a reusable system prompt.", metadata.SystemMessage);
         Assert.False(template.TryGet<ProfileTemplateMetadata>(out _));
     }
+
+
+    [Fact]
+    public void Parse_ProfileTemplateNamingPersona_LinksThePersona()
+    {
+        var parseResult = new TemplateParseResult
+        {
+            Body = "Answer billing questions.",
+            Metadata = new TemplateMetadata
+            {
+                AdditionalProperties =
+                {
+                    [nameof(AIPersonaMetadata.PersonaId)] = " friendly-assistant ",
+                },
+            },
+        };
+
+        var template = AIProfileTemplateParser.Parse("billing", parseResult);
+
+        Assert.Equal(AITemplateSources.Profile, template.Source);
+        Assert.True(template.TryGet<AIPersonaMetadata>(out var link));
+        Assert.Equal("friendly-assistant", link.PersonaId);
+    }
 }

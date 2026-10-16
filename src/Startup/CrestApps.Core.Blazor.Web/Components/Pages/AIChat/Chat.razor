@@ -101,7 +101,8 @@ else
          data-coreai-chat-allowed-extensions="@_supportedExtensionsAccept"
          data-coreai-chat-supported-extensions-text="@_supportedExtensionsDisplay"
          data-coreai-chat-user-label="You"
-         data-coreai-chat-assistant-label="Assistant">
+         data-coreai-chat-assistant-label="@_assistantDisplay.GetAssistantLabel("Assistant")"
+         data-coreai-chat-assistant-avatar-url="@_assistantDisplay.AvatarUrl">
         <div class="d-flex justify-content-between align-items-center mb-3 flex-shrink-0">
             <h2><i class="fa-solid fa-comment-dots"></i> @_profileDisplayText</h2>
             <a href="/ai/profiles" class="btn btn-outline-secondary">
@@ -187,6 +188,7 @@ else
     private string _profileDisplayText;
     private string _sessionId;
     private string _welcomeMessage;
+    private AIChatAssistantDisplay _assistantDisplay = AIChatAssistantDisplay.Default;
     private string _initialPrompt;
     private bool _allowSessionDocuments;
     private bool _metricsEnabled;
@@ -242,6 +244,7 @@ else
         }
 
         _profileDisplayText = _profile.DisplayText ?? _profile.Name;
+        _assistantDisplay = await ServiceProvider.ResolveChatAssistantDisplayAsync(_profile);
         _welcomeMessage = !string.IsNullOrWhiteSpace(_profile.WelcomeMessage)
             ? _profile.WelcomeMessage
             : "What do you want to know?";

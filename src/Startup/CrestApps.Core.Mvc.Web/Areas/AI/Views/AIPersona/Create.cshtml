@@ -1,0 +1,34 @@
+@model CrestApps.Core.Mvc.Web.Areas.AI.ViewModels.AIPersonaViewModel
+@{
+    ViewData["Title"] = "Create Persona";
+}
+
+<h2><i class="fa-solid fa-plus"></i> Create Persona</h2>
+<hr />
+
+<form asp-action="Create" method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <div class="mb-3">
+        <label asp-for="DisplayText" class="form-label">Title</label>
+        <input asp-for="DisplayText" class="form-control" id="personaTitle" placeholder="e.g., Friendly assistant" />
+    </div>
+    <div class="mb-3">
+        <label asp-for="Name" class="form-label">Technical name <span class="text-danger">*</span></label>
+        <input asp-for="Name" class="form-control" id="personaTechName" required placeholder="e.g., friendly-assistant" />
+        <span asp-validation-for="Name" class="text-danger"></span>
+        <div class="form-text">Auto-generated from the title. Profiles link to the persona by this name, so it cannot be changed after creation.</div>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Description" class="form-label">Description</label>
+        <textarea asp-for="Description" class="form-control" rows="2"></textarea>
+    </div>
+
+    <partial name="_PersonaFields" />
+
+    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+    <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+</form>
+
+@section Scripts {
+    <script>initAutoGenerateTechnicalName('personaTitle', 'personaTechName');</script>
+}

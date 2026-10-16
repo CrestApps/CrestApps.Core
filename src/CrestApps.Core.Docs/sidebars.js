@@ -18,6 +18,7 @@ const sidebars = {
                 'core/interfaces',
                 'core/extensible-entity',
                 'core/ai-profiles',
+                'core/ai-personas',
                 'core/mvc-example',
             ],
         },

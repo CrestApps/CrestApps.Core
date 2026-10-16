@@ -156,6 +156,9 @@ builder.Services
         .AddAIMemory(memory => memory
             .AddEntityCoreStores()
         )
+        .AddPersonas(personas => personas
+            .AddEntityCoreStores()
+        )
         .AddA2AClient(a2a => a2a
             .AddEntityCoreStores()
         )

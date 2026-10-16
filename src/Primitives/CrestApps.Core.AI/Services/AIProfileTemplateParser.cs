@@ -51,6 +51,16 @@ public static class AIProfileTemplateParser
             SystemMessage = parseResult.Body,
         };
 
+        // A profile template may name the persona its profiles start with; the link is copied, not the persona.
+        if (props.TryGetValue(nameof(AIPersonaMetadata.PersonaId), out var personaId) &&
+            !string.IsNullOrWhiteSpace(personaId))
+        {
+            template.Put(new AIPersonaMetadata
+            {
+                PersonaId = personaId.Trim(),
+            });
+        }
+
         if (props.TryGetValue(nameof(ProfileTemplateMetadata.ProfileType), out var profileTypeStr) &&
             Enum.TryParse<AIProfileType>(profileTypeStr, true, out var profileType))
         {

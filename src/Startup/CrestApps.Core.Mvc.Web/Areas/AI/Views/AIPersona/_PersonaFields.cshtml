@@ -1,0 +1,140 @@
+@model CrestApps.Core.Mvc.Web.Areas.AI.ViewModels.AIPersonaViewModel
+
+<div id="personaFields">
+    <div class="mb-3">
+        <label asp-for="Instructions" class="form-label">Persona instructions <span class="text-danger">*</span></label>
+        <textarea asp-for="Instructions" class="form-control" rows="6" placeholder="You are Ava, a warm and efficient assistant..."></textarea>
+        <span asp-validation-for="Instructions" class="text-danger"></span>
+        <div class="form-text">Who the assistant is and how it talks: personality, tone and manners. They go before the system message of every profile that uses this persona, so leave the task and the rules to the profile. Liquid is supported.</div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label asp-for="AssistantName" class="form-label">Assistant name</label>
+                <input asp-for="AssistantName" class="form-control" placeholder="e.g., Ava" />
+                <div class="form-text">The name the assistant uses for itself.</div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label asp-for="Language" class="form-label">Language</label>
+                <input asp-for="Language" class="form-control" placeholder="en-US" />
+                <div class="form-text">Spoken conversations listen in this language when nothing else sets one.</div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label asp-for="VoiceDeploymentName" class="form-label">Voice deployment</label>
+                <select asp-for="VoiceDeploymentName" class="form-select" asp-items="Model.VoiceDeployments" id="personaVoiceDeploymentSelect">
+                    <option value="">Choose the deployment to pick a voice from</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label asp-for="VoiceName" class="form-label">Voice</label>
+                <select asp-for="VoiceName" class="form-select" id="personaVoiceSelect">
+                    <option value="">No voice</option>
+                    @if (!string.IsNullOrWhiteSpace(Model.VoiceName))
+                    {
+                        <option value="@Model.VoiceName" selected="selected">@Model.VoiceName</option>
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="form-text mb-3">Voices belong to one provider, so the persona speaks with this voice only on deployments of the same provider and uses the deployment's default voice elsewhere. A profile that picks its own voice overrides it.</div>
+    <div class="mb-3">
+        <label asp-for="AvatarUrl" class="form-label">Avatar URL</label>
+        <input asp-for="AvatarUrl" class="form-control" placeholder="/images/avatars/ava.png" />
+    </div>
+</div>
+
+<script>
+    (function () {
+        var deploymentSelect = document.getElementById('personaVoiceDeploymentSelect');
+        var voiceSelect = document.getElementById('personaVoiceSelect');
+
+        if (!deploymentSelect || !voiceSelect) {
+            return;
+        }
+
+        var realtimeDeploymentNames = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RealtimeDeploymentNames ?? []));
+        var speechVoicesUrl = '@Url.Action("GetVoices", "Settings", new { area = "Admin" })';
+        var realtimeVoicesUrl = '@Url.Action("GetRealtimeVoices", "Settings", new { area = "Admin" })';
+        var selectedVoice = voiceSelect.value || '';
+        var loadToken = 0;
+
+        function addOption(parent, value, text) {
+            var option = document.createElement('option');
+            option.value = value;
+            option.textContent = text;
+            parent.appendChild(option);
+        }
+
+        function render(voices) {
+            voiceSelect.innerHTML = '';
+            addOption(voiceSelect, '', 'No voice');
+
+            // A voice saved earlier stays selectable even when the provider no longer lists it.
+            if (selectedVoice && !voices.some(function (voice) { return voice.id === selectedVoice; })) {
+                addOption(voiceSelect, selectedVoice, selectedVoice);
+            }
+
+            var groups = {};
+            voices.forEach(function (voice) {
+                var name = voice.languageDisplayName || voice.gender || 'Voices';
+                (groups[name] = groups[name] || []).push(voice);
+            });
+
+            Object.keys(groups).sort().forEach(function (name) {
+                var group = document.createElement('optgroup');
+                group.label = name;
+                groups[name].forEach(function (voice) { addOption(group, voice.id, voice.name || voice.id); });
+                voiceSelect.appendChild(group);
+            });
+
+            voiceSelect.value = selectedVoice;
+        }
+
+        async function load() {
+            var deploymentName = deploymentSelect.value;
+            var token = ++loadToken;
+
+            if (!deploymentName) {
+                render([]);
+                return;
+            }
+
+            var url = realtimeDeploymentNames.indexOf(deploymentName) >= 0 ? realtimeVoicesUrl : speechVoicesUrl;
+
+            try {
+                var response = await fetch(url + '?deploymentName=' + encodeURIComponent(deploymentName), { credentials: 'same-origin' });
+                var result = response.ok ? await response.json() : null;
+
+                if (token === loadToken) {
+                    render(result && Array.isArray(result.voices) ? result.voices : []);
+                }
+            } catch (e) {
+                if (token === loadToken) {
+                    render([]);
+                }
+            }
+        }
+
+        voiceSelect.addEventListener('change', function () {
+            selectedVoice = voiceSelect.value;
+        });
+
+        deploymentSelect.addEventListener('change', function () {
+            selectedVoice = '';
+            load();
+        });
+
+        if (deploymentSelect.value) {
+            load();
+        }
+    })();
+</script>
