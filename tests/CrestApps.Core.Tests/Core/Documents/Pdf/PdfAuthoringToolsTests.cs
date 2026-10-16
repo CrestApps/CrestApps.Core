@@ -305,9 +305,13 @@ public sealed class PdfAuthoringToolsTests
         // The preview must be well-formed markup, or the browser shows a broken picture.
         XDocument.Parse(Encoding.UTF8.GetString(svgBytes));
 
+        // The preview already gave the file, so the export hands back the same download.
+        Assert.Contains("[doc:1]", preview, StringComparison.Ordinal);
+
         var export = await host.InvokeAsync(new ExportPdfTool(), new { });
 
         Assert.Contains("[doc:1]", export, StringComparison.Ordinal);
+        Assert.DoesNotContain("[doc:2]", export, StringComparison.Ordinal);
 
         var (document, pdfBytes) = await host.ReadMarkerAsync("[doc:1]");
         Assert.Equal("report.pdf", document.FileName);
@@ -325,7 +329,8 @@ public sealed class PdfAuthoringToolsTests
         Assert.Contains("Quarterly Report", body, StringComparison.Ordinal);
 
         var again = await host.InvokeAsync(new ExportPdfTool(), new { });
-        Assert.Contains("already exported in this turn", again, StringComparison.Ordinal);
+        Assert.Contains("already given as a download in this turn", again, StringComparison.Ordinal);
+        Assert.Contains("[doc:1]", again, StringComparison.Ordinal);
 
         var info = await host.InvokeAsync(new GetPdfInfoTool(), new { });
         Assert.Contains("\"report\" [active] — composed document", info, StringComparison.Ordinal);
@@ -376,5 +381,98 @@ public sealed class PdfAuthoringToolsTests
         Assert.Contains("cannot show pictures", preview, StringComparison.Ordinal);
         Assert.Contains("Fallback text works", preview, StringComparison.Ordinal);
         Assert.DoesNotContain("[fig:", preview, StringComparison.Ordinal);
+
+        // Only pages drawn as pictures show the reader a file; text written out is an answer, not a preview.
+        Assert.DoesNotContain("[doc:", preview, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PreviewPdf_GivesTheFileItShows_AsADownload()
+    {
+        using var host = new PdfToolTestHost();
+
+        await host.InvokeAsync(new CreatePdfTool(), new
+        {
+            name = "brief",
+            title = "Contoso Brief",
+            blocks = new object[] { new { type = "paragraph", text = "Revenue rose." } },
+        });
+
+        // The model was asked only to show the document, and calls no export.
+        var preview = await host.InvokeAsync(new PreviewPdfTool(), new { });
+
+        Assert.Contains("[fig:1]", preview, StringComparison.Ordinal);
+        Assert.Contains("[doc:1]", preview, StringComparison.Ordinal);
+        Assert.Contains("\"brief.pdf\"", preview, StringComparison.Ordinal);
+
+        var (document, bytes) = await host.ReadMarkerAsync("[doc:1]");
+
+        Assert.Equal("brief.pdf", document.FileName);
+        Assert.True(host.Invocation.ToolReferences["[doc:1]"].IsGenerated);
+
+        using var pdf = PdfDocument.Open(bytes);
+
+        Assert.Contains("Revenue rose.", string.Join(' ', pdf.GetPage(1).GetWords().Select(word => word.Text)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PreviewPdf_UploadedFile_IsGivenAsADownloadToo()
+    {
+        using var host = new PdfToolTestHost();
+        await host.UploadAsync("letter.pdf", await PdfToolFixtures.SimplePdfAsync("Hello"));
+
+        var preview = await host.InvokeAsync(new PreviewPdfTool(), new { pdf = "letter.pdf" });
+
+        Assert.Contains("[fig:1]", preview, StringComparison.Ordinal);
+        Assert.Contains("[doc:1]", preview, StringComparison.Ordinal);
+
+        var (document, _) = await host.ReadMarkerAsync("[doc:1]");
+
+        Assert.Equal("letter.pdf", document.FileName);
+    }
+
+    [Fact]
+    public async Task PreviewPdf_NewerVersion_ReplacesTheDownloadAnEarlierPreviewGave()
+    {
+        using var host = new PdfToolTestHost();
+
+        await host.InvokeAsync(new CreatePdfTool(), new { name = "brief", title = "Contoso Brief" });
+
+        var first = await host.InvokeAsync(new PreviewPdfTool(), new { });
+
+        Assert.Contains("[doc:1]", first, StringComparison.Ordinal);
+
+        await host.InvokeAsync(new AddPdfContentTool(), new { blocks = new object[] { new { type = "paragraph", text = "Revenue rose." } } });
+
+        var second = await host.InvokeAsync(new PreviewPdfTool(), new { });
+
+        // One answer, one current file: the copy of the version the reader no longer sees is withdrawn.
+        Assert.Contains("[doc:2]", second, StringComparison.Ordinal);
+        Assert.False(host.Invocation.ToolReferences.ContainsKey("[doc:1]"));
+        Assert.True(host.Invocation.ToolReferences.ContainsKey("[doc:2]"));
+
+        var export = await host.InvokeAsync(new ExportPdfTool(), new { });
+
+        Assert.Contains("[doc:2]", export, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExportPdf_AnotherFileName_AfterAPreview_WritesItsOwnDownload()
+    {
+        using var host = new PdfToolTestHost();
+
+        await host.InvokeAsync(new CreatePdfTool(), new { name = "brief", title = "Contoso Brief" });
+        await host.InvokeAsync(new PreviewPdfTool(), new { });
+
+        var export = await host.InvokeAsync(new ExportPdfTool(), new { file_name = "board-copy" });
+
+        Assert.Contains("[doc:2]", export, StringComparison.Ordinal);
+
+        var (document, _) = await host.ReadMarkerAsync("[doc:2]");
+
+        Assert.Equal("board-copy.pdf", document.FileName);
+
+        // The file the preview gave stays: the model asked for a second file on purpose.
+        Assert.True(host.Invocation.ToolReferences.ContainsKey("[doc:1]"));
     }
 }

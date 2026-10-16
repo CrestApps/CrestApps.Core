@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.OpenXml.Word;
 using CrestApps.Core.AI.Documents.Word.Fields;
 using CrestApps.Core.AI.Documents.Word.Structure;
@@ -62,23 +63,41 @@ internal sealed class ExportWordTool : WordToolBase
     protected override async Task<string> ExecuteAsync(WordToolArguments arguments, WordToolContext context, CancellationToken cancellationToken)
     {
         var source = await context.FindDocumentAsync(arguments.Document(), cancellationToken);
-        var bytes = await context.ReadBytesAsync(source, cancellationToken);
         var ids = arguments.GetIds("ids");
         var headings = arguments.GetIds("headings");
-        var partial = ids.Count + headings.Count > 0;
-        var kept = 0;
+        var updateFields = arguments.GetBoolean("update_fields") != false;
 
-        if (partial || arguments.GetBoolean("update_fields") != false)
+        if (ids.Count + headings.Count == 0)
         {
-            using var package = WordPackage.Open(bytes);
+            var fileName = WordToolContext.SanitizeName(arguments.GetString("file_name") ?? source.Name) + ".docx";
+            var isDefaultFile = string.Equals(fileName, DefaultFileName(source), StringComparison.OrdinalIgnoreCase);
 
-            if (partial)
+            // A preview in this turn already gave this version of the document as a download; a second copy of
+            // the same file would only make the reader wonder which one to take.
+            if (isDefaultFile && updateFields && PreviewDownloads.TryGet(DownloadKey(source), source.Key, out var offered))
             {
-                // A copy is cut down to the chosen content; the working document keeps all of it.
-                kept = WordContentSubset.Keep(package, ids, headings);
+                return $"This version of {source.Describe()} was already given as the download \"{fileName}\" in this turn. WRITE THIS MARKER IN YOUR ANSWER EXACTLY AS SHOWN, ON A LINE OF ITS OWN: {offered}";
             }
 
-            if (arguments.GetBoolean("update_fields") != false)
+            var (marker, length) = await ExportWholeAsync(context, source, fileName, updateFields, cancellationToken);
+
+            if (isDefaultFile && updateFields)
+            {
+                PreviewDownloads.Record(DownloadKey(source), source.Key, marker);
+            }
+
+            return $"Exported {source.Describe()} as \"{fileName}\" ({length:N0} bytes). WRITE THIS MARKER IN YOUR ANSWER EXACTLY AS SHOWN, ON A LINE OF ITS OWN: {marker}";
+        }
+
+        var bytes = await context.ReadBytesAsync(source, cancellationToken);
+        int kept;
+
+        using (var package = WordPackage.Open(bytes))
+        {
+            // A copy is cut down to the chosen content; the working document keeps all of it.
+            kept = WordContentSubset.Keep(package, ids, headings);
+
+            if (updateFields)
             {
                 WordDocumentRefresher.Refresh(package, context.Services);
             }
@@ -86,26 +105,45 @@ internal sealed class ExportWordTool : WordToolBase
             bytes = package.Save();
         }
 
-        if (partial)
+        try
         {
-            try
-            {
-                using var check = WordPackage.Open(bytes);
-            }
-            catch (InvalidDataException ex)
-            {
-                throw new WordToolException($"The chosen content could not be written as a document: {ex.Message}", ex);
-            }
+            using var check = WordPackage.Open(bytes);
+        }
+        catch (InvalidDataException ex)
+        {
+            throw new WordToolException($"The chosen content could not be written as a document: {ex.Message}", ex);
         }
 
-        var baseName = WordToolContext.SanitizeName(arguments.GetString("file_name") ?? (partial ? (source.IsUpload ? Path.GetFileNameWithoutExtension(source.Name) : source.Name) + "-excerpt" : source.Name));
-        var fileName = baseName + ".docx";
+        var baseName = WordToolContext.SanitizeName(arguments.GetString("file_name") ?? (source.IsUpload ? Path.GetFileNameWithoutExtension(source.Name) : source.Name) + "-excerpt");
+        var excerptName = baseName + ".docx";
+        var excerptMarker = await context.ExportAsync(excerptName, bytes, DocxMediaType, cancellationToken);
+
+        return $"Exported {kept} element(s) of {source.Describe()} as \"{excerptName}\" ({bytes.Length:N0} bytes); the working document is unchanged. WRITE THIS MARKER IN YOUR ANSWER EXACTLY AS SHOWN, ON A LINE OF ITS OWN: {excerptMarker}";
+    }
+
+    /// <summary>
+    /// Writes the whole document as a download and records the version that was given.
+    /// </summary>
+    /// <param name="context">The Word context.</param>
+    /// <param name="source">The document.</param>
+    /// <param name="fileName">The download's file name.</param>
+    /// <param name="updateFields">Whether the table of contents, captions and references are refreshed first.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The download marker and the size of the file.</returns>
+    internal static async Task<(string Marker, int Length)> ExportWholeAsync(WordToolContext context, WordSource source, string fileName, bool updateFields, CancellationToken cancellationToken)
+    {
+        var bytes = await context.ReadBytesAsync(source, cancellationToken);
+
+        if (updateFields)
+        {
+            using var package = WordPackage.Open(bytes);
+
+            WordDocumentRefresher.Refresh(package, context.Services);
+
+            bytes = package.Save();
+        }
+
         var marker = await context.ExportAsync(fileName, bytes, DocxMediaType, cancellationToken);
-
-        if (partial)
-        {
-            return $"Exported {kept} element(s) of {source.Describe()} as \"{fileName}\" ({bytes.Length:N0} bytes); the working document is unchanged. WRITE THIS MARKER IN YOUR ANSWER EXACTLY AS SHOWN, ON A LINE OF ITS OWN: {marker}";
-        }
 
         if (source.Working is not null)
         {
@@ -122,6 +160,26 @@ internal sealed class ExportWordTool : WordToolBase
             }, cancellationToken);
         }
 
-        return $"Exported {source.Describe()} as \"{fileName}\" ({bytes.Length:N0} bytes). WRITE THIS MARKER IN YOUR ANSWER EXACTLY AS SHOWN, ON A LINE OF ITS OWN: {marker}";
+        return (marker, bytes.Length);
+    }
+
+    /// <summary>
+    /// Gets the file name a document is downloaded under when no other name is asked for.
+    /// </summary>
+    /// <param name="source">The document.</param>
+    /// <returns>The file name.</returns>
+    internal static string DefaultFileName(WordSource source)
+    {
+        return WordToolContext.SanitizeName(source.Name) + ".docx";
+    }
+
+    /// <summary>
+    /// Gets what identifies a document among the downloads given in a turn.
+    /// </summary>
+    /// <param name="source">The document.</param>
+    /// <returns>The key.</returns>
+    internal static string DownloadKey(WordSource source)
+    {
+        return "word|" + source.Name;
     }
 }

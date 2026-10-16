@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Image carousel harness</title>
+    <link rel="stylesheet" href="/src/Resources/CrestApps.AI.Resources/Assets/css/chat-image-carousel.css">
+</head>
+<body>
+    <!--
+        A standalone page for the stacked image carousel (chat-image-carousel.js). The carousel works on the
+        sanitized HTML every chat surface produces, so the tests hand it that HTML directly: the same picture
+        markup the renderers write, without a markdown parser, a server or a conversation.
+    -->
+    <div id="message"></div>
+    <script src="/src/Resources/CrestApps.AI.Resources/Assets/js/chat-image-carousel.js"></script>
+    <script>
+        // The picture markup the chat renderers write for a figure marker. Every address and caption is invented.
+        window.picture = function (number, caption) {
+            const source = 'data:image/svg+xml,' + encodeURIComponent(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="520"><rect width="400" height="520" fill="#dde"/></svg>');
+
+            return '<span class="generated-image-container">'
+                + '<img src="' + source + '#page-' + number + '" alt="' + caption + '" class="img-thumbnail" style="max-width: 400px; height: auto;">'
+                + '<a href="#page-' + number + '" class="ai-download-image">Download</a>'
+                + '</span>';
+        };
+
+        window.render = function (html) {
+            const message = document.getElementById('message');
+            message.innerHTML = window.CoreAIChatImageCarousel.stackAdjacentImages(html);
+
+            return message.innerHTML;
+        };
+    </script>
+</body>
+</html>

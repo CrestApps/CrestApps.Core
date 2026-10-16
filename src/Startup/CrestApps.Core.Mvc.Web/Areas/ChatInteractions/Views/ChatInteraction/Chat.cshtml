@@ -1439,6 +1439,20 @@
                 var downloadReferences = getDownloadReferences(messageReferences);
                 processedContent = replaceGeneratedMarkdownLinks(processedContent, downloadReferences);
 
+                // A generated file is always offered, also when the answer cites something else and leaves its
+                // marker out: a preview tool gives the file it shows, and a reader shown the pages of a file
+                // must get the file. The marker is added to the text so it becomes a numbered download like
+                // any other. The shared chat scripts do the same.
+                var uncitedGeneratedKeys = downloadReferences.filter(function (entry) {
+                    return entry[1].isGenerated && !processedContent.includes(entry[0]);
+                }).map(function (entry) {
+                    return entry[0];
+                });
+
+                if (uncitedGeneratedKeys.length) {
+                    processedContent = (processedContent + '\n\n' + uncitedGeneratedKeys.join(' ')).trim();
+                }
+
                 var citedRefs = Object.entries(messageReferences).filter(function (entry) {
                     return processedContent.includes(entry[0]);
                 });

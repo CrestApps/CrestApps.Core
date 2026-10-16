@@ -36,8 +36,7 @@
 		let suppressNextClick = false;
 		function stackAdjacentImages(html) {
 			if (typeof document === "undefined" || !html) return html;
-			const firstContainerIndex = html.indexOf(imageContainerClass);
-			if (firstContainerIndex < 0 || html.indexOf(imageContainerClass, firstContainerIndex + 25) < 0) return html;
+			if (html.indexOf(imageContainerClass) < 0) return html;
 			const template = document.createElement("template");
 			template.innerHTML = html;
 			const runs = findImageRuns(template.content);
@@ -61,7 +60,19 @@
 				run.push(container);
 			}
 			runs.push(run);
-			return runs.filter((candidate) => candidate.length > 1);
+			return runs.filter((candidate) => candidate.length > 1 || candidate.length === 1 && isOnLineOfItsOwn(candidate[0]));
+		}
+		function isOnLineOfItsOwn(container) {
+			return isOnlySpaceTo(container, "previousSibling") && isOnlySpaceTo(container, "nextSibling");
+		}
+		function isOnlySpaceTo(container, direction) {
+			for (let sibling = container[direction]; sibling && sibling.nodeName !== "BR"; sibling = sibling[direction]) {
+				if (sibling.nodeType !== Node.TEXT_NODE) return false;
+				const lines = sibling.textContent.split("\n");
+				if ((direction === "previousSibling" ? lines[lines.length - 1] : lines[0]).trim() !== "") return false;
+				if (lines.length > 1) return true;
+			}
+			return true;
 		}
 		function isOnlyWhitespaceBetween(previous, next) {
 			const range = previous.ownerDocument.createRange();
@@ -78,7 +89,7 @@
 			carousel.tabIndex = 0;
 			carousel.setAttribute("role", "region");
 			carousel.setAttribute("aria-roledescription", "carousel");
-			carousel.setAttribute("aria-label", `${containers.length} images`);
+			carousel.setAttribute("aria-label", containers.length === 1 ? "1 image" : `${containers.length} images`);
 			carousel.dataset.carouselKey = getCarouselKey(containers);
 			carousel.dataset.carouselSize = getPreferredSize();
 			const stage = createElement(ownerDocument, "span", "ai-image-carousel-stage");
@@ -104,6 +115,7 @@
 			navigation.append(createStepButton(ownerDocument, -1, "Previous image", previousIcon), dots, createStepButton(ownerDocument, 1, "Next image", nextIcon));
 			controls.append(caption, createSizePicker(ownerDocument, carousel.dataset.carouselSize), navigation);
 			carousel.append(stage, controls);
+			removeSeparatorsAfter(carousel);
 			for (const paragraph of vacatedParagraphs) if (paragraph.textContent.trim() === "" && !paragraph.querySelector(contentBetweenSelector)) paragraph.remove();
 			showImage(carousel, activeIndexByCarouselKey.get(carousel.dataset.carouselKey) || 0);
 		}
@@ -114,6 +126,11 @@
 				sibling.remove();
 				sibling = previousSibling;
 			}
+		}
+		function removeSeparatorsAfter(carousel) {
+			let sibling = carousel.nextSibling;
+			while (sibling && sibling.nodeType === Node.TEXT_NODE && sibling.textContent.trim() === "") sibling = sibling.nextSibling;
+			if (sibling && sibling.nodeName === "BR") sibling.remove();
 		}
 		function getCarouselKey(containers) {
 			const firstImage = containers[0].querySelector("img");

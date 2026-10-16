@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Pdf.Analysis;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
 using CrestApps.Core.AI.Documents.Pdf.Rendering;
@@ -61,7 +62,7 @@ internal sealed class PreviewPdfTool : PdfToolBase
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Shows pages of a PDF in the conversation as pictures, drawn from the same file an export writes, so the user sees exactly what they will download. Use it after building or changing a document and before exporting, and whenever the user asks to see a PDF or a page. A few pages are drawn per call; ask for others with 'pages'. Returns [fig:N] markers that MUST be written in the answer exactly as given. This is not a download: use export_pdf for the file.";
+    public override string Description => "Shows pages of a PDF in the conversation as pictures, drawn from the same file an export writes, so the user sees exactly what they will download. Use it after building or changing a document and before exporting, and whenever the user asks to see a PDF or a page. A few pages are drawn per call; ask for others with 'pages'. Returns [fig:N] markers that MUST be written in the answer exactly as given, and a [doc:N] download marker for the file shown that MUST be written too. Use export_pdf for a download with another file name.";
 
     /// <summary>
     /// Draws the pages.
@@ -170,6 +171,18 @@ internal sealed class PreviewPdfTool : PdfToolBase
                 }
 
                 response = BuildImageResponse(source, [.. pages.Select(page => page.Rendering)], [.. pages.Select(page => page.Marker)], omitted, pageCount, reused);
+
+                // The reader is shown the pages of a file, so the file itself is given with them.
+                var fileName = ExportPdfTool.DefaultFileName(source);
+                var download = await PreviewDownloads.OfferAsync(
+                    ExportPdfTool.DownloadKey(source),
+                    ExportPdfTool.DownloadVersion(source),
+                    () => context.ExportAsync(fileName, bytes, "application/pdf", cancellationToken));
+
+                if (!string.IsNullOrEmpty(download))
+                {
+                    response += Environment.NewLine + Environment.NewLine + PreviewDownloads.Instructions(download, fileName);
+                }
             }
         }
 
@@ -244,7 +257,7 @@ internal sealed class PreviewPdfTool : PdfToolBase
             builder.Append("The document has ").Append(pageCount).AppendLine(" pages; pass 'pages' to show others.");
         }
 
-        builder.Append("The preview is drawn from the same file export_pdf writes; it is not a download.");
+        builder.Append("The preview is drawn from the same file export_pdf writes.");
 
         return builder.ToString();
     }

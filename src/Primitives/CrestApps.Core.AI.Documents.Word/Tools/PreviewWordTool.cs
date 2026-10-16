@@ -1,4 +1,5 @@
 using System.Text;
+using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Word.Rendering;
 using CrestApps.Core.AI.Documents.Word.Workspace;
 
@@ -49,7 +50,7 @@ internal sealed class PreviewWordTool : WordToolBase
     /// <summary>
     /// Gets the description.
     /// </summary>
-    public override string Description => "Shows pages of a Word document in the conversation as pictures, drawn from the same file export_word writes, so the user sees what they will download. Use it after creating or changing a document and before exporting, and whenever the user asks to see a document or a page. A few pages are drawn per call; ask for others with 'pages'. Returns [fig:N] markers that MUST be written in the answer exactly as given. This is not a download: use export_word for the file.";
+    public override string Description => "Shows pages of a Word document in the conversation as pictures, drawn from the same file export_word writes, so the user sees what they will download. Use it after creating or changing a document and before exporting, and whenever the user asks to see a document or a page. A few pages are drawn per call; ask for others with 'pages'. Returns [fig:N] markers that MUST be written in the answer exactly as given, and a [doc:N] download marker for the document shown that MUST be written too. Use export_word for an excerpt or another file name.";
 
     /// <summary>
     /// Draws the pages.
@@ -106,7 +107,22 @@ internal sealed class PreviewWordTool : WordToolBase
             answer.AppendLine("The document is longer than the preview lays out; later pages are not counted.");
         }
 
-        answer.Append("Pages are laid out by this host to match Word as closely as it can; Word may break lines and pages slightly differently, especially with fonts this host does not have. The preview is not a download.");
+        answer.Append("Pages are laid out by this host to match Word as closely as it can; Word may break lines and pages slightly differently, especially with fonts this host does not have.");
+
+        if (markers is not null)
+        {
+            // The reader is shown the pages of a file, so the file itself is given with them.
+            var fileName = ExportWordTool.DefaultFileName(source);
+            var download = await PreviewDownloads.OfferAsync(
+                ExportWordTool.DownloadKey(source),
+                source.Key,
+                async () => (await ExportWordTool.ExportWholeAsync(context, source, fileName, updateFields: true, cancellationToken)).Marker);
+
+            if (!string.IsNullOrEmpty(download))
+            {
+                answer.AppendLine().AppendLine().Append(PreviewDownloads.Instructions(download, fileName));
+            }
+        }
 
         return answer.ToString();
     }
