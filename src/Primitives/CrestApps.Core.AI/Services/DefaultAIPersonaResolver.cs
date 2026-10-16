@@ -12,6 +12,11 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public sealed class DefaultAIPersonaResolver : IAIPersonaResolver
 {
+    /// <summary>
+    /// The Liquid argument that holds the persona's assistant name when its instructions are rendered.
+    /// </summary>
+    public const string AssistantNameArgument = "assistant_name";
+
     private readonly IAIPersonaManager _personaManager;
     private readonly ITemplateEngine _templateEngine;
     private readonly IAIDeploymentStore _deploymentStore;
@@ -81,9 +86,20 @@ public sealed class DefaultAIPersonaResolver : IAIPersonaResolver
 
         if (!string.IsNullOrWhiteSpace(persona.Instructions))
         {
+            // The assistant's name is offered to the instructions as {{ assistant_name }}; a link's own argument
+            // with that name wins.
+            var arguments = parameters is null
+                ? new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, object>(parameters, StringComparer.OrdinalIgnoreCase);
+
+            if (!string.IsNullOrWhiteSpace(persona.AssistantName))
+            {
+                arguments.TryAdd(AssistantNameArgument, persona.AssistantName.Trim());
+            }
+
             try
             {
-                instructions = await _templateEngine.RenderAsync(persona.Instructions, parameters, cancellationToken);
+                instructions = await _templateEngine.RenderAsync(persona.Instructions, arguments, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

@@ -81,6 +81,43 @@ public sealed class AIPersonaCompletionContextBuilderHandlerTests
         Assert.Equal("Plain request.", completionContext.SystemMessage);
     }
 
+    [Fact]
+    public async Task BuiltAsync_PersonaWithAssistantName_NamesTheAssistantFirst()
+    {
+        var handler = new AIPersonaCompletionContextBuilderHandler(CreateResolver(new ResolvedAIPersona
+        {
+            Id = "friendly",
+            AssistantName = "Ava",
+            Instructions = "Be warm and concise.",
+        }));
+        var completionContext = new AICompletionContext
+        {
+            SystemMessage = "Answer billing questions only.",
+        };
+
+        await handler.BuiltAsync(new AICompletionContextBuiltContext(new AIProfile(), completionContext));
+
+        Assert.Equal("Your name is Ava.\nBe warm and concise.\n\nAnswer billing questions only.", completionContext.SystemMessage);
+    }
+
+    [Fact]
+    public async Task BuiltAsync_PersonaWithOnlyAnAssistantName_StillNamesTheAssistant()
+    {
+        var handler = new AIPersonaCompletionContextBuilderHandler(CreateResolver(new ResolvedAIPersona
+        {
+            Id = "named",
+            AssistantName = "Ava",
+        }));
+        var completionContext = new AICompletionContext
+        {
+            SystemMessage = "Answer billing questions only.",
+        };
+
+        await handler.BuiltAsync(new AICompletionContextBuiltContext(new AIProfile(), completionContext));
+
+        Assert.Equal("Your name is Ava.\n\nAnswer billing questions only.", completionContext.SystemMessage);
+    }
+
     private static IAIPersonaResolver CreateResolver(ResolvedAIPersona persona)
     {
         var resolver = new Mock<IAIPersonaResolver>();

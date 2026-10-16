@@ -114,9 +114,13 @@ current link. Chat interactions save it from the `personaId` hub setting with th
 persona behaves the same in chat, chat interactions, realtime sessions and voice.
 
 - **Text, on every request.** Once a profile's or interaction's own handlers have built the system message, the
-  persona handler resolves the persona and places its rendered instructions first:
+  persona handler resolves the persona and places the persona block first. When the persona has an assistant
+  name, the block starts with "Your name is Ava.", so the model knows its name even when the instructions do not
+  say it. The instructions can also use the name as the Liquid variable `assistant_name`; a link parameter with
+  that name wins.
 
   ```text
+  Your name is Ava.
   persona instructions
 
   selected prompt templates

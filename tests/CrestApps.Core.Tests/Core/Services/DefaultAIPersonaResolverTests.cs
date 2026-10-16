@@ -190,6 +190,46 @@ public sealed class DefaultAIPersonaResolverTests
         Assert.Null(voice);
     }
 
+    [Fact]
+    public async Task ResolveAsync_PersonaWithAssistantName_OffersItToTheInstructions()
+    {
+        IDictionary<string, object> renderedWith = null;
+        var engine = new Mock<ITemplateEngine>();
+        engine
+            .Setup(e => e.RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .Callback((string _, IDictionary<string, object> args, CancellationToken _) => renderedWith = args)
+            .ReturnsAsync("I am Ava.");
+
+        var persona = CreatePersona("friendly", "I am {{ assistant_name }}.");
+        persona.AssistantName = " Ava ";
+        var resolver = CreateResolver([persona], engine: engine.Object);
+
+        var resolved = await resolver.ResolveAsync("friendly", new Dictionary<string, object> { ["company"] = "Contoso" }, TestContext.Current.CancellationToken);
+
+        Assert.Equal("I am Ava.", resolved.Instructions);
+        Assert.Equal("Ava", renderedWith[DefaultAIPersonaResolver.AssistantNameArgument]);
+        Assert.Equal("Contoso", renderedWith["company"]);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_LinkArgumentNamedAssistantName_WinsOverThePersonaName()
+    {
+        IDictionary<string, object> renderedWith = null;
+        var engine = new Mock<ITemplateEngine>();
+        engine
+            .Setup(e => e.RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .Callback((string _, IDictionary<string, object> args, CancellationToken _) => renderedWith = args)
+            .ReturnsAsync("Rendered.");
+
+        var persona = CreatePersona("friendly", "I am {{ assistant_name }}.");
+        persona.AssistantName = "Ava";
+        var resolver = CreateResolver([persona], engine: engine.Object);
+
+        await resolver.ResolveAsync("friendly", new Dictionary<string, object> { ["assistant_name"] = "Max" }, TestContext.Current.CancellationToken);
+
+        Assert.Equal("Max", renderedWith[DefaultAIPersonaResolver.AssistantNameArgument]);
+    }
+
     private static AIPersona CreatePersona(string name, string instructions, string voiceName = null)
     {
         return new AIPersona
