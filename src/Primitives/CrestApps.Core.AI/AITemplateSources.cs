@@ -14,4 +14,10 @@ public static class AITemplateSources
     /// Templates designed to provide reusable system prompts.
     /// </summary>
     public const string SystemPrompt = "SystemPrompt";
+
+    /// <summary>
+    /// Templates that describe a reusable AI persona: who the assistant is, how it speaks and which
+    /// voice it uses. AI profiles and chat interactions link to one by its name.
+    /// </summary>
+    public const string Persona = "Persona";
 }

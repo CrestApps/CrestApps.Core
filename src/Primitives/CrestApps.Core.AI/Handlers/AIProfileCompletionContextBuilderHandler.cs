@@ -2,25 +2,31 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Templates.Services;
 
 namespace CrestApps.Core.AI.Handlers;
 
 /// <summary>
 /// Populates the <see cref="AICompletionContext"/> from <see cref="AIProfile"/> settings
-/// including connection, deployment, metadata parameters, and tool names.
+/// including connection, deployment, metadata parameters, persona, and tool names.
 /// </summary>
 internal sealed class AIProfileCompletionContextBuilderHandler : IAICompletionContextBuilderHandler
 {
     private readonly ITemplateService _aiTemplateService;
+    private readonly IAIPersonaResolver _personaResolver;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AIProfileCompletionContextBuilderHandler"/> class.
     /// </summary>
     /// <param name="aiTemplateService">The ai template service.</param>
-    public AIProfileCompletionContextBuilderHandler(ITemplateService aiTemplateService)
+    /// <param name="personaResolver">The resolver for the persona the profile links to.</param>
+    public AIProfileCompletionContextBuilderHandler(
+        ITemplateService aiTemplateService,
+        IAIPersonaResolver personaResolver)
     {
         _aiTemplateService = aiTemplateService;
+        _personaResolver = personaResolver;
     }
 
     /// <summary>
@@ -47,6 +53,16 @@ internal sealed class AIProfileCompletionContextBuilderHandler : IAICompletionCo
             context.Context.MaxTokens = metadata.MaxTokens;
             context.Context.PastMessagesCount = metadata.PastMessagesCount;
             context.Context.UseCaching = metadata.UseCaching;
+        }
+
+        // Resolved on every request rather than once per session, like prompt templates, so an edit to the
+        // persona applies from the next message.
+        var persona = await _personaResolver.ResolveAsync(profile);
+
+        if (persona is not null)
+        {
+            context.Context.SystemMessage = persona.PrependTo(context.Context.SystemMessage);
+            context.Context.AdditionalProperties[AICompletionContextKeys.Persona] = persona;
         }
 
         if (profile.TryGet<AIDeploymentParametersMetadata>(out var modelParameters))

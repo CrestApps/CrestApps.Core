@@ -78,6 +78,7 @@ Profiles can define:
 - initial assistant prompt
 - prompt subject
 - prompt templates
+- one optional [AI persona](./ai-personas.md): a reusable character with its own instructions, name and voice
 - completion settings such as temperature, top-p, penalties, token limits, and past-message depth
 
 This is where you shape tone, constraints, and conversation style.
@@ -209,6 +210,7 @@ That profile can then serve as a reusable internal assistant instead of rebuildi
 - [AI Core](./ai-core.md)
 - [Chat Interactions](./chat.md)
 - [AI Templates](./ai-templates.md)
+- [AI Personas](./ai-personas.md)
 - [AI Agents](./agents.md)
 - [Prompt Security](./prompt-security.md)
 - [MVC Example](./mvc-example.md)

@@ -61,4 +61,62 @@ public sealed class EmbeddedResourceAIProfileTemplateProviderTests
         Assert.Equal("You are a reusable system prompt.", metadata.SystemMessage);
         Assert.False(template.TryGet<ProfileTemplateMetadata>(out _));
     }
+
+    [Fact]
+    public void Parse_WhenSourceIsPersona_MapsFrontMatterToPersonaMetadata()
+    {
+        var parseResult = new TemplateParseResult
+        {
+            Body = "You are Ava, a warm and patient assistant.",
+            Metadata = new TemplateMetadata
+            {
+                Title = "Friendly assistant",
+                AdditionalProperties =
+                {
+                    [nameof(AIProfileTemplate.Source)] = "persona",
+                    [nameof(PersonaTemplateMetadata.AssistantName)] = "Ava",
+                    [nameof(PersonaTemplateMetadata.Greeting)] = "Hi, I'm Ava.",
+                    [nameof(PersonaTemplateMetadata.Language)] = "en-US",
+                    [nameof(PersonaTemplateMetadata.VoiceName)] = "marin",
+                    [nameof(PersonaTemplateMetadata.VoiceDeploymentName)] = "realtime",
+                    [nameof(PersonaTemplateMetadata.AvatarUrl)] = "/media/ava.png",
+                },
+            },
+        };
+
+        var template = AIProfileTemplateParser.Parse("friendly-assistant", parseResult);
+
+        Assert.Equal(AITemplateSources.Persona, template.Source);
+        Assert.True(template.TryGet<PersonaTemplateMetadata>(out var persona));
+        Assert.Equal("You are Ava, a warm and patient assistant.", persona.Instructions);
+        Assert.Equal("Ava", persona.AssistantName);
+        Assert.Equal("Hi, I'm Ava.", persona.Greeting);
+        Assert.Equal("en-US", persona.Language);
+        Assert.Equal("marin", persona.VoiceName);
+        Assert.Equal("realtime", persona.VoiceDeploymentName);
+        Assert.Equal("/media/ava.png", persona.AvatarUrl);
+        Assert.False(template.TryGet<ProfileTemplateMetadata>(out _));
+    }
+
+    [Fact]
+    public void Parse_ProfileTemplateNamingPersona_LinksThePersona()
+    {
+        var parseResult = new TemplateParseResult
+        {
+            Body = "Answer billing questions.",
+            Metadata = new TemplateMetadata
+            {
+                AdditionalProperties =
+                {
+                    [nameof(AIPersonaMetadata.PersonaId)] = " friendly-assistant ",
+                },
+            },
+        };
+
+        var template = AIProfileTemplateParser.Parse("billing", parseResult);
+
+        Assert.Equal(AITemplateSources.Profile, template.Source);
+        Assert.True(template.TryGet<AIPersonaMetadata>(out var link));
+        Assert.Equal("friendly-assistant", link.PersonaId);
+    }
 }

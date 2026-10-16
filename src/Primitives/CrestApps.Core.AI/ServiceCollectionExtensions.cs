@@ -61,6 +61,11 @@ public static class ServiceCollectionExtensions
             {
                 entry.DisplayName = new LocalizedString(AITemplateSources.SystemPrompt, "System Prompt");
                 entry.Description = new LocalizedString(AITemplateSources.SystemPrompt, "Create a reusable system prompt template.");
+            })
+            .AddCoreAITemplateSource(AITemplateSources.Persona, entry =>
+            {
+                entry.DisplayName = new LocalizedString(AITemplateSources.Persona, "AI Persona");
+                entry.Description = new LocalizedString(AITemplateSources.Persona, "Create a reusable character with its own voice that AI profiles and chat interactions can use.");
             });
 
         services.Configure<Fluid.TemplateOptions>(options =>
@@ -170,6 +175,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IAITextNormalizer, DefaultAITextNormalizer>();
         services.TryAddScoped<IOAuth2TokenService, DefaultOAuth2TokenService>();
         services.TryAddScoped<IConnectionAuthHeaderBuilder, DefaultConnectionAuthHeaderBuilder>();
+        services.TryAddScoped<IAIPersonaResolver, DefaultAIPersonaResolver>();
         services.TryAddScoped<IAIProfileManager, DefaultAIProfileManager>();
         services.TryAddScoped<INamedCatalogManager<AIProfile>>(sp => sp.GetRequiredService<IAIProfileManager>());
 

@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Templates.Services;
 
 namespace CrestApps.Core.AI.Chat.Handlers;
@@ -7,14 +8,19 @@ namespace CrestApps.Core.AI.Chat.Handlers;
 internal sealed class ChatInteractionCompletionContextBuilderHandler : IAICompletionContextBuilderHandler
 {
     private readonly ITemplateService _aiTemplateService;
+    private readonly IAIPersonaResolver _personaResolver;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChatInteractionCompletionContextBuilderHandler"/> class.
     /// </summary>
     /// <param name="aiTemplateService">The ai template service.</param>
-    public ChatInteractionCompletionContextBuilderHandler(ITemplateService aiTemplateService)
+    /// <param name="personaResolver">The resolver for the persona the interaction links to.</param>
+    public ChatInteractionCompletionContextBuilderHandler(
+        ITemplateService aiTemplateService,
+        IAIPersonaResolver personaResolver)
     {
         _aiTemplateService = aiTemplateService;
+        _personaResolver = personaResolver;
     }
 
     /// <summary>
@@ -42,6 +48,14 @@ internal sealed class ChatInteractionCompletionContextBuilderHandler : IAIComple
         context.Context.A2AConnectionIds = interaction.A2AConnectionIds?.ToArray();
         context.Context.AdditionalProperties[AICompletionContextKeys.Interaction] = interaction;
         context.Context.AdditionalProperties[AICompletionContextKeys.InteractionId] = interaction.ItemId;
+
+        var persona = await _personaResolver.ResolveAsync(interaction);
+
+        if (persona is not null)
+        {
+            context.Context.SystemMessage = persona.PrependTo(context.Context.SystemMessage);
+            context.Context.AdditionalProperties[AICompletionContextKeys.Persona] = persona;
+        }
 
         if (interaction.TryGet<AIDeploymentParametersMetadata>(out var modelParameters))
         {

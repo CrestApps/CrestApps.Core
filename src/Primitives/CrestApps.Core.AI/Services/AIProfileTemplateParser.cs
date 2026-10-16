@@ -46,10 +46,28 @@ public static class AIProfileTemplateParser
             return template;
         }
 
+        if (string.Equals(template.Source, AITemplateSources.Persona, StringComparison.OrdinalIgnoreCase))
+        {
+            template.Source = AITemplateSources.Persona;
+            template.Put(ParsePersona(props, parseResult.Body));
+
+            return template;
+        }
+
         var profileMetadata = new ProfileTemplateMetadata
         {
             SystemMessage = parseResult.Body,
         };
+
+        // A profile template may name the persona its profiles start with; the link is copied, not the persona.
+        if (props.TryGetValue(nameof(AIPersonaMetadata.PersonaId), out var personaId) &&
+            !string.IsNullOrWhiteSpace(personaId))
+        {
+            template.Put(new AIPersonaMetadata
+            {
+                PersonaId = personaId.Trim(),
+            });
+        }
 
         if (props.TryGetValue(nameof(ProfileTemplateMetadata.ProfileType), out var profileTypeStr) &&
             Enum.TryParse<AIProfileType>(profileTypeStr, true, out var profileType))
@@ -213,6 +231,51 @@ public static class AIProfileTemplateParser
         template.Put(profileMetadata);
 
         return template;
+    }
+
+    private static PersonaTemplateMetadata ParsePersona(Dictionary<string, string> props, string body)
+    {
+        var persona = new PersonaTemplateMetadata
+        {
+            Instructions = body,
+        };
+
+        if (props is null)
+        {
+            return persona;
+        }
+
+        if (props.TryGetValue(nameof(PersonaTemplateMetadata.AssistantName), out var assistantName))
+        {
+            persona.AssistantName = assistantName;
+        }
+
+        if (props.TryGetValue(nameof(PersonaTemplateMetadata.Greeting), out var greeting))
+        {
+            persona.Greeting = greeting;
+        }
+
+        if (props.TryGetValue(nameof(PersonaTemplateMetadata.Language), out var language))
+        {
+            persona.Language = language;
+        }
+
+        if (props.TryGetValue(nameof(PersonaTemplateMetadata.VoiceName), out var voiceName))
+        {
+            persona.VoiceName = voiceName;
+        }
+
+        if (props.TryGetValue(nameof(PersonaTemplateMetadata.VoiceDeploymentName), out var voiceDeploymentName))
+        {
+            persona.VoiceDeploymentName = voiceDeploymentName;
+        }
+
+        if (props.TryGetValue(nameof(PersonaTemplateMetadata.AvatarUrl), out var avatarUrl))
+        {
+            persona.AvatarUrl = avatarUrl;
+        }
+
+        return persona;
     }
 
     private static AIDeploymentParametersMetadata ParseModelParameters(Dictionary<string, string> props)
