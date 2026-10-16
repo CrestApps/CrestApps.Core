@@ -174,6 +174,35 @@ public sealed class GeneratedFileToolReferencePersistenceTests
     }
 
     [Fact]
+    public async Task InvokeAsync_WhenNoFileNameOrFormat_AsksForTheFormatInsteadOfWritingMarkdown()
+    {
+        var fileStore = new InMemoryDocumentFileStore();
+        AIDocument createdDocument = null;
+        var documentStore = CreateDocumentStore(document => createdDocument = document);
+        var services = BuildServices(documentStore.Object, fileStore);
+
+        using var scope = AIInvocationScope.Begin();
+        scope.Context.ToolExecutionContext = new AIToolExecutionContext(new ChatInteraction
+        {
+            ItemId = "interaction-1",
+        });
+
+        var tool = new GenerateFileTool();
+        var arguments = CreateArguments(
+            services,
+            new Dictionary<string, object>
+            {
+                ["content"] = "# Top searches\n\n| Query | Count |\n| --- | --- |\n| Alpha | 12 |",
+            });
+
+        var result = await tool.InvokeAsync(arguments, TestContext.Current.CancellationToken);
+
+        Assert.Null(createdDocument);
+        Assert.Empty(scope.Context.ToolReferences);
+        Assert.Contains("Say which kind of file to create", result.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task InvokeAsync_WhenTabularFileContentIsConversationalQuestion_DoesNotCreateFile()
     {
         var fileStore = new InMemoryDocumentFileStore();

@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Documents.Generation.Spreadsheets;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
@@ -67,6 +69,7 @@ internal static class PdfBlockPreparer
                     block.Type = type;
                 }
 
+                LiftFlatObject(block);
                 ChartFromImageSource(block);
 
                 if (block.Chart?.ConversationChart is { } number)
@@ -226,6 +229,66 @@ internal static class PdfBlockPreparer
     private static string Plain(string text)
     {
         return (text ?? string.Empty).Replace("**", string.Empty, StringComparison.Ordinal).Replace("__", string.Empty, StringComparison.Ordinal).Trim();
+    }
+
+    /// <summary>
+    /// Reads a table, image or chart written flat on its block into the object the block carries it in.
+    /// </summary>
+    /// <remarks>
+    /// Asked to put a chart in a document, a model wrote <c>{"type": "chart", "conversation_chart": 1}</c> and
+    /// <c>{"type": "chart", "labels": […], "series": […]}</c> — the chart's fields on the block, not inside
+    /// its <c>chart</c> object. They were dropped as unknown properties, every chart arrived with no data,
+    /// and the document had headings over empty space.
+    /// </remarks>
+    /// <param name="block">The block.</param>
+    internal static void LiftFlatObject(PdfBlockDefinition block)
+    {
+        var unrecognized = block.Unrecognized;
+
+        block.Unrecognized = null;
+
+        if (block.Type == PdfBlockTypes.Chart && block.Chart is { } nested)
+        {
+            nested.Title ??= block.Title;
+        }
+
+        if (unrecognized is not { Count: > 0 })
+        {
+            return;
+        }
+
+        var node = new JsonObject();
+
+        foreach (var (key, value) in unrecognized)
+        {
+            node[key] = JsonNode.Parse(value.GetRawText());
+        }
+
+        try
+        {
+            switch (block.Type)
+            {
+                case PdfBlockTypes.Chart when block.Chart is null:
+                    block.Chart = PdfDefinitionJson.FromNode<PdfChartDefinition>(node);
+                    block.Chart.Title ??= block.Title;
+
+                    break;
+
+                case PdfBlockTypes.Image when block.Image is null:
+                    block.Image = PdfDefinitionJson.FromNode<PdfImageDefinition>(node);
+
+                    break;
+
+                case PdfBlockTypes.Table when block.Table is null:
+                    block.Table = PdfDefinitionJson.FromNode<PdfTableDefinition>(node);
+
+                    break;
+            }
+        }
+        catch (JsonException)
+        {
+            // Properties that do not read as the block's object are left out, as unknown ones always were.
+        }
     }
 
     /// <summary>

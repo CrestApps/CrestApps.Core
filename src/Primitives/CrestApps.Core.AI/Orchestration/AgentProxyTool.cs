@@ -129,6 +129,24 @@ internal sealed class AgentProxyTool : AIFunction
     }
 
     /// <summary>
+    /// Runs an agent that names no chat deployment of its own on the one the delegating conversation uses.
+    /// </summary>
+    /// <remarks>
+    /// The system agents name none. Left to the site default, a conversation set to a capable model handed
+    /// its PDF work to a smaller default one, which wandered through bookmark and link tools until it ran out
+    /// of tool calls instead of building the document it was asked for.
+    /// </remarks>
+    /// <param name="context">The agent's completion context.</param>
+    /// <param name="callerDeploymentName">The delegating conversation's chat deployment.</param>
+    private static void InheritDeployment(AICompletionContext context, string callerDeploymentName)
+    {
+        if (string.IsNullOrEmpty(context.ChatDeploymentName) && !string.IsNullOrEmpty(callerDeploymentName))
+        {
+            context.ChatDeploymentName = callerDeploymentName;
+        }
+    }
+
+    /// <summary>
     /// Runs the agent through the orchestrator so its configured tools are available, while
     /// suppressing nested agents and incrementing the recursion depth for the duration.
     /// </summary>
@@ -141,6 +159,7 @@ internal sealed class AgentProxyTool : AIFunction
         var orchestrationContextBuilder = services.GetRequiredService<IOrchestrationContextBuilder>();
         var orchestratorResolver = services.GetRequiredService<IOrchestratorResolver>();
         var invocationContext = AIInvocationScope.Current;
+        var callerDeploymentName = invocationContext.CompletionContext?.ChatDeploymentName;
 
         // Enter the sub-agent scope before building the context so that agent enrichment and
         // agent tools are suppressed for the agent's own orchestration.
@@ -158,6 +177,7 @@ internal sealed class AgentProxyTool : AIFunction
                     {
                         // Sub-agents never delegate to other agents.
                         ctx.CompletionContext.AgentNames = [];
+                        InheritDeployment(ctx.CompletionContext, callerDeploymentName);
                     }
                 },
                 cancellationToken);
@@ -204,6 +224,8 @@ internal sealed class AgentProxyTool : AIFunction
         var deploymentManager = services.GetRequiredService<IAIDeploymentManager>();
 
         var context = await contextBuilder.BuildAsync(agentProfile, cancellationToken: cancellationToken);
+
+        InheritDeployment(context, AIInvocationScope.Current?.CompletionContext?.ChatDeploymentName);
 
         // Disable tools on the agent's context to prevent infinite recursion.
         context.DisableTools = true;

@@ -7,6 +7,22 @@ namespace CrestApps.Core.Tests.Core.Documents.Pdf;
 public sealed class EditPdfContentToolTests
 {
     [Fact]
+    public async Task ComposedDocument_IsSentToAddPdfContent()
+    {
+        using var host = new PdfToolTestHost();
+        await host.InvokeAsync(new CreatePdfTool(), new { name = "deck", blocks = new object[] { new { type = "heading", text = "Slide 1" } } });
+
+        var result = await host.InvokeAsync(new EditPdfContentTool(), new
+        {
+            pdf = "deck",
+            operations = new[] { new { operation = "add_text", text = "Slide 2", page = 1, x = 72, y = 300 } },
+        });
+
+        Assert.Contains("add_pdf_content", result, StringComparison.Ordinal);
+        Assert.DoesNotContain((await host.LoadWorkspaceAsync()).Documents, document => document.Name.EndsWith("-edited", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ReplaceText_RemovesTheOldGlyphsAndSetsTheNewTextOnTheSameBaseline()
     {
         using var host = new PdfToolTestHost();

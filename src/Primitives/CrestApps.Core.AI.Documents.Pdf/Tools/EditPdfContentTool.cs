@@ -96,6 +96,18 @@ internal sealed class EditPdfContentTool : PdfToolBase
         return await context.MutateAsync(async state =>
         {
             var target = context.FindPdf(state, arguments.Pdf());
+
+            // Asked for "a PDF presentation", the agent built its slides by stamping text and pictures onto
+            // the pages of a composed document, one call per slide, until it ran out of tool calls. A composed
+            // document's content is its blocks; page edits would land in a separate file and be lost at its
+            // next content change.
+            if (target.IsComposed)
+            {
+                throw new PdfToolException(
+                    $"\"{target.Working.Name}\" is a document you are composing; edit_pdf_content is for uploaded PDFs and finished files. " +
+                    "Change its content with add_pdf_content — append blocks, or insert_before, insert_after, replace or remove a block by id (get_pdf_info lists them) — and its look with format_pdf.");
+            }
+
             var bytes = await context.ReadPdfAsync(target, cancellationToken);
             var log = new List<string>();
             var warnings = new List<string>();

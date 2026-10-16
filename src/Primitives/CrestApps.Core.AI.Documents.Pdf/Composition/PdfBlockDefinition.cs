@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace CrestApps.Core.AI.Documents.Pdf.Composition;
 
 /// <summary>
@@ -128,4 +131,12 @@ internal sealed class PdfBlockDefinition
     /// Gets or sets a value indicating whether the block is kept on the same page as the next one.
     /// </summary>
     public bool? KeepWithNext { get; set; }
+
+    /// <summary>
+    /// Gets or sets the properties the block does not declare, kept so a table, image or chart written flat on
+    /// the block — <c>{"type": "chart", "labels": […], "series": […]}</c> — can be read as the object it
+    /// describes. Cleared once the block is prepared.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> Unrecognized { get; set; }
 }
