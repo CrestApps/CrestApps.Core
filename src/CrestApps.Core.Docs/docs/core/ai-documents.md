@@ -228,6 +228,11 @@ Without it, `sign_pdf` explains that signing is not configured; `verify_pdf_sign
   page shows no number but is counted, so the page after it reads "Page 2 of 3".
 - Positions on a page are points from its top-left, as `search_pdf` reports them; on a page with a
   `/Rotate` entry they are in the page's unrotated frame.
+- A chart goes in as a chart block. A paragraph that is a whole `[chart:{…}]` marker is drawn as that chart;
+  any other chart marker in text — including a placeholder such as `[chart:Refer to chart marker above]` —
+  fails the call with the ways to add the chart, because text is printed as written.
+- A heading that repeats the heading right before it, with nothing between, is left out, and the agent is
+  told. This covers a model that sends the title with `create_pdf` and again at the start of the content.
 - For the Orchard Core integration, see [CrestApps for Orchard Core](https://orchardcore.crestapps.com).
 
 ### Images

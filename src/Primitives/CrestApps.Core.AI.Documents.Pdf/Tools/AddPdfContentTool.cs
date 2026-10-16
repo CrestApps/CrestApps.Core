@@ -102,7 +102,7 @@ internal sealed class AddPdfContentTool : PdfToolBase
                 case "append":
                     {
                         var section = ResolveSection(definition, arguments);
-                        warnings = await PdfBlockPreparer.PrepareAsync(definition, blocks, arguments.Services, cancellationToken);
+                        warnings = await PdfBlockPreparer.PrepareAsync(definition, blocks, arguments.Services, cancellationToken, precedingBlock: LastBlockBefore(definition, section, section.Blocks.Count));
                         section.Blocks.AddRange(blocks);
                         summary = $"Added {Describe(blocks)} to section {section.Id}.";
 
@@ -113,8 +113,9 @@ internal sealed class AddPdfContentTool : PdfToolBase
                 case "insert_after":
                     {
                         var (section, index) = FindBlock(definition, target);
-                        warnings = await PdfBlockPreparer.PrepareAsync(definition, blocks, arguments.Services, cancellationToken);
-                        section.Blocks.InsertRange(operation == "insert_before" ? index : index + 1, blocks);
+                        var position = operation == "insert_before" ? index : index + 1;
+                        warnings = await PdfBlockPreparer.PrepareAsync(definition, blocks, arguments.Services, cancellationToken, precedingBlock: LastBlockBefore(definition, section, position));
+                        section.Blocks.InsertRange(position, blocks);
                         summary = $"Inserted {Describe(blocks)} {(operation == "insert_before" ? "before" : "after")} {target}.";
 
                         break;
@@ -124,7 +125,7 @@ internal sealed class AddPdfContentTool : PdfToolBase
                     {
                         var (section, index) = FindBlock(definition, target);
                         var replacedId = section.Blocks[index].Id;
-                        warnings = await PdfBlockPreparer.PrepareAsync(definition, blocks, arguments.Services, cancellationToken);
+                        warnings = await PdfBlockPreparer.PrepareAsync(definition, blocks, arguments.Services, cancellationToken, precedingBlock: LastBlockBefore(definition, section, index));
 
                         // A one-for-one replacement keeps the id, so the block can still be referred to by the
                         // name the model already knows.
@@ -201,6 +202,34 @@ internal sealed class AddPdfContentTool : PdfToolBase
 
             return response.ToString();
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the block that new blocks placed at a position in a section follow, looking back into earlier
+    /// sections when the position is the start of one.
+    /// </summary>
+    /// <param name="definition">The document.</param>
+    /// <param name="section">The section the blocks go into.</param>
+    /// <param name="position">The index in the section the first new block takes.</param>
+    /// <returns>The block before that position, or <see langword="null"/> when there is none.</returns>
+    private static PdfBlockDefinition LastBlockBefore(PdfDocumentDefinition definition, PdfSectionDefinition section, int position)
+    {
+        if (position > 0)
+        {
+            return section.Blocks[position - 1];
+        }
+
+        var sectionIndex = definition.Sections.IndexOf(section);
+
+        for (var index = sectionIndex - 1; index >= 0; index--)
+        {
+            if (definition.Sections[index].Blocks.Count > 0)
+            {
+                return definition.Sections[index].Blocks[^1];
+            }
+        }
+
+        return null;
     }
 
     private static PdfSectionDefinition ResolveSection(PdfDocumentDefinition definition, PdfToolArguments arguments)

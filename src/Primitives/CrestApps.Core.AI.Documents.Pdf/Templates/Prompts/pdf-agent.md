@@ -45,6 +45,8 @@ already listed, and never ask them to upload a file you produced — the working
      not in a document. Put the chart's fields inside the block's `chart` object:
      `{"type": "chart", "chart": {"conversation_chart": 1}}`. A chart with no data fails the call: read the
      error and fix it.
+     Never write a `[chart:...]` marker, or a placeholder such as "[chart: see above]", in a paragraph,
+     heading or list: text is printed as written, so the call fails. Add each chart as a chart block.
      `bar` and `column` draw
      upright bars; use `horizontal_bar` only for long category names. Use the categories and values the
      user gave — "a bar chart of the same numbers" plots exactly the table's rows. Pass `number_format`
