@@ -39,6 +39,12 @@ public sealed class AIChatResponseHandler : IChatResponseHandler
 
         if (context.ChatType == ChatContextType.AIChatSession)
         {
+            // Store the session in the invocation context before the build, so profile providers and orchestration
+            // handlers that run during the build can resolve the session (for example, an agent that only a given
+            // session offers), and document tools can resolve the session documents later.
+            AIInvocationScope.Current.ChatSession = context.ChatSession;
+            AIInvocationScope.Current.Items[nameof(AIChatSession)] = context.ChatSession;
+
             orchestratorContext = await orchestrationContextBuilder.BuildAsync(
                 context.Profile,
                 ctx =>
@@ -51,14 +57,14 @@ public sealed class AIChatResponseHandler : IChatResponseHandler
 
             orchestratorName = context.Profile.OrchestratorName;
 
-            // Store the session in the invocation context so document tools can resolve session documents.
             AIInvocationScope.Current.CompletionContext = orchestratorContext.CompletionContext;
-            AIInvocationScope.Current.ChatSession = context.ChatSession;
-            AIInvocationScope.Current.Items[nameof(AIChatSession)] = context.ChatSession;
             AIInvocationScope.Current.DataSourceId = orchestratorContext.CompletionContext.DataSourceId;
         }
         else
         {
+            // Store the interaction in the invocation context before the build, for the same reason as the session.
+            AIInvocationScope.Current.ChatInteraction = context.Interaction;
+
             orchestratorContext = await orchestrationContextBuilder.BuildAsync(
                 context.Interaction,
                 ctx =>
@@ -71,7 +77,6 @@ public sealed class AIChatResponseHandler : IChatResponseHandler
             orchestratorName = context.Interaction.OrchestratorName;
 
             AIInvocationScope.Current.CompletionContext = orchestratorContext.CompletionContext;
-            AIInvocationScope.Current.ChatInteraction = context.Interaction;
             AIInvocationScope.Current.DataSourceId = orchestratorContext.CompletionContext.DataSourceId;
         }
 
