@@ -254,6 +254,32 @@ public sealed class CascadedRealtimeSessionTests
         Assert.Equal(CascadedRealtimeSession.NothingNewFromTheUser, prompt[^1].Text);
     }
 
+    // A system item the host adds after the assistant's line still leaves the assistant as the last to speak, so the
+    // requested reply's conversation ends with the user turn after that item.
+    [Fact]
+    public async Task SendAsync_ResponseRequestAfterTheAssistantsLineAndASystemItem_EndsTheConversationWithTheUser()
+    {
+        var transcription = new FakeTranscriptionSession();
+        await using var session = CreateSession(transcription, out var chatClient, reply: "We open at nine.", instructions: "You answer the phone.");
+
+        transcription.Emit(Completed("when do you open?"));
+        await chatClient.Streaming.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        var note = new RealtimeConversationItem([new TextContent("The caller has been quiet for ten seconds.")], id: null, ChatRole.System);
+
+        await session.SendAsync(new CreateConversationItemRealtimeClientMessage(note), TestContext.Current.CancellationToken);
+        await session.SendAsync(new CreateResponseRealtimeClientMessage { Instructions = "Ask whether they are still there." }, TestContext.Current.CancellationToken);
+        transcription.Complete();
+
+        await ReadAllAsync(session);
+
+        Assert.Equal(2, chatClient.Requests.Count);
+
+        var prompt = chatClient.Requests[1];
+        Assert.Equal([ChatRole.Assistant, ChatRole.System, ChatRole.User], prompt.TakeLast(3).Select(message => message.Role));
+        Assert.Equal(CascadedRealtimeSession.NothingNewFromTheUser, prompt[^1].Text);
+    }
+
     // Instructions given with one response replace the session's for that response, as a speech-to-speech
     // provider treats them; the next reply is written under the session's own again.
     [Fact]
