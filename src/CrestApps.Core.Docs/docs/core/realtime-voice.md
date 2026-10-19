@@ -89,7 +89,9 @@ What to expect from each leg:
   continuously; a committed transcript is what ends the user's turn and starts the reply. It transcribes with
   its own deployment's model, not the one a native realtime session would name.
 - **Chat** produces the reply. Tools, data sources, and the profile's system message are applied here, so a
-  cascaded session keeps every capability a text profile has. Function invocation is applied automatically.
+  cascaded session keeps every capability a text profile has. Function invocation is applied automatically, and a
+  reply's tool calls and their results stay in the history with its text, so the next turn knows what was looked
+  up. A call the user interrupted before it was answered is left out.
 - **Text-to-speech** speaks the reply. The reply is spoken a sentence at a time so audio starts playing while
   the model is still writing, and the voice picker for the deployment lists this leg's voices.
 

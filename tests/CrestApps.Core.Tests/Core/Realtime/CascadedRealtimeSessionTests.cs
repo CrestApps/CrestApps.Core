@@ -101,6 +101,92 @@ public sealed class CascadedRealtimeSessionTests
         Assert.Contains(secondRequest, message => message.Role == ChatRole.Assistant && message.Text == "The lights are on.");
     }
 
+    // A reply that looked something up must carry what it found into the next turn: a booking needs the slots it was
+    // offered, and a model that sees an answer it has no record of checking takes it back (seen on a call with
+    // claude-haiku-5-5, which said "I didn't actually check our booking calendar" after checking it).
+    [Fact]
+    public async Task Session_KeepsTheToolCallsAndTheirResultsInHistoryForTheNextTurn()
+    {
+        var transcription = new FakeTranscriptionSession();
+        var chatClient = new FakeChatClient(
+        [
+            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent("call_1", "getAvailableSlots", new Dictionary<string, object?> { ["day"] = "Tuesday" })]) { MessageId = "m1" },
+            new ChatResponseUpdate(ChatRole.Tool, [new FunctionResultContent("call_1", "14:00, 15:00")]) { MessageId = "m2" },
+            new ChatResponseUpdate(ChatRole.Assistant, "We have two and three on Tuesday.") { MessageId = "m3" },
+        ],
+        holdAfterFirst: false);
+
+        await using var session = new CascadedRealtimeSession(
+            transcription,
+            chatClient,
+            new FakeSpeechClient(_audioChunk),
+            new RealtimeSessionOptions(),
+            chatOptions: null,
+            speechOptions: new TextToSpeechOptions(),
+            NullLogger.Instance);
+
+        session.Start();
+
+        transcription.Emit(Completed("any slots on Tuesday?"));
+        transcription.Emit(Completed("the first one, please"));
+        transcription.Complete();
+
+        await ReadAllAsync(session);
+
+        var secondRequest = chatClient.Requests[1];
+        var call = Assert.Single(secondRequest.SelectMany(message => message.Contents).OfType<FunctionCallContent>());
+        var result = Assert.Single(secondRequest.SelectMany(message => message.Contents).OfType<FunctionResultContent>());
+        Assert.Equal("call_1", call.CallId);
+        Assert.Equal("call_1", result.CallId);
+        Assert.Contains(secondRequest, message => message.Role == ChatRole.Assistant && message.Text == "We have two and three on Tuesday.");
+
+        // In the order they happened: the call, its result, the answer built on it, then the next question.
+        var order = secondRequest.Select(message => message.Contents.FirstOrDefault()).ToList();
+        Assert.True(order.FindIndex(content => content is FunctionCallContent) < order.FindIndex(content => content is FunctionResultContent));
+    }
+
+    // A reply interrupted between asking for a tool and getting its answer leaves a call with no result. Providers
+    // that pair each call with its result (Anthropic among them) refuse such a conversation, so it is left out.
+    [Fact(Timeout = 30000)]
+    public async Task Session_LeavesOutAToolCallTheInterruptionLeftUnanswered()
+    {
+        var transcription = new FakeTranscriptionSession();
+        var chatClient = new FakeChatClient(
+        [
+            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent("call_1", "getAvailableSlots")]) { MessageId = "m1" },
+            new ChatResponseUpdate(ChatRole.Assistant, "Never reached.") { MessageId = "m2" },
+        ],
+        holdAfterFirst: true,
+        holdFirstReplyOnly: true);
+
+        await using var session = new CascadedRealtimeSession(
+            transcription,
+            chatClient,
+            new FakeSpeechClient(_audioChunk),
+            new RealtimeSessionOptions(),
+            chatOptions: null,
+            speechOptions: new TextToSpeechOptions(),
+            NullLogger.Instance);
+
+        session.Start();
+
+        transcription.Emit(Completed("any slots on Tuesday?"));
+        await chatClient.Streaming.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        transcription.Emit(new InputAudioTranscriptionRealtimeServerMessage(RealtimeServerMessageType.InputAudioTranscriptionDelta)
+        {
+            Transcription = "no wait",
+        });
+        transcription.Emit(Completed("no wait, Wednesday"));
+        transcription.Complete();
+
+        await ReadAllAsync(session);
+
+        var lastRequest = chatClient.Requests[^1];
+        Assert.DoesNotContain(lastRequest.SelectMany(message => message.Contents), content => content is FunctionCallContent);
+        Assert.Contains(lastRequest, message => message.Role == ChatRole.User && message.Text == "no wait, Wednesday");
+    }
+
     // Speaking over the assistant has to stop the reply, or the user is talked over for as long as the
     // model keeps writing. The fake reply is held open indefinitely, so the only thing that can end this
     // turn is the interruption cancelling it; the timeout turns a regression into a failure, not a hang.
@@ -701,12 +787,23 @@ public sealed class CascadedRealtimeSessionTests
 
     private sealed class FakeChatClient : IChatClient
     {
-        private readonly string[] _updates;
+        private readonly ChatResponseUpdate[] _updates;
+        private readonly bool _holdAfterFirst;
+        private readonly bool _holdFirstReplyOnly;
         private readonly TaskCompletionSource _held = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public FakeChatClient(string[] updates)
+            : this([.. updates.Select(update => new ChatResponseUpdate(ChatRole.Assistant, update))], updates.Length > 1)
+        {
+        }
+
+        public FakeChatClient(ChatResponseUpdate[] updates, bool holdAfterFirst, bool holdFirstReplyOnly = false)
         {
             _updates = updates;
+            _holdAfterFirst = holdAfterFirst;
+
+            // When only the first reply is held, it is the one a test interrupts, and later turns answer at once.
+            _holdFirstReplyOnly = holdFirstReplyOnly;
         }
 
         /// <summary>
@@ -731,9 +828,9 @@ public sealed class CascadedRealtimeSessionTests
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                yield return new ChatResponseUpdate(ChatRole.Assistant, _updates[index]);
+                yield return _updates[index];
 
-                if (index == 0 && _updates.Length > 1)
+                if (index == 0 && _holdAfterFirst && (!_holdFirstReplyOnly || Requests.Count == 1))
                 {
                     // Hold the reply open after the first update so an interruption lands mid-reply. Only
                     // cancelling the turn releases it, which is exactly what the interruption should do.

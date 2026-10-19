@@ -433,6 +433,10 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         var reply = new StringBuilder();
         var pending = new StringBuilder();
 
+        // Everything the chat leg returns, the tool calls and their results as well as the text, so the next turn is
+        // written knowing what this one looked up.
+        List<ChatResponseUpdate> updates = [];
+
         // An out-of-band reply ("let me look that up") is spoken but never becomes part of the conversation.
         var keepInHistory = response?.ExcludeFromConversation != true;
 
@@ -445,6 +449,8 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
 
             await foreach (var update in _chatClient.GetStreamingResponseAsync(ConversationFor(response), OptionsFor(response), cancellationToken))
             {
+                updates.Add(update);
+
                 var text = update.Text;
 
                 if (string.IsNullOrEmpty(text))
@@ -478,9 +484,9 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
                 ResponseId = responseId,
             });
 
-            if (reply.Length > 0 && keepInHistory)
+            if (keepInHistory)
             {
-                _history.Add(new ChatMessage(ChatRole.Assistant, reply.ToString()));
+                _history.AddRange(MessagesOf(updates));
             }
 
             await WriteAsync(new ResponseCreatedRealtimeServerMessage(RealtimeServerMessageType.ResponseDone)
@@ -492,10 +498,10 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         catch (OperationCanceledException)
         {
             // Interrupted by the user or by disposal. Whatever was said before the interruption stays in
-            // history, because the user heard it.
-            if (reply.Length > 0 && keepInHistory)
+            // history, because the user heard it, and so does what was looked up for it.
+            if (keepInHistory)
             {
-                _history.Add(new ChatMessage(ChatRole.Assistant, reply.ToString()));
+                _history.AddRange(MessagesOf(updates));
             }
 
             await WriteAsync(new ResponseCreatedRealtimeServerMessage(RealtimeServerMessageType.ResponseDone)
@@ -509,6 +515,47 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
             _logger.LogError(exception, "The cascaded realtime turn failed.");
 
             await WriteErrorAsync(exception);
+        }
+    }
+
+    /// <summary>
+    /// The messages a reply adds to the conversation: its tool calls and their results, then its text.
+    /// </summary>
+    /// <remarks>
+    /// Keeping only the text left the next turn blind to what this one looked up. A booking lost the slots it had
+    /// found, and a model that saw availability it had no record of checking took the answer back. A call the reply was
+    /// interrupted before answering has no result, and providers that pair each call with its result refuse a
+    /// conversation holding one, so it is left out.
+    /// </remarks>
+    /// <param name="updates">Everything the chat leg returned for the reply.</param>
+    private static IEnumerable<ChatMessage> MessagesOf(List<ChatResponseUpdate> updates)
+    {
+        if (updates.Count == 0)
+        {
+            yield break;
+        }
+
+        var messages = updates.ToChatResponse().Messages;
+        var answered = messages
+            .SelectMany(message => message.Contents)
+            .OfType<FunctionResultContent>()
+            .Select(result => result.CallId)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var message in messages)
+        {
+            List<AIContent> contents = [.. message.Contents.Where(content => content is not FunctionCallContent call || answered.Contains(call.CallId))];
+
+            if (contents.Count == 0 || (contents.TrueForAll(content => content is TextContent) && string.IsNullOrWhiteSpace(message.Text)))
+            {
+                continue;
+            }
+
+            yield return new ChatMessage(message.Role, contents)
+            {
+                AuthorName = message.AuthorName,
+                MessageId = message.MessageId,
+            };
         }
     }
 
