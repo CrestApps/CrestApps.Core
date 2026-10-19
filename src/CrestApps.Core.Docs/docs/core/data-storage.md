@@ -852,6 +852,14 @@ public async Task<IActionResult> List(int page = 1, int pageSize = 20)
 }
 ```
 
+Pass a `QueryContext` to filter the page. `Name` keeps the entries whose index `Name` (for an `INameAwareIndex`) or
+`DisplayText` (for an `IDisplayTextAwareIndex`) contains the value, `Source` keeps the entries of one source (for an
+`ISourceAwareIndex`), and `Sorted` orders the results by that name or display text:
+
+```csharp
+var result = await catalog.PageAsync(page, pageSize, new QueryContext { Name = search, Sorted = true });
+```
+
 Under the hood, the YesSql implementation computes the skip value and applies it to the query:
 
 ```csharp
