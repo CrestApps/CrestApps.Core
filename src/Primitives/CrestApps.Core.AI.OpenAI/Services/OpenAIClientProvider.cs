@@ -152,7 +152,8 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     /// </summary>
     /// <remarks>
     /// The SDK's client, streaming where the model can. Raw PCM is asked for by the name the realtime pipeline uses, so
-    /// a cascaded realtime deployment can speak with an OpenAI model (see <see cref="OpenAITextToSpeechFormatClient"/>).
+    /// a cascaded realtime deployment can speak with an OpenAI model (see <see cref="OpenAITextToSpeechFormatClient"/>), and
+    /// a speaking style is given to the model as its instructions (see <see cref="OpenAITextToSpeechStyleClient"/>).
     /// </remarks>
     /// <param name="connection">The connection.</param>
     /// <param name="deploymentName">The deployment name.</param>
@@ -171,7 +172,8 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
         var client = GetOpenAIClient(connection);
 
         return ValueTask.FromResult<ITextToSpeechClient>(
-            new OpenAITextToSpeechFormatClient(client.GetAudioClient(deploymentName).AsITextToSpeechClient()));
+            new OpenAITextToSpeechFormatClient(
+                new OpenAITextToSpeechStyleClient(client.GetAudioClient(deploymentName).AsITextToSpeechClient(), deploymentName)));
     }
 #pragma warning restore MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
 

@@ -5,6 +5,8 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using CrestApps.Core.AI.Realtime;
+using CrestApps.Core.AI.Services;
+using CrestApps.Core.AI.Speech;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -340,6 +342,32 @@ public sealed class CascadedRealtimeSessionTests
         Assert.Equal(CascadedRealtimeSession.NothingNewFromTheUser, prompt[^1].Text);
     }
 
+    // A system item the host adds after the assistant's line still leaves the assistant as the last to speak, so the
+    // requested reply's conversation ends with the user turn after that item.
+    [Fact]
+    public async Task SendAsync_ResponseRequestAfterTheAssistantsLineAndASystemItem_EndsTheConversationWithTheUser()
+    {
+        var transcription = new FakeTranscriptionSession();
+        await using var session = CreateSession(transcription, out var chatClient, reply: "We open at nine.", instructions: "You answer the phone.");
+
+        transcription.Emit(Completed("when do you open?"));
+        await chatClient.Streaming.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        var note = new RealtimeConversationItem([new TextContent("The caller has been quiet for ten seconds.")], id: null, ChatRole.System);
+
+        await session.SendAsync(new CreateConversationItemRealtimeClientMessage(note), TestContext.Current.CancellationToken);
+        await session.SendAsync(new CreateResponseRealtimeClientMessage { Instructions = "Ask whether they are still there." }, TestContext.Current.CancellationToken);
+        transcription.Complete();
+
+        await ReadAllAsync(session);
+
+        Assert.Equal(2, chatClient.Requests.Count);
+
+        var prompt = chatClient.Requests[1];
+        Assert.Equal([ChatRole.Assistant, ChatRole.System, ChatRole.User], prompt.TakeLast(3).Select(message => message.Role));
+        Assert.Equal(CascadedRealtimeSession.NothingNewFromTheUser, prompt[^1].Text);
+    }
+
     // Instructions given with one response replace the session's for that response, as a speech-to-speech
     // provider treats them; the next reply is written under the session's own again.
     [Fact]
@@ -529,6 +557,102 @@ public sealed class CascadedRealtimeSessionTests
 
         Assert.Equal(2, done.Count);
         Assert.All(done, message => Assert.Equal(RealtimeResponseStatus.Cancelled, message.Status));
+    }
+
+    // A phone call has no listener-side control, so the pace the deployment is configured with has to reach every
+    // fragment the cascade speaks, and the speaking style with it (CrestApps.Core#273).
+    [Fact]
+    public async Task Client_SpeaksEveryFragmentAtTheConfiguredPaceAndInTheConfiguredStyle()
+    {
+        var transcription = new FakeTranscriptionSession();
+        var speechClient = new FakeSpeechClient(_audioChunk);
+        using var client = new CascadedRealtimeClient(
+            new FakeTranscriptionClient(transcription),
+            new FakeChatClient(["Tuesday works. We open at nine. "]),
+            speechClient,
+            transcriptionModelId: null,
+            speechModelId: "gpt-4o-mini-tts",
+            NullLogger<CascadedRealtimeClient>.Instance)
+        {
+            SpeechSpeed = 1.2,
+            SpeakingStyle = "  Speak at a brisk, natural phone pace.  ",
+        };
+
+        await using var session = await client.CreateSessionAsync(new RealtimeSessionOptions(), TestContext.Current.CancellationToken);
+
+        transcription.Emit(Completed("when are you open"));
+        transcription.Complete();
+
+        await ReadAllAsync((CascadedRealtimeSession)session);
+
+        Assert.NotEmpty(speechClient.Options);
+        Assert.All(speechClient.Options, options =>
+        {
+            Assert.Equal(1.2f, options!.Speed);
+            Assert.Equal("Speak at a brisk, natural phone pace.", options.AdditionalProperties![TextToSpeechOptionsProperties.Instructions]);
+        });
+    }
+
+    [Fact]
+    public async Task Client_WithoutAPaceOrStyle_LeavesTheSpeakingLegAtItsOwn()
+    {
+        var transcription = new FakeTranscriptionSession();
+        var speechClient = new FakeSpeechClient(_audioChunk);
+        using var client = new CascadedRealtimeClient(
+            new FakeTranscriptionClient(transcription),
+            new FakeChatClient(["We open at nine. "]),
+            speechClient,
+            transcriptionModelId: null,
+            speechModelId: null,
+            NullLogger<CascadedRealtimeClient>.Instance);
+
+        await using var session = await client.CreateSessionAsync(new RealtimeSessionOptions(), TestContext.Current.CancellationToken);
+
+        transcription.Emit(Completed("when are you open"));
+        transcription.Complete();
+
+        await ReadAllAsync((CascadedRealtimeSession)session);
+
+        var options = Assert.Single(speechClient.Options);
+        Assert.Null(options!.Speed);
+        Assert.Null(options.AdditionalProperties);
+    }
+
+    // The listener's speed control works on a cascade too, on top of the pace the deployment is configured with.
+    [Theory]
+    [InlineData(1.2f, 1.25, 1.5f)]
+    [InlineData(null, 1.25, 1.25f)]
+    [InlineData(1.2f, 1.0, 1.2f)]
+    [InlineData(null, 1.0, null)]
+    public async Task Conversation_SpeedChange_ReachesTheCascadesSpeakingLeg_OnTopOfTheConfiguredPace(float? configured, double listener, float? expected)
+    {
+        var transcription = new FakeTranscriptionSession();
+        var speechClient = new FakeSpeechClient(_audioChunk);
+        var session = new CascadedRealtimeSession(
+            transcription,
+            new FakeChatClient(["We open at nine. "]),
+            speechClient,
+            new RealtimeSessionOptions(),
+            chatOptions: null,
+            speechOptions: new TextToSpeechOptions { Speed = configured },
+            NullLogger.Instance);
+        session.Start();
+        await using var conversation = new DefaultRealtimeConversation(session);
+
+        await conversation.UpdateSpeechSpeedAsync(listener, TestContext.Current.CancellationToken);
+
+        transcription.Emit(Completed("when are you open"));
+        transcription.Complete();
+
+        await ReadAllAsync(session);
+
+        Assert.True(conversation.SupportsSpeechSpeed);
+
+        // The speed is the cascade's to apply: nothing about it reaches the transcription leg.
+        Assert.Empty(transcription.Sent);
+
+        var options = Assert.Single(speechClient.Options);
+        Assert.Equal(expected, options!.Speed);
     }
 
     [Theory]
@@ -734,6 +858,26 @@ public sealed class CascadedRealtimeSessionTests
         }
     }
 
+    private sealed class FakeTranscriptionClient : IRealtimeClient
+    {
+        private readonly FakeTranscriptionSession _session;
+
+        public FakeTranscriptionClient(FakeTranscriptionSession session)
+        {
+            _session = session;
+        }
+
+        public Task<IRealtimeClientSession> CreateSessionAsync(RealtimeSessionOptions? options = null, CancellationToken cancellationToken = default)
+            => Task.FromResult<IRealtimeClientSession>(_session);
+
+        public object? GetService(Type serviceType, object? serviceKey = null)
+            => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
     private sealed class FakeSpeechClient : ITextToSpeechClient
     {
         private readonly byte[] _audio;
@@ -745,12 +889,19 @@ public sealed class CascadedRealtimeSessionTests
             _mediaType = mediaType;
         }
 
+        /// <summary>
+        /// Gets the options each fragment was spoken with.
+        /// </summary>
+        public List<TextToSpeechOptions?> Options { get; } = [];
+
         public async IAsyncEnumerable<TextToSpeechResponseUpdate> GetStreamingAudioAsync(
             string text,
             TextToSpeechOptions? options = null,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            Options.Add(options);
 
             yield return new TextToSpeechResponseUpdate([new DataContent(_audio, _mediaType)]);
 

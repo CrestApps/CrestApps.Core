@@ -280,7 +280,11 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
                 speechClient,
                 speechToText.ModelName,
                 textToSpeech.ModelName,
-                _serviceProvider.GetRequiredService<ILogger<CascadedRealtimeClient>>());
+                _serviceProvider.GetRequiredService<ILogger<CascadedRealtimeClient>>())
+            {
+                SpeechSpeed = cascade.SpeechSpeed,
+                SpeakingStyle = cascade.SpeakingStyle,
+            };
         }
         catch
         {

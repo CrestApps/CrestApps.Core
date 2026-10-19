@@ -42,7 +42,7 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
     /// Retrieves the knowledge for one utterance, or <see langword="null"/> when the session is not grounded and
     /// the provider answers on its own.
     /// </param>
-    /// <param name="supportsSpeechSpeed">Whether the session honours a speaking speed; <see langword="false"/> for a cascaded deployment.</param>
+    /// <param name="supportsSpeechSpeed">Whether the session honours a speaking speed.</param>
     public DefaultRealtimeConversation(
         IRealtimeClientSession session,
         Func<string, CancellationToken, Task<string?>>? groundTurnAsync,
@@ -247,6 +247,14 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
     {
         if (!_supportsSpeechSpeed)
         {
+            return Task.CompletedTask;
+        }
+
+        // A cascade speaks through a text-to-speech leg, which is given the speed with each fragment it speaks.
+        if (_session.GetService(typeof(CascadedRealtimeSession)) is CascadedRealtimeSession cascade)
+        {
+            cascade.SetSpeechSpeed(speed);
+
             return Task.CompletedTask;
         }
 

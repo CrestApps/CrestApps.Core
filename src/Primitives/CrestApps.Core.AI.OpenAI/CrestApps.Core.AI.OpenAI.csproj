@@ -21,4 +21,8 @@ OpenAI provider implementation for CrestApps AI services.
 <ProjectReference Include="../CrestApps.Core.Azure/CrestApps.Core.Azure.csproj" />
 </ItemGroup>
 
+<ItemGroup>
+<InternalsVisibleTo Include="CrestApps.Core.Tests" />
+</ItemGroup>
+
 </Project>
