@@ -66,6 +66,15 @@ Realtime is exposed through `IAIClientFactory.CreateRealtimeClientAsync` (see
 [Real-time clients](./index.md#real-time-speech-to-speech-clients)); the supported voices are returned by
 `IRealtimeVoiceResolver`.
 
+Text-to-speech is exposed through `IAIClientFactory.CreateTextToSpeechClientAsync`, and streams where the model
+can: `gpt-4o-mini-tts` streams its audio, while `tts-1` and `tts-1-hd` answer in one piece. `ISpeechVoiceResolver`
+returns the model's voices: thirteen for `gpt-4o-mini-tts` (alloy, ash, ballad, cedar, coral, echo, fable, marin,
+nova, onyx, sage, shimmer, verse) and nine for `tts-1` and `tts-1-hd` (alloy, ash, coral, echo, fable, nova, onyx,
+sage, shimmer). Raw PCM is 16-bit mono at **24 kHz only**: ask for `pcm`, or for `Pcm24000` as a
+[cascaded realtime deployment](../core/realtime-voice.md#providers-without-a-speech-to-speech-model) does. Raw PCM
+at any other rate is refused, because it would play at the wrong speed. So an OpenAI model can be the speaking leg
+of a cascade whose session runs at 24 kHz, the default.
+
 ## Configuration Example
 
 A full `appsettings.json` configuration for OpenAI:
@@ -173,6 +182,7 @@ Never commit API keys to source control. Use environment variables, user secrets
 | `dall-e-3` | Image | — | Image generation |
 | `whisper-1` | Speech-to-text | — | Audio transcription |
 | `tts-1` / `tts-1-hd` | Text-to-speech | — | Voice synthesis |
+| `gpt-4o-mini-tts` | Text-to-speech | — | Streamed voice synthesis; can be a cascaded realtime deployment's speaking leg |
 
 :::info
 Model availability and capabilities change frequently. Check the [OpenAI models documentation](https://platform.openai.com/docs/models) for the latest information.
