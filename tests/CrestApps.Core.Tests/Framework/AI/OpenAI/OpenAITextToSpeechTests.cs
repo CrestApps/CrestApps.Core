@@ -69,23 +69,39 @@ public sealed class OpenAITextToSpeechTests
     }
 
     [Theory]
-    [InlineData("Pcm8000")]
-    [InlineData("Pcm16000")]
-    [InlineData("pcm48000")]
-    public async Task RawPcmAtAnotherRate_IsRefused_RatherThanPlayedAtTheWrongSpeed(string format)
+    [InlineData("Pcm8000", 8000)]
+    [InlineData("Pcm16000", 16000)]
+    [InlineData("pcm48000", 48000)]
+    public async Task RawPcmAtAnotherRate_IsAskedForAt24kHz_AndComesBackAtTheRateAskedFor(string format, int rate)
     {
         // Arrange
-        // Refused before any request: the endpoint is a closed local port, so a regression fails here, not at OpenAI.
+        // OpenAI produces raw PCM at 24 kHz only. A cascade at another rate (8 kHz or 16 kHz for a phone line) used to
+        // be refused on its first reply (CrestApps.Core#279); its audio is now converted as it streams. A loopback
+        // listener stands in for OpenAI and streams back 100 ms of audio at 24 kHz.
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var samples = new byte[2400 * 2];
+        var request = AnswerOneSpeechRequestAsync(listener, samples, TestContext.Current.CancellationToken);
+
         var provider = new OpenAIClientProvider(EmptyServices());
-        var connection = Connection(("ApiKey", "sk-test-key"), ("Endpoint", "http://127.0.0.1:9/v1"));
+        var connection = Connection(("ApiKey", "sk-test-key"), ("Endpoint", $"http://127.0.0.1:{port}/v1"));
         var client = await provider.GetTextToSpeechClientAsync(connection, "gpt-4o-mini-tts");
 
         // Act
-        var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
-            await client.GetAudioAsync("Hello.", new TextToSpeechOptions { AudioFormat = format }, TestContext.Current.CancellationToken));
+        List<DataContent> audio = [];
+
+        await foreach (var update in client.GetStreamingAudioAsync("Hello.", new TextToSpeechOptions { AudioFormat = format }, TestContext.Current.CancellationToken))
+        {
+            audio.AddRange(update.Contents.OfType<DataContent>());
+        }
+
+        var sent = await request;
 
         // Assert
-        Assert.Contains("24000 Hz", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("\"response_format\":\"pcm\"", sent, StringComparison.Ordinal);
+        Assert.All(audio, chunk => Assert.Equal("audio/l16", chunk.MediaType, ignoreCase: true));
+        Assert.Equal(rate / 10 * 2, audio.Sum(chunk => chunk.Data.Length));
     }
 
     [Fact]

@@ -70,10 +70,11 @@ Text-to-speech is exposed through `IAIClientFactory.CreateTextToSpeechClientAsyn
 can: `gpt-4o-mini-tts` streams its audio, while `tts-1` and `tts-1-hd` answer in one piece. `ISpeechVoiceResolver`
 returns the model's voices: thirteen for `gpt-4o-mini-tts` (alloy, ash, ballad, cedar, coral, echo, fable, marin,
 nova, onyx, sage, shimmer, verse) and nine for `tts-1` and `tts-1-hd` (alloy, ash, coral, echo, fable, nova, onyx,
-sage, shimmer). Raw PCM is 16-bit mono at **24 kHz only**: ask for `pcm`, or for `Pcm24000` as a
-[cascaded realtime deployment](../core/realtime-voice.md#providers-without-a-speech-to-speech-model) does. Raw PCM
-at any other rate is refused, because it would play at the wrong speed. So an OpenAI model can be the speaking leg
-of a cascade whose session runs at 24 kHz, the default.
+sage, shimmer). OpenAI produces raw PCM (16-bit mono) at 24 kHz only: ask for `pcm`, or for `Pcm<rate>` as a
+[cascaded realtime deployment](../core/realtime-voice.md#providers-without-a-speech-to-speech-model) does. `Pcm24000`
+is passed through as OpenAI's `pcm`. Any other rate (`Pcm8000` or `Pcm16000` for a phone line, for example) is asked
+for at 24 kHz and converted to the rate asked for as it streams, with a filter that removes what a lower rate cannot
+carry. So an OpenAI model can be the speaking leg of a cascade at any output rate.
 
 ## Configuration Example
 
