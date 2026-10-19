@@ -199,8 +199,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             session,
             isGrounded
                 ? (utterance, token) => _turnGrounding.RetrieveAsync(context, request.Resource, utterance, token)
-                : null,
-            supportsSpeechSpeed: !isCascaded);
+                : null);
     }
 
     /// <summary>

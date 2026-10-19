@@ -71,6 +71,10 @@ deployment.Alter<CascadedRealtimeMetadata>(cascade =>
     cascade.SpeechToTextDeploymentName = "elevenlabs-scribe";
     cascade.ChatDeploymentName = "gpt-4o";
     cascade.TextToSpeechDeploymentName = "elevenlabs-tts";
+
+    // Optional: how fast and how the cascade speaks (see "Pace and speaking style" below).
+    cascade.SpeechSpeed = 1.2;
+    cascade.SpeakingStyle = "Speak at a brisk, natural phone pace, like a friendly and efficient receptionist.";
 });
 
 deployment.Alter<AIDeploymentMetadata>(metadata =>
@@ -88,6 +92,22 @@ What to expect from each leg:
   cascaded session keeps every capability a text profile has. Function invocation is applied automatically.
 - **Text-to-speech** speaks the reply. The reply is spoken a sentence at a time so audio starts playing while
   the model is still writing, and the voice picker for the deployment lists this leg's voices.
+
+### Pace and speaking style
+
+A cascade speaks at its text-to-speech leg's normal pace unless told otherwise, and some speaking models are slow
+enough at their default that callers notice. A phone call has no listener-side control, so the pace comes from the
+deployment:
+
+- `SpeechSpeed` is the cascade's pace, as a multiple of the speaking leg's normal pace (`1.2` is 20% faster). It is
+  sent with every fragment as `TextToSpeechOptions.Speed`. OpenAI accepts 0.25 to 4; Azure Speech accepts 0.5 to 2
+  and is given it as SSML `prosody rate`. A provider that has no speed ignores it.
+- `SpeakingStyle` says how to speak, in words. It is sent with every fragment as the
+  `TextToSpeechOptionsProperties.Instructions` additional property, which OpenAI hands to `gpt-4o-mini-tts` as its
+  `instructions`. Models that take no instructions (`tts-1`, `tts-1-hd`, Azure Speech) speak without them. A style
+  can move the pace as much as the speed does.
+
+A listener's speaking speed (below) applies on top of `SpeechSpeed`: at `1.2`, a listener's 1.25× speaks at 1.5.
 
 A reply nobody spoke to ask for, such as the opening line of a phone call or a prompt after a silence, is asked
 for the same way as on a native provider (`IRealtimeConversation.RequestUnpromptedResponseAsync`, which sends
@@ -558,7 +578,7 @@ remains are per-device preferences (saved in the browser), independent of the tr
 
 - **Microphone** and **Speaker**. Automatic speaker routing follows the preference above; the picker exists because Windows keeps a separate *Default Device* and *Default Communications Device*, so the sink that gives the best echo cancellation is not always the one the user is listening to. On Firefox the browser's own picker is used, since it exposes no output list until the user chooses.
 - **Assistant volume** — lowers playback; this also reduces the echo the canceller and the gate must handle.
-- **Speaking speed** — how fast the assistant talks, from 0.75× to 1.5×. Every conversation starts at 1.0×, the model's normal pace; a user's own choice is remembered in the browser, and *Reset* returns to 1.0×. The model applies the speed to its audio after generating it, so the words and the voice are unchanged, and a change takes effect from the assistant's next reply. It is hidden for a cascaded deployment, whose text-to-speech leg is not given a speed.
+- **Speaking speed** — how fast the assistant talks, from 0.75× to 1.5×. Every conversation starts at 1.0×, the model's normal pace; a user's own choice is remembered in the browser, and *Reset* returns to 1.0×. The model applies the speed to its audio after generating it, so the words and the voice are unchanged, and a change takes effect from the assistant's next reply. On a cascaded deployment, 1.0× is the deployment's own pace (`SpeechSpeed`), and a change takes effect from the next sentence the assistant speaks.
 - **Language** — *Automatic* sends no language hint at all, so the transcriber detects it and a bilingual user is not pinned to their browser's locale. Choosing a language pins both transcription and the assistant's replies to it.
 - **Allow interruptions** — *on* (default): talk over the assistant to interrupt it. The gate's learned echo level is what keeps the assistant's own voice from counting as an interruption, so this is safe with a headset, laptop speakers and most desk speakers alike. Turn it *off* only if the assistant keeps hearing itself: the microphone is then muted while it speaks (half duplex).
 - **Push-to-talk** — hold <kbd>Space</kbd> (or the button) to open the mic; for very noisy places.

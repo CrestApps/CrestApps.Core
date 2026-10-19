@@ -1,5 +1,6 @@
 #pragma warning disable MEAI001 // The realtime types from Microsoft.Extensions.AI are for evaluation purposes only.
 #nullable enable
+using CrestApps.Core.AI.Speech;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
@@ -48,6 +49,18 @@ public sealed class CascadedRealtimeClient : IRealtimeClient
         _speechModelId = speechModelId;
         _logger = logger;
     }
+
+    /// <summary>
+    /// Gets how fast the cascade speaks, as a multiple of its text-to-speech leg's normal pace, or
+    /// <see langword="null"/> for that pace (see <see cref="CascadedRealtimeMetadata.SpeechSpeed"/>).
+    /// </summary>
+    public double? SpeechSpeed { get; init; }
+
+    /// <summary>
+    /// Gets how the cascade should speak, in words, for a text-to-speech model that takes instructions, or
+    /// <see langword="null"/> for none (see <see cref="CascadedRealtimeMetadata.SpeakingStyle"/>).
+    /// </summary>
+    public string? SpeakingStyle { get; init; }
 
     /// <inheritdoc />
     public async Task<IRealtimeClientSession> CreateSessionAsync(RealtimeSessionOptions? options = null, CancellationToken cancellationToken = default)
@@ -175,18 +188,29 @@ public sealed class CascadedRealtimeClient : IRealtimeClient
 
     /// <summary>
     /// Builds the options applied to every spoken fragment, pinning the audio format to the one the caller
-    /// asked the session to produce.
+    /// asked the session to produce, at the pace and in the style the deployment is configured with.
     /// </summary>
     /// <param name="options">The session options the caller requested.</param>
     private TextToSpeechOptions BuildSpeechOptions(RealtimeSessionOptions? options)
     {
-        return new TextToSpeechOptions
+        var speechOptions = new TextToSpeechOptions
         {
             ModelId = _speechModelId,
             VoiceId = options?.Voice,
             Language = options?.TranscriptionOptions?.SpeechLanguage,
             AudioFormat = FormatAudioFormat(options?.OutputAudioFormat),
+            Speed = SpeechSpeed is > 0 and var speed && double.IsFinite(speed) ? (float)speed : null,
         };
+
+        if (!string.IsNullOrWhiteSpace(SpeakingStyle))
+        {
+            speechOptions.AdditionalProperties = new()
+            {
+                [TextToSpeechOptionsProperties.Instructions] = SpeakingStyle.Trim(),
+            };
+        }
+
+        return speechOptions;
     }
 
     /// <summary>

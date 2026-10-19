@@ -86,6 +86,10 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     private Task? _consumer;
     private int _disposed;
 
+    // The listener's speaking speed, on top of the pace the speaking leg is configured with. Set from the caller's
+    // thread and read by the reply's, a fragment at a time.
+    private double _speechSpeed = RealtimeSpeechSpeedRange.Default;
+
     /// <inheritdoc />
     public RealtimeSessionOptions? Options { get; }
 
@@ -160,6 +164,16 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         // Everything else the caller sends is about the user's audio, which only the transcription leg can act
         // on. It decides for itself what it cannot honor.
         await _transcription.SendAsync(message, cancellationToken);
+    }
+
+    /// <summary>
+    /// Changes how fast the session speaks, from the next fragment of the reply: a multiple of the pace the speaking
+    /// leg is configured with, as a listener's speaking speed is.
+    /// </summary>
+    /// <param name="speed">The speed, as a multiple of the configured pace (see <see cref="RealtimeSpeechSpeedRange"/>).</param>
+    public void SetSpeechSpeed(double speed)
+    {
+        Volatile.Write(ref _speechSpeed, RealtimeSpeechSpeedRange.Normalize(speed));
     }
 
     /// <inheritdoc />
@@ -554,7 +568,7 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     /// <param name="cancellationToken">A token that cancels this turn.</param>
     private async Task SpeakAsync(string text, string responseId, CancellationToken cancellationToken)
     {
-        await foreach (var update in _speechClient.GetStreamingAudioAsync(text, _speechOptions, cancellationToken))
+        await foreach (var update in _speechClient.GetStreamingAudioAsync(text, SpeechOptionsAtTheCurrentSpeed(), cancellationToken))
         {
             foreach (var content in update.Contents)
             {
@@ -575,6 +589,25 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
                 });
             }
         }
+    }
+
+    /// <summary>
+    /// The options a fragment is spoken with: the configured ones, at the listener's speed on top of the configured
+    /// pace.
+    /// </summary>
+    private TextToSpeechOptions SpeechOptionsAtTheCurrentSpeed()
+    {
+        var speed = Volatile.Read(ref _speechSpeed);
+
+        if (speed == RealtimeSpeechSpeedRange.Default)
+        {
+            return _speechOptions;
+        }
+
+        var options = _speechOptions.Clone();
+        options.Speed = (float)((_speechOptions.Speed ?? 1f) * speed);
+
+        return options;
     }
 
     /// <summary>
