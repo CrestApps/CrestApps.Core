@@ -5,6 +5,7 @@ using System.Text;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Services;
+using CrestApps.Core.AI.Speech;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -124,6 +125,40 @@ public sealed class OpenAITextToSpeechTests
         var chunk = Assert.Single(audio);
         Assert.Equal("audio/l16", chunk.MediaType, ignoreCase: true);
         Assert.Equal(samples, chunk.Data.ToArray());
+    }
+
+    [Theory]
+    [InlineData("gpt-4o-mini-tts", 1.2f, "\"speed\":1.2", true)]
+    [InlineData("tts-1", 1.2f, "\"speed\":1.2", false)]
+    [InlineData("tts-1-hd", 10f, "\"speed\":4", false)]
+    [InlineData("gpt-4o-mini-tts", 0.1f, "\"speed\":0.25", true)]
+    public async Task ASpeakingStyleAndSpeed_AreSentAsTheModelTakesThem(string model, float speed, string expectedSpeed, bool takesInstructions)
+    {
+        // Arrange
+        // A cascade's pace and speaking style (CrestApps.Core#273). gpt-4o-mini-tts takes instructions on how to
+        // speak; tts-1 and tts-1-hd take none, and OpenAI accepts speeds from 0.25 to 4 only.
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var request = AnswerOneSpeechRequestAsync(listener, [1, 2, 3, 4], TestContext.Current.CancellationToken);
+
+        var provider = new OpenAIClientProvider(EmptyServices());
+        var connection = Connection(("ApiKey", "sk-test-key"), ("Endpoint", $"http://127.0.0.1:{port}/v1"));
+        var client = await provider.GetTextToSpeechClientAsync(connection, model);
+        var options = new TextToSpeechOptions
+        {
+            AudioFormat = "Pcm24000",
+            Speed = speed,
+            AdditionalProperties = new() { [TextToSpeechOptionsProperties.Instructions] = "Speak at a brisk phone pace." },
+        };
+
+        // Act
+        await client.GetAudioAsync("Hello.", options, TestContext.Current.CancellationToken);
+        var sent = await request;
+
+        // Assert
+        Assert.Contains(expectedSpeed, sent, StringComparison.Ordinal);
+        Assert.Equal(takesInstructions, sent.Contains("\"instructions\":\"Speak at a brisk phone pace.\"", StringComparison.Ordinal));
     }
 
     /// <summary>

@@ -75,6 +75,12 @@ sage, shimmer). Raw PCM is 16-bit mono at **24 kHz only**: ask for `pcm`, or for
 at any other rate is refused, because it would play at the wrong speed. So an OpenAI model can be the speaking leg
 of a cascade whose session runs at 24 kHz, the default.
 
+A request can also say how fast and how to speak. `TextToSpeechOptions.Speed` is sent as the API's `speed`, kept
+within the 0.25 to 4 OpenAI accepts. A speaking style, given as the `TextToSpeechOptionsProperties.Instructions`
+additional property, is sent as the model's `instructions` ("Speak at a brisk, natural phone pace"); `tts-1` and
+`tts-1-hd` take no instructions, so it is left out for them. A cascade passes its `SpeechSpeed` and `SpeakingStyle`
+this way (see [pace and speaking style](../core/realtime-voice.md#pace-and-speaking-style)).
+
 ## Configuration Example
 
 A full `appsettings.json` configuration for OpenAI:

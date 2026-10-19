@@ -1,4 +1,6 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Globalization;
+using System.Runtime.CompilerServices;
+using System.Security;
 using System.Threading.Channels;
 using Azure.Core;
 using Azure.Identity;
@@ -43,6 +45,10 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
         ["mp3_24000"] = SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3,
         ["mp3_48000"] = SpeechSynthesisOutputFormat.Audio48Khz96KBitRateMonoMp3,
     };
+
+    // The speeds Azure Speech accepts, as a multiple of the voice's normal pace.
+    private const float MinimumSpeed = 0.5f;
+    private const float MaximumSpeed = 2f;
 
     private static readonly string[] _regionSuffixes =
     [
@@ -115,7 +121,10 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
 
         // Use null audio config to get in-memory audio result.
         using var synthesizer = new SpeechSynthesizer(speechConfig, null);
-        var result = await synthesizer.SpeakTextAsync(text);
+        var ssml = BuildSsml(text, options);
+        var result = ssml is null
+            ? await synthesizer.SpeakTextAsync(text)
+            : await synthesizer.SpeakSsmlAsync(ssml);
 
         if (result.Reason == ResultReason.SynthesizingAudioCompleted)
         {
@@ -229,7 +238,10 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
         };
 
         // Start synthesis - this returns once synthesis begins, not when it finishes.
-        var speakTask = synthesizer.StartSpeakingTextAsync(text);
+        var ssml = BuildSsml(text, options);
+        var speakTask = ssml is null
+            ? synthesizer.StartSpeakingTextAsync(text)
+            : synthesizer.StartSpeakingSsmlAsync(ssml);
 
         await foreach (var update in channel.Reader.ReadAllAsync(cancellationToken))
         {
@@ -366,6 +378,53 @@ public sealed class AzureSpeechServiceTextToSpeechClient : ITextToSpeechClient
         config.SetSpeechSynthesisOutputFormat(ResolveOutputFormat(options?.AudioFormat));
 
         return config;
+    }
+
+    /// <summary>
+    /// Builds the SSML that speaks the text at the speed asked for, or <see langword="null"/> when the text can be
+    /// spoken as it is.
+    /// </summary>
+    /// <remarks>
+    /// Plain text has no way to carry a speed, so a speed other than the voice's normal pace is given as SSML
+    /// <c>prosody rate</c>. SSML has to name its voice, so without one the text is spoken at the normal pace.
+    /// </remarks>
+    /// <param name="text">The text to speak.</param>
+    /// <param name="options">The options.</param>
+    internal static string BuildSsml(string text, TextToSpeechOptions options)
+    {
+        if (options?.Speed is not float requested ||
+            !float.IsFinite(requested) ||
+            requested <= 0 ||
+            string.IsNullOrWhiteSpace(options.VoiceId))
+        {
+            return null;
+        }
+
+        var speed = Math.Clamp(requested, MinimumSpeed, MaximumSpeed);
+
+        if (speed == 1f)
+        {
+            return null;
+        }
+
+        // The voice speaks its own language, as it does when the text is spoken without SSML.
+        var language = LanguageOf(options.VoiceId) ?? (string.IsNullOrWhiteSpace(options.Language) ? "en-US" : options.Language);
+        var rate = ((speed - 1f) * 100f).ToString("+0.##;-0.##", CultureInfo.InvariantCulture) + "%";
+
+        return $"<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"{SecurityElement.Escape(language)}\">" +
+            $"<voice name=\"{SecurityElement.Escape(options.VoiceId)}\"><prosody rate=\"{rate}\">{SecurityElement.Escape(text)}</prosody></voice></speak>";
+    }
+
+    /// <summary>
+    /// The language a voice speaks, from its name: <c>en-US</c> for <c>en-US-JennyNeural</c>, or
+    /// <see langword="null"/> when the name does not say.
+    /// </summary>
+    /// <param name="voiceId">The voice's name.</param>
+    private static string LanguageOf(string voiceId)
+    {
+        var parts = voiceId.Split('-');
+
+        return parts.Length >= 3 ? $"{parts[0]}-{parts[1]}" : null;
     }
 
     /// <summary>

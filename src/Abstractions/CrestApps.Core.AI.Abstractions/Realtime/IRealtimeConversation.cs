@@ -147,7 +147,7 @@ public interface IRealtimeConversation : IAsyncDisposable
 
     /// <summary>
     /// Gets a value indicating whether the speaking speed can be changed on this session. A cascaded deployment
-    /// cannot: its text-to-speech leg is not given a speed.
+    /// passes it to its text-to-speech leg, on top of the pace the deployment is configured with.
     /// </summary>
     bool SupportsSpeechSpeed => false;
 
