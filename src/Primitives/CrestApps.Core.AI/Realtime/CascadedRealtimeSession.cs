@@ -533,8 +533,8 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         // A reply nobody spoke to ask for, such as a prompt after a silence, can follow the assistant's own last line, and
         // the conversation then ends with the assistant. Models that do not continue an assistant's message refuse that
         // (Claude's 5.x models: "The conversation must end with a user message"), so a short user turn says there is
-        // nothing new to answer.
-        if (response is not null && conversation.Count > 0 && conversation[^1].Role == ChatRole.Assistant)
+        // nothing new to answer. A system item the host added after that line does not change who spoke last.
+        if (response is not null && conversation.FindLast(message => message.Role != ChatRole.System)?.Role == ChatRole.Assistant)
         {
             conversation.Add(new ChatMessage(ChatRole.User, NothingNewFromTheUser));
         }

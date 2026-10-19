@@ -111,11 +111,10 @@ A listener's speaking speed (below) applies on top of `SpeechSpeed`: at `1.2`, a
 
 A reply nobody spoke to ask for, such as the opening line of a phone call or a prompt after a silence, is asked
 for the same way as on a native provider (`IRealtimeConversation.RequestUnpromptedResponseAsync`, which sends
-`response.create`). The chat leg writes it from the conversation so far; when that ends with the assistant's own
-line, a short user turn saying nothing new was said ends it instead, since some models (Claude's 5.x) refuse to
-continue an assistant's message. Instructions sent with the request apply
-to that reply only, in place of the session's. A reply marked `ExcludeFromConversation` is spoken but not kept in
-the history.
+`response.create`). The chat leg writes it from the conversation so far; when the assistant spoke last (system
+items the host added after its line do not count), a short user turn saying nothing new was said ends it, since some
+models (Claude's 5.x) refuse to continue an assistant's message. Instructions sent with the request apply to that
+reply only, in place of the session's. A reply marked `ExcludeFromConversation` is spoken but not kept in the history.
 
 A cascaded session honors the same grounding contract as a native one. When per-turn knowledge retrieval is on,
 the session is created with automatic replies off: a finished utterance is added to the conversation but not
