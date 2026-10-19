@@ -1,3 +1,5 @@
+using System.Linq.Expressions;
+using System.Reflection;
 using CrestApps.Core.Data.YesSql.Indexes;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
@@ -12,6 +14,11 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
     where TIndex : CatalogItemIndex
 {
     private const int MaxGetAllResults = 10000;
+
+    private static readonly MethodInfo _stringContainsMethod = typeof(string).GetMethod(nameof(string.Contains), [typeof(string)]);
+    private static readonly PropertyInfo _nameProperty = typeof(INameAwareIndex).GetProperty(nameof(INameAwareIndex.Name));
+    private static readonly PropertyInfo _displayTextProperty = typeof(IDisplayTextAwareIndex).GetProperty(nameof(IDisplayTextAwareIndex.DisplayText));
+    private static readonly PropertyInfo _sourceProperty = typeof(ISourceAwareIndex).GetProperty(nameof(ISourceAwareIndex.Source));
 
     protected string CollectionName { get; }
 
@@ -92,33 +99,22 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
             {
                 if (typeof(INameAwareIndex).IsAssignableFrom(typeof(TIndex)))
                 {
-                    if (context.Sorted)
-                    {
-                        query = query.With<INameAwareIndex>(x => x.Name.Contains(context.Name))
-                            .OrderBy(x => x.Name);
-                    }
-                    else
-                    {
-                        query = query.With<INameAwareIndex>(x => x.Name.Contains(context.Name));
-                    }
+                    query = FilterByText(query, _nameProperty, context.Name, context.Sorted);
                 }
                 else if (typeof(IDisplayTextAwareIndex).IsAssignableFrom(typeof(TIndex)))
                 {
-                    if (context.Sorted)
-                    {
-                        query = query.With<IDisplayTextAwareIndex>(x => x.DisplayText.Contains(context.Name))
-                            .OrderBy(x => x.DisplayText);
-                    }
-                    else
-                    {
-                        query = query.With<IDisplayTextAwareIndex>(x => x.DisplayText.Contains(context.Name));
-                    }
+                    query = FilterByText(query, _displayTextProperty, context.Name, context.Sorted);
                 }
             }
 
             if (!string.IsNullOrEmpty(context.Source) && typeof(ISourceAwareIndex).IsAssignableFrom(typeof(TIndex)))
             {
-                query = query.With<ISourceAwareIndex>(x => x.Source == context.Source);
+                var parameter = Expression.Parameter(typeof(TIndex), "x");
+                var predicate = Expression.Lambda<Func<TIndex, bool>>(
+                    Expression.Equal(Expression.Property(parameter, _sourceProperty), Expression.Constant(context.Source)),
+                    parameter);
+
+                query = query.With(predicate);
             }
 
             await PagingAsync(query, context);
@@ -131,6 +127,29 @@ public class DocumentCatalog<T, TIndex> : ICatalog<T>
             Count = await query.CountAsync(cancellationToken),
             Entries = (await query.Skip(skip).Take(pageSize).ListAsync(cancellationToken)).ToArray()
         };
+    }
+
+    /// <summary>
+    /// Filters the query to the entries whose <paramref name="property"/> contains <paramref name="value"/>.
+    /// The predicate is built for <typeparamref name="TIndex"/>, because YesSql maps an index type to its table
+    /// and a marker interface such as <see cref="IDisplayTextAwareIndex"/> has no table.
+    /// </summary>
+    private static IQuery<T> FilterByText(IQuery<T> query, PropertyInfo property, string value, bool sorted)
+    {
+        var parameter = Expression.Parameter(typeof(TIndex), "x");
+        var member = Expression.Property(parameter, property);
+        var predicate = Expression.Lambda<Func<TIndex, bool>>(
+            Expression.Call(member, _stringContainsMethod, Expression.Constant(value)),
+            parameter);
+
+        var filtered = query.With(predicate);
+
+        if (sorted)
+        {
+            return filtered.OrderBy(Expression.Lambda<Func<TIndex, object>>(member, parameter));
+        }
+
+        return filtered;
     }
 
     /// <summary>

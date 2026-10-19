@@ -315,6 +315,31 @@ public sealed class CascadedRealtimeSessionTests
         Assert.Empty(transcription.Sent);
     }
 
+    // A prompt after a silence follows the assistant's own last line. Models that do not continue an assistant's
+    // message refuse a conversation ending with one (seen on a call with claude-haiku-5-5: "This model does not support
+    // assistant message prefill"), so the conversation for such a reply ends with a short user turn.
+    [Fact]
+    public async Task SendAsync_ResponseRequestAfterTheAssistantsLine_EndsTheConversationWithTheUser()
+    {
+        var transcription = new FakeTranscriptionSession();
+        await using var session = CreateSession(transcription, out var chatClient, reply: "We open at nine.", instructions: "You answer the phone.");
+
+        transcription.Emit(Completed("when do you open?"));
+        await chatClient.Streaming.Task.WaitAsync(TestContext.Current.CancellationToken);
+        await session.SendAsync(new CreateResponseRealtimeClientMessage { Instructions = "Ask whether they are still there." }, TestContext.Current.CancellationToken);
+        transcription.Complete();
+
+        await ReadAllAsync(session);
+
+        Assert.Equal(2, chatClient.Requests.Count);
+        Assert.Equal(ChatRole.User, chatClient.Requests[0][^1].Role);
+
+        var prompt = chatClient.Requests[1];
+        Assert.Equal(ChatRole.Assistant, prompt[^2].Role);
+        Assert.Equal(ChatRole.User, prompt[^1].Role);
+        Assert.Equal(CascadedRealtimeSession.NothingNewFromTheUser, prompt[^1].Text);
+    }
+
     // Instructions given with one response replace the session's for that response, as a speech-to-speech
     // provider treats them; the next reply is written under the session's own again.
     [Fact]

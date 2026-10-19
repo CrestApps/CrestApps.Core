@@ -93,7 +93,9 @@ What to expect from each leg:
 
 A reply nobody spoke to ask for, such as the opening line of a phone call or a prompt after a silence, is asked
 for the same way as on a native provider (`IRealtimeConversation.RequestUnpromptedResponseAsync`, which sends
-`response.create`). The chat leg writes it from the conversation so far. Instructions sent with the request apply
+`response.create`). The chat leg writes it from the conversation so far; when that ends with the assistant's own
+line, a short user turn saying nothing new was said ends it instead, since some models (Claude's 5.x) refuse to
+continue an assistant's message. Instructions sent with the request apply
 to that reply only, in place of the session's. A reply marked `ExcludeFromConversation` is spoken but not kept in
 the history.
 

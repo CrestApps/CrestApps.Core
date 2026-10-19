@@ -146,6 +146,45 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
         return Task.FromResult(OpenAIRealtimeVoices.All);
     }
 
+#pragma warning disable MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
+    /// <summary>
+    /// Gets a text-to-speech client.
+    /// </summary>
+    /// <remarks>
+    /// The SDK's client, streaming where the model can. Raw PCM is asked for by the name the realtime pipeline uses, so
+    /// a cascaded realtime deployment can speak with an OpenAI model (see <see cref="OpenAITextToSpeechFormatClient"/>).
+    /// </remarks>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    public override ValueTask<ITextToSpeechClient> GetTextToSpeechClientAsync(AIProviderConnectionEntry connection, string deploymentName = null)
+    {
+        if (string.IsNullOrEmpty(deploymentName))
+        {
+            deploymentName = connection.GetStringValue("TextToSpeechDeploymentName", false);
+        }
+
+        if (string.IsNullOrEmpty(deploymentName))
+        {
+            throw new ArgumentException("A text-to-speech deployment name must be provided, either directly or as a default in the connection settings.");
+        }
+
+        var client = GetOpenAIClient(connection);
+
+        return ValueTask.FromResult<ITextToSpeechClient>(
+            new OpenAITextToSpeechFormatClient(client.GetAudioClient(deploymentName).AsITextToSpeechClient()));
+    }
+#pragma warning restore MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
+
+    /// <summary>
+    /// Gets the voices of the deployment's text-to-speech model.
+    /// </summary>
+    /// <param name="connection">The connection.</param>
+    /// <param name="deploymentName">The deployment name.</param>
+    public override Task<SpeechVoice[]> GetSpeechVoicesAsync(AIProviderConnectionEntry connection, string deploymentName = null)
+    {
+        return Task.FromResult(OpenAITextToSpeechVoices.For(deploymentName));
+    }
+
     private static OpenAIClient GetOpenAIClient(AIProviderConnectionEntry connection)
     {
         var apiKey = connection.GetApiKey();

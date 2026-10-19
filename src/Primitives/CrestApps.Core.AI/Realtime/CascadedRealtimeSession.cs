@@ -59,6 +59,11 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     // The conversation so far, without the session's instructions. Only the work consumer reads or changes it.
     private readonly List<ChatMessage> _history = [];
 
+    /// <summary>
+    /// What a requested reply that follows the assistant's own line is answering: nothing new from the user.
+    /// </summary>
+    internal const string NothingNewFromTheUser = "(The user has not said anything new. Reply as your instructions for this reply say.)";
+
     private readonly Channel<QueuedWork> _work = Channel.CreateUnbounded<QueuedWork>(new UnboundedChannelOptions
     {
         SingleReader = true,
@@ -557,6 +562,15 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         }
 
         conversation.AddRange(_history);
+
+        // A reply nobody spoke to ask for, such as a prompt after a silence, can follow the assistant's own last line, and
+        // the conversation then ends with the assistant. Models that do not continue an assistant's message refuse that
+        // (Claude's 5.x models: "The conversation must end with a user message"), so a short user turn says there is
+        // nothing new to answer.
+        if (response is not null && conversation.Count > 0 && conversation[^1].Role == ChatRole.Assistant)
+        {
+            conversation.Add(new ChatMessage(ChatRole.User, NothingNewFromTheUser));
+        }
 
         return conversation;
     }
