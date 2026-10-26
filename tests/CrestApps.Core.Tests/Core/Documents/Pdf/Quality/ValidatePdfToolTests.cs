@@ -20,6 +20,32 @@ public sealed class ValidatePdfToolTests
         Assert.Contains("[PASS] Resources", result, StringComparison.Ordinal);
         Assert.Contains("[PASS] Page count: 3 page(s)", result, StringComparison.Ordinal);
         Assert.Contains("[PASS] Unicode mapping", result, StringComparison.Ordinal);
+        Assert.Contains("[PASS] Object structure", result, StringComparison.Ordinal);
+        Assert.Contains("[PASS] Content reader", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ValidatePdf_EditedDocument_ReadsWithoutRepairs()
+    {
+        using var host = new PdfToolTestHost();
+        await host.UploadAsync("report.pdf", await QualityTestPdfs.ComposeAsync(QualityTestPdfs.Report()));
+        await host.InvokeAsync(new EditPdfPagesTool(), new
+        {
+            pdf = "report.pdf",
+            operations = new object[]
+            {
+                new { operation = "rotate", pages = "2", degrees = 90 },
+                new { operation = "stamp", pages = "1", text = "DRAFT" },
+            },
+        });
+
+        var result = await host.InvokeAsync(new ValidatePdfTool(), new { pdf = "report" });
+
+        Assert.Contains("Verdict: the file is structurally sound", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("[FAIL]", result, StringComparison.Ordinal);
+        Assert.Contains("[PASS] Object structure", result, StringComparison.Ordinal);
+        Assert.Contains("[PASS] Content reader", result, StringComparison.Ordinal);
+        Assert.Contains("[PASS] Incremental updates", result, StringComparison.Ordinal);
     }
 
     [Fact]
