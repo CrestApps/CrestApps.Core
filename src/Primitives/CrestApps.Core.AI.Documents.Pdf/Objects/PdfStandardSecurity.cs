@@ -6,15 +6,15 @@ using UglyToad.PdfPig.Tokens;
 namespace CrestApps.Core.AI.Documents.Pdf.Objects;
 
 /// <summary>
-/// The password checks of the PDF standard security handler, revisions 2 to 6: whether a password is the
-/// owner password, the one that allows changes, rather than only the one that opens the file.
+/// The key derivations and password checks of the PDF standard security handler, revisions 2 to 6, as
+/// ISO 32000-2 section 7.6.4 describes them.
 /// </summary>
 /// <remarks>
 /// PdfPig decrypts a file with either password and does not say which one it took. An edit needs the owner
-/// password, so it is checked here against the file's encryption dictionary, as ISO 32000-2 section 7.6.4
-/// describes.
+/// password, so it is checked here against the file's encryption dictionary. <see cref="PdfStandardEncryptor"/>
+/// derives the entries it writes with the same steps.
 /// </remarks>
-#pragma warning disable CA5351 // The standard security handler is built on MD5; the file, not this code, chose it.
+#pragma warning disable CA5351 // The standard security handler is built on MD5; the format, not this code, chose it.
 internal static class PdfStandardSecurity
 {
     private static readonly byte[] _padding =
@@ -71,18 +71,7 @@ internal static class PdfStandardSecurity
             : (int)Math.Clamp((Integer(encrypt, "Length") ?? 40) / 8, 5, 16);
 
         // The owner password's key decrypts the owner entry back into the user password, which then has to check out.
-        var key = MD5.HashData(Pad(Latin1Password(password)));
-
-        if (revision >= 3)
-        {
-            for (var round = 0; round < 50; round++)
-            {
-                key = MD5.HashData(key);
-            }
-        }
-
-        key = key[..length];
-
+        var key = OwnerKey(password, revision, length);
         byte[] candidate;
 
         if (revision == 2)
@@ -99,22 +88,62 @@ internal static class PdfStandardSecurity
             }
         }
 
-        return IsUserPassword(encrypt, firstIdentifier, candidate, revision, length, owner, user);
-    }
-
-    private static bool IsUserPassword(DictionaryToken encrypt, byte[] firstIdentifier, byte[] padded, int revision, int length, byte[] owner, byte[] user)
-    {
-        var permissions = Integer(encrypt, "P") ?? 0;
         var encryptMetadata = encrypt.Data.TryGetValue("EncryptMetadata", out var metadata) && metadata is BooleanToken flag
             ? flag.Data
             : true;
 
+        var fileKey = FileKey(candidate, owner[..Math.Min(owner.Length, 32)], (int)(Integer(encrypt, "P") ?? 0), firstIdentifier, revision, length, encryptMetadata);
+        var expected = UserEntry(fileKey, firstIdentifier, revision);
+
+        // From revision 3 on, only the first 16 bytes of the user entry are significant.
+        var significant = revision == 2
+            ? 32
+            : 16;
+
+        return user.Length >= significant && CryptographicOperations.FixedTimeEquals(expected.AsSpan(0, significant), user.AsSpan(0, significant));
+    }
+
+    /// <summary>
+    /// Derives the key the owner entry is encrypted with (algorithm 3, steps a to d).
+    /// </summary>
+    /// <param name="password">The owner password.</param>
+    /// <param name="revision">The security handler revision, 2 to 4.</param>
+    /// <param name="length">The key length, in bytes.</param>
+    /// <returns>The key.</returns>
+    internal static byte[] OwnerKey(string password, int revision, int length)
+    {
+        var key = MD5.HashData(Pad(Latin1Password(password ?? string.Empty)));
+
+        if (revision >= 3)
+        {
+            for (var round = 0; round < 50; round++)
+            {
+                key = MD5.HashData(key);
+            }
+        }
+
+        return key[..length];
+    }
+
+    /// <summary>
+    /// Derives the file key from the user password (algorithm 2).
+    /// </summary>
+    /// <param name="password">The user password, as bytes; it is padded to 32.</param>
+    /// <param name="owner">The owner entry.</param>
+    /// <param name="permissions">The permission flags.</param>
+    /// <param name="firstIdentifier">The first part of the file identifier.</param>
+    /// <param name="revision">The security handler revision, 2 to 4.</param>
+    /// <param name="length">The key length, in bytes.</param>
+    /// <param name="encryptMetadata">Whether the metadata stream is encrypted.</param>
+    /// <returns>The key.</returns>
+    internal static byte[] FileKey(byte[] password, byte[] owner, int permissions, byte[] firstIdentifier, int revision, int length, bool encryptMetadata)
+    {
         var permissionBytes = new byte[4];
         var input = new List<byte>(128);
 
-        BinaryPrimitives.WriteInt32LittleEndian(permissionBytes, (int)permissions);
-        input.AddRange(Pad(padded));
-        input.AddRange(owner.AsSpan(0, Math.Min(owner.Length, 32)).ToArray());
+        BinaryPrimitives.WriteInt32LittleEndian(permissionBytes, permissions);
+        input.AddRange(Pad(password));
+        input.AddRange(owner);
         input.AddRange(permissionBytes);
         input.AddRange(firstIdentifier ?? []);
 
@@ -133,29 +162,41 @@ internal static class PdfStandardSecurity
             }
         }
 
-        key = key[..length];
+        return key[..length];
+    }
 
+    /// <summary>
+    /// Computes the user entry a file key gives (algorithms 4 and 5).
+    /// </summary>
+    /// <param name="fileKey">The file key.</param>
+    /// <param name="firstIdentifier">The first part of the file identifier.</param>
+    /// <param name="revision">The security handler revision, 2 to 4.</param>
+    /// <returns>The 32-byte entry; from revision 3 on, its last 16 bytes are zeros.</returns>
+    internal static byte[] UserEntry(byte[] fileKey, byte[] firstIdentifier, int revision)
+    {
         if (revision == 2)
         {
-            var expected = Rc4(key, _padding);
-
-            return user.Length >= 32 && CryptographicOperations.FixedTimeEquals(expected, user.AsSpan(0, 32));
+            return Rc4(fileKey, _padding);
         }
 
-        var check = Rc4(key, MD5.HashData([.. _padding, .. firstIdentifier ?? []]));
+        var check = Rc4(fileKey, MD5.HashData([.. _padding, .. firstIdentifier ?? []]));
 
         for (var round = 1; round <= 19; round++)
         {
-            check = Rc4(Xor(key, round), check);
+            check = Rc4(Xor(fileKey, round), check);
         }
 
-        return user.Length >= 16 && CryptographicOperations.FixedTimeEquals(check.AsSpan(0, 16), user.AsSpan(0, 16));
+        return [.. check, .. new byte[16]];
     }
 
     /// <summary>
     /// The hash of revision 6 (algorithm 2.B of ISO 32000-2): rounds of AES and SHA-2 that make guessing slow.
     /// </summary>
-    private static byte[] HardenedHash(byte[] password, ReadOnlySpan<byte> salt, ReadOnlySpan<byte> userKey)
+    /// <param name="password">The password, as <see cref="Utf8Password"/> encodes it.</param>
+    /// <param name="salt">The salt.</param>
+    /// <param name="userKey">The 48-byte user entry, for an owner hash; empty for a user hash.</param>
+    /// <returns>The 32-byte hash.</returns>
+    internal static byte[] HardenedHash(byte[] password, ReadOnlySpan<byte> salt, ReadOnlySpan<byte> userKey)
     {
         var hash = SHA256.HashData([.. password, .. salt, .. userKey]);
         var block = new List<byte>();
@@ -197,7 +238,12 @@ internal static class PdfStandardSecurity
         }
     }
 
-    private static byte[] Pad(byte[] password)
+    /// <summary>
+    /// Pads or cuts a password to the 32 bytes revisions 2 to 4 work with.
+    /// </summary>
+    /// <param name="password">The password's bytes.</param>
+    /// <returns>The padded password.</returns>
+    internal static byte[] Pad(byte[] password)
     {
         var padded = new byte[32];
         var length = Math.Min(password.Length, 32);
@@ -208,26 +254,48 @@ internal static class PdfStandardSecurity
         return padded;
     }
 
-    private static byte[] Latin1Password(string password)
+    /// <summary>
+    /// Encodes a password for revisions 2 to 4, which take single bytes.
+    /// </summary>
+    /// <param name="password">The password.</param>
+    /// <returns>Its bytes; a character beyond Latin-1 becomes <c>?</c>.</returns>
+    internal static byte[] Latin1Password(string password)
     {
         return [.. password.Select(character => character <= 0xFF ? (byte)character : (byte)'?')];
     }
 
-    private static byte[] Utf8Password(string password)
+    /// <summary>
+    /// Encodes a password for revisions 5 and 6, which take UTF-8 of at most 127 bytes.
+    /// </summary>
+    /// <param name="password">The password.</param>
+    /// <returns>Its bytes.</returns>
+    internal static byte[] Utf8Password(string password)
     {
-        var bytes = Encoding.UTF8.GetBytes(password.Normalize(NormalizationForm.FormKC));
+        var bytes = Encoding.UTF8.GetBytes((password ?? string.Empty).Normalize(NormalizationForm.FormKC));
 
         return bytes.Length > 127
             ? bytes[..127]
             : bytes;
     }
 
-    private static byte[] Xor(byte[] key, int value)
+    /// <summary>
+    /// Combines every byte of a key with a value, as the rounds of revisions 3 and 4 do.
+    /// </summary>
+    /// <param name="key">The key.</param>
+    /// <param name="value">The value.</param>
+    /// <returns>The new key.</returns>
+    internal static byte[] Xor(byte[] key, int value)
     {
         return [.. key.Select(part => (byte)(part ^ value))];
     }
 
-    private static byte[] Rc4(byte[] key, ReadOnlySpan<byte> data)
+    /// <summary>
+    /// Encrypts or decrypts data with RC4, which the format still uses for its older revisions.
+    /// </summary>
+    /// <param name="key">The key.</param>
+    /// <param name="data">The data.</param>
+    /// <returns>The result.</returns>
+    internal static byte[] Rc4(byte[] key, ReadOnlySpan<byte> data)
     {
         var state = new byte[256];
 

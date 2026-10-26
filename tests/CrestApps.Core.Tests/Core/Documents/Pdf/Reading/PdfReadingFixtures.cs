@@ -5,7 +5,6 @@ using CrestApps.Core.AI.Documents.Pdf.Graphics;
 using CrestApps.Core.AI.Documents.Pdf.Graphics.Fonts;
 using CrestApps.Core.AI.Documents.Pdf.Objects;
 using Microsoft.Extensions.Options;
-using PdfSharp.Pdf.IO;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf.Reading;
 
@@ -298,16 +297,9 @@ internal static class PdfReadingFixtures
     /// <returns>The protected file.</returns>
     public static byte[] Protect(byte[] pdf, string userPassword, string ownerPassword)
     {
-        using var input = new MemoryStream(pdf);
-        using var document = PdfReader.Open(input, PdfDocumentOpenMode.Modify);
+        using var document = PdfDocument.Open(pdf);
 
-        document.SecuritySettings.UserPassword = userPassword;
-        document.SecuritySettings.OwnerPassword = ownerPassword;
-
-        using var buffer = new MemoryStream();
-        document.Save(buffer, closeStream: false);
-
-        return buffer.ToArray();
+        return PdfObjectWriter.Write(document, new PdfStandardEncryptor(PdfEncryptionMethod.Aes256, userPassword, ownerPassword));
     }
 
     private static PdfPage LetterPage(PdfDocument document)
