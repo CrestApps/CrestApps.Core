@@ -1,10 +1,9 @@
-using CrestApps.Core.AI.Documents.Pdf.Services;
+using CrestApps.Core.AI.Documents.Pdf.Composition;
 using CrestApps.Core.AI.Documents.Presentations;
 using CrestApps.Core.AI.Documents.Presentations.Editing;
 using CrestApps.Core.AI.Documents.Presentations.Rendering;
 using Microsoft.Extensions.Logging;
 using PdfSharp.Drawing;
-using PdfSharp.Fonts;
 using PdfSharp.Pdf;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Presentations;
@@ -107,13 +106,7 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
 
         try
         {
-            GlobalFontSettings.UseWindowsFontsUnderWindows = true;
-            GlobalFontSettings.UseWindowsFontsUnderWsl2 = true;
-
-            if (!OperatingSystem.IsWindows() && GlobalFontSettings.FontResolver is null && SystemFontResolver.TryCreate(out var resolver))
-            {
-                GlobalFontSettings.FontResolver = resolver;
-            }
+            PdfFontConfiguration.Ensure();
         }
         catch (InvalidOperationException)
         {

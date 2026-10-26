@@ -4,7 +4,7 @@ using PdfSharp.Fonts;
 namespace CrestApps.Core.AI.Documents.Pdf.Composition;
 
 /// <summary>
-/// Points PDFsharp at the host's fonts, once per process.
+/// Configures font resolution for the PDF tools that still draw through PDFsharp.
 /// </summary>
 internal static class PdfFontConfiguration
 {
@@ -13,12 +13,8 @@ internal static class PdfFontConfiguration
     private static volatile bool _configured;
 
     /// <summary>
-    /// Configures font resolution if it has not been configured yet.
+    /// Configures font resolution once per process.
     /// </summary>
-    /// <remarks>
-    /// A caller that arrives while another is configuring waits for it: returning early would let it draw text
-    /// before the resolver is in place, which PDFsharp fails with "No appropriate font found".
-    /// </remarks>
     public static void Ensure()
     {
         if (_configured)
@@ -43,10 +39,41 @@ internal static class PdfFontConfiguration
                 GlobalFontSettings.FontResolver is null &&
                 SystemFontResolver.TryCreate(out var resolver))
             {
-                GlobalFontSettings.FontResolver = resolver;
+                GlobalFontSettings.FontResolver = new PdfSharpFontResolver(resolver);
             }
 
             _configured = true;
+        }
+    }
+
+    /// <summary>
+    /// Serves PDFsharp the fonts <see cref="SystemFontResolver"/> finds.
+    /// </summary>
+    private sealed class PdfSharpFontResolver : IFontResolver
+    {
+        private readonly SystemFontResolver _resolver;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="PdfSharpFontResolver"/> class.
+        /// </summary>
+        /// <param name="resolver">The system fonts.</param>
+        public PdfSharpFontResolver(SystemFontResolver resolver)
+        {
+            _resolver = resolver;
+        }
+
+        /// <inheritdoc/>
+        public FontResolverInfo ResolveTypeface(string familyName, bool isBold, bool isItalic)
+        {
+            var face = _resolver.ResolveTypeface(familyName, isBold, isItalic);
+
+            return new FontResolverInfo(face.FaceName, face.MustSimulateBold, face.MustSimulateItalic);
+        }
+
+        /// <inheritdoc/>
+        public byte[] GetFont(string faceName)
+        {
+            return _resolver.GetFont(faceName);
         }
     }
 }

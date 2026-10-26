@@ -1,22 +1,23 @@
 using System.Collections.Concurrent;
-using PdfSharp.Fonts;
+using System.Globalization;
+using CrestApps.Core.AI.Documents.Pdf.Graphics.Fonts;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Services;
 
 /// <summary>
-/// A best-effort <see cref="IFontResolver"/> for hosts where PDFsharp cannot read system fonts on its own
-/// (Linux and macOS). It serves the fonts installed in the operating system's font directories: the family a
-/// document asks for when it is installed, otherwise the installed font that stands in for it — Liberation
-/// Sans, Serif and Mono first, because they have the widths of Arial, Times New Roman and Courier New, so a
-/// document lays out as it does on Windows — and the bold, italic and bold italic faces of that font.
+/// Finds the fonts installed on the host that PDF text is written with: the family a document asks for
+/// when it is installed, otherwise the installed font that stands in for it — Liberation Sans, Serif and
+/// Mono first, because they have the widths of Arial, Times New Roman and Courier New, so a document lays
+/// out as it does on Windows — and the bold, italic and bold italic faces of that font.
 /// </summary>
 /// <remarks>
-/// A style is simulated only when the font has no face for it, and the text still comes out with a real
-/// bold or italic face wherever one is installed, so it reads as bold or italic to anything that reads the
-/// PDF back. When no font of a kind is installed, any installed font is used rather than failing the
-/// document.
+/// On Windows the fonts are found by the names stored in the font files, since their file names are
+/// abbreviations; on Linux and macOS by the file names in the font directories. A style is simulated only
+/// when the font has no face for it, and the text still comes out with a real bold or italic face wherever
+/// one is installed, so it reads as bold or italic to anything that reads the PDF back. When no font of a
+/// kind is installed, any installed font is used rather than failing the document.
 /// </remarks>
-internal sealed class SystemFontResolver : IFontResolver
+internal sealed class SystemFontResolver
 {
     private const int MaxFontFiles = 5000;
 
@@ -50,11 +51,14 @@ internal sealed class SystemFontResolver : IFontResolver
     ];
 
     private readonly Dictionary<string, Dictionary<FontStyle, string>> _families;
-    private readonly Dictionary<string, string> _files;
+    private readonly Dictionary<string, (string Path, int FaceIndex)> _files;
     private readonly ConcurrentDictionary<string, byte[]> _data = new(StringComparer.Ordinal);
     private readonly string _fallbackFamily;
 
-    private SystemFontResolver(Dictionary<string, Dictionary<FontStyle, string>> families, Dictionary<string, string> files, string fallbackFamily)
+    private SystemFontResolver(
+        Dictionary<string, Dictionary<FontStyle, string>> families,
+        Dictionary<string, (string Path, int FaceIndex)> files,
+        string fallbackFamily)
     {
         _families = families;
         _files = files;
@@ -94,38 +98,123 @@ internal sealed class SystemFontResolver : IFontResolver
     /// <returns><see langword="true"/> when a font was found.</returns>
     public static bool TryCreate(out SystemFontResolver resolver)
     {
-        resolver = FromFiles(FindFontFiles());
+        resolver = OperatingSystem.IsWindows()
+            ? FromFaces(FindWindowsFaces())
+            : FromFiles(FindFontFiles());
 
         return resolver is not null;
     }
 
     /// <summary>
-    /// Creates a resolver over the given font files.
+    /// Creates a resolver over the given font files, reading each file's family and style from its name.
     /// </summary>
     /// <param name="paths">The TrueType files.</param>
     /// <returns>The resolver, or <see langword="null"/> when there is no file.</returns>
     internal static SystemFontResolver FromFiles(IEnumerable<string> paths)
     {
-        var families = new Dictionary<string, Dictionary<FontStyle, string>>(StringComparer.Ordinal);
-        var files = new Dictionary<string, string>(StringComparer.Ordinal);
+        var faces = new List<(string Path, int FaceIndex, string FaceName, string Family, FontStyle Style)>();
 
         foreach (var path in paths ?? [])
         {
             var faceName = Path.GetFileNameWithoutExtension(path);
 
-            if (string.IsNullOrEmpty(faceName) || files.ContainsKey(faceName))
+            if (string.IsNullOrEmpty(faceName))
             {
                 continue;
             }
 
             var (family, style) = Parse(faceName);
 
-            if (family.Length == 0)
+            faces.Add((path, 0, faceName, family, style));
+        }
+
+        return Create(faces);
+    }
+
+    /// <summary>
+    /// Creates a resolver over faces whose family and style were read from the font files themselves.
+    /// </summary>
+    /// <param name="faces">Each face's file, index in the file, family and style.</param>
+    /// <returns>The resolver, or <see langword="null"/> when there is no face.</returns>
+    internal static SystemFontResolver FromFaces(IEnumerable<(string Path, int FaceIndex, string Family, bool Bold, bool Italic)> faces)
+    {
+        var entries = new List<(string Path, int FaceIndex, string FaceName, string Family, FontStyle Style)>();
+
+        foreach (var (path, faceIndex, family, bold, italic) in faces ?? [])
+        {
+            var style = (bold, italic) switch
+            {
+                (true, true) => FontStyle.BoldItalic,
+                (true, false) => FontStyle.Bold,
+                (false, true) => FontStyle.Italic,
+                _ => FontStyle.Regular,
+            };
+
+            entries.Add((path, faceIndex, Path.GetFileNameWithoutExtension(path) + "#" + faceIndex.ToString(CultureInfo.InvariantCulture), Normalize(family), style));
+        }
+
+        return Create(entries);
+    }
+
+    /// <summary>
+    /// Reads the file of a face: a font file of its own, taken out of its collection when it is in one.
+    /// </summary>
+    /// <param name="faceName">The face name <see cref="ResolveTypeface"/> returned.</param>
+    /// <returns>The font file.</returns>
+    public byte[] GetFont(string faceName)
+    {
+        if (!_files.ContainsKey(faceName ?? string.Empty))
+        {
+            faceName = Face(_fallbackFamily, FontStyle.Regular).FaceName;
+        }
+
+        return _data.GetOrAdd(faceName, name =>
+        {
+            var (path, faceIndex) = _files[name];
+
+            return PdfTrueTypeFile.ExtractFace(File.ReadAllBytes(path), faceIndex);
+        });
+    }
+
+    /// <summary>
+    /// Chooses the installed face for a family and style.
+    /// </summary>
+    /// <param name="familyName">The family the document asks for.</param>
+    /// <param name="isBold">Whether it asks for bold.</param>
+    /// <param name="isItalic">Whether it asks for italic.</param>
+    /// <returns>The face, and the styles that have to be simulated because the font has no face for them.</returns>
+    public SystemFontFace ResolveTypeface(string familyName, bool isBold, bool isItalic)
+    {
+        var requested = Normalize(familyName);
+        var family = Choose(requested);
+        var wanted = (isBold, isItalic) switch
+        {
+            (true, true) => FontStyle.BoldItalic,
+            (true, false) => FontStyle.Bold,
+            (false, true) => FontStyle.Italic,
+            _ => FontStyle.Regular,
+        };
+
+        var (faceName, style) = Face(family, wanted);
+        var hasBold = style is FontStyle.Bold or FontStyle.BoldItalic;
+        var hasItalic = style is FontStyle.Italic or FontStyle.BoldItalic;
+
+        return new SystemFontFace(faceName, isBold && !hasBold, isItalic && !hasItalic, family == requested);
+    }
+
+    private static SystemFontResolver Create(IEnumerable<(string Path, int FaceIndex, string FaceName, string Family, FontStyle Style)> faces)
+    {
+        var families = new Dictionary<string, Dictionary<FontStyle, string>>(StringComparer.Ordinal);
+        var files = new Dictionary<string, (string Path, int FaceIndex)>(StringComparer.Ordinal);
+
+        foreach (var (path, faceIndex, faceName, family, style) in faces)
+        {
+            if (family.Length == 0 || files.ContainsKey(faceName))
             {
                 continue;
             }
 
-            files[faceName] = path;
+            files[faceName] = (path, faceIndex);
 
             if (!families.TryGetValue(family, out var styles))
             {
@@ -146,46 +235,6 @@ internal sealed class SystemFontResolver : IFontResolver
             ?? families.Keys.Order(StringComparer.Ordinal).First();
 
         return new SystemFontResolver(families, files, fallback);
-    }
-
-    /// <summary>
-    /// Reads the file of a face.
-    /// </summary>
-    /// <param name="faceName">The face name <see cref="ResolveTypeface"/> returned.</param>
-    /// <returns>The font file.</returns>
-    public byte[] GetFont(string faceName)
-    {
-        if (!_files.TryGetValue(faceName ?? string.Empty, out var path))
-        {
-            path = _files[Face(_fallbackFamily, FontStyle.Regular).FaceName];
-        }
-
-        return _data.GetOrAdd(path, File.ReadAllBytes);
-    }
-
-    /// <summary>
-    /// Chooses the installed face for a family and style.
-    /// </summary>
-    /// <param name="familyName">The family the document asks for.</param>
-    /// <param name="isBold">Whether it asks for bold.</param>
-    /// <param name="isItalic">Whether it asks for italic.</param>
-    /// <returns>The face, and the styles PDFsharp has to simulate because the font has no face for them.</returns>
-    public FontResolverInfo ResolveTypeface(string familyName, bool isBold, bool isItalic)
-    {
-        var family = Choose(Normalize(familyName));
-        var wanted = (isBold, isItalic) switch
-        {
-            (true, true) => FontStyle.BoldItalic,
-            (true, false) => FontStyle.Bold,
-            (false, true) => FontStyle.Italic,
-            _ => FontStyle.Regular,
-        };
-
-        var (faceName, style) = Face(family, wanted);
-        var hasBold = style is FontStyle.Bold or FontStyle.BoldItalic;
-        var hasItalic = style is FontStyle.Italic or FontStyle.BoldItalic;
-
-        return new FontResolverInfo(faceName, isBold && !hasBold, isItalic && !hasItalic);
     }
 
     private string Choose(string requested)
@@ -329,5 +378,58 @@ internal sealed class SystemFontResolver : IFontResolver
         }
 
         return files;
+    }
+
+    private static List<(string Path, int FaceIndex, string Family, bool Bold, bool Italic)> FindWindowsFaces()
+    {
+        var faces = new List<(string Path, int FaceIndex, string Family, bool Bold, bool Italic)>();
+        var directories = new[]
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.Fonts),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "Windows", "Fonts"),
+        };
+
+        var files = 0;
+
+        foreach (var directory in directories.Where(directory => !string.IsNullOrEmpty(directory) && Directory.Exists(directory)))
+        {
+            IEnumerable<string> paths;
+
+            try
+            {
+                paths = Directory.EnumerateFiles(directory, "*.tt?", SearchOption.TopDirectoryOnly)
+                    .Where(path => path.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // A directory that cannot be read is skipped; the other may still hold fonts.
+                continue;
+            }
+
+            foreach (var path in paths)
+            {
+                if (++files > MaxFontFiles)
+                {
+                    return faces;
+                }
+
+                try
+                {
+                    using var stream = File.OpenRead(path);
+
+                    foreach (var (index, family, bold, italic) in PdfTrueTypeFile.ReadFaces(stream))
+                    {
+                        faces.Add((path, index, family, bold, italic));
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or EndOfStreamException)
+                {
+                    // A font that cannot be read is skipped, the way the system skips it.
+                }
+            }
+        }
+
+        return faces;
     }
 }
