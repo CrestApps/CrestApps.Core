@@ -1,5 +1,6 @@
 #pragma warning disable MEAI001
 using System.Net;
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Models;
@@ -77,8 +78,10 @@ public sealed class DefaultAIClientFactoryTests
         innerGenerator.Verify(generator => generator.GenerateAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<EmbeddingGenerationOptions>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
-    [Fact]
-    public async Task CreateRealtimeClientAsync_ResolvesClientFromProvider()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CreateRealtimeClientAsync_ResolvesClientFromProvider(bool usageTracking)
     {
         var session = Mock.Of<IRealtimeClientSession>();
         var realtimeClient = new Mock<IRealtimeClient>(MockBehavior.Strict);
@@ -95,11 +98,18 @@ public sealed class DefaultAIClientFactoryTests
         provider.Setup(p => p.CanHandle("Test")).Returns(true);
         provider.Setup(p => p.GetRealtimeClientAsync(It.IsAny<AIProviderConnectionEntry>(), "realtime-model")).Returns(new ValueTask<IRealtimeClient>(realtimeClient.Object));
 
-        var factory = CreateFactory(provider.Object);
+        var factory = CreateFactory(provider.Object, usageTracking);
         var client = await factory.CreateRealtimeClientAsync(deployment);
 
-        // The provider's client is wrapped so its usage is metered; sessions still come from the provider.
-        Assert.IsType<AIUsageTrackingRealtimeClient>(client);
+        // The provider's client is wrapped to meter its usage only when usage tracking was registered.
+        if (usageTracking)
+        {
+            Assert.IsType<AIUsageTrackingRealtimeClient>(client);
+        }
+        else
+        {
+            Assert.Same(realtimeClient.Object, client);
+        }
 
         await client.CreateSessionAsync(cancellationToken: TestContext.Current.CancellationToken);
 
@@ -123,11 +133,16 @@ public sealed class DefaultAIClientFactoryTests
         await Assert.ThrowsAsync<NotSupportedException>(async () => await factory.CreateRealtimeClientAsync(deployment));
     }
 
-    private static DefaultAIClientFactory CreateFactory(IAIClientProvider provider)
+    private static DefaultAIClientFactory CreateFactory(IAIClientProvider provider, bool usageTracking = false)
     {
-        var services = new ServiceCollection()
-            .AddLogging()
-            .BuildServiceProvider();
+        var serviceCollection = new ServiceCollection().AddLogging();
+
+        if (usageTracking)
+        {
+            serviceCollection.AddCoreAIUsageTracking();
+        }
+
+        var services = serviceCollection.BuildServiceProvider();
 
         return new DefaultAIClientFactory(
             [provider],
