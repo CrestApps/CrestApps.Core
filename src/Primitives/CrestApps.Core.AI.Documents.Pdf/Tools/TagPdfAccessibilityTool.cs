@@ -101,7 +101,7 @@ internal sealed class TagPdfAccessibilityTool : PdfToolBase
                 var bytes = await context.ReadPdfAsync(target, cancellationToken);
 
                 using var content = PdfFiles.OpenForReading(bytes, password);
-                using var document = PdfFiles.OpenObjectsForEditing(bytes, password);
+                using var document = PdfFiles.OpenForEditing(bytes, password);
 
                 var changes = new List<string>();
                 var notes = new List<string>();

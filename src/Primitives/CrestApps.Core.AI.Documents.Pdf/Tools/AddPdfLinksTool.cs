@@ -92,7 +92,7 @@ internal sealed class AddPdfLinksTool : PdfToolBase
             var bytes = await context.ReadPdfAsync(target, cancellationToken);
 
             using var pig = PdfFiles.OpenForReading(bytes, password);
-            using var document = PdfFiles.OpenObjectsForEditing(bytes, password);
+            using var document = PdfFiles.OpenForEditing(bytes, password);
 
             var placed = new List<string>();
             var total = 0;

@@ -1,13 +1,7 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Xml.Linq;
-using CrestApps.Core.AI.Documents.Pdf.Workspace;
-using PdfSharp.Pdf;
-using ObjectDictionary = CrestApps.Core.AI.Documents.Pdf.Objects.PdfDictionary;
-using ObjectDocument = CrestApps.Core.AI.Documents.Pdf.Objects.PdfDocument;
-using PigDocument = UglyToad.PdfPig.PdfDocument;
-using PigParsingOptions = UglyToad.PdfPig.ParsingOptions;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
@@ -16,21 +10,15 @@ namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 /// original packet declared.
 /// </summary>
 /// <remarks>
-/// The original packet is taken before the document is changed, so the stale copy is not written. A
-/// document of the package's own object model is saved with a correct packet as its metadata stream.
-/// PDFsharp, which some tools still edit with, replaces a file's XMP packet on every save with one it
-/// generates from the information dictionary: it drops the PDF/A and PDF/UA identification a file had,
-/// does not escape the values (a title with an ampersand makes the packet unreadable), dates the
-/// modification with the creation date, and leaves the replaced packet in the file. For such a document a
-/// correct packet is written in place of PDFsharp's after the save. That packet is the last object PDFsharp
-/// writes, so replacing it moves nothing but the cross-reference table. When the saved file is encrypted,
-/// or does not have the expected shape, PDFsharp's packet is left as it is.
+/// The original packet is taken before the document is changed, so the stale copy is not written, and the
+/// document is saved with a packet built from its document information that keeps the PDF/A and PDF/UA
+/// identification the file had.
 /// </remarks>
 internal sealed class PdfMetadataSync
 {
     // A document opened for editing is captured once; a tool that captures it again gets the same capture,
     // which still holds the packet the file had.
-    private static readonly ConditionalWeakTable<object, PdfMetadataSync> _captures = [];
+    private static readonly ConditionalWeakTable<PdfDocument, PdfMetadataSync> _captures = [];
 
     private XElement _original;
     private bool _keepOtherProperties;
@@ -54,8 +42,7 @@ internal sealed class PdfMetadataSync
     public bool DropPdfAConformance { get; set; }
 
     /// <summary>
-    /// Gets a value indicating whether the last save wrote the packet this class builds; otherwise the file
-    /// carries PDFsharp's own.
+    /// Gets a value indicating whether the document was saved with the packet this class builds.
     /// </summary>
     public bool Rewritten { get; private set; }
 
@@ -85,33 +72,34 @@ internal sealed class PdfMetadataSync
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        var catalog = document.Internals.Catalog;
+        if (_captures.TryGetValue(document, out var existing))
+        {
+            existing._keepOtherProperties &= keepOtherProperties;
 
-        return Capture(
-            document,
-            () => PdfObjects.Resolve(catalog.Elements["/Metadata"]) is PdfDictionary { Stream: not null } metadata ? metadata.Stream.UnfilteredValue : null,
-            () => catalog.Elements.Remove("/Metadata"),
-            keepOtherProperties);
-    }
-
-    /// <summary>
-    /// Takes a document's XMP packet before it is edited, and removes it from the document so the stale
-    /// copy is not written.
-    /// </summary>
-    /// <param name="document">The document, opened for editing.</param>
-    /// <param name="keepOtherProperties">Whether properties other than those mirroring the document information are kept; when <see langword="false"/> only the PDF/A and PDF/UA identification is.</param>
-    /// <returns>The capture.</returns>
-    public static PdfMetadataSync Capture(ObjectDocument document, bool keepOtherProperties = true)
-    {
-        ArgumentNullException.ThrowIfNull(document);
+            return existing;
+        }
 
         var catalog = document.Catalog;
+        XElement original;
 
-        return Capture(
-            document,
-            () => catalog.Elements.GetDictionary("/Metadata")?.Stream?.UnfilteredValue,
-            () => catalog.Elements.Remove("/Metadata"),
-            keepOtherProperties);
+        try
+        {
+            original = catalog.Elements.GetDictionary("/Metadata")?.Stream?.UnfilteredValue is { } packet
+                ? PdfXmpPacket.Parse(packet)
+                : null;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            original = null;
+        }
+
+        catalog.Elements.Remove("/Metadata");
+
+        var sync = new PdfMetadataSync(original, keepOtherProperties);
+
+        _captures.AddOrUpdate(document, sync);
+
+        return sync;
     }
 
     /// <summary>
@@ -149,34 +137,26 @@ internal sealed class PdfMetadataSync
     }
 
     /// <summary>
-    /// Saves the document, dating the change, and writes a consistent XMP packet.
-    /// </summary>
-    /// <param name="document">The document.</param>
-    /// <param name="now">The time of the change.</param>
-    /// <returns>The file.</returns>
-    public byte[] Save(PdfDocument document, DateTimeOffset now)
-    {
-        ArgumentNullException.ThrowIfNull(document);
-
-        document.Info.ModificationDate = now.UtcDateTime;
-
-        // PDFsharp refuses to count the pages of a document it has saved.
-        var pageCount = document.PageCount;
-        var saved = PdfFiles.SaveAsIs(document);
-        var rewritten = Rewrite(saved, document, pageCount);
-
-        Rewritten = rewritten is not null;
-
-        return rewritten ?? saved;
-    }
-
-    /// <summary>
     /// Saves the document, dating the change, with a consistent XMP packet as its metadata stream.
     /// </summary>
     /// <param name="document">The document.</param>
     /// <param name="now">The time of the change.</param>
+    /// <param name="security">Encrypts the file as it is written, or <see langword="null"/> to write it unencrypted.</param>
     /// <returns>The file.</returns>
-    public byte[] Save(ObjectDocument document, DateTimeOffset now)
+    public byte[] Save(PdfDocument document, DateTimeOffset now, IPdfObjectEncryptor security = null)
+    {
+        Apply(document, now);
+
+        return PdfObjectWriter.Write(document, security);
+    }
+
+    /// <summary>
+    /// Dates the change and gives the document a consistent XMP packet as its metadata stream, without saving
+    /// it, for a tool that writes the file itself.
+    /// </summary>
+    /// <param name="document">The document.</param>
+    /// <param name="now">The time of the change.</param>
+    public void Apply(PdfDocument document, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(document);
 
@@ -197,15 +177,13 @@ internal sealed class PdfMetadataSync
         };
 
         // PDF/A wants the packet readable without decoding, so it is stored as it is.
-        var metadata = new ObjectDictionary(document);
+        var metadata = new PdfDictionary(document);
 
         metadata.Elements.SetName("/Type", "/Metadata");
         metadata.Elements.SetName("/Subtype", "/XML");
         metadata.CreateStream(PdfXmpPacket.Build(_original, values, _keepOtherProperties, DropPdfAConformance));
         document.Catalog.Elements.SetReference("/Metadata", metadata);
         Rewritten = true;
-
-        return document.Save();
     }
 
     /// <summary>
@@ -234,139 +212,12 @@ internal sealed class PdfMetadataSync
         return $"The file's {claims} identification was kept. Check it with validate_pdf_compliance if conformance matters.";
     }
 
-    private static PdfMetadataSync Capture(object document, Func<byte[]> readPacket, Action removePacket, bool keepOtherProperties)
-    {
-        if (_captures.TryGetValue(document, out var existing))
-        {
-            existing._keepOtherProperties &= keepOtherProperties;
-
-            return existing;
-        }
-
-        XElement original = null;
-
-        try
-        {
-            original = readPacket() is { } packet
-                ? PdfXmpPacket.Parse(packet)
-                : null;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            original = null;
-        }
-
-        removePacket();
-
-        var sync = new PdfMetadataSync(original, keepOtherProperties);
-
-        _captures.AddOrUpdate(document, sync);
-
-        return sync;
-    }
-
-    private static string Text(ObjectDictionary dictionary, string key)
+    private static string Text(PdfDictionary dictionary, string key)
     {
         var text = dictionary?.Elements.GetString(key);
 
         return string.IsNullOrEmpty(text)
             ? null
             : text;
-    }
-
-    private byte[] Rewrite(byte[] saved, PdfDocument document, int pageCount)
-    {
-        var reference = document.Internals.Catalog.Elements.GetReference("/Metadata");
-
-        if (reference is null)
-        {
-            return null;
-        }
-
-        var text = Encoding.Latin1.GetString(saved);
-        var trailerAt = text.LastIndexOf("\ntrailer", StringComparison.Ordinal);
-
-        if (trailerAt < 0 || text.IndexOf("/Encrypt", trailerAt, StringComparison.Ordinal) >= 0)
-        {
-            return null;
-        }
-
-        var xrefAt = text.LastIndexOf("\nxref", trailerAt, StringComparison.Ordinal);
-        var header = string.Create(CultureInfo.InvariantCulture, $"\n{reference.ObjectNumber} {reference.GenerationNumber} obj");
-        var objectAt = xrefAt < 0 ? -1 : text.LastIndexOf(header, xrefAt, StringComparison.Ordinal);
-
-        if (objectAt < 0)
-        {
-            return null;
-        }
-
-        var endAt = text.IndexOf("endobj", objectAt, StringComparison.Ordinal);
-
-        // The packet has to be the last object before the cross-reference table, so nothing else moves.
-        if (endAt < 0 || endAt > xrefAt || !string.IsNullOrWhiteSpace(text[(endAt + "endobj".Length)..(xrefAt + 1)]))
-        {
-            return null;
-        }
-
-        var startXrefAt = text.LastIndexOf("startxref", StringComparison.Ordinal);
-
-        if (startXrefAt < trailerAt)
-        {
-            return null;
-        }
-
-        var packet = PdfXmpPacket.Build(_original, ReadValues(document), _keepOtherProperties, DropPdfAConformance);
-        var objectHead = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{reference.ObjectNumber} {reference.GenerationNumber} obj\n<<\n  /Type /Metadata\n  /Subtype /XML\n  /Length {packet.Length}\n>>\nstream\n");
-
-        using var output = new MemoryStream(saved.Length + packet.Length);
-
-        output.Write(saved, 0, objectAt + 1);
-        output.Write(Encoding.ASCII.GetBytes(objectHead));
-        output.Write(packet);
-        output.Write("\nendstream\nendobj\n"u8);
-
-        var newXrefAt = output.Position;
-        var tableEnd = startXrefAt + "startxref".Length;
-
-        output.Write(saved, xrefAt + 1, tableEnd - (xrefAt + 1));
-        output.Write(Encoding.ASCII.GetBytes(string.Create(CultureInfo.InvariantCulture, $"\n{newXrefAt}\n%%EOF\n")));
-
-        var result = output.ToArray();
-
-        return Readable(result, pageCount) ? result : null;
-    }
-
-    private static PdfXmpValues ReadValues(PdfDocument document)
-    {
-        var info = document.Info;
-
-        return new PdfXmpValues
-        {
-            Title = PdfObjects.GetText(info, "/Title"),
-            Author = PdfObjects.GetText(info, "/Author"),
-            Subject = PdfObjects.GetText(info, "/Subject"),
-            Keywords = PdfObjects.GetText(info, "/Keywords"),
-            Creator = PdfObjects.GetText(info, "/Creator"),
-            Producer = PdfObjects.GetText(info, "/Producer"),
-            CreationDate = PdfObjects.GetText(info, "/CreationDate"),
-            ModificationDate = PdfObjects.GetText(info, "/ModDate"),
-            Language = PdfObjects.GetText(document.Internals.Catalog, "/Lang"),
-        };
-    }
-
-    private static bool Readable(byte[] bytes, int pageCount)
-    {
-        try
-        {
-            using var document = PigDocument.Open(bytes, new PigParsingOptions { UseLenientParsing = false });
-
-            return document.NumberOfPages == pageCount && document.TryGetXmpMetadata(out _);
-        }
-        catch (Exception)
-        {
-            return false;
-        }
     }
 }

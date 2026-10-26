@@ -3,22 +3,18 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Security.Cryptography.Pkcs;
 using System.Security.Cryptography.X509Certificates;
-using PdfSharp.Pdf.Signatures;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
 /// <summary>
-/// Makes the PKCS#7 signature PDFsharp embeds when it signs a document, with the signed attributes a
-/// validator expects.
+/// Makes the PKCS#7 signature a signed PDF embeds, with the signed attributes a validator expects.
 /// </summary>
 /// <remarks>
-/// PDFsharp's own signer signs the content directly, with no signed attributes: there is no signed message
-/// digest, the signing time goes into the unsigned attributes where anyone could change it, and nothing
-/// binds the signer's certificate. This signer signs the message digest, the signing time and the
-/// certificate's hash (the ESS signing-certificate-v2 attribute), and adds an RFC 3161 time stamp when an
-/// authority is configured.
+/// The signer signs the message digest, the signing time and the certificate's hash (the ESS
+/// signing-certificate-v2 attribute), so none of them can be changed afterwards, and adds an RFC 3161 time
+/// stamp when an authority is configured.
 /// </remarks>
-internal sealed class PdfCmsSigner : IDigitalSigner
+internal sealed class PdfCmsSigner
 {
     private const string SigningCertificateV2Oid = "1.2.840.113549.1.9.16.2.47";
     private const string TimestampTokenOid = "1.2.840.113549.1.9.16.2.14";
@@ -65,10 +61,8 @@ internal sealed class PdfCmsSigner : IDigitalSigner
     {
         if (_size == 0)
         {
-            using var probe = new MemoryStream([0]);
-
             // A time stamp's size varies a little from one response to the next.
-            _size = (await GetSignatureAsync(probe)).Length + (_timestampAuthority is null ? 16 : 256);
+            _size = (await GetSignatureAsync([0])).Length + (_timestampAuthority is null ? 16 : 256);
         }
 
         return _size;
@@ -77,17 +71,11 @@ internal sealed class PdfCmsSigner : IDigitalSigner
     /// <summary>
     /// Signs the bytes a signature covers.
     /// </summary>
-    /// <param name="stream">The covered bytes.</param>
+    /// <param name="content">The covered bytes.</param>
     /// <returns>The DER-encoded PKCS#7 signature.</returns>
-    public async Task<byte[]> GetSignatureAsync(Stream stream)
+    public async Task<byte[]> GetSignatureAsync(byte[] content)
     {
-        ArgumentNullException.ThrowIfNull(stream);
-
-        // PDFsharp hands over a stream of the covered ranges that can be rewound but not otherwise sought.
-        var content = new byte[stream.Length];
-
-        stream.Position = 0;
-        await stream.ReadExactlyAsync(content);
+        ArgumentNullException.ThrowIfNull(content);
 
         var cms = new SignedCms(new ContentInfo(content), detached: true);
         var signer = new CmsSigner(SubjectIdentifierType.IssuerAndSerialNumber, _certificate)

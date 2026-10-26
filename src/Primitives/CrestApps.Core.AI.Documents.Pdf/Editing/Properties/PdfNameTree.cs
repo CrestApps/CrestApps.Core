@@ -1,4 +1,4 @@
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
@@ -102,7 +102,7 @@ internal static class PdfNameTree
         var node = new PdfDictionary(document);
 
         node.Elements["/Names"] = names;
-        document.Internals.AddObject(node);
+        document.AddObject(node);
 
         return node;
     }

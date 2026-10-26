@@ -287,7 +287,7 @@ public sealed class PdfDocumentComposerTests
 
     private static string PageText(UglyToad.PdfPig.Content.Page page)
     {
-        // MigraDoc positions each word itself and writes no space glyphs, so the page's raw text runs words
+        // The composer positions each word itself and writes no space glyphs, so the page's raw text runs words
         // together; the words are what a reader sees.
         return string.Join(' ', page.GetWords().Select(word => word.Text));
     }

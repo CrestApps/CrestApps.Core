@@ -1,4 +1,4 @@
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
@@ -174,7 +174,7 @@ internal static class PdfSanitizer
     private static int RemoveScripts(PdfDocument document)
     {
         var removed = 0;
-        var catalog = document.Internals.Catalog;
+        var catalog = document.Catalog;
 
         if (PdfObjects.GetDictionary(catalog, "/Names") is { } names && names.Elements.Remove("/JavaScript"))
         {
@@ -304,7 +304,7 @@ internal static class PdfSanitizer
         }
 
         // The layers themselves are then declared no more.
-        var properties = PdfObjects.GetDictionary(document.Internals.Catalog, "/OCProperties");
+        var properties = PdfObjects.GetDictionary(document.Catalog, "/OCProperties");
 
         Prune(PdfObjects.GetArray(properties, "/OCGs"), groups);
 
@@ -323,7 +323,7 @@ internal static class PdfSanitizer
 
         if (PdfObjects.GetArray(properties, "/OCGs") is { Elements.Count: 0 })
         {
-            document.Internals.Catalog.Elements.Remove("/OCProperties");
+            document.Catalog.Elements.Remove("/OCProperties");
         }
 
         return hidden.Count;

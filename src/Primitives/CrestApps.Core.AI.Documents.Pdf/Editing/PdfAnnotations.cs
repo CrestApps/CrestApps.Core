@@ -2,11 +2,10 @@ using System.Globalization;
 using System.Text;
 using CrestApps.Core.AI.Documents.Pdf.Analysis;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
+using CrestApps.Core.AI.Documents.Pdf.Graphics.Fonts;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Tools;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
-using PdfSharp.Drawing;
-using PdfSharp.Pdf;
-using PdfSharp.Pdf.Advanced;
 using UglyToad.PdfPig.Content;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
@@ -263,7 +262,7 @@ internal static class PdfAnnotations
 
             annotation.Elements["/Rect"] = PdfLowLevel.Numbers(document, placement.Rect.Left, placement.Rect.Bottom, placement.Rect.Right, placement.Rect.Top);
             ApplyProperties(document, annotation, spec, type, now);
-            document.Internals.AddObject(annotation);
+            document.AddObject(annotation);
             PdfLowLevel.GetAnnotations(page, create: true).Elements.Add(annotation.Reference);
             BuildAppearance(document, annotation);
 
@@ -1179,7 +1178,7 @@ internal static class PdfAnnotations
         font.Elements.SetName("/Subtype", "/Type1");
         font.Elements.SetName("/BaseFont", "/" + baseFont);
         font.Elements.SetName("/Encoding", "/WinAnsiEncoding");
-        document.Internals.AddObject(font);
+        document.AddObject(font);
 
         var fonts = new PdfDictionary(document);
         fonts.Elements[name] = font.Reference;
@@ -1222,12 +1221,8 @@ internal static class PdfAnnotations
             return 0;
         }
 
-        PdfFontConfiguration.Ensure();
-
         // Arial has Helvetica's widths, and is the metric-compatible font every host resolves.
-        using var graphics = XGraphics.CreateMeasureContext(new XSize(2000, 2000), XGraphicsUnit.Point, XPageDirection.Downwards);
-
-        return graphics.MeasureString(text, new XFont(PdfFontFamilies.Default, fontSize, bold ? XFontStyleEx.Bold : XFontStyleEx.Regular)).Width;
+        return PdfFontLibrary.Get(PdfFontFamilies.Default, bold).Measure(text, fontSize);
     }
 
     private static PdfString TextString(string value)

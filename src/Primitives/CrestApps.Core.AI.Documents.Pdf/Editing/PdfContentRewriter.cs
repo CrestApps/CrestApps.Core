@@ -1,8 +1,5 @@
-using System.Text;
 using CrestApps.Core.AI.Documents.Pdf.Analysis;
-using PdfSharp.Pdf;
-using PdfSharp.Pdf.Content;
-using PdfSharp.Pdf.Content.Objects;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
@@ -69,20 +66,20 @@ internal sealed class PdfContentRewriter
         ArgumentNullException.ThrowIfNull(options);
 
         var rewriter = new PdfContentRewriter(page.Owner, options);
-        var sequence = ContentReader.ReadContent(page);
+        var sequence = PdfContentStream.Read(page.Contents.ReadAll());
         var output = rewriter.Process(sequence, page.Resources, new GraphicsState(), 0);
 
         if (rewriter.GlyphsRemoved + rewriter.ImagesRemoved + rewriter.FormsRewritten + rewriter.SectionsRemoved > 0)
         {
-            page.Contents.ReplaceContent(output);
+            page.Contents.ReplaceContent(PdfContentStream.Write(output));
         }
 
         return rewriter;
     }
 
-    private CSequence Process(CSequence input, PdfDictionary resources, GraphicsState initial, int depth)
+    private List<PdfContentOperator> Process(List<PdfContentOperator> input, PdfDictionary resources, GraphicsState initial, int depth)
     {
-        var output = new CSequence();
+        var output = new List<PdfContentOperator>();
         var stack = new Stack<GraphicsState>();
         var state = initial.Clone();
         var text = PdfMatrix.Identity;
@@ -95,18 +92,8 @@ internal sealed class PdfContentRewriter
 
         state.Ctm = initial.Ctm;
 
-        foreach (var item in input)
+        foreach (var op in input)
         {
-            if (item is not COperator op)
-            {
-                if (skipDepth < 0)
-                {
-                    output.Add(item);
-                }
-
-                continue;
-            }
-
             var operands = op.Operands;
 
             // Content inside a removed optional-content section is dropped whole, however it nests.
@@ -190,9 +177,9 @@ internal sealed class PdfContentRewriter
 
                     break;
                 case "Tf":
-                    if (operands.Count >= 2 && operands[0] is CName fontName)
+                    if (operands.Count >= 2 && operands[0] is PdfName fontName)
                     {
-                        state.Font = Metrics(PdfLowLevel.GetDictionary(fonts, fontName.Name));
+                        state.Font = Metrics(PdfLowLevel.GetDictionary(fonts, fontName.Value));
                         state.FontSize = Number(operands[1]);
                     }
 
@@ -253,9 +240,9 @@ internal sealed class PdfContentRewriter
                     }
 
                 case "Do":
-                    if (operands.Count >= 1 && operands[0] is CName xobjectName)
+                    if (operands.Count >= 1 && operands[0] is PdfName xobjectName)
                     {
-                        var xobject = PdfLowLevel.GetDictionary(xobjects, xobjectName.Name);
+                        var xobject = PdfLowLevel.GetDictionary(xobjects, xobjectName.Value);
                         var subtype = PdfLowLevel.Text(xobject?.Elements["/Subtype"]);
 
                         if (subtype == "Image" && IntersectsArea(state.Ctm.Transform(0, 0, 1, 1)))
@@ -271,7 +258,7 @@ internal sealed class PdfContentRewriter
 
                             if (replacement is not null)
                             {
-                                output.Add(Operator("Do", new CName { Name = replacement }));
+                                output.Add(Operator("Do", new PdfName(replacement)));
 
                                 continue;
                             }
@@ -301,19 +288,16 @@ internal sealed class PdfContentRewriter
     /// Replays a text-showing operator, and returns the operators to write in its place when any of its
     /// glyphs are removed, or <see langword="null"/> when it is kept as it is.
     /// </summary>
-    private List<COperator> ShowText(COperator op, GraphicsState state, ref PdfMatrix text)
+    private List<PdfContentOperator> ShowText(PdfContentOperator op, GraphicsState state, ref PdfMatrix text)
     {
         var font = state.Font ?? PdfFontMetrics.From(null);
-        var parts = new List<CObject>();
+        var parts = new List<PdfItem>();
 
         if (op.Name == "TJ")
         {
-            if (op.Operands.Count > 0 && op.Operands[0] is CArray array)
+            if (op.Operands.Count > 0 && op.Operands[0] is PdfArray array)
             {
-                foreach (var element in array)
-                {
-                    parts.Add(element);
-                }
+                parts.AddRange(array.Elements);
             }
         }
         else if (op.Operands.Count > 0)
@@ -321,30 +305,30 @@ internal sealed class PdfContentRewriter
             parts.Add(op.Operands[^1]);
         }
 
-        var result = new CArray();
-        var kept = new StringBuilder();
+        var result = new PdfArray(null);
+        var kept = new List<byte>();
         var pendingAdvance = 0d;
         var removed = 0;
         var scale = state.FontSize * state.HorizontalScaling;
         var invisible = state.RenderingMode == 3 && _options.RemoveInvisibleText;
-        CStringType stringType = CStringType.String;
+        var isHex = false;
 
         void FlushKept()
         {
-            if (kept.Length > 0)
+            if (kept.Count > 0)
             {
-                result.Add(new CString { Value = kept.ToString(), CStringType = stringType });
+                result.Elements.Add(new PdfString([.. kept], isHex));
                 kept.Clear();
             }
         }
 
         foreach (var part in parts)
         {
-            if (part is CString value)
+            if (part is PdfString value)
             {
-                stringType = value.CStringType;
+                isHex = value.IsHex;
 
-                var bytes = value.Value ?? string.Empty;
+                var bytes = value.Bytes;
                 var step = font.TwoByteCodes ? 2 : 1;
 
                 for (var index = 0; index + step - 1 < bytes.Length; index += step)
@@ -372,11 +356,11 @@ internal sealed class PdfContentRewriter
                     {
                         if (pendingAdvance != 0)
                         {
-                            result.Add(new CReal { Value = scale == 0 ? 0 : -pendingAdvance * 1000 / scale });
+                            result.Elements.Add(new PdfReal(scale == 0 ? 0 : -pendingAdvance * 1000 / scale));
                             pendingAdvance = 0;
                         }
 
-                        kept.Append(bytes, index, step);
+                        kept.AddRange(bytes.AsSpan(index, step).ToArray());
                     }
 
                     text = PdfMatrix.Translation(advance, 0).Multiply(text);
@@ -396,7 +380,7 @@ internal sealed class PdfContentRewriter
                 else
                 {
                     FlushKept();
-                    result.Add(part);
+                    result.Elements.Add(part);
                 }
             }
         }
@@ -412,17 +396,17 @@ internal sealed class PdfContentRewriter
         // text object would shift left into the gap.
         if (pendingAdvance != 0)
         {
-            result.Add(new CReal { Value = scale == 0 ? 0 : -pendingAdvance * 1000 / scale });
+            result.Elements.Add(new PdfReal(scale == 0 ? 0 : -pendingAdvance * 1000 / scale));
         }
 
         GlyphsRemoved += removed;
 
-        var operators = new List<COperator>();
+        var operators = new List<PdfContentOperator>();
 
         if (op.Name == "\"")
         {
-            operators.Add(Operator("Tw", new CReal { Value = state.WordSpacing }));
-            operators.Add(Operator("Tc", new CReal { Value = state.CharacterSpacing }));
+            operators.Add(Operator("Tw", new PdfReal(state.WordSpacing)));
+            operators.Add(Operator("Tc", new PdfReal(state.CharacterSpacing)));
         }
 
         if (op.Name is "'" or "\"")
@@ -430,7 +414,7 @@ internal sealed class PdfContentRewriter
             operators.Add(Operator("T*"));
         }
 
-        if (result.Count > 0)
+        if (result.Elements.Count > 0)
         {
             operators.Add(Operator("TJ", result));
         }
@@ -471,13 +455,13 @@ internal sealed class PdfContentRewriter
             return null;
         }
 
-        CSequence sequence;
+        List<PdfContentOperator> sequence;
 
         try
         {
-            sequence = ContentReader.ReadContent(bytes);
+            sequence = PdfContentStream.Read(bytes);
         }
-        catch (ContentReaderException)
+        catch (FormatException)
         {
             return null;
         }
@@ -512,8 +496,9 @@ internal sealed class PdfContentRewriter
             copy.Elements["/Resources"] = parentResources;
         }
 
-        copy.CreateStream(rewritten.ToContent());
-        _document.Internals.AddObject(copy);
+        copy.CreateStream([]);
+        copy.Stream.SetCompressed(PdfContentStream.Write(rewritten));
+        _document.AddObject(copy);
         FormsRewritten++;
 
         var xobjects = PdfLowLevel.GetDictionary(parentResources, "/XObject");
@@ -532,15 +517,15 @@ internal sealed class PdfContentRewriter
         return name;
     }
 
-    private bool IsRemovedSection(CSequence operands, PdfDictionary properties)
+    private bool IsRemovedSection(List<PdfItem> operands, PdfDictionary properties)
     {
         if (_options.RemoveOptionalContent is not { Count: > 0 } || operands.Count < 2 ||
-            operands[0] is not CName { Name: "/OC" } || operands[1] is not CName propertyName)
+            operands[0] is not PdfName { Value: "/OC" } || operands[1] is not PdfName propertyName)
         {
             return false;
         }
 
-        var group = PdfLowLevel.GetDictionary(properties, propertyName.Name);
+        var group = PdfLowLevel.GetDictionary(properties, propertyName.Value);
 
         return group is not null && _options.RemoveOptionalContent.Contains(group);
     }
@@ -589,29 +574,22 @@ internal sealed class PdfContentRewriter
         return false;
     }
 
-    private static COperator Operator(string name, params CObject[] operands)
+    private static PdfContentOperator Operator(string name, params PdfItem[] operands)
     {
-        var op = OpCodes.OperatorFromName(name);
-
-        foreach (var operand in operands)
-        {
-            op.Operands.Add(operand);
-        }
-
-        return op;
+        return new PdfContentOperator(name, [.. operands]);
     }
 
-    private static double Number(CSequence operands, int index)
+    private static double Number(List<PdfItem> operands, int index)
     {
         return index < operands.Count ? Number(operands[index]) : 0;
     }
 
-    private static double Number(CObject value)
+    private static double Number(PdfItem value)
     {
         return value switch
         {
-            CInteger integer => integer.Value,
-            CReal real => real.Value,
+            PdfInteger integer => integer.Value,
+            PdfReal real => real.Value,
             _ => 0,
         };
     }

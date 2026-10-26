@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Filters;
 using UglyToad.PdfPig.Tokens;
@@ -49,11 +50,36 @@ internal static class PdfStreamFilters
         ArgumentNullException.ThrowIfNull(dictionary);
         ArgumentNullException.ThrowIfNull(value);
 
+        // A damaged stream is kept as it is stored, as a reader would show it: as nothing it can decode.
+        return TryDecode(dictionary, value, out var decoded)
+            ? decoded
+            : value;
+    }
+
+    /// <summary>
+    /// Decodes stream data through its filters, telling whether it could.
+    /// </summary>
+    /// <param name="dictionary">The stream's dictionary.</param>
+    /// <param name="value">The bytes as stored.</param>
+    /// <param name="decoded">The decoded bytes; the stored ones when the stream names no filter.</param>
+    /// <returns><see langword="false"/> when a filter is not a lossless one this can undo, or the data does not decode.</returns>
+    public static bool TryDecode(PdfDictionary dictionary, byte[] value, out byte[] decoded)
+    {
+        ArgumentNullException.ThrowIfNull(dictionary);
+        ArgumentNullException.ThrowIfNull(value);
+
+        decoded = value;
+
         var filters = Names(dictionary);
 
-        if (filters.Count == 0 || !filters.All(_lossless.Contains))
+        if (filters.Count == 0)
         {
-            return value;
+            return true;
+        }
+
+        if (!filters.All(_lossless.Contains))
+        {
+            return false;
         }
 
         var entries = new Dictionary<NameToken, IToken>
@@ -68,12 +94,40 @@ internal static class PdfStreamFilters
 
         try
         {
-            return new StreamToken(new DictionaryToken(entries), value).Decode(DefaultFilterProvider.Instance).ToArray();
+            decoded = new StreamToken(new DictionaryToken(entries), value).Decode(DefaultFilterProvider.Instance).ToArray();
+
+            return true;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            // A damaged stream is kept as it is stored, as a reader would show it: as nothing it can decode.
-            return value;
+            decoded = value;
+
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Inflates data compressed with Flate and no predictor.
+    /// </summary>
+    /// <param name="value">The compressed bytes.</param>
+    /// <returns>The data, or <see langword="null"/> when the bytes are not Flate data.</returns>
+    public static byte[] Inflate(byte[] value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        try
+        {
+            using var input = new MemoryStream(value, writable: false);
+            using var zlib = new ZLibStream(input, CompressionMode.Decompress);
+            using var output = new MemoryStream();
+
+            zlib.CopyTo(output);
+
+            return output.ToArray();
+        }
+        catch (InvalidDataException)
+        {
+            return null;
         }
     }
 }

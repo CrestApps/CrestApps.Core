@@ -1,6 +1,6 @@
+using System.IO.Compression;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
-using PdfSharp.Pdf;
-using PdfSharp.Pdf.Filters;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
@@ -8,9 +8,8 @@ namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 /// Lists, reads, embeds and removes the files a PDF carries.
 /// </summary>
 /// <remarks>
-/// PDFsharp's own <c>AddEmbeddedFile</c> starts a new embedded-files tree whenever it is called on an
-/// opened document, which silently drops the files the document already had, and records no description or
-/// media type. The tree is therefore read and written here, with <see cref="PdfNameTree"/>.
+/// The embedded-files tree is read and written with <see cref="PdfNameTree"/>, so the files a document
+/// already carries are kept, each with its description and media type.
 /// </remarks>
 internal static class PdfAttachments
 {
@@ -84,9 +83,7 @@ internal static class PdfAttachments
             return raw;
         }
 
-        var decoded = Filtering.Decode(raw, PdfObjects.Resolve(filter), PdfObjects.Resolve(attachment.Stream.Elements["/DecodeParms"]));
-
-        if (decoded is null)
+        if (!PdfStreamFilters.TryDecode(attachment.Stream, raw, out var decoded))
         {
             throw new PdfToolException($"\"{attachment.Name}\" is stored with a compression this tool cannot decode ({filter}).");
         }
@@ -111,7 +108,7 @@ internal static class PdfAttachments
         ArgumentNullException.ThrowIfNull(bytes);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        var compressed = new FlateDecode().Encode(bytes, PdfFlateEncodeMode.BestCompression);
+        var compressed = PdfStream.Compress(bytes, CompressionLevel.SmallestSize);
         var stream = new PdfDictionary(document);
 
         stream.Elements.SetName("/Type", "/EmbeddedFile");
@@ -138,7 +135,7 @@ internal static class PdfAttachments
             stream.CreateStream(bytes);
         }
 
-        document.Internals.AddObject(stream);
+        document.AddObject(stream);
 
         var specification = new PdfDictionary(document);
         var files = new PdfDictionary(document);
@@ -160,7 +157,7 @@ internal static class PdfAttachments
             specification.Elements.SetName("/AFRelationship", "/Unspecified");
         }
 
-        document.Internals.AddObject(specification);
+        document.AddObject(specification);
 
         var entries = PdfNameTree.Read(GetTree(document));
         var replaced = entries.RemoveAll(entry => string.Equals(entry.Key, name, StringComparison.OrdinalIgnoreCase));
@@ -170,7 +167,7 @@ internal static class PdfAttachments
 
         if (associate)
         {
-            var catalog = document.Internals.Catalog;
+            var catalog = document.Catalog;
             var associated = PdfObjects.GetArray(catalog, "/AF");
 
             if (associated is null)
@@ -240,7 +237,7 @@ internal static class PdfAttachments
             }
         }
 
-        var associated = PdfObjects.GetArray(document.Internals.Catalog, "/AF");
+        var associated = PdfObjects.GetArray(document.Catalog, "/AF");
 
         if (associated is not null)
         {
@@ -285,12 +282,12 @@ internal static class PdfAttachments
 
     private static PdfDictionary GetTree(PdfDocument document)
     {
-        return PdfObjects.GetDictionary(PdfObjects.GetDictionary(document.Internals.Catalog, "/Names"), "/EmbeddedFiles");
+        return PdfObjects.GetDictionary(PdfObjects.GetDictionary(document.Catalog, "/Names"), "/EmbeddedFiles");
     }
 
     private static void SetTree(PdfDocument document, List<KeyValuePair<string, PdfItem>> entries)
     {
-        var catalog = document.Internals.Catalog;
+        var catalog = document.Catalog;
         var names = PdfObjects.GetDictionary(catalog, "/Names");
 
         if (names is null)
@@ -301,7 +298,7 @@ internal static class PdfAttachments
             }
 
             names = new PdfDictionary(document);
-            document.Internals.AddObject(names);
+            document.AddObject(names);
             catalog.Elements.SetReference("/Names", names);
         }
 

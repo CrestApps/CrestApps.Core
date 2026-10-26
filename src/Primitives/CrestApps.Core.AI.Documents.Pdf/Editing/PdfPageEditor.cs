@@ -33,7 +33,7 @@ internal sealed class PdfPageEditor : IDisposable
     /// <param name="dateText">The text the <c>{date}</c> token prints.</param>
     public PdfPageEditor(byte[] bytes, string password, string title, string dateText)
     {
-        Document = PdfFiles.OpenObjectsForEditing(bytes, password);
+        Document = PdfFiles.OpenForEditing(bytes, password);
         _title = title;
         _dateText = dateText;
         _fontFamily = PdfFontFamilies.Default;
@@ -633,7 +633,7 @@ internal sealed class PdfPageEditor : IDisposable
         var bytes = Save();
 
         Document.Dispose();
-        Document = PdfFiles.OpenObjectsForEditing(bytes);
+        Document = PdfFiles.OpenForEditing(bytes);
 
         return bytes;
     }

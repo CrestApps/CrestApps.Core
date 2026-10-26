@@ -40,10 +40,9 @@ internal sealed class PdfContentParseResult
 /// Reads PDF content streams — the drawing instructions of pages and form XObjects — and checks their syntax.
 /// </summary>
 /// <remarks>
-/// PDFsharp's content reader is not used for this: given a string that never closes it grows its buffer until
-/// the process runs out of memory, and it fails on an operator it does not know. This reader keeps only what
-/// the checks need (operators, and the names they refer to), never allocates more than the stream's own size,
-/// and reports what it could not read instead of throwing.
+/// A damaged stream must not stop a check, so this reader keeps only what the checks need (operators, and the
+/// names they refer to), never allocates more than the stream's own size, accepts operators it does not
+/// know, and reports what it could not read instead of throwing.
 /// </remarks>
 internal static class PdfContentParser
 {

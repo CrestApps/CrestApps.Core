@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using UglyToad.PdfPig.Outline;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
 
@@ -12,8 +12,7 @@ namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 internal static class PdfBookmarks
 {
     /// <summary>
-    /// Removes a document's outline. Call it before anything reads <see cref="PdfDocument.Outlines"/>, so a
-    /// fresh outline is started when one is written afterwards.
+    /// Removes a document's outline, so a fresh one is started when bookmarks are written afterwards.
     /// </summary>
     /// <param name="document">The document, opened for editing.</param>
     /// <returns><see langword="true"/> when the document had an outline.</returns>
@@ -21,7 +20,7 @@ internal static class PdfBookmarks
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        var catalog = document.Internals.Catalog;
+        var catalog = document.Catalog;
         var had = catalog.Elements.ContainsKey("/Outlines");
 
         catalog.Elements.Remove("/Outlines");
@@ -45,15 +44,28 @@ internal static class PdfBookmarks
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(nodes);
 
-        var count = Write(document, document.Outlines, nodes);
+        var root = document.Catalog.Elements.GetDictionary("/Outlines");
 
-        // The outline's root count is recalculated on save; one read from the file would be stale.
-        if (PdfObjects.Resolve(document.Internals.Catalog.Elements["/Outlines"]) is PdfDictionary root)
+        if (root is null)
+        {
+            root = new PdfDictionary(document);
+            root.Elements.SetName("/Type", "/Outlines");
+            document.Catalog.Elements.SetReference("/Outlines", root);
+        }
+
+        var count = Write(document, root, nodes, 0);
+        var visible = Recount(root, 0);
+
+        if (visible > 0)
+        {
+            root.Elements.SetInteger("/Count", visible);
+        }
+        else
         {
             root.Elements.Remove("/Count");
         }
 
-        document.PageMode = PdfPageMode.UseOutlines;
+        document.Catalog.Elements.SetName("/PageMode", "/UseOutlines");
 
         return count;
     }
@@ -134,38 +146,88 @@ internal static class PdfBookmarks
         return builder.ToString().TrimEnd();
     }
 
-    private static int Write(PdfDocument document, PdfOutlineCollection target, IEnumerable<PdfBookmarkNode> nodes)
+    private static int Write(PdfDocument document, PdfDictionary parent, IEnumerable<PdfBookmarkNode> nodes, int depth)
     {
         var count = 0;
 
         foreach (var node in nodes)
         {
-            var style = (node.Bold, node.Italic) switch
-            {
-                (true, true) => PdfOutlineStyle.BoldItalic,
-                (true, false) => PdfOutlineStyle.Bold,
-                (false, true) => PdfOutlineStyle.Italic,
-                _ => PdfOutlineStyle.Regular,
-            };
-
             var page = document.Pages[node.Page - 1];
-            var outline = node.Color is { } color
-                ? target.Add(node.Title, page, node.Open, style, color.ToXColor())
-                : target.Add(node.Title, page, node.Open, style);
+            var item = new PdfDictionary(document);
+            var reference = document.AddObject(item);
+            var box = page.CropBox;
 
-            outline.PageDestinationType = PdfPageDestinationType.Xyz;
-            outline.Left = page.EffectiveCropBoxReadOnly.X1;
-            outline.Top = node.Top ?? page.EffectiveCropBoxReadOnly.Y2;
-            outline.Zoom = null;
+            item.Elements.SetString("/Title", node.Title ?? string.Empty);
+            item.Elements["/Parent"] = document.AddObject(parent);
+            item.Elements["/Dest"] = new PdfArray(document, document.AddObject(page), new PdfName("/XYZ"), new PdfReal(box.X1), new PdfReal(node.Top ?? box.Y2), PdfNull.Value);
 
+            // The style flags: 1 for italic, 2 for bold.
+            var flags = (node.Italic ? 1 : 0) | (node.Bold ? 2 : 0);
+
+            if (flags != 0)
+            {
+                item.Elements.SetInteger("/F", flags);
+            }
+
+            if (node.Color is { } color)
+            {
+                item.Elements["/C"] = new PdfArray(document, new PdfReal(color.Red / 255d), new PdfReal(color.Green / 255d), new PdfReal(color.Blue / 255d));
+            }
+
+            // The sign of the count says whether the bookmark opens with its children shown; Recount sets its size.
+            item.Elements.SetInteger("/Count", node.Open ? 1 : -1);
+
+            if (parent.Elements.GetDictionary("/Last") is { } last)
+            {
+                last.Elements["/Next"] = reference;
+                item.Elements["/Prev"] = document.AddObject(last);
+            }
+            else
+            {
+                parent.Elements["/First"] = reference;
+            }
+
+            parent.Elements["/Last"] = reference;
             count++;
 
-            if (node.Children.Count > 0)
+            if (node.Children.Count > 0 && depth < 32)
             {
-                count += Write(document, outline.Outlines, node.Children);
+                count += Write(document, item, node.Children, depth + 1);
             }
         }
 
         return count;
+    }
+
+    /// <summary>
+    /// Sets the count of every bookmark under an outline node: the number of bookmarks it shows when open,
+    /// negated when it starts closed, and none when it has no children.
+    /// </summary>
+    /// <param name="node">The outline node.</param>
+    /// <param name="depth">How deep the node is.</param>
+    /// <returns>The number of bookmarks under the node that show when it is open.</returns>
+    private static int Recount(PdfDictionary node, int depth)
+    {
+        var visible = 0;
+        var visited = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
+
+        for (var item = node.Elements.GetDictionary("/First"); item is not null && depth < 32 && visited.Add(item); item = item.Elements.GetDictionary("/Next"))
+        {
+            var open = item.Elements.GetInteger("/Count") > 0;
+            var shown = Recount(item, depth + 1);
+
+            if (shown == 0)
+            {
+                item.Elements.Remove("/Count");
+            }
+            else
+            {
+                item.Elements.SetInteger("/Count", open ? shown : -shown);
+            }
+
+            visible += 1 + (open ? shown : 0);
+        }
+
+        return visible;
     }
 }

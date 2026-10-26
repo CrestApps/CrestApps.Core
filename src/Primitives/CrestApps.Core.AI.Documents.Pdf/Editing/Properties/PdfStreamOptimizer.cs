@@ -1,9 +1,9 @@
 using System.Globalization;
+using System.IO.Compression;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
-using PdfSharp.Pdf;
-using PdfSharp.Pdf.Advanced;
-using PdfSharp.Pdf.Filters;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
@@ -59,9 +59,9 @@ internal static class PdfStreamOptimizer
         ArgumentNullException.ThrowIfNull(document);
 
         var removed = 0;
-        var info = document.Info;
+        var info = document.Info.Dictionary;
 
-        foreach (var key in info.Elements.Keys.ToList())
+        foreach (var key in info?.Elements.Keys.ToList() ?? [])
         {
             if (!_keptInformation.Contains(key) && info.Elements.Remove(key))
             {
@@ -69,17 +69,14 @@ internal static class PdfStreamOptimizer
             }
         }
 
-        // An empty creator keeps PDFsharp from writing its own name in its place.
-        info.Elements.SetString("/Creator", string.Empty);
-
-        var catalog = document.Internals.Catalog;
+        var catalog = document.Catalog;
 
         if (catalog.Elements.Remove("/PieceInfo"))
         {
             removed++;
         }
 
-        foreach (var item in document.Internals.GetAllObjects())
+        foreach (var item in document.GetAllObjects())
         {
             if (item is PdfDictionary dictionary && !ReferenceEquals(dictionary, catalog))
             {
@@ -121,7 +118,7 @@ internal static class PdfStreamOptimizer
         {
             var canonical = new Dictionary<string, PdfDictionary>(StringComparer.Ordinal);
             var replacements = new Dictionary<PdfObject, PdfReference>(ReferenceEqualityComparer.Instance);
-            var objects = document.Internals.GetAllObjects();
+            var objects = document.GetAllObjects();
 
             // Objects nothing refers to any more (a removed thumbnail) are dropped by the save; they are not
             // duplicates worth counting.
@@ -183,11 +180,10 @@ internal static class PdfStreamOptimizer
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        var encoder = new FlateDecode();
         var compressed = 0;
         var reachable = Reachable(document);
 
-        foreach (var item in document.Internals.GetAllObjects())
+        foreach (var item in document.GetAllObjects())
         {
             if (item is not PdfDictionary dictionary ||
                 !reachable.Contains(dictionary) ||
@@ -206,7 +202,7 @@ internal static class PdfStreamOptimizer
                 continue;
             }
 
-            var encoded = encoder.Encode(raw, PdfFlateEncodeMode.BestCompression);
+            var encoded = PdfStream.Compress(raw, CompressionLevel.SmallestSize);
 
             if (encoded.Length < raw.Length * 0.95)
             {
@@ -229,11 +225,10 @@ internal static class PdfStreamOptimizer
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        var codec = new FlateDecode();
         var recompressed = 0;
         var reachable = Reachable(document);
 
-        foreach (var item in document.Internals.GetAllObjects())
+        foreach (var item in document.GetAllObjects())
         {
             if (item is not PdfDictionary dictionary ||
                 !reachable.Contains(dictionary) ||
@@ -251,23 +246,14 @@ internal static class PdfStreamOptimizer
                 continue;
             }
 
-            byte[] decoded;
-
-            try
-            {
-                decoded = codec.Decode(raw, (PdfDictionary)null);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                continue;
-            }
+            var decoded = PdfStreamFilters.Inflate(raw);
 
             if (decoded is null || decoded.Length == 0)
             {
                 continue;
             }
 
-            var encoded = codec.Encode(decoded, PdfFlateEncodeMode.BestCompression);
+            var encoded = PdfStream.Compress(decoded, CompressionLevel.SmallestSize);
 
             if (encoded.Length < raw.Length * 0.98)
             {
@@ -285,8 +271,12 @@ internal static class PdfStreamOptimizer
         var reachable = new HashSet<PdfObject>(ReferenceEqualityComparer.Instance);
         var pending = new Stack<PdfItem>();
 
-        pending.Push(document.Internals.Catalog);
-        pending.Push(document.Info);
+        pending.Push(document.Catalog);
+
+        if (document.Info.Dictionary is { } info)
+        {
+            pending.Push(info);
+        }
 
         while (pending.Count > 0)
         {
@@ -366,13 +356,13 @@ internal static class PdfStreamOptimizer
         switch (item)
         {
             case PdfReference reference:
-                builder.Append('R').Append(reference.ObjectNumber.ToString(CultureInfo.InvariantCulture)).Append('.').Append(reference.GenerationNumber.ToString(CultureInfo.InvariantCulture));
+                builder.Append('R').Append(reference.ObjectNumber.ToString(CultureInfo.InvariantCulture)).Append('.').Append(reference.Generation.ToString(CultureInfo.InvariantCulture));
 
                 break;
             case PdfDictionary dictionary:
                 builder.Append("<<");
 
-                // PDFsharp's element collection cannot be copied, so it is sorted by its keys.
+                // Entries are compared by key, whatever order the file wrote them in.
                 foreach (var key in dictionary.Elements.Keys.Order(StringComparer.Ordinal))
                 {
                     if (skipLength && key == "/Length")
@@ -401,15 +391,37 @@ internal static class PdfStreamOptimizer
 
                 break;
             case PdfString text:
-                builder.Append("S(").Append(text.Value).Append(')');
+                builder.Append("S<").Append(Convert.ToHexString(text.Bytes)).Append('>');
+
+                break;
+            case PdfName name:
+                builder.Append(name.Value);
+
+                break;
+            case PdfInteger number:
+                builder.Append('I').Append(number.Value.ToString(CultureInfo.InvariantCulture));
+
+                break;
+            case PdfReal number:
+                builder.Append('D').Append(number.Value.ToString("R", CultureInfo.InvariantCulture));
+
+                break;
+            case PdfBoolean flag:
+                builder.Append(flag.Value ? "true" : "false");
+
+                break;
+            case PdfRectangle rectangle:
+                builder.Append(CultureInfo.InvariantCulture, $"[{rectangle.X1:R} {rectangle.Y1:R} {rectangle.X2:R} {rectangle.Y2:R}]");
 
                 break;
             case null:
+            case PdfNull:
                 builder.Append("null");
 
                 break;
             default:
-                builder.Append(item.GetType().Name).Append(':').Append(item.ToString());
+                // Anything else is never taken for something else: it is unique to this object.
+                builder.Append(item.GetType().Name).Append(':').Append(RuntimeHelpers.GetHashCode(item).ToString(CultureInfo.InvariantCulture));
 
                 break;
         }
@@ -429,7 +441,7 @@ internal static class PdfStreamOptimizer
                 {
                     var value = dictionary.Elements[key];
 
-                    if (value is PdfReference reference && reference.Value is { } target && replacements.TryGetValue(target, out var replacement))
+                    if (value is PdfReference reference && reference.Value is PdfObject target && replacements.TryGetValue(target, out var replacement))
                     {
                         dictionary.Elements[key] = replacement;
                     }
@@ -445,7 +457,7 @@ internal static class PdfStreamOptimizer
                 {
                     var value = array.Elements[index];
 
-                    if (value is PdfReference reference && reference.Value is { } target && replacements.TryGetValue(target, out var replacement))
+                    if (value is PdfReference reference && reference.Value is PdfObject target && replacements.TryGetValue(target, out var replacement))
                     {
                         array.Elements[index] = replacement;
                     }

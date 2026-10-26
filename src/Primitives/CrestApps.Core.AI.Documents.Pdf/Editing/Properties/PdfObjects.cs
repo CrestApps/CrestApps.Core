@@ -1,14 +1,11 @@
 using System.Globalization;
-using CrestApps.Core.AI.Documents.Pdf.Analysis;
-using PdfSharp.Pdf;
-using PdfSharp.Pdf.Advanced;
-using ObjectDocument = CrestApps.Core.AI.Documents.Pdf.Objects.PdfDocument;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
 /// <summary>
-/// Reads PDFsharp's low-level objects — dictionaries, arrays, names and strings — following indirect
-/// references, so the document-property tools can walk structures PDFsharp has no typed model for.
+/// Reads a file's objects — dictionaries, arrays, names and strings — following indirect references, so
+/// the document-property tools can walk the structures they change.
 /// </summary>
 internal static class PdfObjects
 {
@@ -19,14 +16,7 @@ internal static class PdfObjects
     /// <returns>The direct item, or <see langword="null"/>.</returns>
     public static PdfItem Resolve(PdfItem item)
     {
-        var current = item;
-
-        for (var depth = 0; depth < 8 && current is PdfReference reference; depth++)
-        {
-            current = reference.Value;
-        }
-
-        return current is PdfReference ? null : current;
+        return PdfObjectModel.Resolve(item);
     }
 
     /// <summary>
@@ -88,9 +78,7 @@ internal static class PdfObjects
         {
             PdfString value => value.Value,
             PdfName name => name.Value.TrimStart('/'),
-            PdfDate date => date.ToString(),
             PdfInteger number => number.Value.ToString(CultureInfo.InvariantCulture),
-            PdfLongInteger number => number.Value.ToString(CultureInfo.InvariantCulture),
             PdfReal number => number.Value.ToString(CultureInfo.InvariantCulture),
             PdfBoolean flag => flag.Value ? "true" : "false",
             _ => null,
@@ -133,7 +121,6 @@ internal static class PdfObjects
         return Resolve(dictionary.Elements[key]) switch
         {
             PdfInteger number => number.Value,
-            PdfLongInteger number => number.Value,
             PdfReal number => (long)number.Value,
             _ => null,
         };
@@ -198,7 +185,7 @@ internal static class PdfObjects
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        var form = GetDictionary(document.Internals.Catalog, "/AcroForm");
+        var form = GetDictionary(document.Catalog, "/AcroForm");
         var fields = GetArray(form, "/Fields");
 
         if (fields is null)
@@ -253,21 +240,6 @@ internal static class PdfObjects
     public static string DescribeBrokenSignatures(PdfDocument document)
     {
         return DescribeBrokenSignatures(CountSignatures(document));
-    }
-
-    /// <summary>
-    /// Describes the effect an edit has on a document that was digitally signed.
-    /// </summary>
-    /// <param name="document">The document as it was opened, as objects.</param>
-    /// <returns>A warning sentence, or <see langword="null"/> when the document carries no signature.</returns>
-    public static string DescribeBrokenSignatures(ObjectDocument document)
-    {
-        ArgumentNullException.ThrowIfNull(document);
-
-        var count = PdfFormFieldList.Read(document)
-            .Count(field => field.FieldType == "Sig" && PdfObjectReader.GetDictionary(field.Dictionary, "/V") is not null);
-
-        return DescribeBrokenSignatures(count);
     }
 
     private static string DescribeBrokenSignatures(int count)

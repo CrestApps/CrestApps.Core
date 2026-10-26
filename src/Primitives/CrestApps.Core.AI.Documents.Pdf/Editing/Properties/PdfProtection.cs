@@ -3,12 +3,11 @@ using CrestApps.Core.AI.Documents.Pdf.Workspace;
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
 /// <summary>
-/// Tells whether a PDF is encrypted, as the file says rather than as PDFsharp reports it.
+/// Tells whether a PDF is encrypted, as the file says.
 /// </summary>
 /// <remarks>
-/// PDFsharp decrypts a document while opening it and drops its encryption, so an opened document always
-/// reports that it is not encrypted, and saving it writes an unprotected file. The file itself is asked
-/// instead, through PdfPig.
+/// A document is decrypted as it is opened for editing, and saving it writes an unprotected file, so the
+/// file itself is asked, through PdfPig.
 /// </remarks>
 internal static class PdfProtection
 {

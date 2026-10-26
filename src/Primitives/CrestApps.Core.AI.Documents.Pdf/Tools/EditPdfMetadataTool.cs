@@ -3,9 +3,9 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
 using CrestApps.Core.AI.Documents.Pdf.Editing;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Rendering;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
-using PdfSharp.Pdf;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Tools;
@@ -365,15 +365,7 @@ internal sealed partial class EditPdfMetadataTool : PdfToolBase
 
         foreach (var key in request.Clear)
         {
-            if (key == "/Creator")
-            {
-                // PDFsharp writes its own name as the creator when there is none; an empty value keeps it out.
-                info.Elements.SetString(key, string.Empty);
-            }
-            else
-            {
-                info.Elements.Remove(key);
-            }
+            info.Elements.Remove(key);
         }
 
         if (request.Language is not null)
@@ -383,7 +375,7 @@ internal sealed partial class EditPdfMetadataTool : PdfToolBase
 
         if (request.ClearLanguage)
         {
-            document.Internals.Catalog.Elements.Remove("/Lang");
+            document.Catalog.Elements.Remove("/Lang");
         }
 
         if (request.ClearAllCustom)
@@ -417,16 +409,16 @@ internal sealed partial class EditPdfMetadataTool : PdfToolBase
     private static Dictionary<string, (string Label, string Value)> Snapshot(PdfDocument document)
     {
         var values = new Dictionary<string, (string Label, string Value)>(StringComparer.Ordinal);
-        var info = document.Info;
+        var info = document.Info.Dictionary;
 
         foreach (var (_, key, label) in _standardFields)
         {
             values[key] = (label, PdfObjects.GetText(info, key));
         }
 
-        values["lang"] = ("Language", PdfObjects.GetText(document.Internals.Catalog, "/Lang"));
+        values["lang"] = ("Language", PdfObjects.GetText(document.Catalog, "/Lang"));
 
-        foreach (var key in info.Elements.Keys)
+        foreach (var key in info?.Elements.Keys ?? [])
         {
             var name = key.TrimStart('/');
 
