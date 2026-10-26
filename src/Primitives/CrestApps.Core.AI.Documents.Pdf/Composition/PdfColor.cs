@@ -1,6 +1,4 @@
 using System.Globalization;
-using PdfSharp.Drawing;
-using MigraColor = MigraDoc.DocumentObjectModel.Color;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Composition;
 
@@ -130,25 +128,6 @@ internal readonly record struct PdfColor(byte Red, byte Green, byte Blue)
     /// Gets a value indicating whether dark text reads better on this colour than white text does.
     /// </summary>
     public bool IsLight => ((0.299 * Red) + (0.587 * Green) + (0.114 * Blue)) > 160;
-
-    /// <summary>
-    /// Converts the colour to the MigraDoc representation.
-    /// </summary>
-    /// <returns>The MigraDoc colour.</returns>
-    public MigraColor ToMigraDoc()
-    {
-        return new MigraColor(Red, Green, Blue);
-    }
-
-    /// <summary>
-    /// Converts the colour to the PDFsharp representation.
-    /// </summary>
-    /// <param name="opacity">The opacity, from 0 to 1.</param>
-    /// <returns>The PDFsharp colour.</returns>
-    public XColor ToXColor(double opacity = 1)
-    {
-        return XColor.FromArgb((int)Math.Round(Math.Clamp(opacity, 0, 1) * 255), Red, Green, Blue);
-    }
 
     /// <summary>
     /// Writes the colour as <c>#RRGGBB</c>.
