@@ -72,6 +72,7 @@ public sealed class DefaultAICompletionUsageServiceTests
         using var scope = provider.CreateScope();
 
         Assert.IsType<DefaultAICompletionUsageService>(scope.ServiceProvider.GetRequiredService<IAICompletionUsageService>());
+        Assert.Same(scope.ServiceProvider.GetRequiredService<IAICompletionUsageService>(), Assert.Single(scope.ServiceProvider.GetServices<IAICompletionUsageObserver>()));
     }
 
     [Fact]
@@ -80,5 +81,6 @@ public sealed class DefaultAICompletionUsageServiceTests
         using var provider = new ServiceCollection().BuildServiceProvider();
 
         Assert.Null(provider.GetService<IAICompletionUsageService>());
+        Assert.Empty(provider.GetServices<IAICompletionUsageObserver>());
     }
 }

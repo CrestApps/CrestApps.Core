@@ -18,7 +18,7 @@ services.AddCoreAIUsageTracking();
 .AddAISuite(ai => ai.AddUsageTracking())
 ```
 
-Metering follows registration: when no `IAICompletionUsageService` is registered, nothing is metered. `AddCoreAIUsageTracking()` registers the default one; a host can register its own implementation instead, and it receives every record. Any other `IAICompletionUsageObserver` registered alongside it receives the records too. The host also needs an
+Metering follows registration: when no `IAICompletionUsageObserver` is registered, nothing is metered. `AddCoreAIUsageTracking()` registers the default `IAICompletionUsageService`, which is itself an observer; a host can register its own observer instead of, or alongside, it and each receives every record. The host also needs an
 `IAICompletionUsageStore`, which the YesSql and EntityCore store packages register.
 
 Every client returned by `IAIClientFactory` meters its own requests. That covers chat clients, embedding

@@ -667,10 +667,10 @@ public sealed class AIUsageMeteringTests
         var services = new ServiceCollection()
             .AddLogging();
 
-        // Usage is metered when a usage service is registered, so leaving the capturing one out turns tracking off.
+        // Usage is metered when an observer is registered, so leaving the capturing one out turns tracking off.
         if (trackingEnabled)
         {
-            services.AddSingleton<IAICompletionUsageService>(observer);
+            services.AddSingleton<IAICompletionUsageObserver>(observer);
         }
 
         var serviceProvider = services.BuildServiceProvider();

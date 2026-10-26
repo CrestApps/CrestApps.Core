@@ -1,4 +1,4 @@
-﻿using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.Completions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

@@ -1,4 +1,4 @@
-﻿using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.Extensions;
@@ -71,7 +71,7 @@ internal sealed class AIUsageRecorder
 
         try
         {
-            observers = AIUsageTracking.GetObservers(_serviceProvider);
+            observers = _serviceProvider.GetServices<IAICompletionUsageObserver>();
         }
         catch (ObjectDisposedException)
         {

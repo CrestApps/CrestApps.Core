@@ -1,4 +1,4 @@
-﻿using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using Microsoft.AspNetCore.Http;

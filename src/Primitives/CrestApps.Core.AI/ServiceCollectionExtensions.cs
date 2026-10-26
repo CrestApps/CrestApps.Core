@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Clients;
@@ -211,6 +211,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddScoped<IAICompletionUsageService, DefaultAICompletionUsageService>();
+        services.TryAddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<IAICompletionUsageService>());
 
         return services;
     }
@@ -227,6 +228,7 @@ public static class ServiceCollectionExtensions
 
         return builder;
     }
+
     /// <summary>
     /// Adds the metadata-driven model capability services along with the model features and
     /// model parameters that ship with the framework.

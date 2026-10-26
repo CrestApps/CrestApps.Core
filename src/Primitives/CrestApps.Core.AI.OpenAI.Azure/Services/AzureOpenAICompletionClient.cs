@@ -711,15 +711,7 @@ omit optional fields, or split the operation into multiple smaller calls.
 
         try
         {
-            var usageObservers = _serviceProvider.GetServices<IAICompletionUsageObserver>().ToList();
-
-            // The usage service is itself an observer, and its registration is what turns usage tracking on.
-            if (_serviceProvider.GetService<IAICompletionUsageService>() is { } usageService && !usageObservers.Contains(usageService))
-            {
-                usageObservers.Insert(0, usageService);
-            }
-
-            observers = usageObservers;
+            observers = _serviceProvider.GetServices<IAICompletionUsageObserver>();
         }
         catch (ObjectDisposedException)
         {
