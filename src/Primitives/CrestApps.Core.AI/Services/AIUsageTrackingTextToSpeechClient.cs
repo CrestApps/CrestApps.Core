@@ -9,7 +9,8 @@ namespace CrestApps.Core.AI.Services;
 /// <summary>
 /// Meters every synthesis made through a text-to-speech client the AI client factory created, whatever the
 /// provider. Both the characters synthesized and any tokens reported are recorded, because models bill one or the
-/// other.
+/// other. The voice, language, speed, pitch and format the request asked for are recorded, along with the size of
+/// the audio generated and, for formats whose length can be read from the bytes, how long it plays.
 /// </summary>
 internal sealed class AIUsageTrackingTextToSpeechClient : DelegatingTextToSpeechClient
 {
@@ -45,7 +46,7 @@ internal sealed class AIUsageTrackingTextToSpeechClient : DelegatingTextToSpeech
 
         if (response is not null)
         {
-            await RecordAsync(text, options, response.ModelId, response.ResponseId, response.Usage, stopwatch.Elapsed.TotalMilliseconds, false, cancellationToken);
+            await RecordAsync(text, options, response.ModelId, response.ResponseId, response.Usage, response.Contents, stopwatch.Elapsed.TotalMilliseconds, false, cancellationToken);
         }
 
         return response;
@@ -64,10 +65,12 @@ internal sealed class AIUsageTrackingTextToSpeechClient : DelegatingTextToSpeech
     {
         var stopwatch = Stopwatch.StartNew();
         var usage = new AIStreamingUsageAccumulator();
+        var contents = new List<AIContent>();
 
         await foreach (var update in base.GetStreamingAudioAsync(text, AIUsageLabels.ForProvider(options), cancellationToken))
         {
             usage.Add(update.ModelId, update.ResponseId, update.Contents);
+            contents.AddRange(update.Contents);
 
             yield return update;
         }
@@ -76,7 +79,7 @@ internal sealed class AIUsageTrackingTextToSpeechClient : DelegatingTextToSpeech
 
         if (usage.HasUpdates)
         {
-            await RecordAsync(text, options, usage.ModelId, usage.ResponseId, usage.Usage, stopwatch.Elapsed.TotalMilliseconds, true, cancellationToken);
+            await RecordAsync(text, options, usage.ModelId, usage.ResponseId, usage.Usage, contents, stopwatch.Elapsed.TotalMilliseconds, true, cancellationToken);
         }
     }
 
@@ -86,11 +89,13 @@ internal sealed class AIUsageTrackingTextToSpeechClient : DelegatingTextToSpeech
         string modelId,
         string responseId,
         UsageDetails usage,
+        IEnumerable<AIContent> contents,
         double responseLatencyMs,
         bool isStreaming,
         CancellationToken cancellationToken)
     {
         var characterCount = text?.Length ?? 0;
+        var audio = AIGeneratedAudio.Measure(contents);
 
         return _recorder.RecordAsync(
             AIUsageOperationTypes.TextToSpeech,
@@ -100,7 +105,17 @@ internal sealed class AIUsageTrackingTextToSpeechClient : DelegatingTextToSpeech
             usage,
             responseLatencyMs,
             isStreaming,
-            record => record.CharacterCount = record.CharacterCount > 0 ? record.CharacterCount : characterCount,
+            record =>
+            {
+                record.CharacterCount = record.CharacterCount > 0 ? record.CharacterCount : characterCount;
+                record.AudioDurationMs = record.AudioDurationMs > 0 ? record.AudioDurationMs : audio.DurationMs;
+                record.AudioOutputBytes = audio.Bytes;
+                record.AudioFormat = options?.AudioFormat ?? audio.MediaType;
+                record.VoiceId = options?.VoiceId;
+                record.Language = options?.Language;
+                record.Speed = options?.Speed;
+                record.Pitch = options?.Pitch;
+            },
             cancellationToken);
     }
 }
