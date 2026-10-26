@@ -3,17 +3,16 @@ using System.Text;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Documents.Pdf;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using PdfSharp;
-using PdfSharp.Pdf;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf.Quality;
 
 /// <summary>
-/// Builds the PDFs the quality tool tests check: clean documents composed with MigraDoc, PDFsharp documents
-/// with hand-written content streams, and raw files written object by object to carry exact defects.
+/// Builds the PDFs the quality tool tests check: clean composed documents, documents with hand-written
+/// content streams, and raw files written object by object to carry exact defects.
 /// </summary>
 internal static class QualityTestPdfs
 {
@@ -104,8 +103,8 @@ internal static class QualityTestPdfs
     }
 
     /// <summary>
-    /// Builds a PDF with PDFsharp whose pages draw hand-written content in the standard Helvetica font, which
-    /// is not embedded.
+    /// Builds a PDF whose pages draw hand-written content in the standard Helvetica font, which is not
+    /// embedded.
     /// </summary>
     /// <param name="pages">The content stream of each page.</param>
     /// <param name="configure">Changes the document before it is saved.</param>
@@ -117,17 +116,14 @@ internal static class QualityTestPdfs
         foreach (var content in pages)
         {
             var page = document.AddPage();
-            page.Size = PageSize.Letter;
-
-            page.Width = PdfSharp.Drawing.XUnit.FromPoint(612);
-            page.Height = PdfSharp.Drawing.XUnit.FromPoint(792);
+            page.MediaBox = new PdfRectangle(0, 0, 612, 792);
 
             var font = new PdfDictionary(document);
             font.Elements.SetName("/Type", "/Font");
             font.Elements.SetName("/Subtype", "/Type1");
             font.Elements.SetName("/BaseFont", "/Helvetica");
             font.Elements.SetName("/Encoding", "/WinAnsiEncoding");
-            document.Internals.AddObject(font);
+            document.AddObject(font);
 
             var fonts = new PdfDictionary(document);
             fonts.Elements.SetReference("/F1", font);
@@ -138,16 +134,13 @@ internal static class QualityTestPdfs
 
             if (!string.IsNullOrEmpty(content))
             {
-                page.Contents.AppendContent().CreateStream(Encoding.ASCII.GetBytes(content));
+                page.Contents.AppendContent().Stream.SetCompressed(Encoding.ASCII.GetBytes(content));
             }
         }
 
         configure?.Invoke(document);
 
-        using var buffer = new MemoryStream();
-        document.Save(buffer, closeStream: false);
-
-        return buffer.ToArray();
+        return document.Save();
     }
 
     /// <summary>
@@ -162,13 +155,13 @@ internal static class QualityTestPdfs
         var annotation = new PdfDictionary(document);
         annotation.Elements.SetName("/Type", "/Annot");
         annotation.Elements.SetName("/Subtype", "/Link");
-        annotation.Elements["/Rect"] = new PdfArray(document, [.. rect.Select(value => new PdfReal(value))]);
+        annotation.Elements["/Rect"] = new PdfArray(document, [.. rect.Select(value => (PdfItem)new PdfReal(value))]);
 
         var dictionary = new PdfDictionary(document);
         action(dictionary);
         annotation.Elements["/A"] = dictionary;
 
-        document.Internals.AddObject(annotation);
+        document.AddObject(annotation);
 
         var annotations = document.Pages[page].Elements.GetArray("/Annots");
 
@@ -196,7 +189,7 @@ internal static class QualityTestPdfs
         field.Elements.SetString("/T", name);
         field.Elements["/Rect"] = new PdfArray(document, new PdfReal(72), new PdfReal(600), new PdfReal(272), new PdfReal(620));
         field.Elements.SetReference("/P", document.Pages[page]);
-        document.Internals.AddObject(field);
+        document.AddObject(field);
 
         var annotations = document.Pages[page].Elements.GetArray("/Annots");
 
@@ -210,7 +203,7 @@ internal static class QualityTestPdfs
 
         var form = new PdfDictionary(document);
         form.Elements["/Fields"] = new PdfArray(document, field.Reference);
-        document.Internals.Catalog.Elements["/AcroForm"] = form;
+        document.Catalog.Elements["/AcroForm"] = form;
     }
 
     /// <summary>

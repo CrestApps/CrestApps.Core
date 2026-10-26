@@ -1,9 +1,8 @@
 using System.Text;
 using CrestApps.Core.AI.Documents.Pdf;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using Microsoft.Extensions.Options;
-using PdfSharp;
-using PdfSharp.Pdf;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf;
 
@@ -49,24 +48,21 @@ internal static class PdfToolFixtures
     {
         using var document = new PdfDocument();
         var page = document.AddPage();
-        page.Size = PageSize.Letter;
+        page.MediaBox = new PdfRectangle(0, 0, 612, 792);
         var font = new PdfDictionary(document);
 
         font.Elements.SetName("/Type", "/Font");
         font.Elements.SetName("/Subtype", "/Type1");
         font.Elements.SetName("/BaseFont", "/Helvetica");
         font.Elements.SetName("/Encoding", "/WinAnsiEncoding");
-        document.Internals.AddObject(font);
+        document.AddObject(font);
 
         var fonts = new PdfDictionary(document);
         fonts.Elements["/F1"] = font.Reference;
         page.Resources.Elements["/Font"] = fonts;
 
-        page.Contents.AppendContent().CreateStream(Encoding.ASCII.GetBytes(content));
+        page.Contents.AppendContent().Stream.SetCompressed(Encoding.ASCII.GetBytes(content));
 
-        using var buffer = new MemoryStream();
-        document.Save(buffer, closeStream: false);
-
-        return buffer.ToArray();
+        return document.Save();
     }
 }

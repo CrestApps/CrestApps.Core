@@ -1,9 +1,10 @@
 using System.Globalization;
 using System.Text;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
-using PdfSharp;
-using PdfSharp.Drawing;
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Editing;
+using CrestApps.Core.AI.Documents.Pdf.Graphics;
+using CrestApps.Core.AI.Documents.Pdf.Graphics.Fonts;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf.Properties;
 
@@ -12,6 +13,9 @@ namespace CrestApps.Core.Tests.Core.Documents.Pdf.Properties;
 /// </summary>
 internal static class PdfPropertiesFixtures
 {
+    private static readonly PdfBrush _black = new(new PdfColor(0, 0, 0));
+    private static readonly PdfBrush _gray = new(new PdfColor(0x80, 0x80, 0x80));
+
     /// <summary>
     /// Builds a PDF with a line of text on each page.
     /// </summary>
@@ -22,34 +26,34 @@ internal static class PdfPropertiesFixtures
     /// <returns>The file.</returns>
     public static byte[] TextPdf(int pages = 2, string title = "Old Title", bool pdfA = false, Action<PdfDocument> customize = null)
     {
-        PdfFontConfiguration.Ensure();
-
         using var document = new PdfDocument();
 
         document.Info.Title = title;
         document.Info.Author = "Old Author";
 
-        var font = new XFont("Arial", 12);
+        var font = PdfFontLibrary.Get("Arial");
 
         for (var number = 1; number <= pages; number++)
         {
-            var page = document.AddPage();
-            page.Size = PageSize.Letter;
+            var canvas = PdfCanvas.ForPage(LetterPage(document));
 
-            using var graphics = XGraphics.FromPdfPage(page);
-
-            graphics.DrawString($"Page {number}: contact us at the help desk for details.", font, XBrushes.Black, new XPoint(72, 100));
-            graphics.DrawString("Visit the website for the full report.", font, XBrushes.Black, new XPoint(72, 130));
-        }
-
-        if (pdfA)
-        {
-            document.SetPdfA();
+            canvas.DrawText($"Page {number}: contact us at the help desk for details.", font, 12, 72, 100, _black);
+            canvas.DrawText("Visit the website for the full report.", font, 12, 72, 130, _black);
+            canvas.Commit();
         }
 
         customize?.Invoke(document);
 
-        return Save(document);
+        var metadata = PdfMetadataSync.Capture(document);
+
+        if (pdfA)
+        {
+            // The file claims PDF/A-1A in its XMP metadata and carries the output intent the standard asks for.
+            PdfArchiveProfile.TryApply(document);
+            metadata.ClaimPdfA(1, "A");
+        }
+
+        return metadata.Save(document, TimeProvider.System.GetUtcNow());
     }
 
     /// <summary>
@@ -59,15 +63,10 @@ internal static class PdfPropertiesFixtures
     /// <returns>The file.</returns>
     public static byte[] HeadingsPdf()
     {
-        PdfFontConfiguration.Ensure();
-
         using var document = new PdfDocument();
 
-        var title = new XFont("Arial", 24, XFontStyleEx.Bold);
-        var heading = new XFont("Arial", 18, XFontStyleEx.Bold);
-        var subheading = new XFont("Arial", 14, XFontStyleEx.Bold);
-        var body = new XFont("Arial", 10);
-        var running = new XFont("Arial", 8);
+        var bold = PdfFontLibrary.Get("Arial", bold: true);
+        var regular = PdfFontLibrary.Get("Arial");
 
         var sections = new[]
         {
@@ -78,34 +77,33 @@ internal static class PdfPropertiesFixtures
 
         for (var index = 0; index < sections.Length; index++)
         {
-            var page = document.AddPage();
-            page.Size = PageSize.Letter;
+            var canvas = PdfCanvas.ForPage(LetterPage(document));
 
-            using var graphics = XGraphics.FromPdfPage(page);
-
-            graphics.DrawString("Contoso Internal Report", running, XBrushes.Gray, new XPoint(72, 30));
-            graphics.DrawString($"Page {index + 1}", running, XBrushes.Gray, new XPoint(290, 770));
+            canvas.DrawText("Contoso Internal Report", regular, 8, 72, 30, _gray);
+            canvas.DrawText($"Page {index + 1}", regular, 8, 290, 770, _gray);
 
             var y = 80d;
 
             if (index == 0)
             {
-                graphics.DrawString("Annual Review", title, XBrushes.Black, new XPoint(72, y));
+                canvas.DrawText("Annual Review", bold, 24, 72, y, _black);
                 y += 50;
             }
 
             var (name, children) = sections[index];
 
-            graphics.DrawString(name, heading, XBrushes.Black, new XPoint(72, y));
+            canvas.DrawText(name, bold, 18, 72, y, _black);
             y += 30;
-            y = DrawBody(graphics, body, y);
+            y = DrawBody(canvas, regular, y);
 
             foreach (var child in children)
             {
-                graphics.DrawString(child, subheading, XBrushes.Black, new XPoint(72, y));
+                canvas.DrawText(child, bold, 14, 72, y, _black);
                 y += 24;
-                y = DrawBody(graphics, body, y);
+                y = DrawBody(canvas, regular, y);
             }
+
+            canvas.Commit();
         }
 
         return Save(document);
@@ -117,17 +115,13 @@ internal static class PdfPropertiesFixtures
     /// <returns>The file.</returns>
     public static byte[] LayersPdf()
     {
-        PdfFontConfiguration.Ensure();
-
         using var document = new PdfDocument();
 
-        var page = document.AddPage();
-        page.Size = PageSize.Letter;
+        var page = LetterPage(document);
+        var canvas = PdfCanvas.ForPage(page);
 
-        using (var graphics = XGraphics.FromPdfPage(page))
-        {
-            graphics.DrawString("Base content", new XFont("Arial", 12), XBrushes.Black, new XPoint(72, 100));
-        }
+        canvas.DrawText("Base content", PdfFontLibrary.Get("Arial"), 12, 72, 100, _black);
+        canvas.Commit();
 
         var notes = CreateGroup(document, "Notes");
         var draft = CreateGroup(document, "Draft");
@@ -154,7 +148,7 @@ internal static class PdfPropertiesFixtures
 
         properties.Elements["/OCGs"] = groups;
         properties.Elements["/D"] = configuration;
-        document.Internals.Catalog.Elements["/OCProperties"] = properties;
+        document.Catalog.Elements["/OCProperties"] = properties;
 
         var resources = page.Elements.GetDictionary("/Resources");
         var used = new PdfDictionary(document);
@@ -174,12 +168,7 @@ internal static class PdfPropertiesFixtures
     /// <returns>The file.</returns>
     public static byte[] DuplicatedStreamsPdf(int pages = 3)
     {
-        PdfFontConfiguration.Ensure();
-
         using var document = new PdfDocument();
-
-        document.Options.CompressContentStreams = false;
-        document.Options.NoCompression = true;
 
         var drawing = new StringBuilder();
 
@@ -192,26 +181,25 @@ internal static class PdfPropertiesFixtures
 
         for (var number = 0; number < pages; number++)
         {
-            var page = document.AddPage();
-            page.Size = PageSize.Letter;
+            var page = LetterPage(document);
+            var canvas = PdfCanvas.ForPage(page);
 
-            using (var graphics = XGraphics.FromPdfPage(page))
-            {
-                graphics.DrawString("Page with a repeated drawing", new XFont("Arial", 12), XBrushes.Black, new XPoint(72, 100));
-            }
+            canvas.DrawText("Page with a repeated drawing", PdfFontLibrary.Get("Arial"), 12, 72, 100, _black);
+            canvas.Commit();
 
+            // The form and the thumbnail are stored uncompressed, as the pieces such files are put together from are.
             var form = new PdfDictionary(document);
 
             form.Elements.SetName("/Type", "/XObject");
             form.Elements.SetName("/Subtype", "/Form");
-            form.Elements["/BBox"] = new PdfLiteral("[0 0 100 100]");
+            form.Elements["/BBox"] = new PdfRectangle(0, 0, 100, 100);
             form.CreateStream(content);
-            document.Internals.AddObject(form);
+            document.AddObject(form);
 
             var thumbnail = new PdfDictionary(document);
 
             thumbnail.CreateStream(new byte[600]);
-            document.Internals.AddObject(thumbnail);
+            document.AddObject(thumbnail);
             page.Elements["/Thumb"] = thumbnail.Reference;
 
             var resources = page.Elements.GetDictionary("/Resources");
@@ -235,28 +223,38 @@ internal static class PdfPropertiesFixtures
 
         group.Elements.SetName("/Type", "/OCG");
         group.Elements.SetString("/Name", name);
-        document.Internals.AddObject(group);
+        document.AddObject(group);
 
         return group;
     }
 
-    private static double DrawBody(XGraphics graphics, XFont font, double y)
+    private static double DrawBody(PdfCanvas canvas, PdfFont font, double y)
     {
         for (var line = 0; line < 6; line++)
         {
-            graphics.DrawString("The quarter closed ahead of plan with steady growth across every region we serve.", font, XBrushes.Black, new XPoint(72, y));
+            canvas.DrawText("The quarter closed ahead of plan with steady growth across every region we serve.", font, 10, 72, y, _black);
             y += 14;
         }
 
         return y + 10;
     }
 
+    /// <summary>
+    /// Saves a fixture with an XMP packet that agrees with its document information, as PDF writers do.
+    /// </summary>
+    /// <param name="document">The document.</param>
+    /// <returns>The file.</returns>
     private static byte[] Save(PdfDocument document)
     {
-        using var stream = new MemoryStream();
+        return PdfMetadataSync.Capture(document).Save(document, TimeProvider.System.GetUtcNow());
+    }
 
-        document.Save(stream, closeStream: false);
+    private static PdfPage LetterPage(PdfDocument document)
+    {
+        var page = document.AddPage();
 
-        return stream.ToArray();
+        page.MediaBox = new PdfRectangle(0, 0, 612, 792);
+
+        return page;
     }
 }
