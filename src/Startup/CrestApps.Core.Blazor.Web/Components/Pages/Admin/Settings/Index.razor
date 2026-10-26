@@ -216,14 +216,6 @@ else
                     <div class="card-body">
                         <div class="mb-3">
                             <div class="form-check form-switch">
-                                <InputCheckbox id="usageTracking" @bind-Value="_model.EnableAIUsageTracking" class="form-check-input" />
-                                <label for="usageTracking" class="form-check-label">Enable AI usage tracking</label>
-                            </div>
-                            <div class="form-text">Disabled by default to avoid extra provider-call tracking overhead. Enable this to capture future AI usage data for the AI Usage Analytics report. This does not affect per-profile session metrics.</div>
-                        </div>
-
-                        <div class="mb-3">
-                            <div class="form-check form-switch">
                                 <InputCheckbox id="preemptiveRag" @bind-Value="_model.DefaultOrchestratorEnablePreemptiveRag" class="form-check-input" />
                                 <label for="preemptiveRag" class="form-check-label">Enable preemptive retrieval-augmented generation (RAG)</label>
                             </div>
@@ -997,7 +989,6 @@ else
 
         _model = new SettingsViewModel
         {
-            EnableAIUsageTracking = settings.EnableAIUsageTracking,
             EnablePreemptiveMemoryRetrieval = settings.EnablePreemptiveMemoryRetrieval,
             MaximumIterationsPerRequest = settings.MaximumIterationsPerRequest,
             EnableDistributedCaching = settings.EnableDistributedCaching,
@@ -1433,7 +1424,6 @@ else
         SiteSettings.Set<GeneralAISettings>(s =>
         {
             s.EnablePreemptiveMemoryRetrieval = _model.EnablePreemptiveMemoryRetrieval;
-            s.EnableAIUsageTracking = _model.EnableAIUsageTracking;
             s.MaximumIterationsPerRequest = _model.MaximumIterationsPerRequest;
             s.EnableDistributedCaching = _model.EnableDistributedCaching;
             s.EnableOpenTelemetry = _model.EnableOpenTelemetry;

@@ -19,7 +19,6 @@ internal static class SiteSettingsGeneralAIOptionsMapper
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(options);
 
-        options.EnableAIUsageTracking = settings.EnableAIUsageTracking;
         options.EnablePreemptiveMemoryRetrieval = settings.EnablePreemptiveMemoryRetrieval;
         options.OverrideMaximumIterationsPerRequest = settings.OverrideMaximumIterationsPerRequest;
         options.MaximumIterationsPerRequest = settings.MaximumIterationsPerRequest;

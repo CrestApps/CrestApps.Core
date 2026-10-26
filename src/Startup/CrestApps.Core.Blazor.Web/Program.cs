@@ -133,6 +133,7 @@ builder.Services
     .AddAISuite(ai => ai
         .AddEntityCoreStores()
         .AddMarkdown()
+        .AddUsageTracking()
         .AddClaudeOrchestrator()
         .AddCopilotOrchestrator()
         .AddChatInteractions(chatInteractions => chatInteractions

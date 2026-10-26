@@ -2,8 +2,6 @@ namespace CrestApps.Core.Blazor.Web.ViewModels;
 
 public sealed class UsageAnalyticsIndexViewModel
 {
-    public bool IsAIUsageTrackingEnabled { get; set; }
-
     public DateTime? StartDateUtc { get; set; }
 
     public DateTime? EndDateUtc { get; set; }

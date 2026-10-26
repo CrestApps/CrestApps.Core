@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Clients;
@@ -188,8 +188,6 @@ public static class ServiceCollectionExtensions
 
         services.TryAddScoped<IAICompletionService, DefaultAICompletionService>();
         services.TryAddScoped<IAICompletionContextBuilder, DefaultAICompletionContextBuilder>();
-        services.TryAddScoped<IAICompletionUsageService, DefaultAICompletionUsageService>();
-        services.TryAddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<IAICompletionUsageService>());
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, AIProfileCompletionContextBuilderHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProfile>, AIProfileHandler>());
@@ -201,6 +199,36 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Turns on AI usage tracking. Every client the AI client factory creates is metered, and each request is
+    /// stored through <see cref="IAICompletionUsageStore"/> as an <see cref="AICompletionUsageRecord"/>. Without
+    /// this call nothing is metered and nothing is recorded. The host must also register a usage store, which
+    /// the YesSql and EntityCore store packages do.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIUsageTracking(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton<AIUsageTrackingMarker>();
+        services.TryAddScoped<IAICompletionUsageService, DefaultAICompletionUsageService>();
+        services.TryAddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<IAICompletionUsageService>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Turns on AI usage tracking. See <see cref="AddCoreAIUsageTracking(IServiceCollection)"/>.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    public static CrestAppsAISuiteBuilder AddUsageTracking(this CrestAppsAISuiteBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIUsageTracking();
+
+        return builder;
+    }
     /// <summary>
     /// Adds the metadata-driven model capability services along with the model features and
     /// model parameters that ship with the framework.

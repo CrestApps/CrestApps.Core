@@ -151,14 +151,6 @@
                 <div class="card-body">
                     <div class="mb-3">
                         <div class="form-check form-switch">
-                            <input asp-for="EnableAIUsageTracking" class="form-check-input" type="checkbox" />
-                            <label asp-for="EnableAIUsageTracking" class="form-check-label">Enable AI usage tracking</label>
-                        </div>
-                        <div class="form-text">Disabled by default to avoid extra provider-call tracking overhead. Enable this to capture future AI usage data for the AI Usage Analytics report. This does not affect per-profile session metrics.</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="form-check form-switch">
                             <input asp-for="DefaultOrchestratorEnablePreemptiveRag" class="form-check-input" type="checkbox" />
                             <label asp-for="DefaultOrchestratorEnablePreemptiveRag" class="form-check-label">Enable preemptive retrieval-augmented generation (RAG)</label>
                         </div>

@@ -1,9 +1,8 @@
-using CrestApps.Core.AI.Chat;
+﻿using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
@@ -16,7 +15,6 @@ public sealed class DefaultAICompletionUsageService : IAICompletionUsageService
     private readonly IServiceProvider _serviceProvider;
     private readonly TimeProvider _timeProvider;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly IOptionsMonitor<GeneralAIOptions> _generalAIOptions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DefaultAICompletionUsageService"/> class.
@@ -25,19 +23,16 @@ public sealed class DefaultAICompletionUsageService : IAICompletionUsageService
     /// <param name="serviceProvider">The service provider.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="httpContextAccessor">The HTTP context accessor.</param>
-    /// <param name="generalAIOptions">The general AI options monitor.</param>
     public DefaultAICompletionUsageService(
         IAICompletionUsageStore store,
         IServiceProvider serviceProvider,
         TimeProvider timeProvider,
-        IHttpContextAccessor httpContextAccessor,
-        IOptionsMonitor<GeneralAIOptions> generalAIOptions)
+        IHttpContextAccessor httpContextAccessor)
     {
         _store = store;
         _serviceProvider = serviceProvider;
         _timeProvider = timeProvider;
         _httpContextAccessor = httpContextAccessor;
-        _generalAIOptions = generalAIOptions;
     }
 
     /// <summary>
@@ -50,11 +45,6 @@ public sealed class DefaultAICompletionUsageService : IAICompletionUsageService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
-
-        if (!_generalAIOptions.CurrentValue.EnableAIUsageTracking)
-        {
-            return;
-        }
 
         record.CreatedUtc = _timeProvider.GetUtcNow().UtcDateTime;
 

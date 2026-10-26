@@ -12,7 +12,6 @@ namespace CrestApps.Core.Mvc.Web.Areas.Admin.ViewModels;
 
 public sealed class SettingsViewModel
 {
-    public bool EnableAIUsageTracking { get; set; }
 
     public bool EnablePreemptiveMemoryRetrieval { get; set; } = true;
 

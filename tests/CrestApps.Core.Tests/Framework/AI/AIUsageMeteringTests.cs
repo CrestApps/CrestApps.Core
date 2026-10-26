@@ -1,5 +1,6 @@
 #pragma warning disable MEAI001
 using System.Runtime.CompilerServices;
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Connections;
@@ -666,9 +667,15 @@ public sealed class AIUsageMeteringTests
         var observer = new CapturingUsageObserver();
         var services = new ServiceCollection()
             .AddLogging()
-            .Configure<GeneralAIOptions>(options => options.EnableAIUsageTracking = trackingEnabled)
-            .AddSingleton<IAICompletionUsageObserver>(observer)
-            .BuildServiceProvider();
+            .AddSingleton<IAICompletionUsageObserver>(observer);
+
+        // The capturing observer is registered first, so AddCoreAIUsageTracking() leaves it as the only observer.
+        if (trackingEnabled)
+        {
+            services.AddCoreAIUsageTracking();
+        }
+
+        var serviceProvider = services.BuildServiceProvider();
 
         var provider = new Mock<IAIClientProvider>();
         provider.Setup(p => p.CanHandle(ClientName)).Returns(true);
@@ -678,7 +685,7 @@ public sealed class AIUsageMeteringTests
             [provider.Object],
             [],
             new EphemeralDataProtectionProvider(),
-            services,
+            serviceProvider,
             Mock.Of<IAIProviderConnectionStore>());
 
         return (factory, observer);

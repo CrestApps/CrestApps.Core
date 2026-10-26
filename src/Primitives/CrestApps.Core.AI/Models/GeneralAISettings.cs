@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Models;
+﻿namespace CrestApps.Core.AI.Models;
 
 /// <summary>
 /// Represents the general AI Settings.
@@ -6,19 +6,12 @@ namespace CrestApps.Core.AI.Models;
 public sealed class GeneralAISettings
 {
     /// <summary>
-    /// Gets or sets a value indicating whether enables AI Usage Tracking.
-    /// </summary>
-    public bool EnableAIUsageTracking { get; set; }
+    /// Gets or sets a value indicating whether enables AI Usage Tracking.\r\n    /// </summary>\r\n    [Obsolete("AI usage tracking is no longer a setting and this value is ignored. It is kept so a stored value can be read by a migration. Register tracking with AddCoreAIUsageTracking() instead.")]\r\n    public bool EnableAIUsageTracking { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether enables Analytics.
     /// </summary>
-    [Obsolete("Use EnableAIUsageTracking instead.")]
-    public bool EnableAnalytics
-    {
-        get => EnableAIUsageTracking;
-        set => EnableAIUsageTracking = value;
-    }
+#pragma warning disable CS0618 // Forwards to the obsolete stored value.\r\n    [Obsolete("Use AddCoreAIUsageTracking() instead.")]\r\n    public bool EnableAnalytics\r\n    {\r\n        get => EnableAIUsageTracking;\r\n        set => EnableAIUsageTracking = value;\r\n    }\r\n#pragma warning restore CS0618
 
     /// <summary>
     /// Gets or sets a value indicating whether enables Preemptive Memory Retrieval.

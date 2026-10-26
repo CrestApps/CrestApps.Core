@@ -69,7 +69,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var client = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetChatClientAsync(conn, model));
 
-        client = new AICompletionUsageTrackingChatClient(client, CreateUsageRecorder(deployment));
+        client = IsUsageTrackingEnabled ? new AICompletionUsageTrackingChatClient(client, CreateUsageRecorder(deployment)) : client;
 
         // Enforce the deployment's declared trained features as the terminal layer, immediately above
         // the provider-facing client and below any pipeline middleware supplied through
@@ -117,7 +117,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var generator = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetEmbeddingGeneratorAsync(conn, model));
 
-        generator = new AIUsageTrackingEmbeddingGenerator(generator, CreateUsageRecorder(deployment));
+        generator = IsUsageTrackingEnabled ? new AIUsageTrackingEmbeddingGenerator(generator, CreateUsageRecorder(deployment)) : generator;
 
         return BuildEmbeddingGenerator(generator, configurePipeline);
     }
@@ -148,7 +148,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var generator = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetImageGeneratorAsync(conn, model));
 
-        generator = new AIUsageTrackingImageGenerator(generator, CreateUsageRecorder(deployment));
+        generator = IsUsageTrackingEnabled ? new AIUsageTrackingImageGenerator(generator, CreateUsageRecorder(deployment)) : generator;
 
         return BuildImageGenerator(generator, configurePipeline);
     }
@@ -179,7 +179,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var client = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetSpeechToTextClientAsync(conn, model));
 
-        client = new AIUsageTrackingSpeechToTextClient(client, CreateUsageRecorder(deployment));
+        client = IsUsageTrackingEnabled ? new AIUsageTrackingSpeechToTextClient(client, CreateUsageRecorder(deployment)) : client;
 
         return BuildSpeechToTextClient(client, configurePipeline);
     }
@@ -210,7 +210,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var client = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetTextToSpeechClientAsync(conn, model));
 
-        client = new AIUsageTrackingTextToSpeechClient(client, CreateUsageRecorder(deployment));
+        client = IsUsageTrackingEnabled ? new AIUsageTrackingTextToSpeechClient(client, CreateUsageRecorder(deployment)) : client;
 
         return BuildTextToSpeechClient(client, configurePipeline);
     }
@@ -242,7 +242,7 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var client = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetRealtimeClientAsync(conn, model));
 
-        return new AIUsageTrackingRealtimeClient(client, CreateUsageRecorder(deployment));
+        return IsUsageTrackingEnabled ? new AIUsageTrackingRealtimeClient(client, CreateUsageRecorder(deployment)) : client;
     }
 
     /// <summary>
@@ -334,6 +334,9 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 
         throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the client '{deployment.ClientName}'.");
     }
+
+    // Metering is opt-in: the clients are wrapped only when AddCoreAIUsageTracking() registered the marker.
+    private bool IsUsageTrackingEnabled => _serviceProvider.GetService<AIUsageTrackingMarker>() is not null;
 
     private AIUsageRecorder CreateUsageRecorder(AIDeployment deployment)
     {

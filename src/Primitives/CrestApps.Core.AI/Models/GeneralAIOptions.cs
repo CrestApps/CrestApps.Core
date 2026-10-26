@@ -1,4 +1,4 @@
-namespace CrestApps.Core.AI.Models;
+﻿namespace CrestApps.Core.AI.Models;
 
 /// <summary>
 /// Represents the general AI Options.
@@ -6,9 +6,7 @@ namespace CrestApps.Core.AI.Models;
 public sealed class GeneralAIOptions
 {
     /// <summary>
-    /// Gets or sets a value indicating whether enables AI Usage Tracking.
-    /// </summary>
-    public bool EnableAIUsageTracking { get; set; }
+    /// Gets or sets a value indicating whether enables AI Usage Tracking.\r\n    /// </summary>\r\n    [Obsolete("AI usage tracking is no longer switched by an option and this value is ignored. Register it with AddCoreAIUsageTracking() instead.")]\r\n    public bool EnableAIUsageTracking { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether enables Preemptive Memory Retrieval.

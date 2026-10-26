@@ -3,7 +3,6 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
 
@@ -12,23 +11,17 @@ namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
 public sealed class UsageAnalyticsController : Controller
 {
     private readonly IAICompletionUsageService _usageService;
-    private readonly IOptionsMonitor<GeneralAIOptions> _generalAIOptions;
 
     public UsageAnalyticsController(
-        IAICompletionUsageService usageService,
-        IOptionsMonitor<GeneralAIOptions> generalAIOptions)
+        IAICompletionUsageService usageService)
     {
         _usageService = usageService;
-        _generalAIOptions = generalAIOptions;
     }
 
     [HttpGet]
     public IActionResult Index()
     {
-        return View(new UsageAnalyticsIndexViewModel
-        {
-            IsAIUsageTrackingEnabled = _generalAIOptions.CurrentValue.EnableAIUsageTracking,
-        });
+        return View(new UsageAnalyticsIndexViewModel());
     }
 
     [HttpPost]
@@ -36,7 +29,6 @@ public sealed class UsageAnalyticsController : Controller
     [ActionName(nameof(Index))]
     public async Task<IActionResult> IndexPost(UsageAnalyticsIndexViewModel model)
     {
-        model.IsAIUsageTrackingEnabled = _generalAIOptions.CurrentValue.EnableAIUsageTracking;
         var records = await _usageService.GetAsync(model.StartDateUtc, model.EndDateUtc);
         ApplyReport(model, records);
 

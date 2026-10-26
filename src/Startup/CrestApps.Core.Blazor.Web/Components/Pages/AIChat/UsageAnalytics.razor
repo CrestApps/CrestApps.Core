@@ -13,13 +13,6 @@
 <p class="text-muted">Review provider usage by user, model, and conversation type across chat sessions and chat interactions.</p>
 <hr />
 
-@if (!_model.IsAIUsageTrackingEnabled)
-{
-    <div class="alert alert-warning">
-        AI usage tracking is currently disabled. Enable <strong>AI usage tracking</strong> in <strong>Admin &gt; Settings</strong> to capture future provider usage data for this report.
-    </div>
-}
-
 <div class="card mb-4">
     <div class="card-body">
         <div class="row g-3 align-items-end">
@@ -103,21 +96,10 @@ else
 @code {
     private UsageAnalyticsIndexViewModel _model = new();
 
-    protected override void OnInitialized()
-    {
-        RefreshUsageTrackingState();
-    }
-
     private async Task RunReportAsync()
     {
-        RefreshUsageTrackingState();
         var records = await UsageService.GetAsync(_model.StartDateUtc, _model.EndDateUtc);
         ApplyReport(records);
-    }
-
-    private void RefreshUsageTrackingState()
-    {
-        _model.IsAIUsageTrackingEnabled = GeneralAIOptions.CurrentValue.EnableAIUsageTracking;
     }
 
     private void ApplyReport(IReadOnlyList<AICompletionUsageRecord> records)

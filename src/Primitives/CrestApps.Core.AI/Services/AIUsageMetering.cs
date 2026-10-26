@@ -1,4 +1,4 @@
-using CrestApps.Core.AI.Completions;
+﻿using CrestApps.Core.AI.Completions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -32,6 +32,11 @@ public static class AIUsageMetering
         ArgumentNullException.ThrowIfNull(innerClient);
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
+        if (serviceProvider.GetService<AIUsageTrackingMarker>() is null)
+        {
+            return innerClient;
+        }
+
         return new AICompletionUsageTrackingChatClient(innerClient, CreateRecorder(clientName, connectionName, deploymentName, serviceProvider, defaultPurpose));
     }
 
@@ -54,6 +59,11 @@ public static class AIUsageMetering
     {
         ArgumentNullException.ThrowIfNull(innerGenerator);
         ArgumentNullException.ThrowIfNull(serviceProvider);
+
+        if (serviceProvider.GetService<AIUsageTrackingMarker>() is null)
+        {
+            return innerGenerator;
+        }
 
         return new AIUsageTrackingEmbeddingGenerator(innerGenerator, CreateRecorder(clientName, connectionName, deploymentName, serviceProvider, defaultPurpose));
     }
