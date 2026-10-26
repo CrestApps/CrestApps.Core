@@ -1,0 +1,142 @@
+@page "/ai-chat/audio-usage-analytics"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Completions
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Services
+@inject IAICompletionUsageService UsageService
+
+<PageTitle>Audio Usage Analytics - Blazor AI Integration Sample</PageTitle>
+
+<h2><i class="fa-solid fa-microphone-lines"></i> Audio usage analytics</h2>
+<p class="text-muted">Review speech-to-text and text-to-speech usage: total hours, request counts, characters, audio size, and tokens, by model, voice, or language.</p>
+<hr />
+
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">From</label>
+                <input class="form-control" type="date" @bind="_startDateUtc" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">To</label>
+                <input class="form-control" type="date" @bind="_endDateUtc" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Group by</label>
+                <select class="form-select" @bind="_grouping">
+                    <option value="@AIAudioUsageReportGrouping.Model">Model</option>
+                    <option value="@AIAudioUsageReportGrouping.ModelAndVoice">Model and voice</option>
+                    <option value="@AIAudioUsageReportGrouping.ModelAndLanguage">Model and language</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-primary w-100" @onclick="RunReportAsync">
+                    <i class="fa-solid fa-filter"></i> Show
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (!_showReport)
+{
+    <div class="alert alert-info">Use the filters above to generate the audio usage report.</div>
+}
+else if (_rows.Count == 0)
+{
+    <div class="alert alert-warning">No speech-to-text or text-to-speech usage was found for the selected filters.</div>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Requests</div><div class="fs-3 fw-semibold">@_rows.Sum(row => row.RequestCount)</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Speech-to-text hours</div><div class="fs-3 fw-semibold">@_rows.Where(row => row.OperationType == AIUsageOperationTypes.SpeechToText).Sum(row => row.AudioHours).ToString("0.00")</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Text-to-speech hours</div><div class="fs-3 fw-semibold">@_rows.Where(row => row.OperationType == AIUsageOperationTypes.TextToSpeech).Sum(row => row.AudioHours).ToString("0.00")</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Characters synthesized</div><div class="fs-3 fw-semibold">@_rows.Sum(row => row.CharacterCount)</div></div></div></div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Audio usage</div>
+        <div class="table-responsive">
+            <table class="table table-striped align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th>Model</th>
+                        <th>Type</th>
+                        @if (_reportGrouping == AIAudioUsageReportGrouping.ModelAndVoice)
+                        {
+                            <th>Voice</th>
+                        }
+                        @if (_reportGrouping == AIAudioUsageReportGrouping.ModelAndLanguage)
+                        {
+                            <th>Language</th>
+                        }
+                        <th class="text-end">Requests</th>
+                        <th class="text-end">Hours</th>
+                        <th class="text-end">Speech hours</th>
+                        <th class="text-end">Characters</th>
+                        <th class="text-end">Audio in</th>
+                        <th class="text-end">Audio out</th>
+                        <th class="text-end">Segments</th>
+                        <th class="text-end">Tokens</th>
+                        <th class="text-end">Avg latency</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _rows)
+                    {
+                        <tr>
+                            <td>@row.ClientName</td>
+                            <td>@row.ModelName</td>
+                            <td>@row.OperationType</td>
+                            @if (_reportGrouping == AIAudioUsageReportGrouping.ModelAndVoice)
+                            {
+                                <td>@row.VoiceId</td>
+                            }
+                            @if (_reportGrouping == AIAudioUsageReportGrouping.ModelAndLanguage)
+                            {
+                                <td>@row.Language</td>
+                            }
+                            <td class="text-end">@row.RequestCount</td>
+                            <td class="text-end fw-semibold">
+                                @row.AudioHours.ToString("0.00")
+                                @if (row.RequestsWithDurationCount < row.RequestCount)
+                                {
+                                    <span class="text-muted small" title="@row.RequestsWithDurationCount of @row.RequestCount requests reported an audio length">*</span>
+                                }
+                            </td>
+                            <td class="text-end">@((row.SpeechDurationMs / 3_600_000d).ToString("0.00"))</td>
+                            <td class="text-end">@row.CharacterCount</td>
+                            <td class="text-end">@(row.AudioInputBytes > 0 ? $"{row.AudioInputBytes / 1_048_576d:0.0} MB" : "-")</td>
+                            <td class="text-end">@(row.AudioOutputBytes > 0 ? $"{row.AudioOutputBytes / 1_048_576d:0.0} MB" : "-")</td>
+                            <td class="text-end">@row.SegmentCount</td>
+                            <td class="text-end">@row.TotalTokenCount</td>
+                            <td class="text-end">@(row.AverageResponseLatencyMs > 0 ? $"{row.AverageResponseLatencyMs} ms" : "-")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer text-muted small">* Some requests did not report an audio length, so the hours are a minimum. Text-to-speech length is read from WAV audio only.</div>
+    </div>
+}
+
+@code {
+    private DateTime? _startDateUtc;
+    private DateTime? _endDateUtc;
+    private AIAudioUsageReportGrouping _grouping;
+    private AIAudioUsageReportGrouping _reportGrouping;
+    private bool _showReport;
+    private IReadOnlyList<AIAudioUsageReportRow> _rows = [];
+
+    private async Task RunReportAsync()
+    {
+        var records = await UsageService.GetAsync(_startDateUtc, _endDateUtc);
+
+        _reportGrouping = _grouping;
+        _rows = AIAudioUsageReport.Build(records, _grouping);
+        _showReport = true;
+    }
+}

@@ -153,11 +153,17 @@ public sealed class AIUsageMeteringTests
             .Returns(new ValueTask<ISpeechToTextClient>(inner.Object)));
 
         var client = await factory.CreateSpeechToTextClientAsync(Deployment("stt-deployment"));
-        await client.GetTextAsync(new MemoryStream([1, 2, 3]), cancellationToken: TestContext.Current.CancellationToken);
+        await client.GetTextAsync(new MemoryStream([1, 2, 3]), new SpeechToTextOptions { SpeechLanguage = "en-US", TextLanguage = "fr-FR", SpeechSampleRate = 16_000 }, TestContext.Current.CancellationToken);
 
         var record = Assert.Single(observer.Records);
         Assert.Equal(AIUsageOperationTypes.SpeechToText, record.OperationType);
         Assert.Equal(4_250, record.AudioDurationMs);
+        Assert.Equal(300, record.AudioStartMs);
+        Assert.Equal(3, record.AudioInputBytes);
+        Assert.Equal(1, record.SegmentCount);
+        Assert.Equal("en-US", record.Language);
+        Assert.Equal("fr-FR", record.TargetLanguage);
+        Assert.Equal(16_000, record.AudioSampleRate);
     }
 
     [Fact]
@@ -212,13 +218,18 @@ public sealed class AIUsageMeteringTests
 
         var client = await factory.CreateTextToSpeechClientAsync(Deployment("tts-deployment"));
 
-        await foreach (var _ in client.GetStreamingAudioAsync("Hello there", cancellationToken: TestContext.Current.CancellationToken))
+        await foreach (var _ in client.GetStreamingAudioAsync("Hello there", new TextToSpeechOptions { VoiceId = "nova", Language = "en", Speed = 1.25f, AudioFormat = "mp3" }, TestContext.Current.CancellationToken))
         {
         }
 
         var record = Assert.Single(observer.Records);
         Assert.Equal(AIUsageOperationTypes.TextToSpeech, record.OperationType);
         Assert.Equal(11, record.CharacterCount);
+        Assert.Equal(3, record.AudioOutputBytes);
+        Assert.Equal("nova", record.VoiceId);
+        Assert.Equal("en", record.Language);
+        Assert.Equal(1.25f, record.Speed);
+        Assert.Equal("mp3", record.AudioFormat);
     }
 
     [Fact]

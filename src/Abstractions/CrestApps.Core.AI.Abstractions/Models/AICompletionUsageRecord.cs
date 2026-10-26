@@ -133,8 +133,9 @@ public sealed class AICompletionUsageRecord : ExtensibleEntity
     public int OutputAudioTokenCount { get; set; }
 
     /// <summary>
-    /// Gets or sets the length of the audio that was transcribed, in milliseconds, for providers that bill
-    /// speech-to-text by audio duration rather than by tokens.
+    /// Gets or sets the length of the audio in milliseconds: the audio that was transcribed (measured to where the last
+    /// recognized speech ended) for speech-to-text, or the audio that was generated for text-to-speech, when it could be
+    /// determined. Providers bill audio by duration rather than by tokens.
     /// </summary>
     public long AudioDurationMs { get; set; }
 
@@ -148,6 +149,62 @@ public sealed class AICompletionUsageRecord : ExtensibleEntity
     /// Gets or sets how many images were generated, for providers that bill image generation per image.
     /// </summary>
     public int ImageCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets where in the audio the first recognized speech started, in milliseconds, for speech-to-text.
+    /// Subtracting it from <see cref="AudioDurationMs"/> gives the length of the speech without leading silence.
+    /// </summary>
+    public long AudioStartMs { get; set; }
+
+    /// <summary>
+    /// Gets or sets the size in bytes of the audio sent for transcription, when the stream reports its length.
+    /// </summary>
+    public long AudioInputBytes { get; set; }
+
+    /// <summary>
+    /// Gets or sets the size in bytes of the audio a text-to-speech request generated.
+    /// </summary>
+    public long AudioOutputBytes { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many pieces of text (segments) a speech-to-text response returned.
+    /// </summary>
+    public int SegmentCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the sample rate in hertz of the audio, when the request stated one.
+    /// </summary>
+    public int AudioSampleRate { get; set; }
+
+    /// <summary>
+    /// Gets or sets the format of the audio a text-to-speech request asked for, such as <c>mp3</c> or <c>wav</c>.
+    /// </summary>
+    public string AudioFormat { get; set; }
+
+    /// <summary>
+    /// Gets or sets the voice a text-to-speech request used.
+    /// </summary>
+    public string VoiceId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the language of the audio (speech-to-text) or of the synthesized speech (text-to-speech).
+    /// </summary>
+    public string Language { get; set; }
+
+    /// <summary>
+    /// Gets or sets the language a speech-to-text request translated the text into, when it asked for a translation.
+    /// </summary>
+    public string TargetLanguage { get; set; }
+
+    /// <summary>
+    /// Gets or sets the speaking rate a text-to-speech request asked for, when it set one.
+    /// </summary>
+    public float? Speed { get; set; }
+
+    /// <summary>
+    /// Gets or sets the pitch a text-to-speech request asked for, when it set one.
+    /// </summary>
+    public float? Pitch { get; set; }
 
     /// <summary>
     /// Gets or sets the wall-clock latency in milliseconds from request to first response byte.

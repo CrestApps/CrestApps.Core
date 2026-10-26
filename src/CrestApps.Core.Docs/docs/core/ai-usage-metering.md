@@ -50,6 +50,12 @@ kind it was, using the values in `AIUsageOperationTypes`.
 | `AudioDurationMs` | Audio transcribed, for models billed by duration |
 | `CharacterCount` | Characters synthesized, for models billed by character |
 | `ImageCount` | Images generated, for models billed per image |
+| `AudioStartMs` | Where the first recognized speech started (speech-to-text). `AudioDurationMs - AudioStartMs` is the speech without leading silence |
+| `AudioInputBytes`, `AudioOutputBytes` | Size of the audio sent for transcription, and of the audio a synthesis generated |
+| `SegmentCount` | Pieces of text a transcription returned |
+| `AudioSampleRate`, `AudioFormat` | The sample rate a transcription request stated, and the format a synthesis request asked for |
+| `VoiceId`, `Language`, `TargetLanguage` | The voice and language of a synthesis, the language of the audio, and the language a transcription was translated into |
+| `Speed`, `Pitch` | The speaking rate and pitch a synthesis asked for, when it set them |
 | `ContextType` | The category of feature that made the request |
 | `Purpose` | Why the request was made within that category |
 
@@ -60,8 +66,8 @@ metering client can, it reports it in `UsageDetails.AdditionalCounts` under a ke
 :::note[How audio and characters are measured]
 Speech-to-text duration is taken from where the last recognized speech ended, measured from the start of the
 audio (`SpeechToTextResponse.EndTime`). Trailing silence after the last words is not counted, so a provider that
-bills every second it receives will bill slightly more. Text-to-speech characters are the length of the text
-sent to be spoken.
+bills every second it receives will bill slightly more. The start of the first speech is recorded in `AudioStartMs`. Text-to-speech characters are the length of the text
+sent to be spoken. Text-to-speech audio length is taken from the provider when it reports one, and otherwise read from WAV audio; other formats record their size in bytes but no length.
 :::
 
 ## Categories and purposes
@@ -167,6 +173,23 @@ var perModelAndCategory = AIUsageReport.Build(records, AIUsageReportGrouping.Mod
 ```
 
 Each `AIUsageReportRow` reports `RequestCount` alongside the token, audio, character and image totals.
+
+### Audio usage
+
+`AIAudioUsageReport.Build` reports speech-to-text and text-to-speech on their own, with the units audio models
+bill by: total audio hours, request counts, characters, audio size, segments and tokens. Other kinds of request
+are ignored.
+
+```csharp
+var perModel = AIAudioUsageReport.Build(records, AIAudioUsageReportGrouping.Model);
+var perVoice = AIAudioUsageReport.Build(records, AIAudioUsageReportGrouping.ModelAndVoice);
+var perLanguage = AIAudioUsageReport.Build(records, AIAudioUsageReportGrouping.ModelAndLanguage);
+```
+
+Each `AIAudioUsageReportRow` exposes `AudioHours`, `SpeechDurationMs` and `RequestCount`. Text-to-speech
+length is known only when the provider reports it or the audio is WAV, whose length is read from its header.
+`RequestsWithDurationCount` says how many requests had a length, so a row with fewer than `RequestCount` is a
+minimum. The Blazor and MVC sample apps include an Audio Usage Analytics page built on this report.
 
 ### Turning usage into cost
 
