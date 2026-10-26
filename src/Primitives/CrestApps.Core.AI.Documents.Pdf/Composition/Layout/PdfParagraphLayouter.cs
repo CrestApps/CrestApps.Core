@@ -378,17 +378,17 @@ internal static class PdfParagraphLayouter
                 return;
             }
 
-            // The dots keep a dot's width from the text on each side.
-            var count = (int)Math.Floor((to - from - (2 * dot)) / dot);
+            // The dots start where the text ends and fill as many whole dots as reach the tab stop.
+            var count = (int)Math.Floor((to - from) / dot);
 
-            if (count < 2)
+            if (count < 1)
             {
                 return;
             }
 
             _line.Items.Add(new PdfLaidItem
             {
-                X = to - dot - (count * dot),
+                X = from,
                 Width = count * dot,
                 Text = new string('.', count),
                 Font = style.Font,
