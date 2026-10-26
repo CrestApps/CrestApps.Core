@@ -5,6 +5,38 @@ namespace CrestApps.Core.Tests.Core.Models;
 public sealed class DefaultAIOptionsTests
 {
     [Fact]
+    public void New_WhenNothingIsConfigured_LeavesSamplingParametersUnset()
+    {
+        var options = new DefaultAIOptions();
+
+        Assert.Null(options.Temperature);
+        Assert.Null(options.MaxOutputTokens);
+        Assert.Null(options.TopP);
+        Assert.Null(options.FrequencyPenalty);
+        Assert.Null(options.PresencePenalty);
+    }
+
+    [Fact]
+    public void New_WhenNothingIsConfigured_AllowsThirtyIterationsPerRequest()
+    {
+        var options = new DefaultAIOptions();
+
+        Assert.Equal(30, options.MaximumIterationsPerRequest);
+        Assert.Equal(100, options.AbsoluteMaximumIterationsPerRequest);
+    }
+
+    [Fact]
+    public void ApplySiteOverrides_WhenSamplingParametersAreUnset_KeepsThemUnset()
+    {
+        var result = new DefaultAIOptions().ApplySiteOverrides(new GeneralAIOptions());
+
+        Assert.Null(result.TopP);
+        Assert.Null(result.FrequencyPenalty);
+        Assert.Null(result.PresencePenalty);
+        Assert.Equal(30, result.MaximumIterationsPerRequest);
+    }
+
+    [Fact]
     public void Normalize_WhenAbsoluteMaximumIsNotPositive_ResetsToDefaultAndClampsMaximum()
     {
         var options = new DefaultAIOptions
@@ -25,13 +57,13 @@ public sealed class DefaultAIOptionsTests
         var options = new DefaultAIOptions
         {
             MaximumIterationsPerRequest = 0,
-            AbsoluteMaximumIterationsPerRequest = 25,
+            AbsoluteMaximumIterationsPerRequest = 50,
         };
 
         options.Normalize();
 
-        Assert.Equal(10, options.MaximumIterationsPerRequest);
-        Assert.Equal(25, options.AbsoluteMaximumIterationsPerRequest);
+        Assert.Equal(30, options.MaximumIterationsPerRequest);
+        Assert.Equal(50, options.AbsoluteMaximumIterationsPerRequest);
     }
 
     [Fact]
