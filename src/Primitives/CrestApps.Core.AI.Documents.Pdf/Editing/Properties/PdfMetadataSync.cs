@@ -4,6 +4,8 @@ using System.Text;
 using System.Xml.Linq;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
 using PdfSharp.Pdf;
+using ObjectDictionary = CrestApps.Core.AI.Documents.Pdf.Objects.PdfDictionary;
+using ObjectDocument = CrestApps.Core.AI.Documents.Pdf.Objects.PdfDocument;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
 using PigParsingOptions = UglyToad.PdfPig.ParsingOptions;
 
@@ -14,19 +16,21 @@ namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 /// original packet declared.
 /// </summary>
 /// <remarks>
-/// PDFsharp replaces a file's XMP packet on every save with one it generates from the information
-/// dictionary: it drops the PDF/A and PDF/UA identification a file had, does not escape the values (a
-/// title with an ampersand makes the packet unreadable), dates the modification with the creation date,
-/// and leaves the replaced packet in the file. This takes the original packet before the save, so the stale
-/// copy is not written, and afterwards writes a correct packet in place of PDFsharp's. That packet is the
-/// last object PDFsharp writes, so replacing it moves nothing but the cross-reference table. When the saved
-/// file is encrypted, or does not have the expected shape, PDFsharp's packet is left as it is.
+/// The original packet is taken before the document is changed, so the stale copy is not written. A
+/// document of the package's own object model is saved with a correct packet as its metadata stream.
+/// PDFsharp, which some tools still edit with, replaces a file's XMP packet on every save with one it
+/// generates from the information dictionary: it drops the PDF/A and PDF/UA identification a file had,
+/// does not escape the values (a title with an ampersand makes the packet unreadable), dates the
+/// modification with the creation date, and leaves the replaced packet in the file. For such a document a
+/// correct packet is written in place of PDFsharp's after the save. That packet is the last object PDFsharp
+/// writes, so replacing it moves nothing but the cross-reference table. When the saved file is encrypted,
+/// or does not have the expected shape, PDFsharp's packet is left as it is.
 /// </remarks>
 internal sealed class PdfMetadataSync
 {
     // A document opened for editing is captured once; a tool that captures it again gets the same capture,
     // which still holds the packet the file had.
-    private static readonly ConditionalWeakTable<PdfDocument, PdfMetadataSync> _captures = [];
+    private static readonly ConditionalWeakTable<object, PdfMetadataSync> _captures = [];
 
     private XElement _original;
     private bool _keepOtherProperties;
@@ -81,35 +85,33 @@ internal sealed class PdfMetadataSync
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        if (_captures.TryGetValue(document, out var existing))
-        {
-            existing._keepOtherProperties &= keepOtherProperties;
-
-            return existing;
-        }
-
         var catalog = document.Internals.Catalog;
-        XElement original = null;
 
-        if (PdfObjects.Resolve(catalog.Elements["/Metadata"]) is PdfDictionary metadata && metadata.Stream is not null)
-        {
-            try
-            {
-                original = PdfXmpPacket.Parse(metadata.Stream.UnfilteredValue);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                original = null;
-            }
-        }
+        return Capture(
+            document,
+            () => PdfObjects.Resolve(catalog.Elements["/Metadata"]) is PdfDictionary { Stream: not null } metadata ? metadata.Stream.UnfilteredValue : null,
+            () => catalog.Elements.Remove("/Metadata"),
+            keepOtherProperties);
+    }
 
-        catalog.Elements.Remove("/Metadata");
+    /// <summary>
+    /// Takes a document's XMP packet before it is edited, and removes it from the document so the stale
+    /// copy is not written.
+    /// </summary>
+    /// <param name="document">The document, opened for editing.</param>
+    /// <param name="keepOtherProperties">Whether properties other than those mirroring the document information are kept; when <see langword="false"/> only the PDF/A and PDF/UA identification is.</param>
+    /// <returns>The capture.</returns>
+    public static PdfMetadataSync Capture(ObjectDocument document, bool keepOtherProperties = true)
+    {
+        ArgumentNullException.ThrowIfNull(document);
 
-        var sync = new PdfMetadataSync(original, keepOtherProperties);
+        var catalog = document.Catalog;
 
-        _captures.AddOrUpdate(document, sync);
-
-        return sync;
+        return Capture(
+            document,
+            () => catalog.Elements.GetDictionary("/Metadata")?.Stream?.UnfilteredValue,
+            () => catalog.Elements.Remove("/Metadata"),
+            keepOtherProperties);
     }
 
     /// <summary>
@@ -169,6 +171,44 @@ internal sealed class PdfMetadataSync
     }
 
     /// <summary>
+    /// Saves the document, dating the change, with a consistent XMP packet as its metadata stream.
+    /// </summary>
+    /// <param name="document">The document.</param>
+    /// <param name="now">The time of the change.</param>
+    /// <returns>The file.</returns>
+    public byte[] Save(ObjectDocument document, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        document.Info.ModificationDate = now.ToUniversalTime();
+
+        var info = document.Info.Dictionary;
+        var values = new PdfXmpValues
+        {
+            Title = Text(info, "/Title"),
+            Author = Text(info, "/Author"),
+            Subject = Text(info, "/Subject"),
+            Keywords = Text(info, "/Keywords"),
+            Creator = Text(info, "/Creator"),
+            Producer = Text(info, "/Producer"),
+            CreationDate = Text(info, "/CreationDate"),
+            ModificationDate = Text(info, "/ModDate"),
+            Language = Text(document.Catalog, "/Lang"),
+        };
+
+        // PDF/A wants the packet readable without decoding, so it is stored as it is.
+        var metadata = new ObjectDictionary(document);
+
+        metadata.Elements.SetName("/Type", "/Metadata");
+        metadata.Elements.SetName("/Subtype", "/XML");
+        metadata.CreateStream(PdfXmpPacket.Build(_original, values, _keepOtherProperties, DropPdfAConformance));
+        document.Catalog.Elements.SetReference("/Metadata", metadata);
+        Rewritten = true;
+
+        return document.Save();
+    }
+
+    /// <summary>
     /// Describes what happened to the conformance the file claimed, for an answer.
     /// </summary>
     /// <returns>A sentence, or <see langword="null"/> when there is nothing to say.</returns>
@@ -192,6 +232,46 @@ internal sealed class PdfMetadataSync
         }
 
         return $"The file's {claims} identification was kept. Check it with validate_pdf_compliance if conformance matters.";
+    }
+
+    private static PdfMetadataSync Capture(object document, Func<byte[]> readPacket, Action removePacket, bool keepOtherProperties)
+    {
+        if (_captures.TryGetValue(document, out var existing))
+        {
+            existing._keepOtherProperties &= keepOtherProperties;
+
+            return existing;
+        }
+
+        XElement original = null;
+
+        try
+        {
+            original = readPacket() is { } packet
+                ? PdfXmpPacket.Parse(packet)
+                : null;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            original = null;
+        }
+
+        removePacket();
+
+        var sync = new PdfMetadataSync(original, keepOtherProperties);
+
+        _captures.AddOrUpdate(document, sync);
+
+        return sync;
+    }
+
+    private static string Text(ObjectDictionary dictionary, string key)
+    {
+        var text = dictionary?.Elements.GetString(key);
+
+        return string.IsNullOrEmpty(text)
+            ? null
+            : text;
     }
 
     private byte[] Rewrite(byte[] saved, PdfDocument document, int pageCount)

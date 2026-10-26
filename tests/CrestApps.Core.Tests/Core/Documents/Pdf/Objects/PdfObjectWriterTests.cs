@@ -1,5 +1,6 @@
 using System.Text;
 using CrestApps.Core.AI.Documents.Pdf.Objects;
+using CrestApps.Core.Tests.Core.Documents.Pdf.Reading;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Fonts.Standard14Fonts;
@@ -155,6 +156,41 @@ public sealed class PdfObjectWriterTests
     }
 
     [Fact]
+    public void Open_KeepsTheBytesOfLiteralStrings()
+    {
+        // A binary literal string, as /O, /U and many /ID entries are written, and a title using a
+        // PDFDocEncoding code PdfPig reads as another character.
+        var file = MinimalPdf("<< /Type /Catalog /Pages 2 0 R /Binary (\\200\\201\\377\\000\\001\\(x) >>", "<< /Title (Dash \\205 here) >>");
+
+        using var document = PdfDocument.Open(file);
+
+        Assert.Equal(new byte[] { 0x80, 0x81, 0xFF, 0x00, 0x01, (byte)'(', (byte)'x' }, ((PdfString)document.Catalog.Elements["/Binary"]).Bytes);
+        Assert.Equal("Dash – here", document.Info.Title);
+
+        using var reopened = PdfDocument.Open(document.Save());
+
+        Assert.Equal(new byte[] { 0x80, 0x81, 0xFF, 0x00, 0x01, (byte)'(', (byte)'x' }, ((PdfString)reopened.Catalog.Elements["/Binary"]).Bytes);
+        Assert.Equal("Dash – here", reopened.Info.Title);
+    }
+
+    [Fact]
+    public void Open_EncryptedFile_ReadsItDecrypted()
+    {
+        var protectedFile = PdfReadingFixtures.Protect(PigBuiltPdf("Secret text"), "user", "owner");
+
+        using var document = PdfDocument.Open(protectedFile, "user");
+
+        Assert.True(document.IsEncrypted);
+        // The content is readable once decrypted: PdfPig's writer stores "Secret" as hexadecimal.
+        Assert.Contains("<536563726574> Tj", Encoding.Latin1.GetString(document.Pages[0].Contents.ReadAll()), StringComparison.Ordinal);
+
+        using var pig = PigDocument.Open(document.Save());
+
+        Assert.False(pig.IsEncrypted);
+        Assert.Equal("Secret text", pig.GetPage(1).Text);
+    }
+
+    [Fact]
     public void Save_DropsObjectsNothingUses()
     {
         using var document = PdfDocument.Open(PigBuiltPdf("Kept", "Dropped"));
@@ -164,6 +200,36 @@ public sealed class PdfObjectWriterTests
         var bytes = document.Save();
 
         Assert.DoesNotContain("Dropped", Encoding.Latin1.GetString(bytes), StringComparison.Ordinal);
+    }
+
+    private static byte[] MinimalPdf(string catalog, string info)
+    {
+        var file = new StringBuilder("%PDF-1.4\n");
+        var offsets = new List<int>();
+
+        void Add(string body)
+        {
+            offsets.Add(file.Length);
+            file.Append(offsets.Count).Append(" 0 obj\n").Append(body).Append("\nendobj\n");
+        }
+
+        Add(catalog);
+        Add("<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+        Add("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>");
+        Add(info);
+
+        var xref = file.Length;
+
+        file.Append("xref\n0 ").Append(offsets.Count + 1).Append("\n0000000000 65535 f\r\n");
+
+        foreach (var offset in offsets)
+        {
+            file.Append(offset.ToString("D10")).Append(" 00000 n\r\n");
+        }
+
+        file.Append("trailer\n<< /Size ").Append(offsets.Count + 1).Append(" /Root 1 0 R /Info 4 0 R >>\nstartxref\n").Append(xref).Append("\n%%EOF\n");
+
+        return Encoding.Latin1.GetBytes(file.ToString());
     }
 
     private static PdfDictionary HelveticaFont(PdfDocument document)

@@ -195,12 +195,16 @@ internal sealed class PdfDocument : IDisposable
 
     /// <summary>
     /// Lists every array and dictionary stored on its own in the document, whether or not anything still
-    /// refers to it.
+    /// refers to it. The cross-reference and object streams a file is packed in are not part of the content,
+    /// and are not listed.
     /// </summary>
     /// <returns>The objects.</returns>
     public List<PdfObject> GetAllObjects()
     {
-        return [.. _order.Select(reference => reference.Value).OfType<PdfObject>()];
+        return [.. _order
+            .Select(reference => reference.Value)
+            .OfType<PdfObject>()
+            .Where(value => value is not PdfDictionary dictionary || dictionary.Elements.GetName("/Type") is not ("/XRef" or "/ObjStm"))];
     }
 
     /// <summary>

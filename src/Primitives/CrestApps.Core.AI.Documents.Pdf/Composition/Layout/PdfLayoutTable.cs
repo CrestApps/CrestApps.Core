@@ -52,6 +52,12 @@ internal sealed class PdfLayoutTable : PdfLayoutBlock
     public bool KeepTogether { get; set; }
 
     /// <summary>
+    /// Gets or sets how far the table's left edge is from the left margin, in points; without one it is moved
+    /// left by its padding, so the text in its first column lines up with the paragraphs around it.
+    /// </summary>
+    public double? LeftIndent { get; set; }
+
+    /// <summary>
     /// Adds a column.
     /// </summary>
     /// <param name="width">The width, in points.</param>

@@ -72,7 +72,7 @@ internal static class PdfBlockPreparer
 
                 block.Id = "b" + definition.NextBlockNumber++.ToString(CultureInfo.InvariantCulture);
 
-                var type = PdfMigraDocBuilder.NormalizeType(block);
+                var type = PdfLayoutBuilder.NormalizeType(block);
 
                 if (!string.IsNullOrEmpty(type))
                 {
@@ -153,7 +153,7 @@ internal static class PdfBlockPreparer
         {
             var block = blocks[index];
 
-            if (block is null || PdfMigraDocBuilder.NormalizeType(block) != PdfBlockTypes.Heading || !IsContentsTitle(block.Text))
+            if (block is null || PdfLayoutBuilder.NormalizeType(block) != PdfBlockTypes.Heading || !IsContentsTitle(block.Text))
             {
                 continue;
             }
@@ -163,7 +163,7 @@ internal static class PdfBlockPreparer
 
             // The list under it is the hand-written entries; it is taken only when its items are the
             // document's own headings, so an ordinary list under a heading called "Contents" is kept.
-            if (next is not null && PdfMigraDocBuilder.NormalizeType(next) == PdfBlockTypes.List)
+            if (next is not null && PdfLayoutBuilder.NormalizeType(next) == PdfBlockTypes.List)
             {
                 if (!ListsHeadings(next, definition, blocks))
                 {
@@ -175,7 +175,7 @@ internal static class PdfBlockPreparer
 
             // The generated contents get a page of their own, so a break the model put after its own is not
             // needed and would leave a blank page.
-            if (end < blocks.Count && blocks[end] is { } after && PdfMigraDocBuilder.NormalizeType(after) == PdfBlockTypes.PageBreak)
+            if (end < blocks.Count && blocks[end] is { } after && PdfLayoutBuilder.NormalizeType(after) == PdfBlockTypes.PageBreak)
             {
                 end++;
             }
@@ -208,7 +208,7 @@ internal static class PdfBlockPreparer
 
         var headings = new HashSet<string>(
             (definition.Sections ?? []).SelectMany(section => section.Blocks ?? []).Concat(blocks)
-                .Where(candidate => candidate is not null && PdfMigraDocBuilder.NormalizeType(candidate) == PdfBlockTypes.Heading && !IsContentsTitle(candidate.Text))
+                .Where(candidate => candidate is not null && PdfLayoutBuilder.NormalizeType(candidate) == PdfBlockTypes.Heading && !IsContentsTitle(candidate.Text))
                 .Select(candidate => EntryText(candidate.Text)),
             StringComparer.OrdinalIgnoreCase);
 
@@ -325,7 +325,7 @@ internal static class PdfBlockPreparer
                 continue;
             }
 
-            var type = PdfMigraDocBuilder.NormalizeType(block);
+            var type = PdfLayoutBuilder.NormalizeType(block);
             var text = block.Text?.Trim();
 
             if (type is PdfBlockTypes.Paragraph or PdfBlockTypes.Markdown &&
@@ -410,7 +410,7 @@ internal static class PdfBlockPreparer
     private static bool IsHeading(PdfBlockDefinition block)
     {
         return block is not null &&
-            PdfMigraDocBuilder.NormalizeType(block) == PdfBlockTypes.Heading &&
+            PdfLayoutBuilder.NormalizeType(block) == PdfBlockTypes.Heading &&
             !string.IsNullOrWhiteSpace(block.Text);
     }
 

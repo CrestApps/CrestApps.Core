@@ -24,18 +24,12 @@ internal sealed class PdfFontProgram
         GlyphCount = Math.Max(0, (font.TableRegister.IndexToLocationTable?.GlyphOffsets.Count ?? 1) - 1);
 
         var header = font.TableRegister.HorizontalHeaderTable;
-        var os2 = font.TableRegister.Os2Table as Os2RevisedVersion0Table;
 
-        // Windows lays text out with the OS/2 "win" metrics, so lines are spaced the way Word and browsers space them.
-        Ascent = os2 is { WindowsAscent: > 0 }
-            ? os2.WindowsAscent / UnitsPerEm
-            : header.Ascent / UnitsPerEm;
-        Descent = os2 is { WindowsDescent: > 0 }
-            ? -os2.WindowsDescent / UnitsPerEm
-            : header.Descent / UnitsPerEm;
-        LineGap = os2 is { WindowsAscent: > 0 }
-            ? 0
-            : Math.Max(0, (int)header.LineGap) / UnitsPerEm;
+        // Lines are spaced by the horizontal header's metrics, line gap included, as the documents composed
+        // before were.
+        Ascent = header.Ascent / UnitsPerEm;
+        Descent = -Math.Abs((double)header.Descent) / UnitsPerEm;
+        LineGap = Math.Max(0, (int)header.LineGap) / UnitsPerEm;
         CapHeight = font.TableRegister.Os2Table is Os2Version2To4OpenTypeTable { CapHeight: > 0 } revised
             ? revised.CapHeight / UnitsPerEm
             : Ascent * 0.72;

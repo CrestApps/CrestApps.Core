@@ -78,7 +78,7 @@ internal sealed class PdfDocumentFonts
         dictionary.Elements.SetName("/Encoding", "/WinAnsiEncoding");
         _document.AddObject(dictionary);
 
-        return new EmbeddedFont(dictionary, null, null, null);
+        return new EmbeddedFont(dictionary, null, null, font);
     }
 
     private EmbeddedFont CreateTrueType(PdfFont font)
@@ -105,7 +105,7 @@ internal sealed class PdfDocumentFonts
         descendant.Elements.SetReference("/FontDescriptor", descriptor);
         _document.AddObject(dictionary);
 
-        return new EmbeddedFont(dictionary, descendant, descriptor, font.Program);
+        return new EmbeddedFont(dictionary, descendant, descriptor, font);
     }
 
     /// <summary>
@@ -123,14 +123,14 @@ internal sealed class PdfDocumentFonts
 
             var program = embedded.Program;
             var glyphs = embedded.Glyphs.Keys.Order().ToList();
-            var name = Tag(program.PostScriptName, glyphs) + "+" + program.PostScriptName;
+            var name = Tag(embedded.Font.Key, glyphs) + "+" + embedded.Font.Key;
 
             embedded.Dictionary.Elements.SetName("/BaseFont", name);
             embedded.Descendant.Elements.SetName("/BaseFont", name);
             embedded.Descendant.Elements["/W"] = Widths(program, glyphs);
             embedded.Descendant.Elements.SetInteger("/DW", (long)Math.Round(program.GetAdvance(0) * 1000));
 
-            WriteDescriptor(embedded.Descriptor, program, name, glyphs);
+            WriteDescriptor(embedded.Descriptor, embedded.Font, name, glyphs);
 
             var toUnicode = new PdfDictionary(_document);
 
@@ -139,26 +139,39 @@ internal sealed class PdfDocumentFonts
         }
     }
 
-    private void WriteDescriptor(PdfDictionary descriptor, PdfFontProgram program, string name, List<int> glyphs)
+    private void WriteDescriptor(PdfDictionary descriptor, PdfFont font, string name, List<int> glyphs)
     {
+        var program = font.Program;
         var (left, bottom, right, top) = program.BoundingBox;
         var flags = 32;
+
+        // A simulated italic is slanted by a fifth of the height, about 12 degrees.
+        var italicAngle = font.SimulatesItalic
+            ? -12
+            : program.ItalicAngle;
 
         if (program.IsFixedPitch)
         {
             flags |= 1;
         }
 
-        if (program.ItalicAngle != 0)
+        if (italicAngle != 0)
         {
             flags |= 64;
+        }
+
+        // ForceBold tells a reader the regular glyphs are drawn bold.
+        if (font.SimulatesBold)
+        {
+            flags |= 1 << 18;
+            descriptor.Elements.SetInteger("/FontWeight", 700);
         }
 
         descriptor.Elements.SetName("/Type", "/FontDescriptor");
         descriptor.Elements.SetName("/FontName", name);
         descriptor.Elements.SetInteger("/Flags", flags);
         descriptor.Elements["/FontBBox"] = new PdfArray(_document, new[] { left, bottom, right, top }.Select(value => new PdfInteger((long)Math.Round(value * 1000))));
-        descriptor.Elements.SetReal("/ItalicAngle", program.ItalicAngle);
+        descriptor.Elements.SetReal("/ItalicAngle", italicAngle);
         descriptor.Elements.SetInteger("/Ascent", (long)Math.Round(program.Ascent * 1000));
         descriptor.Elements.SetInteger("/Descent", (long)Math.Round(program.Descent * 1000));
         descriptor.Elements.SetInteger("/CapHeight", (long)Math.Round(program.CapHeight * 1000));
@@ -245,13 +258,18 @@ internal sealed class PdfDocumentFonts
     /// </summary>
     private sealed class EmbeddedFont
     {
-        public EmbeddedFont(PdfDictionary dictionary, PdfDictionary descendant, PdfDictionary descriptor, PdfFontProgram program)
+        public EmbeddedFont(PdfDictionary dictionary, PdfDictionary descendant, PdfDictionary descriptor, PdfFont font)
         {
             Dictionary = dictionary;
             Descendant = descendant;
             Descriptor = descriptor;
-            Program = program;
+            Font = font;
         }
+
+        /// <summary>
+        /// Gets the font.
+        /// </summary>
+        public PdfFont Font { get; }
 
         /// <summary>
         /// Gets the font dictionary pages refer to.
@@ -271,7 +289,7 @@ internal sealed class PdfDocumentFonts
         /// <summary>
         /// Gets the TrueType font, or <see langword="null"/> for a standard one.
         /// </summary>
-        public PdfFontProgram Program { get; }
+        public PdfFontProgram Program => Font.Program;
 
         /// <summary>
         /// Gets the codes written, with the text each stands for.

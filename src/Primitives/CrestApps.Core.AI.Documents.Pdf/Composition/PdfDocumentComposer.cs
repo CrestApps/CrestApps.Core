@@ -1,8 +1,9 @@
 using System.Globalization;
+using CrestApps.Core.AI.Documents.Pdf.Composition.Layout;
 using CrestApps.Core.AI.Documents.Pdf.Editing;
+using CrestApps.Core.AI.Documents.Pdf.Graphics.Fonts;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using Microsoft.Extensions.Options;
-using MigraDoc.Rendering;
-using PdfSharp.Pdf;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Composition;
 
@@ -11,8 +12,9 @@ namespace CrestApps.Core.AI.Documents.Pdf.Composition;
 /// </summary>
 /// <remarks>
 /// The one renderer every generated PDF goes through: the agent's documents, <c>generate_file</c> and tabular
-/// exports. Pictures are resolved first, the document is laid out by MigraDoc, and the finishing touches that
-/// work at page level — the watermark, the language, the PDF/A flag — are applied to the laid-out file.
+/// exports. Pictures are resolved first, the document is laid out by <see cref="PdfLayoutRenderer"/>, and the
+/// finishing touches that work at page level — the watermark, the language, the PDF/A flag — are applied to
+/// the laid-out file.
 /// </remarks>
 internal sealed class PdfDocumentComposer
 {
@@ -46,8 +48,6 @@ internal sealed class PdfDocumentComposer
     {
         ArgumentNullException.ThrowIfNull(definition);
 
-        PdfFontConfiguration.Ensure();
-
         var resolved = await ResolveImagesAsync(definition, images, cancellationToken);
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -79,40 +79,45 @@ internal sealed class PdfDocumentComposer
         bool forceDefaultFont,
         List<string> warnings)
     {
-        var builder = new PdfMigraDocBuilder(definition, images, _options, dateText, forceDefaultFont, warnings);
-        var document = builder.Build();
-        var renderer = new PdfDocumentRenderer
+        var builder = new PdfLayoutBuilder(definition, images, _options, dateText, forceDefaultFont, warnings);
+
+        using var pdf = new PdfLayoutRenderer(builder.Build()).Render();
+
+        if (!PdfFontLibrary.HasInstalledFonts)
         {
-            Document = document,
-        };
-
-        renderer.RenderDocument();
-
-        var pdf = renderer.PdfDocument;
+            warnings.Add("This server has no fonts installed, so the document was set in the standard PDF fonts, which write Western European text only.");
+        }
 
         if (!string.IsNullOrWhiteSpace(definition.Language))
         {
             pdf.Language = definition.Language.Trim();
         }
 
-        pdf.ViewerPreferences.DisplayDocTitle = !string.IsNullOrWhiteSpace(definition.Title);
+        var preferences = new PdfDictionary(pdf);
+
+        preferences.Elements.SetBoolean("/DisplayDocTitle", !string.IsNullOrWhiteSpace(definition.Title));
+        pdf.Catalog.Elements["/ViewerPreferences"] = preferences;
 
         if (definition.TableOfContents?.Enabled == true)
         {
-            pdf.PageMode = PdfPageMode.UseOutlines;
+            pdf.Catalog.Elements.SetName("/PageMode", "/UseOutlines");
         }
 
         ApplyWatermark(pdf, definition, images, forceDefaultFont, warnings);
 
         var pageCount = pdf.PageCount;
 
-        // PDFsharp's own XMP packet leaves values unescaped, so a title with an ampersand would make it
-        // unreadable; the sync writes a correct one, and the PDF/A identification when it was asked for.
+        // The sync writes the XMP packet, and the PDF/A identification when it was asked for.
         var metadata = PdfMetadataSync.Capture(pdf);
 
         if (definition.PdfA == true)
         {
-            if (PdfArchiveProfile.TryApply(pdf))
+            if (!PdfFontLibrary.HasInstalledFonts)
+            {
+                // PDF/A needs every font embedded, and the standard fonts are not.
+                warnings.Add("PDF/A needs its fonts embedded, and this server has no fonts to embed, so the file was not written as PDF/A.");
+            }
+            else if (PdfArchiveProfile.TryApply(pdf))
             {
                 metadata.ClaimPdfA(2, "B");
             }

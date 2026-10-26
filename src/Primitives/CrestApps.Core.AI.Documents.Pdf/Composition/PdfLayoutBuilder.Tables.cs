@@ -1,13 +1,12 @@
 using System.Globalization;
 using CrestApps.Core.AI.Documents.Generation.Spreadsheets;
-using MigraDoc.DocumentObjectModel;
-using MigraDoc.DocumentObjectModel.Tables;
+using CrestApps.Core.AI.Documents.Pdf.Composition.Layout;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Composition;
 
-internal sealed partial class PdfMigraDocBuilder
+internal sealed partial class PdfLayoutBuilder
 {
-    private void AddTable(Section section, PdfTableDefinition definition, PdfBlockDefinition block)
+    private void AddTable(PdfLayoutSection section, PdfTableDefinition definition, PdfBlockDefinition block)
     {
         var sourceRows = definition.Rows ?? [];
         var columnCount = Math.Max(definition.Columns?.Count ?? 0, sourceRows.Count == 0 ? 0 : sourceRows.Max(row => row?.Count ?? 0));
@@ -65,17 +64,17 @@ internal sealed partial class PdfMigraDocBuilder
         table.Format.Font.Size = fontSize;
         table.Format.SpaceBefore = 0;
         table.Format.SpaceAfter = 0;
-        table.Format.LineSpacingRule = LineSpacingRule.Single;
-        table.Rows.LeftIndent = 0;
-        table.LeftPadding = Unit.FromPoint(Math.Max(2, fontSize * 0.45));
-        table.RightPadding = Unit.FromPoint(Math.Max(2, fontSize * 0.45));
-        table.TopPadding = Unit.FromPoint(Math.Max(1.5, fontSize * 0.25));
-        table.BottomPadding = Unit.FromPoint(Math.Max(1.5, fontSize * 0.25));
+        table.Format.LineSpacingRule = PdfLayoutLineSpacing.Single;
+        table.LeftIndent = 0;
+        table.LeftPadding = Math.Max(2, fontSize * 0.45);
+        table.RightPadding = Math.Max(2, fontSize * 0.45);
+        table.TopPadding = Math.Max(1.5, fontSize * 0.25);
+        table.BottomPadding = Math.Max(1.5, fontSize * 0.25);
 
         if (borders == "all")
         {
             table.Borders.Width = 0.5;
-            table.Borders.Color = borderColor.ToMigraDoc();
+            table.Borders.Color = borderColor;
         }
         else
         {
@@ -84,9 +83,9 @@ internal sealed partial class PdfMigraDocBuilder
 
         for (var index = 0; index < columnCount; index++)
         {
-            var column = table.AddColumn(Unit.FromPoint(widths[index]));
+            var column = table.AddColumn(widths[index]);
 
-            column.Format.Alignment = ReadAlignment(columns[index].Align, numeric[index] ? ParagraphAlignment.Right : ParagraphAlignment.Left);
+            column.Format.Alignment = ReadAlignment(columns[index].Align, numeric[index] ? PdfLayoutAlignment.Right : PdfLayoutAlignment.Left);
         }
 
         if (columns.Any(column => !string.IsNullOrWhiteSpace(column.Header)))
@@ -94,15 +93,15 @@ internal sealed partial class PdfMigraDocBuilder
             var header = table.AddRow();
 
             header.HeadingFormat = definition.RepeatHeader != false;
-            header.Shading.Color = headerBackground.ToMigraDoc();
+            header.Shading = headerBackground;
             header.Format.Font.Bold = true;
-            header.Format.Font.Color = headerText.ToMigraDoc();
-            header.VerticalAlignment = VerticalAlignment.Center;
+            header.Format.Font.Color = headerText;
+            header.VerticalAlignment = PdfLayoutVerticalAlignment.Center;
 
             if (borders == "horizontal")
             {
                 header.Borders.Bottom.Width = 1;
-                header.Borders.Bottom.Color = headerBackground.ToMigraDoc();
+                header.Borders.Bottom.Color = headerBackground;
             }
 
             for (var index = 0; index < columnCount; index++)
@@ -116,17 +115,17 @@ internal sealed partial class PdfMigraDocBuilder
             var source = readOnlyRows[rowIndex];
             var row = table.AddRow();
 
-            row.VerticalAlignment = VerticalAlignment.Center;
+            row.VerticalAlignment = PdfLayoutVerticalAlignment.Center;
 
             if (banded && rowIndex % 2 == 1)
             {
-                row.Shading.Color = bandColor.ToMigraDoc();
+                row.Shading = bandColor;
             }
 
             if (borders == "horizontal")
             {
                 row.Borders.Bottom.Width = 0.5;
-                row.Borders.Bottom.Color = borderColor.ToMigraDoc();
+                row.Borders.Bottom.Color = borderColor;
             }
 
             for (var index = 0; index < columnCount; index++)
@@ -156,7 +155,7 @@ internal sealed partial class PdfMigraDocBuilder
         {
             var note = section.AddParagraph();
             note.Style = CaptionStyle;
-            note.Format.Alignment = ParagraphAlignment.Left;
+            note.Format.Alignment = PdfLayoutAlignment.Left;
             note.AddText(string.Create(CultureInfo.InvariantCulture, $"Showing {readOnlyRows.Count:N0} of {definition.SourceRowCount:N0} rows."));
         }
 
@@ -170,7 +169,7 @@ internal sealed partial class PdfMigraDocBuilder
         }
     }
 
-    private void ApplyColumnStyle(Cell cell, Paragraph paragraph, PdfTableColumnDefinition column, SpreadsheetColumnFormat format, string raw)
+    private void ApplyColumnStyle(PdfLayoutCell cell, PdfLayoutParagraph paragraph, PdfTableColumnDefinition column, SpreadsheetColumnFormat format, string raw)
     {
         if (column.Bold == true)
         {
@@ -179,24 +178,24 @@ internal sealed partial class PdfMigraDocBuilder
 
         if (!string.IsNullOrWhiteSpace(column.Color))
         {
-            paragraph.Format.Font.Color = PdfResolvedTheme.ReadColor(column.Color, _theme.Text, "color", _warnings).ToMigraDoc();
+            paragraph.Format.Font.Color = PdfResolvedTheme.ReadColor(column.Color, _theme.Text, "color", _warnings);
         }
 
         if (!string.IsNullOrWhiteSpace(column.BackgroundColor))
         {
-            cell.Shading.Color = PdfResolvedTheme.ReadColor(column.BackgroundColor, _white, "background_color", _warnings).ToMigraDoc();
+            cell.Shading = PdfResolvedTheme.ReadColor(column.BackgroundColor, _white, "background_color", _warnings);
         }
 
         if ((column.NegativesInRed == true || format?.NegativesInRed == true) &&
             PdfCellValues.TryParseNumber(raw, percentAsFraction: false, out var number) &&
             number < 0)
         {
-            paragraph.Format.Font.Color = _negativeRed.ToMigraDoc();
+            paragraph.Format.Font.Color = _negativeRed;
         }
     }
 
     private void AddTotalRow(
-        Table table,
+        PdfLayoutTable table,
         PdfTotalRowDefinition totalRow,
         PdfTableColumnDefinition[] columns,
         SpreadsheetColumnFormat[] formats,
@@ -206,11 +205,11 @@ internal sealed partial class PdfMigraDocBuilder
         var row = table.AddRow();
 
         row.Format.Font.Bold = true;
-        row.Shading.Color = _theme.Primary.Blend(_white, 0.88).ToMigraDoc();
+        row.Shading = _theme.Primary.Blend(_white, 0.88);
         row.Borders.Top.Visible = true;
         row.Borders.Top.Width = 1.25;
-        row.Borders.Top.Color = _theme.Primary.ToMigraDoc();
-        row.VerticalAlignment = VerticalAlignment.Center;
+        row.Borders.Top.Color = _theme.Primary;
+        row.VerticalAlignment = PdfLayoutVerticalAlignment.Center;
 
         if (borders != "all")
         {
@@ -340,8 +339,8 @@ internal sealed partial class PdfMigraDocBuilder
             widths[index] = Math.Max(18, tableWidth * percent / 100);
         }
 
-        // Rounding and the minimum width can push the sum past the text width, which MigraDoc answers by
-        // running the table off the right edge of the page.
+        // Rounding and the minimum width can push the sum past the text width, which would run the table
+        // off the right edge of the page.
         var sum = widths.Sum();
 
         if (sum > tableWidth)
@@ -485,7 +484,7 @@ internal sealed partial class PdfMigraDocBuilder
             return rule;
         }
 
-        public void Apply(Cell cell, Paragraph paragraph, string raw)
+        public void Apply(PdfLayoutCell cell, PdfLayoutParagraph paragraph, string raw)
         {
             if (_operator == "scale")
             {
@@ -494,7 +493,7 @@ internal sealed partial class PdfMigraDocBuilder
                     var position = (value - _minimum) / (_maximum - _minimum);
 
                     // Blended towards white so the text on the cell stays readable at both ends of the scale.
-                    cell.Shading.Color = _low.Blend(_high, position).Blend(new PdfColor(255, 255, 255), 0.35).ToMigraDoc();
+                    cell.Shading = _low.Blend(_high, position).Blend(new PdfColor(255, 255, 255), 0.35);
                 }
 
                 return;
@@ -507,12 +506,12 @@ internal sealed partial class PdfMigraDocBuilder
 
             if (_background.HasValue)
             {
-                cell.Shading.Color = _background.Value.ToMigraDoc();
+                cell.Shading = _background.Value;
             }
 
             if (_color.HasValue)
             {
-                paragraph.Format.Font.Color = _color.Value.ToMigraDoc();
+                paragraph.Format.Font.Color = _color.Value;
             }
 
             if (_bold)

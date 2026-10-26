@@ -470,8 +470,8 @@ internal static partial class PdfDefinitionChecks
     private static void CheckPictures(PdfCheckList checks, PdfDocumentDefinition definition, List<PdfPageInspection> bodyPages, Dictionary<int, string> texts)
     {
         var blocks = (definition.Sections ?? []).SelectMany(section => section?.Blocks ?? []).Where(block => block is not null).ToList();
-        var imageBlocks = blocks.Count(block => PdfMigraDocBuilder.NormalizeType(block) == PdfBlockTypes.Image && !string.IsNullOrWhiteSpace(block.Image?.Source));
-        var charts = blocks.Where(block => PdfMigraDocBuilder.NormalizeType(block) == PdfBlockTypes.Chart).ToList();
+        var imageBlocks = blocks.Count(block => PdfLayoutBuilder.NormalizeType(block) == PdfBlockTypes.Image && !string.IsNullOrWhiteSpace(block.Image?.Source));
+        var charts = blocks.Where(block => PdfLayoutBuilder.NormalizeType(block) == PdfBlockTypes.Chart).ToList();
 
         if (imageBlocks > 0)
         {
@@ -524,7 +524,7 @@ internal static partial class PdfDefinitionChecks
             geometries.Add(ResolveGeometry(null, definition, options));
         }
 
-        var hasTables = sections.SelectMany(section => section?.Blocks ?? []).Any(block => block is not null && PdfMigraDocBuilder.NormalizeType(block) == PdfBlockTypes.Table);
+        var hasTables = sections.SelectMany(section => section?.Blocks ?? []).Any(block => block is not null && PdfLayoutBuilder.NormalizeType(block) == PdfBlockTypes.Table);
         var findings = new List<string>();
         var flagged = new List<int>();
 
@@ -590,7 +590,7 @@ internal static partial class PdfDefinitionChecks
                 continue;
             }
 
-            var type = PdfMigraDocBuilder.NormalizeType(block);
+            var type = PdfLayoutBuilder.NormalizeType(block);
 
             if (type == PdfBlockTypes.Heading)
             {

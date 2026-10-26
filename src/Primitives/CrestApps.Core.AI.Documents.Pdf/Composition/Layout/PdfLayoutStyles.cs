@@ -42,10 +42,15 @@ internal sealed class PdfLayoutStyles
         normal.ParagraphFormat.LineSpacingRule = PdfLayoutLineSpacing.Single;
         normal.ParagraphFormat.OutlineLevel = 0;
 
-        // A heading level is the outline level of its paragraphs.
+        // A heading level is the outline level of its paragraphs, and is based on the level above it, so a
+        // heading takes what the levels above it set and does not change itself.
         for (var level = 1; level <= 9; level++)
         {
-            AddStyle(Heading(level), Normal).ParagraphFormat.OutlineLevel = level;
+            var baseStyle = level == 1
+                ? Normal
+                : Heading(level - 1);
+
+            AddStyle(Heading(level), baseStyle).ParagraphFormat.OutlineLevel = level;
         }
 
         AddStyle(Header, Normal);

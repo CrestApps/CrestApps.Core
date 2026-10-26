@@ -29,7 +29,17 @@ internal sealed class PdfFont
         Descent = program.Descent;
         LineSpacing = program.Ascent - program.Descent + program.LineGap;
         CapHeight = program.CapHeight;
-        Key = program.PostScriptName;
+
+        // A simulated style is named the way PDF names one, "Arial,Bold", so readers see the text as bold.
+        StyleSuffix = (simulateBold, simulateItalic) switch
+        {
+            (true, true) => ",BoldItalic",
+            (true, false) => ",Bold",
+            (false, true) => ",Italic",
+            _ => string.Empty,
+        };
+
+        Key = program.PostScriptName + StyleSuffix;
     }
 
     private PdfFont(Standard14Font standard, string family, bool bold, bool italic)
@@ -134,9 +144,14 @@ internal sealed class PdfFont
     public bool IsEmbedded => Program is not null;
 
     /// <summary>
-    /// Gets what identifies the font file, so fonts drawn from the same file share one embedded copy.
+    /// Gets what identifies the embedded font, so fonts drawn from the same file in the same way share one copy.
     /// </summary>
     internal string Key { get; }
+
+    /// <summary>
+    /// Gets what the embedded font's name ends with when a style is simulated, such as <c>,Bold</c>.
+    /// </summary>
+    internal string StyleSuffix { get; } = string.Empty;
 
     /// <summary>
     /// Creates a font from a TrueType font file.

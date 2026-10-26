@@ -1,19 +1,20 @@
 using System.Globalization;
+using System.Text;
 using CrestApps.Core.AI.Documents.Generation.RichText;
-using MigraDoc.DocumentObjectModel;
-using MigraDoc.DocumentObjectModel.Fields;
+using CrestApps.Core.AI.Documents.Pdf.Composition.Layout;
+using CrestApps.Core.AI.Documents.Pdf.Graphics.Images;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Composition;
 
 /// <summary>
-/// Turns a <see cref="PdfDocumentDefinition"/> into a MigraDoc document: styles from the theme, a cover, a
+/// Turns a <see cref="PdfDocumentDefinition"/> into a layout document: styles from the theme, a cover, a
 /// table of contents, the body sections with their running heads and feet, and every block of content.
 /// </summary>
 /// <remarks>
 /// The builder only lays out; it never reads a file or calls out. Everything it needs — the pictures in
 /// particular — is resolved before it runs, so the same definition always produces the same document.
 /// </remarks>
-internal sealed partial class PdfMigraDocBuilder
+internal sealed partial class PdfLayoutBuilder
 {
     private const string TitleStyle = "DocTitle";
     private const string CaptionStyle = "Caption";
@@ -21,6 +22,9 @@ internal sealed partial class PdfMigraDocBuilder
     private const string CodeStyle = "Code";
     private const string TocTitleStyle = "TocTitle";
     private const string TocEntryStylePrefix = "TocEntry";
+
+    // Points in a centimetre.
+    private const double Centimetre = 72 / 2.54;
 
     private static readonly PdfColor _white = new(255, 255, 255);
     private static readonly PdfColor _black = new(0, 0, 0);
@@ -34,6 +38,7 @@ internal sealed partial class PdfMigraDocBuilder
     private readonly List<string> _warnings;
     private readonly List<TocEntry> _tocEntries = [];
     private readonly Dictionary<string, List<string>> _headingBookmarks = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PdfImage> _loadedImages = new(StringComparer.Ordinal);
 
     private PdfResolvedTheme _theme;
     private PageGeometry _page;
@@ -47,7 +52,7 @@ internal sealed partial class PdfMigraDocBuilder
     private bool _numberBodyOnly;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="PdfMigraDocBuilder"/> class.
+    /// Initializes a new instance of the <see cref="PdfLayoutBuilder"/> class.
     /// </summary>
     /// <param name="definition">The document to build.</param>
     /// <param name="images">The pictures the document refers to, already resolved, keyed by source.</param>
@@ -55,7 +60,7 @@ internal sealed partial class PdfMigraDocBuilder
     /// <param name="dateText">The text the <c>{date}</c> token prints.</param>
     /// <param name="forceDefaultFont">Whether every font is replaced by the default, used when rendering with the requested fonts failed.</param>
     /// <param name="warnings">Receives notes about anything that could not be built as described.</param>
-    public PdfMigraDocBuilder(
+    public PdfLayoutBuilder(
         PdfDocumentDefinition definition,
         IReadOnlyDictionary<string, PdfImageData> images,
         PdfCompositionOptions options,
@@ -74,8 +79,8 @@ internal sealed partial class PdfMigraDocBuilder
     /// <summary>
     /// Builds the document.
     /// </summary>
-    /// <returns>The MigraDoc document.</returns>
-    public Document Build()
+    /// <returns>The layout document.</returns>
+    public PdfLayoutDocument Build()
     {
         _theme = PdfResolvedTheme.Resolve(_definition.Theme, _options.DefaultFontFamily, _warnings);
 
@@ -85,12 +90,13 @@ internal sealed partial class PdfMigraDocBuilder
             _theme = _theme.WithFonts(PdfFontFamilies.Default);
         }
 
-        var document = new Document();
-
-        document.Info.Title = _definition.Title ?? string.Empty;
-        document.Info.Author = _definition.Author ?? string.Empty;
-        document.Info.Subject = _definition.Subject ?? string.Empty;
-        document.Info.Keywords = _definition.Keywords ?? string.Empty;
+        var document = new PdfLayoutDocument
+        {
+            Title = _definition.Title ?? string.Empty,
+            Author = _definition.Author ?? string.Empty,
+            Subject = _definition.Subject ?? string.Empty,
+            Keywords = _definition.Keywords ?? string.Empty,
+        };
 
         DefineStyles(document);
         CollectHeadings();
@@ -133,6 +139,11 @@ internal sealed partial class PdfMigraDocBuilder
         return document;
     }
 
+    private static double Cm(double centimetres)
+    {
+        return centimetres * Centimetre;
+    }
+
     private bool IsCoverEnabled()
     {
         // A cover asked for is always drawn: dropping it because no title was given silently loses a page the
@@ -142,14 +153,14 @@ internal sealed partial class PdfMigraDocBuilder
         return cover is not null && (cover.Enabled ?? true);
     }
 
-    private void DefineStyles(Document document)
+    private void DefineStyles(PdfLayoutDocument document)
     {
-        var normal = document.Styles[StyleNames.Normal];
+        var normal = document.Styles[PdfLayoutStyles.Normal];
         normal.Font.Name = _theme.FontFamily;
         normal.Font.Size = _theme.BaseFontSize;
-        normal.Font.Color = _theme.Text.ToMigraDoc();
-        normal.ParagraphFormat.SpaceAfter = Unit.FromPoint(Math.Round(_theme.BaseFontSize * 0.6, 1));
-        normal.ParagraphFormat.LineSpacingRule = LineSpacingRule.Multiple;
+        normal.Font.Color = _theme.Text;
+        normal.ParagraphFormat.SpaceAfter = Math.Round(_theme.BaseFontSize * 0.6, 1);
+        normal.ParagraphFormat.LineSpacingRule = PdfLayoutLineSpacing.Multiple;
         normal.ParagraphFormat.LineSpacing = _theme.LineSpacing;
 
         double[] sizes = [1.9, 1.45, 1.2, 1.05];
@@ -157,84 +168,84 @@ internal sealed partial class PdfMigraDocBuilder
 
         for (var level = 1; level <= 4; level++)
         {
-            var style = document.Styles["Heading" + level.ToString(CultureInfo.InvariantCulture)];
+            var style = document.Styles[PdfLayoutStyles.Heading(level)];
             style.Font.Name = _theme.HeadingFontFamily;
             style.Font.Size = Math.Round(_theme.BaseFontSize * sizes[level - 1], 1);
             style.Font.Bold = true;
-            style.Font.Color = _theme.Heading.ToMigraDoc();
-            style.ParagraphFormat.SpaceBefore = Unit.FromPoint(spaceBefore[level - 1]);
-            style.ParagraphFormat.SpaceAfter = Unit.FromPoint(level == 1 ? 8 : 5);
+            style.Font.Color = _theme.Heading;
+            style.ParagraphFormat.SpaceBefore = spaceBefore[level - 1];
+            style.ParagraphFormat.SpaceAfter = level == 1 ? 8 : 5;
             style.ParagraphFormat.KeepWithNext = true;
-            style.ParagraphFormat.LineSpacingRule = LineSpacingRule.Single;
-            style.ParagraphFormat.OutlineLevel = (OutlineLevel)level;
+            style.ParagraphFormat.LineSpacingRule = PdfLayoutLineSpacing.Single;
+            style.ParagraphFormat.OutlineLevel = level;
 
             if (level == 1)
             {
                 // A hairline under the top level heading is what makes a long report scannable; it is the
                 // one ornament every level-one section carries.
                 style.ParagraphFormat.Borders.Bottom.Width = 0.75;
-                style.ParagraphFormat.Borders.Bottom.Color = _theme.Heading.Blend(_white, 0.65).ToMigraDoc();
-                style.ParagraphFormat.Borders.DistanceFromBottom = Unit.FromPoint(3);
+                style.ParagraphFormat.Borders.Bottom.Color = _theme.Heading.Blend(_white, 0.65);
+                style.ParagraphFormat.Borders.DistanceFromBottom = 3;
             }
         }
 
-        var title = document.Styles.AddStyle(TitleStyle, StyleNames.Normal);
+        var title = document.Styles.AddStyle(TitleStyle, PdfLayoutStyles.Normal);
         title.Font.Name = _theme.HeadingFontFamily;
         title.Font.Size = Math.Round(_theme.BaseFontSize * 2.3, 1);
         title.Font.Bold = true;
-        title.Font.Color = _theme.Heading.ToMigraDoc();
-        title.ParagraphFormat.SpaceAfter = Unit.FromPoint(14);
-        title.ParagraphFormat.LineSpacingRule = LineSpacingRule.Single;
-        title.ParagraphFormat.OutlineLevel = OutlineLevel.Level1;
+        title.Font.Color = _theme.Heading;
+        title.ParagraphFormat.SpaceAfter = 14;
+        title.ParagraphFormat.LineSpacingRule = PdfLayoutLineSpacing.Single;
+        title.ParagraphFormat.OutlineLevel = 1;
 
-        var caption = document.Styles.AddStyle(CaptionStyle, StyleNames.Normal);
+        var caption = document.Styles.AddStyle(CaptionStyle, PdfLayoutStyles.Normal);
         caption.Font.Size = Math.Max(6, _theme.BaseFontSize - 1.5);
         caption.Font.Italic = true;
-        caption.Font.Color = _theme.Muted.ToMigraDoc();
-        caption.ParagraphFormat.SpaceBefore = Unit.FromPoint(3);
-        caption.ParagraphFormat.SpaceAfter = Unit.FromPoint(10);
+        caption.Font.Color = _theme.Muted;
+        caption.ParagraphFormat.SpaceBefore = 3;
+        caption.ParagraphFormat.SpaceAfter = 10;
 
-        var quote = document.Styles.AddStyle(QuoteStyle, StyleNames.Normal);
+        var quote = document.Styles.AddStyle(QuoteStyle, PdfLayoutStyles.Normal);
         quote.Font.Italic = true;
-        quote.Font.Color = _theme.Text.Blend(_white, 0.25).ToMigraDoc();
-        quote.ParagraphFormat.LeftIndent = Unit.FromCentimeter(0.8);
-        quote.ParagraphFormat.SpaceBefore = Unit.FromPoint(4);
+        quote.Font.Color = _theme.Text.Blend(_white, 0.25);
+        quote.ParagraphFormat.LeftIndent = Cm(0.8);
+        quote.ParagraphFormat.SpaceBefore = 4;
         quote.ParagraphFormat.Borders.Left.Width = 2.5;
-        quote.ParagraphFormat.Borders.Left.Color = _theme.Accent.Blend(_white, 0.3).ToMigraDoc();
-        quote.ParagraphFormat.Borders.DistanceFromLeft = Unit.FromCentimeter(0.3);
+        quote.ParagraphFormat.Borders.Left.Color = _theme.Accent.Blend(_white, 0.3);
+        quote.ParagraphFormat.Borders.DistanceFromLeft = Cm(0.3);
 
-        var code = document.Styles.AddStyle(CodeStyle, StyleNames.Normal);
+        var code = document.Styles.AddStyle(CodeStyle, PdfLayoutStyles.Normal);
         code.Font.Name = _forceDefaultFont ? PdfFontFamilies.Default : PdfFontFamilies.Monospace;
         code.Font.Size = Math.Max(6, _theme.BaseFontSize - 1.5);
-        code.ParagraphFormat.Shading.Color = new PdfColor(0xF4, 0xF5, 0xF7).ToMigraDoc();
-        code.ParagraphFormat.LeftIndent = Unit.FromCentimeter(0.2);
-        code.ParagraphFormat.SpaceBefore = Unit.FromPoint(4);
-        code.ParagraphFormat.SpaceAfter = Unit.FromPoint(8);
-        code.ParagraphFormat.LineSpacingRule = LineSpacingRule.Single;
+        code.ParagraphFormat.Shading = new PdfColor(0xF4, 0xF5, 0xF7);
+        code.ParagraphFormat.LeftIndent = Cm(0.2);
+        code.ParagraphFormat.SpaceBefore = 4;
+        code.ParagraphFormat.SpaceAfter = 8;
+        code.ParagraphFormat.LineSpacingRule = PdfLayoutLineSpacing.Single;
 
-        var tocTitle = document.Styles.AddStyle(TocTitleStyle, StyleNames.Normal);
+        var tocTitle = document.Styles.AddStyle(TocTitleStyle, PdfLayoutStyles.Normal);
         tocTitle.Font.Name = _theme.HeadingFontFamily;
         tocTitle.Font.Size = Math.Round(_theme.BaseFontSize * 1.7, 1);
         tocTitle.Font.Bold = true;
-        tocTitle.Font.Color = _theme.Heading.ToMigraDoc();
-        tocTitle.ParagraphFormat.SpaceAfter = Unit.FromPoint(14);
+        tocTitle.Font.Color = _theme.Heading;
+        tocTitle.ParagraphFormat.SpaceAfter = 14;
 
         for (var level = 1; level <= 4; level++)
         {
-            var entry = document.Styles.AddStyle(TocEntryStylePrefix + level.ToString(CultureInfo.InvariantCulture), StyleNames.Normal);
+            var entry = document.Styles.AddStyle(TocEntryStylePrefix + level.ToString(CultureInfo.InvariantCulture), PdfLayoutStyles.Normal);
             entry.Font.Bold = level == 1;
-            entry.ParagraphFormat.LeftIndent = Unit.FromPoint((level - 1) * 14);
-            entry.ParagraphFormat.SpaceBefore = Unit.FromPoint(level == 1 ? 5 : 1);
-            entry.ParagraphFormat.SpaceAfter = Unit.FromPoint(1);
+            entry.ParagraphFormat.LeftIndent = (level - 1) * 14;
+            entry.ParagraphFormat.SpaceBefore = level == 1 ? 5 : 1;
+            entry.ParagraphFormat.SpaceAfter = 1;
         }
 
-        var header = document.Styles[StyleNames.Header];
+        var header = document.Styles[PdfLayoutStyles.Header];
         header.Font.Size = Math.Max(6, _theme.BaseFontSize - 2);
-        header.Font.Color = _theme.Muted.ToMigraDoc();
+        header.Font.Color = _theme.Muted;
 
-        var footer = document.Styles[StyleNames.Footer];
+        var footer = document.Styles[PdfLayoutStyles.Footer];
         footer.Font.Size = Math.Max(6, _theme.BaseFontSize - 2);
-        footer.Font.Color = _theme.Muted.ToMigraDoc();
+        footer.Font.Color = _theme.Muted;
     }
 
     /// <summary>
@@ -292,7 +303,7 @@ internal sealed partial class PdfMigraDocBuilder
         }
     }
 
-    private void AddBodySection(Document document, PdfSectionDefinition definition, bool isFirst)
+    private void AddBodySection(PdfLayoutDocument document, PdfSectionDefinition definition, bool isFirst)
     {
         var section = document.AddSection();
 
@@ -329,22 +340,19 @@ internal sealed partial class PdfMigraDocBuilder
     /// <param name="target">The section's page setup.</param>
     /// <param name="section">The section's own page setup, or <see langword="null"/>.</param>
     /// <returns>The resolved page geometry.</returns>
-    private PageGeometry ApplyPageSetup(PageSetup target, PdfPageSetupDefinition section)
+    private PageGeometry ApplyPageSetup(PdfLayoutPageSetup target, PdfPageSetupDefinition section)
     {
         var geometry = ResolvePageGeometry(section);
 
-        // The dimensions are written out as they are to be printed, landscape included, and the orientation
-        // is left as portrait. MigraDoc swaps the dimensions of a landscape section itself, so setting both
-        // would turn a landscape page back into a portrait one.
-        target.Orientation = Orientation.Portrait;
-        target.PageWidth = Unit.FromPoint(geometry.Width);
-        target.PageHeight = Unit.FromPoint(geometry.Height);
-        target.TopMargin = Unit.FromPoint(geometry.Top);
-        target.BottomMargin = Unit.FromPoint(geometry.Bottom);
-        target.LeftMargin = Unit.FromPoint(geometry.Left);
-        target.RightMargin = Unit.FromPoint(geometry.Right);
-        target.HeaderDistance = Unit.FromPoint(Math.Max(18, geometry.Top * 0.45));
-        target.FooterDistance = Unit.FromPoint(Math.Max(18, geometry.Bottom * 0.45));
+        // The dimensions are written out as they are to be printed, landscape included.
+        target.PageWidth = geometry.Width;
+        target.PageHeight = geometry.Height;
+        target.TopMargin = geometry.Top;
+        target.BottomMargin = geometry.Bottom;
+        target.LeftMargin = geometry.Left;
+        target.RightMargin = geometry.Right;
+        target.HeaderDistance = Math.Max(18, geometry.Top * 0.45);
+        target.FooterDistance = Math.Max(18, geometry.Bottom * 0.45);
 
         return geometry;
     }
@@ -422,7 +430,7 @@ internal sealed partial class PdfMigraDocBuilder
         return geometry;
     }
 
-    private void AddBlock(Section section, PdfBlockDefinition block)
+    private void AddBlock(PdfLayoutSection section, PdfBlockDefinition block)
     {
         if (block is null)
         {
@@ -565,12 +573,12 @@ internal sealed partial class PdfMigraDocBuilder
         };
     }
 
-    private void AddHeading(Section section, PdfBlockDefinition block)
+    private void AddHeading(PdfLayoutSection section, PdfBlockDefinition block)
     {
         var level = block.Level ?? LevelFromType(block.Type);
         var paragraph = section.AddParagraph();
 
-        paragraph.Style = "Heading" + Math.Clamp(level, 1, 4).ToString(CultureInfo.InvariantCulture);
+        paragraph.Style = PdfLayoutStyles.Heading(Math.Clamp(level, 1, 4));
         ApplyBlockFormat(paragraph.Format, block);
 
         if (_headingBookmarks.TryGetValue(block.Id ?? string.Empty, out var bookmarks) && bookmarks.Count > 0)
@@ -592,7 +600,7 @@ internal sealed partial class PdfMigraDocBuilder
         };
     }
 
-    private void AddParagraph(Section section, PdfBlockDefinition block)
+    private void AddParagraph(PdfLayoutSection section, PdfBlockDefinition block)
     {
         var paragraph = section.AddParagraph();
 
@@ -600,7 +608,7 @@ internal sealed partial class PdfMigraDocBuilder
         AddInline(paragraph, block.Text, block.Bold, block.Italic);
     }
 
-    private void AddMarkdown(Section section, PdfBlockDefinition block)
+    private void AddMarkdown(PdfLayoutSection section, PdfBlockDefinition block)
     {
         if (string.IsNullOrWhiteSpace(block.Text))
         {
@@ -618,7 +626,7 @@ internal sealed partial class PdfMigraDocBuilder
                 case RichTextBlockKind.Heading:
                     {
                         var paragraph = section.AddParagraph();
-                        paragraph.Style = "Heading" + Math.Clamp(rich.Level, 1, 4).ToString(CultureInfo.InvariantCulture);
+                        paragraph.Style = PdfLayoutStyles.Heading(Math.Clamp(rich.Level, 1, 4));
 
                         if (bookmarks is not null && headingIndex < bookmarks.Count)
                         {
@@ -705,7 +713,7 @@ internal sealed partial class PdfMigraDocBuilder
         return string.Concat(spans.Select(span => span.Text));
     }
 
-    private void AddList(Section section, PdfBlockDefinition block)
+    private void AddList(PdfLayoutSection section, PdfBlockDefinition block)
     {
         var items = block.Items ?? [];
 
@@ -749,52 +757,50 @@ internal sealed partial class PdfMigraDocBuilder
         }
     }
 
-    private void AddListItem(Section section, IEnumerable<RichTextSpan> spans, string marker, int level, PdfBlockDefinition block)
+    private void AddListItem(PdfLayoutSection section, IEnumerable<RichTextSpan> spans, string marker, int level, PdfBlockDefinition block)
     {
         var paragraph = section.AddParagraph();
 
         ApplyBlockFormat(paragraph.Format, block);
-        paragraph.Format.LeftIndent = Unit.FromCentimeter(0.75 + (level * 0.6));
+        paragraph.Format.LeftIndent = Cm(0.75 + (level * 0.6));
 
         // The marker hangs to the left of the wrapped text, so a long item stays aligned under itself.
-        paragraph.Format.FirstLineIndent = Unit.FromCentimeter(-0.45);
-        paragraph.Format.SpaceAfter = Unit.FromPoint(2.5);
-        paragraph.Format.TabStops.ClearAll();
-        paragraph.Format.TabStops.AddTabStop(Unit.FromCentimeter(0.75 + (level * 0.6)));
+        paragraph.Format.FirstLineIndent = Cm(-0.45);
+        paragraph.Format.SpaceAfter = 2.5;
+        paragraph.Format.TabStops = [new PdfLayoutTabStop(Cm(0.75 + (level * 0.6)))];
 
-        var markerText = paragraph.AddFormattedText(marker);
-        markerText.Color = _theme.Primary.ToMigraDoc();
+        paragraph.AddText(marker).Color = _theme.Primary;
         paragraph.AddTab();
 
         AddSpans(paragraph, spans, block?.Bold == true, block?.Italic == true);
     }
 
-    private static void AddSpacer(Section section, double height)
+    private static void AddSpacer(PdfLayoutSection section, double height)
     {
         var paragraph = section.AddParagraph();
 
-        paragraph.Format.LineSpacingRule = LineSpacingRule.Exactly;
-        paragraph.Format.LineSpacing = Unit.FromPoint(1);
+        paragraph.Format.LineSpacingRule = PdfLayoutLineSpacing.Exactly;
+        paragraph.Format.LineSpacing = 1;
         paragraph.Format.SpaceBefore = 0;
-        paragraph.Format.SpaceAfter = Unit.FromPoint(Math.Clamp(height, 0, 400));
+        paragraph.Format.SpaceAfter = Math.Clamp(height, 0, 400);
         paragraph.Format.Font.Size = 1;
     }
 
-    private void AddRule(Section section, PdfBlockDefinition block)
+    private void AddRule(PdfLayoutSection section, PdfBlockDefinition block)
     {
         var paragraph = section.AddParagraph();
         var color = PdfResolvedTheme.ReadColor(block?.Color, _theme.Muted.Blend(_white, 0.5), "color", _warnings);
 
         paragraph.Format.Borders.Bottom.Width = 0.75;
-        paragraph.Format.Borders.Bottom.Color = color.ToMigraDoc();
-        paragraph.Format.SpaceBefore = Unit.FromPoint(block?.SpaceBefore ?? 4);
-        paragraph.Format.SpaceAfter = Unit.FromPoint(block?.SpaceAfter ?? 10);
-        paragraph.Format.LineSpacingRule = LineSpacingRule.Exactly;
-        paragraph.Format.LineSpacing = Unit.FromPoint(2);
+        paragraph.Format.Borders.Bottom.Color = color;
+        paragraph.Format.SpaceBefore = block?.SpaceBefore ?? 4;
+        paragraph.Format.SpaceAfter = block?.SpaceAfter ?? 10;
+        paragraph.Format.LineSpacingRule = PdfLayoutLineSpacing.Exactly;
+        paragraph.Format.LineSpacing = 2;
         paragraph.Format.Font.Size = 1;
     }
 
-    private void AddQuote(Section section, string text, PdfBlockDefinition block)
+    private void AddQuote(PdfLayoutSection section, string text, PdfBlockDefinition block)
     {
         var paragraph = section.AddParagraph();
 
@@ -803,7 +809,7 @@ internal sealed partial class PdfMigraDocBuilder
         AddInline(paragraph, text, block?.Bold, block?.Italic);
     }
 
-    private static void AddCode(Section section, string text)
+    private static void AddCode(PdfLayoutSection section, string text)
     {
         var paragraph = section.AddParagraph();
 
@@ -822,7 +828,7 @@ internal sealed partial class PdfMigraDocBuilder
         }
     }
 
-    private void AddImage(Section section, PdfImageDefinition image, PdfBlockDefinition block)
+    private void AddImage(PdfLayoutSection section, PdfImageDefinition image, PdfBlockDefinition block)
     {
         if (image is null || string.IsNullOrWhiteSpace(image.Source))
         {
@@ -831,7 +837,7 @@ internal sealed partial class PdfMigraDocBuilder
             return;
         }
 
-        if (!TryGetImage(image.Source, out var data, out var pixelWidth, out var pixelHeight))
+        if (!TryGetImage(image.Source, out var picture))
         {
             _missingImageCount++;
             _warnings.Add($"The image \"{image.Source}\" could not be found or is not a JPEG, PNG, GIF or BMP.");
@@ -840,17 +846,14 @@ internal sealed partial class PdfMigraDocBuilder
         }
 
         var paragraph = section.AddParagraph();
-        paragraph.Format.Alignment = ReadAlignment(block?.Align, ParagraphAlignment.Center);
-        paragraph.Format.SpaceBefore = Unit.FromPoint(block?.SpaceBefore ?? 4);
-        paragraph.Format.SpaceAfter = Unit.FromPoint(string.IsNullOrWhiteSpace(image.Caption) ? block?.SpaceAfter ?? 8 : 2);
+        paragraph.Format.Alignment = ReadAlignment(block?.Align, PdfLayoutAlignment.Center);
+        paragraph.Format.SpaceBefore = block?.SpaceBefore ?? 4;
+        paragraph.Format.SpaceAfter = string.IsNullOrWhiteSpace(image.Caption) ? block?.SpaceAfter ?? 8 : 2;
         paragraph.Format.KeepWithNext = !string.IsNullOrWhiteSpace(image.Caption);
 
-        var picture = paragraph.AddImage(ToImageName(data));
-        var (width, height) = FitImage(image, pixelWidth, pixelHeight, _page.UsableWidth, _page.UsableHeight * 0.85);
+        var (width, height) = FitImage(image, picture.Width, picture.Height, _page.UsableWidth, _page.UsableHeight * 0.85);
 
-        picture.Width = Unit.FromPoint(width);
-        picture.Height = Unit.FromPoint(height);
-        picture.LockAspectRatio = false;
+        paragraph.AddImage(picture, width, height);
 
         AddCaption(section, image.Caption);
     }
@@ -910,34 +913,36 @@ internal sealed partial class PdfMigraDocBuilder
         return (Math.Max(width, 4), Math.Max(height, 4));
     }
 
-    private bool TryGetImage(string source, out PdfImageData data, out int pixelWidth, out int pixelHeight)
+    /// <summary>
+    /// Reads a picture the document names, once however often it is drawn.
+    /// </summary>
+    private bool TryGetImage(string source, out PdfImage picture)
     {
-        pixelWidth = 0;
-        pixelHeight = 0;
+        picture = null;
 
-        if (string.IsNullOrWhiteSpace(source) ||
-            !_images.TryGetValue(source.Trim(), out data) ||
-            data?.Bytes is not { Length: > 0 })
+        if (string.IsNullOrWhiteSpace(source))
         {
-            data = null;
-
             return false;
         }
 
-        return PdfImageInfo.TryRead(data.Bytes, out _, out pixelWidth, out pixelHeight);
+        var key = source.Trim();
+
+        if (_loadedImages.TryGetValue(key, out picture))
+        {
+            return picture is not null;
+        }
+
+        if (_images.TryGetValue(key, out var data) && data?.Bytes is { Length: > 0 } bytes)
+        {
+            picture = PdfImage.TryLoad(bytes);
+        }
+
+        _loadedImages[key] = picture;
+
+        return picture is not null;
     }
 
-    /// <summary>
-    /// Builds the name MigraDoc reads an in-memory picture from.
-    /// </summary>
-    /// <param name="data">The picture.</param>
-    /// <returns>The image name.</returns>
-    private static string ToImageName(PdfImageData data)
-    {
-        return "base64:" + Convert.ToBase64String(data.Bytes);
-    }
-
-    private void AddCaption(Section section, string caption)
+    private void AddCaption(PdfLayoutSection section, string caption)
     {
         if (string.IsNullOrWhiteSpace(caption))
         {
@@ -946,11 +951,11 @@ internal sealed partial class PdfMigraDocBuilder
 
         var paragraph = section.AddParagraph();
         paragraph.Style = CaptionStyle;
-        paragraph.Format.Alignment = ParagraphAlignment.Center;
+        paragraph.Format.Alignment = PdfLayoutAlignment.Center;
         AddInline(paragraph, caption, null, null);
     }
 
-    private void AddCallout(Section section, PdfBlockDefinition block)
+    private void AddCallout(PdfLayoutSection section, PdfBlockDefinition block)
     {
         var accent = (block.Variant?.Trim().ToLowerInvariant()) switch
         {
@@ -967,41 +972,41 @@ internal sealed partial class PdfMigraDocBuilder
         var table = section.AddTable();
 
         table.Borders.Visible = false;
-        table.LeftPadding = Unit.FromPoint(10);
-        table.RightPadding = Unit.FromPoint(10);
-        table.TopPadding = Unit.FromPoint(6);
-        table.BottomPadding = Unit.FromPoint(6);
+        table.LeftPadding = 10;
+        table.RightPadding = 10;
+        table.TopPadding = 6;
+        table.BottomPadding = 6;
         table.KeepTogether = true;
-        table.AddColumn(Unit.FromPoint(_page.UsableWidth));
+        table.AddColumn(_page.UsableWidth);
 
         var row = table.AddRow();
         var cell = row.Cells[0];
 
-        cell.Shading.Color = background.ToMigraDoc();
+        cell.Shading = background;
         cell.Borders.Left.Visible = true;
         cell.Borders.Left.Width = 3;
-        cell.Borders.Left.Color = accent.ToMigraDoc();
+        cell.Borders.Left.Color = accent;
 
         if (!string.IsNullOrWhiteSpace(block.Title))
         {
             var title = cell.AddParagraph();
             title.Format.Font.Bold = true;
-            title.Format.Font.Color = accent.ToMigraDoc();
-            title.Format.SpaceAfter = Unit.FromPoint(2);
+            title.Format.Font.Color = accent;
+            title.Format.SpaceAfter = 2;
             AddInline(title, block.Title, null, null);
         }
 
         foreach (var line in (block.Text ?? string.Empty).Split("\n\n", StringSplitOptions.RemoveEmptyEntries))
         {
             var paragraph = cell.AddParagraph();
-            paragraph.Format.SpaceAfter = Unit.FromPoint(2);
+            paragraph.Format.SpaceAfter = 2;
             AddInline(paragraph, line.Trim(), block.Bold, block.Italic);
         }
 
         AddSpacer(section, block.SpaceAfter ?? 8);
     }
 
-    private void AddKeyValues(Section section, PdfBlockDefinition block)
+    private void AddKeyValues(PdfLayoutSection section, PdfBlockDefinition block)
     {
         var pairs = new List<(string Label, string Value)>();
 
@@ -1036,21 +1041,21 @@ internal sealed partial class PdfMigraDocBuilder
 
         table.Borders.Visible = false;
         table.LeftPadding = 0;
-        table.RightPadding = Unit.FromPoint(6);
-        table.TopPadding = Unit.FromPoint(1.5);
-        table.BottomPadding = Unit.FromPoint(1.5);
+        table.RightPadding = 6;
+        table.TopPadding = 1.5;
+        table.BottomPadding = 1.5;
 
         // A short fact list reads as one thing; split across a page break it reads as two.
         table.KeepTogether = pairs.Count <= 15;
-        table.AddColumn(Unit.FromPoint(_page.UsableWidth * 0.32));
-        table.AddColumn(Unit.FromPoint(_page.UsableWidth * 0.68));
+        table.AddColumn(_page.UsableWidth * 0.32);
+        table.AddColumn(_page.UsableWidth * 0.68);
 
         foreach (var (label, value) in pairs)
         {
             var row = table.AddRow();
             var labelParagraph = row.Cells[0].AddParagraph();
             labelParagraph.Format.Font.Bold = true;
-            labelParagraph.Format.Font.Color = _theme.Muted.ToMigraDoc();
+            labelParagraph.Format.Font.Color = _theme.Muted;
             AddInline(labelParagraph, label, null, null);
 
             var valueParagraph = row.Cells[1].AddParagraph();
@@ -1060,7 +1065,7 @@ internal sealed partial class PdfMigraDocBuilder
         AddSpacer(section, block.SpaceAfter ?? 8);
     }
 
-    private void AddSignatureLines(Section section, PdfBlockDefinition block)
+    private void AddSignatureLines(PdfLayoutSection section, PdfBlockDefinition block)
     {
         var labels = (block.Items ?? []).Where(item => !string.IsNullOrWhiteSpace(item)).ToList();
 
@@ -1075,12 +1080,12 @@ internal sealed partial class PdfMigraDocBuilder
 
         table.Borders.Visible = false;
         table.LeftPadding = 0;
-        table.RightPadding = Unit.FromPoint(18);
+        table.RightPadding = 18;
         table.KeepTogether = true;
 
         for (var index = 0; index < perRow; index++)
         {
-            table.AddColumn(Unit.FromPoint(columnWidth));
+            table.AddColumn(columnWidth);
         }
 
         for (var start = 0; start < labels.Count; start += perRow)
@@ -1090,11 +1095,11 @@ internal sealed partial class PdfMigraDocBuilder
             for (var index = 0; index < perRow && start + index < labels.Count; index++)
             {
                 var line = row.Cells[index].AddParagraph();
-                line.Format.SpaceBefore = Unit.FromPoint(34);
+                line.Format.SpaceBefore = 34;
                 line.Format.Borders.Top.Width = 0.75;
-                line.Format.Borders.Top.Color = _theme.Text.ToMigraDoc();
+                line.Format.Borders.Top.Color = _theme.Text;
                 line.Format.Font.Size = Math.Max(6, _theme.BaseFontSize - 1.5);
-                line.Format.Font.Color = _theme.Muted.ToMigraDoc();
+                line.Format.Font.Color = _theme.Muted;
                 line.AddText(labels[start + index]);
             }
         }
@@ -1105,7 +1110,7 @@ internal sealed partial class PdfMigraDocBuilder
     /// <summary>
     /// Applies a block's own formatting over its style.
     /// </summary>
-    private void ApplyBlockFormat(ParagraphFormat format, PdfBlockDefinition block)
+    private void ApplyBlockFormat(PdfLayoutParagraphFormat format, PdfBlockDefinition block)
     {
         if (block is null)
         {
@@ -1129,22 +1134,22 @@ internal sealed partial class PdfMigraDocBuilder
 
         if (!string.IsNullOrWhiteSpace(block.Color))
         {
-            format.Font.Color = PdfResolvedTheme.ReadColor(block.Color, _theme.Text, "color", _warnings).ToMigraDoc();
+            format.Font.Color = PdfResolvedTheme.ReadColor(block.Color, _theme.Text, "color", _warnings);
         }
 
         if (!string.IsNullOrWhiteSpace(block.BackgroundColor))
         {
-            format.Shading.Color = PdfResolvedTheme.ReadColor(block.BackgroundColor, _white, "background_color", _warnings).ToMigraDoc();
+            format.Shading = PdfResolvedTheme.ReadColor(block.BackgroundColor, _white, "background_color", _warnings);
         }
 
         if (block.SpaceBefore is >= 0)
         {
-            format.SpaceBefore = Unit.FromPoint(Math.Min(block.SpaceBefore.Value, 400));
+            format.SpaceBefore = Math.Min(block.SpaceBefore.Value, 400);
         }
 
         if (block.SpaceAfter is >= 0)
         {
-            format.SpaceAfter = Unit.FromPoint(Math.Min(block.SpaceAfter.Value, 400));
+            format.SpaceAfter = Math.Min(block.SpaceAfter.Value, 400);
         }
 
         if (block.KeepWithNext == true)
@@ -1153,19 +1158,19 @@ internal sealed partial class PdfMigraDocBuilder
         }
     }
 
-    private static ParagraphAlignment ReadAlignment(string value, ParagraphAlignment fallback)
+    private static PdfLayoutAlignment? ReadAlignment(string value, PdfLayoutAlignment? fallback)
     {
         return value?.Trim().ToLowerInvariant() switch
         {
-            "left" or "start" => ParagraphAlignment.Left,
-            "center" or "centre" or "middle" => ParagraphAlignment.Center,
-            "right" or "end" => ParagraphAlignment.Right,
-            "justify" or "justified" => ParagraphAlignment.Justify,
+            "left" or "start" => PdfLayoutAlignment.Left,
+            "center" or "centre" or "middle" => PdfLayoutAlignment.Center,
+            "right" or "end" => PdfLayoutAlignment.Right,
+            "justify" or "justified" => PdfLayoutAlignment.Justify,
             _ => fallback,
         };
     }
 
-    private void AddInline(Paragraph paragraph, string text, bool? bold, bool? italic)
+    private void AddInline(PdfLayoutParagraph paragraph, string text, bool? bold, bool? italic)
     {
         if (string.IsNullOrEmpty(text))
         {
@@ -1187,7 +1192,7 @@ internal sealed partial class PdfMigraDocBuilder
         }
     }
 
-    private void AddSpans(Paragraph paragraph, IEnumerable<RichTextSpan> spans, bool forceBold = false, bool forceItalic = false)
+    private void AddSpans(PdfLayoutParagraph paragraph, IEnumerable<RichTextSpan> spans, bool forceBold = false, bool forceItalic = false)
     {
         var wroteAnything = false;
 
@@ -1198,18 +1203,17 @@ internal sealed partial class PdfMigraDocBuilder
                 continue;
             }
 
-            FormattedText formatted;
+            PdfLayoutText formatted;
 
             if (IsWebLink(span.Link))
             {
-                var hyperlink = paragraph.AddHyperlink(span.Link, HyperlinkType.Web);
-                formatted = hyperlink.AddFormattedText(span.Text);
-                formatted.Font.Color = _theme.Accent.ToMigraDoc();
-                formatted.Font.Underline = Underline.Single;
+                formatted = paragraph.AddHyperlink(span.Link, isWeb: true).AddText(span.Text);
+                formatted.Font.Color = _theme.Accent;
+                formatted.Font.Underline = true;
             }
             else
             {
-                formatted = paragraph.AddFormattedText(span.Text);
+                formatted = paragraph.AddText(span.Text);
             }
 
             if (span.Bold || forceBold)
@@ -1224,9 +1228,9 @@ internal sealed partial class PdfMigraDocBuilder
 
             if (span.Strikethrough)
             {
-                // MigraDoc has no strike-through, so the run is marked the way a reader still reads as
-                // removed rather than silently losing the distinction.
-                formatted.Font.Color = _theme.Muted.ToMigraDoc();
+                // Strike-through is not drawn, so the run is marked the way a reader still reads as removed
+                // rather than silently losing the distinction.
+                formatted.Font.Color = _theme.Muted;
                 formatted.Italic = true;
             }
 
@@ -1260,7 +1264,7 @@ internal sealed partial class PdfMigraDocBuilder
             return "x";
         }
 
-        var builder = new System.Text.StringBuilder(id.Length);
+        var builder = new StringBuilder(id.Length);
 
         foreach (var character in id)
         {
@@ -1273,7 +1277,7 @@ internal sealed partial class PdfMigraDocBuilder
     /// <summary>
     /// Adds the running heads and feet to a body section.
     /// </summary>
-    private void AddRunningHeads(Section section, bool isFirst)
+    private void AddRunningHeads(PdfLayoutSection section, bool isFirst)
     {
         var numbers = _definition.PageNumbers;
 
@@ -1319,7 +1323,7 @@ internal sealed partial class PdfMigraDocBuilder
     }
 
     private void FillRunningHead(
-        HeaderFooter target,
+        PdfLayoutHeaderFooter target,
         PdfHeaderFooterDefinition slots,
         bool isHeader,
         bool includeNumbers,
@@ -1366,26 +1370,28 @@ internal sealed partial class PdfMigraDocBuilder
 
         if (!string.IsNullOrWhiteSpace(slots?.Color))
         {
-            paragraph.Format.Font.Color = PdfResolvedTheme.ReadColor(slots.Color, _theme.Muted, "color", _warnings).ToMigraDoc();
+            paragraph.Format.Font.Color = PdfResolvedTheme.ReadColor(slots.Color, _theme.Muted, "color", _warnings);
         }
 
-        paragraph.Format.TabStops.ClearAll();
-        paragraph.Format.TabStops.AddTabStop(Unit.FromPoint(_page.UsableWidth / 2), TabAlignment.Center);
-        paragraph.Format.TabStops.AddTabStop(Unit.FromPoint(_page.UsableWidth), TabAlignment.Right);
+        paragraph.Format.TabStops =
+        [
+            new PdfLayoutTabStop(_page.UsableWidth / 2, PdfLayoutAlignment.Center),
+            new PdfLayoutTabStop(_page.UsableWidth, PdfLayoutAlignment.Right),
+        ];
 
         if (slots?.Separator == true)
         {
             var border = isHeader ? paragraph.Format.Borders.Bottom : paragraph.Format.Borders.Top;
             border.Width = 0.5;
-            border.Color = _theme.Muted.Blend(_white, 0.55).ToMigraDoc();
+            border.Color = _theme.Muted.Blend(_white, 0.55);
 
             if (isHeader)
             {
-                paragraph.Format.Borders.DistanceFromBottom = Unit.FromPoint(3);
+                paragraph.Format.Borders.DistanceFromBottom = 3;
             }
             else
             {
-                paragraph.Format.Borders.DistanceFromTop = Unit.FromPoint(3);
+                paragraph.Format.Borders.DistanceFromTop = 3;
             }
         }
 
@@ -1419,21 +1425,21 @@ internal sealed partial class PdfMigraDocBuilder
         }
     }
 
-    private void AddLogo(Paragraph paragraph)
+    private void AddLogo(PdfLayoutParagraph paragraph)
     {
-        if (!TryGetImage(_theme.Logo, out var data, out var pixelWidth, out var pixelHeight))
+        if (!TryGetImage(_theme.Logo, out var picture))
         {
             _missingImageCount++;
 
             return;
         }
 
-        var image = paragraph.AddImage(ToImageName(data));
         var height = _theme.LogoHeight;
+        var width = picture.Height > 0
+            ? height * picture.Width / picture.Height
+            : height;
 
-        image.Height = Unit.FromPoint(height);
-        image.Width = Unit.FromPoint(pixelHeight > 0 ? height * pixelWidth / pixelHeight : height);
-        image.LockAspectRatio = false;
+        paragraph.AddImage(picture, width, height);
     }
 
     private static string Join(string existing, string addition)
@@ -1444,9 +1450,9 @@ internal sealed partial class PdfMigraDocBuilder
     }
 
     /// <summary>
-    /// Writes running head text, turning its tokens into the fields the renderer fills in page by page.
+    /// Writes running head text, turning its tokens into the fields filled in page by page.
     /// </summary>
-    private void AppendTokens(Paragraph paragraph, string text)
+    private void AppendTokens(PdfLayoutParagraph paragraph, string text)
     {
         if (string.IsNullOrEmpty(text))
         {
@@ -1486,16 +1492,9 @@ internal sealed partial class PdfMigraDocBuilder
             switch (token)
             {
                 case "page":
-                    {
-                        var field = paragraph.AddPageField();
+                    paragraph.AddPageField().Format = format;
 
-                        if (!string.IsNullOrEmpty(format))
-                        {
-                            field.Format = format;
-                        }
-
-                        break;
-                    }
+                    break;
 
                 case "pages":
                 case "total":
@@ -1503,14 +1502,11 @@ internal sealed partial class PdfMigraDocBuilder
                         // "of 3" counts the pages the numbers run through: the whole file, or only the body
                         // when the body is numbered from one. Counting the file while numbering only the body
                         // printed "Page 4 of 3".
-                        NumericFieldBase field = _numberBodyOnly
+                        var field = _numberBodyOnly
                             ? paragraph.AddSectionPagesField()
                             : paragraph.AddNumPagesField();
 
-                        if (!string.IsNullOrEmpty(format))
-                        {
-                            field.Format = format;
-                        }
+                        field.Format = format;
 
                         break;
                     }

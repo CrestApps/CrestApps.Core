@@ -490,49 +490,65 @@ internal static class PdfParagraphLayouter
             }
         }
 
+        /// <summary>
+        /// Sets the line's height and baseline: the tallest font's single spacing, times the paragraph's
+        /// factor, with the extra space below the text and the baseline the deepest descent above the bottom
+        /// of the single-spaced line.
+        /// </summary>
         private void Measure()
         {
-            var ascent = 0d;
-            var descent = 0d;
+            var paragraphFont = _paragraphStyle.Font;
+            var paragraphSize = _paragraphStyle.Size;
             var single = 0d;
+            var descent = 0d;
 
             foreach (var item in _line.Items)
             {
                 if (item.Image is not null)
                 {
-                    ascent = Math.Max(ascent, item.ImageHeight);
-                    single = Math.Max(single, item.ImageHeight);
+                    // A picture stands on the baseline, as tall as the text it replaces is high.
+                    single = Math.Max(single, (paragraphFont.LineSpacing * paragraphSize) - (paragraphFont.Ascent * paragraphSize) + item.ImageHeight);
+                    descent = Math.Max(descent, -paragraphFont.Descent * paragraphSize);
 
                     continue;
                 }
 
-                ascent = Math.Max(ascent, item.Font.Ascent * item.Size);
-                descent = Math.Max(descent, -item.Font.Descent * item.Size);
                 single = Math.Max(single, item.Font.LineSpacing * item.Size);
+                descent = Math.Max(descent, -item.Font.Descent * item.Size);
             }
 
-            // An empty line, or one of pictures only, is as tall as the paragraph's font makes it.
-            if (_line.Items.All(item => item.Image is not null))
+            // An empty line is as tall as the paragraph's font makes it.
+            if (_line.Items.Count == 0)
             {
-                var font = _paragraphStyle.Font;
-                var size = _paragraphStyle.Size;
-
-                ascent = Math.Max(ascent, font.Ascent * size);
-                descent = Math.Max(descent, -font.Descent * size);
-                single = Math.Max(single, font.LineSpacing * size);
+                single = paragraphFont.LineSpacing * paragraphSize;
+                descent = -paragraphFont.Descent * paragraphSize;
             }
 
-            single = Math.Max(single, ascent + descent);
-
-            var height = (_format.LineSpacingRule ?? PdfLayoutLineSpacing.Single) switch
+            switch (_format.LineSpacingRule ?? PdfLayoutLineSpacing.Single)
             {
-                PdfLayoutLineSpacing.Multiple => single * Math.Max(0.1, _format.LineSpacing ?? 1),
-                PdfLayoutLineSpacing.Exactly => Math.Max(0.1, _format.LineSpacing ?? single),
-                _ => single,
-            };
+                case PdfLayoutLineSpacing.Exactly:
+                    {
+                        // An exact height keeps the baseline where the paragraph's font puts it, scaled to that height.
+                        var height = Math.Max(0.1, _format.LineSpacing ?? single);
 
-            _line.Height = height;
-            _line.Baseline = Math.Max(0, ((height - (ascent + descent)) / 2) + ascent);
+                        _line.Height = height;
+                        _line.Baseline = height * (1 + paragraphFont.Descent);
+
+                        break;
+                    }
+
+                case PdfLayoutLineSpacing.Multiple:
+                    _line.Height = single * Math.Max(0.1, _format.LineSpacing ?? 1);
+                    _line.Baseline = single - descent;
+
+                    break;
+
+                default:
+                    _line.Height = single;
+                    _line.Baseline = single - descent;
+
+                    break;
+            }
         }
     }
 }

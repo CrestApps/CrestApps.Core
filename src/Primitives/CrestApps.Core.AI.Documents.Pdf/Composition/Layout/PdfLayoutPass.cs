@@ -25,6 +25,13 @@ internal sealed class PdfLayoutPass
     private PageState _page;
     private double _y;
 
+    // The space the block placed last keeps below it. Between two blocks the larger of its space below and
+    // the next one's space above is left, not both.
+    private double _pendingSpace;
+
+    // Whether nothing has been placed on the page yet: the first paragraph of a page leaves no space above it.
+    private bool _firstOnPage;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="PdfLayoutPass"/> class.
     /// </summary>
@@ -115,6 +122,8 @@ internal sealed class PdfLayoutPass
         Output.Info.Author = _document.Author;
         Output.Info.Subject = _document.Subject;
         Output.Info.Keywords = _document.Keywords;
+        Output.Info.Creator = "CrestApps";
+        Output.Info.Producer = "CrestApps";
     }
 
     private void Place(int index)
@@ -129,7 +138,10 @@ internal sealed class PdfLayoutPass
                 break;
 
             case PdfLayoutFrame frame:
+                // A frame takes no room, but the paragraph after it is no longer the first on its page.
                 DrawFrame(frame);
+                _firstOnPage = false;
+                _pendingSpace = 0;
 
                 break;
 
@@ -179,6 +191,8 @@ internal sealed class PdfLayoutPass
 
         _pages.Add(_page);
         _y = BodyTop;
+        _pendingSpace = 0;
+        _firstOnPage = true;
     }
 
     /// <summary>
@@ -290,10 +304,15 @@ internal sealed class PdfLayoutPass
         {
             var cells = new List<List<PdfLaidParagraph>>(row.Cells.Count);
             var content = 0d;
+            var bottomBorder = 0d;
+            var topBorder = 0d;
 
             for (var column = 0; column < row.Cells.Count && column < table.Columns.Count; column++)
             {
-                var width = Math.Max(1, table.Columns[column].Width - table.LeftPadding - table.RightPadding);
+                var borders = row.Cells[column].Borders.Over(row.Borders).Over(table.Borders);
+
+                // A cell's right border takes its width from the cell.
+                var width = Math.Max(1, table.Columns[column].Width - Width(borders.Right) - table.LeftPadding - table.RightPadding);
                 var paragraphs = new List<PdfLaidParagraph>();
 
                 foreach (var paragraph in row.Cells[column].Paragraphs)
@@ -303,11 +322,15 @@ internal sealed class PdfLayoutPass
                     paragraphs.Add(PdfParagraphLayouter.Layout(paragraph, Resolve(paragraph, format), width, BodyFieldText));
                 }
 
+                bottomBorder = Math.Max(bottomBorder, Width(borders.Bottom));
+                topBorder = Math.Max(topBorder, Width(borders.Top));
                 cells.Add(paragraphs);
-                content = Math.Max(content, paragraphs.Sum(paragraph => paragraph.Height));
+                content = Math.Max(content, StackHeight(paragraphs));
             }
 
-            rows.Add(new LaidRow(row, cells, content + table.TopPadding + table.BottomPadding));
+            // A row is as tall as its tallest cell and its padding, with room below for its bottom border; a
+            // row starting the table on a page also keeps room above for its top border.
+            rows.Add(new LaidRow(row, cells, content + table.TopPadding + table.BottomPadding + bottomBorder, bottomBorder, topBorder));
         }
 
         _laid[table] = rows;
@@ -336,7 +359,11 @@ internal sealed class PdfLayoutPass
 
     private void PlaceParagraph(PdfLaidParagraph laid)
     {
-        _y += laid.SpaceBefore;
+        var before = _firstOnPage
+            ? 0
+            : laid.SpaceBefore;
+
+        _y += Math.Max(_pendingSpace, before);
 
         var lineIndex = 0;
         var first = true;
@@ -399,7 +426,8 @@ internal sealed class PdfLayoutPass
             }
         }
 
-        _y = Math.Min(_y + laid.SpaceAfter, BodyBottom);
+        _pendingSpace = laid.SpaceAfter;
+        _firstOnPage = false;
     }
 
     /// <summary>
@@ -533,6 +561,10 @@ internal sealed class PdfLayoutPass
             return;
         }
 
+        // A table keeps no space of its own above or below it.
+        _y += _pendingSpace;
+        _pendingSpace = 0;
+
         var total = rows.Sum(row => row.Height);
 
         if (table.KeepTogether && !PageIsEmpty && _y + total > BodyBottom && total <= BodyHeight)
@@ -541,76 +573,108 @@ internal sealed class PdfLayoutPass
         }
 
         var headings = rows.TakeWhile(row => row.Row.HeadingFormat).ToList();
+        var startsPage = true;
 
         for (var index = 0; index < rows.Count; index++)
         {
             var row = rows[index];
+            var topRoom = startsPage
+                ? row.TopBorder
+                : 0;
 
-            if (_y + row.Height > BodyBottom + 0.01 && !PageIsEmpty)
+            if (_y + topRoom + row.Height > BodyBottom + 0.01 && !PageIsEmpty)
             {
                 NewPage();
+                startsPage = true;
 
                 // Heading rows start every page the table runs onto, unless the row is one of them.
                 if (index >= headings.Count)
                 {
                     foreach (var heading in headings)
                     {
-                        DrawRow(table, heading);
+                        DrawRow(table, heading, startsPage);
+                        startsPage = false;
                     }
                 }
             }
 
-            DrawRow(table, row);
+            DrawRow(table, row, startsPage);
+            startsPage = false;
         }
+
+        _firstOnPage = false;
     }
 
-    private void DrawRow(PdfLayoutTable table, LaidRow laid)
+    private void DrawRow(PdfLayoutTable table, LaidRow laid, bool startsPage)
     {
         var canvas = _page.Canvas;
-        var x = AreaLeft;
+
+        // Every column is moved right by the first cell's left border. A table without an indent of its own
+        // is moved left by that border and its padding, so the text in its first column lines up with the
+        // paragraphs around it.
+        var leftBorder = table.Rows.Count > 0 && table.Rows[0].Cells.Count > 0
+            ? Width(table.Rows[0].Cells[0].Borders.Over(table.Rows[0].Borders).Over(table.Borders).Left)
+            : 0;
+
+        var x = AreaLeft + leftBorder + (table.LeftIndent ?? -(leftBorder + table.LeftPadding));
         var top = _y;
+
+        if (startsPage)
+        {
+            top += laid.TopBorder;
+        }
+
+        var inner = laid.Height - laid.BottomBorder;
 
         for (var column = 0; column < laid.Cells.Count; column++)
         {
             var width = table.Columns[column].Width;
             var cell = laid.Row.Cells[column];
             var paragraphs = laid.Cells[column];
+            var borders = cell.Borders.Over(laid.Row.Borders).Over(table.Borders);
+            var topWidth = Width(borders.Top);
+            var bottomWidth = Width(borders.Bottom);
+            var leftWidth = Width(borders.Left);
+            var rightWidth = Width(borders.Right);
+
+            // The cell's area is its column less its right border; the other borders sit outside it, in the
+            // room the column before and the rows keep for them.
+            var innerWidth = width - rightWidth;
 
             if (canvas is not null && (cell.Shading ?? laid.Row.Shading) is { } shading)
             {
-                canvas.DrawRectangle(x, top, width, laid.Height, new PdfBrush(shading));
+                canvas.DrawRectangle(x, top, innerWidth, inner, new PdfBrush(shading));
             }
 
-            var content = paragraphs.Sum(paragraph => paragraph.Height);
-            var free = laid.Height - table.TopPadding - table.BottomPadding - content;
-            var y = top + table.TopPadding + (laid.Row.VerticalAlignment switch
+            var free = inner - table.TopPadding - table.BottomPadding - StackHeight(paragraphs);
+            var offset = laid.Row.VerticalAlignment switch
             {
                 PdfLayoutVerticalAlignment.Center => free / 2,
                 PdfLayoutVerticalAlignment.Bottom => free,
                 _ => 0,
-            });
+            };
 
-            foreach (var paragraph in paragraphs)
-            {
-                y += paragraph.SpaceBefore;
-                DrawParagraph(paragraph, 0, paragraph.Lines.Count, x + table.LeftPadding, width - table.LeftPadding - table.RightPadding, y, true, true);
-                y += paragraph.TopInset + paragraph.LinesHeight + paragraph.BottomInset + paragraph.SpaceAfter;
-            }
+            DrawStack(paragraphs, x + table.LeftPadding, innerWidth - table.LeftPadding - table.RightPadding, top + table.TopPadding + offset);
 
             if (canvas is not null)
             {
-                var borders = cell.Borders.Over(laid.Row.Borders).Over(table.Borders);
-
-                DrawBorder(canvas, borders.Top, x, top, x + width, top);
-                DrawBorder(canvas, borders.Bottom, x, top + laid.Height, x + width, top + laid.Height);
-                DrawBorder(canvas, borders.Left, x, top, x, top + laid.Height);
-                DrawBorder(canvas, borders.Right, x + width, top, x + width, top + laid.Height);
+                DrawBorder(canvas, borders.Top, x - leftWidth, top - (topWidth / 2), x + innerWidth + rightWidth, top - (topWidth / 2));
+                DrawBorder(canvas, borders.Bottom, x - leftWidth, top + inner + (bottomWidth / 2), x + innerWidth + rightWidth, top + inner + (bottomWidth / 2));
+                DrawBorder(canvas, borders.Left, x - (leftWidth / 2), top, x - (leftWidth / 2), top + inner + bottomWidth);
+                DrawBorder(canvas, borders.Right, x + innerWidth + (rightWidth / 2), top, x + innerWidth + (rightWidth / 2), top + inner + bottomWidth);
             }
 
             x += width;
         }
 
-        _y += laid.Height;
+        _y = top + laid.Height;
+    }
+
+    private static double Width(PdfLayoutBorder border)
+    {
+        return border.IsDrawn()
+            ? border.Width ?? 0.5
+            : 0;
     }
 
     private static void DrawBorder(PdfCanvas canvas, PdfLayoutBorder border, double x1, double y1, double x2, double y2)
@@ -628,12 +692,15 @@ internal sealed class PdfLayoutPass
 
     private void PlaceGraphic(PdfLayoutGraphic graphic)
     {
-        if (_y + graphic.SpaceBefore + graphic.Height > BodyBottom + 0.01 && !PageIsEmpty)
+        var before = Math.Max(_pendingSpace, graphic.SpaceBefore);
+
+        if (_y + before + graphic.Height > BodyBottom + 0.01 && !PageIsEmpty)
         {
             NewPage();
+            before = graphic.SpaceBefore;
         }
 
-        _y += graphic.SpaceBefore;
+        _y += before;
 
         var x = graphic.Alignment switch
         {
@@ -649,7 +716,9 @@ internal sealed class PdfLayoutPass
             _page.Canvas.Restore();
         }
 
-        _y = Math.Min(_y + graphic.Height + graphic.SpaceAfter, BodyBottom);
+        _y = Math.Min(_y + graphic.Height, BodyBottom);
+        _pendingSpace = graphic.SpaceAfter;
+        _firstOnPage = false;
     }
 
     private void DrawFrame(PdfLayoutFrame frame)
@@ -668,15 +737,43 @@ internal sealed class PdfLayoutPass
             _page.Canvas.DrawRectangle(left, top, frame.Width, frame.Height, new PdfBrush(fill));
         }
 
-        var y = top;
+        var paragraphs = frame.Paragraphs.Select(paragraph => PdfParagraphLayouter.Layout(paragraph, Resolve(paragraph, null), frame.Width, BodyFieldText)).ToList();
 
-        foreach (var paragraph in frame.Paragraphs)
+        DrawStack(paragraphs, left, frame.Width, top);
+    }
+
+    /// <summary>
+    /// Returns the height of paragraphs set one under another, the space between two the larger of the
+    /// first's space below and the second's space above.
+    /// </summary>
+    private static double StackHeight(List<PdfLaidParagraph> paragraphs)
+    {
+        var height = 0d;
+        var pending = 0d;
+
+        foreach (var paragraph in paragraphs)
         {
-            var laid = PdfParagraphLayouter.Layout(paragraph, Resolve(paragraph, null), frame.Width, BodyFieldText);
+            height += Math.Max(pending, paragraph.SpaceBefore) + paragraph.TopInset + paragraph.LinesHeight + paragraph.BottomInset;
+            pending = paragraph.SpaceAfter;
+        }
 
-            y += laid.SpaceBefore;
-            DrawParagraph(laid, 0, laid.Lines.Count, left, frame.Width, y, true, true);
-            y += laid.TopInset + laid.LinesHeight + laid.BottomInset + laid.SpaceAfter;
+        return height + pending;
+    }
+
+    /// <summary>
+    /// Draws paragraphs one under another, spaced as <see cref="StackHeight"/> measures them.
+    /// </summary>
+    private void DrawStack(List<PdfLaidParagraph> paragraphs, double left, double width, double top)
+    {
+        var y = top;
+        var pending = 0d;
+
+        foreach (var paragraph in paragraphs)
+        {
+            y += Math.Max(pending, paragraph.SpaceBefore);
+            DrawParagraph(paragraph, 0, paragraph.Lines.Count, left, width, y, true, true);
+            y += paragraph.TopInset + paragraph.LinesHeight + paragraph.BottomInset;
+            pending = paragraph.SpaceAfter;
         }
     }
 
@@ -715,24 +812,10 @@ internal sealed class PdfLayoutPass
         var headerParagraphs = header.Paragraphs.Select(paragraph => PdfParagraphLayouter.Layout(paragraph, Resolve(paragraph, null, PdfLayoutStyles.Header), AreaWidth, FieldText)).ToList();
         var footerParagraphs = footer.Paragraphs.Select(paragraph => PdfParagraphLayouter.Layout(paragraph, Resolve(paragraph, null, PdfLayoutStyles.Footer), AreaWidth, FieldText)).ToList();
 
-        var y = setup.HeaderDistance;
+        DrawStack(headerParagraphs, AreaLeft, AreaWidth, setup.HeaderDistance);
 
-        foreach (var laid in headerParagraphs)
-        {
-            y += laid.SpaceBefore;
-            DrawParagraph(laid, 0, laid.Lines.Count, AreaLeft, AreaWidth, y, true, true);
-            y += laid.TopInset + laid.LinesHeight + laid.BottomInset + laid.SpaceAfter;
-        }
-
-        // The footer ends its distance above the page's bottom edge.
-        y = setup.PageHeight - setup.FooterDistance - footerParagraphs.Sum(laid => laid.Height);
-
-        foreach (var laid in footerParagraphs)
-        {
-            y += laid.SpaceBefore;
-            DrawParagraph(laid, 0, laid.Lines.Count, AreaLeft, AreaWidth, y, true, true);
-            y += laid.TopInset + laid.LinesHeight + laid.BottomInset + laid.SpaceAfter;
-        }
+        // The footer, its space below included, ends its distance above the page's bottom edge.
+        DrawStack(footerParagraphs, AreaLeft, AreaWidth, setup.PageHeight - setup.FooterDistance - StackHeight(footerParagraphs));
 
         _page = previousPage;
     }
@@ -883,8 +966,10 @@ internal sealed class PdfLayoutPass
     /// </summary>
     /// <param name="Row">The row.</param>
     /// <param name="Cells">Each cell's laid-out paragraphs.</param>
-    /// <param name="Height">The height, padding included.</param>
-    private sealed record LaidRow(PdfLayoutRow Row, List<List<PdfLaidParagraph>> Cells, double Height);
+    /// <param name="Height">The height, padding and bottom border included.</param>
+    /// <param name="BottomBorder">The width of the bottom border the row keeps room for.</param>
+    /// <param name="TopBorder">The width of the top border the row keeps room for when it starts the table on a page.</param>
+    private sealed record LaidRow(PdfLayoutRow Row, List<List<PdfLaidParagraph>> Cells, double Height, double BottomBorder, double TopBorder);
 
     /// <summary>
     /// A page being laid out.

@@ -1,5 +1,5 @@
-using PdfSharp.Pdf;
-using PdfSharp.Pdf.Advanced;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
+using PigDocument = UglyToad.PdfPig.PdfDocument;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Composition;
 
@@ -8,13 +8,12 @@ namespace CrestApps.Core.AI.Documents.Pdf.Composition;
 /// annotations that print.
 /// </summary>
 /// <remarks>
-/// PDFsharp's own PDF/A switch also turns on its PDF/UA structure mode, in which MigraDoc cannot draw, so the
-/// composer does not use it; the XMP identification is written by the metadata sync when the file is saved.
+/// The XMP identification is written by the metadata sync when the file is saved.
 /// </remarks>
 internal static class PdfArchiveProfile
 {
-    // PDFsharp ships the sRGB IEC61966-2.1 profile for its own PDF/A support.
-    private const string ProfileResource = "PdfSharp.Resources.sRGB2014.icc";
+    // PdfPig ships the sRGB IEC61966-2.1 profile for its own PDF/A support.
+    private const string ProfileResource = "UglyToad.PdfPig.Resources.ICC.sRGB2014.icc";
 
     private const int PrintFlag = 4;
 
@@ -29,7 +28,7 @@ internal static class PdfArchiveProfile
 
         byte[] profile;
 
-        using (var stream = typeof(PdfDocument).Assembly.GetManifestResourceStream(ProfileResource))
+        using (var stream = typeof(PigDocument).Assembly.GetManifestResourceStream(ProfileResource))
         {
             if (stream is null)
             {
@@ -44,8 +43,8 @@ internal static class PdfArchiveProfile
         var icc = new PdfDictionary(document);
 
         icc.Elements.SetInteger("/N", 3);
-        icc.CreateStream(profile);
-        document.Internals.AddObject(icc);
+        icc.CreateStream([]).SetCompressed(profile);
+        document.AddObject(icc);
 
         var intent = new PdfDictionary(document);
 
@@ -55,22 +54,16 @@ internal static class PdfArchiveProfile
         intent.Elements["/Info"] = new PdfString("sRGB IEC61966-2.1");
         intent.Elements["/DestOutputProfile"] = icc.Reference;
 
-        var intents = new PdfArray(document);
-        intents.Elements.Add(intent);
-        document.Internals.Catalog.Elements["/OutputIntents"] = intents;
+        document.Catalog.Elements["/OutputIntents"] = new PdfArray(document, intent);
 
         foreach (var page in document.Pages)
         {
-            if (page.Elements.GetObject("/Annots") is not PdfArray annotations)
+            foreach (var item in page.Annotations?.Elements ?? [])
             {
-                continue;
-            }
-
-            foreach (var item in annotations.Elements)
-            {
-                var annotation = (item as PdfReference)?.Value as PdfDictionary ?? item as PdfDictionary;
-
-                annotation?.Elements.SetInteger("/F", PrintFlag);
+                if (PdfObjectModel.Resolve(item) is PdfDictionary annotation)
+                {
+                    annotation.Elements.SetInteger("/F", PrintFlag);
+                }
             }
         }
 
