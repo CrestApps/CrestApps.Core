@@ -59,7 +59,7 @@ public sealed class DefaultAICompletionUsageServiceTests
     }
 
     [Fact]
-    public void AddCoreAIUsageTracking_RegistersTheServiceAndObserver()
+    public void AddCoreAIUsageTracking_RegistersTheService()
     {
         var services = new ServiceCollection()
             .AddLogging()
@@ -72,7 +72,6 @@ public sealed class DefaultAICompletionUsageServiceTests
         using var scope = provider.CreateScope();
 
         Assert.IsType<DefaultAICompletionUsageService>(scope.ServiceProvider.GetRequiredService<IAICompletionUsageService>());
-        Assert.Single(scope.ServiceProvider.GetServices<IAICompletionUsageObserver>());
     }
 
     [Fact]
@@ -81,6 +80,5 @@ public sealed class DefaultAICompletionUsageServiceTests
         using var provider = new ServiceCollection().BuildServiceProvider();
 
         Assert.Null(provider.GetService<IAICompletionUsageService>());
-        Assert.Empty(provider.GetServices<IAICompletionUsageObserver>());
     }
 }

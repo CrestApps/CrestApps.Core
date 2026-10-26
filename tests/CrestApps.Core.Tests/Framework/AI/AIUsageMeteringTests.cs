@@ -667,10 +667,10 @@ public sealed class AIUsageMeteringTests
         var services = new ServiceCollection()
             .AddLogging();
 
-        // Usage is metered when an observer is registered, so leaving the capturing one out turns tracking off.
+        // Usage is metered when a usage service is registered, so leaving the capturing one out turns tracking off.
         if (trackingEnabled)
         {
-            services.AddSingleton<IAICompletionUsageObserver>(observer);
+            services.AddSingleton<IAICompletionUsageService>(observer);
         }
 
         var serviceProvider = services.BuildServiceProvider();
@@ -699,7 +699,7 @@ public sealed class AIUsageMeteringTests
         }
     }
 
-    private sealed class CapturingUsageObserver : IAICompletionUsageObserver
+    private sealed class CapturingUsageObserver : IAICompletionUsageService
     {
         public List<AICompletionUsageRecord> Records { get; } = [];
 
@@ -708,6 +708,11 @@ public sealed class AIUsageMeteringTests
             Records.Add(record);
 
             return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<AICompletionUsageRecord>> GetAsync(DateTime? startDateUtc, DateTime? endDateUtc, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<AICompletionUsageRecord>>(Records);
         }
     }
 

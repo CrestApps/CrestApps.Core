@@ -71,7 +71,7 @@ internal sealed class AIUsageRecorder
 
         try
         {
-            observers = _serviceProvider.GetServices<IAICompletionUsageObserver>();
+            observers = AIUsageTracking.GetObservers(_serviceProvider);
         }
         catch (ObjectDisposedException)
         {

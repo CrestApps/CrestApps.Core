@@ -16,6 +16,30 @@ internal static class AIUsageTracking
     /// <param name="serviceProvider">The service provider to ask.</param>
     public static bool IsEnabled(IServiceProvider serviceProvider)
     {
-        return serviceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(IAICompletionUsageObserver)) == true;
+        return serviceProvider.GetService<IServiceProviderIsService>()?.IsService(typeof(IAICompletionUsageService)) == true;
+    }
+
+    /// <summary>
+    /// Gets everything that receives a usage record: the registered usage service, then any other observers.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider to resolve from.</param>
+    public static List<IAICompletionUsageObserver> GetObservers(IServiceProvider serviceProvider)
+    {
+        var observers = new List<IAICompletionUsageObserver>();
+
+        if (serviceProvider.GetService<IAICompletionUsageService>() is { } usageService)
+        {
+            observers.Add(usageService);
+        }
+
+        foreach (var observer in serviceProvider.GetServices<IAICompletionUsageObserver>())
+        {
+            if (!observers.Contains(observer))
+            {
+                observers.Add(observer);
+            }
+        }
+
+        return observers;
     }
 }
