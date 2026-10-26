@@ -10,4 +10,12 @@ namespace CrestApps.Core.AI.Documents.Pdf.Objects;
 /// </remarks>
 internal abstract class PdfItem
 {
+    /// <summary>
+    /// Writes the item as PDF syntax, as it would appear inside an object, so a message can quote it.
+    /// </summary>
+    /// <returns>The syntax, for example <c>/FlateDecode</c> or <c>12 0 R</c>.</returns>
+    public override string ToString()
+    {
+        return PdfObjectWriter.ToSyntax(this);
+    }
 }

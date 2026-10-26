@@ -278,6 +278,13 @@ internal static class PdfStreamOptimizer
             pending.Push(info);
         }
 
+        // The page tree is written into the catalog on save, so a page added since the file was read is only
+        // in the document's list of pages.
+        foreach (var page in document.Pages)
+        {
+            pending.Push(page);
+        }
+
         while (pending.Count > 0)
         {
             var item = pending.Pop();
