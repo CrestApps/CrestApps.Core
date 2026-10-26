@@ -1,5 +1,5 @@
 using System.Globalization;
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
 
@@ -16,7 +16,7 @@ internal static class PdfFontChecks
     /// Runs the font checks.
     /// </summary>
     /// <param name="checks">The report to add to.</param>
-    /// <param name="objects">The document, opened with PDFsharp.</param>
+    /// <param name="objects">The document, opened as objects.</param>
     /// <param name="pages">The one-based pages checked.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     public static void Run(PdfCheckList checks, PdfDocument objects, IReadOnlyList<int> pages, CancellationToken cancellationToken)

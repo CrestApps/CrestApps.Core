@@ -1,5 +1,5 @@
 using System.Globalization;
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
@@ -32,7 +32,7 @@ internal static class PdfLinkChecks
     /// Runs the link checks.
     /// </summary>
     /// <param name="checks">The report to add to.</param>
-    /// <param name="objects">The document, opened with PDFsharp.</param>
+    /// <param name="objects">The document, opened as objects.</param>
     /// <param name="content">The document, opened with PdfPig, used to quote the text under a link; or <see langword="null"/>.</param>
     /// <param name="pages">The one-based pages checked.</param>
     public static void Run(PdfCheckList checks, PdfDocument objects, PigDocument content, IReadOnlyList<int> pages)
@@ -228,7 +228,7 @@ internal static class PdfLinkChecks
 
     private static void CheckBookmarks(PdfCheckList checks, PdfDocument objects)
     {
-        var outlines = PdfObjectReader.GetDictionary(objects.Internals.Catalog, "/Outlines");
+        var outlines = PdfObjectReader.GetDictionary(objects.Catalog, "/Outlines");
 
         if (outlines is null)
         {

@@ -1,5 +1,5 @@
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
-using PdfSharpDocument = PdfSharp.Pdf.PdfDocument;
+using ObjectDocument = CrestApps.Core.AI.Documents.Pdf.Objects.PdfDocument;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
 
@@ -35,27 +35,10 @@ internal static class PdfReadableCopy
             return bytes;
         }
 
-        try
-        {
-            using var document = PdfFiles.OpenForEditing(bytes, password);
-            document.SecurityHandler.SetEncryptionToNoneAndResetPasswords();
+        // Either password decrypts the file as it is read, and a saved document is not encrypted.
+        using var document = PdfFiles.OpenObjects(bytes, password);
 
-            return PdfFiles.Save(document);
-        }
-        catch (PdfToolException)
-        {
-            // Only the password that opens the file for reading was given. Its pages can still be copied out.
-        }
-
-        using var source = PdfFiles.OpenForImport(bytes, password);
-        using var copy = new PdfSharpDocument();
-
-        foreach (var page in source.Pages)
-        {
-            copy.AddPage(page);
-        }
-
-        return PdfFiles.Save(copy);
+        return document.Save();
     }
 
     /// <summary>
@@ -77,8 +60,8 @@ internal static class PdfReadableCopy
 
         try
         {
-            using var source = PdfFiles.OpenForImport(bytes);
-            using var copy = new PdfSharpDocument();
+            using var source = PdfFiles.OpenObjects(bytes);
+            using var copy = new ObjectDocument();
 
             var map = new List<int>(pages.Count);
 
@@ -89,17 +72,17 @@ internal static class PdfReadableCopy
                     continue;
                 }
 
-                copy.AddPage(source.Pages[number - 1]);
+                copy.Pages.Add(source.Pages[number - 1]);
                 map.Add(number);
             }
 
             return map.Count == 0
                 ? (bytes, null)
-                : (PdfFiles.Save(copy), map);
+                : (copy.Save(), map);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // A file PDFsharp cannot copy pages out of is still read, whole.
+            // A file whose pages cannot be copied out is still read, whole.
             return (bytes, null);
         }
     }

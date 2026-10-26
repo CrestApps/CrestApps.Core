@@ -1,5 +1,5 @@
 using System.Globalization;
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
 
@@ -75,7 +75,7 @@ internal static class PdfAnnotationList
     /// <summary>
     /// Lists the annotations of pages.
     /// </summary>
-    /// <param name="document">The document, opened with PDFsharp.</param>
+    /// <param name="document">The document, opened as objects.</param>
     /// <param name="pages">The one-based pages.</param>
     /// <returns>The annotations, page by page.</returns>
     public static List<PdfAnnotationEntry> Read(PdfDocument document, IEnumerable<int> pages)
@@ -200,7 +200,7 @@ internal static class PdfAnnotationList
             return (null, "its destination is missing");
         }
 
-        var catalog = document.Internals.Catalog;
+        var catalog = document.Catalog;
         var named = PdfObjectReader.Get(PdfObjectReader.GetDictionary(catalog, "/Dests"), "/" + name) ??
             PdfObjectReader.LookUpNameTree(PdfObjectReader.GetDictionary(PdfObjectReader.GetDictionary(catalog, "/Names"), "/Dests"), name);
 

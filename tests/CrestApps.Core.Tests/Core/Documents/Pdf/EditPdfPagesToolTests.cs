@@ -1,6 +1,8 @@
 using CrestApps.Core.AI.Documents.Pdf.Tools;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
 using UglyToad.PdfPig;
+using UglyToad.PdfPig.Outline;
+using ObjectDocument = CrestApps.Core.AI.Documents.Pdf.Objects.PdfDocument;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf;
 
@@ -131,6 +133,106 @@ public sealed class EditPdfPagesToolTests
         Assert.Equal("First", edited.GetPage(3).GetWords().First().Text);
         Assert.Equal(612, edited.GetPage(4).Width, 0);
         Assert.Equal(792, edited.GetPage(4).Height, 0);
+    }
+
+    [Theory]
+    [InlineData("aes256")]
+    [InlineData("aes128")]
+    [InlineData("rc4_128")]
+    public async Task ProtectedPdf_ChangesOnlyWithTheOwnerPassword(string encryption)
+    {
+        using var host = new PdfToolTestHost();
+        await host.UploadAsync("sheet.pdf", await PdfToolFixtures.SimplePdfAsync("First", "Second"));
+        await host.InvokeAsync(new ProtectPdfTool(), new { user_password = "open-sesame", owner_password = "owner-secret", encryption });
+
+        var locked = await host.ReadWorkingPdfAsync("sheet");
+
+        using (var reader = ObjectDocument.Open(locked, "open-sesame"))
+        {
+            Assert.True(reader.IsEncrypted);
+            Assert.False(reader.HasOwnerAccess);
+        }
+
+        using (var owner = ObjectDocument.Open(locked, "owner-secret"))
+        {
+            Assert.True(owner.HasOwnerAccess);
+        }
+
+        var refused = await host.InvokeAsync(new EditPdfPagesTool(), new
+        {
+            password = "open-sesame",
+            operations = new object[] { new { operation = "rotate", pages = "1" } },
+        });
+
+        Assert.Contains("needs the owner password", refused, StringComparison.Ordinal);
+
+        var rotated = await host.InvokeAsync(new EditPdfPagesTool(), new
+        {
+            password = "owner-secret",
+            operations = new object[] { new { operation = "rotate", pages = "1" } },
+        });
+
+        Assert.Contains("Rotated pages 1", rotated, StringComparison.Ordinal);
+
+        using var edited = PdfDocument.Open(await host.ReadWorkingPdfAsync("sheet"));
+
+        Assert.Equal(90, edited.GetPage(1).Rotation.Value);
+        Assert.Equal("Second", edited.GetPage(2).GetWords().First().Text);
+    }
+
+    [Fact]
+    public async Task PermissionsOnlyPdf_OpensWithoutAPasswordButChangesOnlyWithTheOwnerPassword()
+    {
+        using var host = new PdfToolTestHost();
+        await host.UploadAsync("sheet.pdf", await PdfToolFixtures.SimplePdfAsync("First"));
+        await host.InvokeAsync(new ProtectPdfTool(), new { owner_password = "owner-secret", permissions = new { copy = false } });
+
+        var locked = await host.ReadWorkingPdfAsync("sheet");
+
+        using (var anyone = ObjectDocument.Open(locked))
+        {
+            Assert.True(anyone.IsEncrypted);
+            Assert.False(anyone.HasOwnerAccess);
+        }
+
+        Assert.Contains(
+            "cannot be changed without its owner password",
+            await host.InvokeAsync(new EditPdfPagesTool(), new { operations = new object[] { new { operation = "rotate", pages = "1" } } }),
+            StringComparison.Ordinal);
+
+        using var owner = ObjectDocument.Open(locked, "owner-secret");
+
+        Assert.True(owner.HasOwnerAccess);
+    }
+
+    [Fact]
+    public async Task Delete_DropsTheBookmarksOfRemovedPages()
+    {
+        using var host = new PdfToolTestHost();
+        await host.UploadAsync("guide.pdf", await PdfToolFixtures.SimplePdfAsync("One", "Two", "Three"));
+        await host.InvokeAsync(new AddPdfBookmarksTool(), new
+        {
+            bookmarks = new object[]
+            {
+                new { title = "Start", page = 1 },
+                new { title = "Middle", page = 2 },
+                new { title = "Middle detail", page = 2, level = 2 },
+                new { title = "End", page = 3 },
+            },
+        });
+
+        var result = await host.InvokeAsync(new EditPdfPagesTool(), new
+        {
+            operations = new object[] { new { operation = "delete", pages = "2" } },
+        });
+
+        Assert.Contains("(2 page(s))", result, StringComparison.Ordinal);
+
+        using var edited = PdfDocument.Open(await host.ReadWorkingPdfAsync("guide"));
+
+        Assert.True(edited.TryGetBookmarks(out var bookmarks));
+        Assert.Equal(["Start", "End"], bookmarks.Roots.Select(root => root.Title));
+        Assert.Equal([1, 2], bookmarks.Roots.OfType<DocumentBookmarkNode>().Select(root => root.PageNumber));
     }
 
     [Fact]

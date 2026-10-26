@@ -1,5 +1,6 @@
 using System.Globalization;
 using UglyToad.PdfPig.Core;
+using UglyToad.PdfPig.Logging;
 using UglyToad.PdfPig.Tokens;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
 using PigParsingOptions = UglyToad.PdfPig.ParsingOptions;
@@ -35,7 +36,7 @@ internal sealed class PdfDocument : IDisposable
         Version = "1.7";
     }
 
-    private PdfDocument(PigDocument source)
+    private PdfDocument(PigDocument source, string password)
     {
         _source = source;
 
@@ -63,6 +64,8 @@ internal sealed class PdfDocument : IDisposable
         }
 
         IsEncrypted = source.IsEncrypted;
+        HasOwnerAccess = !IsEncrypted ||
+            (ReadEncryption(source) is { } encryption && PdfStandardSecurity.IsOwnerPassword(encryption, FileIdentifier is { Count: > 0 } ids ? ids[0] : null, password));
         Version = source.Version.ToString("0.0", CultureInfo.InvariantCulture);
         Pages = new PdfPages(this);
         Pages.LoadTree(Catalog.Elements["/Pages"]);
@@ -98,6 +101,12 @@ internal sealed class PdfDocument : IDisposable
     /// encrypted.
     /// </summary>
     public bool IsEncrypted { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether the document may be changed: it was not encrypted, or it was opened
+    /// with its owner password rather than only the password that opens it.
+    /// </summary>
+    public bool HasOwnerAccess { get; } = true;
 
     /// <summary>
     /// Gets or sets the natural language of the document, such as <c>en-US</c>, stored as the catalog's
@@ -137,12 +146,29 @@ internal sealed class PdfDocument : IDisposable
     /// <returns>The document. The caller disposes it.</returns>
     public static PdfDocument Open(byte[] bytes, string password = null)
     {
+        return Open(bytes, password, null);
+    }
+
+    /// <summary>
+    /// Opens a PDF file, reporting what the reader had to repair.
+    /// </summary>
+    /// <param name="bytes">The file.</param>
+    /// <param name="password">The password, when the file needs one to open.</param>
+    /// <param name="problems">Receives each problem the reader warns about or repairs, or <see langword="null"/>.</param>
+    /// <returns>The document. The caller disposes it.</returns>
+    public static PdfDocument Open(byte[] bytes, string password, ICollection<string> problems)
+    {
         ArgumentNullException.ThrowIfNull(bytes);
 
         var options = new PigParsingOptions
         {
             SkipMissingFonts = true,
         };
+
+        if (problems is not null)
+        {
+            options.Logger = new ProblemLog(problems);
+        }
 
         if (!string.IsNullOrEmpty(password))
         {
@@ -153,7 +179,7 @@ internal sealed class PdfDocument : IDisposable
 
         try
         {
-            return new PdfDocument(source);
+            return new PdfDocument(source, password);
         }
         catch
         {
@@ -320,6 +346,18 @@ internal sealed class PdfDocument : IDisposable
         return item;
     }
 
+    private static DictionaryToken ReadEncryption(PigDocument source)
+    {
+        var token = source.Structure.Trailer.EncryptionToken;
+
+        if (token is IndirectReferenceToken reference)
+        {
+            token = source.Structure.GetObject(reference.Data)?.Data;
+        }
+
+        return token as DictionaryToken;
+    }
+
     private static byte[] Bytes(IToken token)
     {
         return token switch
@@ -328,5 +366,51 @@ internal sealed class PdfDocument : IDisposable
             StringToken text => text.GetBytes(),
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// Collects the warnings and errors PdfPig logs while it reads a file; its debug messages are left out.
+    /// </summary>
+    private sealed class ProblemLog : ILog
+    {
+        private readonly ICollection<string> _problems;
+
+        public ProblemLog(ICollection<string> problems)
+        {
+            _problems = problems;
+        }
+
+        public void Debug(string message)
+        {
+        }
+
+        public void Debug(string message, Exception ex)
+        {
+        }
+
+        public void Warn(string message)
+        {
+            Add(message);
+        }
+
+        public void Error(string message)
+        {
+            Add(message);
+        }
+
+        public void Error(string message, Exception ex)
+        {
+            Add(string.IsNullOrWhiteSpace(ex?.Message)
+                ? message
+                : message + ": " + ex.Message);
+        }
+
+        private void Add(string message)
+        {
+            if (!string.IsNullOrWhiteSpace(message))
+            {
+                _problems.Add(message.Trim());
+            }
+        }
     }
 }

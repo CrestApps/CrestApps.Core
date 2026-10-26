@@ -1,5 +1,5 @@
 using System.Globalization;
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
 
@@ -67,14 +67,14 @@ internal static class PdfActiveContent
     /// <summary>
     /// Scans a document.
     /// </summary>
-    /// <param name="document">The document, opened with PDFsharp.</param>
+    /// <param name="document">The document, opened as objects.</param>
     /// <returns>What was found.</returns>
     public static PdfActiveContentReport Scan(PdfDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
 
         var report = new PdfActiveContentReport();
-        var catalog = document.Internals.Catalog;
+        var catalog = document.Catalog;
         var locations = new Dictionary<PdfDictionary, string>(ReferenceEqualityComparer.Instance);
 
         foreach (var (name, _) in PdfObjectReader.ReadNameTree(PdfObjectReader.GetDictionary(PdfObjectReader.GetDictionary(catalog, "/Names"), "/JavaScript"), 1_000))

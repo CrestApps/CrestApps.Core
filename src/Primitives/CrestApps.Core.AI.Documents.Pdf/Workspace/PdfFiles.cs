@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Documents.Pdf.Composition;
 using CrestApps.Core.AI.Documents.Pdf.Editing;
 using PdfSharp.Pdf.IO;
+using ObjectDocument = CrestApps.Core.AI.Documents.Pdf.Objects.PdfDocument;
 using PdfSharpDocument = PdfSharp.Pdf.PdfDocument;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
 using PigParsingOptions = UglyToad.PdfPig.ParsingOptions;
@@ -40,6 +41,70 @@ internal static class PdfFiles
     }
 
     /// <summary>
+    /// Opens a PDF as the objects it is made of, to read them or copy pages out of it.
+    /// </summary>
+    /// <param name="bytes">The file.</param>
+    /// <param name="password">The password, when the file needs one to open.</param>
+    /// <param name="problems">Receives each problem the reader repairs, or <see langword="null"/>.</param>
+    /// <returns>The document. The caller disposes it.</returns>
+    public static ObjectDocument OpenObjects(byte[] bytes, string password = null, ICollection<string> problems = null)
+    {
+        ArgumentNullException.ThrowIfNull(bytes);
+
+        try
+        {
+            return ObjectDocument.Open(bytes, password, problems);
+        }
+        catch (Exception ex) when (IsPasswordFailure(ex))
+        {
+            throw new PdfToolException(PasswordMessage(password, forChanges: false), ex);
+        }
+        catch (Exception ex) when (ex is not PdfToolException and not OperationCanceledException)
+        {
+            throw new PdfToolException($"The file could not be opened as a PDF: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Opens a PDF as the objects it is made of, to change it. A protected file opens only with its owner
+    /// password.
+    /// </summary>
+    /// <param name="bytes">The file.</param>
+    /// <param name="password">The owner password, when the file is protected against changes.</param>
+    /// <returns>The document. The caller disposes it.</returns>
+    public static ObjectDocument OpenObjectsForEditing(byte[] bytes, string password = null)
+    {
+        ArgumentNullException.ThrowIfNull(bytes);
+
+        ObjectDocument document;
+
+        try
+        {
+            document = ObjectDocument.Open(bytes, password);
+        }
+        catch (Exception ex) when (IsPasswordFailure(ex))
+        {
+            throw new PdfToolException(PasswordMessage(password, forChanges: true), ex);
+        }
+        catch (Exception ex) when (ex is not PdfToolException and not OperationCanceledException)
+        {
+            throw new PdfToolException($"The file could not be opened as a PDF: {ex.Message}", ex);
+        }
+
+        if (!document.HasOwnerAccess)
+        {
+            document.Dispose();
+
+            throw new PdfToolException(PasswordMessage(password, forChanges: true));
+        }
+
+        // The file's XMP packet is taken now, before any edit, so the save can write a correct one.
+        PdfMetadataSync.Capture(document);
+
+        return document;
+    }
+
+    /// <summary>
     /// Opens a PDF for changing it.
     /// </summary>
     /// <param name="bytes">The file.</param>
@@ -76,6 +141,19 @@ internal static class PdfFiles
     /// <param name="document">The document.</param>
     /// <returns>The file.</returns>
     public static byte[] Save(PdfSharpDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        return PdfMetadataSync.Capture(document).Save(document, TimeProvider.System.GetUtcNow());
+    }
+
+    /// <summary>
+    /// Saves a PDF to bytes, dating the change and writing XMP metadata that agrees with the document
+    /// information and keeps the conformance the file claimed.
+    /// </summary>
+    /// <param name="document">The document.</param>
+    /// <returns>The file.</returns>
+    public static byte[] Save(ObjectDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
 
@@ -132,15 +210,7 @@ internal static class PdfFiles
         {
             stream.Dispose();
 
-            throw new PdfToolException(
-                (string.IsNullOrEmpty(password), mode == PdfDocumentOpenMode.Import) switch
-                {
-                    (true, true) => "This PDF is protected with a password. Ask the user for it and pass it as 'password'.",
-                    (true, false) => "This PDF is protected and cannot be changed without its owner password. Ask the user for it and pass it as 'password', or use remove_pdf_security first.",
-                    (false, true) => "The password given does not open this PDF.",
-                    _ => "The password given does not open this PDF for changes. It needs the owner password, not only the one that opens it for reading.",
-                },
-                ex);
+            throw new PdfToolException(PasswordMessage(password, forChanges: mode != PdfDocumentOpenMode.Import), ex);
         }
         catch (Exception ex) when (ex is not PdfToolException and not OperationCanceledException)
         {
@@ -148,6 +218,17 @@ internal static class PdfFiles
 
             throw new PdfToolException($"The file could not be opened as a PDF: {ex.Message}", ex);
         }
+    }
+
+    private static string PasswordMessage(string password, bool forChanges)
+    {
+        return (string.IsNullOrEmpty(password), forChanges) switch
+        {
+            (true, false) => "This PDF is protected with a password. Ask the user for it and pass it as 'password'.",
+            (true, true) => "This PDF is protected and cannot be changed without its owner password. Ask the user for it and pass it as 'password', or use remove_pdf_security first.",
+            (false, false) => "The password given does not open this PDF.",
+            _ => "The password given does not open this PDF for changes. It needs the owner password, not only the one that opens it for reading.",
+        };
     }
 
     private static bool IsPasswordFailure(Exception exception)

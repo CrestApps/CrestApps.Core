@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace CrestApps.Core.AI.Documents.Pdf.Objects;
 
 /// <summary>
@@ -52,6 +54,63 @@ internal sealed class PdfImporter
         }
 
         return page;
+    }
+
+    /// <summary>
+    /// Copies what a page shows into a form object, to draw it at another size or place. The form is the
+    /// page's visible area, turned the way the page is shown; its links and form fields are not carried over.
+    /// </summary>
+    /// <param name="source">The page of another document.</param>
+    /// <returns>The form, stored on its own in the target document, and the size it is shown at.</returns>
+    public (PdfDictionary Form, double Width, double Height) ImportPageAsForm(PdfPage source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        var media = source.MediaBox;
+        var crop = source.CropBox;
+        var box = new PdfRectangle(
+            Math.Max(crop.X1, media.X1),
+            Math.Max(crop.Y1, media.Y1),
+            Math.Min(crop.X2, media.X2),
+            Math.Min(crop.Y2, media.Y2));
+
+        if (box.Width <= 0 || box.Height <= 0)
+        {
+            box = media;
+        }
+
+        var (x, y, width, height) = (box.X1, box.Y1, box.Width, box.Height);
+
+        // The form's space starts at the visible area's corner, turned as viewers turn the page.
+        var (matrix, shownWidth, shownHeight) = source.Rotate switch
+        {
+            90 => ($"0 -1 1 0 {F(-y)} {F(x + width)}", height, width),
+            180 => ($"-1 0 0 -1 {F(x + width)} {F(y + height)}", width, height),
+            270 => ($"0 1 -1 0 {F(y + height)} {F(-x)}", height, width),
+            _ => ($"1 0 0 1 {F(-x)} {F(-y)}", width, height),
+        };
+
+        var form = new PdfDictionary(_target);
+
+        form.Elements.SetName("/Type", "/XObject");
+        form.Elements.SetName("/Subtype", "/Form");
+        form.Elements["/BBox"] = new PdfRectangle(0, 0, shownWidth, shownHeight);
+        form.Elements["/Resources"] = source.Elements["/Resources"] is { } resources
+            ? Copy(resources, 0)
+            : new PdfDictionary(_target);
+
+        var content = source.Contents.ReadAll();
+
+        form.CreateStream([]);
+        form.Stream.SetCompressed([.. Encoding.ASCII.GetBytes($"q {matrix} cm\n"), .. content, .. "\nQ\n"u8]);
+        _target.AddObject(form);
+
+        return (form, shownWidth, shownHeight);
+    }
+
+    private static string F(double value)
+    {
+        return PdfObjectModel.Format(value);
     }
 
     private PdfItem Copy(PdfItem item, int depth)

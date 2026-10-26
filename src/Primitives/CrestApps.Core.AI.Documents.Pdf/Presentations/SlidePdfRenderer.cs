@@ -1,10 +1,12 @@
 using CrestApps.Core.AI.Documents.Pdf.Composition;
+using CrestApps.Core.AI.Documents.Pdf.Graphics;
+using CrestApps.Core.AI.Documents.Pdf.Graphics.Fonts;
+using CrestApps.Core.AI.Documents.Pdf.Graphics.Images;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Presentations;
 using CrestApps.Core.AI.Documents.Presentations.Editing;
 using CrestApps.Core.AI.Documents.Presentations.Rendering;
 using Microsoft.Extensions.Logging;
-using PdfSharp.Drawing;
-using PdfSharp.Pdf;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Presentations;
 
@@ -21,7 +23,7 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
 {
     private static readonly string[] _fallbackFonts = ["Arial", "Segoe UI", "Helvetica", "Liberation Sans", "DejaVu Sans"];
     private static readonly (string Suffix, bool Bold)[] _weightSuffixes = [(" Semibold", true), (" SemiBold", true), (" Bold", true), (" Black", true), (" Light", false), (" Semilight", false), (" SemiLight", false)];
-    private static int _fontsConfigured;
+    private static readonly PdfColor _black = new(0, 0, 0);
 
     private readonly ILogger<SlidePdfRenderer> _logger;
 
@@ -45,11 +47,10 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
     {
         ArgumentNullException.ThrowIfNull(slides);
 
-        EnsureFonts();
-
         using var document = new PdfDocument();
         document.Info.Title = title ?? "Presentation";
         document.Info.Creator = "CrestApps";
+        document.Info.Producer = "CrestApps";
 
         var fonts = new FontCache(_logger);
 
@@ -58,109 +59,87 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
             cancellationToken.ThrowIfCancellationRequested();
 
             var page = document.AddPage();
-            page.Width = XUnit.FromPoint(Math.Max(1, slide.Width));
-            page.Height = XUnit.FromPoint(Math.Max(1, slide.Height));
+            page.MediaBox = new PdfRectangle(0, 0, Math.Max(1, slide.Width), Math.Max(1, slide.Height));
 
-            using var graphics = XGraphics.FromPdfPage(page);
+            var canvas = PdfCanvas.ForPage(page);
 
             foreach (var item in slide.Items)
             {
-                var state = graphics.Save();
+                canvas.Save();
 
                 try
                 {
-                    Transform(graphics, item);
+                    Transform(canvas, item);
 
                     switch (item)
                     {
                         case SlideShapeDrawing shape:
-                            DrawShape(graphics, shape);
+                            DrawShape(canvas, shape);
                             break;
                         case SlideTextDrawing text:
-                            DrawText(graphics, text, fonts);
+                            DrawText(canvas, text, fonts);
                             break;
                         case SlideImageDrawing image:
-                            DrawImage(graphics, image);
+                            DrawImage(canvas, image);
                             break;
                     }
                 }
                 finally
                 {
-                    graphics.Restore(state);
+                    canvas.Restore();
                 }
             }
+
+            canvas.Commit();
         }
 
-        using var output = new MemoryStream();
-        document.Save(output, closeStream: false);
-
-        return Task.FromResult(output.ToArray());
+        return Task.FromResult(document.Save());
     }
 
-    private static void EnsureFonts()
-    {
-        if (Interlocked.Exchange(ref _fontsConfigured, 1) != 0)
-        {
-            return;
-        }
-
-        try
-        {
-            PdfFontConfiguration.Ensure();
-        }
-        catch (InvalidOperationException)
-        {
-            // The settings can only be changed before the first font is made; another writer already did.
-        }
-    }
-
-    private static void Transform(XGraphics graphics, SlideDrawingItem item)
+    private static void Transform(PdfCanvas canvas, SlideDrawingItem item)
     {
         if (!item.IsTransformed)
         {
             return;
         }
 
-        var center = new XPoint(item.CenterX, item.CenterY);
-
         if (Math.Abs(item.Rotation % 360) > 0.01)
         {
-            graphics.RotateAtTransform(item.Rotation, center);
+            canvas.RotateAt(item.Rotation, item.CenterX, item.CenterY);
         }
 
         if (item.FlipHorizontal || item.FlipVertical)
         {
-            graphics.ScaleAtTransform(item.FlipHorizontal ? -1 : 1, item.FlipVertical ? -1 : 1, center);
+            canvas.Translate(item.CenterX, item.CenterY);
+            canvas.Scale(item.FlipHorizontal ? -1 : 1, item.FlipVertical ? -1 : 1);
+            canvas.Translate(-item.CenterX, -item.CenterY);
         }
     }
 
-    private static void DrawShape(XGraphics graphics, SlideShapeDrawing shape)
+    private static void DrawShape(PdfCanvas canvas, SlideShapeDrawing shape)
     {
         var (x, y, width, height) = shape.Box;
         var pen = Pen(shape.Stroke);
 
-        if (shape.Fill?.Image is { Data.Length: > 0 } picture && TryLoad(picture.Data, out var image))
+        if (shape.Fill?.Image is { Data.Length: > 0 } picture && PdfImage.TryLoad(picture.Data) is { } image)
         {
-            using (image)
+            canvas.Save();
+
+            foreach (var path in shape.Paths.Where(path => path.Filled))
             {
-                var state = graphics.Save();
-
-                foreach (var path in shape.Paths.Where(path => path.Filled))
-                {
-                    graphics.IntersectClip(Path(path));
-                }
-
-                var fullWidth = width / Math.Max(0.01, 1 - picture.CropLeft - picture.CropRight);
-                var fullHeight = height / Math.Max(0.01, 1 - picture.CropTop - picture.CropBottom);
-                graphics.DrawImage(image, x - (picture.CropLeft * fullWidth), y - (picture.CropTop * fullHeight), fullWidth, fullHeight);
-                graphics.Restore(state);
+                canvas.Clip(Path(path));
             }
+
+            var fullWidth = width / Math.Max(0.01, 1 - picture.CropLeft - picture.CropRight);
+            var fullHeight = height / Math.Max(0.01, 1 - picture.CropTop - picture.CropBottom);
+            canvas.DrawImage(image, x - (picture.CropLeft * fullWidth), y - (picture.CropTop * fullHeight), fullWidth, fullHeight);
+            canvas.Restore();
 
             if (pen is not null)
             {
                 foreach (var path in shape.Paths.Where(path => path.Stroked))
                 {
-                    graphics.DrawPath(pen, Path(path));
+                    canvas.DrawPath(Path(path), null, pen);
                 }
             }
 
@@ -177,39 +156,28 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
                 continue;
             }
 
-            var geometry = Path(path);
-
             if (shape.Shadow && brush is not null)
             {
                 // A soft shadow cannot be blurred in a PDF; a faint offset copy reads the same at slide size.
-                var state = graphics.Save();
-                graphics.TranslateTransform(0, 2);
-                graphics.DrawPath(new XSolidBrush(XColor.FromArgb(46, 0, 0, 0)), Path(path));
-                graphics.Restore(state);
+                canvas.Save();
+                canvas.Translate(0, 2);
+                canvas.DrawPath(Path(path), new PdfBrush(_black, 46 / 255d));
+                canvas.Restore();
             }
 
-            if (brush is not null && stroke is not null)
-            {
-                graphics.DrawPath(stroke, brush, geometry);
-            }
-            else if (brush is not null)
-            {
-                graphics.DrawPath(brush, geometry);
-            }
-            else
-            {
-                graphics.DrawPath(stroke, geometry);
-            }
+            canvas.DrawPath(Path(path), brush, stroke);
         }
     }
 
-    private static void DrawText(XGraphics graphics, SlideTextDrawing text, FontCache fonts)
+    private static void DrawText(PdfCanvas canvas, SlideTextDrawing text, FontCache fonts)
     {
         foreach (var line in text.Lines)
         {
             if (line.Marker is { } marker && !string.IsNullOrEmpty(marker.Text))
             {
-                graphics.DrawString(marker.Text, fonts.Get(marker), Solid(marker.Color, 1), line.MarkerX, line.Baseline + Shift(marker), XStringFormats.BaseLineLeft);
+                var markerFont = fonts.Get(marker);
+
+                DrawRun(canvas, marker, markerFont, line.MarkerX, line.Baseline, markerFont.Measure(marker.Text, Size(marker)));
             }
 
             if (line.Runs.Count == 0)
@@ -217,7 +185,7 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
                 continue;
             }
 
-            var widths = line.Runs.Select(run => string.IsNullOrEmpty(run.Text) ? 0 : graphics.MeasureString(run.Text, fonts.Get(run)).Width).ToList();
+            var widths = line.Runs.Select(run => string.IsNullOrEmpty(run.Text) ? 0 : fonts.Get(run).Measure(run.Text, Size(run))).ToList();
             var total = widths.Sum();
             var left = line.Anchor switch
             {
@@ -234,10 +202,10 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
                 {
                     if (!string.IsNullOrEmpty(run.Highlight))
                     {
-                        graphics.DrawRectangle(Solid(run.Highlight, 1), left, line.Baseline - (run.Size * 0.85), widths[index], run.Size * 1.1);
+                        canvas.DrawRectangle(left, line.Baseline - (run.Size * 0.85), widths[index], run.Size * 1.1, Solid(run.Highlight, 1));
                     }
 
-                    graphics.DrawString(run.Text, fonts.Get(run), Solid(run.Color, 1), left, line.Baseline + Shift(run), XStringFormats.BaseLineLeft);
+                    DrawRun(canvas, run, fonts.Get(run), left, line.Baseline, widths[index]);
                 }
 
                 left += widths[index];
@@ -245,89 +213,77 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
         }
     }
 
-    private static void DrawImage(XGraphics graphics, SlideImageDrawing drawing)
+    private static void DrawRun(PdfCanvas canvas, SlideTextRun run, PdfFont font, double x, double baseline, double width)
     {
-        if (drawing.Data is not { Length: > 0 } || !TryLoad(drawing.Data, out var image))
+        var size = Size(run);
+        var shifted = baseline + Shift(run);
+        var brush = Solid(run.Color, 1);
+
+        canvas.DrawText(run.Text, font, size, x, shifted, brush);
+
+        // The lines are as thick as a typical font's own and sit where its underline and strikeout do.
+        var pen = new PdfPen(brush.Color, Math.Max(0.5, size * 0.05));
+
+        if (run.Underline)
+        {
+            canvas.DrawLine(x, shifted + (size * 0.1), x + width, shifted + (size * 0.1), pen);
+        }
+
+        if (run.Strikethrough)
+        {
+            canvas.DrawLine(x, shifted - (size * 0.28), x + width, shifted - (size * 0.28), pen);
+        }
+    }
+
+    private static void DrawImage(PdfCanvas canvas, SlideImageDrawing drawing)
+    {
+        if (drawing.Data is not { Length: > 0 } || PdfImage.TryLoad(drawing.Data) is not { } image)
         {
             return;
         }
 
-        using (image)
+        if (drawing.Clip is { Count: > 0 })
         {
-            if (drawing.Clip is { Count: > 0 })
+            foreach (var path in drawing.Clip)
             {
-                foreach (var path in drawing.Clip)
-                {
-                    graphics.IntersectClip(Path(path));
-                }
+                canvas.Clip(Path(path));
             }
-            else
-            {
-                graphics.IntersectClip(new XRect(drawing.X, drawing.Y, drawing.Width, drawing.Height));
-            }
-
-            // A crop keeps the whole picture and shows part of it: the picture is drawn larger than its frame
-            // and the frame cuts it.
-            var fullWidth = drawing.Width / Math.Max(0.01, 1 - drawing.CropLeft - drawing.CropRight);
-            var fullHeight = drawing.Height / Math.Max(0.01, 1 - drawing.CropTop - drawing.CropBottom);
-
-            graphics.DrawImage(image, drawing.X - (drawing.CropLeft * fullWidth), drawing.Y - (drawing.CropTop * fullHeight), fullWidth, fullHeight);
         }
+        else
+        {
+            canvas.Clip(new PdfPath().AddRectangle(drawing.X, drawing.Y, drawing.Width, drawing.Height));
+        }
+
+        // A crop keeps the whole picture and shows part of it: the picture is drawn larger than its frame
+        // and the frame cuts it.
+        var fullWidth = drawing.Width / Math.Max(0.01, 1 - drawing.CropLeft - drawing.CropRight);
+        var fullHeight = drawing.Height / Math.Max(0.01, 1 - drawing.CropTop - drawing.CropBottom);
+
+        canvas.DrawImage(image, drawing.X - (drawing.CropLeft * fullWidth), drawing.Y - (drawing.CropTop * fullHeight), fullWidth, fullHeight);
     }
 
-    private static bool TryLoad(byte[] data, out XImage image)
+    private static PdfPath Path(SlidePath path)
     {
-        image = null;
-
-        try
-        {
-            // The stream stays open for the image's lifetime, which ends with the page drawing it.
-            image = XImage.FromStream(new MemoryStream(data, writable: false));
-
-            return true;
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or NotSupportedException or ArgumentException or IOException)
-        {
-            return false;
-        }
-    }
-
-    private static XGraphicsPath Path(SlidePath path)
-    {
-        var result = new XGraphicsPath { FillMode = path.EvenOdd ? XFillMode.Alternate : XFillMode.Winding };
-        var current = (X: 0d, Y: 0d);
-        var start = current;
-        var open = false;
+        var result = new PdfPath { EvenOdd = path.EvenOdd };
 
         foreach (var command in path.Commands)
         {
             switch (command.Kind)
             {
                 case 'M':
-                    if (open)
-                    {
-                        result.StartFigure();
-                    }
-
-                    current = command.Points[0];
-                    start = current;
-                    open = true;
+                    result.MoveTo(command.Points[0].X, command.Points[0].Y);
                     break;
 
                 case 'L':
-                    result.AddLine(current.X, current.Y, command.Points[0].X, command.Points[0].Y);
-                    current = command.Points[0];
+                    result.LineTo(command.Points[0].X, command.Points[0].Y);
                     break;
 
                 case 'C':
-                    result.AddBezier(current.X, current.Y, command.Points[0].X, command.Points[0].Y, command.Points[1].X, command.Points[1].Y, command.Points[2].X, command.Points[2].Y);
-                    current = command.Points[2];
+                    result.CurveTo(command.Points[0].X, command.Points[0].Y, command.Points[1].X, command.Points[1].Y, command.Points[2].X, command.Points[2].Y);
                     break;
 
                 case 'Z':
-                    result.CloseFigure();
-                    current = start;
-                    open = false;
+                    result.Close();
                     break;
             }
         }
@@ -335,29 +291,29 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
         return result;
     }
 
-    private static XBrush Brush(SlidePaint paint, double shade, double x, double y, double width, double height)
+    private static PdfBrush Brush(SlidePaint paint, double shade, double x, double y, double width, double height)
     {
         if (paint.Stops.Count >= 2)
         {
             var first = paint.Stops[0];
             var last = paint.Stops[^1];
-            var from = Color(first.Color, first.Alpha);
-            var to = Color(last.Color, last.Alpha);
+
+            // A PDF shading has one opacity; the more opaque end's is used, so a gradient fading to clear still shows.
+            var opacity = Math.Clamp(Math.Max(first.Alpha, last.Alpha), 0, 1);
 
             if (paint.Radial)
             {
-                var center = new XPoint(x + (width / 2), y + (height / 2));
-
-                return new XRadialGradientBrush(center, center, 0, Math.Max(width, height) * 0.7, from, to);
+                return PdfBrush.Radial(Color(first.Color), Color(last.Color), x + (width / 2), y + (height / 2), Math.Max(width, height) * 0.7, opacity);
             }
 
             // DrawingML measures the angle clockwise from left-to-right, across the shape's bounding box.
             var radians = paint.Angle * Math.PI / 180;
             var dx = Math.Cos(radians) * width / 2;
             var dy = Math.Sin(radians) * height / 2;
-            var middle = new XPoint(x + (width / 2), y + (height / 2));
+            var middleX = x + (width / 2);
+            var middleY = y + (height / 2);
 
-            return new XLinearGradientBrush(new XPoint(middle.X - dx, middle.Y - dy), new XPoint(middle.X + dx, middle.Y + dy), from, to);
+            return PdfBrush.Linear(Color(first.Color), Color(last.Color), middleX - dx, middleY - dy, middleX + dx, middleY + dy, opacity);
         }
 
         var color = paint.Stops.Count == 1 ? paint.Stops[0].Color : paint.Color;
@@ -370,19 +326,13 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
         return Solid(shade != 0 ? PresentationColor.Shade(color, -shade) : color, paint.Alpha);
     }
 
-    private static XPen Pen(SlideStroke stroke)
+    private static PdfPen Pen(SlideStroke stroke)
     {
         if (stroke is null || stroke.Width <= 0)
         {
             return null;
         }
 
-        var pen = new XPen(Color(stroke.Color, stroke.Alpha), stroke.Width)
-        {
-            LineJoin = XLineJoin.Round,
-        };
-
-        var width = stroke.Width;
         double[] pattern = stroke.Dash switch
         {
             "dash" => [4, 3],
@@ -393,25 +343,25 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
             _ => null,
         };
 
-        if (pattern is not null && width > 0)
-        {
-            pen.DashPattern = pattern;
-        }
-
-        return pen;
+        return new PdfPen(Color(stroke.Color), stroke.Width, Math.Clamp(stroke.Alpha, 0, 1), pattern, RoundJoins: true);
     }
 
-    private static XSolidBrush Solid(string hex, double alpha)
+    private static PdfBrush Solid(string hex, double alpha)
     {
-        return new XSolidBrush(Color(hex, alpha));
+        return new PdfBrush(Color(hex), Math.Clamp(alpha, 0, 1));
     }
 
-    private static XColor Color(string hex, double alpha)
+    private static PdfColor Color(string hex)
     {
         var normalized = PresentationColor.NormalizeHex(hex) ?? "000000";
         var value = Convert.ToInt32(normalized, 16);
 
-        return XColor.FromArgb((int)Math.Round(Math.Clamp(alpha, 0, 1) * 255), (value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF);
+        return new PdfColor((byte)((value >> 16) & 0xFF), (byte)((value >> 8) & 0xFF), (byte)(value & 0xFF));
+    }
+
+    private static double Size(SlideTextRun run)
+    {
+        return Math.Round(Math.Max(1, run.Size), 2);
     }
 
     private static double Shift(SlideTextRun run)
@@ -421,12 +371,11 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
     }
 
     /// <summary>
-    /// Makes each font once, falling back to a common sans-serif typeface when the deck names one the host
-    /// does not have.
+    /// Resolves each font a deck names once, falling back to a common sans-serif typeface when the deck
+    /// names one the host does not have.
     /// </summary>
     private sealed class FontCache
     {
-        private readonly Dictionary<(string Family, double Size, XFontStyleEx Style), XFont> _fonts = [];
         private readonly Dictionary<string, (string Family, bool Bold)> _resolved = new(StringComparer.OrdinalIgnoreCase);
         private readonly ILogger _logger;
 
@@ -444,50 +393,14 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
         /// </summary>
         /// <param name="run">The run.</param>
         /// <returns>The font.</returns>
-        public XFont Get(SlideTextRun run)
+        public PdfFont Get(SlideTextRun run)
         {
-            var style = XFontStyleEx.Regular;
+            var (family, bold) = Resolve(run.Font);
 
-            if (run.Bold)
-            {
-                style |= XFontStyleEx.Bold;
-            }
-
-            if (run.Italic)
-            {
-                style |= XFontStyleEx.Italic;
-            }
-
-            if (run.Underline)
-            {
-                style |= XFontStyleEx.Underline;
-            }
-
-            if (run.Strikethrough)
-            {
-                style |= XFontStyleEx.Strikeout;
-            }
-
-            var size = Math.Round(Math.Max(1, run.Size), 2);
-            var (family, bold) = Resolve(run.Font, style);
-
-            if (bold)
-            {
-                style |= XFontStyleEx.Bold;
-            }
-
-            var key = (family, size, style);
-
-            if (!_fonts.TryGetValue(key, out var font))
-            {
-                font = new XFont(family, size, style);
-                _fonts[key] = font;
-            }
-
-            return font;
+            return PdfFontLibrary.Get(family, run.Bold || bold, run.Italic);
         }
 
-        private (string Family, bool Bold) Resolve(string requested, XFontStyleEx style)
+        private (string Family, bool Bold) Resolve(string requested)
         {
             var name = string.IsNullOrWhiteSpace(requested) ? _fallbackFonts[0] : requested.Trim();
 
@@ -513,7 +426,7 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
 
             foreach (var candidate in candidates)
             {
-                if (Exists(candidate.Family, style))
+                if (PdfFontLibrary.IsInstalled(candidate.Family))
                 {
                     if (!string.Equals(candidate.Family, name, StringComparison.OrdinalIgnoreCase) && _logger.IsEnabled(LogLevel.Debug))
                     {
@@ -529,20 +442,6 @@ internal sealed class SlidePdfRenderer : IPresentationPdfRenderer
             _resolved[name] = (name, false);
 
             return (name, false);
-        }
-
-        private static bool Exists(string family, XFontStyleEx style)
-        {
-            try
-            {
-                _ = new XFont(family, 10, style & (XFontStyleEx.Bold | XFontStyleEx.Italic));
-
-                return true;
-            }
-            catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
-            {
-                return false;
-            }
         }
     }
 }
