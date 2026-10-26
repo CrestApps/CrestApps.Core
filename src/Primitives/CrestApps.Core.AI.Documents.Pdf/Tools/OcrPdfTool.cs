@@ -260,7 +260,7 @@ internal sealed class OcrPdfTool : PdfToolBase
                     var target = context.FindPdf(state, source.IsUpload ? source.Upload.ItemId : source.Name);
                     var current = await context.ReadPdfAsync(target, cancellationToken);
 
-                    using var document = PdfFiles.OpenForEditing(current, password);
+                    using var document = PdfFiles.OpenObjectsForEditing(current, password);
 
                     foreach (var scan in layered)
                     {

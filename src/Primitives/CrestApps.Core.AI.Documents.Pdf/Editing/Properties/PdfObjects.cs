@@ -1,6 +1,8 @@
 using System.Globalization;
+using CrestApps.Core.AI.Documents.Pdf.Analysis;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.Advanced;
+using ObjectDocument = CrestApps.Core.AI.Documents.Pdf.Objects.PdfDocument;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
@@ -250,8 +252,26 @@ internal static class PdfObjects
     /// <returns>A warning sentence, or <see langword="null"/> when the document carries no signature.</returns>
     public static string DescribeBrokenSignatures(PdfDocument document)
     {
-        var count = CountSignatures(document);
+        return DescribeBrokenSignatures(CountSignatures(document));
+    }
 
+    /// <summary>
+    /// Describes the effect an edit has on a document that was digitally signed.
+    /// </summary>
+    /// <param name="document">The document as it was opened, as objects.</param>
+    /// <returns>A warning sentence, or <see langword="null"/> when the document carries no signature.</returns>
+    public static string DescribeBrokenSignatures(ObjectDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        var count = PdfFormFieldList.Read(document)
+            .Count(field => field.FieldType == "Sig" && PdfObjectReader.GetDictionary(field.Dictionary, "/V") is not null);
+
+        return DescribeBrokenSignatures(count);
+    }
+
+    private static string DescribeBrokenSignatures(int count)
+    {
         return count == 0
             ? null
             : $"The source carried {count} digital signature(s); saving any change rewrites the file, so the working copy's signatures no longer verify. Sign again with sign_pdf after the last edit if a signature is needed.";

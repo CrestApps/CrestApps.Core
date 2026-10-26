@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Intelligence;
 
@@ -234,7 +234,7 @@ internal static class PdfTextLayerWriter
         font.Elements["/Subtype"] = new PdfName("/Type1");
         font.Elements["/BaseFont"] = new PdfName("/Helvetica");
         font.Elements["/Encoding"] = new PdfName("/WinAnsiEncoding");
-        document.Internals.AddObject(font);
+        document.AddObject(font);
 
         fonts.Elements[name] = font.Reference;
 

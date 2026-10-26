@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Documents.Pdf.Editing;
 using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf;
@@ -19,14 +20,7 @@ internal static class PdfFixtureObjects
     /// <param name="uri">The address.</param>
     public static void AddWebLink(PdfPage page, double left, double bottom, double width, double height, string uri)
     {
-        var action = new PdfDictionary(page.Owner);
-
-        action.Elements.SetName("/S", "/URI");
-        action.Elements.SetString("/URI", uri);
-
-        var link = Link(page, left, bottom, width, height);
-
-        link.Elements["/A"] = action;
+        PdfLinkAnnotations.AddWebLink(page, new PdfRectangle(left, bottom, left + width, bottom + height), uri);
     }
 
     /// <summary>
@@ -40,9 +34,7 @@ internal static class PdfFixtureObjects
     /// <param name="target">The page it goes to.</param>
     public static void AddPageLink(PdfPage page, double left, double bottom, double width, double height, PdfPage target)
     {
-        var link = Link(page, left, bottom, width, height);
-
-        link.Elements["/Dest"] = Destination(target);
+        PdfLinkAnnotations.AddPageLink(page, new PdfRectangle(left, bottom, left + width, bottom + height), target);
     }
 
     /// <summary>
@@ -129,15 +121,6 @@ internal static class PdfFixtureObjects
         }
 
         return item;
-    }
-
-    private static PdfDictionary Link(PdfPage page, double left, double bottom, double width, double height)
-    {
-        var link = Annotation(page, "/Link", left, bottom, width, height);
-
-        link.Elements["/Border"] = new PdfArray(page.Owner, new PdfInteger(0), new PdfInteger(0), new PdfInteger(0));
-
-        return link;
     }
 
     private static PdfDictionary Annotation(PdfPage page, string subtype, double left, double bottom, double width, double height)
