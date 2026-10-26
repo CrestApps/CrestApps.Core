@@ -5,7 +5,6 @@ using CrestApps.Core.Extensions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
@@ -72,11 +71,6 @@ internal sealed class AIUsageRecorder
 
         try
         {
-            if (!_serviceProvider.GetRequiredService<IOptionsMonitor<GeneralAIOptions>>().CurrentValue.EnableAIUsageTracking)
-            {
-                return;
-            }
-
             observers = _serviceProvider.GetServices<IAICompletionUsageObserver>();
         }
         catch (ObjectDisposedException)

@@ -8,6 +8,7 @@ public sealed class GeneralAIOptions
     /// <summary>
     /// Gets or sets a value indicating whether enables AI Usage Tracking.
     /// </summary>
+    [Obsolete("AI usage tracking is no longer switched by an option and this value is ignored. Register it with AddCoreAIUsageTracking() instead.")]
     public bool EnableAIUsageTracking { get; set; }
 
     /// <summary>

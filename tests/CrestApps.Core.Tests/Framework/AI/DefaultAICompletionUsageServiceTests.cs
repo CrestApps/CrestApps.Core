@@ -1,10 +1,11 @@
 using System.Security.Claims;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
-using CrestApps.Core.Tests.Support;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 
 namespace CrestApps.Core.Tests.Framework.AI;
@@ -46,11 +47,7 @@ public sealed class DefaultAICompletionUsageServiceTests
             usageStore.Object,
             serviceProvider.Object,
             TimeProvider.System,
-            httpContextAccessor.Object,
-            new TestOptionsMonitor<GeneralAIOptions>
-            {
-                CurrentValue = new GeneralAIOptions { EnableAIUsageTracking = true },
-            });
+            httpContextAccessor.Object);
 
         await service.UsageRecordedAsync(record, TestContext.Current.CancellationToken);
 
@@ -62,54 +59,28 @@ public sealed class DefaultAICompletionUsageServiceTests
     }
 
     [Fact]
-    public async Task UsageRecordedAsync_DoesNotSaveWhenTrackingIsDisabled()
+    public void AddCoreAIUsageTracking_RegistersTheService()
     {
-        var usageStore = new Mock<IAICompletionUsageStore>(MockBehavior.Strict);
-        var serviceProvider = new Mock<IServiceProvider>(MockBehavior.Strict);
-        var httpContextAccessor = new Mock<IHttpContextAccessor>(MockBehavior.Strict);
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton(Mock.Of<IAICompletionUsageStore>())
+            .AddSingleton(Mock.Of<IHttpContextAccessor>())
+            .AddSingleton(TimeProvider.System)
+            .AddCoreAIUsageTracking();
 
-        var service = new DefaultAICompletionUsageService(
-            usageStore.Object,
-            serviceProvider.Object,
-            TimeProvider.System,
-            httpContextAccessor.Object,
-            new TestOptionsMonitor<GeneralAIOptions>
-            {
-                CurrentValue = new GeneralAIOptions { EnableAIUsageTracking = false },
-            });
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
 
-        await service.UsageRecordedAsync(new AICompletionUsageRecord(), TestContext.Current.CancellationToken);
+        Assert.IsType<DefaultAICompletionUsageService>(scope.ServiceProvider.GetRequiredService<IAICompletionUsageService>());
+        Assert.Same(scope.ServiceProvider.GetRequiredService<IAICompletionUsageService>(), Assert.Single(scope.ServiceProvider.GetServices<IAICompletionUsageObserver>()));
     }
 
     [Fact]
-    public async Task UsageRecordedAsync_UsesCurrentSettingsValueAtCallTime()
+    public void WithoutAddCoreAIUsageTracking_NothingIsRegistered()
     {
-        var record = new AICompletionUsageRecord();
-        var optionsAccessor = new TestOptionsMonitor<GeneralAIOptions>
-        {
-            CurrentValue = new GeneralAIOptions { EnableAIUsageTracking = false },
-        };
-        var usageStore = new Mock<IAICompletionUsageStore>(MockBehavior.Strict);
-        var serviceProvider = new Mock<IServiceProvider>(MockBehavior.Strict);
-        var httpContextAccessor = new Mock<IHttpContextAccessor>(MockBehavior.Strict);
+        using var provider = new ServiceCollection().BuildServiceProvider();
 
-        var service = new DefaultAICompletionUsageService(
-            usageStore.Object,
-            serviceProvider.Object,
-            TimeProvider.System,
-            httpContextAccessor.Object,
-            optionsAccessor);
-
-        await service.UsageRecordedAsync(record, TestContext.Current.CancellationToken);
-
-        optionsAccessor.CurrentValue = new GeneralAIOptions { EnableAIUsageTracking = true };
-        usageStore
-            .Setup(x => x.SaveAsync(record, TestContext.Current.CancellationToken))
-            .Returns(Task.CompletedTask);
-        httpContextAccessor.SetupGet(x => x.HttpContext).Returns((HttpContext)null!);
-
-        await service.UsageRecordedAsync(record, TestContext.Current.CancellationToken);
-
-        usageStore.VerifyAll();
+        Assert.Null(provider.GetService<IAICompletionUsageService>());
+        Assert.Empty(provider.GetServices<IAICompletionUsageObserver>());
     }
 }

@@ -97,7 +97,6 @@ public sealed class SettingsController : Controller
 
         var model = new SettingsViewModel
         {
-            EnableAIUsageTracking = settings.EnableAIUsageTracking,
             EnablePreemptiveMemoryRetrieval = settings.EnablePreemptiveMemoryRetrieval,
             MaximumIterationsPerRequest = settings.MaximumIterationsPerRequest,
             MaxPostCloseAttempts = chatSessionProcessingSettings.MaxPostCloseAttempts,
@@ -319,7 +318,6 @@ public sealed class SettingsController : Controller
         _siteSettings.Set<GeneralAISettings>(settings =>
         {
             settings.EnablePreemptiveMemoryRetrieval = model.EnablePreemptiveMemoryRetrieval;
-            settings.EnableAIUsageTracking = model.EnableAIUsageTracking;
             settings.MaximumIterationsPerRequest = model.MaximumIterationsPerRequest;
             settings.EnableDistributedCaching = model.EnableDistributedCaching;
             settings.EnableOpenTelemetry = model.EnableOpenTelemetry;

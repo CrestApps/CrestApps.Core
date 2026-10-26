@@ -665,10 +665,15 @@ public sealed class AIUsageMeteringTests
     {
         var observer = new CapturingUsageObserver();
         var services = new ServiceCollection()
-            .AddLogging()
-            .Configure<GeneralAIOptions>(options => options.EnableAIUsageTracking = trackingEnabled)
-            .AddSingleton<IAICompletionUsageObserver>(observer)
-            .BuildServiceProvider();
+            .AddLogging();
+
+        // Usage is metered when an observer is registered, so leaving the capturing one out turns tracking off.
+        if (trackingEnabled)
+        {
+            services.AddSingleton<IAICompletionUsageObserver>(observer);
+        }
+
+        var serviceProvider = services.BuildServiceProvider();
 
         var provider = new Mock<IAIClientProvider>();
         provider.Setup(p => p.CanHandle(ClientName)).Returns(true);
@@ -678,7 +683,7 @@ public sealed class AIUsageMeteringTests
             [provider.Object],
             [],
             new EphemeralDataProtectionProvider(),
-            services,
+            serviceProvider,
             Mock.Of<IAIProviderConnectionStore>());
 
         return (factory, observer);
@@ -694,7 +699,7 @@ public sealed class AIUsageMeteringTests
         }
     }
 
-    private sealed class CapturingUsageObserver : IAICompletionUsageObserver
+    private sealed class CapturingUsageObserver : IAICompletionUsageService
     {
         public List<AICompletionUsageRecord> Records { get; } = [];
 
@@ -703,6 +708,11 @@ public sealed class AIUsageMeteringTests
             Records.Add(record);
 
             return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<AICompletionUsageRecord>> GetAsync(DateTime? startDateUtc, DateTime? endDateUtc, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<AICompletionUsageRecord>>(Records);
         }
     }
 

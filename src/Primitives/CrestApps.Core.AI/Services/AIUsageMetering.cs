@@ -32,6 +32,11 @@ public static class AIUsageMetering
         ArgumentNullException.ThrowIfNull(innerClient);
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
+        if (!AIUsageTracking.IsEnabled(serviceProvider))
+        {
+            return innerClient;
+        }
+
         return new AICompletionUsageTrackingChatClient(innerClient, CreateRecorder(clientName, connectionName, deploymentName, serviceProvider, defaultPurpose));
     }
 
@@ -54,6 +59,11 @@ public static class AIUsageMetering
     {
         ArgumentNullException.ThrowIfNull(innerGenerator);
         ArgumentNullException.ThrowIfNull(serviceProvider);
+
+        if (!AIUsageTracking.IsEnabled(serviceProvider))
+        {
+            return innerGenerator;
+        }
 
         return new AIUsageTrackingEmbeddingGenerator(innerGenerator, CreateRecorder(clientName, connectionName, deploymentName, serviceProvider, defaultPurpose));
     }

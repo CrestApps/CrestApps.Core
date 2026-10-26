@@ -9,8 +9,6 @@ namespace CrestApps.Core.Blazor.Web.ViewModels;
 
 public sealed class SettingsViewModel
 {
-    public bool EnableAIUsageTracking { get; set; }
-
     public bool EnablePreemptiveMemoryRetrieval { get; set; } = true;
 
     public int MaximumIterationsPerRequest { get; set; } = 10;

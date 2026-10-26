@@ -9,13 +9,25 @@ description: Meter every AI request made through the AI client factory, whatever
 
 > Know what every request to every model used, so usage can be priced, reported per feature, and split between the parts of an application that caused it.
 
+Metering is opt-in. Register it once, and every client returned by `IAIClientFactory` meters its own requests:
+
+```csharp
+services.AddCoreAIUsageTracking();
+
+// or, on the AI suite builder
+.AddAISuite(ai => ai.AddUsageTracking())
+```
+
+Metering follows registration: when no `IAICompletionUsageObserver` is registered, nothing is metered. `AddCoreAIUsageTracking()` registers the default `IAICompletionUsageService`, which is itself an observer; a host can register its own observer instead of, or alongside, it and each receives every record. The host also needs an
+`IAICompletionUsageStore`, which the YesSql and EntityCore store packages register.
+
 Every client returned by `IAIClientFactory` meters its own requests. That covers chat clients, embedding
 generators, image generators, speech-to-text and text-to-speech clients, and realtime clients. Metering does
 not depend on the provider: it wraps the client the provider returned and reads the provider-agnostic
 `UsageDetails` that Microsoft.Extensions.AI responses carry. A custom `IAIClientProvider` is metered as soon as
 its clients are created through the factory.
 
-Metering is on when `GeneralAIOptions.EnableAIUsageTracking` is `true`. Each metered request becomes one
+Each metered request becomes one
 `AICompletionUsageRecord`, handed to every registered `IAICompletionUsageObserver`. The default
 `IAICompletionUsageService` is one of them, and stores the record through `IAICompletionUsageStore`.
 
