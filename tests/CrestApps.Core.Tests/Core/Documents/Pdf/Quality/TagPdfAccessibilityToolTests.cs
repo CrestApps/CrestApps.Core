@@ -1,7 +1,6 @@
 using CrestApps.Core.AI.Documents.Pdf.Analysis;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Tools;
-using PdfSharp.Pdf;
-using PdfSharp.Pdf.IO;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf.Quality;
 
@@ -33,8 +32,8 @@ public sealed class TagPdfAccessibilityToolTests
         Assert.Contains("\"Membership application\"", result, StringComparison.Ordinal);
         Assert.Contains("cannot build one", result, StringComparison.Ordinal);
 
-        using var saved = PdfReader.Open(new MemoryStream(await host.ReadWorkingPdfAsync("form")), PdfDocumentOpenMode.Import);
-        var catalog = saved.Internals.Catalog;
+        using var saved = PdfDocument.Open(await host.ReadWorkingPdfAsync("form"));
+        var catalog = saved.Catalog;
 
         Assert.Equal("en-US", PdfObjectReader.GetText(catalog, "/Lang"));
         Assert.Equal("Membership application", saved.Info.Title);
@@ -79,7 +78,7 @@ public sealed class TagPdfAccessibilityToolTests
         Assert.Contains("Saved as working PDF \"accessible\"", result, StringComparison.Ordinal);
         Assert.Contains("No form field is named \"nope\"", result, StringComparison.Ordinal);
 
-        using var saved = PdfReader.Open(new MemoryStream(await host.ReadWorkingPdfAsync("accessible")), PdfDocumentOpenMode.Import);
+        using var saved = PdfDocument.Open(await host.ReadWorkingPdfAsync("accessible"));
 
         Assert.Equal("Formulaire d'adhésion", saved.Info.Title);
         Assert.Equal("Prénom", Assert.Single(PdfFormFieldList.Read(saved)).Tooltip);
@@ -118,9 +117,9 @@ public sealed class TagPdfAccessibilityToolTests
         Assert.Contains("Added alternative text to 1 figure(s)", result, StringComparison.Ordinal);
         Assert.Contains("1 alternative text(s) were left over", result, StringComparison.Ordinal);
 
-        using var saved = PdfReader.Open(new MemoryStream(await host.ReadWorkingPdfAsync("tagged")), PdfDocumentOpenMode.Import);
+        using var saved = PdfDocument.Open(await host.ReadWorkingPdfAsync("tagged"));
 
-        Assert.True(PdfObjectReader.GetBoolean(PdfObjectReader.GetDictionary(saved.Internals.Catalog, "/MarkInfo"), "/Marked"));
+        Assert.True(PdfObjectReader.GetBoolean(PdfObjectReader.GetDictionary(saved.Catalog, "/MarkInfo"), "/Marked"));
 
         var figure = Assert.Single(PdfStructureTree.Read(saved), element => element.StandardType == "Figure");
 
@@ -137,7 +136,7 @@ public sealed class TagPdfAccessibilityToolTests
 
         Assert.Contains("PDF/A-2B identification was kept", result, StringComparison.Ordinal);
 
-        using var saved = PdfReader.Open(new MemoryStream(await host.ReadWorkingPdfAsync("archive")), PdfDocumentOpenMode.Import);
+        using var saved = PdfDocument.Open(await host.ReadWorkingPdfAsync("archive"));
         var xmp = PdfXmpInfo.Read(saved);
 
         Assert.Equal(2, xmp.PdfAPart);
