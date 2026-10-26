@@ -335,8 +335,9 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         throw new ArgumentException($"Unable to find an implementation of '{nameof(IAIClientProvider)}' that can handle the client '{deployment.ClientName}'.");
     }
 
-    // Metering is opt-in: the clients are wrapped only when AddCoreAIUsageTracking() registered the marker.
-    private bool IsUsageTrackingEnabled => _serviceProvider.GetService<AIUsageTrackingMarker>() is not null;
+    // Metering is opt-in: the clients are wrapped only when something is registered to receive the usage,
+    // which AddCoreAIUsageTracking() does.
+    private bool IsUsageTrackingEnabled => AIUsageTracking.IsEnabled(_serviceProvider);
 
     private AIUsageRecorder CreateUsageRecorder(AIDeployment deployment)
     {

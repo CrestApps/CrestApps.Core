@@ -210,7 +210,6 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddSingleton<AIUsageTrackingMarker>();
         services.TryAddScoped<IAICompletionUsageService, DefaultAICompletionUsageService>();
         services.TryAddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<IAICompletionUsageService>());
 

@@ -32,7 +32,7 @@ public static class AIUsageMetering
         ArgumentNullException.ThrowIfNull(innerClient);
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
-        if (serviceProvider.GetService<AIUsageTrackingMarker>() is null)
+        if (!AIUsageTracking.IsEnabled(serviceProvider))
         {
             return innerClient;
         }
@@ -60,7 +60,7 @@ public static class AIUsageMetering
         ArgumentNullException.ThrowIfNull(innerGenerator);
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
-        if (serviceProvider.GetService<AIUsageTrackingMarker>() is null)
+        if (!AIUsageTracking.IsEnabled(serviceProvider))
         {
             return innerGenerator;
         }
