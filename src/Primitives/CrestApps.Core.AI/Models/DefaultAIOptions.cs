@@ -18,17 +18,17 @@ public sealed class DefaultAIOptions
     /// <summary>
     /// Gets or sets the top P.
     /// </summary>
-    public float? TopP { get; set; } = 1;
+    public float? TopP { get; set; }
 
     /// <summary>
     /// Gets or sets the frequency Penalty.
     /// </summary>
-    public float? FrequencyPenalty { get; set; } = 0;
+    public float? FrequencyPenalty { get; set; }
 
     /// <summary>
     /// Gets or sets the presence Penalty.
     /// </summary>
-    public float? PresencePenalty { get; set; } = 0;
+    public float? PresencePenalty { get; set; }
 
     /// <summary>
     /// Gets or sets the past Messages Count.
@@ -38,7 +38,7 @@ public sealed class DefaultAIOptions
     /// <summary>
     /// Gets or sets the maximum Iterations Per Request.
     /// </summary>
-    public int MaximumIterationsPerRequest { get; set; } = 10;
+    public int MaximumIterationsPerRequest { get; set; } = 30;
 
     /// <summary>
     /// Gets or sets the absolute Maximum Iterations Per Request.
@@ -67,7 +67,7 @@ public sealed class DefaultAIOptions
 
         if (MaximumIterationsPerRequest <= 0)
         {
-            MaximumIterationsPerRequest = 10;
+            MaximumIterationsPerRequest = 30;
         }
 
         MaximumIterationsPerRequest = Math.Min(MaximumIterationsPerRequest, AbsoluteMaximumIterationsPerRequest);

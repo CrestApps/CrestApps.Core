@@ -24,7 +24,7 @@ public sealed class GeneralAIOptions
     /// <summary>
     /// Gets or sets the maximum Iterations Per Request.
     /// </summary>
-    public int MaximumIterationsPerRequest { get; set; } = 10;
+    public int MaximumIterationsPerRequest { get; set; } = 30;
 
     /// <summary>
     /// Gets or sets the override Enable Distributed Caching.
