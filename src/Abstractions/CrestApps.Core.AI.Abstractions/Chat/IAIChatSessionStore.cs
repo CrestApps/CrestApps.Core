@@ -44,9 +44,38 @@ public interface IAIChatSessionStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Asynchronously retrieves a profile's sessions by their last activity, oldest first, without applying
+    /// user-scoping. Used to walk a profile's conversations in batches, for example to apply its storage mode or
+    /// retention.
+    /// </summary>
+    /// <param name="profileId">The profile identifier to filter sessions by.</param>
+    /// <param name="afterUtc">When set, only sessions whose last activity is later than this are returned.</param>
+    /// <param name="beforeUtc">Only sessions whose last activity is earlier than this are returned.</param>
+    /// <param name="count">The largest number of sessions to return.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>The sessions, ordered by their last activity.</returns>
+    Task<IReadOnlyList<AIChatSession>> ListByLastActivityAsync(
+        string profileId,
+        DateTime? afterUtc,
+        DateTime beforeUtc,
+        int count,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Asynchronously persists the specified chat session.
     /// </summary>
     /// <param name="chatSession">The chat session to save.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     Task SaveAsync(AIChatSession chatSession, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Asynchronously deletes a chat session and its prompts without applying user-scoping. Unlike
+    /// <see cref="IAIChatSessionManager.DeleteAsync(string, CancellationToken)"/>, this deletes a session of any
+    /// user, visitor or system conversation, so it is meant for retention, privacy and administrative tasks. The
+    /// session's documents are left to the caller.
+    /// </summary>
+    /// <param name="sessionId">The unique identifier of the chat session.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns><see langword="true"/> when the session existed and was deleted; otherwise <see langword="false"/>.</returns>
+    Task<bool> DeleteAsync(string sessionId, CancellationToken cancellationToken = default);
 }

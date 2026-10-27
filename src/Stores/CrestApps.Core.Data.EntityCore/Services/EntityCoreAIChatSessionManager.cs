@@ -165,6 +165,12 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
             session.PersonaId = personaMetadata.PersonaId;
         }
 
+        // Kept for reporting: the version of the profile that answers, so versions can be compared.
+        if (profile.TryGet<AIProfileVersionMetadata>(out var versionMetadata) && versionMetadata.Version > 0)
+        {
+            session.Put(new AIProfileVersionMetadata { Version = versionMetadata.Version });
+        }
+
         if (profile.Type == AIProfileType.Chat)
         {
             var handlerSettings = profile.GetOrCreateSettings<ResponseHandlerProfileSettings>();

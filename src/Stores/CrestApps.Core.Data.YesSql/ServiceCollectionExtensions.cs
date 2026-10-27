@@ -155,6 +155,19 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers the YesSql-backed store for the AI profile versions feature on its builder.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    public static CrestAppsAIProfileVersionsBuilder AddYesSqlStores(this CrestAppsAIProfileVersionsBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIProfileVersionStoresYesSql();
+
+        return builder;
+    }
+
+    /// <summary>
     /// Registers YesSql-backed stores for the A2A client feature on the A2A client builder.
     /// This includes a catalog for <see cref="A2AConnection"/>.
     /// </summary>
@@ -344,6 +357,22 @@ public static class ServiceCollectionExtensions
         AddYesSqlNamedDocumentCatalog<AIPersona, AIPersonaIndex>(services, static o => o.AICollectionName);
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIPersonaIndexProvider>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the YesSql-backed <see cref="IAIProfileVersionStore"/> and the
+    /// <see cref="AIProfileVersionIndexProvider"/>. Create the index table with
+    /// <see cref="AIProfileVersionIndexSchemaBuilderExtensions.CreateAIProfileVersionIndexSchemaAsync"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIProfileVersionStoresYesSql(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.Replace(ServiceDescriptor.Scoped<IAIProfileVersionStore, YesSqlAIProfileVersionStore>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IIndexProvider, AIProfileVersionIndexProvider>());
 
         return services;
     }

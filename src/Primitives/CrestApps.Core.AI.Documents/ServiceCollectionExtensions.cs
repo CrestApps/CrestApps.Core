@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Chat.Privacy;
 using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Handlers;
 using CrestApps.Core.AI.Documents.Indexing;
@@ -95,6 +96,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, DocumentOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IPreemptiveRagHandler, DocumentPreemptiveRagHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<ChatInteraction>, ChatInteractionDocumentCleanupHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIConversationPrivacyHandler, AIChatSessionDocumentPrivacyHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionHistoryHandler, ChatInteractionGeneratedFileCleanupHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionHistoryHandler, TabularWorkspaceHistoryClearedHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatDocumentEventHandler, TabularWorkspaceDocumentEventHandler>());

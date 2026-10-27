@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Chat.Handlers;
 using CrestApps.Core.AI.Chat.Models;
+using CrestApps.Core.AI.Chat.Privacy;
 using CrestApps.Core.AI.Chat.Realtime;
 using CrestApps.Core.AI.Chat.Security;
 using CrestApps.Core.AI.Chat.Services;
@@ -169,6 +170,43 @@ public static class ServiceCollectionExtensions
         if (configure is not null)
         {
             configure(new CrestAppsChatInteractionsBuilder(builder.Services));
+        }
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers <see cref="AIConversationPrivacyService"/>, which applies an AI profile's
+    /// <see cref="AIProfileDataPrivacySettings"/> to its ended conversations and deletes those past its retention.
+    /// The host runs it on a schedule; see <see cref="AIConversationPrivacyService.ProcessAsync"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIConversationPrivacy(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddOptions<AIConversationPrivacyOptions>();
+        services.TryAddScoped<AIConversationPrivacyService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds conversation privacy: per-profile storage modes that redact or strip ended conversations, and retention
+    /// that deletes old ones.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">Configures the <see cref="AIConversationPrivacyOptions"/>.</param>
+    public static CrestAppsAISuiteBuilder AddConversationPrivacy(this CrestAppsAISuiteBuilder builder, Action<AIConversationPrivacyOptions> configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIConversationPrivacy();
+
+        if (configure is not null)
+        {
+            builder.Services.Configure(configure);
         }
 
         return builder;
