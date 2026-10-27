@@ -964,13 +964,20 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     return;
                 }
 
-                using var speechToTextClient = await clientFactory.CreateSpeechToTextClientAsync(sttDeployment);
-                using var textToSpeechClient = await clientFactory.CreateTextToSpeechClientAsync(ttsDeployment);
+                var speechSettings = ProfileSpeech.GetSettings(profile);
+                using var speechToTextClient = ProfileSpeech.Decorate(await clientFactory.CreateSpeechToTextClientAsync(sttDeployment), speechSettings);
+                using var textToSpeechClient = await ProfileSpeech.DecorateAsync(
+                    await clientFactory.CreateTextToSpeechClientAsync(ttsDeployment),
+                    speechSettings,
+                    deploymentManager,
+                    clientFactory,
+                    Logger,
+                    cancellationToken);
                 var persona = await services.ResolvePersonaAsync(profile, cancellationToken);
                 var effectiveVoiceName = await services.SelectPersonaVoiceAsync(persona, chatModeSettings.VoiceName, ttsDeployment.Name, deploymentSettings.DefaultTextToSpeechVoiceId, cancellationToken);
                 var speechLanguage = !string.IsNullOrWhiteSpace(language)
                     ? language
-                    : persona?.Language ?? "en-US";
+                    : ProfileSpeech.FirstOrDefault(speechSettings?.RecognitionLanguages) ?? persona?.Language ?? "en-US";
                 using var conversationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 Context.Items[_conversationCtsKey] = conversationCts;
                 try
@@ -1678,9 +1685,12 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 }
 
 #pragma warning disable MEAI001
-                using var speechToTextClient = await clientFactory.CreateSpeechToTextClientAsync(deployment);
+                var speechSettings = ProfileSpeech.GetSettings(profile);
+                using var speechToTextClient = ProfileSpeech.Decorate(await clientFactory.CreateSpeechToTextClientAsync(deployment), speechSettings);
 #pragma warning restore MEAI001
-                var speechLanguage = !string.IsNullOrWhiteSpace(language) ? language : "en-US";
+                var speechLanguage = !string.IsNullOrWhiteSpace(language)
+                    ? language
+                    : ProfileSpeech.FirstOrDefault(speechSettings?.RecognitionLanguages) ?? "en-US";
                 await StreamTranscriptionAsync(speechToTextClient, sessionId ?? string.Empty, audioChunks, audioFormat, speechLanguage, cancellationToken);
             });
         }
@@ -1769,7 +1779,13 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     return;
                 }
 
-                using var textToSpeechClient = await clientFactory.CreateTextToSpeechClientAsync(deployment);
+                using var textToSpeechClient = await ProfileSpeech.DecorateAsync(
+                    await clientFactory.CreateTextToSpeechClientAsync(deployment),
+                    ProfileSpeech.GetSettings(profile),
+                    deploymentManager,
+                    clientFactory,
+                    Logger,
+                    cancellationToken);
                 var explicitVoice = !string.IsNullOrWhiteSpace(voiceName)
                     ? voiceName
                     : chatModeSettings?.VoiceName;

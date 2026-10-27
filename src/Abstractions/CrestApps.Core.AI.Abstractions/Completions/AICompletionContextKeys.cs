@@ -67,4 +67,10 @@ public static class AICompletionContextKeys
     /// Orchestrators can use this to keep required helper tools available during tool scoping.
     /// </summary>
     public const string DependencyToolNames = "DependencyToolNames";
+
+    /// <summary>
+    /// The language the conversation is currently in (a <see cref="string"/> BCP-47 tag). A host sets it from a
+    /// conversation variable or a detected caller language; it overrides the profile's starting language.
+    /// </summary>
+    public const string ConversationLanguage = "ConversationLanguage";
 }
