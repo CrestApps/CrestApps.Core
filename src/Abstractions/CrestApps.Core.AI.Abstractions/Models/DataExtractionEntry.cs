@@ -25,4 +25,15 @@ public sealed class DataExtractionEntry
     /// Gets or sets whether to allow replacing a single-value field.
     /// </summary>
     public bool IsUpdatable { get; set; }
+
+    /// <summary>
+    /// Gets or sets the kind of value this field collects. Defaults to <see cref="DataExtractionFieldType.Text"/>,
+    /// which stores values as extracted.
+    /// </summary>
+    public DataExtractionFieldType FieldType { get; set; }
+
+    /// <summary>
+    /// Gets or sets the values an <see cref="DataExtractionFieldType.Enum"/> field may take. Ignored for other types.
+    /// </summary>
+    public List<string> AllowedValues { get; set; } = [];
 }

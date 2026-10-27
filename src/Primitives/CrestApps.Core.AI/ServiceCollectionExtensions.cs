@@ -190,6 +190,8 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IAICompletionContextBuilder, DefaultAICompletionContextBuilder>();
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, AIProfileCompletionContextBuilderHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, AIProfileLanguageCompletionContextBuilderHandler>());
+        services.TryAddScoped<IConversationLanguageService, DefaultConversationLanguageService>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProfile>, AIProfileHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIDeployment>, AIDeploymentCatalogHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProviderConnection>, AIProviderConnectionCatalogHandler>());

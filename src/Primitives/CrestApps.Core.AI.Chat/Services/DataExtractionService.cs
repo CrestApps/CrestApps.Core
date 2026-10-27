@@ -302,10 +302,12 @@ public sealed class DataExtractionService
             {
                 var now = _timeProvider.GetUtcNow().UtcDateTime;
 
-                foreach (var value in result.Values)
+                foreach (var rawValue in result.Values)
                 {
-                    if (string.IsNullOrWhiteSpace(value))
+                    if (!DataExtractionValueNormalizer.TryNormalize(entry, rawValue, out var value))
                     {
+                        LogRejectedValue(entry, session);
+
                         continue;
                     }
 
@@ -323,6 +325,13 @@ public sealed class DataExtractionService
 
                 if (string.IsNullOrWhiteSpace(value))
                 {
+                    continue;
+                }
+
+                if (!DataExtractionValueNormalizer.TryNormalize(entry, value, out value))
+                {
+                    LogRejectedValue(entry, session);
+
                     continue;
                 }
 
@@ -344,6 +353,18 @@ public sealed class DataExtractionService
         }
 
         return changeSet;
+    }
+
+    private void LogRejectedValue(DataExtractionEntry entry, AIChatSession session)
+    {
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Ignoring an extracted value for field '{FieldName}' of session '{SessionId}' because it is not a valid {FieldType}.",
+                entry.Name.SanitizeForLog(),
+                session.SessionId,
+                entry.FieldType);
+        }
     }
 
     private MatchedExtractionEntry FindMatchingEntry(
@@ -492,13 +513,24 @@ public sealed class DataExtractionService
 
         var arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
-            ["fields"] = fieldsToExtract.Select(field => new
-            {
-                field.Name,
-                field.Description,
-                field.AllowMultipleValues,
-                field.IsUpdatable,
-            }).ToList(),
+            // Untyped fields keep the shape they always had; only typed ones carry their type and choices.
+            ["fields"] = fieldsToExtract.Select(field => field.FieldType == DataExtractionFieldType.Text
+                ? (object)new
+                {
+                    field.Name,
+                    field.Description,
+                    field.AllowMultipleValues,
+                    field.IsUpdatable,
+                }
+                : new
+                {
+                    field.Name,
+                    field.Description,
+                    field.AllowMultipleValues,
+                    field.IsUpdatable,
+                    FieldType = field.FieldType.ToString().ToLowerInvariant(),
+                    AllowedValues = field.AllowedValues ?? [],
+                }).ToList(),
             ["currentState"] = session.ExtractedData?
                 .Where(entry => entry.Value?.Values.Count > 0)
                 .Select(entry => new

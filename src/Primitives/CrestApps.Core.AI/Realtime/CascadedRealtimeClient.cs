@@ -1,5 +1,6 @@
 #pragma warning disable MEAI001 // The realtime types from Microsoft.Extensions.AI are for evaluation purposes only.
 #nullable enable
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Speech;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -62,6 +63,13 @@ public sealed class CascadedRealtimeClient : IRealtimeClient
     /// </summary>
     public string? SpeakingStyle { get; init; }
 
+    /// <summary>
+    /// Gets or sets what the profile this client serves changes about the session (see
+    /// <see cref="CascadedRealtimeProfileOptions"/>), or <see langword="null"/> for none. Set by the orchestrator
+    /// before a session is created.
+    /// </summary>
+    public CascadedRealtimeProfileOptions? Profile { get; set; }
+
     /// <inheritdoc />
     public async Task<IRealtimeClientSession> CreateSessionAsync(RealtimeSessionOptions? options = null, CancellationToken cancellationToken = default)
     {
@@ -72,11 +80,12 @@ public sealed class CascadedRealtimeClient : IRealtimeClient
             var session = new CascadedRealtimeSession(
                 transcription,
                 _chatClient,
-                _speechClient,
+                DecorateSpeechClient(),
                 options,
                 BuildChatOptions(options),
                 BuildSpeechOptions(options),
-                _logger);
+                _logger,
+                Profile);
 
             session.Start();
 
@@ -93,6 +102,23 @@ public sealed class CascadedRealtimeClient : IRealtimeClient
 
             throw;
         }
+    }
+
+    /// <summary>
+    /// Adds the profile's fallback voice and pronunciation dictionary around the speaking leg.
+    /// </summary>
+    private ITextToSpeechClient DecorateSpeechClient()
+    {
+        ITextToSpeechClient client = _speechClient;
+
+        if (Profile?.FallbackSpeechClient is { } fallback)
+        {
+            client = new FallbackTextToSpeechClient(client, fallback, _logger);
+        }
+
+        return Profile?.Pronunciation is { } dictionary
+            ? new PronunciationTextToSpeechClient(client, dictionary)
+            : client;
     }
 
     /// <inheritdoc />
@@ -161,9 +187,23 @@ public sealed class CascadedRealtimeClient : IRealtimeClient
             ModelId = string.IsNullOrWhiteSpace(_transcriptionModelId)
                 ? options?.TranscriptionOptions?.ModelId
                 : _transcriptionModelId,
-            SpeechLanguage = options?.TranscriptionOptions?.SpeechLanguage,
-            Prompt = options?.TranscriptionOptions?.Prompt,
+            SpeechLanguage = options?.TranscriptionOptions?.SpeechLanguage ?? Profile?.RecognitionLanguage,
+            Prompt = WithKeywords(options?.TranscriptionOptions?.Prompt, Profile?.BoostedKeywords ?? []),
         };
+    }
+
+    // Whisper-style recognizers take a free-text prompt, which is the one channel every transcription provider that can
+    // bias recognition understands. One that cannot ignores the prompt.
+    private static string? WithKeywords(string? prompt, IReadOnlyList<string> keywords)
+    {
+        if (keywords.Count == 0)
+        {
+            return prompt;
+        }
+
+        var hint = $"Vocabulary: {string.Join(", ", keywords)}.";
+
+        return string.IsNullOrWhiteSpace(prompt) ? hint : $"{prompt} {hint}";
     }
 
     /// <summary>
@@ -201,6 +241,11 @@ public sealed class CascadedRealtimeClient : IRealtimeClient
             AudioFormat = FormatAudioFormat(options?.OutputAudioFormat),
             Speed = SpeechSpeed is > 0 and var speed && double.IsFinite(speed) ? (float)speed : null,
         };
+
+        if (Profile?.SpeakingRate is { } rate)
+        {
+            speechOptions.Speed = (float)((speechOptions.Speed ?? 1f) * rate);
+        }
 
         if (!string.IsNullOrWhiteSpace(SpeakingStyle))
         {

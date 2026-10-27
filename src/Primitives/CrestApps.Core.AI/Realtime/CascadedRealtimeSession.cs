@@ -82,6 +82,12 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     private readonly CancellationTokenSource _sessionCancellation = new();
     private readonly ILogger _logger;
 
+    // How many words of caller speech it takes to cut the AI off, and the acknowledgements it makes meanwhile.
+    private readonly int _minimumInterruptionWords;
+    private readonly BackchannelPlanner? _backchannel;
+    private int _turnWords;
+    private int _backchannels;
+
     private Task? _pump;
     private Task? _consumer;
     private int _disposed;
@@ -110,8 +116,11 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         RealtimeSessionOptions? options,
         ChatOptions? chatOptions,
         TextToSpeechOptions speechOptions,
-        ILogger logger)
+        ILogger logger,
+        CascadedRealtimeProfileOptions? profile = null)
     {
+        _minimumInterruptionWords = TurnTaking.MinimumWordsToInterrupt(profile?.InterruptionSensitivity);
+        _backchannel = profile is { EnableBackchanneling: true } ? new BackchannelPlanner(profile.BackchannelPhrases) : null;
         _transcription = transcription;
         _chatClient = chatClient;
         _speechClient = speechClient;
@@ -243,7 +252,23 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
                     // The transcription leg reports no speech-start event of its own, but a partial
                     // transcript only exists because the user is talking. Treating the first one as the
                     // start of a turn is what lets a caller cut off audio that is still playing.
-                    await BargeInAsync(message);
+                    _turnWords += message is InputAudioTranscriptionRealtimeServerMessage partial
+                        ? TurnTaking.CountWords(partial.Transcription)
+                        : 0;
+
+                    // The default (one word) interrupts on any partial transcript, as it always has; a lower
+                    // sensitivity waits until the caller has said enough to mean it.
+                    if (_minimumInterruptionWords <= 1 || _turnWords >= _minimumInterruptionWords)
+                    {
+                        await BargeInAsync(message);
+                    }
+
+                    BackchannelWhileTheCallerTalks();
+                }
+                else if (message.Type == RealtimeServerMessageType.InputAudioTranscriptionCompleted)
+                {
+                    _turnWords = 0;
+                    _backchannel?.Reset();
                 }
 
                 await _messages.Writer.WriteAsync(message, cancellationToken);
@@ -283,6 +308,46 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
 
             _messages.Writer.TryComplete();
         }
+    }
+
+    /// <summary>
+    /// Speaks a short acknowledgement ("mm-hm") when the caller has talked long enough without the AI saying anything.
+    /// It is spoken off the work queue and never joins the conversation history.
+    /// </summary>
+    private void BackchannelWhileTheCallerTalks()
+    {
+        if (_backchannel is null || !_backchannel.TryNext(_turnWords, out var phrase))
+        {
+            return;
+        }
+
+        lock (_replies)
+        {
+            // Nothing is acknowledged over a reply that is still speaking.
+            if (_replies.Count > 0)
+            {
+                return;
+            }
+        }
+
+        var responseId = $"backchannel_{Interlocked.Increment(ref _backchannels)}";
+        var token = _sessionCancellation.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await SpeakAsync(phrase, responseId, token);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // An acknowledgement is a nicety; its failure must never end the call.
+                _logger.LogDebug(exception, "The backchannel could not be spoken.");
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }, token);
     }
 
     /// <summary>
