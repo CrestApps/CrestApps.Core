@@ -1,4 +1,4 @@
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
 
@@ -56,7 +56,7 @@ internal sealed class PdfContentScanResult
 }
 
 /// <summary>
-/// Reads the content streams of pages, and of the form XObjects they draw, with PDFsharp's object model and
+/// Reads the content streams of pages, and of the form XObjects they draw, with the object model and
 /// <see cref="PdfContentParser"/>: syntax, the resources each stream names and the fonts it selects.
 /// </summary>
 internal static class PdfContentScanner
@@ -78,7 +78,7 @@ internal static class PdfContentScanner
     /// <summary>
     /// Scans pages of a document.
     /// </summary>
-    /// <param name="document">The document, opened with PDFsharp.</param>
+    /// <param name="document">The document, opened as objects.</param>
     /// <param name="pages">The one-based pages.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>What was found.</returns>

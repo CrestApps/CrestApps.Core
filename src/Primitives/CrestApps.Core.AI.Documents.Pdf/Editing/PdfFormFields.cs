@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
-using PdfSharp.Pdf;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
@@ -9,9 +9,8 @@ namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 /// Reads, fills, adds, changes and removes the interactive form fields of a PDF.
 /// </summary>
 /// <remarks>
-/// Works on the field dictionaries directly rather than through PDFsharp's typed fields, which only cover
-/// filling, so reading a field's choices and constraints, creating one, and removing one all see the same
-/// model. Every value set is also given an appearance stream, so the filled form looks filled in every
+/// Works on the field dictionaries directly, so reading a field's choices and constraints, filling it,
+/// creating one and removing one all see the same model. Every value set is also given an appearance stream, so the filled form looks filled in every
 /// viewer — and can be flattened — rather than only in viewers that regenerate appearances themselves.
 /// </remarks>
 internal static class PdfFormFields
@@ -36,7 +35,7 @@ internal static class PdfFormFields
         ArgumentNullException.ThrowIfNull(document);
 
         var result = new List<PdfFormFieldInfo>();
-        var form = PdfLowLevel.GetDictionary(document.Internals.Catalog, "/AcroForm");
+        var form = PdfLowLevel.GetDictionary(document.Catalog, "/AcroForm");
         var fields = PdfLowLevel.GetArray(form, "/Fields");
 
         if (fields is null)
@@ -414,7 +413,7 @@ internal static class PdfFormFields
 
         var parent = PdfLowLevel.GetDictionary(field.Dictionary, "/Parent");
         var container = parent is null
-            ? PdfLowLevel.GetArray(PdfLowLevel.GetDictionary(document.Internals.Catalog, "/AcroForm"), "/Fields")
+            ? PdfLowLevel.GetArray(PdfLowLevel.GetDictionary(document.Catalog, "/AcroForm"), "/Fields")
             : PdfLowLevel.GetArray(parent, "/Kids");
         var at = PdfLowLevel.IndexOf(container, field.Dictionary);
 
@@ -491,13 +490,13 @@ internal static class PdfFormFields
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        var form = PdfLowLevel.GetDictionary(document.Internals.Catalog, "/AcroForm");
+        var form = PdfLowLevel.GetDictionary(document.Catalog, "/AcroForm");
 
         if (form is null)
         {
             form = new PdfDictionary(document);
-            document.Internals.AddObject(form);
-            document.Internals.Catalog.Elements["/AcroForm"] = form.Reference;
+            document.AddObject(form);
+            document.Catalog.Elements["/AcroForm"] = form.Reference;
         }
 
         if (PdfLowLevel.GetArray(form, "/Fields") is null)
@@ -787,7 +786,7 @@ internal static class PdfFormFields
         }
 
         var parent = new PdfDictionary(document);
-        document.Internals.AddObject(parent);
+        document.AddObject(parent);
 
         parent.Elements.SetName("/FT", "/Btn");
         parent.Elements["/T"] = CreateString(name);
@@ -806,9 +805,9 @@ internal static class PdfFormFields
 
             // Buttons are stacked down the page, each with its label printed beside it.
             var bottom = first.Y1 - (index * size * 1.8);
-            var rectangle = new PdfRectangle(new PdfSharp.Drawing.XPoint(first.X1, bottom), new PdfSharp.Drawing.XPoint(first.X1 + size, bottom + size));
+            var rectangle = new PdfRectangle(first.X1, bottom, first.X1 + size, bottom + size);
             var widget = new PdfDictionary(document);
-            document.Internals.AddObject(widget);
+            document.AddObject(widget);
 
             widget.Elements.SetName("/Type", "/Annot");
             widget.Elements.SetName("/Subtype", "/Widget");
@@ -878,7 +877,7 @@ internal static class PdfFormFields
     private static PdfDictionary CreateWidgetField(PdfDocument document, PdfPage page, PdfDictionary form, string name, PdfRectangle rectangle, string fieldType, int flags)
     {
         var field = new PdfDictionary(document);
-        document.Internals.AddObject(field);
+        document.AddObject(field);
 
         field.Elements.SetName("/FT", fieldType);
         field.Elements["/T"] = CreateString(name);
@@ -946,11 +945,11 @@ internal static class PdfFormFields
     {
         ArgumentNullException.ThrowIfNull(page);
 
-        var visible = page.EffectiveCropBoxReadOnly;
+        var visible = page.CropBox;
         var left = visible.X1 + x;
         var top = visible.Y2 - y;
 
-        return new PdfRectangle(new PdfSharp.Drawing.XPoint(left, top - height), new PdfSharp.Drawing.XPoint(left + width, top));
+        return new PdfRectangle(left, top - height, left + width, top);
     }
 
     private static int Flags(PdfDictionary field)

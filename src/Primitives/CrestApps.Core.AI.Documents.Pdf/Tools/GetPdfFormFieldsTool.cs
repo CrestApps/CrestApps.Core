@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using CrestApps.Core.AI.Documents.Pdf.Editing;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Tools;
@@ -64,7 +65,7 @@ internal sealed class GetPdfFormFieldsTool : PdfToolBase
         var source = await context.FindPdfAsync(arguments.Pdf(), cancellationToken);
         var bytes = await context.ReadPdfAsync(source, cancellationToken);
 
-        using var document = PdfFiles.OpenForImport(bytes, arguments.GetString("password"));
+        using var document = PdfFiles.OpenObjects(bytes, arguments.GetString("password"));
 
         var fields = PdfFormFields.Read(document);
 
@@ -136,13 +137,13 @@ internal sealed class GetPdfFormFieldsTool : PdfToolBase
         return builder.ToString().TrimEnd();
     }
 
-    private static FieldDescription Describe(PdfFormFieldInfo field, PdfSharp.Pdf.PdfDocument document)
+    private static FieldDescription Describe(PdfFormFieldInfo field, PdfDocument document)
     {
         string position = null;
 
         if (field.Rectangle is not null && field.Page is { } page)
         {
-            var visible = document.Pages[page - 1].EffectiveCropBoxReadOnly;
+            var visible = document.Pages[page - 1].CropBox;
 
             position = string.Create(
                 CultureInfo.InvariantCulture,

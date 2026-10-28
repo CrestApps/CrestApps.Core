@@ -71,7 +71,7 @@ internal sealed class ManagePdfLayersTool : PdfToolBase
             var source = await context.FindPdfAsync(arguments.Pdf(), cancellationToken);
             var bytes = await context.ReadPdfAsync(source, cancellationToken);
 
-            using var document = PdfFiles.OpenForImport(bytes, password);
+            using var document = PdfFiles.OpenObjects(bytes, password);
 
             return Describe(source, PdfLayers.List(document));
         }

@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.Text;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
+using CrestApps.Core.AI.Documents.Pdf.Graphics;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Tools;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
-using PdfSharp.Drawing;
-using PdfSharp.Pdf;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
@@ -13,7 +13,7 @@ namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 /// watermarks, stamps, page numbers and running text onto them.
 /// </summary>
 /// <remarks>
-/// Operations that change which pages exist are made in place wherever PDFsharp allows it, so the document's
+/// Operations that change which pages exist are made on the document's own objects, so the document's
 /// bookmarks, form, metadata and links survive; an operation that has to copy pages (a duplicate, a resize,
 /// a split) first writes out the document as it stands, so it copies the pages with every earlier change
 /// already on them.
@@ -64,12 +64,12 @@ internal sealed class PdfPageEditor : IDisposable
 
         foreach (var (name, bytes) in sources)
         {
-            using var source = PdfFiles.OpenForImport(bytes);
+            using var source = PdfFiles.OpenObjects(bytes);
             var count = source.PageCount;
 
             for (var page = 0; page < count; page++)
             {
-                Document.InsertPage(index + page, source.Pages[page]);
+                Document.Pages.Insert(index + page, source.Pages[page]);
             }
 
             index += count;
@@ -199,14 +199,14 @@ internal sealed class PdfPageEditor : IDisposable
 
         var snapshot = Checkpoint();
 
-        using var source = PdfFiles.OpenForImport(snapshot);
+        using var source = PdfFiles.OpenObjects(snapshot);
 
         // Inserted from the last page back, so the page numbers still to process do not shift.
         foreach (var number in pages.OrderDescending())
         {
             for (var copy = 0; copy < copies; copy++)
             {
-                Document.InsertPage(number, source.Pages[number - 1]);
+                Document.Pages.Insert(number, source.Pages[number - 1]);
             }
         }
 
@@ -231,13 +231,12 @@ internal sealed class PdfPageEditor : IDisposable
         count = Math.Clamp(count, 1, 100);
 
         var neighbour = Document.Pages[Math.Clamp(after - 1, 0, PageCount - 1)];
-        var (width, height) = ResolveSize(size, orientation, neighbour.Width.Point, neighbour.Height.Point);
+        var (width, height) = ResolveSize(size, orientation, neighbour.Width, neighbour.Height);
 
         for (var index = 0; index < count; index++)
         {
-            var page = Document.InsertPage(after + index);
-            page.Width = XUnit.FromPoint(width);
-            page.Height = XUnit.FromPoint(height);
+            var page = Document.Pages.Insert(after + index, new PdfPage(Document));
+            page.MediaBox = new PdfRectangle(0, 0, width, height);
         }
 
         return $"Inserted {count} blank page(s) after page {after}";
@@ -261,7 +260,7 @@ internal sealed class PdfPageEditor : IDisposable
         foreach (var number in pages)
         {
             var page = Document.Pages[number - 1];
-            var box = page.EffectiveCropBoxReadOnly;
+            var box = page.CropBox;
             var left = box.X1 + PdfPageSizes.FromMillimetres(margins.MarginLeftMm ?? 0);
             var right = box.X2 - PdfPageSizes.FromMillimetres(margins.MarginRightMm ?? 0);
             var bottom = box.Y1 + PdfPageSizes.FromMillimetres(margins.MarginBottomMm ?? 0);
@@ -272,7 +271,7 @@ internal sealed class PdfPageEditor : IDisposable
                 throw new PdfToolException($"Those margins leave less than half an inch of page {number}.");
             }
 
-            page.CropBox = new PdfRectangle(new XPoint(left, bottom), new XPoint(right, top));
+            page.CropBox = new PdfRectangle(left, bottom, right, top);
         }
 
         return $"Cropped pages {PdfPageRange.Describe(pages)}";
@@ -299,29 +298,25 @@ internal sealed class PdfPageEditor : IDisposable
         resized.Info.Subject = Document.Info.Subject;
         resized.Info.Keywords = Document.Info.Keywords;
 
-        using (var stream = new MemoryStream(snapshot, writable: false))
+        using (var source = PdfFiles.OpenObjects(snapshot))
         {
-            using var form = XPdfForm.FromStream(stream);
+            var importer = new PdfImporter(resized);
 
-            for (var index = 0; index < form.PageCount; index++)
+            for (var index = 0; index < source.PageCount; index++)
             {
-                form.PageIndex = index;
-
-                var sourceWidth = form.PointWidth;
-                var sourceHeight = form.PointHeight;
+                var (form, sourceWidth, sourceHeight) = importer.ImportPageAsForm(source.Pages[index]);
                 var (width, height) = ResolveSize(size, orientation ?? (sourceWidth > sourceHeight ? "landscape" : "portrait"), sourceWidth, sourceHeight);
                 var page = resized.AddPage();
 
-                page.Width = XUnit.FromPoint(width);
-                page.Height = XUnit.FromPoint(height);
+                page.MediaBox = new PdfRectangle(0, 0, width, height);
 
-                using var graphics = XGraphics.FromPdfPage(page);
-
+                var canvas = PdfCanvas.ForPage(page);
                 var scale = Math.Min(width / sourceWidth, height / sourceHeight);
                 var drawnWidth = sourceWidth * scale;
                 var drawnHeight = sourceHeight * scale;
 
-                graphics.DrawImage(form, (width - drawnWidth) / 2, (height - drawnHeight) / 2, drawnWidth, drawnHeight);
+                canvas.DrawForm(form, (width - drawnWidth) / 2, (height - drawnHeight) / 2, drawnWidth, drawnHeight);
+                canvas.Commit();
             }
         }
 
@@ -343,7 +338,7 @@ internal sealed class PdfPageEditor : IDisposable
         var snapshot = Checkpoint();
         var files = new List<byte[]>(parts.Count);
 
-        using var source = PdfFiles.OpenForImport(snapshot);
+        using var source = PdfFiles.OpenObjects(snapshot);
 
         foreach (var part in parts)
         {
@@ -354,7 +349,7 @@ internal sealed class PdfPageEditor : IDisposable
 
             foreach (var number in part)
             {
-                output.AddPage(source.Pages[number - 1]);
+                output.Pages.Add(source.Pages[number - 1]);
             }
 
             files.Add(PdfFiles.Save(output));
@@ -648,36 +643,102 @@ internal sealed class PdfPageEditor : IDisposable
     /// </summary>
     private void PruneOutlines()
     {
-        var pages = new HashSet<PdfPage>(Enumerable.Range(0, Document.PageCount).Select(index => Document.Pages[index]));
-
-        void Prune(PdfOutlineCollection outlines)
+        if (Document.Catalog.Elements.GetDictionary("/Outlines") is not { } root)
         {
-            for (var index = outlines.Count - 1; index >= 0; index--)
+            return;
+        }
+
+        var pages = new HashSet<PdfPage>(Document.Pages, ReferenceEqualityComparer.Instance);
+        var visible = Prune(root, pages, 0);
+
+        if (visible > 0)
+        {
+            root.Elements.SetInteger("/Count", visible);
+        }
+        else
+        {
+            root.Elements.Remove("/Count");
+        }
+    }
+
+    /// <summary>
+    /// Drops the bookmarks under an outline node whose page was removed, links the ones kept again and counts them.
+    /// </summary>
+    /// <param name="parent">The outline node.</param>
+    /// <param name="pages">The pages the document still has.</param>
+    /// <param name="depth">How deep the node is.</param>
+    /// <returns>The number of bookmarks under the node that show when it is open.</returns>
+    private int Prune(PdfDictionary parent, HashSet<PdfPage> pages, int depth)
+    {
+        var kept = new List<PdfDictionary>();
+        var visited = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
+
+        for (var item = parent.Elements.GetDictionary("/First"); item is not null && depth < 32 && visited.Add(item); item = item.Elements.GetDictionary("/Next"))
+        {
+            if (DestinationPage(item) is { } page && !pages.Contains(page))
             {
-                var outline = outlines[index];
-
-                if (outline.DestinationPage is not null && !pages.Contains(outline.DestinationPage))
-                {
-                    outlines.RemoveAt(index);
-
-                    continue;
-                }
-
-                if (outline.HasChildren)
-                {
-                    Prune(outline.Outlines);
-                }
+                continue;
             }
+
+            kept.Add(item);
         }
 
-        try
+        var visible = 0;
+        var parentReference = Document.AddObject(parent);
+
+        for (var index = 0; index < kept.Count; index++)
         {
-            Prune(Document.Outlines);
+            var item = kept[index];
+            var shown = Prune(item, pages, depth + 1);
+            var open = item.Elements.GetInteger("/Count") > 0;
+
+            item.Elements["/Parent"] = parentReference;
+            item.Elements["/Prev"] = index > 0
+                ? Document.AddObject(kept[index - 1])
+                : null;
+
+            item.Elements["/Next"] = index < kept.Count - 1
+                ? Document.AddObject(kept[index + 1])
+                : null;
+
+            // An open bookmark counts the bookmarks it shows; a closed one, negated, those it would show.
+            if (shown == 0)
+            {
+                item.Elements.Remove("/Count");
+            }
+            else
+            {
+                item.Elements.SetInteger("/Count", open ? shown : -shown);
+            }
+
+            visible += 1 + (open ? shown : 0);
         }
-        catch (Exception)
+
+        parent.Elements["/First"] = kept.Count > 0
+            ? Document.AddObject(kept[0])
+            : null;
+
+        parent.Elements["/Last"] = kept.Count > 0
+            ? Document.AddObject(kept[^1])
+            : null;
+
+        return visible;
+    }
+
+    private static PdfPage DestinationPage(PdfDictionary item)
+    {
+        var destination = item.Elements.GetResolved("/Dest");
+
+        if (destination is null &&
+            item.Elements.GetDictionary("/A") is { } action &&
+            string.Equals(action.Elements.GetName("/S"), "/GoTo", StringComparison.Ordinal))
         {
-            // An outline PDFsharp cannot walk is left as it is rather than failing the edit.
+            destination = action.Elements.GetResolved("/D");
         }
+
+        return destination is PdfArray { Elements.Count: > 0 } array
+            ? PdfObjectModel.Resolve(array.Elements[0]) as PdfPage
+            : null;
     }
 
     private static (double Width, double Height) ResolveSize(string size, string orientation, double fallbackWidth, double fallbackHeight)

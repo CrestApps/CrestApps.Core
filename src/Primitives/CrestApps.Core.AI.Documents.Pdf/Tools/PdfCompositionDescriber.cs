@@ -87,7 +87,7 @@ internal static class PdfCompositionDescriber
     {
         ArgumentNullException.ThrowIfNull(block);
 
-        var type = PdfMigraDocBuilder.NormalizeType(block);
+        var type = PdfLayoutBuilder.NormalizeType(block);
 
         return type switch
         {
@@ -159,7 +159,7 @@ internal static class PdfCompositionDescriber
 
         if (definition.PageNumbers?.Enabled == true)
         {
-            lines.Add(PdfMigraDocBuilder.ShowsPageNumber(definition.Header) || PdfMigraDocBuilder.ShowsPageNumber(definition.Footer)
+            lines.Add(PdfLayoutBuilder.ShowsPageNumber(definition.Header) || PdfLayoutBuilder.ShowsPageNumber(definition.Footer)
                 ? "Page numbers: written by the header or footer's {page} token"
                 : $"Page numbers: {definition.PageNumbers.Position ?? "footer-center"}, \"{definition.PageNumbers.Template ?? "Page {page} of {pages}"}\"");
         }

@@ -1,11 +1,11 @@
-using MigraDoc.DocumentObjectModel;
-using MigraDoc.DocumentObjectModel.Shapes;
+using System.Globalization;
+using CrestApps.Core.AI.Documents.Pdf.Composition.Layout;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Composition;
 
-internal sealed partial class PdfMigraDocBuilder
+internal sealed partial class PdfLayoutBuilder
 {
-    private void AddCoverSection(Document document)
+    private void AddCoverSection(PdfLayoutDocument document)
     {
         var cover = _definition.CoverPage;
         var section = document.AddSection();
@@ -18,49 +18,40 @@ internal sealed partial class PdfMigraDocBuilder
             hasBackground ? background.IsLight ? _theme.Text : _white : _theme.Heading,
             "cover_page.text_color",
             _warnings);
-        var alignment = ReadAlignment(cover.Align, ParagraphAlignment.Center);
+        var alignment = ReadAlignment(cover.Align, PdfLayoutAlignment.Center);
 
         if (hasBackground)
         {
-            // A frame the size of the page, laid behind the text, is how MigraDoc fills a whole page.
-            var frame = section.AddTextFrame();
-            frame.RelativeHorizontal = RelativeHorizontal.Page;
-            frame.RelativeVertical = RelativeVertical.Page;
-            frame.Left = ShapePosition.Left;
-            frame.Top = ShapePosition.Top;
-            frame.Width = Unit.FromPoint(_page.Width);
-            frame.Height = Unit.FromPoint(_page.Height);
-            frame.FillFormat.Color = background.ToMigraDoc();
-            frame.LineFormat.Visible = false;
-            frame.WrapFormat.Style = WrapStyle.Through;
+            // A frame the size of the page, laid behind the text, fills the whole page.
+            var frame = section.AddFrame();
+            frame.LeftFromPage = true;
+            frame.TopFromPage = true;
+            frame.Width = _page.Width;
+            frame.Height = _page.Height;
+            frame.Fill = background;
         }
         else
         {
             // Unfilled, the cover still gets a band of the brand colour so it reads as a cover and not as a
             // page that happens to have a big title on it.
-            var band = section.AddTextFrame();
-            band.RelativeHorizontal = RelativeHorizontal.Page;
-            band.RelativeVertical = RelativeVertical.Page;
-            band.Left = ShapePosition.Left;
-            band.Top = ShapePosition.Top;
-            band.Width = Unit.FromPoint(_page.Width);
-            band.Height = Unit.FromPoint(14);
-            band.FillFormat.Color = _theme.Primary.ToMigraDoc();
-            band.LineFormat.Visible = false;
-            band.WrapFormat.Style = WrapStyle.Through;
+            var band = section.AddFrame();
+            band.LeftFromPage = true;
+            band.TopFromPage = true;
+            band.Width = _page.Width;
+            band.Height = 14;
+            band.Fill = _theme.Primary;
         }
 
         var logo = cover.Logo ?? _theme.Logo;
         var top = section.AddParagraph();
 
-        top.Format.SpaceBefore = Unit.FromPoint(Math.Max(40, _page.UsableHeight * 0.22));
+        top.Format.SpaceBefore = Math.Max(40, _page.UsableHeight * 0.22);
         top.Format.Alignment = alignment;
 
-        if (!string.IsNullOrWhiteSpace(logo) && TryGetImage(logo, out var logoData, out var logoWidth, out var logoHeight))
+        if (!string.IsNullOrWhiteSpace(logo) && TryGetImage(logo, out var picture))
         {
-            var image = top.AddImage(ToImageName(logoData));
             var height = Math.Min(Math.Max(_theme.LogoHeight * 2, 48), 110);
-            var width = logoHeight > 0 ? height * logoWidth / logoHeight : height;
+            var width = picture.Height > 0 ? height * picture.Width / picture.Height : height;
 
             if (width > _page.UsableWidth * 0.6)
             {
@@ -68,10 +59,8 @@ internal sealed partial class PdfMigraDocBuilder
                 width = _page.UsableWidth * 0.6;
             }
 
-            image.Height = Unit.FromPoint(height);
-            image.Width = Unit.FromPoint(width);
-            image.LockAspectRatio = false;
-            top.Format.SpaceAfter = Unit.FromPoint(28);
+            top.AddImage(picture, width, height);
+            top.Format.SpaceAfter = 28;
         }
         else if (!string.IsNullOrWhiteSpace(logo))
         {
@@ -81,12 +70,12 @@ internal sealed partial class PdfMigraDocBuilder
         var title = section.AddParagraph();
         title.Style = TitleStyle;
         title.Format.Font.Size = Math.Round(_theme.BaseFontSize * 3, 1);
-        title.Format.Font.Color = textColor.ToMigraDoc();
+        title.Format.Font.Color = textColor;
         title.Format.Alignment = alignment;
-        title.Format.SpaceAfter = Unit.FromPoint(10);
+        title.Format.SpaceAfter = 10;
 
         // The cover title is not a heading of the body, so it does not become a bookmark of its own.
-        title.Format.OutlineLevel = OutlineLevel.BodyText;
+        title.Format.OutlineLevel = 0;
 
         var (titleText, subtitleText) = CoverText(cover);
 
@@ -96,20 +85,20 @@ internal sealed partial class PdfMigraDocBuilder
         {
             var subtitle = section.AddParagraph();
             subtitle.Format.Font.Size = Math.Round(_theme.BaseFontSize * 1.45, 1);
-            subtitle.Format.Font.Color = (hasBackground ? textColor : _theme.Muted).ToMigraDoc();
+            subtitle.Format.Font.Color = hasBackground ? textColor : _theme.Muted;
             subtitle.Format.Alignment = alignment;
-            subtitle.Format.SpaceAfter = Unit.FromPoint(30);
+            subtitle.Format.SpaceAfter = 30;
             AddInline(subtitle, subtitleText, null, null);
         }
 
         var rule = section.AddParagraph();
         rule.Format.Alignment = alignment;
-        rule.Format.SpaceBefore = Unit.FromPoint(6);
-        rule.Format.SpaceAfter = Unit.FromPoint(18);
-        rule.Format.LeftIndent = alignment == ParagraphAlignment.Center ? Unit.FromPoint(_page.UsableWidth * 0.35) : 0;
-        rule.Format.RightIndent = Unit.FromPoint(alignment == ParagraphAlignment.Center ? _page.UsableWidth * 0.35 : _page.UsableWidth * 0.7);
+        rule.Format.SpaceBefore = 6;
+        rule.Format.SpaceAfter = 18;
+        rule.Format.LeftIndent = alignment == PdfLayoutAlignment.Center ? _page.UsableWidth * 0.35 : 0;
+        rule.Format.RightIndent = alignment == PdfLayoutAlignment.Center ? _page.UsableWidth * 0.35 : _page.UsableWidth * 0.7;
         rule.Format.Borders.Bottom.Width = 2;
-        rule.Format.Borders.Bottom.Color = (hasBackground ? textColor : _theme.Accent).ToMigraDoc();
+        rule.Format.Borders.Bottom.Color = hasBackground ? textColor : _theme.Accent;
         rule.Format.Font.Size = 1;
 
         foreach (var line in new[] { cover.Author ?? _definition.Author, cover.Date })
@@ -121,26 +110,24 @@ internal sealed partial class PdfMigraDocBuilder
 
             var paragraph = section.AddParagraph();
             paragraph.Format.Font.Size = Math.Round(_theme.BaseFontSize * 1.15, 1);
-            paragraph.Format.Font.Color = textColor.ToMigraDoc();
+            paragraph.Format.Font.Color = textColor;
             paragraph.Format.Alignment = alignment;
-            paragraph.Format.SpaceAfter = Unit.FromPoint(4);
+            paragraph.Format.SpaceAfter = 4;
             AddInline(paragraph, line, null, null);
         }
 
         if (!string.IsNullOrWhiteSpace(cover.Note))
         {
-            var frame = section.AddTextFrame();
-            frame.RelativeHorizontal = RelativeHorizontal.Margin;
-            frame.RelativeVertical = RelativeVertical.Page;
-            frame.Left = ShapePosition.Left;
-            frame.Top = Unit.FromPoint(_page.Height - _page.Bottom - 40);
-            frame.Width = Unit.FromPoint(_page.UsableWidth);
-            frame.Height = Unit.FromPoint(40);
-            frame.WrapFormat.Style = WrapStyle.Through;
+            var frame = section.AddFrame();
+            frame.TopFromPage = true;
+            frame.Left = 0;
+            frame.Top = _page.Height - _page.Bottom - 40;
+            frame.Width = _page.UsableWidth;
+            frame.Height = 40;
 
             var note = frame.AddParagraph();
             note.Format.Font.Size = Math.Max(6, _theme.BaseFontSize - 2);
-            note.Format.Font.Color = (hasBackground ? textColor : _theme.Muted).ToMigraDoc();
+            note.Format.Font.Color = hasBackground ? textColor : _theme.Muted;
             note.Format.Alignment = alignment;
             AddInline(note, cover.Note, null, null);
         }
@@ -163,7 +150,7 @@ internal sealed partial class PdfMigraDocBuilder
             : (_tocEntries.Count > 0 ? _tocEntries[0].Text : null, null);
     }
 
-    private void AddTableOfContentsSection(Document document)
+    private void AddTableOfContentsSection(PdfLayoutDocument document)
     {
         var contents = _definition.TableOfContents;
         var section = document.AddSection();
@@ -184,7 +171,7 @@ internal sealed partial class PdfMigraDocBuilder
         {
             var empty = section.AddParagraph("This document has no headings yet.");
             empty.Style = CaptionStyle;
-            empty.Format.Alignment = ParagraphAlignment.Left;
+            empty.Format.Alignment = PdfLayoutAlignment.Left;
 
             return;
         }
@@ -194,20 +181,13 @@ internal sealed partial class PdfMigraDocBuilder
         foreach (var entry in _tocEntries)
         {
             var paragraph = section.AddParagraph();
-            paragraph.Style = TocEntryStylePrefix + Math.Clamp(entry.Level, 1, 4).ToString(System.Globalization.CultureInfo.InvariantCulture);
-            paragraph.Format.TabStops.ClearAll();
-            paragraph.Format.TabStops.AddTabStop(Unit.FromPoint(_page.UsableWidth), TabAlignment.Right, TabLeader.Dots);
+            paragraph.Style = TocEntryStylePrefix + Math.Clamp(entry.Level, 1, 4).ToString(CultureInfo.InvariantCulture);
+            paragraph.Format.TabStops = [new PdfLayoutTabStop(_page.UsableWidth, PdfLayoutAlignment.Right, DotLeader: true)];
 
-            var link = paragraph.AddHyperlink(entry.Bookmark);
+            var link = paragraph.AddHyperlink(entry.Bookmark, isWeb: false);
             link.AddText(entry.Text);
             link.AddTab();
-
-            var field = link.AddPageRefField(entry.Bookmark);
-
-            if (!string.IsNullOrEmpty(format))
-            {
-                field.Format = format;
-            }
+            link.AddPageRefField(entry.Bookmark).Format = format;
         }
     }
 }

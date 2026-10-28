@@ -1,6 +1,6 @@
 using CrestApps.Core.AI.Documents.Pdf.Composition;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Tools;
-using PdfSharp.Pdf;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf.Quality;
 
@@ -151,7 +151,7 @@ public sealed class CheckPdfQualityToolTests
             document =>
             {
                 var fonts = document.Pages[0].Elements.GetDictionary("/Resources").Elements.GetDictionary("/Font");
-                var font = (PdfDictionary)((PdfSharp.Pdf.Advanced.PdfReference)fonts.Elements["/F1"]).Value;
+                var font = fonts.Elements.GetDictionary("/F1");
 
                 font.Elements.SetName("/Subtype", "/TrueType");
                 font.Elements.SetName("/BaseFont", "/CorporateSans-Bold");
@@ -174,8 +174,7 @@ public sealed class CheckPdfQualityToolTests
             ["BT /F1 12 Tf 72 700 Td (Portrait) Tj ET", "BT /F1 12 Tf 72 500 Td (Landscape) Tj ET"],
             document =>
             {
-                document.Pages[1].Width = PdfSharp.Drawing.XUnit.FromPoint(792);
-                document.Pages[1].Height = PdfSharp.Drawing.XUnit.FromPoint(612);
+                document.Pages[1].MediaBox = new PdfRectangle(0, 0, 792, 612);
             });
 
         using var host = new PdfToolTestHost();

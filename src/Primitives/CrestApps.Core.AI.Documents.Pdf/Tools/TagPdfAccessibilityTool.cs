@@ -3,8 +3,8 @@ using System.Text;
 using System.Text.Json;
 using CrestApps.Core.AI.Documents.Pdf.Analysis;
 using CrestApps.Core.AI.Documents.Pdf.Editing;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
-using PdfSharp.Pdf;
 using UglyToad.PdfPig.DocumentLayoutAnalysis;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
 
@@ -196,7 +196,7 @@ internal sealed class TagPdfAccessibilityTool : PdfToolBase
 
     private static void ApplyLanguage(PdfDocument document, string language, List<string> changes)
     {
-        var existing = PdfObjectReader.GetText(document.Internals.Catalog, "/Lang")?.Trim();
+        var existing = PdfObjectReader.GetText(document.Catalog, "/Lang")?.Trim();
 
         if (language is null)
         {
@@ -213,7 +213,7 @@ internal sealed class TagPdfAccessibilityTool : PdfToolBase
             return;
         }
 
-        document.Internals.Catalog.Elements["/Lang"] = TextString(language);
+        document.Catalog.Elements["/Lang"] = TextString(language);
         changes.Add(string.IsNullOrWhiteSpace(existing)
             ? $"Set the document language to {language}."
             : $"Changed the document language from {existing} to {language}.");
@@ -246,18 +246,24 @@ internal sealed class TagPdfAccessibilityTool : PdfToolBase
             }
         }
 
-        var preferences = PdfObjectReader.GetDictionary(document.Internals.Catalog, "/ViewerPreferences");
+        var preferences = PdfObjectReader.GetDictionary(document.Catalog, "/ViewerPreferences");
 
         if (PdfObjectReader.GetBoolean(preferences, "/DisplayDocTitle") != true && !string.IsNullOrWhiteSpace(document.Info.Title))
         {
-            document.ViewerPreferences.DisplayDocTitle = true;
+            if (preferences is null)
+            {
+                preferences = new PdfDictionary(document);
+                document.Catalog.Elements["/ViewerPreferences"] = preferences;
+            }
+
+            preferences.Elements.SetBoolean("/DisplayDocTitle", true);
             changes.Add("Made viewers show the title instead of the file name (DisplayDocTitle).");
         }
     }
 
     private static void ApplyMarked(PdfDocument document, List<string> changes, List<string> notes)
     {
-        var catalog = document.Internals.Catalog;
+        var catalog = document.Catalog;
 
         if (PdfObjectReader.GetDictionary(catalog, "/StructTreeRoot") is null)
         {
@@ -409,7 +415,7 @@ internal sealed class TagPdfAccessibilityTool : PdfToolBase
 
         if (figures.Count == 0)
         {
-            var reason = PdfObjectReader.GetDictionary(document.Internals.Catalog, "/StructTreeRoot") is null
+            var reason = PdfObjectReader.GetDictionary(document.Catalog, "/StructTreeRoot") is null
                 ? " (it is untagged, so it has no figures at all)."
                 : ".";
 

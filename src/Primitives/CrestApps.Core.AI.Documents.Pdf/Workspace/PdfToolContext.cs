@@ -495,7 +495,7 @@ internal sealed class PdfToolContext : IPdfImageSource
             : await _workspaceStore.ReadBlobAsync(source.Working.BlobPath, cancellationToken)
                 ?? throw new PdfToolException($"The file behind working PDF \"{source.Name}\" is missing. Recreate it from the upload it came from.");
 
-        // PDFsharp saves every edit without the source's encryption; the answer has to say so.
+        // Every edit is saved without the source's encryption; the answer has to say so.
         _readProtected |= PdfProtection.DeclaresEncryption(bytes);
 
         return bytes;

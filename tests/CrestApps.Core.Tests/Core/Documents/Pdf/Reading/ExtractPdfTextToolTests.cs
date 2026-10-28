@@ -17,7 +17,7 @@ public sealed class ExtractPdfTextToolTests
         Assert.Contains("--- Page 1 ---", result, StringComparison.Ordinal);
         Assert.Contains("--- Page 3 ---", result, StringComparison.Ordinal);
 
-        // MigraDoc writes no space glyphs; the words still come out separated.
+        // The composer writes no space glyphs; the words still come out separated.
         Assert.Contains("Revenue rose by twelve percent", result, StringComparison.Ordinal);
         Assert.True(
             result.IndexOf("Quarterly Report", StringComparison.Ordinal) < result.IndexOf("Regional results", StringComparison.Ordinal),

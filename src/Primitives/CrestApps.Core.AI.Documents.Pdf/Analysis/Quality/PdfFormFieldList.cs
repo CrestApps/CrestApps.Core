@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
 
@@ -28,14 +28,14 @@ internal static class PdfFormFieldList
     /// <summary>
     /// Lists the terminal fields of a document's form.
     /// </summary>
-    /// <param name="document">The document, opened with PDFsharp.</param>
+    /// <param name="document">The document, opened as objects.</param>
     /// <returns>The fields, in the order the form lists them.</returns>
     public static List<PdfFormField> Read(PdfDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
 
         var fields = new List<PdfFormField>();
-        var form = PdfObjectReader.GetDictionary(document.Internals.Catalog, "/AcroForm");
+        var form = PdfObjectReader.GetDictionary(document.Catalog, "/AcroForm");
 
         if (form is null)
         {

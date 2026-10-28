@@ -1,17 +1,16 @@
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
-using PdfSharp.Pdf.IO;
-using PdfSharpDocument = PdfSharp.Pdf.PdfDocument;
+using ObjectDocument = CrestApps.Core.AI.Documents.Pdf.Objects.PdfDocument;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
 
 /// <summary>
-/// A PDF opened for checking with both libraries the agent uses: PdfPig for what the pages show, and PDFsharp
-/// for the objects the file is made of.
+/// A PDF opened for checking twice: as PdfPig reads what the pages show, and as the objects the file is
+/// made of.
 /// </summary>
 /// <remarks>
-/// A damaged file may open with one library and not the other — PdfPig repairs what it can, PDFsharp does
-/// not — so each is optional and the reason it could not open is kept for the report.
+/// A damaged file may give its pages and not its objects, or the other way round, so each is optional and
+/// the reason it could not be read is kept for the report.
 /// </remarks>
 internal sealed class PdfInspectedDocument : IDisposable
 {
@@ -31,9 +30,9 @@ internal sealed class PdfInspectedDocument : IDisposable
     public PigDocument Content { get; private set; }
 
     /// <summary>
-    /// Gets the document as PDFsharp reads it, or <see langword="null"/> when it could not be opened.
+    /// Gets the objects the document is made of, or <see langword="null"/> when they could not be read.
     /// </summary>
-    public PdfSharpDocument Objects { get; private set; }
+    public ObjectDocument Objects { get; private set; }
 
     /// <summary>
     /// Gets why PdfPig could not open the file, or <see langword="null"/>.
@@ -41,17 +40,17 @@ internal sealed class PdfInspectedDocument : IDisposable
     public string ContentError { get; private set; }
 
     /// <summary>
-    /// Gets why PDFsharp could not open the file, or <see langword="null"/>.
+    /// Gets why the file's objects could not be read, or <see langword="null"/>.
     /// </summary>
     public string ObjectsError { get; private set; }
 
     /// <summary>
-    /// Gets the problems PDFsharp reported while reading the file.
+    /// Gets the problems the reader repaired while reading the file's objects.
     /// </summary>
     public List<string> ReaderProblems { get; } = [];
 
     /// <summary>
-    /// Gets the number of pages, as far as either library could tell.
+    /// Gets the number of pages, as far as either reading could tell.
     /// </summary>
     public int PageCount => Content?.NumberOfPages ?? Objects?.PageCount ?? 0;
 
@@ -61,7 +60,7 @@ internal sealed class PdfInspectedDocument : IDisposable
     /// <param name="bytes">The file.</param>
     /// <param name="password">The password, when the file needs one.</param>
     /// <param name="requireContent">Whether the call fails when PdfPig cannot open the file.</param>
-    /// <param name="requireObjects">Whether the call fails when PDFsharp cannot open the file.</param>
+    /// <param name="requireObjects">Whether the call fails when the file's objects cannot be read.</param>
     /// <returns>The document. The caller disposes it.</returns>
     public static PdfInspectedDocument Open(byte[] bytes, string password, bool requireContent, bool requireObjects)
     {
@@ -80,24 +79,26 @@ internal sealed class PdfInspectedDocument : IDisposable
 
         try
         {
-            document.Objects = OpenObjects(bytes, password, document.ReaderProblems);
+            document.Objects = PdfFiles.OpenObjects(bytes, password, document.ReaderProblems);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (PdfToolException ex)
         {
-            if (IsPasswordFailure(ex))
+            if (IsPasswordMessage(ex.Message))
             {
                 document.Dispose();
 
-                throw new PdfToolException("This PDF is protected with a password. Ask the user for it and pass it as 'password'.", ex);
+                throw;
             }
 
-            document.ObjectsError = ex.Message;
+            var reason = ex.InnerException?.Message ?? ex.Message;
+
+            document.ObjectsError = reason;
 
             if (requireObjects)
             {
                 document.Dispose();
 
-                throw new PdfToolException($"The objects this PDF is made of could not be read ({ex.Message}), so these checks cannot run. validate_pdf reports what is damaged.", ex);
+                throw new PdfToolException($"The objects this PDF is made of could not be read ({reason}), so these checks cannot run. validate_pdf reports what is damaged.", ex);
             }
         }
 
@@ -105,7 +106,7 @@ internal sealed class PdfInspectedDocument : IDisposable
     }
 
     /// <summary>
-    /// Releases both documents.
+    /// Releases both readings.
     /// </summary>
     public void Dispose()
     {
@@ -113,46 +114,8 @@ internal sealed class PdfInspectedDocument : IDisposable
         Objects?.Dispose();
     }
 
-    private static PdfSharpDocument OpenObjects(byte[] bytes, string password, List<string> problems)
-    {
-        var options = new PdfReaderOptions
-        {
-            ReaderProblemCallback = details => problems.Add(string.IsNullOrWhiteSpace(details.Description)
-                ? details.Title
-                : details.Title + ": " + details.Description),
-        };
-
-        var stream = new MemoryStream(bytes, writable: false);
-
-        try
-        {
-            return string.IsNullOrEmpty(password)
-                ? PdfReader.Open(stream, PdfDocumentOpenMode.Import, options)
-                : PdfReader.Open(stream, password, PdfDocumentOpenMode.Import, options);
-        }
-        catch
-        {
-            stream.Dispose();
-
-            throw;
-        }
-    }
-
     private static bool IsPasswordMessage(string message)
     {
         return message.Contains("password", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsPasswordFailure(Exception exception)
-    {
-        for (var current = exception; current is not null; current = current.InnerException)
-        {
-            if (IsPasswordMessage(current.Message) || current.GetType().Name.Contains("Password", StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

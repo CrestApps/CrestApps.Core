@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Documents.Pdf.Analysis;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
@@ -20,5 +21,5 @@ internal sealed class PdfContentRewriteOptions
     /// <summary>
     /// Gets or sets the optional-content group references whose marked content is removed.
     /// </summary>
-    public IReadOnlySet<PdfSharp.Pdf.PdfObject> RemoveOptionalContent { get; set; }
+    public IReadOnlySet<PdfObject> RemoveOptionalContent { get; set; }
 }

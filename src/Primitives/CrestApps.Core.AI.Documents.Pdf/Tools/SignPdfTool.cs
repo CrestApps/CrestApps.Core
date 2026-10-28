@@ -3,13 +3,11 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using CrestApps.Core.AI.Documents.Pdf.Analysis;
-using CrestApps.Core.AI.Documents.Pdf.Composition;
 using CrestApps.Core.AI.Documents.Pdf.Editing;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using PdfSharp.Drawing;
-using PdfSharp.Pdf.Signatures;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Tools;
@@ -122,31 +120,21 @@ internal sealed class SignPdfTool : PdfToolBase
             var (pageIndex, rectangle, placement) = ReadPlacement(arguments, pig);
             var sync = PdfMetadataSync.Capture(document);
 
-            PdfFontConfiguration.Ensure();
+            // The metadata is put in place first: the signature covers it with everything else.
+            sync.Apply(document, now);
 
-            DigitalSignatureHandler.ForDocument(
+            var signed = await PdfSignatureWriter.SignAsync(
                 document,
                 new PdfCmsSigner(certificate, digest, authority, now, () => CreateClient(arguments.Services)),
-                new DigitalSignatureOptions
+                new PdfSignatureRequest
                 {
-                    Reason = arguments.GetString("reason") ?? options.DefaultReason ?? string.Empty,
-                    Location = arguments.GetString("location") ?? options.DefaultLocation ?? string.Empty,
-                    ContactInfo = options.ContactInfo ?? string.Empty,
-                    AppName = "CrestApps",
-                    Rectangle = rectangle,
+                    Reason = arguments.GetString("reason") ?? options.DefaultReason,
+                    Location = arguments.GetString("location") ?? options.DefaultLocation,
+                    ContactInfo = options.ContactInfo,
+                    Box = rectangle,
                     PageIndex = pageIndex,
+                    SigningTime = now,
                 });
-
-            document.Info.ModificationDate = now.UtcDateTime;
-
-            byte[] signed;
-
-            using (var buffer = new MemoryStream())
-            {
-                // The signature is computed while the file is written; a time stamp is fetched then too.
-                await document.SaveAsync(buffer, closeStream: false);
-                signed = buffer.ToArray();
-            }
 
             using var check = PdfFiles.OpenForReading(signed);
 
@@ -176,7 +164,7 @@ internal sealed class SignPdfTool : PdfToolBase
             PdfPropertiesToolText.AppendNotes(
                 answer,
                 wasProtected ? "The source was password protected; the signed copy is saved without that protection, and protecting it now would break the signature." : null,
-                sync.Conformance.Count > 0 ? $"The file claimed {string.Join(" and ", sync.Conformance)}; signing rewrote its metadata without that identification." : null);
+                sync.DescribeConformance());
 
             return answer.ToString().TrimEnd();
         }, cancellationToken);
@@ -213,7 +201,7 @@ internal sealed class SignPdfTool : PdfToolBase
             : throw new PdfToolException("The time-stamp authority address this host configured is not an http or https address; an administrator needs to correct it.");
     }
 
-    private static (int PageIndex, XRect Rectangle, string Description) ReadPlacement(PdfToolArguments arguments, PigDocument pig)
+    private static (int PageIndex, PdfRectangle Rectangle, string Description) ReadPlacement(PdfToolArguments arguments, PigDocument pig)
     {
         var page = arguments.GetInt("page");
         var x = arguments.GetDouble("x");
@@ -228,7 +216,7 @@ internal sealed class SignPdfTool : PdfToolBase
                 throw new PdfToolException("A visible signature box needs 'page' as well as its position.");
             }
 
-            return (0, default, "invisible (no box on the page; viewers list it in their signatures panel)");
+            return (0, null, "invisible (no box on the page; viewers list it in their signatures panel)");
         }
 
         if (page < 1 || page > pig.NumberOfPages)
@@ -255,6 +243,6 @@ internal sealed class SignPdfTool : PdfToolBase
             throw new PdfToolException(string.Create(CultureInfo.InvariantCulture, $"That box does not fit on page {page}, which is {visible.Width:0} by {visible.Height:0} points."));
         }
 
-        return (page.Value - 1, new XRect(box.Left, box.Bottom, box.Width, box.Height), string.Create(CultureInfo.InvariantCulture, $"visible on page {page} at {box.Describe(pigPage)}"));
+        return (page.Value - 1, new PdfRectangle(box.Left, box.Bottom, box.Right, box.Top), string.Create(CultureInfo.InvariantCulture, $"visible on page {page} at {box.Describe(pigPage)}"));
     }
 }

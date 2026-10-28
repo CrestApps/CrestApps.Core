@@ -1,12 +1,10 @@
 using System.Globalization;
 using CrestApps.Core.AI.Documents.Pdf;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
+using CrestApps.Core.AI.Documents.Pdf.Graphics;
+using CrestApps.Core.AI.Documents.Pdf.Graphics.Fonts;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using Microsoft.Extensions.Options;
-using PdfSharp;
-using PdfSharp.Drawing;
-using PdfSharp.Pdf;
-using PdfSharp.Pdf.Annotations;
-using PdfSharp.Pdf.IO;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf.Reading;
 
@@ -15,6 +13,9 @@ namespace CrestApps.Core.Tests.Core.Documents.Pdf.Reading;
 /// </summary>
 internal static class PdfReadingFixtures
 {
+    private static readonly PdfBrush _black = new(new PdfColor(0, 0, 0));
+    private static readonly PdfBrush _gray = new(new PdfColor(0x80, 0x80, 0x80));
+
     /// <summary>
     /// Builds a three-page composed report: headings, paragraphs, a list, a table, a picture with a caption,
     /// and a heading on every page.
@@ -115,82 +116,62 @@ internal static class PdfReadingFixtures
     }
 
     /// <summary>
-    /// Builds a two-page PDF with PDFsharp: a web link, a mail link, a script link, a link to page 2, a sticky
-    /// note, bookmarks and a declared language.
+    /// Builds a two-page PDF drawn page by page: a web link, a mail link, a script link, a link to page 2, a
+    /// sticky note, bookmarks and a declared language.
     /// </summary>
     /// <returns>The PDF file.</returns>
     public static byte[] LinksAndBookmarks()
     {
-        PdfFontConfiguration.Ensure();
-
         using var document = new PdfDocument();
-        var font = new XFont("Arial", 12);
-        var large = new XFont("Arial", 20, XFontStyleEx.Bold);
+        var font = PdfFontLibrary.Get("Arial");
+        var large = PdfFontLibrary.Get("Arial", bold: true);
 
-        var first = document.AddPage();
-        first.Size = PageSize.Letter;
-        var second = document.AddPage();
-        second.Size = PageSize.Letter;
+        var first = LetterPage(document);
+        var second = LetterPage(document);
 
-        using (var graphics = XGraphics.FromPdfPage(first))
-        {
-            graphics.DrawString("Introduction", large, XBrushes.Black, 72, 90);
-            graphics.DrawString("Visit our website for details.", font, XBrushes.Black, 72, 140);
-            graphics.DrawString("Write to the team.", font, XBrushes.Black, 72, 170);
-            graphics.DrawString("Run the script.", font, XBrushes.Black, 72, 200);
-            graphics.DrawString("Go to the appendix.", font, XBrushes.Black, 72, 230);
-        }
+        var canvas = PdfCanvas.ForPage(first);
+        canvas.DrawText("Introduction", large, 20, 72, 90, _black);
+        canvas.DrawText("Visit our website for details.", font, 12, 72, 140, _black);
+        canvas.DrawText("Write to the team.", font, 12, 72, 170, _black);
+        canvas.DrawText("Run the script.", font, 12, 72, 200, _black);
+        canvas.DrawText("Go to the appendix.", font, 12, 72, 230, _black);
+        canvas.Commit();
 
-        using (var graphics = XGraphics.FromPdfPage(second))
-        {
-            graphics.DrawString("Appendix", large, XBrushes.Black, 72, 90);
-            graphics.DrawString("The appendix holds the details.", font, XBrushes.Black, 72, 140);
-        }
+        canvas = PdfCanvas.ForPage(second);
+        canvas.DrawText("Appendix", large, 20, 72, 90, _black);
+        canvas.DrawText("The appendix holds the details.", font, 12, 72, 140, _black);
+        canvas.Commit();
 
-        // PDFsharp rectangles are in PDF user space: the origin is the bottom-left corner of the page.
-        var height = first.Height.Point;
+        // Annotation rectangles are in PDF user space: the origin is the bottom-left corner of the page.
+        var height = first.Height;
 
-        first.AddWebLink(Rectangle(72, height - 145, 200, 18), "https://example.com/details");
-        first.AddWebLink(Rectangle(72, height - 175, 150, 18), "mailto:team@example.com");
-        first.AddWebLink(Rectangle(72, height - 205, 150, 18), "javascript:alert(1)");
-        first.AddDocumentLink(Rectangle(72, height - 235, 160, 18), 2);
+        PdfFixtureObjects.AddWebLink(first, 72, height - 145, 200, 18, "https://example.com/details");
+        PdfFixtureObjects.AddWebLink(first, 72, height - 175, 150, 18, "mailto:team@example.com");
+        PdfFixtureObjects.AddWebLink(first, 72, height - 205, 150, 18, "javascript:alert(1)");
+        PdfFixtureObjects.AddPageLink(first, 72, height - 235, 160, 18, second);
+        PdfFixtureObjects.AddNote(first, 400, height - 100, 20, 20, "Reviewer", "Check the figures");
 
-        var note = new PdfTextAnnotation(document)
-        {
-            Title = "Reviewer",
-            Contents = "Check the figures",
-            Rectangle = Rectangle(400, height - 100, 20, 20),
-        };
-
-        first.Annotations.Add(note);
-
-        var introduction = document.Outlines.Add("Introduction", first, true);
-        introduction.Outlines.Add("Links", first);
-        document.Outlines.Add("Appendix", second, true);
+        var introduction = PdfFixtureObjects.AddBookmark(document, null, "Introduction", first, open: true);
+        PdfFixtureObjects.AddBookmark(document, introduction, "Links", first);
+        PdfFixtureObjects.AddBookmark(document, null, "Appendix", second, open: true);
 
         document.Info.Title = "Links sample";
         document.Info.Author = "Tester";
-        document.Internals.Catalog.Elements.SetString("/Lang", "en-GB");
+        document.Language = "en-GB";
 
-        using var buffer = new MemoryStream();
-        document.Save(buffer, closeStream: false);
-
-        return buffer.ToArray();
+        return document.Save();
     }
 
     /// <summary>
-    /// Builds a three-page PDF with PDFsharp, each page set in two columns under a full-width heading, with
-    /// a running head at the top and a page number at the bottom of every page.
+    /// Builds a three-page PDF drawn page by page, each page set in two columns under a full-width heading,
+    /// with a running head at the top and a page number at the bottom of every page.
     /// </summary>
     /// <returns>The PDF file.</returns>
     public static byte[] TwoColumnsWithRunningText()
     {
-        PdfFontConfiguration.Ensure();
-
         using var document = new PdfDocument();
-        var body = new XFont("Arial", 10);
-        var small = new XFont("Arial", 8);
-        var heading = new XFont("Arial", 18, XFontStyleEx.Bold);
+        var body = PdfFontLibrary.Get("Arial");
+        var heading = PdfFontLibrary.Get("Arial", bold: true);
 
         string[] left =
         [
@@ -220,28 +201,22 @@ internal static class PdfReadingFixtures
 
         for (var number = 1; number <= headings.Length; number++)
         {
-            var page = document.AddPage();
+            var canvas = PdfCanvas.ForPage(document.AddPage());
 
-            page.Size = PageSize.A4;
-
-            using var graphics = XGraphics.FromPdfPage(page);
-
-            graphics.DrawString("Northwind Annual Review", small, XBrushes.Gray, 60, 36);
-            graphics.DrawString(headings[number - 1], heading, XBrushes.Black, 60, 110);
+            canvas.DrawText("Northwind Annual Review", body, 8, 60, 36, _gray);
+            canvas.DrawText(headings[number - 1], heading, 18, 60, 110, _black);
 
             for (var line = 0; line < left.Length; line++)
             {
-                graphics.DrawString(left[line], body, XBrushes.Black, 60, 150 + (line * 14));
-                graphics.DrawString(right[line], body, XBrushes.Black, 320, 150 + (line * 14));
+                canvas.DrawText(left[line], body, 10, 60, 150 + (line * 14), _black);
+                canvas.DrawText(right[line], body, 10, 320, 150 + (line * 14), _black);
             }
 
-            graphics.DrawString("Page " + number.ToString(CultureInfo.InvariantCulture), small, XBrushes.Gray, 280, 810);
+            canvas.DrawText("Page " + number.ToString(CultureInfo.InvariantCulture), body, 8, 280, 810, _gray);
+            canvas.Commit();
         }
 
-        using var buffer = new MemoryStream();
-        document.Save(buffer, closeStream: false);
-
-        return buffer.ToArray();
+        return document.Save();
     }
 
     /// <summary>
@@ -291,34 +266,26 @@ internal static class PdfReadingFixtures
     }
 
     /// <summary>
-    /// Builds a PDF with PDFsharp whose first page holds the given lines of text and whose second page is
-    /// blank, as a scanned page without a text layer reads.
+    /// Builds a PDF whose first page holds the given lines of text and whose second page is blank, as a
+    /// scanned page without a text layer reads.
     /// </summary>
     /// <param name="lines">The lines drawn on the first page.</param>
     /// <returns>The PDF file.</returns>
     public static byte[] TextAndBlankPage(params string[] lines)
     {
-        PdfFontConfiguration.Ensure();
-
         using var document = new PdfDocument();
-        var font = new XFont("Arial", 11);
-        var first = document.AddPage();
-        first.Size = PageSize.Letter;
+        var font = PdfFontLibrary.Get("Arial");
+        var canvas = PdfCanvas.ForPage(LetterPage(document));
 
-        using (var graphics = XGraphics.FromPdfPage(first))
+        for (var index = 0; index < lines.Length; index++)
         {
-            for (var index = 0; index < lines.Length; index++)
-            {
-                graphics.DrawString(lines[index], font, XBrushes.Black, 72, 100 + (index * 16));
-            }
+            canvas.DrawText(lines[index], font, 11, 72, 100 + (index * 16), _black);
         }
 
-        document.AddPage().Size = PageSize.Letter;
+        canvas.Commit();
+        LetterPage(document);
 
-        using var buffer = new MemoryStream();
-        document.Save(buffer, closeStream: false);
-
-        return buffer.ToArray();
+        return document.Save();
     }
 
     /// <summary>
@@ -330,21 +297,18 @@ internal static class PdfReadingFixtures
     /// <returns>The protected file.</returns>
     public static byte[] Protect(byte[] pdf, string userPassword, string ownerPassword)
     {
-        using var input = new MemoryStream(pdf);
-        using var document = PdfReader.Open(input, PdfDocumentOpenMode.Modify);
+        using var document = PdfDocument.Open(pdf);
 
-        document.SecuritySettings.UserPassword = userPassword;
-        document.SecuritySettings.OwnerPassword = ownerPassword;
-
-        using var buffer = new MemoryStream();
-        document.Save(buffer, closeStream: false);
-
-        return buffer.ToArray();
+        return PdfObjectWriter.Write(document, new PdfStandardEncryptor(PdfEncryptionMethod.Aes256, userPassword, ownerPassword));
     }
 
-    private static PdfSharp.Pdf.PdfRectangle Rectangle(double left, double bottom, double width, double height)
+    private static PdfPage LetterPage(PdfDocument document)
     {
-        return new PdfSharp.Pdf.PdfRectangle(new XRect(left, bottom, width, height));
+        var page = document.AddPage();
+
+        page.MediaBox = new PdfRectangle(0, 0, 612, 792);
+
+        return page;
     }
 
     /// <summary>

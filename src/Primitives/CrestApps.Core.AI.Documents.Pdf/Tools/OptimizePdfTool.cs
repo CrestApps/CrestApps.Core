@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text;
 using CrestApps.Core.AI.Documents.Pdf.Editing;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
-using PdfSharp.Pdf;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Tools;
 
@@ -107,9 +107,6 @@ internal sealed class OptimizePdfTool : PdfToolBase
 
             if (compress)
             {
-                document.Options.NoCompression = false;
-                document.Options.CompressContentStreams = true;
-                document.Options.FlateEncodeMode = PdfFlateEncodeMode.BestCompression;
                 AddCount(done, PdfStreamOptimizer.CompressUncompressed(document), "compressed {0} uncompressed stream(s)");
             }
 

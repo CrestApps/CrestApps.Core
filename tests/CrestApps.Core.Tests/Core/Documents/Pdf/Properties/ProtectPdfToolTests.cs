@@ -1,7 +1,7 @@
 using CrestApps.Core.AI.Documents.Pdf.Tools;
-using PdfSharp.Pdf.IO;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Exceptions;
+using UglyToad.PdfPig.Tokens;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf.Properties;
 
@@ -35,11 +35,14 @@ public sealed class ProtectPdfToolTests
             Assert.Equal(2, opened.NumberOfPages);
         }
 
-        using (var owner = PdfReader.Open(new MemoryStream(locked), "owner-secret", PdfDocumentOpenMode.Modify))
+        using (var owner = PdfDocument.Open(locked, new ParsingOptions { Password = "owner-secret" }))
         {
-            Assert.False(owner.SecuritySettings.PermitPrint);
-            Assert.False(owner.SecuritySettings.PermitExtractContent);
-            Assert.True(owner.SecuritySettings.PermitAnnotations);
+            // The permission flags, numbered from 1: printing is bit 3, copying bit 5, comments bit 6.
+            var permissions = Permissions(owner);
+
+            Assert.Equal(0, permissions & (1 << 2));
+            Assert.Equal(0, permissions & (1 << 4));
+            Assert.NotEqual(0, permissions & (1 << 5));
         }
 
         // The open password does not grant the owner's rights, so it cannot remove the protection.
@@ -104,5 +107,17 @@ public sealed class ProtectPdfToolTests
         Assert.Contains("is not password protected", await host.InvokeAsync(new RemovePdfSecurityTool(), new { password = "anything" }), StringComparison.Ordinal);
         Assert.Contains("Say how to protect", await host.InvokeAsync(new ProtectPdfTool()), StringComparison.Ordinal);
         Assert.Empty((await host.LoadWorkspaceAsync()).Documents);
+    }
+
+    private static long Permissions(PdfDocument pdf)
+    {
+        var token = pdf.Structure.Trailer.EncryptionToken;
+
+        if (token is IndirectReferenceToken reference)
+        {
+            token = pdf.Structure.GetObject(reference.Data).Data;
+        }
+
+        return Assert.IsType<NumericToken>(Assert.IsType<DictionaryToken>(token).Data["P"]).Long;
     }
 }

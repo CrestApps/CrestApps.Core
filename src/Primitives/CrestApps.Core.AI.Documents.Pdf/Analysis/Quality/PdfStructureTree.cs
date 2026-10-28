@@ -1,4 +1,4 @@
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
 
@@ -12,14 +12,14 @@ internal static class PdfStructureTree
     /// <summary>
     /// Lists the structure elements of a document, depth first in document order.
     /// </summary>
-    /// <param name="document">The document, opened with PDFsharp.</param>
+    /// <param name="document">The document, opened as objects.</param>
     /// <returns>The elements, or an empty list when the document has no structure tree.</returns>
     public static List<PdfTagElement> Read(PdfDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
 
         var elements = new List<PdfTagElement>();
-        var root = PdfObjectReader.GetDictionary(document.Internals.Catalog, "/StructTreeRoot");
+        var root = PdfObjectReader.GetDictionary(document.Catalog, "/StructTreeRoot");
 
         if (root is null)
         {

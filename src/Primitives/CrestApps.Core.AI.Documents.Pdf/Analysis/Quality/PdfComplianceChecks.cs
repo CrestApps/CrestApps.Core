@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
 
@@ -33,7 +33,7 @@ internal static class PdfComplianceChecks
         ArgumentNullException.ThrowIfNull(facts);
 
         var objects = document.Objects;
-        var catalog = objects.Internals.Catalog;
+        var catalog = objects.Catalog;
         var xmp = facts.Xmp;
         var dictionaries = PdfObjectReader.EnumerateDictionaries(objects);
 

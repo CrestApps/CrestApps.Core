@@ -3,7 +3,6 @@ using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Documents.Pdf;
 using CrestApps.Core.AI.Documents.Presentations;
 using CrestApps.Core.AI.Documents.Presentations.Models;
-using PdfSharp.Pdf.IO;
 
 namespace CrestApps.Core.Tests.Core.Documents.Presentations;
 
@@ -388,9 +387,9 @@ public sealed partial class PresentationToolTests
         Assert.EndsWith(".pdf", document.FileName, StringComparison.Ordinal);
         Assert.Equal("%PDF", Encoding.ASCII.GetString(bytes, 0, 4));
 
-        using var pdf = PdfReader.Open(new MemoryStream(bytes), PdfDocumentOpenMode.Import);
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(bytes);
 
-        Assert.Equal(5, pdf.PageCount);
+        Assert.Equal(5, pdf.NumberOfPages);
     }
 
     /// <summary>

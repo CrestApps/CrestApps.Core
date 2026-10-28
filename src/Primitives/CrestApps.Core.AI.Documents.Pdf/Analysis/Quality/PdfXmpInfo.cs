@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Xml;
 using System.Xml.Linq;
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
 
@@ -114,13 +114,13 @@ internal sealed class PdfXmpInfo
     /// <summary>
     /// Reads the metadata stream of a document.
     /// </summary>
-    /// <param name="document">The document, opened with PDFsharp.</param>
+    /// <param name="document">The document, opened as objects.</param>
     /// <returns>What the metadata says.</returns>
     public static PdfXmpInfo Read(PdfDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        var stream = PdfObjectReader.GetDictionary(document.Internals.Catalog, "/Metadata");
+        var stream = PdfObjectReader.GetDictionary(document.Catalog, "/Metadata");
 
         if (stream?.Stream is null)
         {

@@ -1,4 +1,4 @@
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
@@ -102,7 +102,7 @@ internal sealed class PdfAccessibilityFacts
     /// <summary>
     /// Gathers the facts of a document.
     /// </summary>
-    /// <param name="objects">The document, opened with PDFsharp.</param>
+    /// <param name="objects">The document, opened as objects.</param>
     /// <param name="content">The document, opened with PdfPig, or <see langword="null"/>.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The facts.</returns>
@@ -110,7 +110,7 @@ internal sealed class PdfAccessibilityFacts
     {
         ArgumentNullException.ThrowIfNull(objects);
 
-        var catalog = objects.Internals.Catalog;
+        var catalog = objects.Catalog;
         var markInfo = PdfObjectReader.GetDictionary(catalog, "/MarkInfo");
         var pages = Enumerable.Range(1, objects.PageCount).ToList();
         var facts = new PdfAccessibilityFacts
@@ -215,7 +215,7 @@ internal sealed class PdfAccessibilityFacts
 
     private static int CountBookmarks(PdfDocument objects)
     {
-        var outlines = PdfObjectReader.GetDictionary(objects.Internals.Catalog, "/Outlines");
+        var outlines = PdfObjectReader.GetDictionary(objects.Catalog, "/Outlines");
         var visited = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
         var pending = new Stack<PdfDictionary>();
         var count = 0;

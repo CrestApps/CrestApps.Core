@@ -86,7 +86,7 @@ internal sealed class ValidatePdfFormTool : PdfToolBase
         var source = await context.FindPdfAsync(arguments.Pdf(), cancellationToken);
         var bytes = await context.ReadPdfAsync(source, cancellationToken);
 
-        using var document = PdfFiles.OpenForImport(bytes, arguments.GetString("password"));
+        using var document = PdfFiles.OpenObjects(bytes, arguments.GetString("password"));
 
         var fields = PdfFormFields.Read(document);
 

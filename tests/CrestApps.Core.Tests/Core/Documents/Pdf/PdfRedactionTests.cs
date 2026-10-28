@@ -1,6 +1,10 @@
+using System.IO.Compression;
+using System.Text;
+using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Documents.Pdf.Analysis;
 using CrestApps.Core.AI.Documents.Pdf.Tools;
 using UglyToad.PdfPig;
+using PdfObjects = CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf;
 
@@ -96,6 +100,68 @@ public sealed class PdfRedactionTests
         Assert.Empty((await host.LoadWorkspaceAsync()).Documents);
     }
 
+    [Fact]
+    public async Task RedactFlattenedForm_LeavesTheValuesNowhereInTheFile()
+    {
+        using var host = new PdfToolTestHost();
+        await host.UploadAsync("signup.pdf", await PdfToolFixtures.SimplePdfAsync("Signup form"));
+
+        await host.InvokeAsync(new EditPdfFormTool(), new
+        {
+            changes = new object[]
+            {
+                new { action = "add", type = "text", name = "email", page = 1, x = 150, y = 150 },
+                new { action = "add", type = "text", name = "phone", page = 1, x = 150, y = 180 },
+            },
+        });
+        await host.InvokeAsync(new FillPdfFormTool(), new { values = new Dictionary<string, object> { ["email"] = "jane.doe@example.com", ["phone"] = "555-0100" } });
+        await host.InvokeAsync(new FlattenPdfTool(), new { scope = "forms" });
+
+        Assert.Contains("555-0100", ReadEveryStream(await host.ReadWorkingPdfAsync("signup")), StringComparison.Ordinal);
+
+        var redacted = await host.InvokeAsync(new RedactPdfTool(), new { texts = new[] { "jane.doe@example.com", "555-0100" } });
+
+        Assert.Contains("Verified", redacted, StringComparison.Ordinal);
+
+        // Each flattened field is a form XObject. The page now draws a rewritten copy of it, and the original,
+        // which still holds the value, must not be written to the file beside it.
+        var file = ReadEveryStream(await host.ReadWorkingPdfAsync("signup"));
+
+        Assert.DoesNotContain("jane.doe", file, StringComparison.Ordinal);
+        Assert.DoesNotContain("555-0100", file, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RedactPage_RemovesItsImageFromTheFile()
+    {
+        using var host = new PdfToolTestHost();
+        await host.UploadAsync("photo.pdf", ImagePdf(pages: 1, shareResources: false));
+
+        await host.InvokeAsync(new RedactPdfTool(), new { whole_pages = "1" });
+
+        var bytes = await host.ReadWorkingPdfAsync("photo");
+
+        using var pdf = PdfDocument.Open(bytes);
+
+        Assert.Empty(pdf.GetPage(1).GetImages());
+        Assert.DoesNotMatch(@"/Subtype\s*/Image\b", Encoding.Latin1.GetString(bytes));
+    }
+
+    [Fact]
+    public async Task RedactPage_KeepsTheImageOfAPageSharingItsResources()
+    {
+        using var host = new PdfToolTestHost();
+        await host.UploadAsync("photos.pdf", ImagePdf(pages: 2, shareResources: true));
+
+        await host.InvokeAsync(new RedactPdfTool(), new { whole_pages = "1" });
+
+        using var pdf = PdfDocument.Open(await host.ReadWorkingPdfAsync("photos"));
+
+        // The image comes off the redacted page's own copy of the resources, not off the dictionary both pages use.
+        Assert.Empty(pdf.GetPage(1).GetImages());
+        Assert.Single(pdf.GetPage(2).GetImages());
+    }
+
     [Theory]
     [InlineData("4242 4242 4242 4242", true)]
     [InlineData("4242 4242 4242 4241", false)]
@@ -133,5 +199,79 @@ public sealed class PdfRedactionTests
 
         Assert.Equal(PdfPatternLibrary.Date, match.Kind);
         Assert.Equal(date, match.Value);
+    }
+
+    /// <summary>
+    /// Builds pages that each draw the same small picture, either with resources of their own or all sharing one
+    /// resources dictionary, as some generators write them.
+    /// </summary>
+    private static byte[] ImagePdf(int pages, bool shareResources)
+    {
+        using var document = new PdfObjects.PdfDocument();
+        var image = new PdfObjects.PdfDictionary(document);
+
+        image.Elements.SetName("/Type", "/XObject");
+        image.Elements.SetName("/Subtype", "/Image");
+        image.Elements.SetInteger("/Width", 2);
+        image.Elements.SetInteger("/Height", 2);
+        image.Elements.SetName("/ColorSpace", "/DeviceGray");
+        image.Elements.SetInteger("/BitsPerComponent", 8);
+        image.CreateStream([0, 255, 255, 0]);
+        document.AddObject(image);
+
+        PdfObjects.PdfDictionary shared = null;
+
+        for (var index = 0; index < pages; index++)
+        {
+            var page = document.AddPage();
+            page.MediaBox = new PdfObjects.PdfRectangle(0, 0, 612, 792);
+
+            if (!shareResources || shared is null)
+            {
+                var xobjects = new PdfObjects.PdfDictionary(document);
+                var resources = new PdfObjects.PdfDictionary(document);
+
+                xobjects.Elements["/Im1"] = image.Reference;
+                resources.Elements["/XObject"] = xobjects;
+                document.AddObject(resources);
+                shared = resources;
+            }
+
+            page.Elements["/Resources"] = shared.Reference;
+            page.Contents.AppendContent().Stream.SetCompressed(Encoding.ASCII.GetBytes("q 100 0 0 100 72 600 cm /Im1 Do Q"));
+        }
+
+        return document.Save();
+    }
+
+    /// <summary>
+    /// Reads every stream in a file, inflated where it is compressed, so a test can tell whether a value is
+    /// anywhere in the file and not only on its pages.
+    /// </summary>
+    private static string ReadEveryStream(byte[] bytes)
+    {
+        var file = Encoding.Latin1.GetString(bytes);
+        var text = new StringBuilder(file);
+
+        foreach (Match match in Regex.Matches(file, @"(?<!end)stream\r?\n"))
+        {
+            var start = match.Index + match.Length;
+            var end = file.IndexOf("endstream", start, StringComparison.Ordinal);
+
+            try
+            {
+                using var zlib = new ZLibStream(new MemoryStream(bytes, start, end - start), CompressionMode.Decompress);
+                using var inflated = new MemoryStream();
+
+                zlib.CopyTo(inflated);
+                text.Append(Encoding.Latin1.GetString(inflated.ToArray()));
+            }
+            catch (InvalidDataException)
+            {
+                // Not compressed: its bytes are already in the file's text.
+            }
+        }
+
+        return text.ToString();
     }
 }

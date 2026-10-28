@@ -1,5 +1,5 @@
 using System.Text;
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
@@ -125,7 +125,7 @@ internal static class PdfFlattener
         if (forms && pages is null)
         {
             // With every widget painted into the pages, the form has nothing left to hold.
-            document.Internals.Catalog.Elements.Remove("/AcroForm");
+            document.Catalog.Elements.Remove("/AcroForm");
         }
 
         return (fieldCount, annotationCount);

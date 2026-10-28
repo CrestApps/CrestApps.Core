@@ -1,10 +1,11 @@
 using System.Globalization;
 using CrestApps.Core.AI.Documents.Pdf.Analysis;
 using CrestApps.Core.AI.Documents.Pdf.Composition;
+using CrestApps.Core.AI.Documents.Pdf.Graphics;
+using CrestApps.Core.AI.Documents.Pdf.Graphics.Fonts;
+using CrestApps.Core.AI.Documents.Pdf.Graphics.Images;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
-using PdfSharp.Drawing;
-using PdfSharp.Drawing.Layout;
-using PdfSharp.Pdf;
 using UglyToad.PdfPig.Content;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
@@ -72,12 +73,14 @@ internal static class PdfContentEditor
 
             PdfContentRewriter.Rewrite(page, new PdfContentRewriteOptions { Areas = areas });
 
-            using var graphics = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
+            var canvas = PdfCanvas.ForPage(page);
 
             foreach (var (_, match) in group)
             {
-                DrawReplacement(graphics, page, match, operation, warnings);
+                DrawReplacement(canvas, page, match, operation, warnings);
             }
+
+            canvas.Commit();
         }
 
         return (PdfFiles.Save(document), targets.Count);
@@ -102,40 +105,31 @@ internal static class PdfContentEditor
         using var document = PdfFiles.OpenForEditing(bytes, password);
 
         var page = PageOf(document, operation.Page);
+        var canvas = PdfCanvas.ForPage(page);
+        var font = Font(operation.FontFamily, operation.Bold == true, operation.Italic == true);
+        var size = Size(operation.FontSize ?? 11);
+        var brush = new PdfBrush(PdfColor.Parse(operation.Color, new PdfColor(0, 0, 0)));
+        var (x, y) = ToGraphics(page, operation.X ?? 72, operation.Y ?? 72);
+        var text = operation.Text.Replace("\r", string.Empty, StringComparison.Ordinal);
 
-        using (var graphics = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append))
+        if (operation.Width is > 0)
         {
-            var font = Font(operation.FontFamily, operation.FontSize ?? 11, operation.Bold == true, operation.Italic == true);
-            var brush = new XSolidBrush(PdfColor.Parse(operation.Color, new PdfColor(0, 0, 0)).ToXColor());
-            var (x, y) = ToGraphics(page, operation.X ?? 72, operation.Y ?? 72);
+            var height = operation.Height ?? Math.Max(size * 1.3, page.Height - y);
 
-            if (operation.Width is > 0)
+            DrawWrapped(canvas, text, font, size, brush, x, y, operation.Width.Value, height, operation.Align?.Trim().ToLowerInvariant());
+        }
+        else
+        {
+            var lineHeight = size * 1.2;
+            var lines = text.Split('\n');
+
+            for (var index = 0; index < lines.Length; index++)
             {
-                var height = operation.Height ?? Math.Max(font.Size * 1.3, page.Height.Point - y);
-                var formatter = new XTextFormatter(graphics)
-                {
-                    Alignment = (operation.Align?.Trim().ToLowerInvariant()) switch
-                    {
-                        "center" => XParagraphAlignment.Center,
-                        "right" => XParagraphAlignment.Right,
-                        "justify" => XParagraphAlignment.Justify,
-                        _ => XParagraphAlignment.Left,
-                    },
-                };
-
-                formatter.DrawString(operation.Text, font, brush, new XRect(x, y, operation.Width.Value, height), XStringFormats.TopLeft);
-            }
-            else
-            {
-                var lineHeight = font.Size * 1.2;
-                var lines = operation.Text.Replace("\r", string.Empty, StringComparison.Ordinal).Split('\n');
-
-                for (var index = 0; index < lines.Length; index++)
-                {
-                    graphics.DrawString(lines[index], font, brush, x, y + (index * lineHeight), XStringFormats.TopLeft);
-                }
+                canvas.DrawText(lines[index], font, size, x, y + (index * lineHeight) + (font.Ascent * size), brush);
             }
         }
+
+        canvas.Commit();
 
         return PdfFiles.Save(document);
     }
@@ -153,7 +147,7 @@ internal static class PdfContentEditor
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(image);
 
-        if (!PdfImageInfo.TryRead(image.Bytes, out _, out var pixelWidth, out var pixelHeight))
+        if (!PdfImageInfo.TryRead(image.Bytes, out _, out var pixelWidth, out var pixelHeight) || PdfImage.TryLoad(image.Bytes) is not { } picture)
         {
             throw new PdfToolException("The image is not a JPEG, PNG, GIF or BMP.");
         }
@@ -162,17 +156,14 @@ internal static class PdfContentEditor
 
         var page = PageOf(document, operation.Page);
         var aspect = (double)pixelWidth / pixelHeight;
-        var width = operation.Width ?? (operation.Height is > 0 ? operation.Height.Value * aspect : Math.Min(pixelWidth * 0.75, page.Width.Point / 2));
+        var width = operation.Width ?? (operation.Height is > 0 ? operation.Height.Value * aspect : Math.Min(pixelWidth * 0.75, page.Width / 2));
         var height = operation.Height ?? (width / aspect);
 
-        using (var graphics = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append))
-        {
-            using var stream = new MemoryStream(image.Bytes);
-            using var picture = XImage.FromStream(stream);
-            var (x, y) = ToGraphics(page, operation.X ?? 72, operation.Y ?? 72);
+        var canvas = PdfCanvas.ForPage(page);
+        var (x, y) = ToGraphics(page, operation.X ?? 72, operation.Y ?? 72);
 
-            graphics.DrawImage(picture, x, y, width, height);
-        }
+        canvas.DrawImage(picture, x, y, width, height);
+        canvas.Commit();
 
         return PdfFiles.Save(document);
     }
@@ -236,7 +227,7 @@ internal static class PdfContentEditor
         return (PdfFiles.Save(document), glyphs, images);
     }
 
-    private static void DrawReplacement(XGraphics graphics, PdfPage page, PdfTextMatch match, PdfContentEditOperation operation, List<string> warnings)
+    private static void DrawReplacement(PdfCanvas canvas, PdfPage page, PdfTextMatch match, PdfContentEditOperation operation, List<string> warnings)
     {
         if (string.IsNullOrEmpty(operation.Replace) || match.Letters.Count == 0)
         {
@@ -261,15 +252,15 @@ internal static class PdfContentEditor
                 ? "Courier New"
                 : PdfFontFamilies.Default);
 
-        var size = operation.FontSize ?? Math.Max(first.PointSize, 1);
-        var font = Font(family, size, bold, italic);
+        var size = Size(operation.FontSize ?? Math.Max(first.PointSize, 1));
+        var font = Font(family, bold, italic);
         var color = ReadColor(first, operation.Color);
         var (x, y) = ToGraphics(page, first.StartBaseLine.X, first.StartBaseLine.Y, fromUserSpace: true);
 
-        graphics.DrawString(operation.Replace, font, new XSolidBrush(color.ToXColor()), x, y, XStringFormats.BaseLineLeft);
+        canvas.DrawText(operation.Replace, font, size, x, y, new PdfBrush(color));
 
         var oldWidth = match.Boxes.Sum(box => box.Width);
-        var newWidth = graphics.MeasureString(operation.Replace, font).Width;
+        var newWidth = font.Measure(operation.Replace, size);
 
         if (oldWidth > 0 && newWidth > oldWidth * 1.15)
         {
@@ -296,21 +287,91 @@ internal static class PdfContentEditor
         }
     }
 
-    private static XFont Font(string family, double size, bool bold, bool italic)
+    private static PdfFont Font(string family, bool bold, bool italic)
     {
-        var style = (bold, italic) switch
-        {
-            (true, true) => XFontStyleEx.BoldItalic,
-            (true, false) => XFontStyleEx.Bold,
-            (false, true) => XFontStyleEx.Italic,
-            _ => XFontStyleEx.Regular,
-        };
+        return PdfFontLibrary.Get(PdfFontFamilies.Resolve(family, PdfFontFamilies.Default, null), bold, italic);
+    }
 
-        return new XFont(PdfFontFamilies.Resolve(family, PdfFontFamilies.Default, null), Math.Clamp(size, 1, 200), style);
+    private static double Size(double size)
+    {
+        return Math.Clamp(size, 1, 200);
     }
 
     /// <summary>
-    /// Converts a position to the coordinates PDFsharp draws a page in: points from the top-left of the media box.
+    /// Writes text into a box, wrapping it at word boundaries and dropping the lines that do not fit its height.
+    /// </summary>
+    /// <param name="canvas">The canvas.</param>
+    /// <param name="text">The text; a line break starts a new paragraph.</param>
+    /// <param name="font">The font.</param>
+    /// <param name="size">The font size.</param>
+    /// <param name="brush">The colour.</param>
+    /// <param name="left">The box's left edge.</param>
+    /// <param name="top">The box's top edge.</param>
+    /// <param name="width">The box's width.</param>
+    /// <param name="height">The box's height.</param>
+    /// <param name="align">left, center, right or justify.</param>
+    private static void DrawWrapped(PdfCanvas canvas, string text, PdfFont font, double size, PdfBrush brush, double left, double top, double width, double height, string align)
+    {
+        var lineHeight = font.LineSpacing * size;
+        var space = font.Measure(" ", size);
+        var y = top;
+
+        foreach (var paragraph in text.Split('\n'))
+        {
+            var words = paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var start = 0;
+
+            do
+            {
+                if (y + lineHeight > top + height + 0.01)
+                {
+                    return;
+                }
+
+                // As many words as fit go on the line; a word wider than the box goes on a line of its own.
+                var end = start;
+                var used = 0d;
+
+                while (end < words.Length)
+                {
+                    var next = used + (end > start ? space : 0) + font.Measure(words[end], size);
+
+                    if (end > start && next > width)
+                    {
+                        break;
+                    }
+
+                    used = next;
+                    end++;
+                }
+
+                var last = end >= words.Length;
+                var gap = align == "justify" && !last && end - start > 1
+                    ? space + ((width - used) / (end - start - 1))
+                    : space;
+
+                var x = align switch
+                {
+                    "center" => left + ((width - used) / 2),
+                    "right" => left + width - used,
+                    _ => left,
+                };
+
+                for (var index = start; index < end; index++)
+                {
+                    canvas.DrawText(words[index], font, size, x, y + (font.Ascent * size), brush);
+                    x += font.Measure(words[index], size) + gap;
+                }
+
+                y += lineHeight;
+                start = end;
+            }
+            while (start < words.Length);
+        }
+    }
+
+    /// <summary>
+    /// Converts a position to the coordinates a page is drawn in: points from the top-left of the media box.
     /// </summary>
     /// <param name="page">The page.</param>
     /// <param name="x">The x coordinate: points from the left of the visible area, or user space.</param>
@@ -320,7 +381,7 @@ internal static class PdfContentEditor
     private static (double X, double Y) ToGraphics(PdfPage page, double x, double y, bool fromUserSpace = false)
     {
         var media = page.MediaBox;
-        var visible = page.EffectiveCropBoxReadOnly;
+        var visible = page.CropBox;
 
         if (fromUserSpace)
         {

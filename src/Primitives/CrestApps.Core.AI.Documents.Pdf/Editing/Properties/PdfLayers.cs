@@ -1,4 +1,4 @@
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
@@ -22,7 +22,7 @@ internal static class PdfLayers
         ArgumentNullException.ThrowIfNull(document);
 
         var layers = new List<PdfLayer>();
-        var properties = PdfObjects.GetDictionary(document.Internals.Catalog, "/OCProperties");
+        var properties = PdfObjects.GetDictionary(document.Catalog, "/OCProperties");
         var groups = PdfObjects.GetArray(properties, "/OCGs");
 
         if (groups is null)
@@ -97,7 +97,7 @@ internal static class PdfLayers
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(layers);
 
-        var properties = PdfObjects.GetDictionary(document.Internals.Catalog, "/OCProperties")
+        var properties = PdfObjects.GetDictionary(document.Catalog, "/OCProperties")
             ?? throw new InvalidOperationException("The document has no optional content.");
 
         var configuration = PdfObjects.GetDictionary(properties, "/D");

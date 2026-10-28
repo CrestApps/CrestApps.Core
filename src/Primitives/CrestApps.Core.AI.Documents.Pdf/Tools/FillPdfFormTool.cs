@@ -129,7 +129,7 @@ internal sealed class FillPdfFormTool : PdfToolBase
                 throw new PdfToolException("No field was filled: " + string.Join("; ", problems) + ".");
             }
 
-            // Read before the document is saved: PDFsharp does not allow a saved document to be read again.
+            // The required fields still empty are read from the form as it was filled, before any flattening.
             var empty = PdfFormFields.Read(document)
                 .Where(field => field.Required && string.IsNullOrEmpty(field.Value) && field.Type is not "signature")
                 .Select(field => field.Name)

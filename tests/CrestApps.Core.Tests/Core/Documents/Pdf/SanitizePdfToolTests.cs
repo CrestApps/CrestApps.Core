@@ -1,8 +1,7 @@
 using System.Text;
 using CrestApps.Core.AI.Documents.Pdf.Editing;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Tools;
-using PdfSharp.Pdf;
-using PdfSharp.Pdf.IO;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
 
 namespace CrestApps.Core.Tests.Core.Documents.Pdf;
@@ -38,8 +37,8 @@ public sealed class SanitizePdfToolTests
             Assert.Empty(pig.Advanced.TryGetEmbeddedFiles(out var files) ? files : []);
         }
 
-        using var document = PdfReader.Open(new MemoryStream(bytes), PdfDocumentOpenMode.Import);
-        var catalog = document.Internals.Catalog;
+        using var document = PdfDocument.Open(bytes);
+        var catalog = document.Catalog;
 
         Assert.False(catalog.Elements.ContainsKey("/OpenAction"));
         Assert.False(catalog.Elements.ContainsKey("/OCProperties"));
@@ -70,7 +69,7 @@ public sealed class SanitizePdfToolTests
 
         Assert.Contains("1 comment(s) and mark(s)", result, StringComparison.Ordinal);
 
-        using var document = PdfReader.Open(new MemoryStream(await host.ReadWorkingPdfAsync("contract")), PdfDocumentOpenMode.Import);
+        using var document = PdfDocument.Open(await host.ReadWorkingPdfAsync("contract"));
         var annotations = document.Pages[0].Elements.GetObject("/Annots") as PdfArray;
 
         Assert.True(annotations is null || annotations.Elements.Count == 0);
@@ -97,8 +96,8 @@ public sealed class SanitizePdfToolTests
             "BT /F1 12 Tf 3 Tr 72 680 Td (Invisible note) Tj ET\n" +
             "/OC /L1 BDC BT /F1 12 Tf 0 Tr 72 660 Td (Draft wording) Tj ET EMC";
 
-        using var document = PdfReader.Open(new MemoryStream(PdfToolFixtures.StandardFontPdf(Content)), PdfDocumentOpenMode.Modify);
-        var catalog = document.Internals.Catalog;
+        using var document = PdfDocument.Open(PdfToolFixtures.StandardFontPdf(Content));
+        var catalog = document.Catalog;
         var page = document.Pages[0];
 
         document.Info.Author = "Jane Roe";
@@ -112,7 +111,7 @@ public sealed class SanitizePdfToolTests
         var draft = new PdfDictionary(document);
         draft.Elements.SetName("/Type", "/OCG");
         draft.Elements["/Name"] = new PdfString("Draft");
-        document.Internals.AddObject(draft);
+        document.AddObject(draft);
 
         var groups = new PdfArray(document);
         groups.Elements.Add(draft.Reference);
@@ -134,7 +133,7 @@ public sealed class SanitizePdfToolTests
 
         var thumbnail = new PdfDictionary(document);
         thumbnail.CreateStream([0, 0, 0]);
-        document.Internals.AddObject(thumbnail);
+        document.AddObject(thumbnail);
         page.Elements["/Thumb"] = thumbnail.Reference;
 
         PdfAttachments.Add(document, "pricing.csv", Encoding.UTF8.GetBytes("item,price\nwidget,10\n"), "Pricing", "text/csv", DateTimeOffset.UnixEpoch, associate: false);
@@ -147,7 +146,7 @@ public sealed class SanitizePdfToolTests
         comment.Elements.SetName("/Subtype", "/Text");
         comment.Elements["/Rect"] = new PdfArray(document, new PdfReal(300), new PdfReal(700), new PdfReal(318), new PdfReal(718));
         comment.Elements["/Contents"] = new PdfString("Internal: do not share");
-        document.Internals.AddObject(comment);
+        document.AddObject(comment);
         annotations.Elements.Add(comment.Reference);
 
         var uri = new PdfDictionary(document);
@@ -159,12 +158,9 @@ public sealed class SanitizePdfToolTests
         link.Elements.SetName("/Subtype", "/Link");
         link.Elements["/Rect"] = new PdfArray(document, new PdfReal(72), new PdfReal(695), new PdfReal(160), new PdfReal(712));
         link.Elements["/A"] = uri;
-        document.Internals.AddObject(link);
+        document.AddObject(link);
         annotations.Elements.Add(link.Reference);
 
-        using var buffer = new MemoryStream();
-        document.Save(buffer, closeStream: false);
-
-        return buffer.ToArray();
+        return document.Save();
     }
 }

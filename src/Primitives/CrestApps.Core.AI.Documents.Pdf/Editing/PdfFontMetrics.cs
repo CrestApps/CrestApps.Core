@@ -1,4 +1,4 @@
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using UglyToad.PdfPig.Fonts.Standard14Fonts;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;

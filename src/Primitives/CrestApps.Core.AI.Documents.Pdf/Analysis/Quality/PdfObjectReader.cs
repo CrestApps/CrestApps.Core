@@ -1,14 +1,13 @@
-using PdfSharp.Pdf;
-using PdfSharp.Pdf.Advanced;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
 
 /// <summary>
-/// Reads PDFsharp's object model without changing it: follows references, reads typed values, walks every
+/// Reads a file's objects without changing them: follows references, reads typed values, walks every
 /// dictionary of a file and looks names up in name trees.
 /// </summary>
 /// <remarks>
-/// PDFsharp's convenience properties (<c>PdfDocument.Info</c>, <c>ViewerPreferences</c>, a page's
+/// The object model's convenience properties (<c>PdfDocument.Info</c>'s entries, a page's
 /// <c>Resources</c>) create what they do not find. A check must not do that — it would report what it just
 /// added — so the quality tools read the raw dictionaries through here.
 /// </remarks>
@@ -21,14 +20,7 @@ internal static class PdfObjectReader
     /// <returns>The direct object, or <see langword="null"/> when a reference points at nothing.</returns>
     public static PdfItem Resolve(PdfItem item)
     {
-        for (var depth = 0; depth < 16 && item is PdfReference reference; depth++)
-        {
-            item = reference.Value;
-        }
-
-        return item is PdfReference
-            ? null
-            : item;
+        return PdfObjectModel.Resolve(item);
     }
 
     /// <summary>
@@ -90,7 +82,6 @@ internal static class PdfObjectReader
         return Resolve(item) switch
         {
             PdfName name => name.Value,
-            PdfNameObject name => name.Value,
             _ => null,
         };
     }
@@ -116,9 +107,7 @@ internal static class PdfObjectReader
         return Resolve(item) switch
         {
             PdfString text => text.Value,
-            PdfStringObject text => text.Value,
             PdfName name => name.Value.TrimStart('/'),
-            PdfNameObject name => name.Value.TrimStart('/'),
             _ => null,
         };
     }
@@ -144,10 +133,7 @@ internal static class PdfObjectReader
         return Resolve(item) switch
         {
             PdfInteger number => number.Value,
-            PdfLongInteger number => number.Value,
             PdfReal number => number.Value,
-            PdfIntegerObject number => number.Value,
-            PdfRealObject number => number.Value,
             _ => null,
         };
     }
@@ -163,7 +149,6 @@ internal static class PdfObjectReader
         return Get(dictionary, key) switch
         {
             PdfBoolean value => value.Value,
-            PdfBooleanObject value => value.Value,
             _ => null,
         };
     }
@@ -188,7 +173,7 @@ internal static class PdfObjectReader
     {
         var resolved = Resolve(item);
 
-        // PDFsharp reads page boxes into rectangles of its own.
+        // Page boxes a document sets are rectangles of the model rather than arrays.
         if (resolved is PdfRectangle rectangle)
         {
             return [rectangle.X1, rectangle.Y1, rectangle.X2, rectangle.Y2];
@@ -292,7 +277,7 @@ internal static class PdfObjectReader
         var dictionaries = new List<PdfDictionary>();
         var seen = new HashSet<PdfItem>(ReferenceEqualityComparer.Instance);
 
-        foreach (var root in document.Internals.GetAllObjects())
+        foreach (var root in document.GetAllObjects())
         {
             Collect(root, dictionaries, seen, 0, max);
 
@@ -412,9 +397,10 @@ internal static class PdfObjectReader
 
     private static void CheckReference(string key, PdfItem item, List<string> broken)
     {
-        if (item is PdfReference reference && reference.Value is null)
+        // A reference to an object the file does not have reads as null.
+        if (item is PdfReference reference && reference.Value is PdfNull)
         {
-            broken.Add($"{reference.ObjectNumber} {reference.GenerationNumber} R under {key}");
+            broken.Add($"{reference.ObjectNumber} {reference.Generation} R under {key}");
         }
     }
 

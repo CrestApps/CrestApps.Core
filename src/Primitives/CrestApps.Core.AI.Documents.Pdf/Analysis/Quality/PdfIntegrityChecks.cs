@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
 using PigParsingOptions = UglyToad.PdfPig.ParsingOptions;
 
@@ -149,7 +149,7 @@ internal static class PdfIntegrityChecks
             return;
         }
 
-        var catalogVersion = PdfObjectReader.GetName(objects?.Internals.Catalog, "/Version")?.TrimStart('/');
+        var catalogVersion = PdfObjectReader.GetName(objects?.Catalog, "/Version")?.TrimStart('/');
         var effective = catalogVersion is not null && string.CompareOrdinal(catalogVersion, version) > 0
             ? $"PDF {version}, raised to {catalogVersion} by the document catalog"
             : $"PDF {version}";
@@ -227,17 +227,17 @@ internal static class PdfIntegrityChecks
     {
         if (document.Objects is null)
         {
-            var finding = "PDFsharp, a strict reader, cannot open the file: " + document.ObjectsError;
+            var finding = "The objects the file is made of cannot be read: " + document.ObjectsError;
 
             if (document.Content is not null)
             {
-                finding += " A repairing reader (PdfPig) does open it, so viewers that repair files will probably show it.";
+                finding += " Its pages can still be read, so viewers that repair files will probably show it.";
             }
 
             checks.Fail(
                 "Object structure",
                 finding,
-                "Open and re-save the file in a PDF editor, or rebuild it from its source; many editing tools of this agent need the file to open strictly.");
+                "Open and re-save the file in a PDF editor, or rebuild it from its source; the editing tools of this agent need its objects.");
         }
         else if (document.ReaderProblems.Count > 0)
         {
@@ -245,7 +245,7 @@ internal static class PdfIntegrityChecks
         }
         else
         {
-            checks.Pass("Object structure", string.Create(CultureInfo.InvariantCulture, $"A strict reader opens the file and reads its {document.Objects.Internals.GetAllObjects().Length:N0} objects."));
+            checks.Pass("Object structure", string.Create(CultureInfo.InvariantCulture, $"The file's {document.Objects.GetAllObjects().Count:N0} objects read without repairs."));
         }
 
         if (document.Content is null)
@@ -285,7 +285,7 @@ internal static class PdfIntegrityChecks
             counts.Add(string.Create(CultureInfo.InvariantCulture, $"the object reader finds {document.Objects.PageCount}"));
             values.Add(document.Objects.PageCount);
 
-            var declared = PdfObjectReader.GetNumber(PdfObjectReader.GetDictionary(document.Objects.Internals.Catalog, "/Pages"), "/Count");
+            var declared = PdfObjectReader.GetNumber(PdfObjectReader.GetDictionary(document.Objects.Catalog, "/Pages"), "/Count");
 
             if (declared is not null)
             {

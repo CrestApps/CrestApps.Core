@@ -2,9 +2,8 @@ using System.Globalization;
 using System.Text;
 using CrestApps.Core.AI.Documents.Pdf.Analysis;
 using CrestApps.Core.AI.Documents.Pdf.Editing;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
-using PdfSharp.Drawing;
-using PdfSharp.Pdf;
 using PigDocument = UglyToad.PdfPig.PdfDocument;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Tools;
@@ -115,15 +114,15 @@ internal sealed class AddPdfLinksTool : PdfToolBase
                 foreach (var (page, box, description) in areas)
                 {
                     var pdfPage = document.Pages[page - 1];
-                    var rectangle = new PdfRectangle(new XPoint(box.Left, box.Bottom), new XPoint(box.Right, box.Top));
+                    var rectangle = new PdfRectangle(box.Left, box.Bottom, box.Right, box.Top);
 
                     if (url is not null)
                     {
-                        pdfPage.AddWebLink(rectangle, url);
+                        PdfLinkAnnotations.AddWebLink(pdfPage, rectangle, url);
                     }
                     else
                     {
-                        pdfPage.AddDocumentLink(rectangle, targetPage);
+                        PdfLinkAnnotations.AddPageLink(pdfPage, rectangle, document.Pages[targetPage - 1]);
                     }
 
                     placed.Add(string.Create(CultureInfo.InvariantCulture, $"- page {page}, {description} → {url ?? $"page {targetPage}"}"));

@@ -171,6 +171,13 @@ The same composer writes the PDFs `generate_file` and `export_tabular_data` prod
 what the tabular preview shows: number formats, the header colour, the total row, highlighted cells and
 charts, with each sheet on its own page and wide sheets in landscape.
 
+#### Libraries and licenses
+
+PDFs are read with PdfPig (Apache-2.0), and written and changed with the package's own small PDF reader and
+writer built on top of it, so the package depends only on permissively licensed libraries. PDFsharp and
+MigraDoc are not used: from 6.5.0 they are AGPL-3.0-only. A repository test fails if a PDF library that is not
+MIT, Apache-2.0 or BSD licensed is added to a project or comes in through another package.
+
 #### Options
 
 ```csharp

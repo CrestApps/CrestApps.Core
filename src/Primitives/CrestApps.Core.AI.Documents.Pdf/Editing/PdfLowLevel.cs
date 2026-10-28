@@ -1,13 +1,12 @@
 using System.Globalization;
 using System.Text;
-using PdfSharp.Pdf;
-using PdfSharp.Pdf.Advanced;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
 /// <summary>
-/// Small helpers for working with PDF objects directly through PDFsharp's dictionaries, where its typed model
-/// does not reach: creating fields and appearance streams, and walking inherited entries.
+/// Small helpers for working with a file's objects directly: creating fields and appearance streams, and
+/// walking inherited entries.
 /// </summary>
 internal static class PdfLowLevel
 {
@@ -18,9 +17,7 @@ internal static class PdfLowLevel
     /// <returns>The direct object.</returns>
     public static PdfItem Resolve(PdfItem item)
     {
-        return item is PdfReference reference
-            ? reference.Value
-            : item;
+        return PdfObjectModel.Resolve(item);
     }
 
     /// <summary>
@@ -114,7 +111,6 @@ internal static class PdfLowLevel
         {
             PdfInteger number => number.Value,
             PdfReal number => number.Value,
-            PdfLongInteger number => number.Value,
             _ => 0,
         };
     }
@@ -227,9 +223,7 @@ internal static class PdfLowLevel
         var x2 = Number(array.Elements[2]);
         var y2 = Number(array.Elements[3]);
 
-        return new PdfRectangle(
-            new PdfSharp.Drawing.XPoint(Math.Min(x1, x2), Math.Min(y1, y2)),
-            new PdfSharp.Drawing.XPoint(Math.Max(x1, x2), Math.Max(y1, y2)));
+        return new PdfRectangle(x1, y1, x2, y2);
     }
 
     /// <summary>
@@ -255,7 +249,7 @@ internal static class PdfLowLevel
         }
 
         form.CreateStream(Encoding.Latin1.GetBytes(content));
-        document.Internals.AddObject(form);
+        document.AddObject(form);
 
         return form;
     }
@@ -269,7 +263,7 @@ internal static class PdfLowLevel
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        var form = GetDictionary(document.Internals.Catalog, "/AcroForm");
+        var form = GetDictionary(document.Catalog, "/AcroForm");
         var existing = GetDictionary(GetDictionary(GetDictionary(form, "/DR"), "/Font"), "/Helv");
 
         if (existing is not null)
@@ -283,7 +277,7 @@ internal static class PdfLowLevel
         font.Elements.SetName("/Subtype", "/Type1");
         font.Elements.SetName("/BaseFont", "/Helvetica");
         font.Elements.SetName("/Encoding", "/WinAnsiEncoding");
-        document.Internals.AddObject(font);
+        document.AddObject(font);
 
         return font;
     }
@@ -382,7 +376,7 @@ internal static class PdfLowLevel
 
         if (form.Reference is null)
         {
-            page.Owner.Internals.AddObject(form);
+            page.Owner.AddObject(form);
         }
 
         var index = 1;

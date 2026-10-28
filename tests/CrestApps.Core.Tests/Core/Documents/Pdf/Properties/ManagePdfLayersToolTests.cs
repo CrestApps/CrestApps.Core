@@ -46,7 +46,7 @@ public sealed class ManagePdfLayersToolTests
 
     private static List<PdfLayer> Visibility(byte[] bytes)
     {
-        using var document = PdfFiles.OpenForImport(bytes);
+        using var document = PdfFiles.OpenObjects(bytes);
 
         return PdfLayers.List(document);
     }

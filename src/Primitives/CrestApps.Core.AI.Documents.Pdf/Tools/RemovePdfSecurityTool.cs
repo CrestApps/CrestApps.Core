@@ -74,8 +74,7 @@ internal sealed class RemovePdfSecurityTool : PdfToolBase
             var signatures = PdfObjects.DescribeBrokenSignatures(document);
             var sync = PdfMetadataSync.Capture(document);
 
-            document.SecurityHandler.SetEncryptionToNoneAndResetPasswords();
-
+            // The document was decrypted as it was opened, and is saved without encryption.
             var saved = sync.Save(document, context.TimeProvider.GetUtcNow());
             var working = await context.SaveWorkingFileAsync(state, target, arguments.GetString("save_as"), saved, "Removed the password protection", cancellationToken);
 

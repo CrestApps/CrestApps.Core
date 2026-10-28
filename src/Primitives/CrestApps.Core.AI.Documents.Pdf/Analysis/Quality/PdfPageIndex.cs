@@ -1,4 +1,4 @@
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
 
@@ -14,7 +14,7 @@ internal sealed class PdfPageIndex
     /// <summary>
     /// Initializes a new instance of the <see cref="PdfPageIndex"/> class.
     /// </summary>
-    /// <param name="document">The document, opened with PDFsharp.</param>
+    /// <param name="document">The document, opened as objects.</param>
     public PdfPageIndex(PdfDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);

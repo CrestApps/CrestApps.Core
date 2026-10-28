@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-using PdfSharp.Pdf;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Analysis;
 
@@ -137,7 +137,7 @@ internal static partial class PdfFontInventory
     /// <summary>
     /// Lists the fonts the given pages use.
     /// </summary>
-    /// <param name="document">The document, opened with PDFsharp.</param>
+    /// <param name="document">The document, opened as objects.</param>
     /// <param name="pages">The one-based pages.</param>
     /// <returns>The fonts, each once, in the order they are first met.</returns>
     public static List<PdfFontInfo> Collect(PdfDocument document, IEnumerable<int> pages)

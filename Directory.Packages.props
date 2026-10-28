@@ -27,12 +27,6 @@
     <PackageVersion Include="NLog.Web.AspNetCore" Version="6.2.1" />
     <PackageVersion Include="OllamaSharp" Version="5.5.0" />
     <PackageVersion Include="PdfPig" Version="0.1.16" />
-    <!-- DO NOT UPDATE. Pinned permanently to 6.2.4, the last MIT-licensed release. 6.5.0 and later
-         are AGPL-3.0-only and enforce it at runtime (PdfSharpLicenseException on every document
-         write without a purchased license), which is incompatible with this MIT-licensed package.
-         Dependabot ignores it (.github/dependabot.yml); see "Package versions" in
-         .github/copilot-instructions.md. -->
-    <PackageVersion Include="PDFsharp-MigraDoc" Version="6.2.4" />
     <PackageVersion Include="SSH.NET" Version="2026.0.0" />
     <PackageVersion Include="YesSql.Abstractions" Version="6.0.0" />
     <PackageVersion Include="YesSql.Core" Version="6.0.0" />

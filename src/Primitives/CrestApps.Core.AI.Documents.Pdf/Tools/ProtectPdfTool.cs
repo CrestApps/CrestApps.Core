@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using CrestApps.Core.AI.Documents.Pdf.Editing;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Tools;
@@ -122,54 +123,15 @@ internal sealed class ProtectPdfTool : PdfToolBase
             var signatures = PdfObjects.DescribeBrokenSignatures(document);
             var sync = PdfMetadataSync.Capture(document);
 
-            // PDFsharp drops the protection a file had when it opens it; this makes sure nothing of the old
-            // passwords carries over whatever it does.
-            document.SecurityHandler.SetEncryptionToNoneAndResetPasswords();
-
-            var method = encryption switch
+            // The document was decrypted as it was opened, so nothing of the old protection carries over.
+            var (method, cipher) = encryption switch
             {
-                "aes128" => "AES-128",
-                "rc4_128" or "rc4128" => "RC4 128-bit",
-                _ => "AES-256",
+                "aes128" => ("AES-128", PdfEncryptionMethod.Aes128),
+                "rc4_128" or "rc4128" => ("RC4 128-bit", PdfEncryptionMethod.Rc4With128Bits),
+                _ => ("AES-256", PdfEncryptionMethod.Aes256),
             };
 
-            switch (method)
-            {
-                case "AES-128":
-                    document.SecurityHandler.SetEncryptionToV4UsingAES();
-
-                    break;
-                case "RC4 128-bit":
-                    document.SecurityHandler.SetEncryptionToV2With128Bits();
-
-                    break;
-                default:
-                    document.SecurityHandler.SetEncryptionToV5();
-
-                    break;
-            }
-
-            var settings = document.SecuritySettings;
-
-            if (userPassword is not null)
-            {
-                settings.UserPassword = userPassword;
-            }
-
-            if (ownerPassword is not null)
-            {
-                settings.OwnerPassword = ownerPassword;
-            }
-
-            settings.PermitPrint = permissions["print"];
-            settings.PermitFullQualityPrint = permissions["print"] && permissions["high_quality_print"];
-            settings.PermitModifyDocument = permissions["modify"];
-            settings.PermitExtractContent = permissions["copy"];
-            settings.PermitAnnotations = permissions["annotate"];
-            settings.PermitFormsFill = permissions["fill_forms"];
-            settings.PermitAssembleDocument = permissions["assemble"];
-
-            var saved = sync.Save(document, context.TimeProvider.GetUtcNow());
+            var saved = sync.Save(document, context.TimeProvider.GetUtcNow(), new PdfStandardEncryptor(cipher, userPassword, ownerPassword, Flags(permissions)));
             var working = await context.SaveWorkingFileAsync(state, target, arguments.GetString("save_as"), saved, $"Protected with {method}", cancellationToken);
             var answer = new StringBuilder();
 
@@ -200,6 +162,61 @@ internal sealed class ProtectPdfTool : PdfToolBase
 
             return answer.ToString().TrimEnd();
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Turns the permissions into the flags of the encryption dictionary's <c>/P</c> entry, which start with
+    /// everything allowed.
+    /// </summary>
+    /// <param name="permissions">The permissions by key.</param>
+    /// <returns>The flags.</returns>
+    private static int Flags(Dictionary<string, bool> permissions)
+    {
+        var flags = PdfStandardEncryptor.AllPermissions;
+
+        // Each permission is a bit of the flags, numbered from 1 as ISO 32000 numbers them.
+        void Deny(int bit)
+        {
+            flags &= ~(1 << (bit - 1));
+        }
+
+        if (!permissions["print"])
+        {
+            Deny(3);
+            Deny(12);
+        }
+
+        if (!permissions["high_quality_print"])
+        {
+            Deny(12);
+        }
+
+        if (!permissions["modify"])
+        {
+            Deny(4);
+        }
+
+        if (!permissions["copy"])
+        {
+            Deny(5);
+        }
+
+        if (!permissions["annotate"])
+        {
+            Deny(6);
+        }
+
+        if (!permissions["fill_forms"])
+        {
+            Deny(9);
+        }
+
+        if (!permissions["assemble"])
+        {
+            Deny(11);
+        }
+
+        return flags;
     }
 
     private static Dictionary<string, bool> ReadPermissions(PdfToolArguments arguments)

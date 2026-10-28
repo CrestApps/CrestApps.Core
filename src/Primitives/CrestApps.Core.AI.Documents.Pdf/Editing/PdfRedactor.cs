@@ -1,7 +1,7 @@
 using System.Text;
 using CrestApps.Core.AI.Documents.Pdf.Analysis;
+using CrestApps.Core.AI.Documents.Pdf.Objects;
 using CrestApps.Core.AI.Documents.Pdf.Workspace;
-using PdfSharp.Pdf;
 
 namespace CrestApps.Core.AI.Documents.Pdf.Editing;
 
