@@ -209,9 +209,10 @@ internal sealed class PdfModelClient
 
     private static ChatOptions CreateOptions(int maxOutputTokens)
     {
+        // No temperature, as in the PDF Agent's own conversation: some models, such as reasoning models, accept
+        // only their default and reject the request otherwise.
         return new ChatOptions
         {
-            Temperature = 0.2f,
             MaxOutputTokens = Math.Clamp(maxOutputTokens, 64, 16_000),
         };
     }

@@ -48,6 +48,7 @@ public sealed class PdfVisionToolTests
         Assert.Contains("approximately", result, StringComparison.Ordinal);
         Assert.Equal(2, vision.Requests.Count);
         Assert.All(vision.Requests, request => Assert.Equal("image/png", Assert.Single(request.Images).MediaType));
+        Assert.All(vision.Requests, request => Assert.Null(request.Options.Temperature));
 
         using var pdf = PdfDocument.Open(await host.ReadWorkingPdfAsync("scan"));
         var first = pdf.GetPage(1);

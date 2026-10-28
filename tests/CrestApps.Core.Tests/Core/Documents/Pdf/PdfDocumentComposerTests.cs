@@ -139,6 +139,24 @@ public sealed class PdfDocumentComposerTests
     }
 
     [Fact]
+    public async Task ComposeAsync_TableWidthsAsFractions_AreLaidOutAsPercents()
+    {
+        var fractions = await ComposeSalesTableAsync([0.14, 0.18, 0.2, 0.12, 0.18]);
+        var percents = await ComposeSalesTableAsync([14, 18, 20, 12, 18]);
+
+        using var fromFractions = PdfDocument.Open(fractions);
+        using var fromPercents = PdfDocument.Open(percents);
+        var words = fromFractions.GetPage(1).GetWords().ToList();
+
+        // Read as percents, fractions squeezed every column to the minimum width and broke "$18,400" and "Month".
+        Assert.Contains(words, word => word.Text == "$18,400");
+        Assert.Contains(words, word => word.Text == "Representative");
+        Assert.Equal(
+            fromPercents.GetPage(1).GetWords().Select(word => (word.Text, Math.Round(word.BoundingBox.Left, 1))),
+            words.Select(word => (word.Text, Math.Round(word.BoundingBox.Left, 1))));
+    }
+
+    [Fact]
     public async Task ComposeAsync_ChartAndUnknownFont_RendersWithWarning()
     {
         var definition = new PdfDocumentDefinition
@@ -283,6 +301,42 @@ public sealed class PdfDocumentComposerTests
         Assert.Equal(["A", "B"], chart.Labels);
         Assert.Equal([1d, 2d], chart.Series[0].Values.Select(value => value.Value));
         Assert.True(PdfColor.TryParse(chart.Series[0].Color, out _));
+    }
+
+    private async Task<byte[]> ComposeSalesTableAsync(double[] widths)
+    {
+        string[] headers = ["Month", "Region", "Representative", "Units", "Sales"];
+        var definition = new PdfDocumentDefinition
+        {
+            Sections =
+            [
+                new PdfSectionDefinition
+                {
+                    Id = "s1",
+                    Blocks =
+                    [
+                        new PdfBlockDefinition
+                        {
+                            Id = "b1",
+                            Type = "table",
+                            Table = new PdfTableDefinition
+                            {
+                                Columns = [.. headers.Select((header, index) => new PdfTableColumnDefinition { Header = header, Width = widths[index] })],
+                                Rows =
+                                [
+                                    ["January", "North", "Alice Johnson", "112", "$18,400"],
+                                    ["February", "South", "Bob Smith", "98", "$16,250"],
+                                ],
+                            },
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var result = await _composer.ComposeAsync(definition, null, TestContext.Current.CancellationToken);
+
+        return result.Bytes;
     }
 
     private static string PageText(UglyToad.PdfPig.Content.Page page)

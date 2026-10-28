@@ -37,7 +37,7 @@ internal static class PdfCompositionSchemas
                       "type": "object",
                       "properties": {
                         "header": { "type": "string" },
-                        "width": { "type": "number", "description": "Percent of the table width." },
+                        "width": { "type": "number", "description": "Percent of the table width, from 1 to 100, such as 25 for a quarter." },
                         "align": { "type": "string", "enum": ["left", "center", "right"] },
                         "format": { "type": "string", "enum": ["general", "text", "number", "integer", "currency", "accounting", "percent", "date", "datetime", "time", "scientific"], "description": "Percent expects fractions (0.15 → 15%)." },
                         "decimals": { "type": "integer" },

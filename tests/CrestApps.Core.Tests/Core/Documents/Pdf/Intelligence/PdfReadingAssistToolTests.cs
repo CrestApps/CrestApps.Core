@@ -37,7 +37,8 @@ public sealed class PdfReadingAssistToolTests
         Assert.Contains("Operating costs held flat", request.User, StringComparison.Ordinal);
         Assert.Contains("Focus: concentrate on costs", request.User, StringComparison.Ordinal);
         Assert.Contains("Use only the document text supplied", request.System, StringComparison.Ordinal);
-        Assert.Equal(0.2f, request.Options.Temperature);
+        // Models that accept only their default temperature, such as reasoning models, reject a request that sets one.
+        Assert.Null(request.Options.Temperature);
     }
 
     [Fact]

@@ -292,11 +292,15 @@ internal sealed partial class PdfLayoutBuilder
     {
         var weights = new double[columns.Length];
 
+        // A model sometimes gives the widths as fractions of the table (0.25) rather than percents (25); read
+        // as percents they would squeeze every column to the minimum width.
+        var scale = columns.Any(column => column.Width is > 0) && columns.All(column => column.Width is not > 1) ? 100 : 1;
+
         for (var index = 0; index < columns.Length; index++)
         {
             if (columns[index].Width is > 0)
             {
-                weights[index] = -columns[index].Width.Value;
+                weights[index] = -columns[index].Width.Value * scale;
 
                 continue;
             }
