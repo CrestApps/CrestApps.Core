@@ -72,6 +72,11 @@ internal sealed class PdfContentRewriter
         if (rewriter.GlyphsRemoved + rewriter.ImagesRemoved + rewriter.FormsRewritten + rewriter.SectionsRemoved > 0)
         {
             page.Contents.ReplaceContent(PdfContentStream.Write(output));
+
+            if (rewriter.WithoutUndrawnXObjects(page.Resources, sequence, output) is { } resources)
+            {
+                page.Elements["/Resources"] = resources;
+            }
         }
 
         return rewriter;
@@ -496,6 +501,11 @@ internal sealed class PdfContentRewriter
             copy.Elements["/Resources"] = parentResources;
         }
 
+        if (WithoutUndrawnXObjects(PdfLowLevel.GetDictionary(copy, "/Resources"), sequence, rewritten) is { } resources)
+        {
+            copy.Elements["/Resources"] = resources;
+        }
+
         copy.CreateStream([]);
         copy.Stream.SetCompressed(PdfContentStream.Write(rewritten));
         _document.AddObject(copy);
@@ -515,6 +525,70 @@ internal sealed class PdfContentRewriter
         xobjects.Elements[name] = copy.Reference;
 
         return name;
+    }
+
+    /// <summary>
+    /// Copies resources without the XObjects their content drew before it was rewritten and no longer draws:
+    /// the original of a rewritten form, or an image taken out of an area.
+    /// </summary>
+    /// <remarks>
+    /// Left in the resources, they would still be written to the file, and the text or picture taken off the
+    /// page could be read back out of it. The resources may be shared with other pages or with the original
+    /// form, so they are copied rather than changed.
+    /// </remarks>
+    /// <param name="resources">The resources of the content.</param>
+    /// <param name="before">The content as it was.</param>
+    /// <param name="after">The content as rewritten.</param>
+    /// <returns>The copied resources, or <see langword="null"/> when every XObject drawn before is still drawn.</returns>
+    private PdfDictionary WithoutUndrawnXObjects(PdfDictionary resources, List<PdfContentOperator> before, List<PdfContentOperator> after)
+    {
+        var xobjects = PdfLowLevel.GetDictionary(resources, "/XObject");
+
+        if (xobjects is null)
+        {
+            return null;
+        }
+
+        var drawn = GetDrawnXObjects(after);
+        var undrawn = GetDrawnXObjects(before);
+
+        undrawn.RemoveWhere(name => drawn.Contains(name) || !xobjects.Elements.ContainsKey(name));
+
+        if (undrawn.Count == 0)
+        {
+            return null;
+        }
+
+        var keptXObjects = new PdfDictionary(_document);
+
+        foreach (var (key, value) in xobjects.Elements)
+        {
+            if (!undrawn.Contains(key))
+            {
+                keptXObjects.Elements[key] = value;
+            }
+        }
+
+        var copy = new PdfDictionary(_document);
+
+        foreach (var (key, value) in resources.Elements)
+        {
+            copy.Elements[key] = value;
+        }
+
+        copy.Elements["/XObject"] = keptXObjects;
+
+        return copy;
+    }
+
+    private static HashSet<string> GetDrawnXObjects(List<PdfContentOperator> sequence)
+    {
+        return
+        [
+            .. sequence
+                .Where(op => op.Name == "Do" && op.Operands.Count >= 1 && op.Operands[0] is PdfName)
+                .Select(op => ((PdfName)op.Operands[0]).Value),
+        ];
     }
 
     private bool IsRemovedSection(List<PdfItem> operands, PdfDictionary properties)
