@@ -133,6 +133,13 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         // Decided during PREPARE (see above), because the guidance handlers needed to know it too.
         var isGrounded = context.Properties.TryGetValue(RealtimeOrchestrationContextKeys.GroundingEnabled, out var grounding) && grounding is true;
 
+        // What the profile says about how it speaks and listens. An explicit request value always wins.
+        var speech = ProfileSpeech.GetSettings(request.Resource);
+        var sensitivity = speech?.InterruptionSensitivity;
+        var speechLanguage = request.SpeechLanguage ?? ProfileSpeech.FirstOrDefault(speech?.RecognitionLanguages);
+        var vadThreshold = request.VadThreshold ?? (isCascaded ? null : TurnTaking.ToVadThreshold(sensitivity));
+        var allowInterruption = request.AllowInterruption && sensitivity is not <= 0;
+
         RealtimeSessionOptions ConfigureSession(bool grounded) => _sessionConfigurator.Configure(new RealtimeSessionConfiguratorContext
         {
             Model = deployment.ModelName,
@@ -143,12 +150,12 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             Voice = string.IsNullOrWhiteSpace(request.Voice) ? null : request.Voice.Trim(),
             Tools = tools,
             MaxOutputTokens = context.CompletionContext?.MaxTokens,
-            SpeechLanguage = request.SpeechLanguage,
+            SpeechLanguage = speechLanguage,
             ReplyLanguage = request.ReplyLanguage,
             InputTranscriptionModel = transcriptionModel,
             SilenceDurationMs = request.SilenceDurationMs,
-            VadThreshold = request.VadThreshold,
-            AllowInterruption = request.AllowInterruption,
+            VadThreshold = vadThreshold,
+            AllowInterruption = allowInterruption,
             CreateResponseAutomatically = !grounded,
         });
 
@@ -167,6 +174,15 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         }
 
         var rawClient = await _clientFactory.CreateRealtimeClientAsync(deployment);
+
+        if (isCascaded && speech is not null && rawClient.GetService(typeof(CascadedRealtimeClient)) is CascadedRealtimeClient cascaded)
+        {
+            var fallback = string.IsNullOrWhiteSpace(speech.FallbackTextToSpeechDeploymentName)
+                ? null
+                : await ProfileSpeech.CreateFallbackAsync(speech.FallbackTextToSpeechDeploymentName, _deploymentManager, _clientFactory, _logger, cancellationToken);
+
+            cascaded.Profile = CascadedRealtimeProfileOptions.From(speech, fallback);
+        }
 
         // Wrap the provider client with the MEAI function-invocation middleware. The request service
         // provider becomes the tools' AIFunctionArguments.Services, matching the text path; AdditionalTools

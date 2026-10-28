@@ -10,6 +10,7 @@ using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Exceptions;
+using CrestApps.Core.AI.Guardrails;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
@@ -49,6 +50,10 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
     private readonly IServiceProvider _services;
     private readonly TimeProvider _timeProvider;
+
+    // A hub instance serves one invocation, so the placeholder reply of a guardrail that blocked the caller's
+    // message is kept here until the blocked message is sent.
+    private string _guardrailReply;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AIChatHubCore"/> class.
@@ -318,8 +323,9 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
     /// <summary>
     /// Resolves the user-facing message for a blocked prompt security result. Rate-limit blocks get a
-    /// "slow down" message; every other block gets the generic <see cref="GetPromptBlockedMessage"/>
-    /// so detection details are never disclosed.
+    /// "slow down" message, a block by one of the profile's guardrails gets the profile's placeholder reply,
+    /// and every other block gets the generic <see cref="GetPromptBlockedMessage"/> so detection details are
+    /// never disclosed.
     /// </summary>
     /// <param name="result">The blocked prompt security result.</param>
     protected string GetBlockedPromptMessage(PromptSecurityResult result)
@@ -328,6 +334,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             string.Equals(result.DetectionRule, PromptSecurityResult.RateLimitDetectionRule, StringComparison.Ordinal))
         {
             return GetRateLimitedMessage(result);
+        }
+
+        if (_guardrailReply is not null && AIGuardrailService.IsGuardrailResult(result))
+        {
+            return _guardrailReply;
         }
 
         return GetPromptBlockedMessage();
@@ -342,6 +353,70 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     }
 
     /// <summary>
+    /// Validates a complete reply through the <see cref="IOutputSecurityFilter"/>, then through the profile's
+    /// guardrails when <see cref="AIGuardrailService"/> is registered.
+    /// </summary>
+    /// <param name="services">The service provider.</param>
+    /// <param name="profile">The AI profile.</param>
+    /// <param name="sessionId">The session identifier.</param>
+    /// <param name="prompt">The user prompt the reply answers.</param>
+    /// <param name="output">The complete reply.</param>
+    /// <param name="handlerContext">The response handler context, which may carry the system message.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The message to show instead of a blocked reply, or <see langword="null"/> when it may be sent.</returns>
+    protected virtual async Task<string> ValidateOutputAsync(
+        IServiceProvider services,
+        AIProfile profile,
+        string sessionId,
+        string prompt,
+        string output,
+        ChatResponseHandlerContext handlerContext,
+        CancellationToken cancellationToken)
+    {
+        var outputFilter = services.GetService<IOutputSecurityFilter>();
+
+        if (outputFilter != null)
+        {
+            var outputContext = new OutputSecurityContext
+            {
+                Output = output,
+                OriginalPrompt = prompt,
+                SessionId = sessionId,
+                SystemMessage = handlerContext?.Properties.TryGetValue("SystemMessage", out var sysMsg) == true
+                    ? sysMsg as string
+                    : null,
+            };
+            var outputResult = await outputFilter.ValidateOutputAsync(outputContext, cancellationToken);
+
+            if (outputResult.IsBlocked)
+            {
+                Logger.LogWarning(
+                    "Output blocked by security filter: Rule={Rule}, Session={SessionId}",
+                    outputResult.DetectionRule,
+                    sessionId);
+
+                return GetOutputBlockedMessage();
+            }
+        }
+
+        if (!AIGuardrailService.IsOn(profile, AIGuardrailDirection.Reply))
+        {
+            return null;
+        }
+
+        var guardrails = services.GetService<AIGuardrailService>();
+
+        if (guardrails is null)
+        {
+            return null;
+        }
+
+        var verdict = await guardrails.CheckAsync(profile, output, AIGuardrailDirection.Reply, sessionId, cancellationToken);
+
+        return verdict?.Reply;
+    }
+
+    /// <summary>
     /// Gets the message shown when a completion returns no content, which usually means the resolved
     /// deployment could not handle the request (for example a speech-to-speech-only model used for text).
     /// </summary>
@@ -351,7 +426,9 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     }
 
     /// <summary>
-    /// Validates the user prompt against the security service.
+    /// Validates the user prompt against the security service, then against the profile's guardrails when
+    /// <see cref="AIGuardrailService"/> is registered. A message a guardrail refuses is blocked like one prompt
+    /// security refuses, and the caller is shown the profile's placeholder reply.
     /// </summary>
     /// <param name="services">The service provider.</param>
     /// <param name="profile">The AI profile.</param>
@@ -359,6 +436,34 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// <param name="prompt">The user prompt.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     protected virtual async Task<PromptSecurityResult> ValidatePromptSecurityAsync(IServiceProvider services, AIProfile profile, string sessionId, string prompt, CancellationToken cancellationToken)
+    {
+        var result = await ValidateWithSecurityServiceAsync(services, profile, sessionId, prompt, cancellationToken);
+
+        if (result.IsBlocked || !AIGuardrailService.IsOn(profile, AIGuardrailDirection.Customer))
+        {
+            return result;
+        }
+
+        var guardrails = services.GetService<AIGuardrailService>();
+
+        if (guardrails is null)
+        {
+            return result;
+        }
+
+        var verdict = await guardrails.CheckAsync(profile, prompt, AIGuardrailDirection.Customer, sessionId, cancellationToken);
+
+        if (verdict is null)
+        {
+            return result;
+        }
+
+        _guardrailReply = verdict.Reply;
+
+        return AIGuardrailService.ToSecurityResult(verdict);
+    }
+
+    private async Task<PromptSecurityResult> ValidateWithSecurityServiceAsync(IServiceProvider services, AIProfile profile, string sessionId, string prompt, CancellationToken cancellationToken)
     {
         var securityService = services.GetService<IPromptSecurityService>();
 
@@ -964,13 +1069,20 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     return;
                 }
 
-                using var speechToTextClient = await clientFactory.CreateSpeechToTextClientAsync(sttDeployment);
-                using var textToSpeechClient = await clientFactory.CreateTextToSpeechClientAsync(ttsDeployment);
+                var speechSettings = ProfileSpeech.GetSettings(profile);
+                using var speechToTextClient = ProfileSpeech.Decorate(await clientFactory.CreateSpeechToTextClientAsync(sttDeployment), speechSettings);
+                using var textToSpeechClient = await ProfileSpeech.DecorateAsync(
+                    await clientFactory.CreateTextToSpeechClientAsync(ttsDeployment),
+                    speechSettings,
+                    deploymentManager,
+                    clientFactory,
+                    Logger,
+                    cancellationToken);
                 var persona = await services.ResolvePersonaAsync(profile, cancellationToken);
                 var effectiveVoiceName = await services.SelectPersonaVoiceAsync(persona, chatModeSettings.VoiceName, ttsDeployment.Name, deploymentSettings.DefaultTextToSpeechVoiceId, cancellationToken);
                 var speechLanguage = !string.IsNullOrWhiteSpace(language)
                     ? language
-                    : persona?.Language ?? "en-US";
+                    : ProfileSpeech.FirstOrDefault(speechSettings?.RecognitionLanguages) ?? persona?.Language ?? "en-US";
                 using var conversationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 Context.Items[_conversationCtsKey] = conversationCts;
                 try
@@ -1678,9 +1790,12 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 }
 
 #pragma warning disable MEAI001
-                using var speechToTextClient = await clientFactory.CreateSpeechToTextClientAsync(deployment);
+                var speechSettings = ProfileSpeech.GetSettings(profile);
+                using var speechToTextClient = ProfileSpeech.Decorate(await clientFactory.CreateSpeechToTextClientAsync(deployment), speechSettings);
 #pragma warning restore MEAI001
-                var speechLanguage = !string.IsNullOrWhiteSpace(language) ? language : "en-US";
+                var speechLanguage = !string.IsNullOrWhiteSpace(language)
+                    ? language
+                    : ProfileSpeech.FirstOrDefault(speechSettings?.RecognitionLanguages) ?? "en-US";
                 await StreamTranscriptionAsync(speechToTextClient, sessionId ?? string.Empty, audioChunks, audioFormat, speechLanguage, cancellationToken);
             });
         }
@@ -1769,7 +1884,13 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     return;
                 }
 
-                using var textToSpeechClient = await clientFactory.CreateTextToSpeechClientAsync(deployment);
+                using var textToSpeechClient = await ProfileSpeech.DecorateAsync(
+                    await clientFactory.CreateTextToSpeechClientAsync(deployment),
+                    ProfileSpeech.GetSettings(profile),
+                    deploymentManager,
+                    clientFactory,
+                    Logger,
+                    cancellationToken);
                 var explicitVoice = !string.IsNullOrWhiteSpace(voiceName)
                     ? voiceName
                     : chatModeSettings?.VoiceName;
@@ -2075,41 +2196,22 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         {
             var fullResponse = builder.ToString();
 
-            // Validate the complete response through output security filter.
-            var outputFilter = services.GetService<IOutputSecurityFilter>();
+            // Validate the complete response through output security filter, then the profile's guardrails.
+            var blockedContent = await ValidateOutputAsync(services, profile, chatSession.SessionId, prompt, fullResponse, handlerContext, cancellationToken);
 
-            if (outputFilter != null)
+            if (blockedContent is not null)
             {
-                var outputContext = new OutputSecurityContext
+                // Do not persist the blocked response; notify the user with a safe message.
+                var blockedMessage = new CompletionPartialMessage
                 {
-                    Output = fullResponse,
-                    OriginalPrompt = prompt,
                     SessionId = chatSession.SessionId,
-                    SystemMessage = handlerContext.Properties.TryGetValue("SystemMessage", out var sysMsg)
-                        ? sysMsg as string
-                        : null,
+                    MessageId = assistantMessage.ItemId,
+                    Content = blockedContent,
                 };
-                var outputResult = await outputFilter.ValidateOutputAsync(outputContext, cancellationToken);
+                await writer.WriteAsync(blockedMessage, cancellationToken);
+                await SaveChatSessionAsync(services, sessionManager, chatSession);
 
-                if (outputResult.IsBlocked)
-                {
-                    Logger.LogWarning(
-                        "Output blocked by security filter: Rule={Rule}, Session={SessionId}",
-                        outputResult.DetectionRule,
-                        chatSession.SessionId);
-
-                    // Do not persist the blocked response; notify the user with a safe message.
-                    var blockedMessage = new CompletionPartialMessage
-                    {
-                        SessionId = chatSession.SessionId,
-                        MessageId = assistantMessage.ItemId,
-                        Content = GetOutputBlockedMessage(),
-                    };
-                    await writer.WriteAsync(blockedMessage, cancellationToken);
-                    await SaveChatSessionAsync(services, sessionManager, chatSession);
-
-                    return;
-                }
+                return;
             }
 
             assistantMessage.Content = fullResponse;

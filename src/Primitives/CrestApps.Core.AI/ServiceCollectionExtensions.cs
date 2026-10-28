@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Deployments;
+using CrestApps.Core.AI.Guardrails;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Memory;
@@ -190,6 +191,8 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IAICompletionContextBuilder, DefaultAICompletionContextBuilder>();
 
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, AIProfileCompletionContextBuilderHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, AIProfileLanguageCompletionContextBuilderHandler>());
+        services.TryAddScoped<IConversationLanguageService, DefaultConversationLanguageService>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProfile>, AIProfileHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIDeployment>, AIDeploymentCatalogHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProviderConnection>, AIProviderConnectionCatalogHandler>());
@@ -744,6 +747,146 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIPersonasFromAssembly(assembly);
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers the <see cref="IAISystemPromptTemplateSeeder"/>, which copies default System Prompt templates into
+    /// the saved AI profile templates.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAISystemPromptTemplateSeeder(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddOptions<AISystemPromptTemplateDefaultsOptions>();
+        services.TryAddScoped<IAISystemPromptTemplateSeeder, DefaultAISystemPromptTemplateSeeder>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds the Markdown templates an assembly embeds under <c>SystemPromptDefaults</c> to the defaults that
+    /// <see cref="IAISystemPromptTemplateSeeder"/> seeds as editable System Prompt templates.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="assembly">The assembly that embeds the templates.</param>
+    /// <param name="category">When set, only the templates of this category are read from the assembly.</param>
+    public static IServiceCollection AddCoreAISystemPromptTemplateDefaults(this IServiceCollection services, Assembly assembly, string category = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(assembly);
+
+        services.AddCoreAISystemPromptTemplateSeeder();
+        services.Configure<AISystemPromptTemplateDefaultsOptions>(options =>
+        {
+            var source = new AISystemPromptTemplateDefaultsSource(assembly, category);
+
+            if (!options.Sources.Contains(source))
+            {
+                options.Sources.Add(source);
+            }
+        });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers speaking styles: the prompt sections an AI profile picks in <see cref="AIProfileSpeakingStyleSettings"/>
+    /// are added to the end of its system message. Also registers the framework's default speaking styles with the
+    /// <see cref="IAISystemPromptTemplateSeeder"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAISpeakingStyles(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IAICompletionContextBuilderHandler, AISpeakingStyleCompletionContextBuilderHandler>());
+        services.AddCoreAISystemPromptTemplateDefaults(typeof(ServiceCollectionExtensions).Assembly, AISpeakingStyles.Category);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers guardrails: <see cref="AIGuardrailService"/> checks what the customer says, and the AI's replies,
+    /// against the topics an AI profile refuses in <see cref="AIProfileGuardrailSettings"/>. Also registers the
+    /// framework's default guardrail topics with the <see cref="IAISystemPromptTemplateSeeder"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIGuardrails(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddScoped<AIGuardrailService>();
+        services.AddCoreAISystemPromptTemplateDefaults(typeof(ServiceCollectionExtensions).Assembly, AIGuardrailTopics.Category);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers AI profile versions: each save of a profile is numbered and kept as an <see cref="AIProfileVersion"/>.
+    /// A store for <see cref="IAIProfileVersionStore"/> must be registered too, for example with
+    /// <c>AddYesSqlStores()</c> or <c>AddEntityCoreStores()</c> on the builder of
+    /// <see cref="AddProfileVersions(CrestAppsAISuiteBuilder, Action{CrestAppsAIProfileVersionsBuilder})"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIProfileVersions(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProfile>, AIProfileVersionHandler>());
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds speaking styles: tested prompt sections, kept as System Prompt templates in the
+    /// <see cref="AISpeakingStyles.Category"/> category, that an AI profile adds to the end of its system message.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    public static CrestAppsAISuiteBuilder AddSpeakingStyles(this CrestAppsAISuiteBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAISpeakingStyles();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds guardrails: topics, kept as System Prompt templates in the <see cref="AIGuardrailTopics.Category"/>
+    /// category, that an AI profile refuses on top of prompt security. The chat hub checks typed messages and replies
+    /// with them when this is added.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    public static CrestAppsAISuiteBuilder AddGuardrails(this CrestAppsAISuiteBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIGuardrails();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds AI profile versions: every save of a profile is numbered and kept, so versions can be compared with
+    /// <see cref="AIProfileVersionComparer"/> and restored with <see cref="AIProfileVersionRestorer"/>.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">Configures the feature, for example its store.</param>
+    public static CrestAppsAISuiteBuilder AddProfileVersions(this CrestAppsAISuiteBuilder builder, Action<CrestAppsAIProfileVersionsBuilder> configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIProfileVersions();
+
+        if (configure is not null)
+        {
+            configure(new CrestAppsAIProfileVersionsBuilder(builder.Services));
+        }
 
         return builder;
     }

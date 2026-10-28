@@ -237,6 +237,50 @@ public sealed class CascadedRealtimeSessionTests
         Assert.Equal(RealtimeResponseStatus.Cancelled, done.Status);
     }
 
+    // A profile with a low interruption sensitivity is not cut off by a single word of caller speech.
+    [Fact(Timeout = 30000)]
+    public async Task Session_WithLowInterruptionSensitivity_WaitsForEnoughSpeechToInterrupt()
+    {
+        var transcription = new FakeTranscriptionSession();
+        var chatClient = new FakeChatClient(["Part one. ", "Part two. ", "Part three. "]);
+
+        await using var session = new CascadedRealtimeSession(
+            transcription,
+            chatClient,
+            new FakeSpeechClient(_audioChunk),
+            new RealtimeSessionOptions(),
+            chatOptions: null,
+            speechOptions: new TextToSpeechOptions(),
+            NullLogger.Instance,
+            new CascadedRealtimeProfileOptions { InterruptionSensitivity = 0.5 });
+
+        session.Start();
+
+        transcription.Emit(Completed("tell me a story"));
+        await chatClient.Streaming.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        transcription.Emit(new InputAudioTranscriptionRealtimeServerMessage(RealtimeServerMessageType.InputAudioTranscriptionDelta)
+        {
+            MessageId = "short",
+            Transcription = "uh-huh",
+        });
+
+        // Only once the caller has said enough to mean it (three words at this sensitivity) is the AI cut off.
+        transcription.Emit(new InputAudioTranscriptionRealtimeServerMessage(RealtimeServerMessageType.InputAudioTranscriptionDelta)
+        {
+            MessageId = "long",
+            Transcription = "no wait stop",
+        });
+
+        transcription.Complete();
+
+        var messages = await ReadAllAsync(session);
+
+        var flush = Assert.Single(messages, message => message.Type == RealtimeServerMessageType.RawContentOnly);
+        var element = Assert.IsType<JsonElement>(flush.RawRepresentation);
+        Assert.Equal("long", element.GetProperty("item_id").GetString());
+    }
+
     // A speech model that answers with a container instead of raw samples would be played as noise, with
     // nothing anywhere reporting a problem, so the format is checked rather than trusted.
     [Fact]

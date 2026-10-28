@@ -89,6 +89,87 @@ public sealed class EntityCoreAIChatSessionStore : IAIChatSessionStore
     }
 
     /// <summary>
+    /// Retrieves a profile's sessions by their last activity, oldest first.
+    /// </summary>
+    /// <param name="profileId">The profile identifier.</param>
+    /// <param name="afterUtc">When set, only sessions whose last activity is later than this are returned.</param>
+    /// <param name="beforeUtc">Only sessions whose last activity is earlier than this are returned.</param>
+    /// <param name="count">The largest number of sessions to return.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The sessions, ordered by their last activity.</returns>
+    public async Task<IReadOnlyList<AIChatSession>> ListByLastActivityAsync(
+        string profileId,
+        DateTime? afterUtc,
+        DateTime beforeUtc,
+        int count,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(profileId);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
+
+        var query = _dbContext.AIChatSessionRecords
+            .AsNoTracking()
+            .Include(x => x.Document)
+            .Where(x => x.ProfileId == profileId && x.LastActivityUtc < beforeUtc);
+
+        if (afterUtc.HasValue)
+        {
+            var after = afterUtc.Value;
+            query = query.Where(x => x.LastActivityUtc > after);
+        }
+
+        var records = await query
+            .OrderBy(x => x.LastActivityUtc)
+            .Take(count)
+            .ToListAsync(cancellationToken);
+
+        return records.Select(Materialize).ToList();
+    }
+
+    /// <summary>
+    /// Deletes a chat session and its prompts.
+    /// </summary>
+    /// <param name="sessionId">The unique identifier of the chat session.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns><see langword="true"/> when the session existed and was deleted; otherwise <see langword="false"/>.</returns>
+    public async Task<bool> DeleteAsync(string sessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(sessionId);
+
+        var record = await _dbContext.AIChatSessionRecords
+            .Include(x => x.Document)
+            .FirstOrDefaultAsync(x => x.SessionId == sessionId, cancellationToken);
+
+        if (record is null)
+        {
+            return false;
+        }
+
+        var promptEntityType = CatalogRecordFactory.GetEntityType<AIChatSessionPrompt>();
+        var promptRecords = await _dbContext.CatalogRecords
+            .Include(x => x.Document)
+            .Where(x => x.EntityType == promptEntityType && x.SessionId == sessionId)
+            .ToListAsync(cancellationToken);
+
+        if (promptRecords.Count > 0)
+        {
+            _dbContext.Documents.RemoveRange(promptRecords.Select(x => x.Document).Where(x => x is not null));
+            _dbContext.CatalogRecords.RemoveRange(promptRecords);
+        }
+
+        _dbContext.AIChatSessionRecords.Remove(record);
+
+        if (record.Document is not null)
+        {
+            _dbContext.Documents.Remove(record.Document);
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return true;
+    }
+
+    /// <summary>
     /// Persists the specified chat session.
     /// </summary>
     /// <param name="chatSession">The chat session to save.</param>

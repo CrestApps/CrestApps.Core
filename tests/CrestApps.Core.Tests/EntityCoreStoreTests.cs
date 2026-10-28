@@ -855,6 +855,84 @@ public sealed class EntityCoreStoreTests
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    [Fact]
+    public async Task Profile_version_store_numbers_and_pages_a_profiles_history()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await using var harness = await EntityCoreTestHarness.CreateAsync();
+        using var scope = harness.Services.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<IAIProfileVersionStore>();
+        var committer = scope.ServiceProvider.GetRequiredService<IStoreCommitter>();
+        var savedUtc = new DateTime(2026, 10, 27, 12, 0, 0, DateTimeKind.Utc);
+
+        for (var version = 1; version <= 3; version++)
+        {
+            await store.SaveAsync(new AIProfileVersion
+            {
+                ItemId = $"version-{version}",
+                ProfileId = "profile-1",
+                Version = version,
+                CreatedUtc = savedUtc.AddMinutes(version),
+                Snapshot = new AIProfile { ItemId = "profile-1", DisplayText = $"Support v{version}" },
+            }, cancellationToken);
+        }
+
+        await store.SaveAsync(new AIProfileVersion { ItemId = "other", ProfileId = "profile-2", Version = 9, CreatedUtc = savedUtc }, cancellationToken);
+        await committer.CommitAsync(cancellationToken);
+
+        var (versions, count) = await store.PageAsync("profile-1", 1, 2, cancellationToken);
+
+        Assert.Equal(3, await store.GetLatestVersionAsync("profile-1", cancellationToken));
+        Assert.Equal(0, await store.GetLatestVersionAsync("missing", cancellationToken));
+        Assert.Equal(3, count);
+        Assert.Equal([3, 2], versions.Select(version => version.Version));
+        Assert.Equal("Support v2", (await store.FindByIdAsync("version-2", cancellationToken)).Snapshot.DisplayText);
+        Assert.Null(await store.FindByIdAsync("missing", cancellationToken));
+    }
+
+    [Fact]
+    public async Task Chat_session_store_lists_by_last_activity_and_deletes_any_session_with_its_prompts()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await using var harness = await EntityCoreTestHarness.CreateAsync();
+        using var scope = harness.Services.CreateScope();
+        var sessionStore = scope.ServiceProvider.GetRequiredService<IAIChatSessionStore>();
+        var promptStore = scope.ServiceProvider.GetRequiredService<IAIChatSessionPromptStore>();
+        var committer = scope.ServiceProvider.GetRequiredService<IStoreCommitter>();
+        var startUtc = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        for (var day = 1; day <= 4; day++)
+        {
+            await sessionStore.SaveAsync(new AIChatSession
+            {
+                SessionId = $"session-{day}",
+                ProfileId = "profile-1",
+                UserId = "someone-else",
+                CreatedUtc = startUtc,
+                LastActivityUtc = startUtc.AddDays(day),
+            }, cancellationToken);
+        }
+
+        await promptStore.CreateAsync(new AIChatSessionPrompt { SessionId = "session-2", Content = "Hello", CreatedUtc = startUtc }, cancellationToken);
+        await committer.CommitAsync(cancellationToken);
+
+        var afterFirst = await sessionStore.ListByLastActivityAsync("profile-1", startUtc.AddDays(1), startUtc.AddDays(4), 10, cancellationToken);
+        var oldest = await sessionStore.ListByLastActivityAsync("profile-1", null, startUtc.AddDays(10), 1, cancellationToken);
+
+        Assert.Equal(["session-2", "session-3"], afterFirst.Select(session => session.SessionId));
+        Assert.Equal("session-1", Assert.Single(oldest).SessionId);
+
+        Assert.True(await sessionStore.DeleteAsync("session-2", cancellationToken));
+        Assert.False(await sessionStore.DeleteAsync("missing", cancellationToken));
+        await committer.CommitAsync(cancellationToken);
+
+        Assert.Null(await sessionStore.FindByIdAsync("session-2", cancellationToken));
+        Assert.Equal(0, await promptStore.CountAsync("session-2"));
+        Assert.NotNull(await sessionStore.FindByIdAsync("session-3", cancellationToken));
+    }
+
     private static async Task<AIChatSessionResult> AddRawSessionAndPageAsync(
         IServiceProvider services,
         string payload,
@@ -975,6 +1053,7 @@ public sealed class EntityCoreStoreTests
             configureStore?.Invoke(store);
         });
         services.AddEntityCoreStores();
+        services.AddCoreAIProfileVersionStoresEntityCore();
 
         return services;
     }
