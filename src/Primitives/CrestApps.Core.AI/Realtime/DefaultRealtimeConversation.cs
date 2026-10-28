@@ -92,6 +92,21 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
     }
 
     /// <inheritdoc />
+    public Task AddMessageAsync(ChatRole role, string text, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+
+        if (role != ChatRole.User && role != ChatRole.System)
+        {
+            throw new ArgumentException("Only user and system messages can be added to the conversation.", nameof(role));
+        }
+
+        var item = new RealtimeConversationItem([new TextContent(text)], id: null, role);
+
+        return _session.SendAsync(new CreateConversationItemRealtimeClientMessage(item), cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task RequestResponseAsync(CancellationToken cancellationToken = default)
     {
         // A session the provider already answers for would produce a second, duplicate reply.

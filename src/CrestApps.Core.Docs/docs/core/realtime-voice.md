@@ -499,6 +499,28 @@ and nothing is sent on a session that responds automatically.
 With the conversation gone, the instructions have to carry everything the message needs, including the language
 the call was held in. Quoting the assistant's own opening line in them is enough for the model to keep it.
 
+## Messages that do not come from the microphone
+
+Some of what the assistant must answer never reaches it as speech: the keys a caller presses on a phone keypad, or
+a note a supervisor sends it during a call. `IRealtimeConversation.AddMessageAsync(role, text)` adds such a message
+to the conversation, as a user message (the keys) or a system message (the note), without asking for a reply. To
+have it answered now, follow it with `RequestUnpromptedResponseAsync()` with no instructions, once no response is
+in flight:
+
+```csharp
+await conversation.AddMessageAsync(ChatRole.User, "[Pressed on the keypad: 1234]", cancellationToken);
+await conversation.RequestUnpromptedResponseAsync(cancellationToken: cancellationToken);
+```
+
+Do not pass the message as the response's instructions instead. Instructions given with one response replace the
+session's for that response, so the assistant answers without its persona, its rules or the language of the call,
+and the message is gone by the next turn. On a live call, keys sent that way were answered in another language, and
+an assistant asked a minute later which keys had been pressed could not say.
+
+Speech-to-speech providers receive the message as a `conversation.item.create`; a cascaded deployment adds it to the
+chat leg's history. An `IRealtimeConversation` implementation that does not override `AddMessageAsync` throws
+`NotSupportedException`.
+
 ## Interruptions
 
 When the user barges in, the server tells the provider how much of the reply was actually heard
