@@ -90,6 +90,73 @@ public sealed class YesSqlAIChatSessionStore : IAIChatSessionStore
     }
 
     /// <summary>
+    /// Retrieves a profile's sessions by their last activity, oldest first.
+    /// </summary>
+    /// <param name="profileId">The profile identifier.</param>
+    /// <param name="afterUtc">When set, only sessions whose last activity is later than this are returned.</param>
+    /// <param name="beforeUtc">Only sessions whose last activity is earlier than this are returned.</param>
+    /// <param name="count">The largest number of sessions to return.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The sessions, ordered by their last activity.</returns>
+    public async Task<IReadOnlyList<AIChatSession>> ListByLastActivityAsync(
+        string profileId,
+        DateTime? afterUtc,
+        DateTime beforeUtc,
+        int count,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(profileId);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
+
+        var query = afterUtc.HasValue
+            ? _session.Query<AIChatSession, AIChatSessionIndex>(
+                i => i.ProfileId == profileId && i.LastActivityUtc > afterUtc.Value && i.LastActivityUtc < beforeUtc,
+                collection: _collection)
+            : _session.Query<AIChatSession, AIChatSessionIndex>(
+                i => i.ProfileId == profileId && i.LastActivityUtc < beforeUtc,
+                collection: _collection);
+
+        var sessions = await query
+            .OrderBy(i => i.LastActivityUtc)
+            .Take(count)
+            .ListAsync(cancellationToken);
+
+        return sessions.ToList();
+    }
+
+    /// <summary>
+    /// Deletes a chat session and its prompts.
+    /// </summary>
+    /// <param name="sessionId">The unique identifier of the chat session.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns><see langword="true"/> when the session existed and was deleted; otherwise <see langword="false"/>.</returns>
+    public async Task<bool> DeleteAsync(string sessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(sessionId);
+
+        var chatSession = await FindByIdAsync(sessionId, cancellationToken);
+
+        if (chatSession == null)
+        {
+            return false;
+        }
+
+        var prompts = await _session.Query<AIChatSessionPrompt, AIChatSessionPromptIndex>(
+            x => x.SessionId == sessionId,
+            collection: _collection)
+            .ListAsync(cancellationToken);
+
+        foreach (var prompt in prompts)
+        {
+            _session.Delete(prompt, _collection);
+        }
+
+        _session.Delete(chatSession, _collection);
+
+        return true;
+    }
+
+    /// <summary>
     /// Persists the specified chat session.
     /// </summary>
     /// <param name="chatSession">The chat session to save.</param>

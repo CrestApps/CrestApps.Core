@@ -176,6 +176,19 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers the EntityCore-backed <see cref="IAIProfileVersionStore"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIProfileVersionStoresEntityCore(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.Replace(ServiceDescriptor.Scoped<IAIProfileVersionStore, EntityCoreAIProfileVersionStore>());
+
+        return services;
+    }
+
+    /// <summary>
     /// Registers EntityCore-backed stores for the A2A client feature.
     /// This includes a catalog for <see cref="A2AConnection"/>.
     /// </summary>
@@ -533,6 +546,19 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIPersonaStoresEntityCore();
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers the EntityCore-backed store for the AI profile versions feature on its builder.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    public static CrestAppsAIProfileVersionsBuilder AddEntityCoreStores(this CrestAppsAIProfileVersionsBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.AddCoreAIProfileVersionStoresEntityCore();
 
         return builder;
     }

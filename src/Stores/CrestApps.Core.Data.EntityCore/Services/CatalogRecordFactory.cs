@@ -55,6 +55,13 @@ internal static class CatalogRecordFactory
                 record.Type = profile.Type.ToString();
                 record.CreatedUtc = profile.CreatedUtc;
                 break;
+            case AIProfileVersion version:
+                // The profile is denormalized into the generic reference column so its history is read without
+                // scanning every version, and the save time orders it.
+                record.ReferenceId = version.ProfileId;
+                record.ReferenceType = nameof(AIProfile);
+                record.CreatedUtc = version.CreatedUtc;
+                break;
             case AIChatSessionPrompt prompt:
                 record.SessionId = prompt.SessionId;
                 record.CreatedUtc = prompt.CreatedUtc;

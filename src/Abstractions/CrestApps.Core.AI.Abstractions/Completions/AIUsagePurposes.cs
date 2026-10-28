@@ -96,4 +96,14 @@ public static class AIUsagePurposes
     /// Holding a realtime voice conversation.
     /// </summary>
     public const string VoiceConversation = "VoiceConversation";
+
+    /// <summary>
+    /// Checking what the customer says, or the AI's reply, against the profile's guardrails.
+    /// </summary>
+    public const string Guardrail = "Guardrail";
+
+    /// <summary>
+    /// Finding names, addresses and other personal details in a conversation to redact them.
+    /// </summary>
+    public const string PersonalDataRedaction = "PersonalDataRedaction";
 }
