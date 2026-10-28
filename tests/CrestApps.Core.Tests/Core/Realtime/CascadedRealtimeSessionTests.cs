@@ -412,6 +412,32 @@ public sealed class CascadedRealtimeSessionTests
         Assert.Equal(CascadedRealtimeSession.NothingNewFromTheUser, prompt[^1].Text);
     }
 
+    // Keys a caller presses are added as a user message: the requested reply answers them, under the session's own
+    // instructions, and they stay in the history for the turns after it.
+    [Fact]
+    public async Task SendAsync_UserItemThenResponseRequest_AnswersTheUserItem()
+    {
+        var transcription = new FakeTranscriptionSession();
+        await using var session = CreateSession(transcription, out var chatClient, reply: "You pressed one, two, three, four.", instructions: "You answer the phone.");
+
+        transcription.Emit(Completed("I'll type my account number."));
+        await chatClient.Streaming.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        var keys = new RealtimeConversationItem([new TextContent("[Pressed on the keypad: 1234]")], id: null, ChatRole.User);
+
+        await session.SendAsync(new CreateConversationItemRealtimeClientMessage(keys), TestContext.Current.CancellationToken);
+        await session.SendAsync(new CreateResponseRealtimeClientMessage(), TestContext.Current.CancellationToken);
+        transcription.Complete();
+
+        await ReadAllAsync(session);
+
+        Assert.Equal(2, chatClient.Requests.Count);
+
+        var prompt = chatClient.Requests[1];
+        Assert.Equal(ChatRole.User, prompt[^1].Role);
+        Assert.Equal("[Pressed on the keypad: 1234]", prompt[^1].Text);
+    }
+
     // Instructions given with one response replace the session's for that response, as a speech-to-speech
     // provider treats them; the next reply is written under the session's own again.
     [Fact]

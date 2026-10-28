@@ -1,3 +1,5 @@
+using Microsoft.Extensions.AI;
+
 namespace CrestApps.Core.AI.Realtime;
 
 /// <summary>
@@ -32,6 +34,33 @@ public interface IRealtimeConversation : IAsyncDisposable
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns><see langword="true"/> when retrieved context was added to the conversation; otherwise <see langword="false"/>.</returns>
     Task<bool> GroundTurnAsync(string utterance, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Adds a text message to the conversation without asking for a reply, so the model sees it on every turn
+    /// that follows.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For what reaches a conversation other than through the user's microphone: keys the caller pressed on a
+    /// phone keypad (<see cref="ChatRole.User"/>), or a note a supervisor sends the assistant during a call
+    /// (<see cref="ChatRole.System"/>). Given as instructions for a single response instead, they replace the
+    /// session's instructions for that response, so the assistant answers without its persona or language, and
+    /// they are gone by the next turn: an assistant asked "which keys did I press?" a minute later could not say.
+    /// </para>
+    /// <para>
+    /// No reply is requested. Follow it with <see cref="RequestUnpromptedResponseAsync"/> (with no instructions,
+    /// so the session's own apply) when the message should be answered now, and only when no response is in
+    /// flight.
+    /// </para>
+    /// <para>
+    /// The default implementation throws <see cref="NotSupportedException"/>.
+    /// </para>
+    /// </remarks>
+    /// <param name="role">Who the message is from: <see cref="ChatRole.User"/> or <see cref="ChatRole.System"/>.</param>
+    /// <param name="text">The message.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    Task AddMessageAsync(ChatRole role, string text, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException($"{GetType().Name} cannot add messages to the conversation.");
 
     /// <summary>
     /// Asks the model to answer now. Only needed when <see cref="RespondsAutomatically"/> is

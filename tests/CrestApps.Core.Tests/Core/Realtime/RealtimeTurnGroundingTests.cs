@@ -189,6 +189,46 @@ public sealed class RealtimeTurnGroundingTests
     }
 
     [Fact]
+    public async Task AddMessageAsync_AddsTheCallersKeysToTheConversation()
+    {
+        // Live: keys given as one response's instructions replaced the session's for it, so the assistant answered
+        // in another language, and a minute later could not say which keys had been pressed.
+        var session = new RecordingSession();
+        var conversation = new DefaultRealtimeConversation(session);
+
+        await conversation.AddMessageAsync(ChatRole.User, "[Pressed on the keypad: 1234]", TestContext.Current.CancellationToken);
+
+        var create = Assert.IsType<CreateConversationItemRealtimeClientMessage>(Assert.Single(session.Sent));
+        Assert.Equal(ChatRole.User, create.Item.Role);
+        Assert.Equal("[Pressed on the keypad: 1234]", Assert.IsType<TextContent>(Assert.Single(create.Item.Contents)).Text);
+    }
+
+    [Fact]
+    public async Task AddMessageAsync_AddsASystemNoteWithoutAskingForAReply()
+    {
+        // Whether and when the note is answered is the host's call: a reply requested here would talk over one in
+        // flight.
+        var session = new RecordingSession();
+        var conversation = new DefaultRealtimeConversation(session);
+
+        await conversation.AddMessageAsync(ChatRole.System, "Offer a test drive on Saturday.", TestContext.Current.CancellationToken);
+
+        var create = Assert.IsType<CreateConversationItemRealtimeClientMessage>(Assert.Single(session.Sent));
+        Assert.Equal(ChatRole.System, create.Item.Role);
+    }
+
+    [Fact]
+    public async Task AddMessageAsync_RefusesAssistantMessagesAndEmptyText()
+    {
+        var session = new RecordingSession();
+        var conversation = new DefaultRealtimeConversation(session);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => conversation.AddMessageAsync(ChatRole.Assistant, "Hello.", TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentException>(() => conversation.AddMessageAsync(ChatRole.User, " ", TestContext.Current.CancellationToken));
+        Assert.Empty(session.Sent);
+    }
+
+    [Fact]
     public async Task RequestUnpromptedResponseAsync_WithInstructions_CarriesThem()
     {
         // What a session says to break a silence is the caller's business, not the model's guess: "are you still
