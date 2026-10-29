@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Models;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
@@ -15,6 +16,7 @@ public sealed class VoiceLibraryViewModel
 
     public string Cursor { get; set; }
 
+    [BindNever]
     public IEnumerable<SelectListItem> Deployments { get; set; } = [];
 
     /// <summary>
