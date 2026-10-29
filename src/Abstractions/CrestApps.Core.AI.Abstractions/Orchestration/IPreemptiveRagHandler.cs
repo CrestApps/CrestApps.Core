@@ -10,6 +10,14 @@ namespace CrestApps.Core.AI.Orchestration;
 public interface IPreemptiveRagHandler
 {
     /// <summary>
+    /// Gets a value indicating whether this handler still runs when preemptive RAG is turned off site-wide.
+    /// The site-wide setting hands knowledge retrieval (data sources, documents) to the model's search tools.
+    /// A handler with its own enable switch, such as user memory, returns <see langword="true"/> so that
+    /// setting does not silently turn it off as well. Defaults to <see langword="false"/>.
+    /// </summary>
+    bool RunsWhenPreemptiveRagIsDisabled => false;
+
+    /// <summary>
     /// Determines asynchronously whether the specified context can be handled by this instance.
     /// </summary>
     /// <param name="context">The context to evaluate for handling. Cannot be null.</param>

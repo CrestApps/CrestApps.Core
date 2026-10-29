@@ -37,8 +37,10 @@ The framework does not assume a single persistence model. A host application is 
 
 - an `IAIMemoryStore` implementation for durable memory entries
 - a persistent `ISearchIndexProfileStore` implementation for index profile lookup when you want saved index profiles (registered via `.AddIndexingServices(indexing => indexing.AddEntityCoreStores())` or `.AddYesSqlStores()`). `AddCoreAIServices()` already supplies a null fallback store so hosts can start before a persistent store is added.
-- one or more keyed `IMemoryVectorSearchService` implementations
+- optionally, one or more keyed `IMemoryVectorSearchService` implementations and an AI Memory index profile named by `AIMemoryOptions.IndexProfileName`. Without them, memory still works: search ranks the user's stored memories by the terms they share with the query (see [Search without an index](#search-without-an-index))
 - options such as `AIMemoryOptions`, `GeneralAIOptions`, and `ChatInteractionMemoryOptions`
+
+`AddAIMemory()` also registers the catalog handler that keeps the index in step with saved memories. Each saved or deleted memory is queued and written to the index by a hosted background service, so saving never waits on an embedding call. A host that indexes memories with its own `ICatalogEntryHandler<AIMemoryEntry>` calls `services.AddCoreAIMemory()` alone instead of `AddAIMemory()`, so memories are not indexed twice; `services.AddCoreAIMemoryIndexing()` adds the framework's indexing on its own.
 
 Register stores directly on the AI memory builder:
 
@@ -81,6 +83,20 @@ Before a memory is stored, `IAIMemorySafetyService` can reject obviously sensiti
 ### User scoping
 
 Memory tools operate on the current authenticated user. The framework resolves identity from orchestration scope or the current HTTP context so retrieval stays user-specific.
+
+### Search without an index
+
+`IAIMemorySearchService` searches the configured AI Memory index when there is a usable one. It falls back to the memory store when:
+
+- no index profile is configured;
+- the configured profile is missing, is not an AI Memory profile, has no vector-search provider, or has no embedding deployment it can resolve (logged as a warning once per profile name);
+- the index holds nothing for the user, for example memories saved before the index was configured.
+
+The fallback reads up to 200 of the user's memories and ranks them by the share of each query's terms that a memory's name, description and content contain, then by most recently updated. Memories that share no term are left out. It is less precise than vector search, but it means a saved memory can always be found again.
+
+### Preemptive retrieval
+
+When `GeneralAIOptions.EnablePreemptiveMemoryRetrieval` is on and memory is enabled for the profile or chat interaction, relevant memories are retrieved before the model answers and added to the system message. This follows its own switch: turning off site-wide preemptive RAG (`DefaultOrchestratorSettings.EnablePreemptiveRag`), which hands data-source and document retrieval to the search tools, does not turn memory retrieval off. A custom `IPreemptiveRagHandler` with its own switch opts into the same behavior by returning `true` from `RunsWhenPreemptiveRagIsDisabled`.
 
 ## Key contracts
 

@@ -67,7 +67,8 @@ public sealed class AzureOpenAICompletionClientPromptTests
         GetClientCache();
 
     /// <summary>
-    /// Verifies the unusual count threshold and integer-boundary behavior after conversion.
+    /// Verifies that a positive count keeps that many converted messages (one included), and that a missing
+    /// or non-positive count keeps them all.
     /// </summary>
     /// <param name="pastMessagesCount">The configured history count.</param>
     /// <param name="expectedIndexes">The expected converted-message indexes.</param>
@@ -76,7 +77,7 @@ public sealed class AzureOpenAICompletionClientPromptTests
     [InlineData(int.MinValue, "0,1,2,3,4")]
     [InlineData(-1, "0,1,2,3,4")]
     [InlineData(0, "0,1,2,3,4")]
-    [InlineData(1, "0,1,2,3,4")]
+    [InlineData(1, "4")]
     [InlineData(2, "3,4")]
     [InlineData(3, "2,3,4")]
     [InlineData(4, "1,2,3,4")]

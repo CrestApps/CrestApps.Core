@@ -1,33 +1,32 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Text.Json.Nodes;
+using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
-using CrestApps.Core.AI.Services;
 using CrestApps.Core.Handlers;
 using CrestApps.Core.Models;
 using CrestApps.Core.Support;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
 
-namespace CrestApps.Core.Startup.Shared.Areas.AI.Handlers;
+namespace CrestApps.Core.AI.Handlers;
 
-public sealed class AIMemoryEntryHandler : CatalogEntryHandlerBase<AIMemoryEntry>
+/// <summary>
+/// Fills in and validates memory entries, and queues each saved or deleted memory for the AI Memory index.
+/// </summary>
+internal sealed class AIMemoryEntryHandler : CatalogEntryHandlerBase<AIMemoryEntry>
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly TimeProvider _timeProvider;
-    private readonly AIMemoryIndexingService _indexingService;
-    private readonly ILogger<AIMemoryEntryHandler> _logger;
+    private readonly AIMemoryIndexingQueue _indexingQueue;
 
     public AIMemoryEntryHandler(
         IHttpContextAccessor httpContextAccessor,
         TimeProvider timeProvider,
-        AIMemoryIndexingService indexingService,
-        ILogger<AIMemoryEntryHandler> logger)
+        AIMemoryIndexingQueue indexingQueue)
     {
         _httpContextAccessor = httpContextAccessor;
         _timeProvider = timeProvider;
-        _indexingService = indexingService;
-        _logger = logger;
+        _indexingQueue = indexingQueue;
     }
 
     public override Task InitializingAsync(InitializingContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
@@ -72,12 +71,12 @@ public sealed class AIMemoryEntryHandler : CatalogEntryHandlerBase<AIMemoryEntry
 
     public override async Task CreatedAsync(CreatedContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
     {
-        await IndexAsync(context.Model);
+        await _indexingQueue.QueueIndexAsync(context.Model, cancellationToken);
     }
 
     public override async Task UpdatedAsync(UpdatedContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
     {
-        await IndexAsync(context.Model);
+        await _indexingQueue.QueueIndexAsync(context.Model, cancellationToken);
     }
 
     public override async Task DeletedAsync(DeletedContext<AIMemoryEntry> context, CancellationToken cancellationToken = default)
@@ -87,26 +86,7 @@ public sealed class AIMemoryEntryHandler : CatalogEntryHandlerBase<AIMemoryEntry
             return;
         }
 
-        try
-        {
-            await _indexingService.DeleteAsync([context.Model.ItemId], cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to remove AI memory '{MemoryId}' from the configured memory index.", context.Model.ItemId);
-        }
-    }
-
-    private async Task IndexAsync(AIMemoryEntry memory)
-    {
-        try
-        {
-            await _indexingService.IndexAsync(memory);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to index AI memory '{MemoryId}' into the configured memory index.", memory.ItemId);
-        }
+        await _indexingQueue.QueueDeleteAsync(context.Model.ItemId, cancellationToken);
     }
 
     private void EnsureCreatedDefaults(AIMemoryEntry memory)

@@ -24,7 +24,7 @@ internal static class AzureOpenAIChatMessageConverter
         IEnumerable<AIChatMessage> messages,
         int? pastMessagesCount)
     {
-        return pastMessagesCount > 1
+        return pastMessagesCount > 0
             ? ConvertBounded(messages, pastMessagesCount.Value)
             : ConvertAll(messages);
     }

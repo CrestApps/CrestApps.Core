@@ -15,7 +15,8 @@ public sealed class NamedAICompletionClientPromptTests
         CreateGetPromptsDelegate();
 
     /// <summary>
-    /// Verifies the unusual legacy count threshold and integer-boundary behavior.
+    /// Verifies that a positive count keeps that many of the most recent messages (one included), and that
+    /// a missing or non-positive count keeps them all.
     /// </summary>
     /// <param name="pastMessagesCount">The configured past-message count.</param>
     /// <param name="expectedIndexes">The expected source-message indexes.</param>
@@ -24,12 +25,12 @@ public sealed class NamedAICompletionClientPromptTests
     [InlineData(int.MinValue, "0,1,2,3,4")]
     [InlineData(-1, "0,1,2,3,4")]
     [InlineData(0, "0,1,2,3,4")]
-    [InlineData(1, "0,1,2,3,4")]
+    [InlineData(1, "4")]
     [InlineData(2, "3,4")]
     [InlineData(3, "2,3,4")]
     [InlineData(10, "0,1,2,3,4")]
     [InlineData(int.MaxValue, "0,1,2,3,4")]
-    public void GetPrompts_WithPastMessagesCount_PreservesLegacyThreshold(
+    public void GetPrompts_WithPastMessagesCount_KeepsMostRecentMessages(
         int? pastMessagesCount,
         string expectedIndexes)
     {

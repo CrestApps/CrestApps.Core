@@ -630,6 +630,7 @@ public static class ServiceCollectionExtensions
         services.AddOptions<GeneralAIOptions>();
         services.AddOptions<ChatInteractionMemoryOptions>();
         services.TryAddScoped<AIMemoryIndexingService>();
+        services.TryAddSingleton<ITextTokenizer, LuceneTextTokenizer>();
         services.TryAddScoped<IAIMemorySafetyService, DefaultAIMemorySafetyService>();
         services.TryAddScoped<IAIMemorySearchService, AIMemorySearchService>();
         services.TryAdd(ServiceDescriptor.Scoped<ICatalog<AIMemoryEntry>>(sp => sp.GetRequiredService<IAIMemoryStore>()));
@@ -660,6 +661,27 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Adds the catalog handler that fills in and validates memory entries, and keeps the configured AI Memory
+    /// index in step with them: every saved or deleted memory is queued and written to the index by a hosted
+    /// background service, off the request. <see cref="AddAIMemory"/> calls this. A host that registers its
+    /// own <see cref="ICatalogEntryHandler{T}"/> for <see cref="AIMemoryEntry"/> to index memories should call
+    /// <see cref="AddCoreAIMemory"/> alone instead, or each memory is indexed twice.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIMemoryIndexing(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddScoped<AIMemoryIndexingService>();
+        services.TryAddSingleton<AIMemoryIndexingQueue>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIMemoryIndexingBackgroundService>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryHandler>());
+
+        return services;
+    }
+
+    /// <summary>
     /// Adds ai memory.
     /// </summary>
     /// <param name="builder">The builder.</param>
@@ -669,6 +691,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIMemory();
+        builder.Services.AddCoreAIMemoryIndexing();
 
         if (configure is not null)
         {

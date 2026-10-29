@@ -1,3 +1,4 @@
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Memory;
@@ -180,11 +181,110 @@ public sealed class AIMemorySearchServiceTests
         Assert.Equal(0.88f, result.Score);
     }
 
+    [Fact]
+    public async Task SearchAsync_WhenIndexProfileIsNotConfigured_RanksStoredMemoriesByMatchingTerms()
+    {
+        var service = CreateService(
+            options: new AIMemoryOptions(),
+            memories:
+            [
+                CreateMemory("memory-1", "favorite_framework", "The user's stated favorite framework.", "The user loves OrchardCore."),
+                CreateMemory("memory-2", "preferred_name", "The user's preferred display name.", "The user prefers to be called Mike."),
+            ]);
+
+        var results = (await service.SearchAsync("user-1", ["user preferred name"], requestedTopN: null, TestContext.Current.CancellationToken)).ToList();
+
+        Assert.Equal("memory-2", results[0].MemoryId);
+        Assert.True(results[0].Score > results.Skip(1).Select(result => result.Score).DefaultIfEmpty(0).Max());
+    }
+
+    [Fact]
+    public async Task SearchAsync_WhenNoStoredMemoryShareATerm_ReturnsEmpty()
+    {
+        var service = CreateService(
+            options: new AIMemoryOptions(),
+            memories:
+            [
+                CreateMemory("memory-1", "favorite_framework", "The user's stated favorite framework.", "The user loves OrchardCore."),
+            ]);
+
+        var results = await service.SearchAsync("user-1", ["weather tomorrow"], requestedTopN: null, TestContext.Current.CancellationToken);
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WhenIndexHoldsNothingForUser_FallsBackToMemoryStore()
+    {
+        var indexProfileStore = new Mock<ISearchIndexProfileStore>();
+        indexProfileStore
+            .Setup(store => store.FindByNameAsync("memory-profile", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SearchIndexProfile
+            {
+                Name = "memory-profile",
+                ProviderName = "AzureAISearch",
+                Type = IndexProfileTypes.AIMemory,
+                EmbeddingDeploymentName = "deployment-1",
+            });
+
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        deploymentManager
+            .Setup(manager => manager.FindByNameAsync("deployment-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AIDeployment { ItemId = "deployment-1" });
+
+        var vectorSearchService = new Mock<IMemoryVectorSearchService>();
+        vectorSearchService
+            .Setup(service => service.SearchAsync(It.IsAny<SearchIndexProfile>(), It.IsAny<float[]>(), "user-1", It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var aiClientFactory = new Mock<IAIClientFactory>();
+        aiClientFactory
+            .Setup(factory => factory.CreateEmbeddingGeneratorAsync(It.IsAny<AIDeployment>()))
+            .Returns(new ValueTask<IEmbeddingGenerator<string, Embedding<float>>>(new FakeEmbeddingGenerator([1f, 2f, 3f])));
+
+        var service = CreateService(
+            options: new AIMemoryOptions { IndexProfileName = "memory-profile" },
+            aiClientFactory: aiClientFactory.Object,
+            configureServices: services =>
+            {
+                services.AddSingleton(indexProfileStore.Object);
+                services.AddSingleton(deploymentManager.Object);
+                services.AddKeyedSingleton<IMemoryVectorSearchService>("AzureAISearch", vectorSearchService.Object);
+            },
+            memories:
+            [
+                CreateMemory("memory-1", "favorite_framework", "The user's stated favorite framework.", "The user loves OrchardCore."),
+            ]);
+
+        var results = await service.SearchAsync("user-1", ["favorite framework"], requestedTopN: null, TestContext.Current.CancellationToken);
+
+        Assert.Equal("memory-1", Assert.Single(results).MemoryId);
+    }
+
+    private static AIMemoryEntry CreateMemory(string id, string name, string description, string content)
+    {
+        return new AIMemoryEntry
+        {
+            ItemId = id,
+            UserId = "user-1",
+            Name = name,
+            Description = description,
+            Content = content,
+            UpdatedUtc = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc),
+        };
+    }
+
     private static AIMemorySearchService CreateService(
         AIMemoryOptions options,
         IAIClientFactory aiClientFactory = null,
-        Action<IServiceCollection> configureServices = null)
+        Action<IServiceCollection> configureServices = null,
+        IReadOnlyCollection<AIMemoryEntry> memories = null)
     {
+        var memoryStore = new Mock<IAIMemoryStore>();
+        memoryStore
+            .Setup(store => store.GetByUserAsync("user-1", It.IsAny<int>()))
+            .ReturnsAsync(memories ?? []);
+
         var services = new ServiceCollection();
         services.AddSingleton(aiClientFactory ?? Mock.Of<IAIClientFactory>());
         services.AddSingleton(Mock.Of<ISearchIndexProfileStore>());
@@ -198,6 +298,8 @@ public sealed class AIMemorySearchServiceTests
                     serviceProvider.GetRequiredService<ISearchIndexProfileStore>(),
                     serviceProvider.GetRequiredService<IAIDeploymentManager>(),
                     serviceProvider.GetRequiredService<IAIClientFactory>(),
+                    memoryStore.Object,
+                    new LuceneTextTokenizer(),
                     new TestOptionsMonitor<AIMemoryOptions> { CurrentValue = options },
                     NullLogger<AIMemorySearchService>.Instance);
     }

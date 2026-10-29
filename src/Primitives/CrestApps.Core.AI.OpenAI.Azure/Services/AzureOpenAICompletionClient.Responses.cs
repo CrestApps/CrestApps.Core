@@ -155,7 +155,7 @@ public sealed partial class AzureOpenAICompletionClient
             prompts.Add(new ChatMessage(ChatRole.System, context.SystemMessage));
         }
 
-        prompts.AddRange(context.PastMessagesCount > 1 ? history.TakeLast(context.PastMessagesCount.Value) : history);
+        prompts.AddRange(context.PastMessagesCount > 0 ? history.TakeLast(context.PastMessagesCount.Value) : history);
 
         return prompts;
     }

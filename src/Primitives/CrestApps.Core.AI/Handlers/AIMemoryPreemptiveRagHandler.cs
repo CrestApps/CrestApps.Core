@@ -44,6 +44,12 @@ internal sealed class AIMemoryPreemptiveRagHandler : IPreemptiveRagHandler
     }
 
     /// <summary>
+    /// Memory retrieval has its own switch (<see cref="GeneralAIOptions.EnablePreemptiveMemoryRetrieval"/>), so the
+    /// site-wide preemptive RAG setting for knowledge retrieval does not turn it off.
+    /// </summary>
+    public bool RunsWhenPreemptiveRagIsDisabled => true;
+
+    /// <summary>
     /// Determines whether handle.
     /// </summary>
     /// <param name="context">The context.</param>

@@ -71,6 +71,38 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
     }
 
     /// <summary>
+    /// Turning preemptive RAG off site-wide hands knowledge retrieval to the search tools, but a handler with
+    /// its own switch (user memory) still runs, and the knowledge handler does not.
+    /// </summary>
+    [Fact]
+    public async Task BuiltAsync_PreemptiveRagDisabled_StillRunsHandlerWithItsOwnSwitch()
+    {
+        var knowledgeHandler = CreateFakeRagHandler(canHandle: true);
+        var memoryHandler = CreateFakeRagHandler(canHandle: true, runsWhenPreemptiveRagIsDisabled: true);
+        var handler = CreateHandler([knowledgeHandler.Object, memoryHandler.Object], enablePreemptiveRag: false);
+        var context = CreateOrchestrationContext(userMessage: "what is my name?", disableTools: false);
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context), TestContext.Current.CancellationToken);
+        memoryHandler.Verify(h => h.HandleAsync(It.Is<PreemptiveRagContext>(ctx => ctx.Queries.Contains("what is my name?"))), Times.Once);
+        knowledgeHandler.Verify(h => h.HandleAsync(It.IsAny<PreemptiveRagContext>()), Times.Never);
+        Assert.Contains($"[Template: {AITemplateIds.RagToolSearchRelaxed}]", context.SystemMessageBuilder.ToString());
+    }
+
+    /// <summary>
+    /// With only a self-governed handler usable, there is no knowledge to search, so no data-source or
+    /// document search-tool instructions are injected.
+    /// </summary>
+    [Fact]
+    public async Task BuiltAsync_PreemptiveRagDisabled_OnlyHandlerWithItsOwnSwitch_DoesNotInjectSearchInstructions()
+    {
+        var memoryHandler = CreateFakeRagHandler(canHandle: true, runsWhenPreemptiveRagIsDisabled: true);
+        var handler = CreateHandler([memoryHandler.Object], enablePreemptiveRag: false);
+        var context = CreateOrchestrationContext(userMessage: "what is my name?", disableTools: false);
+        await handler.BuiltAsync(new OrchestrationContextBuiltContext(new AIProfile(), context), TestContext.Current.CancellationToken);
+        memoryHandler.Verify(h => h.HandleAsync(It.IsAny<PreemptiveRagContext>()), Times.Once);
+        Assert.Equal(string.Empty, context.SystemMessageBuilder.ToString());
+    }
+
+    /// <summary>
     /// When preemptive RAG is disabled, tools are available, and IsInScope=true,
     /// the handler injects the strict tool search template.
     /// </summary>
@@ -197,10 +229,11 @@ public sealed class PreemptiveRagOrchestrationHandlerTests
         return new PreemptiveRagOrchestrationHandler(handlers, queryProvider, templateService, settings, NullLogger<PreemptiveRagOrchestrationHandler>.Instance);
     }
 
-    private static Mock<IPreemptiveRagHandler> CreateFakeRagHandler(bool canHandle, bool addDataSourceRefs = false)
+    private static Mock<IPreemptiveRagHandler> CreateFakeRagHandler(bool canHandle, bool addDataSourceRefs = false, bool runsWhenPreemptiveRagIsDisabled = false)
     {
         var mock = new Mock<IPreemptiveRagHandler>();
         mock.Setup(h => h.CanHandleAsync(It.IsAny<OrchestrationContextBuiltContext>())).ReturnsAsync(canHandle);
+        mock.SetupGet(h => h.RunsWhenPreemptiveRagIsDisabled).Returns(runsWhenPreemptiveRagIsDisabled);
         if (addDataSourceRefs)
         {
             mock.Setup(h => h.HandleAsync(It.IsAny<PreemptiveRagContext>())).Callback<PreemptiveRagContext>(ctx =>
