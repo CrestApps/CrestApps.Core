@@ -1,0 +1,71 @@
+@using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
+@model AIProfileViewModel
+
+<!-- Speech Tab -->
+<div class="tab-pane fade" id="speech" role="tabpanel">
+    <p class="text-muted mb-3">How this profile speaks and listens. Every field is optional; leave a field empty to keep the default behavior. Providers that cannot use a setting ignore it.</p>
+
+    <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-volume-high"></i> Speaking</h6>
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <label asp-for="SpeakingRate" class="form-label">Speaking rate</label>
+            <input asp-for="SpeakingRate" type="number" step="any" min="0.25" max="4" class="form-control" placeholder="1" />
+            <span asp-validation-for="SpeakingRate" class="text-danger"></span>
+            <div class="form-text">A multiple of the voice's normal pace, from 0.25 to 4 (1 is normal). Empty uses the deployment's own pace.</div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <label asp-for="SpeakingEmotion" class="form-label">Speaking emotion</label>
+            <input asp-for="SpeakingEmotion" class="form-control" placeholder="e.g., calm" />
+            <span asp-validation-for="SpeakingEmotion" class="text-danger"></span>
+            <div class="form-text">One word, such as calm or excited. Only providers with an emotion control (Cartesia) use it.</div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <label asp-for="FallbackTextToSpeechDeploymentName" class="form-label">Fallback text-to-speech deployment</label>
+            <select asp-for="FallbackTextToSpeechDeploymentName" class="form-select" asp-items="Model.TextToSpeechDeployments">
+                <option value="">None</option>
+            </select>
+            <div class="form-text">Speaks instead when the first deployment fails before producing audio.</div>
+        </div>
+    </div>
+    <div class="mb-3">
+        <label asp-for="PronunciationEntries" class="form-label">Pronunciation dictionary</label>
+        <textarea asp-for="PronunciationEntries" class="form-control" rows="4" placeholder="SQL=sequel&#10;GIF=jif"></textarea>
+        <span asp-validation-for="PronunciationEntries" class="text-danger"></span>
+        <div class="form-text">One <code>word=pronunciation</code> per line. Add <code>|case</code> at the end of a line to match the exact casing.</div>
+    </div>
+
+    <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-ear-listen"></i> Listening</h6>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label asp-for="BoostedKeywords" class="form-label">Boosted keywords</label>
+            <textarea asp-for="BoostedKeywords" class="form-control" rows="4" placeholder="Product names, jargon"></textarea>
+            <div class="form-text">One word or phrase per line that the recognizer should favor.</div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label asp-for="RecognitionLanguages" class="form-label">Recognition languages</label>
+            <textarea asp-for="RecognitionLanguages" class="form-control" rows="4" placeholder="en-US&#10;es-MX"></textarea>
+            <span asp-validation-for="RecognitionLanguages" class="text-danger"></span>
+            <div class="form-text">One BCP-47 tag per line. The first is the primary language.</div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label asp-for="InterruptionSensitivity" class="form-label">Interruption sensitivity</label>
+            <input asp-for="InterruptionSensitivity" type="number" step="any" min="0" max="1" class="form-control" placeholder="Default" />
+            <span asp-validation-for="InterruptionSensitivity" class="text-danger"></span>
+            <div class="form-text">From 0 (the AI is never interrupted) to 1 (any caller speech interrupts it). Empty keeps the default.</div>
+        </div>
+    </div>
+    <div class="mb-3">
+        <div class="form-check form-switch">
+            <input asp-for="EnableBackchanneling" class="form-check-input" type="checkbox" />
+            <label asp-for="EnableBackchanneling" class="form-check-label">Enable backchanneling</label>
+        </div>
+        <div class="form-text">The AI makes short acknowledging sounds while the caller keeps talking. Available on the cascaded realtime pipeline.</div>
+    </div>
+    <div class="mb-3">
+        <label asp-for="BackchannelPhrases" class="form-label">Backchannel phrases</label>
+        <textarea asp-for="BackchannelPhrases" class="form-control" rows="3" placeholder="mm-hm&#10;I see"></textarea>
+        <div class="form-text">One phrase per line. Empty uses a small built-in set.</div>
+    </div>
+</div>
