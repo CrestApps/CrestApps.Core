@@ -1,0 +1,449 @@
+@page "/ai/voices"
+@attribute [Authorize(Policy = "Admin")]
+@using CrestApps.Core.AI.Deployments
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.AI.Speech
+@using CrestApps.Core.Blazor.Web.Services
+@inject IAIDeploymentStore DeploymentStore
+@inject IVoiceLibraryResolver VoiceLibraryResolver
+@inject IJSRuntime JS
+@inject ToastNotificationService ToastNotifications
+
+<PageTitle>Voice Library - Blazor AI Integration Sample</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="fa-solid fa-microphone-lines"></i> Voice Library</h2>
+    <a href="/ai/deployments" class="btn btn-outline-secondary">
+        <i class="fa-solid fa-box"></i> AI Deployments
+    </a>
+</div>
+
+@if (_deployments == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="card mb-4">
+        <div class="card-body">
+            <label class="form-label" for="voice-library-deployment">Speech deployment</label>
+            <select id="voice-library-deployment" class="form-select" @onchange="OnDeploymentChangedAsync">
+                <option value="">Select a deployment...</option>
+                @foreach (var deployment in _deployments)
+                {
+                    <option value="@deployment.ItemId" selected="@(deployment.ItemId == _deploymentId)">@deployment.Name (@(deployment.ClientName ?? "unknown"))</option>
+                }
+            </select>
+            <div class="form-text">Voice search and cloning are available for ElevenLabs and Cartesia deployments.</div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation"></i> @_error</div>
+    }
+
+    @if (_deployment != null && _library == null && string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-info" id="voice-library-unavailable">
+            <i class="fa-solid fa-circle-info"></i> The "@_deployment.Name" deployment (@(_deployment.ClientName ?? "unknown")) has no voice library. Choose an ElevenLabs or Cartesia deployment.
+        </div>
+    }
+
+    @if (_library != null)
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Search voices</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label" for="voice-query">Search</label>
+                        <input id="voice-query" class="form-control" @bind="_query" @bind:event="oninput" placeholder="Name, description or style" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="voice-language">Language</label>
+                        <input id="voice-language" class="form-control" @bind="_language" @bind:event="oninput" placeholder="e.g., en or es-MX" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="voice-gender">Gender</label>
+                        <select id="voice-gender" class="form-select" @bind="_gender">
+                            <option value="">Any</option>
+                            <option value="@SpeechVoiceGender.Female">Female</option>
+                            <option value="@SpeechVoiceGender.Male">Male</option>
+                            <option value="@SpeechVoiceGender.Neutral">Neutral</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-primary w-100" disabled="@_busy" @onclick="() => SearchAsync(null)">
+                            <i class="fa-solid fa-magnifying-glass"></i> Search
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (_voices != null)
+        {
+            @if (_voices.Count == 0)
+            {
+                <div class="alert alert-info">No voices matched.</div>
+            }
+            else
+            {
+                <div class="card mb-3">
+                    <div class="card-body p-0">
+                        <div class="table-responsive mb-0">
+                            <table class="table table-striped table-hover mb-0">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Voice ID</th>
+                                        <th>Language</th>
+                                        <th>Gender</th>
+                                        <th>Sample</th>
+                                        @if (_library.SupportsCloning)
+                                        {
+                                            <th style="width: 120px;">Actions</th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var voice in _voices)
+                                    {
+                                        <tr>
+                                            <td><strong>@voice.Name</strong></td>
+                                            <td><code>@voice.Id</code></td>
+                                            <td>@(string.IsNullOrWhiteSpace(voice.Language) ? "—" : voice.Language)</td>
+                                            <td>@(voice.Gender == SpeechVoiceGender.Unknown ? "—" : voice.Gender.ToString())</td>
+                                            <td>
+                                                @if (!string.IsNullOrWhiteSpace(voice.VoiceSampleUrl))
+                                                {
+                                                    <audio controls preload="none" src="@voice.VoiceSampleUrl" style="height: 32px;"></audio>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">&mdash;</span>
+                                                }
+                                            </td>
+                                            @if (_library.SupportsCloning)
+                                            {
+                                                <td>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" disabled="@_busy" @onclick="() => DeleteAsync(voice)">
+                                                        <i class="fa-solid fa-trash"></i> Delete
+                                                    </button>
+                                                </td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <button type="button" class="btn btn-outline-secondary" disabled="@(_busy || _cursors.Count == 0)" @onclick="PreviousPageAsync">
+                    &laquo; Previous
+                </button>
+                <small class="text-muted">Page @(_cursors.Count + 1)</small>
+                <button type="button" class="btn btn-outline-secondary" disabled="@(_busy || string.IsNullOrEmpty(_nextCursor))" @onclick="NextPageAsync">
+                    Next &raquo;
+                </button>
+            </div>
+        }
+
+        @if (_library.SupportsCloning)
+        {
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Clone a voice</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="fa-solid fa-triangle-exclamation"></i> The recording is stored with the provider. Only clone a voice with the speaker's consent. Delete only voices you created here.
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label" for="clone-name">Name <span class="text-danger">*</span></label>
+                                <input id="clone-name" class="form-control" @bind="_cloneName" @bind:event="oninput" placeholder="e.g., Support agent" />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label" for="clone-language">Language</label>
+                                <input id="clone-language" class="form-control" @bind="_cloneLanguage" @bind:event="oninput" placeholder="e.g., en" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="clone-description">Description</label>
+                        <input id="clone-description" class="form-control" @bind="_cloneDescription" @bind:event="oninput" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Audio samples <span class="text-danger">*</span></label>
+                        <InputFile class="form-control" OnChange="OnSamplesSelected" multiple accept="audio/*" />
+                        <div class="form-text">One or more recordings (up to @MaxSampleSizeInMegabytes MB each). Some providers use only the first.</div>
+                        @if (_samples.Count > 0)
+                        {
+                            <ul class="small mt-2 mb-0">
+                                @foreach (var sample in _samples)
+                                {
+                                    <li>@sample.Name (@(sample.Size / 1024) KB)</li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                    <button type="button" class="btn btn-success" disabled="@_busy" @onclick="CloneAsync">
+                        <i class="fa-solid fa-clone"></i> Clone voice
+                    </button>
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    private const int MaxSampleSizeInMegabytes = 25;
+    private const int MaxSampleCount = 10;
+
+    private List<AIDeployment> _deployments;
+    private AIDeployment _deployment;
+    private IVoiceLibrary _library;
+    private string _deploymentId;
+    private string _error;
+    private bool _busy;
+
+    private string _query;
+    private string _language;
+    private string _gender;
+    private IReadOnlyList<SpeechVoice> _voices;
+    private string _nextCursor;
+    private string _currentCursor;
+    private readonly Stack<string> _cursors = new();
+
+    private string _cloneName;
+    private string _cloneLanguage;
+    private string _cloneDescription;
+    private List<IBrowserFile> _samples = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _deployments = (await DeploymentStore.GetAllAsync())
+            .Where(static d => !string.IsNullOrWhiteSpace(d.Name))
+            .OrderBy(static d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task OnDeploymentChangedAsync(ChangeEventArgs e)
+    {
+        _deploymentId = e.Value?.ToString();
+        _deployment = _deployments.FirstOrDefault(d => d.ItemId == _deploymentId);
+        _library = null;
+        _error = null;
+        _voices = null;
+        _nextCursor = null;
+        _currentCursor = null;
+        _cursors.Clear();
+
+        if (_deployment == null)
+        {
+            return;
+        }
+
+        try
+        {
+            _library = await VoiceLibraryResolver.GetLibraryAsync(_deployment);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or NotSupportedException)
+        {
+            _error = ex.Message;
+
+            return;
+        }
+
+        if (_library != null)
+        {
+            await SearchAsync(null);
+        }
+    }
+
+    private async Task SearchAsync(string cursor, bool resetPaging = true)
+    {
+        if (_library == null)
+        {
+            return;
+        }
+
+        if (resetPaging)
+        {
+            _cursors.Clear();
+        }
+
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            var result = await _library.SearchAsync(new VoiceSearchRequest
+            {
+                Query = string.IsNullOrWhiteSpace(_query) ? null : _query.Trim(),
+                Language = string.IsNullOrWhiteSpace(_language) ? null : _language.Trim(),
+                Gender = Enum.TryParse<SpeechVoiceGender>(_gender, out var gender) ? gender : null,
+                Cursor = cursor,
+            });
+
+            _voices = result.Voices;
+            _nextCursor = result.NextCursor;
+            _currentCursor = cursor;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or NotSupportedException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task NextPageAsync()
+    {
+        if (string.IsNullOrEmpty(_nextCursor))
+        {
+            return;
+        }
+
+        var next = _nextCursor;
+        _cursors.Push(_currentCursor);
+        await SearchAsync(next, resetPaging: false);
+    }
+
+    private async Task PreviousPageAsync()
+    {
+        if (_cursors.Count == 0)
+        {
+            return;
+        }
+
+        var previous = _cursors.Pop();
+        await SearchAsync(previous, resetPaging: false);
+    }
+
+    private void OnSamplesSelected(InputFileChangeEventArgs e)
+    {
+        _samples = e.GetMultipleFiles(MaxSampleCount).ToList();
+    }
+
+    private async Task CloneAsync()
+    {
+        if (_library == null || !_library.SupportsCloning)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_cloneName))
+        {
+            ToastNotifications.ShowError("A name is required to clone a voice.");
+
+            return;
+        }
+
+        if (_samples.Count == 0)
+        {
+            ToastNotifications.ShowError("Choose at least one audio file.");
+
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            var samples = new List<VoiceCloneSample>();
+
+            foreach (var file in _samples)
+            {
+                using var stream = file.OpenReadStream(MaxSampleSizeInMegabytes * 1024L * 1024L);
+                using var buffer = new MemoryStream();
+                await stream.CopyToAsync(buffer);
+
+                samples.Add(new VoiceCloneSample
+                {
+                    FileName = file.Name,
+                    ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
+                    Content = buffer.ToArray(),
+                });
+            }
+
+            var voice = await _library.CloneAsync(new VoiceCloneRequest
+            {
+                Name = _cloneName.Trim(),
+                Description = string.IsNullOrWhiteSpace(_cloneDescription) ? null : _cloneDescription.Trim(),
+                Language = string.IsNullOrWhiteSpace(_cloneLanguage) ? null : _cloneLanguage.Trim(),
+                Samples = samples,
+            });
+
+            ToastNotifications.ShowSuccess($"Cloned voice \"{voice.Name}\" ({voice.Id}).");
+
+            _cloneName = null;
+            _cloneLanguage = null;
+            _cloneDescription = null;
+            _samples = [];
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or NotSupportedException or IOException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        if (_error == null)
+        {
+            await SearchAsync(null);
+        }
+    }
+
+    private async Task DeleteAsync(SpeechVoice voice)
+    {
+        if (_library == null || !_library.SupportsCloning)
+        {
+            return;
+        }
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Delete the voice \"{voice.Name}\"? Only delete voices you created.");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            await _library.DeleteAsync(voice.Id);
+            ToastNotifications.ShowSuccess($"Deleted voice \"{voice.Name}\".");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or NotSupportedException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        if (_error == null)
+        {
+            await SearchAsync(_currentCursor, resetPaging: false);
+        }
+    }
+}
