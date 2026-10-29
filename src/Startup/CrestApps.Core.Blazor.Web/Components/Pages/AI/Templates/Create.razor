@@ -578,6 +578,7 @@
                                     <div class="card-body">
                                         <div class="mb-3"><label class="form-label">Name</label><InputText class="form-control" @bind-Value="entry.Name" /></div>
                                         <div class="mb-3"><label class="form-label">Description</label><InputTextArea class="form-control" rows="3" @bind-Value="entry.Description" /></div>
+                                        <DataExtractionFieldTypeFields Entry="entry" />
                                         <div class="form-check mb-2"><InputCheckbox class="form-check-input" @bind-Value="entry.AllowMultipleValues" /><label class="form-check-label">Allow multiple values</label></div>
                                         <div class="form-check mb-2"><InputCheckbox class="form-check-input" @bind-Value="entry.IsUpdatable" /><label class="form-check-label">Updatable</label></div>
                                     </div>

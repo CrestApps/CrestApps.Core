@@ -215,6 +215,27 @@ public sealed class AIProfileViewModel
 
     public List<DataExtractionEntryItem> DataExtractionEntries { get; set; } = [];
 
+    // Speech (AIProfileSpeechSettings)
+    public double? SpeakingRate { get; set; }
+
+    public string SpeakingEmotion { get; set; }
+
+    public string FallbackTextToSpeechDeploymentName { get; set; }
+
+    public double? InterruptionSensitivity { get; set; }
+
+    public bool EnableBackchanneling { get; set; }
+
+    // One entry per line.
+    public string BoostedKeywordsText { get; set; }
+
+    public string RecognitionLanguagesText { get; set; }
+
+    public string BackchannelPhrasesText { get; set; }
+
+    // One word=pronunciation entry per line.
+    public string PronunciationEntriesText { get; set; }
+
     // Session Metrics
     public bool EnableSessionMetrics { get; set; }
 
@@ -302,6 +323,37 @@ public sealed class AIProfileViewModel
     /// </summary>
     public Dictionary<string, string> UtilityModelParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    public const double MinSpeakingRate = 0.25;
+
+    public const double MaxSpeakingRate = 4;
+
+    /// <summary>
+    /// Checks the speech settings and returns a message for each one that is out of range or malformed.
+    /// </summary>
+    public IReadOnlyList<string> ValidateSpeech()
+    {
+        var errors = new List<string>();
+
+        if (SpeakingRate is { } rate && (double.IsNaN(rate) || rate < MinSpeakingRate || rate > MaxSpeakingRate))
+        {
+            errors.Add($"Speaking rate must be between {MinSpeakingRate} and {MaxSpeakingRate}.");
+        }
+
+        if (InterruptionSensitivity is { } sensitivity && (double.IsNaN(sensitivity) || sensitivity < 0 || sensitivity > 1))
+        {
+            errors.Add("Interruption sensitivity must be between 0 and 1.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(SpeakingEmotion) && SpeakingEmotion.Trim().Any(char.IsWhiteSpace))
+        {
+            errors.Add("Speaking emotion must be a single word.");
+        }
+
+        AIProfileSpeechFormatter.ParsePronunciations(PronunciationEntriesText, errors);
+
+        return errors;
+    }
+
     public static AIProfileViewModel FromProfile(AIProfile profile)
     {
         var settings = profile.GetOrCreateSettings<AIProfileSettings>();
@@ -309,6 +361,7 @@ public sealed class AIProfileViewModel
         var postSessionSettings = profile.GetOrCreateSettings<AIProfilePostSessionSettings>();
         var memoryMetadata = profile.GetOrCreate<MemoryMetadata>();
         profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings);
+        profile.TryGetSettings<AIProfileSpeechSettings>(out var speechSettings);
 
         var vm = new AIProfileViewModel
         {
@@ -335,17 +388,21 @@ public sealed class AIProfileViewModel
             IsListable = settings.IsListable,
             IsRemovable = settings.IsRemovable,
 
+            SpeakingRate = speechSettings?.SpeakingRate,
+            SpeakingEmotion = speechSettings?.SpeakingEmotion,
+            FallbackTextToSpeechDeploymentName = speechSettings?.FallbackTextToSpeechDeploymentName,
+            InterruptionSensitivity = speechSettings?.InterruptionSensitivity,
+            EnableBackchanneling = speechSettings?.EnableBackchanneling ?? false,
+            BoostedKeywordsText = AIProfileSpeechFormatter.FormatLines(speechSettings?.BoostedKeywords),
+            RecognitionLanguagesText = AIProfileSpeechFormatter.FormatLines(speechSettings?.RecognitionLanguages),
+            BackchannelPhrasesText = AIProfileSpeechFormatter.FormatLines(speechSettings?.BackchannelPhrases),
+            PronunciationEntriesText = AIProfileSpeechFormatter.FormatPronunciations(speechSettings?.PronunciationEntries),
+
             EnableDataExtraction = dataExtractionSettings.EnableDataExtraction,
             ExtractionCheckInterval = dataExtractionSettings.ExtractionCheckInterval,
             SessionInactivityTimeoutInMinutes = dataExtractionSettings.SessionInactivityTimeoutInMinutes,
             DataExtractionEntries = dataExtractionSettings.DataExtractionEntries
-                .Select(e => new DataExtractionEntryItem
-                {
-                    Name = e.Name,
-                    Description = e.Description,
-                    AllowMultipleValues = e.AllowMultipleValues,
-                    IsUpdatable = e.IsUpdatable,
-                })
+                .Select(DataExtractionEntryItem.FromEntry)
             .ToList(),
 
             EnablePostSessionProcessing = postSessionSettings.EnablePostSessionProcessing,
@@ -697,6 +754,19 @@ public sealed class AIProfileViewModel
             metadata.AllowSessionImageUploads = AllowSessionImageUploads;
         });
 
+        profile.AlterSettings<AIProfileSpeechSettings>(s =>
+        {
+            s.SpeakingRate = SpeakingRate;
+            s.SpeakingEmotion = string.IsNullOrWhiteSpace(SpeakingEmotion) ? null : SpeakingEmotion.Trim();
+            s.FallbackTextToSpeechDeploymentName = string.IsNullOrWhiteSpace(FallbackTextToSpeechDeploymentName) ? null : FallbackTextToSpeechDeploymentName.Trim();
+            s.InterruptionSensitivity = InterruptionSensitivity;
+            s.EnableBackchanneling = EnableBackchanneling;
+            s.BoostedKeywords = AIProfileSpeechFormatter.ParseLines(BoostedKeywordsText);
+            s.RecognitionLanguages = AIProfileSpeechFormatter.ParseLines(RecognitionLanguagesText);
+            s.BackchannelPhrases = AIProfileSpeechFormatter.ParseLines(BackchannelPhrasesText);
+            s.PronunciationEntries = AIProfileSpeechFormatter.ParsePronunciations(PronunciationEntriesText);
+        });
+
         profile.AlterSettings<AIProfileDataExtractionSettings>(s =>
         {
             s.EnableDataExtraction = EnableDataExtraction;
@@ -704,13 +774,7 @@ public sealed class AIProfileViewModel
             s.SessionInactivityTimeoutInMinutes = SessionInactivityTimeoutInMinutes;
             s.DataExtractionEntries = (DataExtractionEntries ?? [])
             .Where(e => !string.IsNullOrWhiteSpace(e.Name))
-            .Select(e => new DataExtractionEntry
-            {
-                Name = e.Name,
-                Description = e.Description,
-                AllowMultipleValues = e.AllowMultipleValues,
-                IsUpdatable = e.IsUpdatable,
-            })
+            .Select(e => e.ToEntry())
         .ToList();
         });
 

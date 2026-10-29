@@ -1,0 +1,73 @@
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Blazor.Web.ViewModels
+
+<h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-volume-high"></i> Speaking</h6>
+<div class="row">
+    <div class="col-md-6">
+        <div class="mb-3">
+            <label class="form-label">Speaking rate</label>
+            <InputNumber class="form-control" @bind-Value="Model.SpeakingRate" step="0.05" min="@AIProfileViewModel.MinSpeakingRate" max="@AIProfileViewModel.MaxSpeakingRate" placeholder="1" />
+            <span class="form-text">A multiple of the voice's normal pace (1 is normal), from @AIProfileViewModel.MinSpeakingRate to @AIProfileViewModel.MaxSpeakingRate. Leave empty to use the deployment's own pace.</span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="mb-3">
+            <label class="form-label">Speaking emotion</label>
+            <InputText class="form-control" @bind-Value="Model.SpeakingEmotion" placeholder="e.g., calm" />
+            <span class="form-text">One word, such as calm or excited. Only providers with an emotion control (Cartesia) use it.</span>
+        </div>
+    </div>
+</div>
+<div class="mb-3">
+    <label class="form-label">Fallback text-to-speech deployment</label>
+    <InputText class="form-control" list="speech-fallback-deployments" @bind-Value="Model.FallbackTextToSpeechDeploymentName" placeholder="Deployment technical name" />
+    <datalist id="speech-fallback-deployments">
+        @foreach (var name in DeploymentNames)
+        {
+            <option value="@name"></option>
+        }
+    </datalist>
+    <span class="form-text">Used when the first deployment fails before producing audio. It speaks with its own default voice and model.</span>
+</div>
+<div class="mb-3">
+    <label class="form-label">Pronunciations</label>
+    <InputTextArea class="form-control" rows="4" @bind-Value="Model.PronunciationEntriesText" placeholder="SQL=sequel" />
+    <span class="form-text">One <code>word=pronunciation</code> per line, replaced whole-word before synthesis. Add <code>|case</code> at the end of a line to match case.</span>
+</div>
+
+<h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-ear-listen"></i> Listening</h6>
+<div class="mb-3">
+    <label class="form-label">Boosted keywords</label>
+    <InputTextArea class="form-control" rows="3" @bind-Value="Model.BoostedKeywordsText" placeholder="One word or phrase per line" />
+    <span class="form-text">Words and phrases the recognizer should favor, such as product names. Providers that cannot bias recognition ignore them.</span>
+</div>
+<div class="mb-3">
+    <label class="form-label">Recognition languages</label>
+    <InputTextArea class="form-control" rows="2" @bind-Value="Model.RecognitionLanguagesText" placeholder="en-US" />
+    <span class="form-text">One BCP-47 tag per line. The first is the primary language.</span>
+</div>
+<div class="mb-3">
+    <label class="form-label">Interruption sensitivity</label>
+    <InputNumber class="form-control" @bind-Value="Model.InterruptionSensitivity" step="0.05" min="0" max="1" placeholder="Default" />
+    <span class="form-text">From 0 (the AI is never interrupted) to 1 (any caller speech interrupts it). Leave empty for the default behavior.</span>
+</div>
+<div class="mb-3">
+    <div class="form-check form-switch">
+        <InputCheckbox class="form-check-input" @bind-Value="Model.EnableBackchanneling" />
+        <label class="form-check-label">Enable backchanneling</label>
+    </div>
+    <span class="form-text">The AI makes short acknowledging sounds while the caller keeps talking. Available on the cascaded realtime pipeline.</span>
+</div>
+<div class="mb-3">
+    <label class="form-label">Backchannel phrases</label>
+    <InputTextArea class="form-control" rows="3" @bind-Value="Model.BackchannelPhrasesText" placeholder="mm-hm" />
+    <span class="form-text">One per line. Leave empty to use the built-in set.</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public AIProfileViewModel Model { get; set; }
+
+    [Parameter]
+    public IEnumerable<string> DeploymentNames { get; set; } = [];
+}

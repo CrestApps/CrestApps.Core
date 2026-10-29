@@ -104,6 +104,9 @@
                     <button type="button" class="nav-link @(_activeTab == "capabilities" ? "active" : "")" @onclick='() => _activeTab = "capabilities"'>Capabilities</button>
                 </li>
                 <li class="nav-item">
+                    <button type="button" class="nav-link @(_activeTab == "speech" ? "active" : "")" @onclick='() => _activeTab = "speech"'>Speech</button>
+                </li>
+                <li class="nav-item">
                     <button type="button" class="nav-link @(_activeTab == "knowledge" ? "active" : "")" @onclick='() => _activeTab = "knowledge"'>Knowledge</button>
                 </li>
                 <li class="nav-item">
@@ -1071,6 +1074,7 @@
                                         <label class="form-label">Description</label>
                                         <InputTextArea class="form-control" rows="3" @bind-Value="entry.Description" placeholder="What to extract" />
                                     </div>
+                                    <DataExtractionFieldTypeFields Entry="entry" />
                                     <div class="form-check mb-2">
                                         <InputCheckbox class="form-check-input" @bind-Value="entry.AllowMultipleValues" />
                                         <label class="form-check-label">Allow multiple values</label>
@@ -1286,6 +1290,22 @@
                     }
                 </div>
 
+                <!-- Speech Tab -->
+                <div style="display: @(_activeTab == "speech" ? "block" : "none")">
+                    @if (_speechErrors.Count > 0)
+                    {
+                        <div class="alert alert-danger">
+                            <ul class="mb-0">
+                                @foreach (var error in _speechErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    <ProfileSpeechFields Model="_model" DeploymentNames="_deploymentNames" />
+                </div>
+
                 <!-- Settings Tab -->
                 <div style="display: @(_activeTab == "settings" ? "block" : "none")">
                     <div class="mb-3">
@@ -1364,6 +1384,8 @@
     };
 
     private string _activeTab = "basic";
+    private IReadOnlyList<string> _speechErrors = [];
+    private IReadOnlyList<string> _deploymentNames = [];
     private string _nameError;
     private string _selectedApplyTemplateId;
     private string _promptTemplateSearchTerm;
@@ -1428,6 +1450,15 @@
         if (string.IsNullOrWhiteSpace(_model.Name))
         {
             _nameError = "Technical name is required.";
+
+            return;
+        }
+
+        _speechErrors = _model.ValidateSpeech();
+
+        if (_speechErrors.Count > 0)
+        {
+            _activeTab = "speech";
 
             return;
         }
@@ -1703,6 +1734,7 @@
     private async Task PopulateDropdownsAsync()
     {
         var allDeployments = await DeploymentCatalog.GetAllAsync();
+        _deploymentNames = allDeployments.Select(d => d.Name).Where(n => !string.IsNullOrWhiteSpace(n)).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
         await PopulateVoiceOptionsAsync(allDeployments);
 
         _model.ConversationDeployments = (await DeploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Realtime)).Select(d => new KeyValuePair<string, string>(BuildDeploymentLabel(d), d.Name)).ToList();
