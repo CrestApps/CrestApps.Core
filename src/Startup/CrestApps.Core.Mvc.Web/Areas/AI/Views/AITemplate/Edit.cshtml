@@ -720,6 +720,22 @@
                                                               rows="3" placeholder="What to extract">@entry.Description</textarea>
                                                     <span class="form-text">Describes what data to extract. The AI uses this to understand what to look for.</span>
                                                 </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Field type</label>
+                                                    <select class="form-select entry-fieldtype-select" name="DataExtractionEntries[@i].FieldType">
+                                                        @foreach (var fieldType in Enum.GetValues<DataExtractionFieldType>())
+                                                        {
+                                                            <option value="@fieldType" selected="@(entry.FieldType == fieldType)">@fieldType</option>
+                                                        }
+                                                    </select>
+                                                    <span class="form-text">How an extracted value is validated and stored. Text keeps it as extracted.</span>
+                                                </div>
+                                                <div class="mb-3 entry-allowed-values @(entry.FieldType is DataExtractionFieldType.Enum or DataExtractionFieldType.List ? "" : "d-none")">
+                                                    <label class="form-label">Allowed values</label>
+                                                    <textarea class="form-control" name="DataExtractionEntries[@i].AllowedValues"
+                                                              rows="3" placeholder="One per line, or comma separated">@entry.AllowedValues</textarea>
+                                                    <span class="form-text">The values an Enum field may take. For a List field they make it a multiple-choice field; leave empty to accept any text.</span>
+                                                </div>
                                                 <div class="form-check mb-2">
                                                     <input type="checkbox" class="form-check-input"
                                                            name="DataExtractionEntries[@i].AllowMultipleValues" value="true"
@@ -1414,6 +1430,12 @@
                                 '<div class="mb-3"><label class="form-label">Description</label>' +
                                     '<textarea class="form-control" name="DataExtractionEntries[' + index + '].Description" rows="3" placeholder="What to extract"></textarea>' +
                                     '<span class="form-text">Describes what data to extract. The AI uses this to understand what to look for.</span></div>' +
+                                '<div class="mb-3"><label class="form-label">Field type</label>' +
+                                    '<select class="form-select entry-fieldtype-select" name="DataExtractionEntries[' + index + '].FieldType"><option value="Text">Text</option><option value="Number">Number</option><option value="Boolean">Boolean</option><option value="Date">Date</option><option value="Enum">Enum</option><option value="List">List</option></select>' +
+                                    '<span class="form-text">How an extracted value is validated and stored. Text keeps it as extracted.</span></div>' +
+                                '<div class="mb-3 entry-allowed-values d-none"><label class="form-label">Allowed values</label>' +
+                                    '<textarea class="form-control" name="DataExtractionEntries[' + index + '].AllowedValues" rows="3" placeholder="One per line, or comma separated"></textarea>' +
+                                    '<span class="form-text">The values an Enum field may take. For a List field they make it a multiple-choice field; leave empty to accept any text.</span></div>' +
                                 '<div class="form-check mb-2"><input type="checkbox" class="form-check-input" name="DataExtractionEntries[' + index + '].AllowMultipleValues" value="true" />' +
                                     '<label class="form-check-label">Allow multiple values</label>' +
                                     '<span class="form-text d-block">When enabled, the field accumulates multiple values across messages.</span></div>' +
@@ -1429,6 +1451,14 @@
                     if (e.target.closest('.remove-entry-btn')) {
                         var card = e.target.closest('.extraction-entry-card');
                         if (card) card.remove();
+                    }
+                });
+
+                document.addEventListener('change', function (e) {
+                    if (e.target.classList.contains('entry-fieldtype-select')) {
+                        var card = e.target.closest('.extraction-entry-card');
+                        var allowed = card && card.querySelector('.entry-allowed-values');
+                        if (allowed) allowed.classList.toggle('d-none', e.target.value !== 'Enum' && e.target.value !== 'List');
                     }
                 });
 
