@@ -85,6 +85,52 @@ public sealed class DataExtractionValueNormalizerTests
     }
 
     [Fact]
+    public void List_IsMultiValuedWithoutAllowingMultipleValues()
+    {
+        Assert.True(DataExtractionValueNormalizer.IsMultiValued(new DataExtractionEntry { FieldType = DataExtractionFieldType.List }));
+        Assert.True(DataExtractionValueNormalizer.IsMultiValued(new DataExtractionEntry { AllowMultipleValues = true }));
+        Assert.False(DataExtractionValueNormalizer.IsMultiValued(new DataExtractionEntry()));
+    }
+
+    [Fact]
+    public void List_SplitsAStringIntoDistinctItems()
+    {
+        var entry = new DataExtractionEntry { FieldType = DataExtractionFieldType.List };
+
+        var items = DataExtractionValueNormalizer.NormalizeItems(entry, "milk, eggs;Milk\nbread ,, ");
+
+        Assert.Equal(["milk", "eggs", "bread"], items);
+    }
+
+    [Fact]
+    public void List_WithAllowedValues_KeepsOnlyThoseItemsInTheirConfiguredSpelling()
+    {
+        var entry = new DataExtractionEntry { FieldType = DataExtractionFieldType.List, AllowedValues = ["Wifi", "Parking", "Pool"] };
+
+        var items = DataExtractionValueNormalizer.NormalizeItems(entry, "wifi, sauna, pool");
+
+        Assert.Equal(["Wifi", "Pool"], items);
+        Assert.Empty(DataExtractionValueNormalizer.NormalizeItems(entry, "sauna"));
+    }
+
+    [Fact]
+    public void MultiValuedTextField_TakesTheValueAsOneItem()
+    {
+        var entry = new DataExtractionEntry { AllowMultipleValues = true };
+
+        Assert.Equal(["Smith, John"], DataExtractionValueNormalizer.NormalizeItems(entry, "Smith, John"));
+    }
+
+    [Fact]
+    public void MultiValuedNumberField_RejectsItemsThatAreNotNumbers()
+    {
+        var entry = new DataExtractionEntry { AllowMultipleValues = true, FieldType = DataExtractionFieldType.Number };
+
+        Assert.Equal(["12"], DataExtractionValueNormalizer.NormalizeItems(entry, "12"));
+        Assert.Empty(DataExtractionValueNormalizer.NormalizeItems(entry, "many"));
+    }
+
+    [Fact]
     public void ExistingJson_WithoutFieldType_DeserializesAsText()
     {
         var entry = System.Text.Json.JsonSerializer.Deserialize<DataExtractionEntry>("""{"Name":"a","Description":"d","AllowMultipleValues":true}""");

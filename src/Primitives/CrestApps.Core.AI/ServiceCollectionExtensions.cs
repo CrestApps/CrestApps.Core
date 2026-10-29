@@ -158,6 +158,7 @@ public static class ServiceCollectionExtensions
             .AddOptions<AIDeploymentCatalogOptions>().Services
             .AddScoped<IAIClientFactory, DefaultAIClientFactory>()
             .AddScoped<ISpeechVoiceResolver, DefaultSpeechVoiceResolver>()
+            .AddScoped<IVoiceLibraryResolver, DefaultVoiceLibraryResolver>()
             .AddScoped<IRealtimeVoiceResolver, DefaultRealtimeVoiceResolver>();
 
         // Register the multi-source stores used for merged runtime lookups.

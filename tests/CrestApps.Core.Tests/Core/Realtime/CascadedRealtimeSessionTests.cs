@@ -748,6 +748,62 @@ public sealed class CascadedRealtimeSessionTests
         Assert.Equal(remaining, builder.ToString());
     }
 
+    [Fact]
+    public async Task UpdateSession_ChangesTheInstructionsAndToolsFromTheNextReply()
+    {
+        var transcription = new FakeTranscriptionSession();
+        var chatClient = new FakeChatClient(["Fine."]);
+        var original = AIFunctionFactory.Create(() => "a", "original_tool");
+        var replacement = AIFunctionFactory.Create(() => "b", "replacement_tool");
+
+        await using var session = new CascadedRealtimeSession(
+            transcription,
+            chatClient,
+            new FakeSpeechClient(_audioChunk),
+            new RealtimeSessionOptions { Instructions = "You are the first agent." },
+            new ChatOptions { Tools = [original] },
+            new TextToSpeechOptions(),
+            NullLogger.Instance);
+        session.Start();
+
+        session.UpdateSession("You are the second agent.", [replacement]);
+
+        transcription.Emit(Completed("hello"));
+        transcription.Complete();
+        await ReadAllAsync(session);
+
+        var request = Assert.Single(chatClient.Requests);
+        Assert.Equal("You are the second agent.", request[0].Text);
+        Assert.Equal(["replacement_tool"], chatClient.Options.Single()!.Tools!.OfType<AIFunction>().Select(f => f.Name));
+    }
+
+    [Fact]
+    public async Task UpdateSession_WithNothingToChange_KeepsTheCurrentInstructionsAndTools()
+    {
+        var transcription = new FakeTranscriptionSession();
+        var chatClient = new FakeChatClient(["Fine."]);
+        var original = AIFunctionFactory.Create(() => "a", "original_tool");
+
+        await using var session = new CascadedRealtimeSession(
+            transcription,
+            chatClient,
+            new FakeSpeechClient(_audioChunk),
+            new RealtimeSessionOptions { Instructions = "You are the first agent." },
+            new ChatOptions { Tools = [original] },
+            new TextToSpeechOptions(),
+            NullLogger.Instance);
+        session.Start();
+
+        session.UpdateSession(null, null);
+
+        transcription.Emit(Completed("hello"));
+        transcription.Complete();
+        await ReadAllAsync(session);
+
+        Assert.Equal("You are the first agent.", chatClient.Requests.Single()[0].Text);
+        Assert.Equal(["original_tool"], chatClient.Options.Single()!.Tools!.OfType<AIFunction>().Select(f => f.Name));
+    }
+
     private static CascadedRealtimeSession CreateSession(
         FakeTranscriptionSession transcription,
         out FakeChatClient chatClient,

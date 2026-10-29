@@ -27,6 +27,7 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
     private readonly IRealtimeClientSession _session;
     private readonly Func<string, CancellationToken, Task<string?>>? _groundTurnAsync;
     private readonly bool _supportsSpeechSpeed;
+    private readonly Action<IReadOnlyList<AITool>>? _applyTools;
     private int _disposed;
 
     public DefaultRealtimeConversation(IRealtimeClientSession session)
@@ -46,11 +47,13 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
     public DefaultRealtimeConversation(
         IRealtimeClientSession session,
         Func<string, CancellationToken, Task<string?>>? groundTurnAsync,
-        bool supportsSpeechSpeed = true)
+        bool supportsSpeechSpeed = true,
+        Action<IReadOnlyList<AITool>>? applyTools = null)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _groundTurnAsync = groundTurnAsync;
         _supportsSpeechSpeed = supportsSpeechSpeed;
+        _applyTools = applyTools;
     }
 
     /// <inheritdoc />
@@ -58,6 +61,9 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
 
     /// <inheritdoc />
     public bool SupportsSpeechSpeed => _supportsSpeechSpeed;
+
+    /// <inheritdoc />
+    public bool SupportsSessionUpdate => true;
 
     /// <inheritdoc />
     public Task SendAudioAsync(ReadOnlyMemory<byte> audio, CancellationToken cancellationToken = default)
@@ -292,6 +298,61 @@ internal sealed class DefaultRealtimeConversation : IRealtimeConversation
 
         return _session.SendAsync(new RealtimeClientMessage { RawRepresentation = payload }, cancellationToken);
     }
+
+    /// <inheritdoc />
+    public Task UpdateSessionAsync(RealtimeSessionUpdate update, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+
+        var instructions = string.IsNullOrWhiteSpace(update.Instructions) ? null : update.Instructions;
+
+        if (instructions is null && update.Tools is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        // The tools the session may execute change first. The model can only call what the provider was told about,
+        // so the other order would let it call a tool the session no longer runs.
+        if (update.Tools is not null)
+        {
+            _applyTools?.Invoke(update.Tools);
+        }
+
+        // A cascade writes its replies with its own chat leg, which reads the instructions and tools at each turn.
+        if (_session.GetService(typeof(CascadedRealtimeSession)) is CascadedRealtimeSession cascade)
+        {
+            cascade.UpdateSession(instructions, update.Tools);
+
+            return Task.CompletedTask;
+        }
+
+        // A session.update is partial: only what is present changes. Never the voice, which the provider refuses to
+        // change once the assistant has spoken.
+        var session = new Dictionary<string, object?> { ["type"] = "realtime" };
+
+        if (instructions is not null)
+        {
+            session["instructions"] = instructions;
+        }
+
+        if (update.Tools is not null)
+        {
+            session["tools"] = update.Tools.OfType<AIFunctionDeclaration>().Select(ToRealtimeTool).ToArray();
+            session["tool_choice"] = "auto";
+        }
+
+        var payload = JsonSerializer.Serialize(new { type = "session.update", session }, RawJsonOptions);
+
+        return _session.SendAsync(new RealtimeClientMessage { RawRepresentation = payload }, cancellationToken);
+    }
+
+    private static object ToRealtimeTool(AIFunctionDeclaration function) => new
+    {
+        type = "function",
+        name = function.Name,
+        description = function.Description,
+        parameters = function.JsonSchema,
+    };
 
     private static readonly JsonSerializerOptions RawJsonOptions = new()
     {

@@ -51,9 +51,9 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     private readonly IRealtimeClientSession _transcription;
     private readonly IChatClient _chatClient;
     private readonly ITextToSpeechClient _speechClient;
-    private readonly ChatOptions? _chatOptions;
+    private ChatOptions? _chatOptions;
     private readonly TextToSpeechOptions _speechOptions;
-    private readonly string? _instructions;
+    private string? _instructions;
     private readonly bool _respondsAutomatically;
 
     // The conversation so far, without the session's instructions. Only the work consumer reads or changes it.
@@ -183,6 +183,27 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     public void SetSpeechSpeed(double speed)
     {
         Volatile.Write(ref _speechSpeed, RealtimeSpeechSpeedRange.Normalize(speed));
+    }
+
+    /// <summary>
+    /// Replaces the instructions and tools the chat leg writes its replies with, from the next reply.
+    /// </summary>
+    /// <param name="instructions">The new instructions, or <see langword="null"/> to keep the current ones.</param>
+    /// <param name="tools">The new tools, or <see langword="null"/> to keep the current ones.</param>
+    public void UpdateSession(string? instructions, IReadOnlyList<AITool>? tools)
+    {
+        if (tools is not null)
+        {
+            // Swapped for a copy, never edited: a reply being written holds the options it started with.
+            var options = _chatOptions?.Clone() ?? new ChatOptions();
+            options.Tools = [.. tools];
+            Volatile.Write(ref _chatOptions, options);
+        }
+
+        if (instructions is not null)
+        {
+            Volatile.Write(ref _instructions, instructions);
+        }
     }
 
     /// <inheritdoc />
@@ -631,7 +652,7 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     /// <param name="response">The caller's request for the reply, or <see langword="null"/> for a reply to the user.</param>
     private List<ChatMessage> ConversationFor(CreateResponseRealtimeClientMessage? response)
     {
-        var instructions = string.IsNullOrWhiteSpace(response?.Instructions) ? _instructions : response.Instructions;
+        var instructions = string.IsNullOrWhiteSpace(response?.Instructions) ? Volatile.Read(ref _instructions) : response.Instructions;
 
         List<ChatMessage> conversation = [];
 
@@ -660,12 +681,14 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     /// <param name="response">The caller's request for the reply, or <see langword="null"/> for a reply to the user.</param>
     private ChatOptions? OptionsFor(CreateResponseRealtimeClientMessage? response)
     {
+        var chatOptions = Volatile.Read(ref _chatOptions);
+
         if (response?.ToolMode is null && response?.MaxOutputTokens is null)
         {
-            return _chatOptions;
+            return chatOptions;
         }
 
-        var options = _chatOptions?.Clone() ?? new ChatOptions();
+        var options = chatOptions?.Clone() ?? new ChatOptions();
         options.ToolMode = response.ToolMode ?? options.ToolMode;
         options.MaxOutputTokens = response.MaxOutputTokens ?? options.MaxOutputTokens;
 

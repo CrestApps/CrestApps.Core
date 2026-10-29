@@ -56,6 +56,8 @@ This page describes the project architecture and how the major layers depend on 
 | `CrestApps.Core.AI.OpenAI` | OpenAI provider (`ChatClient`, streaming, tool calls) |
 | `CrestApps.Core.AI.OpenAI.Azure` | Azure OpenAI provider with data source integration |
 | `CrestApps.Core.AI.Ollama` | Ollama provider for locally hosted LLMs |
+| `CrestApps.Core.AI.ElevenLabs` | ElevenLabs text-to-speech, Scribe speech recognition, voice search and cloning |
+| `CrestApps.Core.AI.Cartesia` | Cartesia Sonic text-to-speech, Ink speech recognition, voice search and cloning |
 | `CrestApps.Core.AI.AzureAIInference` | Azure AI Inference / GitHub Models provider |
 | `CrestApps.Core.AI.Copilot` | GitHub Copilot chat orchestration, OAuth flow, credential management |
 | `CrestApps.Core.Azure.AISearch` | Azure AI Search provider primitives for client setup, index management, document management, and OData filters |

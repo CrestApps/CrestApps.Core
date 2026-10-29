@@ -90,6 +90,7 @@ const sidebars = {
                         'providers/index',
                         'providers/azure-ai-inference',
                         'providers/azure-openai',
+                        'providers/speech-voices',
                         'providers/ollama',
                         'providers/openai',
                     ],

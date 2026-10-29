@@ -356,6 +356,111 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         Assert.Equal(entries.Count, session.Options!.Tools!.Count);
     }
 
+    [Fact]
+    public async Task SwitchResourceAsync_ReplacesTheInstructionsAndToolsOfARunningSession()
+    {
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var first = new EchoTool();
+        var context = new OrchestrationContext { CompletionContext = new AICompletionContext { SystemMessage = "You are the first agent." } };
+        var entries = new List<ToolRegistryEntry> { new() { Id = first.Name, Name = first.Name, Source = ToolRegistryEntrySource.System } };
+        var session = new FakeRealtimeSession([]);
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(profile, first, new FakeRealtimeClient(session), requestServices, registryEntries: entries, orchestrationContext: context);
+
+        using var scope = AIInvocationScope.Begin();
+
+        await using var conversation = await orchestrator.StartAsync(
+            new RealtimeOrchestrationRequest { Resource = profile },
+            TestContext.Current.CancellationToken);
+
+        context.CompletionContext!.SystemMessage = "You are the second agent.";
+        entries.Clear();
+        entries.Add(new ToolRegistryEntry { Id = "second_tool", Name = "second_tool", Source = ToolRegistryEntrySource.Local });
+
+        await orchestrator.SwitchResourceAsync(conversation, new RealtimeOrchestrationRequest { Resource = profile }, TestContext.Current.CancellationToken);
+
+        var update = session.SentMessages.Last(m => m.RawRepresentation is string);
+        using var json = JsonDocument.Parse((string)update.RawRepresentation!);
+        var sessionNode = json.RootElement.GetProperty("session");
+        Assert.Equal("session.update", json.RootElement.GetProperty("type").GetString());
+        Assert.Contains("You are the second agent.", sessionNode.GetProperty("instructions").GetString());
+        Assert.Equal(["second_tool"], sessionNode.GetProperty("tools").EnumerateArray().Select(t => t.GetProperty("name").GetString()));
+        Assert.False(sessionNode.TryGetProperty("audio", out _));
+    }
+
+    [Fact]
+    public async Task SwitchResourceAsync_MakesTheSessionExecuteTheNewTools()
+    {
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var first = new EchoTool();
+        var second = new NamedTool("second_tool");
+        var entries = new List<ToolRegistryEntry> { new() { Id = first.Name, Name = first.Name, Source = ToolRegistryEntrySource.System } };
+
+        // The provider asks for the new tool, which the session was not opened with.
+        var session = new FakeRealtimeSession(
+        [
+            new ResponseOutputItemRealtimeServerMessage(RealtimeServerMessageType.ResponseOutputItemDone)
+            {
+                Item = new RealtimeConversationItem(
+                    [new FunctionCallContent("call-2", "second_tool", new Dictionary<string, object?>())],
+                    id: "item-2"),
+            },
+        ]);
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(profile, first, new FakeRealtimeClient(session), requestServices, registryEntries: entries, extraTool: second);
+
+        using var scope = AIInvocationScope.Begin();
+
+        await using var conversation = await orchestrator.StartAsync(
+            new RealtimeOrchestrationRequest { Resource = profile },
+            TestContext.Current.CancellationToken);
+
+        entries.Clear();
+        entries.Add(new ToolRegistryEntry { Id = "second_tool", Name = "second_tool", Source = ToolRegistryEntrySource.Local });
+
+        await orchestrator.SwitchResourceAsync(conversation, new RealtimeOrchestrationRequest { Resource = profile }, TestContext.Current.CancellationToken);
+
+        await foreach (var _ in conversation.GetEventsAsync(TestContext.Current.CancellationToken))
+        {
+        }
+
+        Assert.True(second.Invoked);
+    }
+
+    [Fact]
+    public async Task SwitchResourceAsync_ForAConversationThatCannotBeUpdated_Throws()
+    {
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(profile, new EchoTool(), new FakeRealtimeClient(new FakeRealtimeSession([])), requestServices);
+
+        using var scope = AIInvocationScope.Begin();
+
+        await Assert.ThrowsAsync<NotSupportedException>(() => orchestrator.SwitchResourceAsync(
+            new Mock<IRealtimeConversation>().Object,
+            new RealtimeOrchestrationRequest { Resource = profile },
+            TestContext.Current.CancellationToken));
+    }
+
+    private sealed class NamedTool(string name) : AIFunction
+    {
+        public bool Invoked { get; private set; }
+
+        public override string Name => name;
+
+        public override string Description => "named";
+
+        protected override ValueTask<object?> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
+        {
+            Invoked = true;
+
+            return new("ok");
+        }
+    }
+
     /// <summary>
     /// A function that exists only to be counted.
     /// </summary>
@@ -380,9 +485,11 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         IReadOnlyList<ToolRegistryEntry>? registryEntries = null,
         AIDeployment? speechToText = null,
         IEnumerable<AIDeployment>? providerSpeechToText = null,
-        Action? onBuild = null)
+        Action? onBuild = null,
+        OrchestrationContext? orchestrationContext = null,
+        AIFunction? extraTool = null)
     {
-        var context = new OrchestrationContext
+        var context = orchestrationContext ?? new OrchestrationContext
         {
             CompletionContext = new AICompletionContext
             {
@@ -435,7 +542,7 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
             .ReturnsAsync((IReadOnlyList<ToolRegistryEntry> entries, ToolMaterializationOptions _, CancellationToken _) =>
                 new ToolMaterializationResult
                 {
-                    Tools = entries.Select(entry => entry.Name == tool.Name ? tool : (AITool)new StubFunction(entry.Name)).ToList(),
+                    Tools = entries.Select(entry => entry.Name == tool.Name ? tool : entry.Name == extraTool?.Name ? extraTool : (AITool)new StubFunction(entry.Name)).ToList(),
                 });
 
         return new DefaultRealtimeOrchestrator(

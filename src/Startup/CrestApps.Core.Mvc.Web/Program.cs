@@ -20,6 +20,8 @@ using CrestApps.Core.AI.Markdown;
 using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Knowledge;
 using CrestApps.Core.AI.Mcp.Models;
+using CrestApps.Core.AI.Cartesia;
+using CrestApps.Core.AI.ElevenLabs;
 using CrestApps.Core.AI.Ollama;
 using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
@@ -183,6 +185,8 @@ builder.Services
         .AddOpenAI()
         .AddAzureOpenAI()
         .AddOllama()
+        .AddElevenLabs()
+        .AddCartesia()
         .AddAzureAIInference()
     )
     .AddIndexingServices(indexing => indexing

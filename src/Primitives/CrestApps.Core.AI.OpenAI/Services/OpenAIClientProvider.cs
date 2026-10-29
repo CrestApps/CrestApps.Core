@@ -172,8 +172,9 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
         var client = GetOpenAIClient(connection);
 
         return ValueTask.FromResult<ITextToSpeechClient>(
-            new OpenAITextToSpeechFormatClient(
-                new OpenAITextToSpeechStyleClient(client.GetAudioClient(deploymentName).AsITextToSpeechClient(), deploymentName)));
+            new SpeechMarkupTextToSpeechClient(
+                new OpenAITextToSpeechFormatClient(
+                    new OpenAITextToSpeechStyleClient(client.GetAudioClient(deploymentName).AsITextToSpeechClient(), deploymentName))));
     }
 #pragma warning restore MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
 

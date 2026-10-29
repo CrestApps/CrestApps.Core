@@ -175,6 +175,26 @@ public interface IRealtimeConversation : IAsyncDisposable
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets a value indicating whether the session's instructions and tools can be replaced while it runs (see
+    /// <see cref="UpdateSessionAsync"/>).
+    /// </summary>
+    bool SupportsSessionUpdate => false;
+
+    /// <summary>
+    /// Replaces the session's standing instructions and tools while the conversation is running, so a live call can
+    /// switch to another AI profile without hanging up. What was said so far stays in the conversation.
+    /// </summary>
+    /// <remarks>
+    /// The change applies from the model's next response; a response in progress finishes as it started. The new tools
+    /// are also the ones the session executes, so a call to a tool the previous instructions offered but the update
+    /// removed is refused. The default implementation throws <see cref="NotSupportedException"/>.
+    /// </remarks>
+    /// <param name="update">The new instructions and tools.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    Task UpdateSessionAsync(RealtimeSessionUpdate update, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException($"{GetType().Name} cannot change its instructions or tools while it runs.");
+
+    /// <summary>
     /// Gets a value indicating whether the speaking speed can be changed on this session. A cascaded deployment
     /// passes it to its text-to-speech leg, on top of the pace the deployment is configured with.
     /// </summary>

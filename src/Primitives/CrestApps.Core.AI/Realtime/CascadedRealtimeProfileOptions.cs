@@ -23,6 +23,11 @@ public sealed class CascadedRealtimeProfileOptions
     public double? SpeakingRate { get; init; }
 
     /// <summary>
+    /// Gets the emotion the voice speaks with, for a provider with an emotion control, or <see langword="null"/>.
+    /// </summary>
+    public string? SpeakingEmotion { get; init; }
+
+    /// <summary>
     /// Gets the client used when the primary text-to-speech client fails before producing audio. The session owns and
     /// disposes it.
     /// </summary>
@@ -68,6 +73,7 @@ public sealed class CascadedRealtimeProfileOptions
         {
             Pronunciation = dictionary.IsEmpty ? null : dictionary,
             SpeakingRate = ProfileSpeech.NormalizeSpeakingRate(settings.SpeakingRate),
+            SpeakingEmotion = string.IsNullOrWhiteSpace(settings.SpeakingEmotion) ? null : settings.SpeakingEmotion.Trim(),
             FallbackSpeechClient = fallbackSpeechClient,
             BoostedKeywords = ProfileSpeech.Clean(settings.BoostedKeywords),
             RecognitionLanguage = ProfileSpeech.FirstOrDefault(settings.RecognitionLanguages),
