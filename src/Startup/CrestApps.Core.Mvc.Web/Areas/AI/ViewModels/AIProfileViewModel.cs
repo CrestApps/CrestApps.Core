@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.RegularExpressions;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Claude.Services;
@@ -22,6 +23,8 @@ namespace CrestApps.Core.Mvc.Web.Areas.AI.ViewModels;
 
 public sealed class AIProfileViewModel
 {
+    private static readonly Regex _languageTag = new("^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     // Basic Info
     public string ItemId { get; set; }
 
@@ -177,6 +180,17 @@ public sealed class AIProfileViewModel
     public int SessionInactivityTimeoutInMinutes { get; set; } = 30;
     public List<DataExtractionEntryItem> DataExtractionEntries { get; set; } = [];
 
+    // Speech (AIProfileSpeechSettings). Lists are edited as one item per line.
+    public double? SpeakingRate { get; set; }
+    public string SpeakingEmotion { get; set; }
+    public string FallbackTextToSpeechDeploymentName { get; set; }
+    public string PronunciationEntries { get; set; }
+    public string BoostedKeywords { get; set; }
+    public string RecognitionLanguages { get; set; }
+    public double? InterruptionSensitivity { get; set; }
+    public bool EnableBackchanneling { get; set; }
+    public string BackchannelPhrases { get; set; }
+
     // Session Metrics
     public bool EnableSessionMetrics { get; set; }
     public bool EnableAIResolutionDetection { get; set; } = true;
@@ -240,6 +254,9 @@ public sealed class AIProfileViewModel
     public IEnumerable<SelectListItem> UtilityDeployments { get; set; } = [];
 
     [BindNever]
+    public IEnumerable<SelectListItem> TextToSpeechDeployments { get; set; } = [];
+
+    [BindNever]
     public IEnumerable<SelectListItem> Templates { get; set; } = [];
 
     [BindNever]
@@ -282,6 +299,7 @@ public sealed class AIProfileViewModel
         var postSessionSettings = profile.GetOrCreateSettings<AIProfilePostSessionSettings>();
         var memoryMetadata = profile.GetOrCreate<MemoryMetadata>();
         profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings);
+        profile.TryGetSettings<AIProfileSpeechSettings>(out var speechSettings);
 
         var vm = new AIProfileViewModel
         {
@@ -309,14 +327,17 @@ public sealed class AIProfileViewModel
             ExtractionCheckInterval = dataExtractionSettings.ExtractionCheckInterval,
             SessionInactivityTimeoutInMinutes = dataExtractionSettings.SessionInactivityTimeoutInMinutes,
             DataExtractionEntries = dataExtractionSettings.DataExtractionEntries
-                .Select(e => new DataExtractionEntryItem
-                {
-                    Name = e.Name,
-                    Description = e.Description,
-                    AllowMultipleValues = e.AllowMultipleValues,
-                    IsUpdatable = e.IsUpdatable,
-                })
+                .Select(DataExtractionEntryItem.FromEntry)
             .ToList(),
+            SpeakingRate = speechSettings?.SpeakingRate,
+            SpeakingEmotion = speechSettings?.SpeakingEmotion,
+            FallbackTextToSpeechDeploymentName = speechSettings?.FallbackTextToSpeechDeploymentName,
+            PronunciationEntries = SpeechTextFormat.FormatPronunciations(speechSettings?.PronunciationEntries),
+            BoostedKeywords = SpeechTextFormat.FormatLines(speechSettings?.BoostedKeywords),
+            RecognitionLanguages = SpeechTextFormat.FormatLines(speechSettings?.RecognitionLanguages),
+            InterruptionSensitivity = speechSettings?.InterruptionSensitivity,
+            EnableBackchanneling = speechSettings?.EnableBackchanneling ?? false,
+            BackchannelPhrases = SpeechTextFormat.FormatLines(speechSettings?.BackchannelPhrases),
             EnablePostSessionProcessing = postSessionSettings.EnablePostSessionProcessing,
             PostSessionTasks = postSessionSettings.PostSessionTasks.Select(t => new PostSessionTaskItem
             {
@@ -518,6 +539,82 @@ public sealed class AIProfileViewModel
         return selections.Count == 0 ? null : selections;
     }
 
+    /// <summary>
+    /// Adds a model error for every speech setting that is outside the range the runtime accepts or cannot be read.
+    /// </summary>
+    public void ValidateSpeech(ModelStateDictionary modelState)
+    {
+        if (SpeakingRate.HasValue && (double.IsNaN(SpeakingRate.Value) || SpeakingRate.Value < 0.25 || SpeakingRate.Value > 4))
+        {
+            modelState.AddModelError(nameof(SpeakingRate), "Speaking rate must be between 0.25 and 4.");
+        }
+
+        if (InterruptionSensitivity.HasValue && (double.IsNaN(InterruptionSensitivity.Value) || InterruptionSensitivity.Value < 0 || InterruptionSensitivity.Value > 1))
+        {
+            modelState.AddModelError(nameof(InterruptionSensitivity), "Interruption sensitivity must be between 0 and 1.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(SpeakingEmotion) && SpeakingEmotion.Trim().Any(char.IsWhiteSpace))
+        {
+            modelState.AddModelError(nameof(SpeakingEmotion), "Speaking emotion must be a single word, such as calm or excited.");
+        }
+
+        SpeechTextFormat.ParsePronunciations(PronunciationEntries, out var invalidLines);
+
+        if (invalidLines.Count > 0)
+        {
+            modelState.AddModelError(nameof(PronunciationEntries), $"Each pronunciation must be written as word=pronunciation. Check: {string.Join(", ", invalidLines)}.");
+        }
+
+        var invalidLanguages = SpeechTextFormat.ParseLines(RecognitionLanguages)
+            .Where(language => !_languageTag.IsMatch(language))
+            .ToList();
+
+        if (invalidLanguages.Count > 0)
+        {
+            modelState.AddModelError(nameof(RecognitionLanguages), $"Recognition languages must be BCP-47 tags such as en-US. Check: {string.Join(", ", invalidLanguages)}.");
+        }
+    }
+
+    private void ApplySpeechTo(AIProfile profile)
+    {
+        var pronunciations = SpeechTextFormat.ParsePronunciations(PronunciationEntries, out _);
+        var boostedKeywords = SpeechTextFormat.ParseLines(BoostedKeywords);
+        var recognitionLanguages = SpeechTextFormat.ParseLines(RecognitionLanguages);
+        var backchannelPhrases = SpeechTextFormat.ParseLines(BackchannelPhrases);
+        var emotion = string.IsNullOrWhiteSpace(SpeakingEmotion) ? null : SpeakingEmotion.Trim();
+        var fallback = string.IsNullOrWhiteSpace(FallbackTextToSpeechDeploymentName) ? null : FallbackTextToSpeechDeploymentName.Trim();
+
+        var isDefault = !SpeakingRate.HasValue
+            && emotion is null
+            && fallback is null
+            && !InterruptionSensitivity.HasValue
+            && !EnableBackchanneling
+            && pronunciations.Count == 0
+            && boostedKeywords.Count == 0
+            && recognitionLanguages.Count == 0
+            && backchannelPhrases.Count == 0;
+
+        // A profile that never used speech settings keeps none, rather than carrying an empty object.
+        if (isDefault && !profile.TryGetSettings<AIProfileSpeechSettings>(out _))
+        {
+            return;
+        }
+
+        profile.AlterSettings<AIProfileSpeechSettings>(s =>
+        {
+            s.SpeakingRate = SpeakingRate;
+            s.SpeakingEmotion = emotion;
+            s.FallbackTextToSpeechDeploymentName = fallback;
+            s.PronunciationEntries = pronunciations;
+            s.BoostedKeywords = boostedKeywords;
+            s.RecognitionLanguages = recognitionLanguages;
+            s.InterruptionSensitivity = InterruptionSensitivity;
+            s.EnableBackchanneling = EnableBackchanneling;
+            s.BackchannelPhrases = backchannelPhrases;
+        });
+    }
+
     public void ApplyTo(AIProfile profile)
     {
         profile.Name = Name;
@@ -574,6 +671,8 @@ public sealed class AIProfileViewModel
                 : null;
             settings.EnableTextToSpeechPlayback = EnableTextToSpeechPlayback;
         });
+
+        ApplySpeechTo(profile);
 
         var toolNames = SelectedToolNames?.Where(n => !string.IsNullOrWhiteSpace(n)).ToArray();
 
@@ -691,13 +790,7 @@ public sealed class AIProfileViewModel
             s.SessionInactivityTimeoutInMinutes = SessionInactivityTimeoutInMinutes;
             s.DataExtractionEntries = (DataExtractionEntries ?? [])
             .Where(e => !string.IsNullOrWhiteSpace(e.Name))
-            .Select(e => new DataExtractionEntry
-            {
-                Name = e.Name,
-                Description = e.Description,
-                AllowMultipleValues = e.AllowMultipleValues,
-                IsUpdatable = e.IsUpdatable,
-            })
+            .Select(e => e.ToEntry())
         .ToList();
         });
 

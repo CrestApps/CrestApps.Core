@@ -365,13 +365,7 @@ public sealed class AITemplateViewModel
                 model.ExtractionCheckInterval = dataExtractionSettings.ExtractionCheckInterval;
                 model.SessionInactivityTimeoutInMinutes = dataExtractionSettings.SessionInactivityTimeoutInMinutes;
                 model.DataExtractionEntries = dataExtractionSettings.DataExtractionEntries
-                    .Select(e => new DataExtractionEntryItem
-                    {
-                        Name = e.Name,
-                        Description = e.Description,
-                        AllowMultipleValues = e.AllowMultipleValues,
-                        IsUpdatable = e.IsUpdatable,
-                    })
+                    .Select(DataExtractionEntryItem.FromEntry)
                 .ToList();
             }
 
@@ -591,13 +585,7 @@ public sealed class AITemplateViewModel
                 SessionInactivityTimeoutInMinutes = SessionInactivityTimeoutInMinutes,
                 DataExtractionEntries = (DataExtractionEntries ?? [])
                     .Where(e => !string.IsNullOrWhiteSpace(e.Name))
-                    .Select(e => new DataExtractionEntry
-                    {
-                        Name = e.Name,
-                        Description = e.Description,
-                        AllowMultipleValues = e.AllowMultipleValues,
-                        IsUpdatable = e.IsUpdatable,
-                    })
+                    .Select(e => e.ToEntry())
                 .ToList(),
             });
 

@@ -161,6 +161,7 @@ public sealed class AIProfileController : Controller
         }
 
         await ValidateDeploymentCapabilitiesAsync(model);
+        model.ValidateSpeech(ModelState);
 
         if (!ModelState.IsValid)
         {
@@ -228,6 +229,7 @@ public sealed class AIProfileController : Controller
         }
 
         await ValidateDeploymentCapabilitiesAsync(model);
+        model.ValidateSpeech(ModelState);
 
         if (!ModelState.IsValid)
         {
@@ -328,6 +330,7 @@ public sealed class AIProfileController : Controller
         model.ChatDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Chat)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.UtilityDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Utility)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.RealtimeDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.Realtime)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
+        model.TextToSpeechDeployments = (await _deploymentManager.GetAllBySlotAsync(AIDeploymentSlotNames.TextToSpeech)).Select(d => new SelectListItem(BuildDeploymentLabel(d), d.Name)).ToList();
         model.AvailablePersonas = await AIPersonaSelectListBuilder.BuildAsync(HttpContext.RequestServices.GetService<IAIPersonaManager>(), model.PersonaId);
         model.PersonaVoices = await AIPersonaSelectListBuilder.GetVoicesAsync(HttpContext.RequestServices.GetService<IAIPersonaManager>());
         var orchestrators = _orchestratorOptions.GetOrchestratorDescriptors();

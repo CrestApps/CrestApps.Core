@@ -1,0 +1,26 @@
+@using CrestApps.Core.AI.Models
+@using CrestApps.Core.Blazor.Web.ViewModels
+
+<div class="mb-3">
+    <label class="form-label">Value type</label>
+    <InputSelect class="form-select" @bind-Value="Entry.FieldType">
+        @foreach (var type in Enum.GetValues<DataExtractionFieldType>())
+        {
+            <option value="@type">@type</option>
+        }
+    </InputSelect>
+    <span class="form-text">Text keeps values as extracted. Other types are validated and normalized before they are stored.</span>
+</div>
+@if (Entry.UsesAllowedValues)
+{
+    <div class="mb-3">
+        <label class="form-label">Allowed values</label>
+        <InputTextArea class="form-control" rows="3" @bind-Value="Entry.AllowedValuesText" placeholder="One per line, or comma separated" />
+        <span class="form-text">@(Entry.FieldType == DataExtractionFieldType.Enum ? "The value must be one of these. Leave empty to accept any text." : "Each item must be one of these. Leave empty to accept any text.")</span>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public DataExtractionEntryItem Entry { get; set; }
+}

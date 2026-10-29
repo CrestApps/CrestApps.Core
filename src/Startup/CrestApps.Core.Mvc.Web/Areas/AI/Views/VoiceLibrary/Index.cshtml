@@ -1,0 +1,192 @@
+﻿@using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
+@model VoiceLibraryViewModel
+@{
+    ViewData["Title"] = "Voice Library";
+}
+
+<h2><i class="fa-solid fa-microphone-lines"></i> Voice Library</h2>
+<p class="text-muted">
+    Search the voices a speech deployment's provider (ElevenLabs, Cartesia) can speak with and, where the provider supports it,
+    clone a voice from recordings. Pick a voice id from here as a profile's or persona's voice.
+</p>
+<hr />
+
+@if (TempData["SuccessMessage"] is string successMessage)
+{
+    <div class="alert alert-success">@successMessage</div>
+}
+
+@if (TempData["ErrorMessage"] is string errorMessage)
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+<div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+<form asp-action="Index" method="get" class="row g-3 align-items-end mb-4">
+    <div class="col-md-3">
+        <label asp-for="Deployment" class="form-label">Speech deployment</label>
+        <select asp-for="Deployment" class="form-select" asp-items="Model.Deployments">
+            <option value="">Select a deployment</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="Query" class="form-label">Search</label>
+        <input asp-for="Query" class="form-control" placeholder="Name or description" />
+    </div>
+    <div class="col-md-2">
+        <label asp-for="Language" class="form-label">Language</label>
+        <input asp-for="Language" class="form-control" placeholder="e.g., es or en-US" />
+    </div>
+    <div class="col-md-2">
+        <label asp-for="Gender" class="form-label">Gender</label>
+        <select asp-for="Gender" class="form-select">
+            <option value="">Any</option>
+            <option value="Female">Female</option>
+            <option value="Male">Male</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+    </div>
+</form>
+
+@if (!Model.Deployments.Any())
+{
+    <div class="alert alert-info">
+        <i class="fa-solid fa-circle-info"></i> No text-to-speech deployments are configured.
+        <a asp-controller="AIDeployment" asp-action="Index">Add an ElevenLabs or Cartesia deployment</a> first.
+    </div>
+}
+else if (string.IsNullOrWhiteSpace(Model.Deployment))
+{
+    <div class="alert alert-secondary">Choose a speech deployment to browse its voices.</div>
+}
+else if (!Model.HasLibrary)
+{
+    <div class="alert alert-warning">
+        <i class="fa-solid fa-triangle-exclamation"></i> The selected deployment has no voice library. Only providers that publish one, such as ElevenLabs and Cartesia, can be searched.
+    </div>
+}
+else
+{
+    @if (Model.HasSearched)
+    {
+        @if (Model.Voices.Count == 0)
+        {
+            <div class="alert alert-info">No voices match this search.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Name</th>
+                            <th>Voice id</th>
+                            <th>Language</th>
+                            <th>Gender</th>
+                            <th>Sample</th>
+                            @if (Model.SupportsCloning)
+                            {
+                                <th></th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var voice in Model.Voices)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@voice.Name</td>
+                                <td><code>@voice.Id</code></td>
+                                <td>@(string.IsNullOrEmpty(voice.Language) ? "—" : voice.Language)</td>
+                                <td>@(voice.Gender == SpeechVoiceGender.Unknown ? "—" : voice.Gender.ToString())</td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(voice.VoiceSampleUrl))
+                                    {
+                                        <audio controls preload="none" src="@voice.VoiceSampleUrl" style="height: 32px;"></audio>
+                                    }
+                                </td>
+                                @if (Model.SupportsCloning)
+                                {
+                                    <td>
+                                        <form asp-action="Delete" method="post" class="d-inline" onsubmit="return confirm('Delete this voice? Only voices created by cloning can be deleted.');">
+                                            <input type="hidden" name="deployment" value="@Model.Deployment" />
+                                            <input type="hidden" name="voiceId" value="@voice.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-trash"></i> Delete</button>
+                                        </form>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <div class="d-flex gap-2 mb-4">
+            @if (!string.IsNullOrEmpty(Model.Cursor))
+            {
+                <a class="btn btn-outline-secondary"
+                   asp-action="Index"
+                   asp-route-deployment="@Model.Deployment"
+                   asp-route-query="@Model.Query"
+                   asp-route-language="@Model.Language"
+                   asp-route-gender="@Model.Gender">
+                    <i class="fa-solid fa-angles-left"></i> First page
+                </a>
+            }
+            @if (!string.IsNullOrEmpty(Model.NextCursor))
+            {
+                <a class="btn btn-outline-secondary"
+                   asp-action="Index"
+                   asp-route-deployment="@Model.Deployment"
+                   asp-route-query="@Model.Query"
+                   asp-route-language="@Model.Language"
+                   asp-route-gender="@Model.Gender"
+                   asp-route-cursor="@Model.NextCursor">
+                    Next page <i class="fa-solid fa-angle-right"></i>
+                </a>
+            }
+        </div>
+    }
+
+    @if (Model.SupportsCloning)
+    {
+        <div class="card">
+            <div class="card-header"><i class="fa-solid fa-clone"></i> Clone a voice</div>
+            <div class="card-body">
+                <p class="text-muted">
+                    Upload one or more recordings of the speaker. The recordings are stored with the provider. Get the speaker's consent first.
+                </p>
+                <form asp-action="Clone" method="post" enctype="multipart/form-data" class="row g-3">
+                    <input type="hidden" name="deployment" value="@Model.Deployment" />
+                    <div class="col-md-4">
+                        <label class="form-label" for="cloneName">Name <span class="text-danger">*</span></label>
+                        <input id="cloneName" name="name" class="form-control" required placeholder="e.g., Support agent" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="cloneLanguage">Language</label>
+                        <input id="cloneLanguage" name="language" class="form-control" placeholder="e.g., en" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="cloneDescription">Description</label>
+                        <input id="cloneDescription" name="description" class="form-control" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="cloneFiles">Recordings <span class="text-danger">*</span></label>
+                        <input id="cloneFiles" name="files" type="file" class="form-control" accept="audio/*" multiple required />
+                        <div class="form-text">Audio files up to 25 MB each. Some providers use only the first recording.</div>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-success"><i class="fa-solid fa-wand-magic-sparkles"></i> Clone voice</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-secondary">This provider's library can be searched but does not support cloning.</div>
+    }
+}
