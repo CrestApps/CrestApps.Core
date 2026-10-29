@@ -521,6 +521,34 @@ Speech-to-speech providers receive the message as a `conversation.item.create`; 
 chat leg's history. An `IRealtimeConversation` implementation that does not override `AddMessageAsync` throws
 `NotSupportedException`.
 
+## Switching profile during a call
+
+A running session can change the instructions and the tools it works with, so a live call can move to another AI
+profile without hanging up. What was said so far stays in the conversation.
+
+```csharp
+// Inside the same AIInvocationScope the call was started in.
+await orchestrator.SwitchResourceAsync(
+    conversation,
+    new RealtimeOrchestrationRequest { Resource = otherProfile },
+    cancellationToken);
+```
+
+`SwitchResourceAsync` builds the new profile's system message and tools exactly as `StartAsync` does and applies them
+through `IRealtimeConversation.UpdateSessionAsync(new RealtimeSessionUpdate { Instructions = ..., Tools = ... })`. A
+host that has already prepared the instructions and tools can call `UpdateSessionAsync` directly; `null` leaves that
+part as it is and an empty tool list removes every tool.
+
+- The change applies from the model's next response; a response in progress finishes as it started.
+- The session executes the new tools only: a call to a tool the previous profile offered is refused.
+- A speech-to-speech provider receives a partial `session.update` with `instructions` and `tools`; a cascaded
+  deployment swaps what its chat leg uses for the next reply.
+- The voice, the realtime deployment and the turn detection do not change. A provider refuses a new voice once the
+  assistant has spoken, so the new profile's voice is ignored for the rest of the call.
+- A grounded session keeps retrieving per turn, now from the new profile's knowledge.
+- `IRealtimeConversation.SupportsSessionUpdate` says whether an implementation can do this; one that cannot throws
+  `NotSupportedException`.
+
 ## Interruptions
 
 When the user barges in, the server tells the provider how much of the reply was actually heard

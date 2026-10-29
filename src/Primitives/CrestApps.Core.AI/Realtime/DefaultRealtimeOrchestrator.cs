@@ -34,6 +34,10 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<DefaultRealtimeOrchestrator> _logger;
 
+    // What each running conversation retrieves knowledge from, which a switch replaces. Static because the request
+    // that switches a conversation is not always served by the orchestrator instance that started it.
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IRealtimeConversation, SessionState> _sessions = [];
+
     /// <summary>
     /// Initializes a new instance of the <see cref="DefaultRealtimeOrchestrator"/> class.
     /// </summary>
@@ -71,38 +75,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Resource);
 
-        // PREPARE: reuse the shared orchestration pipeline. There is no up-front user message in a live audio
-        // session, so the shared preemptive RAG handler self-skips and RealtimeRagGuidanceHandler adds
-        // search-tool guidance. Retrieval instead runs per turn through IRealtimeTurnGrounding, once the
-        // provider has transcribed what the user actually said.
-        SetChatResourcesOnInvocationScope(request);
-
-        var context = await _contextBuilder.BuildAsync(
-            request.Resource,
-            ctx =>
-            {
-                ctx.ExecutionMode = OrchestrationExecutionMode.Realtime;
-                ctx.ConversationHistory = [];
-
-                // Expose the chat session so document-aware handlers (RAG search, tabular) discover the
-                // session-attached documents during PREPARE, exactly as the text path does in
-                // AIChatResponseHandler. Chat interactions carry their documents on the resource itself.
-                if (request.ChatSession is not null && ctx.CompletionContext is not null)
-                {
-                    ctx.CompletionContext.AdditionalProperties[AICompletionContextKeys.Session] = request.ChatSession;
-                }
-
-                request.ConfigureContext?.Invoke(ctx);
-
-                // Decided here, before the BuiltAsync handlers run, because it changes what they should say:
-                // a grounded session is handed its knowledge, so RealtimeRagGuidanceHandler must not also tell
-                // the model to go and search for it.
-                ctx.Properties[RealtimeOrchestrationContextKeys.GroundingEnabled] = _turnGrounding.IsGroundingAvailable(ctx, request.Resource);
-            },
-            cancellationToken);
-
-        var hasInvocationScope = PopulateInvocationScope(context, request);
-
+        var (context, hasInvocationScope) = await BuildContextAsync(request, groundingOverride: null, cancellationToken);
         // Resolved through the realtime slot, so the request's own deployment name, the site default, and
         // the "first realtime-capable" fallback all come from the same ordered chain every other slot uses.
         var deployment = await _deploymentManager.ResolveSlotAsync(
@@ -187,10 +160,13 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         // Wrap the provider client with the MEAI function-invocation middleware. The request service
         // provider becomes the tools' AIFunctionArguments.Services, matching the text path; AdditionalTools
         // guarantees the middleware can resolve every advertised tool for invocation.
+        FunctionInvokingRealtimeClient functionInvoker = null;
+
         var client = rawClient
             .AsBuilder()
             .UseFunctionInvocation(_loggerFactory, invoker =>
             {
+                functionInvoker = invoker;
                 invoker.UseTextToolResults();
 
                 if (tools.Count > 0)
@@ -211,11 +187,110 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
                 request.Resource.GetType().Name, deployment.Name, tools.Count, isGrounded);
         }
 
-        return new DefaultRealtimeConversation(
+        var state = new SessionState(context, request.Resource);
+
+        var conversation = new DefaultRealtimeConversation(
             session,
             isGrounded
-                ? (utterance, token) => _turnGrounding.RetrieveAsync(context, request.Resource, utterance, token)
-                : null);
+                ? (utterance, token) => _turnGrounding.RetrieveAsync(state.Context, state.Resource, utterance, token)
+                : null,
+            applyTools: updated =>
+            {
+                // Replaced, not edited: the middleware may be reading the list while a call is being resolved.
+                if (functionInvoker is not null)
+                {
+                    functionInvoker.AdditionalTools = [.. updated];
+                }
+            });
+
+        _sessions.Add(conversation, state);
+
+        return conversation;
+    }
+
+    private async Task<(OrchestrationContext Context, bool HasInvocationScope)> BuildContextAsync(
+        RealtimeOrchestrationRequest request,
+        bool? groundingOverride,
+        CancellationToken cancellationToken)
+    {
+        // PREPARE: reuse the shared orchestration pipeline. There is no up-front user message in a live audio
+        // session, so the shared preemptive RAG handler self-skips and RealtimeRagGuidanceHandler adds
+        // search-tool guidance. Retrieval instead runs per turn through IRealtimeTurnGrounding, once the
+        // provider has transcribed what the user actually said.
+        SetChatResourcesOnInvocationScope(request);
+
+        var context = await _contextBuilder.BuildAsync(
+            request.Resource,
+            ctx =>
+            {
+                ctx.ExecutionMode = OrchestrationExecutionMode.Realtime;
+                ctx.ConversationHistory = [];
+
+                // Expose the chat session so document-aware handlers (RAG search, tabular) discover the
+                // session-attached documents during PREPARE, exactly as the text path does in
+                // AIChatResponseHandler. Chat interactions carry their documents on the resource itself.
+                if (request.ChatSession is not null && ctx.CompletionContext is not null)
+                {
+                    ctx.CompletionContext.AdditionalProperties[AICompletionContextKeys.Session] = request.ChatSession;
+                }
+
+                request.ConfigureContext?.Invoke(ctx);
+
+                // Decided here, before the BuiltAsync handlers run, because it changes what they should say:
+                // a grounded session is handed its knowledge, so RealtimeRagGuidanceHandler must not also tell
+                // the model to go and search for it.
+                ctx.Properties[RealtimeOrchestrationContextKeys.GroundingEnabled] = groundingOverride ?? _turnGrounding.IsGroundingAvailable(ctx, request.Resource);
+            },
+            cancellationToken);
+
+        var hasInvocationScope = PopulateInvocationScope(context, request);
+
+        return (context, hasInvocationScope);
+    }
+
+    /// <inheritdoc />
+    public async Task SwitchResourceAsync(IRealtimeConversation conversation, RealtimeOrchestrationRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(conversation);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Resource);
+
+        if (!conversation.SupportsSessionUpdate)
+        {
+            throw new NotSupportedException($"{conversation.GetType().Name} cannot change its instructions or tools while it runs.");
+        }
+
+        // Grounding is decided when the session opens (it defers the provider's own replies), so the new resource is
+        // prepared the same way rather than as it would be on its own.
+        var (context, hasInvocationScope) = await BuildContextAsync(request, groundingOverride: !conversation.RespondsAutomatically, cancellationToken);
+        var tools = await MaterializeToolsAsync(context, request.Resource, cancellationToken);
+
+        if (!hasInvocationScope && tools.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "A realtime session was switched to a resource with tools but without an active AIInvocationScope. Call SwitchResourceAsync inside the scope the conversation was started in.");
+        }
+
+        if (_sessions.TryGetValue(conversation, out var state))
+        {
+            state.Context = context;
+            state.Resource = request.Resource;
+        }
+
+        await conversation.UpdateSessionAsync(
+            new RealtimeSessionUpdate
+            {
+                Instructions = context.CompletionContext?.SystemMessage,
+                Tools = tools,
+            },
+            cancellationToken);
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Switched a realtime session to resource '{ResourceType}' with {ToolCount} tool(s).",
+                request.Resource.GetType().Name, tools.Count);
+        }
     }
 
     /// <summary>
@@ -443,5 +518,12 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         {
             invocation.ChatInteraction = request.Interaction;
         }
+    }
+
+    private sealed class SessionState(OrchestrationContext context, object resource)
+    {
+        public OrchestrationContext Context { get; set; } = context;
+
+        public object Resource { get; set; } = resource;
     }
 }
