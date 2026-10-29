@@ -30,4 +30,11 @@ public enum DataExtractionFieldType
     /// One of the entry's <see cref="DataExtractionEntry.AllowedValues"/>, stored with the casing configured there.
     /// </summary>
     Enum = 4,
+
+    /// <summary>
+    /// A list of items, collected across messages like a field with <see cref="DataExtractionEntry.AllowMultipleValues"/>
+    /// and stored one item per value without duplicates. When the entry has <see cref="DataExtractionEntry.AllowedValues"/>,
+    /// every item must be one of them (a multiple-choice field); otherwise any text is an item.
+    /// </summary>
+    List = 5,
 }

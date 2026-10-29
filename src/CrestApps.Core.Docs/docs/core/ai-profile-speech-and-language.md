@@ -70,7 +70,7 @@ A host that calls TTS itself can use the same helpers: `PronunciationDictionary`
 
 ## Typed extraction fields: `DataExtractionEntry`
 
-`DataExtractionEntry` gains `FieldType` (`Text`, `Number`, `Boolean`, `Date`, `Enum`) and `AllowedValues` (for `Enum`).
+`DataExtractionEntry` gains `FieldType` (`Text`, `Number`, `Boolean`, `Date`, `Enum`, `List`) and `AllowedValues` (for `Enum`).
 The default is `Text`, which stores values as extracted, so existing entries and stored JSON are unchanged.
 
 `DataExtractionValueNormalizer.TryNormalize` runs on every extracted value before it is stored:
@@ -81,6 +81,13 @@ The default is `Text`, which stores values as extracted, so existing entries and
 | `Boolean` | `true` / `false` (accepts yes/no/y/n/1/0) | anything else |
 | `Date` | `yyyy-MM-dd` | not a date |
 | `Enum` | the allowed value's configured spelling | not in `AllowedValues` (an enum with none is kept as text) |
+| `List` | one stored value per item, without duplicates | an item is not in `AllowedValues` (a list with none takes any text) |
+
+A `List` field is collected across messages like a field with `AllowMultipleValues`; set either and the field keeps
+several values (`DataExtractionValueNormalizer.IsMultiValued`). A list also accepts one string holding several items
+separated by commas, semicolons or line breaks, because a model does not always return an array. Give a list
+`AllowedValues` to make it a multiple-choice field. Any other multi-valued field takes each value as one item, and
+validates it against its type.
 
 A rejected value is dropped and logged at debug level. Typed fields also tell the model the expected type (the
 `data-extraction-prompt` template); untyped fields produce the same prompt as before.

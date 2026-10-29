@@ -13,6 +13,51 @@ public static class DataExtractionValueNormalizer
     private static readonly string[] _falseValues = ["false", "no", "n", "nope", "0", "off"];
 
     /// <summary>
+    /// Gets whether the field keeps several values: it allows them explicitly, or it is a
+    /// <see cref="DataExtractionFieldType.List"/>.
+    /// </summary>
+    /// <param name="entry">The field definition.</param>
+    public static bool IsMultiValued(DataExtractionEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        return entry.AllowMultipleValues || entry.FieldType == DataExtractionFieldType.List;
+    }
+
+    /// <summary>
+    /// Normalizes an extracted value of a multi-valued field into its items. A list field accepts one string holding
+    /// several items separated by commas, semicolons or line breaks, since a model does not always return an array;
+    /// any other multi-valued field takes the value as one item.
+    /// </summary>
+    /// <param name="entry">The field definition.</param>
+    /// <param name="value">The extracted value.</param>
+    /// <returns>The valid, distinct items in the order given; empty when none is valid.</returns>
+    public static IReadOnlyList<string> NormalizeItems(DataExtractionEntry entry, string value)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [];
+        }
+
+        var parts = entry.FieldType == DataExtractionFieldType.List
+            ? value.Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            : [value];
+        var items = new List<string>(parts.Length);
+
+        foreach (var part in parts)
+        {
+            if (TryNormalize(entry, part, out var item) && !items.Contains(item, StringComparer.OrdinalIgnoreCase))
+            {
+                items.Add(item);
+            }
+        }
+
+        return items;
+    }
+
+    /// <summary>
     /// Normalizes a value for the field.
     /// </summary>
     /// <param name="entry">The field definition.</param>
@@ -57,8 +102,10 @@ public static class DataExtractionValueNormalizer
 
                 return normalized is not null;
 
+            case DataExtractionFieldType.List:
             case DataExtractionFieldType.Enum:
-                // An enum with nothing to choose from cannot be validated; keep the value rather than lose it.
+                // An enum with nothing to choose from cannot be validated; keep the value rather than lose it. A list
+                // is free text unless it names the items it may hold.
                 if (entry.AllowedValues is not { Count: > 0 } allowed)
                 {
                     normalized = trimmed;

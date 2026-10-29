@@ -130,7 +130,7 @@ public sealed class DataExtractionService
 
         foreach (var entry in settings.DataExtractionEntries)
         {
-            if (entry.AllowMultipleValues)
+            if (DataExtractionValueNormalizer.IsMultiValued(entry))
             {
                 fieldsToExtract.Add(entry);
                 continue;
@@ -298,24 +298,29 @@ public sealed class DataExtractionService
                 session.ExtractedData[entry.Name] = state;
             }
 
-            if (entry.AllowMultipleValues)
+            if (DataExtractionValueNormalizer.IsMultiValued(entry))
             {
                 var now = _timeProvider.GetUtcNow().UtcDateTime;
 
                 foreach (var rawValue in result.Values)
                 {
-                    if (!DataExtractionValueNormalizer.TryNormalize(entry, rawValue, out var value))
+                    var items = DataExtractionValueNormalizer.NormalizeItems(entry, rawValue);
+
+                    if (items.Count == 0)
                     {
                         LogRejectedValue(entry, session);
 
                         continue;
                     }
 
-                    if (!state.Values.Contains(value, StringComparer.OrdinalIgnoreCase))
+                    foreach (var value in items)
                     {
-                        state.Values.Add(value);
-                        state.LastExtractedUtc = now;
-                        changeSet.NewFields.Add(new ExtractedFieldChange(entry.Name, value, entry.AllowMultipleValues));
+                        if (!state.Values.Contains(value, StringComparer.OrdinalIgnoreCase))
+                        {
+                            state.Values.Add(value);
+                            state.LastExtractedUtc = now;
+                            changeSet.NewFields.Add(new ExtractedFieldChange(entry.Name, value, true));
+                        }
                     }
                 }
             }
@@ -526,7 +531,7 @@ public sealed class DataExtractionService
                 {
                     field.Name,
                     field.Description,
-                    field.AllowMultipleValues,
+                    AllowMultipleValues = DataExtractionValueNormalizer.IsMultiValued(field),
                     field.IsUpdatable,
                     FieldType = field.FieldType.ToString().ToLowerInvariant(),
                     AllowedValues = field.AllowedValues ?? [],
