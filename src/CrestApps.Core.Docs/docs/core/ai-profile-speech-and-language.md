@@ -16,6 +16,7 @@ behaves exactly as it did.
 | Setting | Meaning |
 | --- | --- |
 | `SpeakingRate` | Multiple of the voice's normal pace (`1` is normal), clamped to 0.25-4. Multiplies the deployment's own pace (`CascadedRealtimeMetadata.SpeechSpeed`). `null` leaves the pace alone. |
+| `SpeakingEmotion` | One word (`calm`, `excited`) passed as `TextToSpeechOptionsProperties.Emotion`, for a provider with an emotion control (Cartesia). Other providers ignore it. |
 | `PronunciationEntries` | Word or phrase to spoken alias (`SQL` to `sequel`). Applied to the text before synthesis, whole words only, longest phrase first, so it works with every TTS provider. |
 | `FallbackTextToSpeechDeploymentName` | Deployment used when the first one throws before producing audio. A failure after audio has started is not retried, because two voices cannot be spliced mid-sentence. The fallback speaks with its own default voice and model. |
 

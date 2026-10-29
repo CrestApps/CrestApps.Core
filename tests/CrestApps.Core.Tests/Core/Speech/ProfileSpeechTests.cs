@@ -79,6 +79,21 @@ public sealed class ProfileSpeechTests
     }
 
     [Fact]
+    public void ApplySpeakingRate_PassesTheProfilesEmotionToTheProvider()
+    {
+        var options = new TextToSpeechOptions();
+
+        ProfileSpeech.ApplySpeakingRate(options, new AIProfileSpeechSettings { SpeakingEmotion = " calm " });
+
+        Assert.Equal("calm", options.AdditionalProperties![TextToSpeechOptionsProperties.Emotion]);
+
+        var untouched = new TextToSpeechOptions();
+        ProfileSpeech.ApplySpeakingRate(untouched, new AIProfileSpeechSettings());
+
+        Assert.Null(untouched.AdditionalProperties);
+    }
+
+    [Fact]
     public void ApplyRecognition_AddsKeywordsAndKeepsAnExplicitLanguage()
     {
         var options = new SpeechToTextOptions { SpeechLanguage = "fr-FR" };

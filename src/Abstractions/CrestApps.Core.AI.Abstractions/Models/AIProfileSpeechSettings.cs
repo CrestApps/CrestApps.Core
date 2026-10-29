@@ -13,6 +13,13 @@ public sealed class AIProfileSpeechSettings
     public double? SpeakingRate { get; set; }
 
     /// <summary>
+    /// Gets or sets the emotion the voice speaks with, as a single word such as <c>calm</c> or <c>excited</c>, for a
+    /// provider with an emotion control (Cartesia). <see langword="null"/> leaves the voice's own delivery. A provider
+    /// without the control ignores it.
+    /// </summary>
+    public string SpeakingEmotion { get; set; }
+
+    /// <summary>
     /// Gets or sets the pronunciation dictionary applied to text before it is synthesized.
     /// </summary>
     public List<PronunciationEntry> PronunciationEntries { get; set; } = [];

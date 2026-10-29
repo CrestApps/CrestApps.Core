@@ -92,7 +92,9 @@ public static class ProfileSpeech
             client = new PronunciationTextToSpeechClient(client, dictionary);
         }
 
-        return NormalizeSpeakingRate(settings.SpeakingRate) is null ? client : new SpeakingRateTextToSpeechClient(client, settings);
+        return NormalizeSpeakingRate(settings.SpeakingRate) is null && string.IsNullOrWhiteSpace(settings.SpeakingEmotion)
+            ? client
+            : new SpeakingRateTextToSpeechClient(client, settings);
     }
 
     /// <summary>
@@ -156,6 +158,12 @@ public static class ProfileSpeech
         if (rate is not null)
         {
             options.Speed = (float)((options.Speed ?? 1f) * rate.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings?.SpeakingEmotion))
+        {
+            options.AdditionalProperties ??= [];
+            options.AdditionalProperties[TextToSpeechOptionsProperties.Emotion] = settings.SpeakingEmotion.Trim();
         }
     }
 

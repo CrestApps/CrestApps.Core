@@ -255,6 +255,12 @@ public sealed class CascadedRealtimeClient : IRealtimeClient
             };
         }
 
+        if (Profile?.SpeakingEmotion is { Length: > 0 } emotion)
+        {
+            speechOptions.AdditionalProperties ??= [];
+            speechOptions.AdditionalProperties[TextToSpeechOptionsProperties.Emotion] = emotion;
+        }
+
         return speechOptions;
     }
 
