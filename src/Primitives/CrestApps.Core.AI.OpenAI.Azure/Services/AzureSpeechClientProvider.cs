@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.Azure;
 using CrestApps.Core.Azure.Models;
 using CrestApps.Core.Infrastructure;
@@ -98,7 +99,7 @@ public sealed class AzureSpeechClientProvider : IAIClientProvider
         var logger = _loggerFactory.CreateLogger<AzureSpeechServiceTextToSpeechClient>();
         var client = new AzureSpeechServiceTextToSpeechClient(endpoint, authType, apiKey, identityId, _timeProvider, logger);
 
-        return ValueTask.FromResult<ITextToSpeechClient>(client);
+        return ValueTask.FromResult<ITextToSpeechClient>(new SpeechMarkupTextToSpeechClient(client));
     }
 #pragma warning restore MEAI001 // Text-to-speech APIs from Microsoft.Extensions.AI are preview and require explicit opt-in at each usage site.
 
