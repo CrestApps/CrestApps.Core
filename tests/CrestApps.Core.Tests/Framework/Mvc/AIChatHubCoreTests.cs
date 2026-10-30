@@ -401,6 +401,7 @@ public sealed class AIChatHubCoreTests
             ProfileId = profile.ItemId,
             Title = "Existing title",
             Status = ChatSessionStatus.Active,
+            UserId = "owner",
         };
         var completionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -441,7 +442,7 @@ public sealed class AIChatHubCoreTests
 
         // SignalR creates the hub in an invocation scope and disposes both when the stream ends.
         var invocationScope = rootServices.CreateAsyncScope();
-        var (hub, _) = CreateHubWithCaller(invocationScope.ServiceProvider);
+        var (hub, _) = CreateHubWithCaller(invocationScope.ServiceProvider, "owner");
         hub.Groups = new Mock<IGroupManager>().Object;
         using var stop = new CancellationTokenSource();
 
@@ -528,7 +529,7 @@ public sealed class AIChatHubCoreTests
         return promptStoreMock.Object;
     }
 
-    private static (TestAIChatHub Hub, Mock<IAIChatHubClient> Caller) CreateHubWithCaller(IServiceProvider services)
+    private static (TestAIChatHub Hub, Mock<IAIChatHubClient> Caller) CreateHubWithCaller(IServiceProvider services, string userId = null)
     {
         var callerMock = new Mock<IAIChatHubClient>();
         var clientsMock = new Mock<IHubCallerClients<IAIChatHubClient>>();
@@ -537,6 +538,11 @@ public sealed class AIChatHubCoreTests
         var contextMock = new Mock<HubCallerContext>();
         contextMock.SetupGet(context => context.ConnectionId).Returns("connection");
         contextMock.SetupGet(context => context.ConnectionAborted).Returns(CancellationToken.None);
+
+        if (userId is not null)
+        {
+            contextMock.SetupGet(context => context.User).Returns(CreateCallerContext(userId).User);
+        }
 
         var hub = new TestAIChatHub(services)
         {
