@@ -90,15 +90,18 @@ The names in `NamesToKeep` are told to the utility deployment as not personal da
 returns even when it lists one anyway. A handler can add the names it knows (for example the persona's assistant name)
 to `context.NamesToKeep` while collecting, and `ApplyAsync(session, mode, namesToKeep, ct)` takes them directly.
 
-A transcript is redacted one run of consecutive turns by the same speaker at a time. The patterns are found in the run
-joined together, so a detail dictated over two turns ("my email is mike at" and then "example.com") is found whole and
-replaced in each turn it spans. An email address spoken aloud ("mike at example dot com") is recognized as well as a
+A transcript is redacted one speaker's turns at a time, read as one stream with the other speakers' short turns (up to
+400 characters) left out. The patterns are found in the stream, so a detail dictated over several turns ("my email is
+mike at", the assistant asking for the rest, then "example.com") is found whole and replaced in each turn it spans. An
+email address found anywhere, such as the assistant reading it back, is also taken out of the other turns that say a
+part of it: as the whole turn ("Test", "example.com"), chained with "at" or "dot", or ending the turn ("mike at"). A part
+alone in a longer sentence is left alone. An email address spoken aloud ("mike at example dot com") is recognized as well as a
 written one, and an email the utility deployment called an identity number is still labeled `[EMAIL]`. A spoken form
 such as "look at example.com" can't be told from an address and is redacted too; "at" followed by an article or a
 pronoun is not.
 
-`AIPersonalDataRedactor.Redact(text, terms)` can be used on its own for any text, and `RedactTurns(turns, terms)` for
-the consecutive turns of one speaker.
+`AIPersonalDataRedactor.Redact(text, terms)` can be used on its own for any text, and `RedactConversation(speakers, turns, terms)` for
+a whole transcript.
 
 ## Data kept elsewhere
 
