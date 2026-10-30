@@ -17,6 +17,7 @@ using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Services;
+using CrestApps.Core.Tests.Support;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -521,6 +522,140 @@ public sealed class ChatInteractionHubTests
             Times.Once);
     }
 
+    /// <summary>
+    /// A Stop click once the answer has streamed cancels the stream, and SignalR then disposes the hub and
+    /// its invocation scope while the assistant prompt is still being completed. The turn must be committed
+    /// anyway: the user prompt, the full answer and the interaction's new title.
+    /// </summary>
+    [Fact]
+    public async Task SendMessage_WhenStoppedAfterTheAnswerStreamed_StillCommitsTheTurn()
+    {
+        var interaction = new ChatInteraction
+        {
+            ItemId = "interaction",
+        };
+        var completionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var handlerMock = new Mock<IChatResponseHandler>();
+        handlerMock
+            .Setup(handler => handler.HandleAsync(It.IsAny<ChatResponseHandlerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ChatResponseHandlerResult.Streaming(StreamAnswerAsync("Hello", " there")));
+        var handlerResolverMock = new Mock<IChatResponseHandlerResolver>();
+        handlerResolverMock
+            .Setup(resolver => resolver.Resolve(It.IsAny<string>(), It.IsAny<ChatMode>()))
+            .Returns(handlerMock.Object);
+
+        var rootServices = new ServiceCollection()
+            .AddSingleton(handlerResolverMock.Object)
+            .AddSingleton<TestStoreDatabase>()
+            .AddScoped<TestStoreSession>()
+            .AddScoped<IStoreCommitter>(services => services.GetRequiredService<TestStoreSession>())
+            .AddScoped(services => CreateStagingInteractionManager(services.GetRequiredService<TestStoreSession>(), interaction))
+            .AddScoped(services => CreateStagingPromptStore(services.GetRequiredService<TestStoreSession>()))
+            .BuildServiceProvider();
+
+        // SignalR creates the hub in an invocation scope and disposes both when the stream ends.
+        var invocationScope = rootServices.CreateAsyncScope();
+        var contextMock = new Mock<HubCallerContext>();
+        contextMock.SetupGet(context => context.ConnectionId).Returns("connection");
+        var hub = new TestChatInteractionHub(invocationScope.ServiceProvider)
+        {
+            Context = contextMock.Object,
+            Groups = new Mock<IGroupManager>().Object,
+            AssistantPromptCreated = async () =>
+            {
+                completionStarted.TrySetResult();
+                await releaseCompletion.Task;
+            },
+        };
+        using var stop = new CancellationTokenSource();
+
+        var reader = hub.SendMessage(interaction.ItemId, "Hi", stop.Token);
+
+        await completionStarted.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        stop.Cancel();
+        await invocationScope.DisposeAsync();
+        hub.Dispose();
+        releaseCompletion.SetResult();
+
+        var streamed = new List<string>();
+
+        await foreach (var message in reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        {
+            streamed.Add(message.Content);
+        }
+
+        Assert.Equal(["Hello", " there"], streamed);
+
+        var committed = rootServices.GetRequiredService<TestStoreDatabase>().Committed.ToList();
+        var prompts = committed.OfType<ChatInteractionPrompt>().ToList();
+
+        Assert.Collection(
+            prompts,
+            prompt =>
+            {
+                Assert.Equal(ChatRole.User, prompt.Role);
+                Assert.Equal("Hi", prompt.Text);
+            },
+            prompt =>
+            {
+                Assert.Equal(ChatRole.Assistant, prompt.Role);
+                Assert.Equal("Hello there", prompt.Text);
+            });
+        Assert.Contains(interaction, committed);
+        Assert.Equal("Hi", interaction.Title);
+    }
+
+    private static async IAsyncEnumerable<ChatResponseUpdate> StreamAnswerAsync(params string[] chunks)
+    {
+        foreach (var chunk in chunks)
+        {
+            await Task.Yield();
+
+            yield return new ChatResponseUpdate(ChatRole.Assistant, chunk);
+        }
+    }
+
+    private static ICatalogManager<ChatInteraction> CreateStagingInteractionManager(TestStoreSession storeSession, ChatInteraction interaction)
+    {
+        var interactionManagerMock = new Mock<ICatalogManager<ChatInteraction>>();
+        interactionManagerMock
+            .Setup(manager => manager.FindByIdAsync(interaction.ItemId, It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<ChatInteraction>(interaction));
+        interactionManagerMock
+            .Setup(manager => manager.UpdateAsync(It.IsAny<ChatInteraction>(), It.IsAny<JsonNode>(), It.IsAny<CancellationToken>()))
+            .Returns<ChatInteraction, JsonNode, CancellationToken>((entry, _, cancellationToken) =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                storeSession.Stage(entry);
+
+                return ValueTask.CompletedTask;
+            });
+
+        return interactionManagerMock.Object;
+    }
+
+    private static IChatInteractionPromptStore CreateStagingPromptStore(TestStoreSession storeSession)
+    {
+        var promptStoreMock = new Mock<IChatInteractionPromptStore>();
+        promptStoreMock
+            .Setup(store => store.CreateAsync(It.IsAny<ChatInteractionPrompt>(), It.IsAny<CancellationToken>()))
+            .Returns<ChatInteractionPrompt, CancellationToken>((prompt, cancellationToken) =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                storeSession.Stage(prompt);
+
+                return ValueTask.CompletedTask;
+            });
+        promptStoreMock
+            .Setup(store => store.GetPromptsAsync(It.IsAny<string>()))
+            .ReturnsAsync(() => storeSession.GetStaged<ChatInteractionPrompt>());
+
+        return promptStoreMock.Object;
+    }
+
     private static CitationReferenceCollector CreateCitationCollector()
     {
         return new(new CompositeAIReferenceLinkResolver(new ServiceCollection().BuildServiceProvider()));
@@ -562,6 +697,8 @@ public sealed class ChatInteractionHubTests
         {
         }
 
+        public Func<Task> AssistantPromptCreated { get; init; }
+
         public string GetFriendlyErrorMessageForTest(Exception ex)
         {
             return GetFriendlyErrorMessage(ex);
@@ -595,6 +732,12 @@ public sealed class ChatInteractionHubTests
         protected override string GenerateId()
         {
             return "new-prompt";
+        }
+
+        /// <inheritdoc />
+        protected override Task OnAssistantPromptCreatedAsync(IServiceProvider services, ChatInteractionPrompt prompt, HashSet<string> contentItemIds)
+        {
+            return AssistantPromptCreated?.Invoke() ?? Task.CompletedTask;
         }
     }
 }

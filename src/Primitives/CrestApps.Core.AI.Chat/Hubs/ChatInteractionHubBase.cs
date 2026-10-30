@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
@@ -87,19 +88,48 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         // not await the scope.
         var user = Context?.User;
 
+        await ExecuteInScopeAsync(services => RunAsUserAsync(services, user, action));
+    }
+
+    /// <summary>
+    /// Executes the work of a streaming invocation, which outlives the hub method that started it.
+    /// SignalR disposes the invocation scope this hub was created in as soon as the client cancels the
+    /// stream, yet the work goes on to save the turn after its answer has streamed. So when
+    /// <see cref="ExecuteInScopeAsync"/> hands back that invocation scope, the work runs in a child scope
+    /// the hub owns instead; a host override that supplies its own scope is used as is.
+    /// </summary>
+    /// <param name="action">The action.</param>
+    private async Task RunStreamInScopeAsync(Func<IServiceProvider, Task> action)
+    {
+        var user = Context?.User;
+
         await ExecuteInScopeAsync(async services =>
         {
-            var userAccessor = services.GetService<IUserAccessor>();
-
-            if (userAccessor is not null)
+            if (!ReferenceEquals(services, _services))
             {
-                // The accessor tracks the principal with an AsyncLocal, so the assignment is
-                // scoped to this invocation and never leaks to other connections.
-                userAccessor.User = user;
+                await RunAsUserAsync(services, user, action);
+
+                return;
             }
 
-            await action(services);
+            await using var scope = services.GetRequiredService<IServiceScopeFactory>().CreateAsyncScope();
+
+            await RunAsUserAsync(scope.ServiceProvider, user, action);
         });
+    }
+
+    private static async Task RunAsUserAsync(IServiceProvider services, ClaimsPrincipal user, Func<IServiceProvider, Task> action)
+    {
+        var userAccessor = services.GetService<IUserAccessor>();
+
+        if (userAccessor is not null)
+        {
+            // The accessor tracks the principal with an AsyncLocal, so the assignment is
+            // scoped to this invocation and never leaks to other connections.
+            userAccessor.User = user;
+        }
+
+        await action(services);
     }
 
     /// <summary>
@@ -154,10 +184,12 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         {
             if (Logger.IsEnabled(LogLevel.Debug))
             {
-                Logger.LogDebug("ChatInteractionHubBase committing staged store changes for connection '{ConnectionId}'.", Context.ConnectionId);
+                Logger.LogDebug("ChatInteractionHubBase committing staged store changes.");
             }
 
-            await committer.CommitAsync(Context.ConnectionAborted);
+            // This also runs after a streamed answer, when a Stop click has already disposed the hub and
+            // its caller context, and the turn must be committed whether or not the caller is still there.
+            await committer.CommitAsync(CancellationToken.None);
         }
     }
 
@@ -602,7 +634,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     public virtual ChannelReader<CompletionPartialMessage> SendMessage(string itemId, string prompt, CancellationToken cancellationToken)
     {
         var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
-        _ = RunInScopeAsync(services => HandlePromptAsync(channel.Writer, services, itemId, prompt, cancellationToken));
+        _ = RunStreamInScopeAsync(services => HandlePromptAsync(channel.Writer, services, itemId, prompt, cancellationToken));
 
         return channel.Reader;
     }
@@ -1811,6 +1843,10 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
             CollectStreamingReferences(services, handlerContext, references, contentItemIds);
 
+            // The answer has streamed. A Stop click from here on only ends the stream on the client: the turn
+            // must still be completed and committed, so the remaining work ignores the caller's token. A
+            // cancelled token would otherwise fail even the channel write below, and lose the whole turn.
+
             // A picture the host has already drawn and stored must not depend on the model remembering to
             // write its marker. This is the rule generated downloads already follow — IsGenerated exists so
             // an exported file reaches the reader whether or not it was cited — applied to an image, which
@@ -1835,7 +1871,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                         References = references,
                         Appearance = handlerContext.AssistantAppearance,
                     },
-                    cancellationToken);
+                    CancellationToken.None);
             }
 
             if (builder.Length > 0)
@@ -1843,12 +1879,12 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
                 assistantPrompt.Text = builder.ToString();
                 assistantPrompt.References = references;
                 await OnAssistantPromptCreatedAsync(services, assistantPrompt, contentItemIds);
-                await promptStore.CreateAsync(assistantPrompt, cancellationToken);
+                await promptStore.CreateAsync(assistantPrompt, CancellationToken.None);
             }
 
             if (needsTitleUpdate)
             {
-                await interactionManager.UpdateAsync(interaction, cancellationToken: cancellationToken);
+                await interactionManager.UpdateAsync(interaction, cancellationToken: CancellationToken.None);
             }
 
             await CommitChangesAsync(services);
