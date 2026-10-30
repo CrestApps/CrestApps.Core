@@ -20,4 +20,11 @@ public sealed class AIProfileDataPrivacySettings
     /// keep conversations.
     /// </summary>
     public int? RetentionDays { get; set; }
+
+    /// <summary>
+    /// Gets or sets the names that are not personal data and are kept when personal data is redacted: the name the
+    /// assistant gives itself (the persona's), the business's and its staff's. The customer's name is still redacted
+    /// wherever either side says it.
+    /// </summary>
+    public List<string> NamesToKeep { get; set; } = [];
 }

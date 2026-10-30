@@ -4,6 +4,7 @@ using CrestApps.Core.AI.Chat.Privacy;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Models;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -131,6 +132,83 @@ public sealed class AIConversationPrivacyTests
         // A conversation the mode was applied to is left alone.
         Assert.False(await service.ApplyAsync(session, AIDataStorageMode.MetadataOnly, TestContext.Current.CancellationToken));
         Assert.False(await service.ApplyAsync(NewSession("s3"), AIDataStorageMode.Everything, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void Redactor_FindsADetailSpokenOverConsecutiveTurnsAndReplacesEveryPartOfIt()
+    {
+        var redacted = AIPersonalDataRedactor.RedactTurns(
+            ["My email is mike at", "example.com, my phone number is 702 555 0147."]);
+
+        Assert.Equal(["My email is [EMAIL]", "[EMAIL], my phone number is [PHONE]."], redacted);
+    }
+
+    [Theory]
+    [InlineData("it is mike at example dot com", "it is [EMAIL]")]
+    [InlineData("it is mike at example.com.", "it is [EMAIL].")]
+    [InlineData("it is jane.doe at mail dot example dot co dot uk please", "it is [EMAIL] please")]
+    [InlineData("it is mike@example dot com", "it is [EMAIL]")]
+    [InlineData("I am free at 5.30pm or at noon dot", "I am free at 5.30pm or at noon dot")]
+    [InlineData("Look at the dot com boom", "Look at the dot com boom")]
+    public void Redactor_RecognizesAnEmailAddressSpokenAloud(string text, string expected)
+    {
+        Assert.Equal(expected, AIPersonalDataRedactor.RedactPatterns(text));
+    }
+
+    [Fact]
+    public void Redactor_LabelsAnEmailTheModelCalledAnIdentityNumberAsAnEmail()
+    {
+        var terms = new[] { new AIPersonalDataTerm { Text = "mike at example dot com", Kind = "id" } };
+
+        Assert.Equal(
+            "Just to double-check, your email is [EMAIL].",
+            AIPersonalDataRedactor.Redact("Just to double-check, your email is mike at example dot com.", terms));
+    }
+
+    [Fact]
+    public void Privacy_KeepsTheNamesTheAssistantAndTheBusinessUseForThemselves()
+    {
+        var found = AIConversationPrivacyService.WithNameParts(
+        [
+            new AIPersonalDataTerm { Text = "Mike", Kind = "name" },
+            new AIPersonalDataTerm { Text = "Sarah", Kind = "name" },
+            new AIPersonalDataTerm { Text = "Prestige Auto Group", Kind = "name" },
+            new AIPersonalDataTerm { Text = "M-55120", Kind = "id" },
+        ]);
+
+        var terms = AIConversationPrivacyService.WithoutKeptNames(found, ["sarah", "Prestige Auto Group"]);
+
+        Assert.Equal(["Mike", "M-55120"], terms.Select(term => term.Text));
+        Assert.Equal(
+            "Hey [NAME], it's Sarah from Prestige Auto Group.",
+            AIPersonalDataRedactor.Redact("Hey Mike, it's Sarah from Prestige Auto Group.", terms));
+
+        Assert.Contains("\"Sarah\", \"Prestige Auto Group\"", AIConversationPrivacyService.BuildFindingPrompt(["Sarah", "Prestige Auto Group"]));
+        Assert.Equal(AIConversationPrivacyService.FindingPrompt, AIConversationPrivacyService.BuildFindingPrompt([]));
+    }
+
+    [Fact]
+    public async Task Apply_RedactsADetailDictatedOverTwoTurnsOfTheSameSpeaker()
+    {
+        var sessions = new InMemorySessionStore();
+        var session = NewSession("s1");
+        sessions.Add(session);
+
+        var prompts = new InMemoryPromptStore();
+        prompts.Add(new AIChatSessionPrompt { ItemId = "p1", SessionId = "s1", Role = ChatRole.Assistant, Content = "Is this a good time to chat?" });
+        prompts.Add(new AIChatSessionPrompt { ItemId = "p2", SessionId = "s1", Role = ChatRole.User, Content = "My email is mike at" });
+        prompts.Add(new AIChatSessionPrompt { ItemId = "p3", SessionId = "s1", Role = ChatRole.User, Content = "example.com, my phone number is 702 555 0147." });
+        prompts.Add(new AIChatSessionPrompt { ItemId = "p4", SessionId = "s1", Role = ChatRole.Assistant, Content = "Just to double-check, your email is mike at example dot com." });
+
+        var service = NewService(sessions, prompts, []);
+
+        Assert.True(await service.ApplyAsync(session, AIDataStorageMode.RedactPersonalData, ["Sarah"], TestContext.Current.CancellationToken));
+
+        Assert.Equal("Is this a good time to chat?", prompts.Prompts["p1"].Content);
+        Assert.Equal("My email is [EMAIL]", prompts.Prompts["p2"].Content);
+        Assert.Equal("[EMAIL], my phone number is [PHONE].", prompts.Prompts["p3"].Content);
+        Assert.Equal("Just to double-check, your email is [EMAIL].", prompts.Prompts["p4"].Content);
+        Assert.Equal(["p2", "p3", "p4"], prompts.Updated.Order());
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace CrestApps.Core.AI.Chat.Privacy;
@@ -69,11 +70,117 @@ public static partial class AIPersonalDataRedactor
             return text;
         }
 
-        text = EmailPattern().Replace(text, EmailPlaceholder);
-        text = CardPattern().Replace(text, match => IsCardNumber(match.Value) ? CardPlaceholder : match.Value);
-        text = SocialSecurityPattern().Replace(text, IdPlaceholder);
+        return RedactPatternsInTurns([text])[0];
+    }
 
-        return PhonePattern().Replace(text, match => IsPhoneNumber(match.Value) ? PhonePlaceholder : match.Value);
+    /// <summary>
+    /// Replaces the personal details in consecutive turns of one speaker, finding them in the turns joined together so
+    /// a detail spoken over two turns ("mike at" and then "example.com") is found whole, and replaces every part of it
+    /// in each turn it spans. Besides the patterns of <see cref="RedactPatterns(string)"/>, an email address spoken
+    /// aloud ("mike at example dot com") is recognized.
+    /// </summary>
+    /// <param name="turns">The turns of one speaker, in order. A <see langword="null"/> or empty turn is kept as it is.</param>
+    /// <param name="terms">The details the utility model found, if any.</param>
+    /// <returns>The redacted turns, one for each turn.</returns>
+    public static IReadOnlyList<string> RedactTurns(IReadOnlyList<string> turns, IEnumerable<AIPersonalDataTerm> terms = null)
+    {
+        ArgumentNullException.ThrowIfNull(turns);
+
+        return RedactPatternsInTurns(turns).Select(turn => RedactTerms(turn, terms)).ToList();
+    }
+
+    /// <summary>
+    /// Replaces the details recognized by pattern in consecutive turns of one speaker. See
+    /// <see cref="RedactTurns"/>.
+    /// </summary>
+    /// <param name="turns">The turns of one speaker, in order.</param>
+    /// <returns>The redacted turns, one for each turn.</returns>
+    public static IReadOnlyList<string> RedactPatternsInTurns(IReadOnlyList<string> turns)
+    {
+        ArgumentNullException.ThrowIfNull(turns);
+
+        var starts = new int[turns.Count];
+        var joined = new StringBuilder();
+
+        for (var i = 0; i < turns.Count; i++)
+        {
+            if (string.IsNullOrEmpty(turns[i]))
+            {
+                continue;
+            }
+
+            if (joined.Length > 0)
+            {
+                joined.Append(' ');
+            }
+
+            starts[i] = joined.Length;
+            joined.Append(turns[i]);
+        }
+
+        var text = joined.ToString();
+        var found = new List<(int Start, int End, string Placeholder)>();
+
+        // The order is the priority: a span taken by an earlier pattern is not taken again.
+        AddMatches(found, EmailPattern().Matches(text), _ => EmailPlaceholder);
+        AddMatches(found, SpokenEmailPattern().Matches(text), _ => EmailPlaceholder);
+        AddMatches(found, CardPattern().Matches(text), match => IsCardNumber(match.Value) ? CardPlaceholder : null);
+        AddMatches(found, SocialSecurityPattern().Matches(text), _ => IdPlaceholder);
+        AddMatches(found, PhonePattern().Matches(text), match => IsPhoneNumber(match.Value) ? PhonePlaceholder : null);
+
+        var result = new string[turns.Count];
+
+        for (var i = 0; i < turns.Count; i++)
+        {
+            var turn = turns[i];
+
+            if (string.IsNullOrEmpty(turn) || found.Count == 0)
+            {
+                result[i] = turn;
+
+                continue;
+            }
+
+            var start = starts[i];
+            var end = start + turn.Length;
+            var builder = new StringBuilder();
+            var position = start;
+
+            foreach (var (matchStart, matchEnd, placeholder) in found.OrderBy(match => match.Start))
+            {
+                if (matchEnd <= position || matchStart >= end)
+                {
+                    continue;
+                }
+
+                builder.Append(text, position, Math.Max(matchStart, position) - position);
+                builder.Append(placeholder);
+                position = Math.Min(matchEnd, end);
+            }
+
+            builder.Append(text, position, end - position);
+            result[i] = builder.ToString();
+        }
+
+        return result;
+    }
+
+    private static void AddMatches(List<(int Start, int End, string Placeholder)> found, MatchCollection matches, Func<Match, string> getPlaceholder)
+    {
+        var taken = found.ToList();
+
+        foreach (Match match in matches)
+        {
+            var placeholder = getPlaceholder(match);
+            var end = match.Index + match.Length;
+
+            if (placeholder is null || taken.Any(other => match.Index < other.End && end > other.Start))
+            {
+                continue;
+            }
+
+            found.Add((match.Index, end, placeholder));
+        }
     }
 
     /// <summary>
@@ -96,7 +203,8 @@ public static partial class AIPersonalDataRedactor
         {
             // Whole words only, so a name like "Al" does not take the letters out of "also".
             var pattern = @"(?<![\p{L}\p{N}])" + Regex.Escape(term.Text.Trim()) + @"(?![\p{L}\p{N}])";
-            text = Regex.Replace(text, pattern, GetPlaceholder(term.Kind), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+            var placeholder = IsEmailAddress(term.Text.Trim()) ? EmailPlaceholder : GetPlaceholder(term.Kind);
+            text = Regex.Replace(text, pattern, placeholder,RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
         }
 
         return text;
@@ -118,6 +226,14 @@ public static partial class AIPersonalDataRedactor
             "phone" => PhonePlaceholder,
             _ => IdPlaceholder,
         };
+    }
+
+    // A detail the model labeled an identity number can still be an address, written or dictated.
+    private static bool IsEmailAddress(string value)
+    {
+        var match = SpokenEmailPattern().Match(value);
+
+        return match.Success && match.Length == value.Length;
     }
 
     internal static bool IsCardNumber(string value)
@@ -167,6 +283,12 @@ public static partial class AIPersonalDataRedactor
 
     [GeneratedRegex(@"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", RegexOptions.CultureInvariant)]
     private static partial Regex EmailPattern();
+
+    // An address as it is dictated: "mike at example dot com", "mike at example.com", "mike@example dot com". The
+    // last label must be letters only, so "free at 5.30pm" is not an address, and the word after "at" is not a
+    // pronoun or article, so "look at the dot com boom" is not either.
+    [GeneratedRegex(@"(?<![\w.+@-])[\w.+-]+\s*(?:\s@\s*|@|\s+at\s+(?!(?:the|a|an|this|that|my|our|your|his|her|their|its|it|me|you|us|them)\s))[a-z0-9-]+(?:(?:\s*\.\s*|\s+dot\s+)[a-z0-9-]+)*(?:\s*\.\s*|\s+dot\s+)[a-z]{2,}(?![\w-])", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    private static partial Regex SpokenEmailPattern();
 
     [GeneratedRegex(@"(?<![\d-])(?:\d[ -]?){12,18}\d(?![\d-])", RegexOptions.CultureInvariant)]
     private static partial Regex CardPattern();

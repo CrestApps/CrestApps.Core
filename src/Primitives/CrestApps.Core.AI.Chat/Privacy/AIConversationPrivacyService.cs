@@ -113,7 +113,7 @@ public sealed class AIConversationPrivacyService
 
                 try
                 {
-                    if (await ApplyAsync(conversation, settings.StorageMode, cancellationToken))
+                    if (await ApplyAsync(conversation, settings.StorageMode, settings.NamesToKeep, cancellationToken))
                     {
                         result.Applied++;
                     }
@@ -167,7 +167,22 @@ public sealed class AIConversationPrivacyService
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Whether anything was changed.</returns>
     /// <exception cref="Exception">The utility model could not be asked for the personal details; nothing is changed.</exception>
-    public async Task<bool> ApplyAsync(AIChatSession session, AIDataStorageMode mode, CancellationToken cancellationToken = default)
+    public Task<bool> ApplyAsync(AIChatSession session, AIDataStorageMode mode, CancellationToken cancellationToken = default)
+    {
+        return ApplyAsync(session, mode, null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Applies a storage mode to a conversation, keeping some names. A conversation it was applied to already is left alone.
+    /// </summary>
+    /// <param name="session">The conversation.</param>
+    /// <param name="mode">The mode.</param>
+    /// <param name="namesToKeep">The names that are not personal data, such as the assistant's own name and the
+    /// business's, which stay in the conversation. The customer's name is still redacted.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>Whether anything was changed.</returns>
+    /// <exception cref="Exception">The utility model could not be asked for the personal details; nothing is changed.</exception>
+    public async Task<bool> ApplyAsync(AIChatSession session, AIDataStorageMode mode, IEnumerable<string> namesToKeep, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(session);
 
@@ -178,6 +193,11 @@ public sealed class AIConversationPrivacyService
 
         var prompts = await _promptStore.GetPromptsAsync(session.SessionId);
         var context = new AIConversationPrivacyContext(session, mode);
+
+        foreach (var name in namesToKeep ?? [])
+        {
+            context.NamesToKeep.Add(name);
+        }
 
         foreach (var handler in _privacyHandlers)
         {
@@ -193,16 +213,21 @@ public sealed class AIConversationPrivacyService
         {
             // Everything is read first and the details found in all of it at once, so a name the customer gave in
             // the first turn is also taken out of the summary written from it.
-            context.Terms = await FindPersonalDataAsync(CollectText(session, prompts, context.Texts), cancellationToken);
+            context.Terms = await FindPersonalDataAsync(CollectText(session, prompts, context.Texts), context.NamesToKeep, cancellationToken);
 
-            foreach (var prompt in prompts)
+            // A detail dictated over several turns of one speaker ("mike at" and then "example.com") is found in the
+            // turns joined, and replaced in each of them.
+            foreach (var run in GroupBySpeaker(prompts))
             {
-                var redacted = context.Redact(prompt.Content);
+                var redacted = context.RedactTurns([.. run.Select(prompt => prompt.Content)]);
 
-                if (!string.Equals(redacted, prompt.Content, StringComparison.Ordinal))
+                for (var i = 0; i < run.Count; i++)
                 {
-                    prompt.Content = redacted;
-                    await _promptStore.UpdateAsync(prompt, cancellationToken);
+                    if (!string.Equals(redacted[i], run[i].Content, StringComparison.Ordinal))
+                    {
+                        run[i].Content = redacted[i];
+                        await _promptStore.UpdateAsync(run[i], cancellationToken);
+                    }
                 }
             }
 
@@ -265,7 +290,21 @@ public sealed class AIConversationPrivacyService
     /// <param name="text">The text.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The details found, with each part of a found full name as a name of its own.</returns>
-    public async Task<IReadOnlyList<AIPersonalDataTerm>> FindPersonalDataAsync(string text, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<AIPersonalDataTerm>> FindPersonalDataAsync(string text, CancellationToken cancellationToken = default)
+    {
+        return FindPersonalDataAsync(text, null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Asks the utility model for the personal details in a text, as <see cref="FindPersonalDataAsync(string, CancellationToken)"/>
+    /// does, leaving out the names that are not personal data.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="namesToKeep">The assistant's own name and the business's, which are not personal data. They are
+    /// kept even if the utility model lists them.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The details found, with each part of a found full name as a name of its own.</returns>
+    public async Task<IReadOnlyList<AIPersonalDataTerm>> FindPersonalDataAsync(string text, IEnumerable<string> namesToKeep, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -279,19 +318,21 @@ public sealed class AIConversationPrivacyService
             return [];
         }
 
+        var keep = (namesToKeep ?? []).Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
         var client = await _clientFactory.CreateChatClientAsync(deployment, builder => builder
             .UseDefaultResilience()
             .UseUsageLabels(purpose: AIUsagePurposes.PersonalDataRedaction));
 
         var response = await client.GetResponseAsync<AIPersonalDataFindings>(
             [
-                new ChatMessage(ChatRole.System, FindingPrompt),
+                new ChatMessage(ChatRole.System, BuildFindingPrompt(keep)),
                 new ChatMessage(ChatRole.User, text.Length > MaxTextForFinding ? text[..MaxTextForFinding] : text),
             ],
             _jsonOptions,
             cancellationToken: cancellationToken);
 
-        return WithNameParts(response.Result?.Items ?? []);
+        return WithoutKeptNames(WithNameParts(response.Result?.Items ?? []), keep);
     }
 
     /// <summary>
@@ -314,6 +355,65 @@ public sealed class AIConversationPrivacyService
     /// </summary>
     /// <param name="terms">The details found.</param>
     /// <returns>The details with the name parts.</returns>
+    internal static string BuildFindingPrompt(IReadOnlyCollection<string> namesToKeep)
+    {
+        if (namesToKeep is null || namesToKeep.Count == 0)
+        {
+            return FindingPrompt;
+        }
+
+        return FindingPrompt + "\nThese names are the assistant's own or the business's, not the customer's, so never list them: " +
+            string.Join(", ", namesToKeep.Select(name => "\"" + name + "\"")) + ".";
+    }
+
+    /// <summary>
+    /// Takes out the details that are a name to keep or a part of one, because the assistant's own name is not the
+    /// customer's personal data even when the utility model lists it.
+    /// </summary>
+    /// <param name="terms">The details found.</param>
+    /// <param name="namesToKeep">The names to keep.</param>
+    /// <returns>The details without the names to keep.</returns>
+    internal static IReadOnlyList<AIPersonalDataTerm> WithoutKeptNames(IReadOnlyList<AIPersonalDataTerm> terms, IReadOnlyCollection<string> namesToKeep)
+    {
+        if (namesToKeep is null || namesToKeep.Count == 0)
+        {
+            return terms;
+        }
+
+        var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var name in namesToKeep)
+        {
+            keep.Add(name.Trim());
+
+            foreach (var part in name.Split([' ', ',', '.'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                keep.Add(part);
+            }
+        }
+
+        return [.. terms.Where(term => !string.Equals(term.Kind?.Trim(), "name", StringComparison.OrdinalIgnoreCase) || !keep.Contains(term.Text.Trim()))];
+    }
+
+    internal static List<List<AIChatSessionPrompt>> GroupBySpeaker(IEnumerable<AIChatSessionPrompt> prompts)
+    {
+        var runs = new List<List<AIChatSessionPrompt>>();
+
+        foreach (var prompt in prompts ?? [])
+        {
+            if (runs.Count > 0 && runs[^1][0].Role == prompt.Role)
+            {
+                runs[^1].Add(prompt);
+            }
+            else
+            {
+                runs.Add([prompt]);
+            }
+        }
+
+        return runs;
+    }
+
     internal static IReadOnlyList<AIPersonalDataTerm> WithNameParts(IEnumerable<AIPersonalDataTerm> terms)
     {
         var found = terms.Where(term => !string.IsNullOrWhiteSpace(term?.Text)).ToList();
