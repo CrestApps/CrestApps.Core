@@ -44,6 +44,13 @@ public sealed class AIConversationPrivacyContext
     public IReadOnlyList<AIPersonalDataTerm> Terms { get; internal set; } = [];
 
     /// <summary>
+    /// Gets the names that are not personal data and must stay in the conversation: the assistant's own name and the
+    /// business's. Seeded from <see cref="AIProfileDataPrivacySettings.NamesToKeep"/>; handlers may add the names
+    /// they know while collecting.
+    /// </summary>
+    public IList<string> NamesToKeep { get; } = [];
+
+    /// <summary>
     /// Gets a place for handlers to keep what they loaded while collecting, to change it while applying.
     /// </summary>
     public IDictionary<string, object> Items { get; } = new Dictionary<string, object>(StringComparer.Ordinal);
@@ -56,5 +63,16 @@ public sealed class AIConversationPrivacyContext
     public string Redact(string text)
     {
         return AIPersonalDataRedactor.Redact(text, Terms);
+    }
+
+    /// <summary>
+    /// Replaces the personal details in consecutive turns of one speaker, finding them in the turns joined together so
+    /// a detail spoken over two turns is replaced in both.
+    /// </summary>
+    /// <param name="turns">The turns of one speaker, in order.</param>
+    /// <returns>The redacted turns, one for each turn.</returns>
+    public IReadOnlyList<string> RedactTurns(IReadOnlyList<string> turns)
+    {
+        return AIPersonalDataRedactor.RedactTurns(turns, Terms);
     }
 }

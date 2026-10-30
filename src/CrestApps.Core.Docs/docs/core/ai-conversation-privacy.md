@@ -18,6 +18,7 @@ Each AI profile chooses a storage mode and an optional retention in `AIProfileDa
 | | `MetadataOnly` | The transcript is deleted, and the title, post-session results and extracted values are cleared. Times, status, outcomes and scores are kept. |
 | `StorageModeSinceUtc` | a time | When the mode was chosen. Conversations active before it are left as they were. |
 | `RetentionDays` | a number of days, or `null` | Conversations with no activity for this long are deleted. |
+| `NamesToKeep` | names | Names that are not personal data and stay in a redacted conversation: the name the assistant gives itself (the persona's) and the business's. The customer's name is still redacted wherever either side says it. |
 
 ## Adding it to an application
 
@@ -85,7 +86,19 @@ text at once, so a name given in the first message is also taken out of the summ
 full name is redacted on its own too. Without a utility deployment only the patterns are used. The request is metered
 with the `AIUsagePurposes.PersonalDataRedaction` purpose.
 
-`AIPersonalDataRedactor.Redact(text, terms)` can be used on its own for any text.
+The names in `NamesToKeep` are told to the utility deployment as not personal data, and are dropped from what it
+returns even when it lists one anyway. A handler can add the names it knows (for example the persona's assistant name)
+to `context.NamesToKeep` while collecting, and `ApplyAsync(session, mode, namesToKeep, ct)` takes them directly.
+
+A transcript is redacted one run of consecutive turns by the same speaker at a time. The patterns are found in the run
+joined together, so a detail dictated over two turns ("my email is mike at" and then "example.com") is found whole and
+replaced in each turn it spans. An email address spoken aloud ("mike at example dot com") is recognized as well as a
+written one, and an email the utility deployment called an identity number is still labeled `[EMAIL]`. A spoken form
+such as "look at example.com" can't be told from an address and is redacted too; "at" followed by an article or a
+pronoun is not.
+
+`AIPersonalDataRedactor.Redact(text, terms)` can be used on its own for any text, and `RedactTurns(turns, terms)` for
+the consecutive turns of one speaker.
 
 ## Data kept elsewhere
 
