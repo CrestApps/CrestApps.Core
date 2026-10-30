@@ -2,8 +2,9 @@
 
 **Branch:** `claude/ai-memory-deep-dive-09d7e0`
 **Date:** 2026-10-29
-**Status:** Phase P0 (M1–M5) implemented 2026-10-29 — see *P0 progress* below. M6 and everything in §5–§7
-remain proposals.
+**Status:** P0 (M1–M5) implemented 2026-10-29. Session memory and past conversations (the core of P1–P3)
+implemented and validated in the MVC sample on 2026-10-30, together with two leaks found on the way. See the two
+progress sections below. P4, P5 and M6 remain proposals.
 **Goal:** Explain how memory works today across AI profiles, chat sessions, Chat Interactions and realtime
 voice. List the bugs and design gaps. Then propose a memory system modeled on current production systems
 (ChatGPT, the Claude apps, the Claude API, Microsoft.Extensions.AI, Letta, Mem0 and Zep) that remembers what was
@@ -24,6 +25,36 @@ without sending the whole transcript on every turn.
 
 Verification: full suite 5013/5013 passing; the MVC sample host starts with the new registrations. Not
 verified: indexing against a live vector provider, and the Blazor host at run time (it builds).
+
+---
+
+## Session and cross-session memory progress (2026-10-30)
+
+| Item | What shipped | Deviation from §5 |
+|---|---|---|
+| **T1 session memory** (§5.2a, c) | `ConversationMemoryOrchestrationHandler`: messages outside `PastMessagesCount` are folded into a running summary (`AIConversationMemory` on the session or interaction) every 6 dropped messages; the unsummarized ones are shown verbatim; up to 3 older turns are recalled by shared terms; `search_conversation` searches the rest from the invocation scope. Profile switch `EnableSessionMemory`; on by default for chat interactions. | The summary is updated **before** the turn on the utility model, not in the background after it: about one extra utility call every three turns. Recall is term-overlap over the in-memory history, not a vector index of turns. The §5.1 token-budgeted assembler is **not** done: the window is still `PastMessagesCount`. |
+| **T2 past conversations** (§5.3) | `search_past_conversations` and `list_recent_conversations`, scoped to the signed-in user and the profile; ownership checked on every session read; `AIChatSessionQueryContext.UserId`. Profile switch `EnablePastConversations`. | No episode summary is written at session close: the tools read the running summary when there is one and the transcript otherwise. No ambient digest. Chat interactions get T1 only: in the samples they are a shared admin workspace keyed by user name, not user id. |
+| **Privacy** (§5.6) | The summary is collected, redacted and stripped with the transcript. | — |
+| **Leak: session ids** | `AIChatHubCore.AuthorizeSessionAsync`; `LoadSession`, `RateMessage`, notification actions and `GetOrCreateSessionAsync` call it. Sample hosts allow the `Admin` policy. | Not in the original review: found while checking isolation. |
+| **Leak-adjacent bug: blank memories** | `memory-context-header` and the new template are rendered from dictionaries. | Not in the original review: Fluid denies member access to anonymous types, so retrieved user memories had reached the prompt as blank lines. |
+
+**Validated in the MVC sample against Azure OpenAI gpt-4.1-mini**, with two non-admin users (`CrestApps:Users`):
+
+- Long session (window 4): a code name and budget from turn 1 were recalled correctly at turn 7. The summary stored
+  on the session kept both verbatim. The same check passed in a Chat Interaction.
+- Past conversations: with user memory off, a fact from one of alice's chats was answered in a new chat through
+  `search_past_conversations`, with 4 of alice's conversations in scope.
+- Isolation: bob's same question searched only bob's 3 conversations and found nothing. Bob did not get alice's
+  saved memory. `LoadSession` for alice's sessions returned "Session not found" to bob and to an anonymous visitor.
+  A message bob sent to alice's session id went into a new session of bob's, and alice's transcript was unchanged.
+  The widget, still holding alice's session id in localStorage after bob signed in, opened empty. An admin could
+  still open alice's session.
+
+**Still open:** the §5.1 token-budget assembler, background summarization, a vector index of turns, episode
+summaries at close, T4 background extraction and consolidation, scoping user memory per profile, and realtime voice
+(§5.7: voice sessions still start without history). Also M6, and in CrestApps.OrchardCore: its chat hubs do not
+derive from `AIChatHubCore`, so they need their own check for the same session-id gap, and its profile editor has
+no UI for the two new switches yet.
 
 ---
 

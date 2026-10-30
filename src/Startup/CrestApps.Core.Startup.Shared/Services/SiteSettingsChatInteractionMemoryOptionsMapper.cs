@@ -20,5 +20,6 @@ internal static class SiteSettingsChatInteractionMemoryOptionsMapper
         ArgumentNullException.ThrowIfNull(options);
 
         options.EnableUserMemory = settings.EnableUserMemory ?? true;
+        options.EnableSessionMemory = settings.EnableSessionMemory ?? true;
     }
 }

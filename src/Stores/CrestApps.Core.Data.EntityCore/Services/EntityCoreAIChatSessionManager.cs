@@ -85,6 +85,12 @@ public sealed class EntityCoreAIChatSessionManager : IAIChatSessionManager
             query = query.Where(x => x.ProfileId == context.ProfileId);
         }
 
+        if (!string.IsNullOrEmpty(context?.UserId))
+        {
+            var userId = context.UserId;
+            query = query.Where(x => x.UserId == userId);
+        }
+
         var skip = (page - 1) * pageSize;
         var total = await query.CountAsync(cancellationToken);
         var records = await query

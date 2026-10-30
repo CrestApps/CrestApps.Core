@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Claims;
 using System.Threading.Channels;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Chat;
@@ -20,6 +21,82 @@ namespace CrestApps.Core.Tests.Framework.Mvc;
 
 public sealed class AIChatHubCoreTests
 {
+    [Theory]
+    [InlineData("user-1", null, "user-1", null, true)]
+    [InlineData("user-1", null, "user-2", null, false)]
+    [InlineData("user-1", null, null, "visitor-1", false)]
+    [InlineData(null, "visitor-1", null, "visitor-1", true)]
+    [InlineData(null, "visitor-1", null, "visitor-2", false)]
+    [InlineData(null, "visitor-1", "user-1", "visitor-2", false)]
+    [InlineData(null, null, "user-1", "visitor-1", false)]
+    public async Task AuthorizeSessionAsync_OnlyTheOwnerCanAccessASession(
+        string sessionUserId,
+        string sessionClientId,
+        string callerUserId,
+        string callerVisitorId,
+        bool expected)
+    {
+        var visitorResolver = new Mock<IAIVisitorIdentityResolver>();
+        visitorResolver.Setup(resolver => resolver.Resolve()).Returns(new AIVisitorIdentity { VisitorId = callerVisitorId });
+        var services = new ServiceCollection()
+            .AddSingleton(visitorResolver.Object)
+            .BuildServiceProvider();
+        var hub = new TestAIChatHub(services)
+        {
+            Context = CreateCallerContext(callerUserId),
+        };
+
+        var authorized = await hub.AuthorizeSessionForTestAsync(
+            services,
+            new AIChatSession { SessionId = "session-1", UserId = sessionUserId, ClientId = sessionClientId });
+
+        Assert.Equal(expected, authorized);
+    }
+
+    [Fact]
+    public async Task LoadSession_ForAnotherUsersSession_ReportsNotFoundAndSendsNoTranscript()
+    {
+        var chatSession = new AIChatSession { SessionId = "session-1", ProfileId = "profile-1", UserId = "owner" };
+        var sessionManager = new Mock<IAIChatSessionManager>();
+        sessionManager.Setup(manager => manager.FindAsync("session-1", It.IsAny<CancellationToken>())).ReturnsAsync(chatSession);
+        var profileManager = new Mock<IAIProfileManager>();
+        profileManager
+            .Setup(manager => manager.FindByIdAsync("profile-1", It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<AIProfile>(new AIProfile { ItemId = "profile-1" }));
+        var promptStore = new Mock<IAIChatSessionPromptStore>();
+        var services = new ServiceCollection()
+            .AddSingleton(sessionManager.Object)
+            .AddSingleton(profileManager.Object)
+            .AddSingleton(promptStore.Object)
+            .BuildServiceProvider();
+        var client = new Mock<IAIChatHubClient>();
+        var clients = new Mock<IHubCallerClients<IAIChatHubClient>>();
+        clients.SetupGet(c => c.Caller).Returns(client.Object);
+        var hub = new TestAIChatHub(services)
+        {
+            Context = CreateCallerContext("intruder"),
+            Clients = clients.Object,
+            Groups = Mock.Of<IGroupManager>(),
+        };
+
+        await hub.LoadSession("session-1");
+
+        client.Verify(c => c.ReceiveError(It.IsAny<string>()), Times.Once);
+        client.Verify(c => c.LoadSession(It.IsAny<object>()), Times.Never);
+        promptStore.Verify(store => store.GetPromptsAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    private static HubCallerContext CreateCallerContext(string userId)
+    {
+        var context = new Mock<HubCallerContext>();
+        context.SetupGet(c => c.ConnectionId).Returns("connection");
+        context.SetupGet(c => c.User).Returns(string.IsNullOrEmpty(userId)
+            ? new ClaimsPrincipal(new ClaimsIdentity())
+            : new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId)], "Test")));
+
+        return context.Object;
+    }
+
     [Fact]
     public async Task SaveChatSessionAsync_SavesSessionAndCommits()
     {
@@ -407,6 +484,11 @@ public sealed class AIChatHubCoreTests
         public Task SaveChatSessionForTestAsync(IServiceProvider services, IAIChatSessionManager sessionManager, AIChatSession chatSession)
         {
             return SaveChatSessionAsync(services, sessionManager, chatSession);
+        }
+
+        public Task<bool> AuthorizeSessionForTestAsync(IServiceProvider services, AIChatSession chatSession)
+        {
+            return AuthorizeSessionAsync(services, chatSession);
         }
 
         public string GetFriendlyErrorMessageForTest(Exception ex)

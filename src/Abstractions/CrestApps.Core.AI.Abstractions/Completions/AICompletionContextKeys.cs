@@ -63,6 +63,18 @@ public static class AICompletionContextKeys
     public const string HasMemory = "HasMemory";
 
     /// <summary>
+    /// The key in <see cref="AICompletionContext.AdditionalProperties"/> whose <see langword="true"/> value
+    /// indicates that the current conversation has older messages the conversation-memory tools can search.
+    /// </summary>
+    public const string HasConversationMemory = "HasConversationMemory";
+
+    /// <summary>
+    /// The key in <see cref="AICompletionContext.AdditionalProperties"/> whose <see langword="true"/> value
+    /// indicates that the past-conversation tools are available for the signed-in user.
+    /// </summary>
+    public const string HasPastConversations = "HasPastConversations";
+
+    /// <summary>
     /// Stores tool names that were included to satisfy declared tool dependencies for the current request.
     /// Orchestrators can use this to keep required helper tools available during tool scoping.
     /// </summary>

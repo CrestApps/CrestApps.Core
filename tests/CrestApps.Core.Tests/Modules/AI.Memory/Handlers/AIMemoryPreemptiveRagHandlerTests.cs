@@ -142,12 +142,11 @@ public sealed class AIMemoryPreemptiveRagHandlerTests
                     lines.Add(toolName?.ToString());
                 }
 
-                foreach (var result in results)
+                foreach (IDictionary<string, object> result in results)
                 {
-                    var type = result.GetType();
-                    lines.Add($"Memory: {type.GetProperty("Name")?.GetValue(result)}");
-                    lines.Add($"Description: {type.GetProperty("Description")?.GetValue(result)}");
-                    lines.Add($"Content: {type.GetProperty("Content")?.GetValue(result)}");
+                    lines.Add($"Memory: {result["Name"]}");
+                    lines.Add($"Description: {result["Description"]}");
+                    lines.Add($"Content: {result["Content"]}");
                 }
 
                 return Task.FromResult(string.Join(Environment.NewLine, lines));

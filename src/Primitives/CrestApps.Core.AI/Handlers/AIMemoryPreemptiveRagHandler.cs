@@ -116,12 +116,14 @@ internal sealed class AIMemoryPreemptiveRagHandler : IPreemptiveRagHandler
 
         var arguments = new Dictionary<string, object>
         {
-            ["results"] = results.Select(result => new
+            // Dictionaries, not anonymous objects: Fluid denies member access to unregistered types, so an
+            // anonymous object's properties render as empty strings.
+            ["results"] = results.Select(result => new Dictionary<string, object>
             {
-                result.Name,
-                result.Description,
-                result.Content,
-                UpdatedUtc = result.UpdatedUtc?.ToString("O"),
+                ["Name"] = result.Name,
+                ["Description"] = result.Description,
+                ["Content"] = result.Content,
+                ["UpdatedUtc"] = result.UpdatedUtc?.ToString("O"),
             }).ToList(),
         };
 

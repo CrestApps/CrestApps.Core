@@ -47,6 +47,12 @@ internal sealed class SystemToolRegistryProvider : IToolRegistryProvider
         var hasMemory = context?.AdditionalProperties is not null
             && context.AdditionalProperties.TryGetValue(AICompletionContextKeys.HasMemory, out var hasMemoryValue)
                 && hasMemoryValue is true;
+        var hasConversationMemory = context?.AdditionalProperties is not null
+            && context.AdditionalProperties.TryGetValue(AICompletionContextKeys.HasConversationMemory, out var hasConversationMemoryValue)
+                && hasConversationMemoryValue is true;
+        var hasPastConversations = context?.AdditionalProperties is not null
+            && context.AdditionalProperties.TryGetValue(AICompletionContextKeys.HasPastConversations, out var hasPastConversationsValue)
+                && hasPastConversationsValue is true;
         var entries = new List<ToolRegistryEntry>();
 
         foreach (var (name, entry) in _toolOptions.Tools)
@@ -56,7 +62,9 @@ internal sealed class SystemToolRegistryProvider : IToolRegistryProvider
                 continue;
             }
 
-            if (!IsAvailableInContext(entry, hasDataSource, hasDocuments, hasMemory))
+            if (!IsAvailableInContext(entry, hasDataSource, hasDocuments, hasMemory) ||
+                (entry.HasPurpose(AIToolPurposes.ConversationMemory) && !hasConversationMemory) ||
+                (entry.HasPurpose(AIToolPurposes.PastConversations) && !hasPastConversations))
             {
                 continue;
             }

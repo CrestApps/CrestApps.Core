@@ -352,6 +352,11 @@ public sealed class AIConversationPrivacyService
             }
         }
 
+        if (session.TryGet<AIConversationMemory>(out var memory))
+        {
+            Append(builder, memory.Summary);
+        }
+
         foreach (var text in texts ?? [])
         {
             Append(builder, text);
@@ -373,6 +378,13 @@ public sealed class AIConversationPrivacyService
         {
             field.Values = field.Values.Select(value => AIPersonalDataRedactor.Redact(value, terms)).ToList();
         }
+
+        // The running summary of a long conversation repeats what the transcript says, so it is redacted with it.
+        if (session.TryGet<AIConversationMemory>(out var memory) && !string.IsNullOrEmpty(memory.Summary))
+        {
+            memory.Summary = AIPersonalDataRedactor.Redact(memory.Summary, terms);
+            session.Put(memory);
+        }
     }
 
     internal static void Strip(AIChatSession session)
@@ -388,6 +400,9 @@ public sealed class AIConversationPrivacyService
         {
             field.Values = [];
         }
+
+        // With the transcript gone, the summary of it must go too.
+        session.Remove<AIConversationMemory>();
     }
 
     private static void Append(StringBuilder builder, string text)

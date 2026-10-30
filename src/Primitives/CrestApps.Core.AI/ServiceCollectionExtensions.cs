@@ -636,6 +636,22 @@ public static class ServiceCollectionExtensions
         services.TryAdd(ServiceDescriptor.Scoped<ICatalog<AIMemoryEntry>>(sp => sp.GetRequiredService<IAIMemoryStore>()));
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, AIMemoryOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IPreemptiveRagHandler, AIMemoryPreemptiveRagHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, ConversationMemoryOrchestrationHandler>());
+
+        services.AddCoreAITool<SearchConversationTool>(SearchConversationTool.TheName)
+            .WithTitle("Search Conversation")
+            .WithDescription("Search the earlier part of the current conversation that no longer fits the message history.")
+            .WithPurpose(AIToolPurposes.ConversationMemory);
+
+        services.AddCoreAITool<SearchPastConversationsTool>(SearchPastConversationsTool.TheName)
+            .WithTitle("Search Past Conversations")
+            .WithDescription("Search the signed-in user's earlier conversations with this assistant.")
+            .WithPurpose(AIToolPurposes.PastConversations);
+
+        services.AddCoreAITool<ListRecentConversationsTool>(ListRecentConversationsTool.TheName)
+            .WithTitle("List Recent Conversations")
+            .WithDescription("List the signed-in user's most recent earlier conversations with this assistant.")
+            .WithPurpose(AIToolPurposes.PastConversations);
 
         services.AddCoreAITool<SearchUserMemoriesTool>(SearchUserMemoriesTool.TheName)
             .WithTitle("Search User Memories")

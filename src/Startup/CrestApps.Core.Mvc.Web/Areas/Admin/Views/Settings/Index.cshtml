@@ -136,6 +136,14 @@
 
                     <div class="mb-3">
                         <div class="form-check form-switch">
+                            <input asp-for="EnableSessionMemoryByDefault" class="form-check-input" type="checkbox" />
+                            <label asp-for="EnableSessionMemoryByDefault" class="form-check-label">Remember earlier parts of long chat interactions</label>
+                        </div>
+                        <div class="form-text">Messages that fall outside a chat interaction's past-messages count are summarized and recalled instead of being forgotten.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
                             <input asp-for="EnablePreemptiveMemoryRetrieval" class="form-check-input" type="checkbox" />
                             <label asp-for="EnablePreemptiveMemoryRetrieval" class="form-check-label">Enable preemptive memory retrieval</label>
                         </div>

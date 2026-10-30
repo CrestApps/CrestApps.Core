@@ -108,6 +108,7 @@ public sealed class SettingsController : Controller
             MemoryIndexProfileName = memorySettings.IndexProfileName,
             MemoryTopN = memorySettings.TopN,
             EnableUserMemoryByDefault = chatInteractionMemorySettings.EnableUserMemory ?? true,
+            EnableSessionMemoryByDefault = chatInteractionMemorySettings.EnableSessionMemory ?? true,
             DefaultChatDeploymentName = deploymentDefaults.DefaultChatDeploymentName,
             DefaultUtilityDeploymentName = deploymentDefaults.DefaultUtilityDeploymentName,
             DefaultEmbeddingDeploymentName = deploymentDefaults.DefaultEmbeddingDeploymentName,
@@ -404,6 +405,7 @@ public sealed class SettingsController : Controller
         _siteSettings.Set(new MemoryMetadata
         {
             EnableUserMemory = model.EnableUserMemoryByDefault,
+            EnableSessionMemory = model.EnableSessionMemoryByDefault,
         });
 
         // Save Copilot settings, preserving existing protected secrets.

@@ -200,6 +200,14 @@ else
 
                         <div class="mb-3">
                             <div class="form-check form-switch">
+                                <InputCheckbox id="enableSessionMemory" @bind-Value="_model.EnableSessionMemoryByDefault" class="form-check-input" />
+                                <label for="enableSessionMemory" class="form-check-label">Remember earlier parts of long chat interactions</label>
+                            </div>
+                            <div class="form-text">Messages that fall outside a chat interaction's past-messages count are summarized and recalled instead of being forgotten.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
                                 <InputCheckbox id="preemptiveMemory" @bind-Value="_model.EnablePreemptiveMemoryRetrieval" class="form-check-input" />
                                 <label for="preemptiveMemory" class="form-check-label">Enable preemptive memory retrieval</label>
                             </div>
@@ -999,6 +1007,7 @@ else
             MemoryIndexProfileName = memorySettings.IndexProfileName,
             MemoryTopN = memorySettings.TopN,
             EnableUserMemoryByDefault = chatInteractionMemorySettings.EnableUserMemory ?? true,
+            EnableSessionMemoryByDefault = chatInteractionMemorySettings.EnableSessionMemory ?? true,
 
             DefaultChatDeploymentName = deploymentDefaults.DefaultChatDeploymentName,
             DefaultUtilityDeploymentName = deploymentDefaults.DefaultUtilityDeploymentName,
@@ -1495,6 +1504,7 @@ else
         SiteSettings.Set(new MemoryMetadata
         {
             EnableUserMemory = _model.EnableUserMemoryByDefault,
+            EnableSessionMemory = _model.EnableSessionMemoryByDefault,
         });
 
         // Save Copilot settings, preserving existing protected secrets.

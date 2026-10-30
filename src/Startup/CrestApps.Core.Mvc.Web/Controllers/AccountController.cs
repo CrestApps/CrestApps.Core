@@ -54,6 +54,32 @@ public sealed class AccountController : Controller
             return RedirectToAction("Index", "Home");
         }
 
+        // Optional non-admin users (CrestApps:Users:0:Username, CrestApps:Users:0:Password, ...) for trying the
+        // site as ordinary signed-in users, for example to check that one user never sees another's conversations.
+        var regularUser = _configuration.GetSection("CrestApps:Users").GetChildren().FirstOrDefault(section =>
+            !string.IsNullOrEmpty(section["Username"]) &&
+            !string.IsNullOrEmpty(section["Password"]) &&
+            string.Equals(section["Username"], username, StringComparison.Ordinal) &&
+            string.Equals(section["Password"], password, StringComparison.Ordinal));
+
+        if (regularUser is not null)
+        {
+            var identity = new ClaimsIdentity(
+            [
+                new Claim(ClaimTypes.NameIdentifier, username),
+                new Claim(ClaimTypes.Name, username),
+            ], CookieAuthenticationDefaults.AuthenticationScheme);
+
+            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return Redirect(returnUrl);
+            }
+
+            return RedirectToAction("Index", "Home");
+        }
+
         ViewData["Error"] = "Invalid username or password.";
         ViewData["ReturnUrl"] = returnUrl;
 

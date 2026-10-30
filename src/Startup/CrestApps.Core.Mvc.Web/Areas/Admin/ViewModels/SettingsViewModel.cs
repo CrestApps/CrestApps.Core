@@ -34,6 +34,8 @@ public sealed class SettingsViewModel
 
     public bool EnableUserMemoryByDefault { get; set; } = true;
 
+    public bool EnableSessionMemoryByDefault { get; set; } = true;
+
     public string DocumentIndexProfileName { get; set; }
 
     public int DocumentTopN { get; set; } = 3;

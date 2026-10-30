@@ -106,4 +106,9 @@ public static class AIUsagePurposes
     /// Finding names, addresses and other personal details in a conversation to redact them.
     /// </summary>
     public const string PersonalDataRedaction = "PersonalDataRedaction";
+
+    /// <summary>
+    /// Folding the older part of a long conversation into its running summary.
+    /// </summary>
+    public const string ConversationSummarization = "ConversationSummarization";
 }
