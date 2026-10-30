@@ -256,6 +256,10 @@ public sealed class AIProfileViewModel
     // Memory
     public bool EnableUserMemory { get; set; }
 
+    public bool EnableSessionMemory { get; set; }
+
+    public bool EnablePastConversations { get; set; }
+
     // Claude
     public string ClaudeModel { get; set; }
 
@@ -418,6 +422,8 @@ public sealed class AIProfileViewModel
             }).ToList(),
 
             EnableUserMemory = memoryMetadata.EnableUserMemory ?? false,
+            EnableSessionMemory = memoryMetadata.EnableSessionMemory ?? false,
+            EnablePastConversations = memoryMetadata.EnablePastConversations ?? false,
         };
 
         if (profile.TryGet<AIDeploymentParametersMetadata>(out var modelParameters))
@@ -818,6 +824,8 @@ public sealed class AIProfileViewModel
         profile.Alter<MemoryMetadata>(m =>
         {
             m.EnableUserMemory = EnableUserMemory;
+            m.EnableSessionMemory = EnableSessionMemory;
+            m.EnablePastConversations = EnablePastConversations;
         });
 
         if (!string.IsNullOrEmpty(OrchestratorName) &&

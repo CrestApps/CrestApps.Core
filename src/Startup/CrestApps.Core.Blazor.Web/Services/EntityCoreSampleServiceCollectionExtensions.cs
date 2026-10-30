@@ -13,7 +13,6 @@ using CrestApps.Core.Elasticsearch;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.PostgreSQL;
 using CrestApps.Core.Services;
-using CrestApps.Core.Startup.Shared.Areas.AI.Handlers;
 using CrestApps.Core.Startup.Shared.Areas.AIChat.Services;
 using CrestApps.Core.Startup.Shared.Handlers;
 using CrestApps.Core.Startup.Shared.Models;
@@ -47,7 +46,6 @@ internal static class EntityCoreSampleServiceCollectionExtensions
             .AddScoped<IAIDataSourceIndexingService, DefaultAIDataSourceIndexingService>()
             .AddScoped<Areas.AI.Services.AIProfileDocumentService>()
             .AddScoped<Areas.AI.Services.AIProfileTemplateDocumentService>()
-            .AddScoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryHandler>()
             .AddScoped<IAuthorizationHandler, SampleChatInteractionDocumentAuthorizationHandler>()
             .AddScoped<IAuthorizationHandler, SampleAIChatSessionDocumentAuthorizationHandler>()
             .AddScoped<IAuthorizationHandler, SampleAIProfileDocumentAuthorizationHandler>()

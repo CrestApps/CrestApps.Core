@@ -785,6 +785,20 @@ else if (_model != null)
                             </div>
                             <div class="form-text">Store and recall user conversation history for personalized responses.</div>
                         </div>
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox class="form-check-input" @bind-Value="_model.EnableSessionMemory" />
+                                <label class="form-check-label">Remember earlier parts of long conversations</label>
+                            </div>
+                            <div class="form-text">Messages that fall outside the past-messages count are summarized, and earlier turns that bear on a question are recalled, instead of being forgotten. Requires a past-messages count.</div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox class="form-check-input" @bind-Value="_model.EnablePastConversations" />
+                                <label class="form-check-label">Let the assistant look up past conversations</label>
+                            </div>
+                            <div class="form-text">Signed-in users can ask about their earlier conversations with this profile. Only their own conversations are searched.</div>
+                        </div>
 
                         <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-database"></i> Data Source</h6>
                         <div class="mb-3">

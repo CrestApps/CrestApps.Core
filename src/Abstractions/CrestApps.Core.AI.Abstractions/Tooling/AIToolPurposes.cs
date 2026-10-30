@@ -26,4 +26,14 @@ public static class AIToolPurposes
     /// Tools that recall, list, or store authenticated user memory.
     /// </summary>
     public const string Memory = "memory";
+
+    /// <summary>
+    /// Tools that search the earlier part of the current conversation.
+    /// </summary>
+    public const string ConversationMemory = "conversation_memory";
+
+    /// <summary>
+    /// Tools that look up the signed-in user's past conversations with the same profile.
+    /// </summary>
+    public const string PastConversations = "past_conversations";
 }

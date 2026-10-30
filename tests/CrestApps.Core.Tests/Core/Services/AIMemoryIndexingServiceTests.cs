@@ -94,6 +94,79 @@ public sealed class AIMemoryIndexingServiceTests
         Assert.Equal("Mike", document.Fields[MemoryConstants.ColumnNames.Content]);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("stale-deployment")]
+    public async Task IndexAsync_WhenEmbeddingDeploymentIsOnTheMetadata_UsesIt(string profileDeploymentName)
+    {
+        // The metadata's deployment wins, as it does for search; before, indexing only read it when the
+        // profile's own property was set, so a metadata-only profile never indexed anything.
+        var indexProfileStore = new Mock<ISearchIndexProfileStore>();
+        indexProfileStore
+            .Setup(store => store.FindByNameAsync("memory-profile", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SearchIndexProfile
+            {
+                Name = "memory-profile",
+                ProviderName = "AzureAISearch",
+                Type = IndexProfileTypes.AIMemory,
+                EmbeddingDeploymentName = profileDeploymentName,
+                Properties = new Dictionary<string, object>
+                {
+                    [nameof(DataSourceIndexProfileMetadata)] = new DataSourceIndexProfileMetadata
+                    {
+                        EmbeddingDeploymentName = "deployment-1",
+                    },
+                },
+            });
+
+        var deploymentManager = new Mock<IAIDeploymentManager>();
+        deploymentManager
+            .Setup(manager => manager.FindByNameAsync("deployment-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AIDeployment { ItemId = "deployment-1" });
+
+        var aiClientFactory = new Mock<IAIClientFactory>();
+        aiClientFactory
+            .Setup(factory => factory.CreateEmbeddingGeneratorAsync(It.Is<AIDeployment>(d => d.ItemId == "deployment-1")))
+            .Returns(new ValueTask<IEmbeddingGenerator<string, Embedding<float>>>(new FakeEmbeddingGenerator([0.1f, 0.2f])));
+
+        var indexManager = new Mock<ISearchIndexManager>();
+        indexManager
+            .Setup(manager => manager.ExistsAsync(It.IsAny<IIndexProfileInfo>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var documentManager = new Mock<ISearchDocumentManager>();
+        documentManager
+            .Setup(manager => manager.AddOrUpdateAsync(It.IsAny<IIndexProfileInfo>(), It.IsAny<IReadOnlyCollection<IndexDocument>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var services = new ServiceCollection();
+        services.AddKeyedSingleton("AzureAISearch", indexManager.Object);
+        services.AddKeyedSingleton("AzureAISearch", documentManager.Object);
+
+        var service = new AIMemoryIndexingService(
+            Mock.Of<IAIMemoryStore>(),
+            new TestOptionsMonitor<AIMemoryOptions> { CurrentValue = new AIMemoryOptions { IndexProfileName = "memory-profile" } },
+            indexProfileStore.Object,
+            deploymentManager.Object,
+            aiClientFactory.Object,
+            services.BuildServiceProvider(),
+            NullLogger<AIMemoryIndexingService>.Instance);
+
+        await service.IndexAsync(new AIMemoryEntry
+        {
+            ItemId = "memory-1",
+            UserId = "user-1",
+            Name = "name",
+            Description = "The user's name.",
+            Content = "Mike",
+        }, TestContext.Current.CancellationToken);
+
+        documentManager.Verify(manager => manager.AddOrUpdateAsync(
+            It.IsAny<IIndexProfileInfo>(),
+            It.Is<IReadOnlyCollection<IndexDocument>>(documents => documents.Single().Id == "memory-1"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     [Fact]
     public async Task DeleteAsync_WhenConfigured_RemovesMemoryDocuments()
     {

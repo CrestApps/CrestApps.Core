@@ -692,7 +692,7 @@ omit optional fields, or split the operation into multiple smaller calls.
             prompts.Add(new SystemChatMessage(systemMessage));
         }
 
-        if (context.PastMessagesCount > 1)
+        if (context.PastMessagesCount > 0)
         {
             var skip = GetTotalMessagesToSkip(azureMessages.Count, context.PastMessagesCount.Value);
             prompts.AddRange(azureMessages.Skip(skip).Take(context.PastMessagesCount.Value));

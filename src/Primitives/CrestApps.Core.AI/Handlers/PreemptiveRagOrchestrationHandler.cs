@@ -90,32 +90,24 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
         }
 
         var ragMetadata = AIDataSourceRagMetadataResolver.Resolve(buildContext.Resource);
-        // When preemptive RAG is disabled and tools are available, we skip the upfront
-        // search but still inject instructions so the model knows to call search tools.
+        // When preemptive RAG is disabled and tools are available, we skip the upfront knowledge
+        // search but still inject instructions so the model knows to call search tools. Handlers
+        // with their own switch, such as user memory, still run.
         if (!_settings.EnablePreemptiveRag && !buildContext.OrchestrationContext.DisableTools)
         {
-            await InjectToolSearchInstructionsAsync(buildContext, ragMetadata, cancellationToken);
+            if (usableHandlers.Any(handler => !handler.RunsWhenPreemptiveRagIsDisabled))
+            {
+                await InjectToolSearchInstructionsAsync(buildContext, ragMetadata, cancellationToken);
+            }
+
+            await RunHandlersAsync(buildContext, usableHandlers.Where(handler => handler.RunsWhenPreemptiveRagIsDisabled).ToList());
 
             return;
         }
 
-        var queries = await _queryProvider.GetQueriesAsync(buildContext.OrchestrationContext);
-        if (queries.Count == 0)
+        if (!await RunHandlersAsync(buildContext, usableHandlers))
         {
             return;
-        }
-
-        var ragContext = new PreemptiveRagContext(buildContext.OrchestrationContext, buildContext.Resource, queries);
-        foreach (var handler in usableHandlers)
-        {
-            try
-            {
-                await handler.HandleAsync(ragContext);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Preemptive RAG handler '{HandlerType}' failed.", handler.GetType().Name);
-            }
         }
 
         // After all handlers have run, check if any references were produced.
@@ -167,6 +159,35 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
                 buildContext.OrchestrationContext.SystemMessageBuilder.AppendLine(prompt);
             }
         }
+    }
+
+    private async Task<bool> RunHandlersAsync(OrchestrationContextBuiltContext buildContext, List<IPreemptiveRagHandler> handlers)
+    {
+        if (handlers.Count == 0)
+        {
+            return false;
+        }
+
+        var queries = await _queryProvider.GetQueriesAsync(buildContext.OrchestrationContext);
+        if (queries.Count == 0)
+        {
+            return false;
+        }
+
+        var ragContext = new PreemptiveRagContext(buildContext.OrchestrationContext, buildContext.Resource, queries);
+        foreach (var handler in handlers)
+        {
+            try
+            {
+                await handler.HandleAsync(ragContext);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Preemptive RAG handler '{HandlerType}' failed.", handler.GetType().Name);
+            }
+        }
+
+        return true;
     }
 
     private async Task InjectToolSearchInstructionsAsync(OrchestrationContextBuiltContext buildContext, AIDataSourceRagMetadata ragMetadata, CancellationToken cancellationToken)

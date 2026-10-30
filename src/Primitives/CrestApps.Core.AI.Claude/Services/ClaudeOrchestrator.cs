@@ -212,7 +212,7 @@ public sealed class ClaudeOrchestrator : IOrchestrator
                 (message.Role == ChatRole.User || message.Role == ChatRole.Assistant) &&
                 !string.IsNullOrWhiteSpace(message.Text));
 
-            if (context.CompletionContext.PastMessagesCount > 1)
+            if (context.CompletionContext.PastMessagesCount > 0)
             {
                 AddLastMessages(prompts, eligible, context.CompletionContext.PastMessagesCount.Value);
             }

@@ -92,6 +92,29 @@ public sealed class AIConversationPrivacyTests
     }
 
     [Fact]
+    public void Privacy_RedactsAndStripsTheConversationSummary()
+    {
+        var terms = new[] { new AIPersonalDataTerm { Text = "Dana Smith", Kind = "name" } };
+        var redacted = new AIChatSession { SessionId = "s1" };
+        redacted.Put(new AIConversationMemory { Summary = "Dana Smith wants a refund of $40.", SummarizedMessageCount = 6 });
+
+        Assert.Contains("Dana Smith wants a refund", AIConversationPrivacyService.CollectText(redacted, [], []));
+
+        AIConversationPrivacyService.Redact(redacted, terms);
+
+        Assert.True(redacted.TryGet<AIConversationMemory>(out var memory));
+        Assert.Equal("[NAME] wants a refund of $40.", memory.Summary);
+        Assert.Equal(6, memory.SummarizedMessageCount);
+
+        var stripped = new AIChatSession { SessionId = "s2" };
+        stripped.Put(new AIConversationMemory { Summary = "Dana Smith wants a refund.", SummarizedMessageCount = 6 });
+
+        AIConversationPrivacyService.Strip(stripped);
+
+        Assert.False(stripped.TryGet<AIConversationMemory>(out _));
+    }
+
+    [Fact]
     public void Privacy_WaitsForAConversationToEndAndBeProcessed()
     {
         Assert.False(AIConversationPrivacyService.IsFinished(new AIChatSession { Status = ChatSessionStatus.Active }));

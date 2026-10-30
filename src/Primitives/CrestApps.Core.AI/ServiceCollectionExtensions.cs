@@ -630,11 +630,28 @@ public static class ServiceCollectionExtensions
         services.AddOptions<GeneralAIOptions>();
         services.AddOptions<ChatInteractionMemoryOptions>();
         services.TryAddScoped<AIMemoryIndexingService>();
+        services.TryAddSingleton<ITextTokenizer, LuceneTextTokenizer>();
         services.TryAddScoped<IAIMemorySafetyService, DefaultAIMemorySafetyService>();
         services.TryAddScoped<IAIMemorySearchService, AIMemorySearchService>();
         services.TryAdd(ServiceDescriptor.Scoped<ICatalog<AIMemoryEntry>>(sp => sp.GetRequiredService<IAIMemoryStore>()));
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, AIMemoryOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IPreemptiveRagHandler, AIMemoryPreemptiveRagHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, ConversationMemoryOrchestrationHandler>());
+
+        services.AddCoreAITool<SearchConversationTool>(SearchConversationTool.TheName)
+            .WithTitle("Search Conversation")
+            .WithDescription("Search the earlier part of the current conversation that no longer fits the message history.")
+            .WithPurpose(AIToolPurposes.ConversationMemory);
+
+        services.AddCoreAITool<SearchPastConversationsTool>(SearchPastConversationsTool.TheName)
+            .WithTitle("Search Past Conversations")
+            .WithDescription("Search the signed-in user's earlier conversations with this assistant.")
+            .WithPurpose(AIToolPurposes.PastConversations);
+
+        services.AddCoreAITool<ListRecentConversationsTool>(ListRecentConversationsTool.TheName)
+            .WithTitle("List Recent Conversations")
+            .WithDescription("List the signed-in user's most recent earlier conversations with this assistant.")
+            .WithPurpose(AIToolPurposes.PastConversations);
 
         services.AddCoreAITool<SearchUserMemoriesTool>(SearchUserMemoriesTool.TheName)
             .WithTitle("Search User Memories")
@@ -660,6 +677,27 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Adds the catalog handler that fills in and validates memory entries, and keeps the configured AI Memory
+    /// index in step with them: every saved or deleted memory is queued and written to the index by a hosted
+    /// background service, off the request. <see cref="AddAIMemory"/> calls this. A host that registers its
+    /// own <see cref="ICatalogEntryHandler{T}"/> for <see cref="AIMemoryEntry"/> to index memories should call
+    /// <see cref="AddCoreAIMemory"/> alone instead, or each memory is indexed twice.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIMemoryIndexing(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddScoped<AIMemoryIndexingService>();
+        services.TryAddSingleton<AIMemoryIndexingQueue>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AIMemoryIndexingBackgroundService>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIMemoryEntry>, AIMemoryEntryHandler>());
+
+        return services;
+    }
+
+    /// <summary>
     /// Adds ai memory.
     /// </summary>
     /// <param name="builder">The builder.</param>
@@ -669,6 +707,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Services.AddCoreAIMemory();
+        builder.Services.AddCoreAIMemoryIndexing();
 
         if (configure is not null)
         {

@@ -251,7 +251,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
             prompts.Add(new ChatMessage(ChatRole.System, systemMessage));
         }
 
-        if (context.PastMessagesCount > 1)
+        if (context.PastMessagesCount > 0)
         {
             AddLastMessages(prompts, chatMessages, context.PastMessagesCount.Value);
         }

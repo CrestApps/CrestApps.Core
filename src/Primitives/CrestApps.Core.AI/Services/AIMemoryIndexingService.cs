@@ -220,16 +220,12 @@ public sealed class AIMemoryIndexingService
 
     private async Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGeneratorAsync(SearchIndexProfile indexProfile)
     {
-        var deploymentName = indexProfile.EmbeddingDeploymentName;
-
-        if (indexProfile.TryGet(out DataSourceIndexProfileMetadata metadata) &&
-            !string.IsNullOrWhiteSpace(indexProfile.EmbeddingDeploymentName))
-        {
-            deploymentName = metadata.EmbeddingDeploymentName;
-        }
+        var deploymentName = indexProfile.GetMemoryEmbeddingDeploymentName();
 
         if (string.IsNullOrWhiteSpace(deploymentName))
         {
+            _logger.LogWarning("Skipping AI memory indexing because index profile '{IndexProfileName}' has no embedding deployment.", indexProfile.Name);
+
             return null;
         }
 
@@ -237,6 +233,11 @@ public sealed class AIMemoryIndexingService
 
         if (deployment == null)
         {
+            _logger.LogWarning(
+                "Skipping AI memory indexing because index profile '{IndexProfileName}' could not resolve embedding deployment '{EmbeddingDeploymentName}'.",
+                indexProfile.Name,
+                deploymentName);
+
             return null;
         }
 

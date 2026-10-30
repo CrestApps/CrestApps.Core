@@ -85,7 +85,7 @@ public sealed class ClaudeOrchestratorPromptTests
     [InlineData(int.MinValue, "0,1,2,3,4")]
     [InlineData(-1, "0,1,2,3,4")]
     [InlineData(0, "0,1,2,3,4")]
-    [InlineData(1, "0,1,2,3,4")]
+    [InlineData(1, "4")]
     [InlineData(2, "3,4")]
     [InlineData(3, "2,3,4")]
     [InlineData(10, "0,1,2,3,4")]

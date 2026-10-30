@@ -37,6 +37,23 @@ public sealed class AIChatHub : AIChatHubCore<IAIChatHubClient>
             profile.ItemId));
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Administrators can open any conversation, as they do from the admin Sessions page; everyone else only
+    /// their own.
+    /// </remarks>
+    protected override async Task<bool> AuthorizeSessionAsync(IServiceProvider services, AIChatSession chatSession)
+    {
+        if (await base.AuthorizeSessionAsync(services, chatSession))
+        {
+            return true;
+        }
+
+        var authorizationService = services.GetRequiredService<IAuthorizationService>();
+
+        return (await authorizationService.AuthorizeAsync(Context.User, "Admin")).Succeeded;
+    }
+
     protected override void CollectStreamingReferences(
         IServiceProvider services,
         ChatResponseHandlerContext handlerContext,

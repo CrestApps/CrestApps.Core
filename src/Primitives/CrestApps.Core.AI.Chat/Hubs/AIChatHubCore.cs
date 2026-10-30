@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
+using System.Security.Claims;
 using System.Threading.Channels;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Chat.Models;
@@ -502,6 +503,40 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     }
 
     /// <summary>
+    /// Checks whether the current caller owns an existing chat session: the signed-in user who started it, or,
+    /// for a visitor's session, the same visitor. Every hub method that reads or continues a session by its id
+    /// calls this, so knowing another user's session id is not enough to read or write it. Override to let
+    /// others in as well, such as administrators reviewing conversations.
+    /// </summary>
+    /// <param name="services">The service provider.</param>
+    /// <param name="chatSession">The session being accessed.</param>
+    protected virtual Task<bool> AuthorizeSessionAsync(IServiceProvider services, AIChatSession chatSession)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(chatSession);
+
+        if (!string.IsNullOrEmpty(chatSession.UserId))
+        {
+            var user = Context.User;
+            var userId = user?.Identity?.IsAuthenticated == true
+                ? user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.Identity.Name
+                : null;
+
+            return Task.FromResult(string.Equals(chatSession.UserId, userId, StringComparison.Ordinal));
+        }
+
+        if (!string.IsNullOrEmpty(chatSession.ClientId))
+        {
+            var visitorId = services.GetService<IAIVisitorIdentityResolver>()?.Resolve()?.VisitorId;
+
+            return Task.FromResult(string.Equals(chatSession.ClientId, visitorId, StringComparison.Ordinal));
+        }
+
+        // A session with no owner, such as one started by another channel, belongs to nobody who can prove it.
+        return Task.FromResult(false);
+    }
+
+    /// <summary>
     /// Called after a streaming response has been fully collected and saved.
     /// Override to perform analytics, citation collection, or workflow triggers.
     /// </summary>
@@ -758,6 +793,14 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 return;
             }
 
+            // Reported as not found, so a caller probing session ids cannot tell which ones exist.
+            if (!await AuthorizeSessionAsync(services, chatSession))
+            {
+                await Clients.Caller.ReceiveError(GetSessionNotFoundMessage());
+
+                return;
+            }
+
             var prompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
             await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId));
             await Clients.Caller.LoadSession(CreateSessionPayload(chatSession, profile, prompts));
@@ -846,7 +889,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             var profileManager = services.GetRequiredService<IAIProfileManager>();
             var promptStore = services.GetRequiredService<IAIChatSessionPromptStore>();
             var chatSession = await sessionManager.FindAsync(sessionId);
-            if (chatSession is null)
+            if (chatSession is null || !await AuthorizeSessionAsync(services, chatSession))
             {
                 return;
             }
@@ -931,7 +974,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 var profileManager = services.GetRequiredService<IAIProfileManager>();
 
                 var chatSession = await sessionManager.FindAsync(sessionId);
-                if (chatSession is null)
+                if (chatSession is null || !await AuthorizeSessionAsync(services, chatSession))
                 {
                     return;
                 }
@@ -2390,7 +2433,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         if (!string.IsNullOrWhiteSpace(sessionId))
         {
             var existingChatSession = await sessionManager.FindAsync(sessionId);
-            if (existingChatSession != null && existingChatSession.ProfileId == profile.ItemId)
+
+            // Someone else's session id starts a new session of the caller's own rather than writing into theirs.
+            if (existingChatSession != null &&
+                existingChatSession.ProfileId == profile.ItemId &&
+                await AuthorizeSessionAsync(services, existingChatSession))
             {
                 return (existingChatSession, false);
             }

@@ -21,6 +21,19 @@ public static class MemoryConstants
     public static class CompletionContextKeys
     {
         public const string UserId = "AIMemoryUserId";
+
+        /// <summary>
+        /// The conversation's user and assistant messages older than the past-messages window, for
+        /// <c>search_conversation</c>. Held on the invocation scope, so the tool only ever reads the
+        /// conversation it is running in.
+        /// </summary>
+        public const string OlderConversationMessages = "AIMemoryOlderConversationMessages";
+
+        /// <summary>
+        /// The user, profile and current session that <c>search_past_conversations</c> and
+        /// <c>list_recent_conversations</c> are scoped to.
+        /// </summary>
+        public const string PastConversationsScope = "AIMemoryPastConversationsScope";
     }
 
     /// <summary>
@@ -52,5 +65,8 @@ public static class MemoryConstants
     {
         public const string MemoryAvailability = "memory-availability";
         public const string MemoryContextHeader = "memory-context-header";
+        public const string ConversationSummarization = "conversation-summarization";
+        public const string ConversationMemoryContext = "conversation-memory-context";
+        public const string PastConversationsAvailability = "past-conversations-availability";
     }
 }
