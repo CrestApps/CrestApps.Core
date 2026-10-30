@@ -235,6 +235,107 @@ public sealed class AIConversationPrivacyTests
     }
 
     [Fact]
+    public void Redactor_JoinsACallersTurnsAcrossAShortAssistantLine()
+    {
+        var redacted = AIPersonalDataRedactor.RedactConversation(
+            ["user", "assistant", "user"],
+            [
+                "My email is mike at",
+                "I'm ready when you are, go ahead and give me the full email address, and I'll read it back to confirm.",
+                "example.com",
+            ]);
+
+        Assert.Equal("My email is [EMAIL]", redacted[0]);
+        Assert.StartsWith("I'm ready when you are", redacted[1]);
+        Assert.Equal("[EMAIL]", redacted[2]);
+    }
+
+    [Fact]
+    public void Redactor_DoesNotTakeASentenceEndForTheDotOfAnAddress()
+    {
+        var redacted = AIPersonalDataRedactor.RedactConversation(
+            ["user", "user"],
+            ["Call me at noon.", "Example Motors is the dealership."]);
+
+        Assert.Equal(["Call me at noon.", "Example Motors is the dealership."], redacted);
+    }
+
+    [Fact]
+    public void Redactor_DoesNotJoinAcrossALongAssistantTurn()
+    {
+        var long_ = new string('x', AIPersonalDataRedactor.MaxInterleavedTurnLength + 1);
+
+        var redacted = AIPersonalDataRedactor.RedactConversation(
+            ["user", "assistant", "user"],
+            ["My email is mike at", long_, "example.com"]);
+
+        Assert.Equal(["My email is mike at", long_, "example.com"], redacted);
+    }
+
+    [Fact]
+    public void Redactor_RedactsAnAddressSpelledOverSeveralTurnsFromTheReadBack()
+    {
+        var redacted = AIPersonalDataRedactor.RedactConversation(
+            ["user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "user"],
+            [
+                "My email is",
+                "Go ahead.",
+                "Test",
+                "Thanks for that.",
+                "dot",
+                "Got it so far.",
+                "Calm",
+                "Let me read it back: test.calm＠example.com. Did I get that right?",
+                "Yes, that is right, and the test went well.",
+            ]);
+
+        Assert.Equal("My email is", redacted[0]);
+        Assert.Equal("[EMAIL]", redacted[2]);
+        Assert.Equal("dot", redacted[4]);
+        Assert.Equal("[EMAIL]", redacted[6]);
+        Assert.Equal("Let me read it back: [EMAIL]. Did I get that right?", redacted[7]);
+        Assert.Equal("Yes, that is right, and the test went well.", redacted[8]);
+    }
+
+    [Fact]
+    public void Redactor_TakesAFoundAddressOutOfTheTurnsThatSayPartsOfIt()
+    {
+        var redacted = AIPersonalDataRedactor.RedactConversation(
+            ["assistant", "user", "assistant", "user", "user"],
+            [
+                "Just to confirm, your email is mike＠example.com?",
+                "Right, mike at",
+                "Okay.",
+                "I will test it, and I said mike at noon today.",
+                "example dot com",
+            ]);
+
+        Assert.Equal("Just to confirm, your email is [EMAIL]?", redacted[0]);
+        Assert.Equal("Right, [EMAIL]", redacted[1]);
+        Assert.Equal("I will test it, and I said mike at noon today.", redacted[3]);
+        Assert.Equal("[EMAIL]", redacted[4]);
+    }
+
+    [Fact]
+    public async Task Apply_RedactsADetailDictatedAroundAnAssistantLine()
+    {
+        var sessions = new InMemorySessionStore();
+        var session = NewSession("s1");
+        sessions.Add(session);
+
+        var prompts = new InMemoryPromptStore();
+        prompts.Add(new AIChatSessionPrompt { ItemId = "p1", SessionId = "s1", Role = ChatRole.User, Content = "My email is mike at" });
+        prompts.Add(new AIChatSessionPrompt { ItemId = "p2", SessionId = "s1", Role = ChatRole.Assistant, Content = "Go ahead and give me the full address." });
+        prompts.Add(new AIChatSessionPrompt { ItemId = "p3", SessionId = "s1", Role = ChatRole.User, Content = "example.com" });
+
+        Assert.True(await NewService(sessions, prompts, []).ApplyAsync(session, AIDataStorageMode.RedactPersonalData, TestContext.Current.CancellationToken));
+
+        Assert.Equal("My email is [EMAIL]", prompts.Prompts["p1"].Content);
+        Assert.Equal("Go ahead and give me the full address.", prompts.Prompts["p2"].Content);
+        Assert.Equal("[EMAIL]", prompts.Prompts["p3"].Content);
+    }
+
+    [Fact]
     public async Task Apply_MetadataOnly_DeletesTheTranscriptAndClearsWhatHandlersKeep()
     {
         var sessions = new InMemorySessionStore();

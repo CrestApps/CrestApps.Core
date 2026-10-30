@@ -215,19 +215,19 @@ public sealed class AIConversationPrivacyService
             // the first turn is also taken out of the summary written from it.
             context.Terms = await FindPersonalDataAsync(CollectText(session, prompts, context.Texts), context.NamesToKeep, cancellationToken);
 
-            // A detail dictated over several turns of one speaker ("mike at" and then "example.com") is found in the
-            // turns joined, and replaced in each of them.
-            foreach (var run in GroupBySpeaker(prompts))
-            {
-                var redacted = context.RedactTurns([.. run.Select(prompt => prompt.Content)]);
+            // A detail dictated over several turns of one speaker ("mike at", a short line of the assistant, then
+            // "example.com") is found in the speaker's turns read as one stream, and replaced in each of them.
+            var transcript = prompts.ToList();
+            var redacted = context.RedactConversation(
+                [.. transcript.Select(prompt => prompt.Role.Value)],
+                [.. transcript.Select(prompt => prompt.Content)]);
 
-                for (var i = 0; i < run.Count; i++)
+            for (var i = 0; i < transcript.Count; i++)
+            {
+                if (!string.Equals(redacted[i], transcript[i].Content, StringComparison.Ordinal))
                 {
-                    if (!string.Equals(redacted[i], run[i].Content, StringComparison.Ordinal))
-                    {
-                        run[i].Content = redacted[i];
-                        await _promptStore.UpdateAsync(run[i], cancellationToken);
-                    }
+                    transcript[i].Content = redacted[i];
+                    await _promptStore.UpdateAsync(transcript[i], cancellationToken);
                 }
             }
 
@@ -393,25 +393,6 @@ public sealed class AIConversationPrivacyService
         }
 
         return [.. terms.Where(term => !string.Equals(term.Kind?.Trim(), "name", StringComparison.OrdinalIgnoreCase) || !keep.Contains(term.Text.Trim()))];
-    }
-
-    internal static List<List<AIChatSessionPrompt>> GroupBySpeaker(IEnumerable<AIChatSessionPrompt> prompts)
-    {
-        var runs = new List<List<AIChatSessionPrompt>>();
-
-        foreach (var prompt in prompts ?? [])
-        {
-            if (runs.Count > 0 && runs[^1][0].Role == prompt.Role)
-            {
-                runs[^1].Add(prompt);
-            }
-            else
-            {
-                runs.Add([prompt]);
-            }
-        }
-
-        return runs;
     }
 
     internal static IReadOnlyList<AIPersonalDataTerm> WithNameParts(IEnumerable<AIPersonalDataTerm> terms)

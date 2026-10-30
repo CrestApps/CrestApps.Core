@@ -75,4 +75,17 @@ public sealed class AIConversationPrivacyContext
     {
         return AIPersonalDataRedactor.RedactTurns(turns, Terms);
     }
+
+    /// <summary>
+    /// Replaces the personal details in a whole conversation: each speaker's turns are read as one stream, short turns
+    /// of the other speakers between them left out, and an email address found anywhere is also taken out of the
+    /// turns that say a part of it.
+    /// </summary>
+    /// <param name="speakers">Who said each turn, such as the role.</param>
+    /// <param name="turns">The turns, in order.</param>
+    /// <returns>The redacted turns, one for each turn.</returns>
+    public IReadOnlyList<string> RedactConversation(IReadOnlyList<string> speakers, IReadOnlyList<string> turns)
+    {
+        return AIPersonalDataRedactor.RedactConversation(speakers, turns, Terms);
+    }
 }
