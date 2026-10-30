@@ -52,9 +52,25 @@ verified: indexing against a live vector provider, and the Blazor host at run ti
 
 **Still open:** the §5.1 token-budget assembler, background summarization, a vector index of turns, episode
 summaries at close, T4 background extraction and consolidation, scoping user memory per profile, and realtime voice
-(§5.7: voice sessions still start without history). Also M6, and in CrestApps.OrchardCore: its chat hubs do not
-derive from `AIChatHubCore`, so they need their own check for the same session-id gap, and its profile editor has
-no UI for the two new switches yet.
+(§5.7: voice sessions still start without history). Also M6.
+
+**Why summarization is not after the answer yet (tried 2026-10-30).** Running it from
+`IAIChatSessionHandler.MessageCompletedAsync`, where data extraction already runs, showed the answer about 1.8 s
+sooner on a summary turn, but the stream stays open while it runs and the send button is a Stop button until the
+stream closes. In the Core hubs the turn runs in SignalR's invocation scope (`ExecuteInScopeAsync` defaults to the
+hub's provider), which is disposed when the stream is cancelled, so one click in that window lost the summary
+**and** the whole exchange (`ObjectDisposedException`, nothing committed). Running the summary alongside the answer
+instead would write usage records concurrently with the turn's own store session. Both need the hubs to run the
+post-answer work in a scope of their own first; until then the summary is made before the answer, about one
+utility call every three turns. The same Stop-click loss already applies to data extraction in the Core hubs.
+CrestApps.OrchardCore is not affected by the scope part: its hubs open their own `ShellScope`.
+
+**CrestApps.OrchardCore after the next Core preview.** Its `AIChatHub` derives from `AIChatHubCore`, so it picks up
+`AuthorizeSessionAsync` for `SendMessage`, `RateMessage` and notification actions; its `LoadSession` override is
+already owner-scoped through `DefaultAIChatSessionManager.FindAsync`, which matches `UserId` to the
+`NameIdentifier` claim and visitors by `ClientId`, the same rule the base applies. `AddCoreAIMemory()` brings the
+conversation handler and tools. Still to do there: bump `CrestAppsCoreVersion`, and add the two switches to
+`AIProfileMemoryDisplayDriver`, `AIProfileTemplateMemoryDisplayDriver` and the chat-interaction memory settings.
 
 ---
 
