@@ -11,6 +11,7 @@ using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.AI.Security;
 using CrestApps.Core.Services;
+using CrestApps.Core.Tests.Support;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -383,6 +384,148 @@ public sealed class AIChatHubCoreTests
         sessionManagerMock.Verify(
             manager => manager.NewAsync(It.IsAny<AIProfile>(), It.IsAny<NewAIChatSessionContext>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    /// <summary>
+    /// A Stop click once the answer has streamed cancels the stream, and SignalR then disposes the hub and
+    /// its invocation scope while the session handlers are still completing the turn. The turn must be
+    /// committed anyway: the user prompt, the full answer and the session.
+    /// </summary>
+    [Fact]
+    public async Task SendMessage_WhenStoppedAfterTheAnswerStreamed_StillCommitsTheTurn()
+    {
+        var profile = new AIProfile { ItemId = "profile-1", Type = AIProfileType.Chat };
+        var chatSession = new AIChatSession
+        {
+            SessionId = "session-1",
+            ProfileId = profile.ItemId,
+            Title = "Existing title",
+            Status = ChatSessionStatus.Active,
+        };
+        var completionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var profileManagerMock = new Mock<IAIProfileManager>();
+        profileManagerMock
+            .Setup(manager => manager.FindByIdAsync(profile.ItemId, It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<AIProfile>(profile));
+        var handlerMock = new Mock<IChatResponseHandler>();
+        handlerMock
+            .Setup(handler => handler.HandleAsync(It.IsAny<ChatResponseHandlerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ChatResponseHandlerResult.Streaming(StreamAnswerAsync("Hello", " there")));
+        var handlerResolverMock = new Mock<IChatResponseHandlerResolver>();
+        handlerResolverMock
+            .Setup(resolver => resolver.Resolve(It.IsAny<string>(), It.IsAny<ChatMode>()))
+            .Returns(handlerMock.Object);
+
+        // Holds the turn in its post-answer work, where data extraction makes its model call.
+        var sessionHandlerMock = new Mock<IAIChatSessionHandler>();
+        sessionHandlerMock
+            .Setup(handler => handler.MessageCompletedAsync(It.IsAny<ChatMessageCompletedContext>(), It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                completionStarted.TrySetResult();
+                await releaseCompletion.Task;
+            });
+
+        var rootServices = new ServiceCollection()
+            .AddSingleton(profileManagerMock.Object)
+            .AddSingleton(handlerResolverMock.Object)
+            .AddSingleton(sessionHandlerMock.Object)
+            .AddSingleton<TestStoreDatabase>()
+            .AddScoped<TestStoreSession>()
+            .AddScoped<IStoreCommitter>(services => services.GetRequiredService<TestStoreSession>())
+            .AddScoped(services => CreateStagingSessionManager(services.GetRequiredService<TestStoreSession>(), chatSession))
+            .AddScoped(services => CreateStagingPromptStore(services.GetRequiredService<TestStoreSession>()))
+            .BuildServiceProvider();
+
+        // SignalR creates the hub in an invocation scope and disposes both when the stream ends.
+        var invocationScope = rootServices.CreateAsyncScope();
+        var (hub, _) = CreateHubWithCaller(invocationScope.ServiceProvider);
+        hub.Groups = new Mock<IGroupManager>().Object;
+        using var stop = new CancellationTokenSource();
+
+        var reader = hub.SendMessage(profile.ItemId, "Hi", chatSession.SessionId, sessionProfileId: null, stop.Token);
+
+        await completionStarted.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        stop.Cancel();
+        await invocationScope.DisposeAsync();
+        hub.Dispose();
+        releaseCompletion.SetResult();
+
+        var streamed = new List<string>();
+
+        await foreach (var message in reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        {
+            streamed.Add(message.Content);
+        }
+
+        Assert.Equal(["Hello", " there"], streamed);
+
+        var committed = rootServices.GetRequiredService<TestStoreDatabase>().Committed.ToList();
+        var prompts = committed.OfType<AIChatSessionPrompt>().ToList();
+
+        Assert.Collection(
+            prompts,
+            prompt =>
+            {
+                Assert.Equal(ChatRole.User, prompt.Role);
+                Assert.Equal("Hi", prompt.Content);
+            },
+            prompt =>
+            {
+                Assert.Equal(ChatRole.Assistant, prompt.Role);
+                Assert.Equal("Hello there", prompt.Content);
+            });
+        Assert.Contains(chatSession, committed);
+    }
+
+    private static async IAsyncEnumerable<ChatResponseUpdate> StreamAnswerAsync(params string[] chunks)
+    {
+        foreach (var chunk in chunks)
+        {
+            await Task.Yield();
+
+            yield return new ChatResponseUpdate(ChatRole.Assistant, chunk);
+        }
+    }
+
+    private static IAIChatSessionManager CreateStagingSessionManager(TestStoreSession storeSession, AIChatSession chatSession)
+    {
+        var sessionManagerMock = new Mock<IAIChatSessionManager>();
+        sessionManagerMock
+            .Setup(manager => manager.FindAsync(chatSession.SessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(chatSession);
+        sessionManagerMock
+            .Setup(manager => manager.SaveAsync(It.IsAny<AIChatSession>(), It.IsAny<CancellationToken>()))
+            .Returns<AIChatSession, CancellationToken>((session, _) =>
+            {
+                storeSession.Stage(session);
+
+                return Task.CompletedTask;
+            });
+
+        return sessionManagerMock.Object;
+    }
+
+    private static IAIChatSessionPromptStore CreateStagingPromptStore(TestStoreSession storeSession)
+    {
+        var promptStoreMock = new Mock<IAIChatSessionPromptStore>();
+        promptStoreMock
+            .Setup(store => store.CreateAsync(It.IsAny<AIChatSessionPrompt>(), It.IsAny<CancellationToken>()))
+            .Returns<AIChatSessionPrompt, CancellationToken>((prompt, cancellationToken) =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                storeSession.Stage(prompt);
+
+                return ValueTask.CompletedTask;
+            });
+        promptStoreMock
+            .Setup(store => store.GetPromptsAsync(It.IsAny<string>()))
+            .ReturnsAsync(() => storeSession.GetStaged<AIChatSessionPrompt>());
+
+        return promptStoreMock.Object;
     }
 
     private static (TestAIChatHub Hub, Mock<IAIChatHubClient> Caller) CreateHubWithCaller(IServiceProvider services)

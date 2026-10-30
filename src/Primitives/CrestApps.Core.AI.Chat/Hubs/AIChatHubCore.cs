@@ -96,19 +96,48 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         // not await the scope.
         var user = Context?.User;
 
+        await ExecuteInScopeAsync(services => RunAsUserAsync(services, user, action));
+    }
+
+    /// <summary>
+    /// Executes the work of a streaming invocation, which outlives the hub method that started it.
+    /// SignalR disposes the invocation scope this hub was created in as soon as the client cancels the
+    /// stream, yet the work goes on to save the turn after its answer has streamed. So when
+    /// <see cref="ExecuteInScopeAsync"/> hands back that invocation scope, the work runs in a child scope
+    /// the hub owns instead; a host override that supplies its own scope is used as is.
+    /// </summary>
+    /// <param name="action">The action.</param>
+    private async Task RunStreamInScopeAsync(Func<IServiceProvider, Task> action)
+    {
+        var user = Context?.User;
+
         await ExecuteInScopeAsync(async services =>
         {
-            var userAccessor = services.GetService<IUserAccessor>();
-
-            if (userAccessor is not null)
+            if (!ReferenceEquals(services, _services))
             {
-                // The accessor tracks the principal with an AsyncLocal, so the assignment is
-                // scoped to this invocation and never leaks to other connections.
-                userAccessor.User = user;
+                await RunAsUserAsync(services, user, action);
+
+                return;
             }
 
-            await action(services);
+            await using var scope = services.GetRequiredService<IServiceScopeFactory>().CreateAsyncScope();
+
+            await RunAsUserAsync(scope.ServiceProvider, user, action);
         });
+    }
+
+    private static async Task RunAsUserAsync(IServiceProvider services, ClaimsPrincipal user, Func<IServiceProvider, Task> action)
+    {
+        var userAccessor = services.GetService<IUserAccessor>();
+
+        if (userAccessor is not null)
+        {
+            // The accessor tracks the principal with an AsyncLocal, so the assignment is
+            // scoped to this invocation and never leaks to other connections.
+            userAccessor.User = user;
+        }
+
+        await action(services);
     }
 
     /// <summary>
@@ -746,7 +775,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     public virtual ChannelReader<CompletionPartialMessage> SendMessage(string profileId, string prompt, string sessionId, string sessionProfileId, CancellationToken cancellationToken)
     {
         var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
-        _ = RunInScopeAsync(services => HandleSendMessageAsync(channel.Writer, services, profileId, prompt, sessionId, sessionProfileId, cancellationToken));
+        _ = RunStreamInScopeAsync(services => HandleSendMessageAsync(channel.Writer, services, profileId, prompt, sessionId, sessionProfileId, cancellationToken));
 
         return channel.Reader;
     }
@@ -2235,12 +2264,16 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         // Final pass for any references added by the last tool call.
         CollectStreamingReferences(services, handlerContext, references, contentItemIds);
         stopwatch.Stop();
+
+        // The answer has streamed. A Stop click from here on only ends the stream on the client: the turn
+        // must still be checked, completed and saved, so the remaining work ignores the caller's token.
+        // A cancelled token would otherwise fail even the channel writes below, and lose the whole turn.
         if (builder.Length > 0)
         {
             var fullResponse = builder.ToString();
 
             // Validate the complete response through output security filter, then the profile's guardrails.
-            var blockedContent = await ValidateOutputAsync(services, profile, chatSession.SessionId, prompt, fullResponse, handlerContext, cancellationToken);
+            var blockedContent = await ValidateOutputAsync(services, profile, chatSession.SessionId, prompt, fullResponse, handlerContext, CancellationToken.None);
 
             if (blockedContent is not null)
             {
@@ -2251,7 +2284,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     MessageId = assistantMessage.ItemId,
                     Content = blockedContent,
                 };
-                await writer.WriteAsync(blockedMessage, cancellationToken);
+                await writer.WriteAsync(blockedMessage, CancellationToken.None);
                 await SaveChatSessionAsync(services, sessionManager, chatSession);
 
                 return;
@@ -2260,7 +2293,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             assistantMessage.Content = fullResponse;
             assistantMessage.ContentItemIds = contentItemIds.ToList();
             assistantMessage.References = references;
-            await promptStore.CreateAsync(assistantMessage, cancellationToken);
+            await promptStore.CreateAsync(assistantMessage, CancellationToken.None);
 
             if (Logger.IsEnabled(LogLevel.Debug))
             {
@@ -2284,7 +2317,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 MessageId = assistantMessage.ItemId,
                 Content = GetEmptyResponseMessage(),
             };
-            await writer.WriteAsync(emptyMessage, cancellationToken);
+            await writer.WriteAsync(emptyMessage, CancellationToken.None);
         }
 
         var prompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
@@ -2385,7 +2418,9 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         assistantMessage.Content = builder.ToString();
         assistantMessage.ContentItemIds = contentItemIds.ToList();
         assistantMessage.References = references;
-        await promptStore.CreateAsync(assistantMessage, cancellationToken);
+
+        // The answer has streamed, so a Stop click from here on must not lose it.
+        await promptStore.CreateAsync(assistantMessage, CancellationToken.None);
         await SaveChatSessionAsync(services, sessionManager, chatSession);
     }
 
