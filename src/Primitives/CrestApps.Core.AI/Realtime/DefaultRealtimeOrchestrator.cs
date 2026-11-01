@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Realtime;
+using CrestApps.Core.AI.Speech;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -30,6 +31,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
     private readonly IRealtimeSessionConfigurator _sessionConfigurator;
     private readonly IRealtimeTurnGrounding _turnGrounding;
     private readonly ToolRelevanceScoper _toolScoper;
+    private readonly IRealtimeVoiceResolver _realtimeVoiceResolver;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<DefaultRealtimeOrchestrator> _logger;
@@ -51,6 +53,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         IRealtimeSessionConfigurator sessionConfigurator,
         IRealtimeTurnGrounding turnGrounding,
         ToolRelevanceScoper toolScoper,
+        IRealtimeVoiceResolver realtimeVoiceResolver,
         IServiceProvider serviceProvider,
         ILoggerFactory loggerFactory,
         ILogger<DefaultRealtimeOrchestrator> logger)
@@ -64,6 +67,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         _sessionConfigurator = sessionConfigurator;
         _turnGrounding = turnGrounding;
         _toolScoper = toolScoper;
+        _realtimeVoiceResolver = realtimeVoiceResolver;
         _serviceProvider = serviceProvider;
         _loggerFactory = loggerFactory;
         _logger = logger;
@@ -101,6 +105,8 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
 
         await WarnWhenToolsCannotBeCalledAsync(deployment, isCascaded ? cascade : null, tools, cancellationToken);
 
+        var voice = await SelectOfferedVoiceAsync(request.Voice, deployment, isCascaded);
+
         var transcriptionModel = await ResolveInputTranscriptionModelAsync(request, deployment, isCascaded ? cascade : null, cancellationToken);
 
         // Decided during PREPARE (see above), because the guidance handlers needed to know it too.
@@ -120,7 +126,7 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             // No voice is assumed when none is chosen. A voice name belongs to one provider -- the previous
             // fallback, "alloy", is OpenAI's -- and means nothing to another, so an unset voice is left unset and
             // the provider speaks with its own default.
-            Voice = string.IsNullOrWhiteSpace(request.Voice) ? null : request.Voice.Trim(),
+            Voice = voice,
             Tools = tools,
             MaxOutputTokens = context.CompletionContext?.MaxTokens,
             SpeechLanguage = speechLanguage,
@@ -206,6 +212,62 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
         _sessions.Add(conversation, state);
 
         return conversation;
+    }
+
+    /// <summary>
+    /// The voice the session opens with: the one requested, unless the deployment lists its voices and this is not one
+    /// of them.
+    /// </summary>
+    /// <remarks>
+    /// The voice reaches the provider in the same set-up message as the instructions and the tools, and a provider
+    /// refuses that message whole over a single value it does not accept. Live, an OpenAI realtime call was handed an
+    /// ElevenLabs voice its profile had kept: the session opened anyway, with neither instructions nor tools, and the
+    /// model told the caller it had booked an appointment that nothing booked. A voice that is not the deployment's
+    /// own is left out, so the provider speaks with its default and the session keeps the rest of its set-up. A
+    /// cascade speaks through its text-to-speech deployment, whose voice list need not hold every voice it can speak
+    /// with, so its voice is passed on as it is; so is any voice when the list is empty or cannot be read.
+    /// </remarks>
+    /// <param name="requested">The voice the request names, or <see langword="null"/>.</param>
+    /// <param name="deployment">The realtime deployment the session opens on.</param>
+    /// <param name="isCascaded">Whether the deployment chains speech-to-text, chat and text-to-speech deployments.</param>
+    private async Task<string> SelectOfferedVoiceAsync(string requested, AIDeployment deployment, bool isCascaded)
+    {
+        if (string.IsNullOrWhiteSpace(requested))
+        {
+            return null;
+        }
+
+        var voice = requested.Trim();
+
+        if (isCascaded)
+        {
+            return voice;
+        }
+
+        SpeechVoice[] voices;
+
+        try
+        {
+            voices = await _realtimeVoiceResolver.GetVoicesAsync(deployment);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "The voices of the realtime deployment '{Deployment}' could not be read, so the voice '{Voice}' is used unchecked.", deployment.Name, voice);
+
+            return voice;
+        }
+
+        if (voices is null || voices.Length == 0 || voices.Any(offered => string.Equals(offered.Id, voice, StringComparison.Ordinal)))
+        {
+            return voice;
+        }
+
+        _logger.LogWarning(
+            "The realtime deployment '{Deployment}' has no voice '{Voice}', so the session opens with the provider's default voice. Choose one of the deployment's voices, or none.",
+            deployment.Name,
+            voice);
+
+        return null;
     }
 
     private async Task<(OrchestrationContext Context, bool HasInvocationScope)> BuildContextAsync(
