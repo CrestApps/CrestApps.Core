@@ -145,6 +145,74 @@ public sealed class CascadedRealtimeSessionTests
         Assert.True(order.FindIndex(content => content is FunctionCallContent) < order.FindIndex(content => content is FunctionResultContent));
     }
 
+    // A speech-to-speech provider finishes the message item the model was saying when it calls a function, and the host
+    // reads the goodbye said before the end-call tool from that. Live, on a cascade, the goodbye and the tool's answer
+    // were one unfinished line, so the end-call tool told the model a goodbye was still owed, and the caller heard two.
+    [Fact]
+    public async Task Session_AToolCall_FinishesTheLineSaidBeforeIt()
+    {
+        var transcription = new FakeTranscriptionSession();
+        var chatClient = new FakeChatClient(
+        [
+            new ChatResponseUpdate(ChatRole.Assistant, "Thank you, goodbye!") { MessageId = "m1" },
+            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent("call_1", "endCall")]) { MessageId = "m1" },
+            new ChatResponseUpdate(ChatRole.Tool, [new FunctionResultContent("call_1", "The call will be ended for you.")]) { MessageId = "m2" },
+            new ChatResponseUpdate(ChatRole.Assistant, "Have a good day.") { MessageId = "m3" },
+        ],
+        holdAfterFirst: false);
+
+        await using var session = CreateSession(transcription, chatClient);
+
+        transcription.Emit(Completed("no, that's all, bye"));
+        transcription.Complete();
+
+        var messages = await ReadAllAsync(session);
+
+        // Two lines, each with its own words, in the order they were said...
+        var done = messages
+            .OfType<OutputTextAudioRealtimeServerMessage>()
+            .Where(message => message.Type == RealtimeServerMessageType.OutputAudioTranscriptionDone)
+            .ToList();
+        Assert.Equal(["Thank you, goodbye!", "Have a good day."], done.Select(message => message.Text));
+
+        // ...the first spoken and finished before anything of the second, and both in the one reply.
+        var firstDone = messages.IndexOf(done[0]);
+        var firstAudio = messages.FindIndex(message => message.Type == RealtimeServerMessageType.OutputAudioDelta);
+        var secondLine = messages.FindIndex(message =>
+            message is OutputTextAudioRealtimeServerMessage delta && delta.Type == RealtimeServerMessageType.OutputAudioTranscriptionDelta && delta.Text == "Have a good day.");
+        Assert.True(firstAudio < firstDone, "The first line was finished before it was spoken.");
+        Assert.True(firstDone < secondLine, "The second line began before the first was finished.");
+        Assert.Single(messages, message => message.Type == RealtimeServerMessageType.ResponseCreated);
+        Assert.Single(messages, message => message.Type == RealtimeServerMessageType.ResponseDone);
+    }
+
+    // When the model says nothing after the tool's answer, the reply ends with the line before the tool: an empty last
+    // line would be taken for the assistant's last words.
+    [Fact]
+    public async Task Session_AToolCallAfterTheLastWords_AddsNoEmptyLine()
+    {
+        var transcription = new FakeTranscriptionSession();
+        var chatClient = new FakeChatClient(
+        [
+            new ChatResponseUpdate(ChatRole.Assistant, "Thank you, goodbye!") { MessageId = "m1" },
+            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent("call_1", "endCall")]) { MessageId = "m1" },
+            new ChatResponseUpdate(ChatRole.Tool, [new FunctionResultContent("call_1", "The call will be ended for you.")]) { MessageId = "m2" },
+        ],
+        holdAfterFirst: false);
+
+        await using var session = CreateSession(transcription, chatClient);
+
+        transcription.Emit(Completed("no, that's all, bye"));
+        transcription.Complete();
+
+        var messages = await ReadAllAsync(session);
+
+        var done = Assert.Single(
+            messages.OfType<OutputTextAudioRealtimeServerMessage>(),
+            message => message.Type == RealtimeServerMessageType.OutputAudioTranscriptionDone);
+        Assert.Equal("Thank you, goodbye!", done.Text);
+    }
+
     // A reply interrupted between asking for a tool and getting its answer leaves a call with no result. Providers
     // that pair each call with its result (Anthropic among them) refuse such a conversation, so it is left out.
     [Fact(Timeout = 30000)]
@@ -817,6 +885,22 @@ public sealed class CascadedRealtimeSessionTests
             chatClient,
             new FakeSpeechClient(_audioChunk),
             new RealtimeSessionOptions { Instructions = instructions },
+            chatOptions: null,
+            speechOptions: new TextToSpeechOptions(),
+            NullLogger.Instance);
+
+        session.Start();
+
+        return session;
+    }
+
+    private static CascadedRealtimeSession CreateSession(FakeTranscriptionSession transcription, FakeChatClient chatClient)
+    {
+        var session = new CascadedRealtimeSession(
+            transcription,
+            chatClient,
+            new FakeSpeechClient(_audioChunk),
+            new RealtimeSessionOptions(),
             chatOptions: null,
             speechOptions: new TextToSpeechOptions(),
             NullLogger.Instance);

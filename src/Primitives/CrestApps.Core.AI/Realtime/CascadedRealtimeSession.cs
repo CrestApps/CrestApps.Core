@@ -516,8 +516,11 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     private async Task RunTurnAsync(CreateResponseRealtimeClientMessage? response, CancellationToken cancellationToken)
     {
         var responseId = Guid.NewGuid().ToString("n");
-        var reply = new StringBuilder();
+
+        // The line being said, which a tool call ends: see FinishLineAsync.
+        var line = new StringBuilder();
         var pending = new StringBuilder();
+        var finishedALine = false;
 
         // Everything the chat leg returns, the tool calls and their results as well as the text, so the next turn is
         // written knowing what this one looked up.
@@ -537,6 +540,17 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
             {
                 updates.Add(update);
 
+                // A tool call ends the line said before it, as a speech-to-speech provider finishes its message item when
+                // the model calls a function, and what the model says after the tool's answer is a line of its own. As one
+                // line, the goodbye a model said before calling the end-call tool was still unfinished when the tool asked
+                // whether a goodbye had been said, so the model was told to say one, and the caller heard it twice.
+                if (update.Contents.Any(content => content is FunctionCallContent))
+                {
+                    finishedALine |= await FinishLineAsync(line, pending, responseId, cancellationToken);
+
+                    continue;
+                }
+
                 var text = update.Text;
 
                 if (string.IsNullOrEmpty(text))
@@ -544,7 +558,7 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
                     continue;
                 }
 
-                reply.Append(text);
+                line.Append(text);
                 pending.Append(text);
 
                 await WriteAsync(new OutputTextAudioRealtimeServerMessage(RealtimeServerMessageType.OutputAudioTranscriptionDelta)
@@ -559,16 +573,21 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
                 }
             }
 
-            if (pending.Length > 0)
+            // The last line, unless a tool call ended the one before it and nothing was said after the tool's answer:
+            // an empty line there would be taken for the assistant's last words.
+            if (line.Length > 0 || pending.Length > 0 || !finishedALine)
             {
-                await SpeakAsync(pending.ToString(), responseId, cancellationToken);
-            }
+                if (pending.Length > 0)
+                {
+                    await SpeakAsync(pending.ToString(), responseId, cancellationToken);
+                }
 
-            await WriteAsync(new OutputTextAudioRealtimeServerMessage(RealtimeServerMessageType.OutputAudioTranscriptionDone)
-            {
-                Text = reply.ToString(),
-                ResponseId = responseId,
-            });
+                await WriteAsync(new OutputTextAudioRealtimeServerMessage(RealtimeServerMessageType.OutputAudioTranscriptionDone)
+                {
+                    Text = line.ToString(),
+                    ResponseId = responseId,
+                });
+            }
 
             if (keepInHistory)
             {
@@ -799,6 +818,42 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         fragment = string.Empty;
 
         return false;
+    }
+
+    /// <summary>
+    /// Speaks what is left of the line and finishes it, so its transcript is done before anything the model says next.
+    /// </summary>
+    /// <remarks>
+    /// The rest of the line is spoken first: audio arriving after its line was finished would be taken for the next
+    /// line, and one said after the end-call tool is kept off the line.
+    /// </remarks>
+    /// <param name="line">The line being said, cleared once it is finished.</param>
+    /// <param name="pending">What has been written but not yet spoken, cleared once it is spoken.</param>
+    /// <param name="responseId">The reply the line belongs to.</param>
+    /// <param name="cancellationToken">A token that cancels this reply.</param>
+    /// <returns><see langword="true"/> when a line with words was finished.</returns>
+    private async Task<bool> FinishLineAsync(StringBuilder line, StringBuilder pending, string responseId, CancellationToken cancellationToken)
+    {
+        if (pending.Length > 0)
+        {
+            await SpeakAsync(pending.ToString(), responseId, cancellationToken);
+            pending.Clear();
+        }
+
+        if (line.Length == 0)
+        {
+            return false;
+        }
+
+        await WriteAsync(new OutputTextAudioRealtimeServerMessage(RealtimeServerMessageType.OutputAudioTranscriptionDone)
+        {
+            Text = line.ToString(),
+            ResponseId = responseId,
+        });
+
+        line.Clear();
+
+        return true;
     }
 
     private Task WriteAsync(RealtimeServerMessage message)
