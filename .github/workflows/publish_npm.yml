@@ -172,8 +172,30 @@ jobs:
     - name: Publish @crestapps/webmcp to npm
       if: steps.check-publish.outputs.should-publish == 'true'
       working-directory: src/Resources/CrestApps.AI.WebMcp.Resources
-      # Same version and dist-tag as @crestapps/ai-chat-ui; trusted publishing must be set up for this package on npm too.
+      # Same version and dist-tag as @crestapps/ai-chat-ui. npm only allows trusted publishing (OIDC) on a package
+      # that already exists, so the first publish of this package uses the NPM_TOKEN secret; every later publish uses
+      # OIDC. After the first publish, add the trusted publisher on npmjs.com (this repository, publish_npm.yml).
+      env:
+        BOOTSTRAP_NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       run: |
         echo "Publishing ${{ steps.version.outputs.version }} to the '${{ steps.version.outputs.dist-tag }}' dist-tag."
         npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
-        npm publish --access public --tag "${{ steps.version.outputs.dist-tag }}"
+
+        if npm view "@crestapps/webmcp" name > /dev/null 2>&1; then
+          # The package exists: publish with OIDC trusted publishing, like @crestapps/ai-chat-ui.
+          npm publish --access public --tag "${{ steps.version.outputs.dist-tag }}"
+          exit 0
+        fi
+
+        if [ -z "${BOOTSTRAP_NPM_TOKEN}" ]; then
+          echo "::error::@crestapps/webmcp is not on npm yet, and the NPM_TOKEN secret is not set, so the first publish cannot authenticate."
+          exit 1
+        fi
+
+        # First publish: authenticate with the token through a temporary user config, so no other step sees it.
+        echo "First publish of @crestapps/webmcp: using the NPM_TOKEN secret."
+        NPMRC="$(mktemp)"
+        trap 'rm -f "${NPMRC}"' EXIT
+        printf '//registry.npmjs.org/:_authToken=%s\n' "${BOOTSTRAP_NPM_TOKEN}" > "${NPMRC}"
+        npm publish --access public --tag "${{ steps.version.outputs.dist-tag }}" --userconfig "${NPMRC}"
+        echo "::notice::Published the first version of @crestapps/webmcp with NPM_TOKEN. Add a trusted publisher for it on npmjs.com (CrestApps/CrestApps.Core, publish_npm.yml) so later publishes use OIDC."
