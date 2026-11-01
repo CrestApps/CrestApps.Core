@@ -31,6 +31,18 @@ public static class CartesiaConstants
     public const string DefaultSpeechToTextModel = "ink-whisper";
 
     /// <summary>
+    /// The API version the realtime speech-to-text WebSocket is pinned to, sent as its <c>cartesia_version</c> query
+    /// parameter.
+    /// </summary>
+    public const string RealtimeApiVersion = "2026-08-14";
+
+    /// <summary>
+    /// The speech-to-text model a realtime transcription uses when the deployment names none, or names one the realtime
+    /// endpoint does not offer, such as <see cref="DefaultSpeechToTextModel"/>.
+    /// </summary>
+    public const string DefaultRealtimeSpeechToTextModel = "ink-2";
+
+    /// <summary>
     /// The name of the <see cref="System.Net.Http.IHttpClientFactory"/> client the provider uses.
     /// </summary>
     public const string HttpClientName = "CrestApps.Cartesia";

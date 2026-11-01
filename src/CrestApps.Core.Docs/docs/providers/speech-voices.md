@@ -11,8 +11,10 @@ description: Text-to-speech, speech recognition, voice search and voice cloning 
 > code that asks for an `ITextToSpeechClient` or `ISpeechToTextClient`, and search or clone voices without leaving the
 > framework.
 
-Both providers are speech-only. They have no chat, embedding, image or realtime models, so they are used as the
-text-to-speech and speech-to-text legs of a cascade, or as the voice of a text chat.
+Both providers are speech-only: they have no chat, embedding or image models. Either can be the text-to-speech leg of a
+cascade or the voice of a text chat. Cartesia can also be a cascade's speech-to-text leg, through its realtime
+transcription (see [Hearing in a cascade](#hearing-in-a-cascade)). ElevenLabs' speech recognition transcribes whole
+recordings, which serves dictation but not a cascade, whose speech-to-text leg hears the user live.
 
 ## Quick Start
 
@@ -31,7 +33,7 @@ model.
 | --- | --- | --- |
 | Client name | `ElevenLabs` | `Cartesia` |
 | Text-to-speech model | `eleven_flash_v2_5` (default), `eleven_multilingual_v2`, ... | `sonic-2` (default), `sonic-3`, ... |
-| Speech-to-text model | `scribe_v1` (default), `scribe_v2` | `ink-whisper` (default) |
+| Speech-to-text model | `scribe_v1` (default), `scribe_v2` | `ink-whisper` (default); `ink-2` or `ink-preview` to hear in a cascade |
 | Endpoint | `https://api.elevenlabs.io`; set the connection's `Endpoint` for a residency region | `https://api.cartesia.ai` |
 | Authentication | `xi-api-key` header | `X-API-Key` header and a pinned `Cartesia-Version` |
 | Voice cloning | Instant voice cloning from one or more recordings | From one clip |
@@ -83,6 +85,32 @@ ITextToSpeechClient client = new SpeechMarkupTextToSpeechClient(inner, SpeechMar
 - The language is sent as an ISO 639-1 code.
 - Boosted keywords (`SpeechToTextOptionsProperties.BoostedKeywords`) are sent as key terms to the Scribe v2 models.
   Scribe v1 and Cartesia have no vocabulary hints and ignore them.
+
+## Hearing in a cascade
+
+A Cartesia deployment can be the speech-to-text leg of a cascaded realtime deployment. Its realtime client opens
+transcription sessions on Cartesia's turns endpoint (`wss://api.cartesia.ai/stt/turns/websocket`), which transcribes the
+user's audio as it streams and decides on the server where each of the user's turns ends:
+
+- each `turn.update` carries the turn so far; its new words become a partial transcript, which a cascade takes as the user
+  talking over the assistant;
+- `turn.end` carries the turn's definitive text, the completed transcript that starts the reply. It is metered with the
+  length of the audio sent since the previous turn ended;
+- the user starting to speak is reported with the turn's first words, so a sound with no words neither starts a turn nor
+  interrupts the assistant. Punctuation is not words: Cartesia can open a turn as the previous one ends that holds nothing
+  but its full stop;
+- a silence the session's turn detection names caps how long Cartesia waits after speech before it ends a turn (640 to
+  11,200 ms); without one it waits at most 1,200 ms;
+- a turn Cartesia opens as the previous one ends can stay open through the silence after it, even with words in it,
+  until the user speaks again. A turn with words Cartesia says nothing more about for a second past that cap is ended by
+  the session. Cartesia's own end of it adds nothing, and words Cartesia hears in it afterwards are a turn of their own;
+- the session logs, at the debug level, each event Cartesia sends with its turn. What the user said is logged only at the
+  trace level.
+
+Name a Cartesia deployment whose model is `ink-2` or `ink-preview` as the cascade's speech-to-text deployment. A deployment
+on `ink-whisper` (the batch default) or with no model hears with `ink-2`. Cartesia detects the language itself; its realtime
+models transcribe English, French, Hindi, Japanese and Spanish. A refused connection says why: the API key, the model or
+audio format, the account's credit, or too many connections.
 
 ## Voice library: search and cloning
 

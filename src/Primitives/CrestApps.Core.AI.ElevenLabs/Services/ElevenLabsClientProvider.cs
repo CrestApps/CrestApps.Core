@@ -65,7 +65,7 @@ public sealed class ElevenLabsClientProvider : IAIClientProvider, IVoiceLibraryP
 
     /// <inheritdoc />
     public ValueTask<IRealtimeClient> GetRealtimeClientAsync(AIProviderConnectionEntry connection, string deploymentName = null)
-        => throw new NotSupportedException("ElevenLabs deployments only support speech services. Use it as the text-to-speech and speech-to-text legs of a cascaded realtime deployment.");
+        => throw new NotSupportedException("ElevenLabs deployments only support speech services. Use it as the text-to-speech leg of a cascaded realtime deployment: its speech-to-text transcribes whole recordings, not a live stream.");
 
     /// <inheritdoc />
     public Task<SpeechVoice[]> GetRealtimeVoicesAsync(AIProviderConnectionEntry connection, string deploymentName = null)
