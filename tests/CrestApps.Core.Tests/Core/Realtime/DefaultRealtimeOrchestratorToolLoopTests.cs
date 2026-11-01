@@ -10,6 +10,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Realtime;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.AI.Speech;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -445,6 +446,58 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
             TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task StartAsync_WithAVoiceTheDeploymentDoesNotOffer_OpensWithTheProvidersDefaultVoice()
+    {
+        // Live, an OpenAI realtime call was handed an ElevenLabs voice its profile had kept. OpenAI refused the whole
+        // set-up over it, and the session ran with neither its instructions nor its tools.
+        var fakeSession = await StartWithVoiceAsync("EXAVITQu4vr4xnSDxMaL", "alloy", "marin");
+
+        Assert.NotNull(fakeSession.Options);
+        Assert.Null(fakeSession.Options!.Voice);
+
+        // The rest of the set-up is untouched: the session keeps its instructions.
+        Assert.Contains("You are a helpful realtime assistant.", fakeSession.Options.Instructions, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StartAsync_WithOneOfTheDeploymentsVoices_OpensWithIt()
+    {
+        var fakeSession = await StartWithVoiceAsync(" marin ", "alloy", "marin");
+
+        Assert.Equal("marin", fakeSession.Options?.Voice);
+    }
+
+    [Fact]
+    public async Task StartAsync_WhenTheDeploymentListsNoVoices_KeepsTheVoice()
+    {
+        // Nothing to check against: the voice may well be one the provider has.
+        var fakeSession = await StartWithVoiceAsync("custom-voice");
+
+        Assert.Equal("custom-voice", fakeSession.Options?.Voice);
+    }
+
+    private static async Task<FakeRealtimeSession> StartWithVoiceAsync(string voice, params string[] offered)
+    {
+        var profile = new AIProfile { Type = AIProfileType.Chat };
+        var fakeSession = new FakeRealtimeSession([]);
+        var voiceResolver = new Mock<IRealtimeVoiceResolver>();
+        voiceResolver
+            .Setup(resolver => resolver.GetVoicesAsync(It.IsAny<AIDeployment>()))
+            .ReturnsAsync(offered.Select(id => new SpeechVoice { Id = id, Name = id }).ToArray());
+
+        using var requestServices = new ServiceCollection().BuildServiceProvider();
+        var orchestrator = CreateOrchestrator(profile, new EchoTool(), new FakeRealtimeClient(fakeSession), requestServices, voiceResolver: voiceResolver.Object);
+
+        using var scope = AIInvocationScope.Begin();
+
+        await using var conversation = await orchestrator.StartAsync(
+            new RealtimeOrchestrationRequest { Resource = profile, Voice = voice },
+            TestContext.Current.CancellationToken);
+
+        return fakeSession;
+    }
+
     private sealed class NamedTool(string name) : AIFunction
     {
         public bool Invoked { get; private set; }
@@ -487,7 +540,8 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
         IEnumerable<AIDeployment>? providerSpeechToText = null,
         Action? onBuild = null,
         OrchestrationContext? orchestrationContext = null,
-        AIFunction? extraTool = null)
+        AIFunction? extraTool = null,
+        IRealtimeVoiceResolver? voiceResolver = null)
     {
         var context = orchestrationContext ?? new OrchestrationContext
         {
@@ -555,6 +609,7 @@ public sealed class DefaultRealtimeOrchestratorToolLoopTests
             new DefaultRealtimeSessionConfigurator(),
             grounding ?? UngroundedTurnGrounding.Instance,
             new ToolRelevanceScoper(new LuceneTextTokenizer(), new DefaultOrchestratorOptions()),
+            voiceResolver ?? Mock.Of<IRealtimeVoiceResolver>(),
             requestServices,
             NullLoggerFactory.Instance,
             NullLogger<DefaultRealtimeOrchestrator>.Instance);
