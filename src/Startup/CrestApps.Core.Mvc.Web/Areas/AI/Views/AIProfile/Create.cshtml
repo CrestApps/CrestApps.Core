@@ -184,6 +184,19 @@
                         <div class="form-text">When enabled, assistant messages show a play button that reads the response aloud using the configured text-to-speech deployment.</div>
                     </div>
 
+                    <div class="mb-3 profile-type profile-type-chat@(Model.Type != CrestApps.Core.AI.Models.AIProfileType.Chat ? " d-none" : "")" id="profileAllowPageToolsGroup">
+                        <div class="form-check form-switch">
+                            <input asp-for="AllowPageTools" class="form-check-input" type="checkbox" />
+                            <label asp-for="AllowPageTools" class="form-check-label">Allow page tools</label>
+                        </div>
+                        <div class="form-text">When enabled, the chat can call the WebMCP tools of the page it is used from, whoever registered them: the page tools that read the page and fill its forms, and any tool the page's own scripts expose. The page must load the WebMCP scripts.</div>
+                        <div class="form-check form-switch mt-2">
+                            <input asp-for="AllowConsequentialPageTools" class="form-check-input" type="checkbox" />
+                            <label asp-for="AllowConsequentialPageTools" class="form-check-label">Allow consequential page tools</label>
+                        </div>
+                        <div class="form-text">Also allows page tools that mark themselves as consequential, such as placing an order or sending a payment. Leave this off unless the chat should take such actions for the user.</div>
+                    </div>
+
                     <!-- Agent-only: Description -->
                     <div class="mb-3 profile-type profile-type-agent@(Model.Type != CrestApps.Core.AI.Models.AIProfileType.Agent ? " d-none" : "")">
                         <label asp-for="Description" class="form-label">Description</label>

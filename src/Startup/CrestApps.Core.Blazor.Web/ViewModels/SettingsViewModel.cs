@@ -75,6 +75,15 @@ public sealed class SettingsViewModel
 
     public List<McpServerAgentSelectionItem> McpServerAvailableAgents { get; set; } = [];
 
+    // WebMCP: the tools given to AI agents in the browser.
+    public bool WebMcpExposeAllTools { get; set; }
+
+    public string[] WebMcpSelectedToolNames { get; set; } = [];
+
+    public List<McpServerToolSelectionItem> WebMcpAvailableTools { get; set; } = [];
+
+    public List<McpServerToolInstanceSelectionItem> WebMcpAvailableToolInstances { get; set; } = [];
+
     // Default deployment settings.
     public string DefaultChatDeploymentName { get; set; }
 

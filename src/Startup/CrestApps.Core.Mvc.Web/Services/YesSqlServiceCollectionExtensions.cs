@@ -10,6 +10,7 @@ using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.AI.WebMcp.Models;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Data.YesSql;
 using CrestApps.Core.Data.YesSql.Indexes.A2A;
@@ -98,6 +99,7 @@ internal static class YesSqlServiceCollectionExtensions
 
         services.AddSingleton<IConfigureOptions<A2AHostOptions>, SiteSettingsConfigureStoredOptions<A2AHostOptions>>();
         services.AddSingleton<IConfigureOptions<McpServerOptions>, SiteSettingsConfigureStoredOptions<McpServerOptions>>();
+        services.AddSingleton<IConfigureOptions<WebMcpOptions>, SiteSettingsConfigureStoredOptions<WebMcpOptions>>();
         services.ConfigureOptions<SampleCopilotOptionsConfiguration>();
         services.ConfigureOptions<SampleClaudeOptionsConfiguration>();
         services.Configure<IndexProfileSourceOptions>(options => options

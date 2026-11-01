@@ -14,6 +14,7 @@ using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Security;
 using CrestApps.Core.AI.Speech;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.AI.WebMcp.Models;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Mvc.Web.Areas.Admin.ViewModels;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.Models;
@@ -86,6 +87,7 @@ public sealed class SettingsController : Controller
         var documentSettings = _siteSettings.Get<InteractionDocumentSettings>();
         var dataSourceSettings = _siteSettings.Get<AIDataSourceSettings>();
         var mcpServerSettings = _siteSettings.Get<McpServerOptions>();
+        var webMcpSettings = _siteSettings.Get<WebMcpOptions>();
         var chatInteractionMemorySettings = _siteSettings.Get<MemoryMetadata>();
         var copilotSettings = _siteSettings.Get<CopilotSettings>();
         var anthropicSettings = _siteSettings.Get<ClaudeSettings>();
@@ -135,6 +137,8 @@ public sealed class SettingsController : Controller
             McpServerSelectedToolNames = mcpServerSettings.Tools?.ToArray() ?? [],
             McpServerExposeAllAgents = mcpServerSettings.ExposeAllAgents,
             McpServerSelectedAgentNames = mcpServerSettings.Agents?.ToArray() ?? [],
+            WebMcpExposeAllTools = webMcpSettings.ExposeAllTools,
+            WebMcpSelectedToolNames = webMcpSettings.Tools?.ToArray() ?? [],
             CopilotAuthenticationType = copilotSettings.AuthenticationType,
             CopilotClientId = copilotSettings.ClientId,
             CopilotHasSecret = !string.IsNullOrWhiteSpace(copilotSettings.ProtectedClientSecret),
@@ -175,6 +179,7 @@ public sealed class SettingsController : Controller
         await PopulateDeploymentDropdownsAsync(model);
         await PopulateAdminWidgetProfilesAsync(model);
         await PopulateMcpServerToolsAsync(model);
+        await PopulateWebMcpToolsAsync(model);
         await PopulateClaudeModelsAsync(model);
         PopulateBlockingThresholds(model);
 
@@ -309,6 +314,7 @@ public sealed class SettingsController : Controller
             await PopulateDeploymentDropdownsAsync(model);
             await PopulateAdminWidgetProfilesAsync(model);
             await PopulateMcpServerToolsAsync(model);
+            await PopulateWebMcpToolsAsync(model);
             await PopulateClaudeModelsAsync(model);
             PopulateBlockingThresholds(model);
 
@@ -377,6 +383,18 @@ public sealed class SettingsController : Controller
         {
             DefaultStrictness = model.DataSourceDefaultStrictness,
             DefaultTopNDocuments = model.DataSourceDefaultTopNDocuments,
+        });
+
+        _siteSettings.Set(new WebMcpOptions
+        {
+            ExposeAllTools = model.WebMcpExposeAllTools,
+            Tools = model.WebMcpExposeAllTools
+                ? []
+                : (model.WebMcpSelectedToolNames ?? [])
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Select(name => name.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
         });
 
         _siteSettings.Set(new McpServerOptions
@@ -592,6 +610,38 @@ public sealed class SettingsController : Controller
                 Name = agent.Name,
                 Description = agent.Description,
                 IsSelected = selectedAgentNames.Contains(agent.Name),
+            })
+            .ToList();
+    }
+
+    private async Task PopulateWebMcpToolsAsync(SettingsViewModel model)
+    {
+        var selectedNames = new HashSet<string>(model.WebMcpSelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
+
+        // Only selectable tools can be given to browser agents; system and hidden tools never are.
+        model.WebMcpAvailableTools = _toolOptions.GetSelectableTools()
+            .Select(tool => new McpServerToolSelectionItem
+            {
+                Name = tool.Key,
+                Title = tool.Value.Title ?? tool.Key,
+                Description = tool.Value.Description,
+                Category = tool.Value.Category ?? "Miscellaneous",
+                IsSelected = selectedNames.Contains(tool.Key) || selectedNames.Contains(tool.Value.Name),
+            })
+            .OrderBy(tool => tool.Category, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(tool => tool.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        model.WebMcpAvailableToolInstances = (await _toolInstanceCatalog.GetAllAsync())
+            .Where(instance => !string.IsNullOrWhiteSpace(instance.Name))
+            .OrderBy(instance => instance.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(instance => new McpServerToolInstanceSelectionItem
+            {
+                ItemId = instance.ItemId,
+                Name = instance.Name,
+                Description = instance.Description,
+                Source = instance.Source,
+                IsSelected = selectedNames.Contains(instance.Name),
             })
             .ToList();
     }

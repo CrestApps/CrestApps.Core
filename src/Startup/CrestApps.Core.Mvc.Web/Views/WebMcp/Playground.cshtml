@@ -1,0 +1,62 @@
+@{
+    ViewData["Title"] = "WebMCP Playground";
+}
+
+<h1><i class="fa-solid fa-flask"></i> WebMCP Playground</h1>
+<p class="text-muted">
+    A fake store that exposes its tools through the standard
+    <a href="https://webmachinelearning.github.io/webmcp/" target="_blank" rel="noopener">WebMCP</a> API, the way any
+    website would: its script registers them with <code>document.modelContext.registerTool</code> and uses no CrestApps
+    code. Ask the chat widget (with a profile that allows page tools) or your browser's assistant to check order A-1001,
+    add a desk lamp to the cart, read the mug's reviews or place the order.
+</p>
+
+<div class="alert alert-warning d-none" id="webmcp-playground-unsupported">
+    This page has no WebMCP. WebMCP needs a secure context: open the site over HTTPS or on localhost.
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Tools on this page</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Title</th>
+                            <th>Description</th>
+                            <th>Annotations</th>
+                        </tr>
+                    </thead>
+                    <tbody id="webmcp-playground-tools"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Cart</h5>
+            </div>
+            <ul class="list-group list-group-flush" id="webmcp-playground-cart"></ul>
+        </div>
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Tool calls</h5>
+            </div>
+            <ul class="list-group list-group-flush" id="webmcp-playground-log"></ul>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/webmcp-playground.js" asp-append-version="true"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            window.webMcpPlayground.start();
+        });
+    </script>
+}

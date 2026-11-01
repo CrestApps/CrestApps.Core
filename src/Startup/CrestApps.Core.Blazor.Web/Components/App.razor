@@ -1,4 +1,9 @@
-﻿<!DOCTYPE html>
+﻿@using System.Text.Json
+@using CrestApps.Core.AI.WebMcp
+@using Microsoft.AspNetCore.Antiforgery
+@inject IAntiforgery Antiforgery
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -32,6 +37,16 @@
     <script src="/_content/CrestApps.AI.Resources/scripts/realtime-audio.js?v=@AssetVersion"></script>
     <script src="/_content/CrestApps.AI.Resources/scripts/chat-markers.js?v=@AssetVersion"></script>
     <script src="/_content/CrestApps.AI.Resources/scripts/chat-image-carousel.js?v=@AssetVersion"></script>
+    @if (WebMcpConfiguration is not null)
+    {
+        @* WebMCP for signed-in users: the standard document.modelContext (native or polyfilled), the AI tools selected
+           in the settings, the page tools, and the WebMCP playground's fake store tools, which its page starts. *@
+        <script type="application/json" id="@WebMcpConstants.ConfigurationElementId">@((MarkupString)WebMcpConfiguration)</script>
+        <script src="/_content/CrestApps.AI.WebMcp.Resources/scripts/webmcp-polyfill.js?v=@AssetVersion"></script>
+        <script src="/_content/CrestApps.AI.WebMcp.Resources/scripts/webmcp.js?v=@AssetVersion"></script>
+        <script src="/_content/CrestApps.AI.WebMcp.Resources/scripts/webmcp-page-tools.js?v=@AssetVersion"></script>
+        <script src="/js/webmcp-playground.js?v=@AssetVersion"></script>
+    }
     <script src="/_content/CrestApps.AI.Resources/scripts/ai-chat.js?v=@AssetVersion"></script>
     <script src="/_content/CrestApps.AI.Resources/scripts/ai-chat-widget.js?v=@AssetVersion"></script>
     <script src="/_content/CrestApps.AI.Resources/scripts/chat-interaction.js?v=@AssetVersion"></script>
@@ -54,6 +69,28 @@
     private HttpContext HttpContext { get; set; }
 
     private string PageTitle => HttpContext?.Items["PageTitle"] as string;
+
+    private string WebMcpConfiguration
+    {
+        get
+        {
+            if (HttpContext?.User?.Identity?.IsAuthenticated != true)
+            {
+                return null;
+            }
+
+            var tokens = Antiforgery.GetAndStoreTokens(HttpContext);
+
+            return JsonSerializer.Serialize(new Dictionary<string, object>
+            {
+                ["toolsUrl"] = $"/{WebMcpConstants.DefaultRoutePrefix}/tools",
+                ["invokeUrlTemplate"] = $"/{WebMcpConstants.DefaultRoutePrefix}/tools/{{name}}/invoke",
+                ["antiforgeryHeaderName"] = tokens.HeaderName,
+                ["antiforgeryToken"] = tokens.RequestToken,
+                ["isAdmin"] = HttpContext.Request.Path.StartsWithSegments("/admin", StringComparison.OrdinalIgnoreCase),
+            });
+        }
+    }
 
     // Cache-busting token for mutable local scripts (e.g. ai-chat.js). Computed once per process, so
     // browsers cache within a run but always re-fetch after a redeploy/restart that ships new script content.

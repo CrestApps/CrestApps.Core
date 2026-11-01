@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.WebMcp</RootNamespace>
+    <Title>CrestApps AI WebMCP</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      WebMCP support for CrestApps AI services: gives selected AI tools to AI agents in the browser, and lets the AI chat call the page tools of the browser tab the user chats from.
+    </Description>
+    <PackageTags>$(PackageTags) ai mcp webmcp model-context-protocol browser agents tools</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Abstractions/CrestApps.Core.AI.Abstractions/CrestApps.Core.AI.Abstractions.csproj" />
+    <ProjectReference Include="../CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
+  </ItemGroup>
+
+</Project>

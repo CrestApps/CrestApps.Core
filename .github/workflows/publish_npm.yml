@@ -19,7 +19,7 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    name: Publish @crestapps/ai-chat-ui
+    name: Publish @crestapps/ai-chat-ui and @crestapps/webmcp
     steps:
     - uses: actions/checkout@v6
       with:
@@ -94,7 +94,12 @@ jobs:
           'src/Resources/CrestApps.AI.Resources/package.json',
           'src/Resources/CrestApps.AI.Resources/Assets',
           'src/Resources/CrestApps.AI.Resources/scripts',
-          'src/Resources/CrestApps.AI.Resources/wwwroot'
+          'src/Resources/CrestApps.AI.Resources/wwwroot',
+          'src/Resources/CrestApps.AI.WebMcp.Resources/Assets.json',
+          'src/Resources/CrestApps.AI.WebMcp.Resources/package.json',
+          'src/Resources/CrestApps.AI.WebMcp.Resources/Assets',
+          'src/Resources/CrestApps.AI.WebMcp.Resources/scripts',
+          'src/Resources/CrestApps.AI.WebMcp.Resources/wwwroot'
         )
 
         $changedAssetFiles = @(git diff --name-only $previousRun.head_sha '${{ github.sha }}' -- $assetPaths |
@@ -134,13 +139,10 @@ jobs:
         npm ci
         npm run rebuild
 
-    - name: Publish to npm
+    - name: Determine the version
+      id: version
       if: steps.check-publish.outputs.should-publish == 'true'
-      working-directory: src/Resources/CrestApps.AI.Resources
-      # No NODE_AUTH_TOKEN: authentication is handled by OIDC trusted publishing.
       run: |
-        node -v
-        npm -v
         if [ "${{ steps.check-publish.outputs.release-mode }}" = "true" ]; then
           VERSION="${{ steps.check-publish.outputs.release-version }}"
           DIST_TAG="latest"
@@ -150,9 +152,28 @@ jobs:
           # before they were merged into this one, which reset GitHub's run_number
           # to 1. Adding 180 keeps the .N suffix monotonically increasing and above
           # the last published preview.
-          VERSION="$(node -p "require('./package.json').version").$((180 + ${{ github.run_number }}))"
+          VERSION="$(node -p "require('./src/Resources/CrestApps.AI.Resources/package.json').version").$((180 + ${{ github.run_number }}))"
           DIST_TAG="preview"
         fi
-        echo "Publishing ${VERSION} to the '${DIST_TAG}' dist-tag."
-        npm version "${VERSION}" --no-git-tag-version --allow-same-version
-        npm publish --access public --tag "${DIST_TAG}"
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "dist-tag=${DIST_TAG}" >> "$GITHUB_OUTPUT"
+
+    - name: Publish @crestapps/ai-chat-ui to npm
+      if: steps.check-publish.outputs.should-publish == 'true'
+      working-directory: src/Resources/CrestApps.AI.Resources
+      # No NODE_AUTH_TOKEN: authentication is handled by OIDC trusted publishing.
+      run: |
+        node -v
+        npm -v
+        echo "Publishing ${{ steps.version.outputs.version }} to the '${{ steps.version.outputs.dist-tag }}' dist-tag."
+        npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
+        npm publish --access public --tag "${{ steps.version.outputs.dist-tag }}"
+
+    - name: Publish @crestapps/webmcp to npm
+      if: steps.check-publish.outputs.should-publish == 'true'
+      working-directory: src/Resources/CrestApps.AI.WebMcp.Resources
+      # Same version and dist-tag as @crestapps/ai-chat-ui; trusted publishing must be set up for this package on npm too.
+      run: |
+        echo "Publishing ${{ steps.version.outputs.version }} to the '${{ steps.version.outputs.dist-tag }}' dist-tag."
+        npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
+        npm publish --access public --tag "${{ steps.version.outputs.dist-tag }}"

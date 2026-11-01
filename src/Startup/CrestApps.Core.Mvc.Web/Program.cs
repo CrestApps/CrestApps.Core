@@ -20,6 +20,8 @@ using CrestApps.Core.AI.Markdown;
 using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Knowledge;
 using CrestApps.Core.AI.Mcp.Models;
+using CrestApps.Core.AI.WebMcp;
+using CrestApps.Core.AI.WebMcp.Endpoints;
 using CrestApps.Core.AI.Cartesia;
 using CrestApps.Core.AI.ElevenLabs;
 using CrestApps.Core.AI.Ollama;
@@ -179,6 +181,11 @@ builder.Services
             .AddFtpResources()
             .AddSftpResources()
             .AddKnowledgeResources()
+        )
+        // Gives the tools selected in the WebMCP settings to AI agents in the browser, and lets the chat call the
+        // page tools of the browser tab a message is sent from, for profiles that allow page tools.
+        .AddWebMcp(webMcp => webMcp
+            .AddPageTools<AIChatHub>()
         )
         .AddSignalR(addStoreCommitterFilter: true)
         .AddA2AHost()
@@ -345,6 +352,7 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
 app.MapHub<AIChatHub>("/hubs/ai-chat");
 app.MapHub<ChatInteractionHub>("/hubs/chat-interaction");
 app.MapMcp("mcp");
+app.MapWebMcpTools();
 app.MapA2AHost();
 app.AddChatApiEndpoints()
     .AddDownloadAIDocumentEndpoint()

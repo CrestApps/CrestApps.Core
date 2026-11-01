@@ -19,6 +19,7 @@ using CrestApps.Core.AI.Realtime;
 using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.AI.Security;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.AI.WebMcp;
 using CrestApps.Core.Extensions;
 using CrestApps.Core.Security;
 using CrestApps.Core.Services;
@@ -778,6 +779,66 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         _ = RunStreamInScopeAsync(services => HandleSendMessageAsync(channel.Writer, services, profileId, prompt, sessionId, sessionProfileId, cancellationToken));
 
         return channel.Reader;
+    }
+
+    /// <summary>
+    /// Records the WebMCP page tools the caller's browser tab offers, in place of what it reported before. The
+    /// completions of the messages the tab sends can then call them, when the session's profile allows page tools.
+    /// Records nothing when the host has not registered page tools.
+    /// </summary>
+    /// <param name="tools">The tools the tab reports. Tools that fail the checks are dropped.</param>
+    /// <returns>How many tools were recorded.</returns>
+    public virtual async Task<int> SetPageTools(WebMcpPageToolDescriptor[] tools)
+    {
+        var connectionId = Context.ConnectionId;
+        var count = 0;
+
+        await ExecuteInScopeAsync(services =>
+        {
+            var registry = services.GetService<IWebMcpPageToolRegistry>();
+
+            if (registry is not null)
+            {
+                count = registry.Register(connectionId, tools ?? []);
+            }
+
+            return Task.CompletedTask;
+        });
+
+        return count;
+    }
+
+    /// <summary>
+    /// Forgets the WebMCP page tools the caller's browser tab reported.
+    /// </summary>
+    public virtual Task ClearPageTools()
+    {
+        var connectionId = Context.ConnectionId;
+
+        return ExecuteInScopeAsync(services =>
+        {
+            services.GetService<IWebMcpPageToolRegistry>()?.Remove(connectionId);
+
+            return Task.CompletedTask;
+        });
+    }
+
+    /// <summary>
+    /// Forgets the WebMCP page tools of a closed connection.
+    /// </summary>
+    /// <param name="exception">The error that closed the connection, if any.</param>
+    public override async Task OnDisconnectedAsync(Exception exception)
+    {
+        var connectionId = Context.ConnectionId;
+
+        await ExecuteInScopeAsync(services =>
+        {
+            services.GetService<IWebMcpPageToolRegistry>()?.Remove(connectionId);
+
+            return Task.CompletedTask;
+        });
+
+        await base.OnDisconnectedAsync(exception);
     }
 
     /// <summary>

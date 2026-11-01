@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../Resources/CrestApps.AI.Resources/CrestApps.AI.Resources.csproj" />
+    <ProjectReference Include="../../Resources/CrestApps.AI.WebMcp.Resources/CrestApps.AI.WebMcp.Resources.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core/CrestApps.Core.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.A2A/CrestApps.Core.AI.A2A.csproj" />
@@ -35,6 +36,7 @@
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Documents/CrestApps.Core.AI.Documents.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Ftp/CrestApps.Core.AI.Ftp.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Mcp.Knowledge/CrestApps.Core.AI.Mcp.Knowledge.csproj" />
+    <ProjectReference Include="../../Primitives/CrestApps.Core.AI.WebMcp/CrestApps.Core.AI.WebMcp.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.FileSources/CrestApps.Core.AI.FileSources.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Markdown/CrestApps.Core.AI.Markdown.csproj" />
     <ProjectReference Include="../../Primitives/CrestApps.Core.AI.Sftp/CrestApps.Core.AI.Sftp.csproj" />

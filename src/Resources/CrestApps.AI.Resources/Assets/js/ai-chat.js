@@ -809,6 +809,7 @@ window.coreAIChatManager = function () {
                     isNavigatingAway: false,
                     autoScroll: true,
                     stream: null,
+                    pageTools: null,
                     messages: [],
                     notifications: [],
                     prompt: '',
@@ -1609,6 +1610,31 @@ window.coreAIChatManager = function () {
                     } catch (err) {
                         console.error("SignalR Connection Error: ", err);
                     }
+
+                    // Answer the page tool calls of the chat as soon as the page offers WebMCP tools.
+                    this.ensurePageTools();
+                },
+                ensurePageTools() {
+                    // webmcp.js keeps the page's WebMCP tools. When the page loads it, the chat sends its page tools to
+                    // the hub and runs the ones the AI calls; without it the chat works as before.
+                    if (!this.pageTools && this.connection && window.crestAppsWebMcp && typeof window.crestAppsWebMcp.connectChat === 'function') {
+                        this.pageTools = window.crestAppsWebMcp.connectChat(this.connection);
+                    }
+
+                    return this.pageTools;
+                },
+                async syncPageTools() {
+                    var pageTools = this.ensurePageTools();
+
+                    if (!pageTools) {
+                        return;
+                    }
+
+                    try {
+                        await pageTools.sync();
+                    } catch (err) {
+                        console.warn("The page tools could not be sent to the chat.", err);
+                    }
                 },
                 async ensureConnectionStarted() {
                     if (!this.connection) {
@@ -1944,115 +1970,120 @@ window.coreAIChatManager = function () {
                     var messageIndex = this.messages.length;
                     var currentSessionId = this.getSessionId();
 
-                    this.stream = this.connection.stream("SendMessage", profileId, trimmedPrompt, currentSessionId, sessionProfileId)
-                        .subscribe({
-                            next: (chunk) => {
-                                let message = this.messages[messageIndex];
+                    var openStream = () => {
+                        this.stream = this.connection.stream("SendMessage", profileId, trimmedPrompt, currentSessionId, sessionProfileId)
+                            .subscribe({
+                                next: (chunk) => {
+                                    let message = this.messages[messageIndex];
 
-                                if (!message) {
+                                    if (!message) {
 
-                                    if (chunk.sessionId && !currentSessionId) {
-                                        this.initializeSession(chunk.sessionId);
+                                        if (chunk.sessionId && !currentSessionId) {
+                                            this.initializeSession(chunk.sessionId);
+                                        }
+
+                                        this.hideTypingIndicator();
+                                        // Re-assign the index after hiding the typing indicator.
+                                        messageIndex = this.messages.length;
+                                        let newMessage = {
+                                            id: chunk.messageId,
+                                            role: "assistant",
+                                            title: chunk.title,
+                                            content: "",
+                                            htmlContent: "",
+                                            isStreaming: true,
+                                            userRating: null,
+                                        };
+
+                                        this.messages.push(newMessage);
+
+                                        message = newMessage;
+                                    }
+
+                                    if (chunk.title && (!message.title || message.title !== chunk.title)) {
+                                        message.title = chunk.title;
+                                    }
+
+                                    if (chunk.references && typeof chunk.references === "object" && Object.keys(chunk.references).length) {
+
+                                        for (const [key, value] of Object.entries(chunk.references)) {
+                                            references[key] = normalizeReference(value) ?? {};
+                                        }
+                                    }
+
+                                    if (chunk.content) {
+
+                                        // When the responseId changes (e.g., after an internal tool call),
+                                        // insert a line break to visually separate response segments.
+                                        if (chunk.responseId && lastResponseId && chunk.responseId !== lastResponseId) {
+                                            content += '\n\n';
+                                        }
+
+                                        if (chunk.responseId) {
+                                            lastResponseId = chunk.responseId;
+                                        }
+
+                                    content += chunk.content;
+                                }
+
+                                    // Update the existing message
+                                    message.rawContent = content;
+                                    updateMessagePresentation(message, references);
+
+                                    this.messages[messageIndex] = message;
+
+                                    this.$nextTick(() => {
+                                        renderMessageMedia(message);
+                                        this.scrollToBottom();
+                                    });
+                                },
+                                complete: () => {
+                                    this.processReferences(references, messageIndex);
+                                    this.streamingFinished();
+
+                                    let msg = this.messages[messageIndex];
+                                    if (msg) {
+                                        msg.isStreaming = false;
+                                    }
+
+                                    if (!msg || !msg.content) {
+                                        // No content received at all.
+                                        this.hideTypingIndicator();
+                                    }
+
+                                    // Trigger text-to-speech only in conversation mode.
+                                    if (this.isConversationMode && this.textToSpeechEnabled && msg && msg.content) {
+                                        this.synthesizeSpeech(msg.content);
+                                    }
+
+                                    this.stream?.dispose();
+                                    this.stream = null;
+                                },
+                                error: (err) => {
+                                    this.processReferences(references, messageIndex);
+                                    this.streamingFinished();
+
+                                    let msg = this.messages[messageIndex];
+                                    if (msg) {
+                                        msg.isStreaming = false;
                                     }
 
                                     this.hideTypingIndicator();
-                                    // Re-assign the index after hiding the typing indicator.
-                                    messageIndex = this.messages.length;
-                                    let newMessage = {
-                                        id: chunk.messageId,
-                                        role: "assistant",
-                                        title: chunk.title,
-                                        content: "",
-                                        htmlContent: "",
-                                        isStreaming: true,
-                                        userRating: null,
-                                    };
 
-                                    this.messages.push(newMessage);
-
-                                    message = newMessage;
-                                }
-
-                                if (chunk.title && (!message.title || message.title !== chunk.title)) {
-                                    message.title = chunk.title;
-                                }
-
-                                if (chunk.references && typeof chunk.references === "object" && Object.keys(chunk.references).length) {
-
-                                    for (const [key, value] of Object.entries(chunk.references)) {
-                                        references[key] = normalizeReference(value) ?? {};
-                                    }
-                                }
-
-                                if (chunk.content) {
-
-                                    // When the responseId changes (e.g., after an internal tool call),
-                                    // insert a line break to visually separate response segments.
-                                    if (chunk.responseId && lastResponseId && chunk.responseId !== lastResponseId) {
-                                        content += '\n\n';
+                                    if (!this.isNavigatingAway) {
+                                        this.addMessage(this.getServiceDownMessage());
                                     }
 
-                                    if (chunk.responseId) {
-                                        lastResponseId = chunk.responseId;
-                                    }
+                                    this.stream?.dispose();
+                                    this.stream = null;
 
-                                content += chunk.content;
-                            }
-
-                                // Update the existing message
-                                message.rawContent = content;
-                                updateMessagePresentation(message, references);
-
-                                this.messages[messageIndex] = message;
-
-                                this.$nextTick(() => {
-                                    renderMessageMedia(message);
-                                    this.scrollToBottom();
-                                });
-                            },
-                            complete: () => {
-                                this.processReferences(references, messageIndex);
-                                this.streamingFinished();
-
-                                let msg = this.messages[messageIndex];
-                                if (msg) {
-                                    msg.isStreaming = false;
+                                    console.error("Stream error:", err);
                                 }
+                            });
+                    };
 
-                                if (!msg || !msg.content) {
-                                    // No content received at all.
-                                    this.hideTypingIndicator();
-                                }
-
-                                // Trigger text-to-speech only in conversation mode.
-                                if (this.isConversationMode && this.textToSpeechEnabled && msg && msg.content) {
-                                    this.synthesizeSpeech(msg.content);
-                                }
-
-                                this.stream?.dispose();
-                                this.stream = null;
-                            },
-                            error: (err) => {
-                                this.processReferences(references, messageIndex);
-                                this.streamingFinished();
-
-                                let msg = this.messages[messageIndex];
-                                if (msg) {
-                                    msg.isStreaming = false;
-                                }
-
-                                this.hideTypingIndicator();
-
-                                if (!this.isNavigatingAway) {
-                                    this.addMessage(this.getServiceDownMessage());
-                                }
-
-                                this.stream?.dispose();
-                                this.stream = null;
-
-                                console.error("Stream error:", err);
-                            }
-                        });
+                    // The page tools go first, so the reply to this message can already call them.
+                    this.syncPageTools().then(openStream, openStream);
                 },
                 getServiceDownMessage() {
                     let newMessage = {

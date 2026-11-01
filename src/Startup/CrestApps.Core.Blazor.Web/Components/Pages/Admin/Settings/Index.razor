@@ -13,6 +13,7 @@
 @using CrestApps.Core.AI.Profiles
 @using CrestApps.Core.AI.Security
 @using CrestApps.Core.AI.Tooling
+@using CrestApps.Core.AI.WebMcp.Models
 @using CrestApps.Core.Blazor.Web.Areas.AIChat.Services
 @using CrestApps.Core.Blazor.Web.Areas.ChatInteractions.Models
 @using CrestApps.Core.Blazor.Web.Models
@@ -954,6 +955,77 @@ else
                     </div>
                 </div>
 
+                @* ── WebMCP ── *@
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">WebMCP</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">
+                            Give AI tools to AI agents in the browser, such as the browser's own assistant, through
+                            <a href="https://github.com/webmachinelearning/webmcp" target="_blank" rel="noopener">WebMCP</a>.
+                            The tools run as the signed-in user, and each tool also needs that user's access to it.
+                            Browsers without WebMCP ignore them. Nothing is given until you select it.
+                        </p>
+                        <div class="form-check form-switch mb-3">
+                            <InputCheckbox id="webMcpExposeAll" @bind-Value="_model.WebMcpExposeAllTools" class="form-check-input" />
+                            <label for="webMcpExposeAll" class="form-check-label">Give all tools and tool instances</label>
+                        </div>
+                        @if (!_model.WebMcpExposeAllTools)
+                        {
+                            <div class="mb-3">
+                                <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-screwdriver-wrench"></i> Tools for browser agents</h6>
+                                @if (_model.WebMcpAvailableTools.Count == 0)
+                                {
+                                    <div class="alert alert-info mb-3"><i class="fa-solid fa-circle-info"></i> No selectable AI tools are registered.</div>
+                                }
+                                else
+                                {
+                                    @foreach (var group in _model.WebMcpAvailableTools.GroupBy(tool => tool.Category).OrderBy(group => group.Key))
+                                    {
+                                        <h6 class="text-secondary mt-3 mb-2"><i class="fa-solid fa-folder"></i> @group.Key</h6>
+                                        @foreach (var tool in group)
+                                        {
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" checked="@tool.IsSelected" @onchange="e => ToggleWebMcpTool(tool.Name, (bool)e.Value)" id="webmcp_tool_@tool.Name" />
+                                                <label class="form-check-label" for="webmcp_tool_@tool.Name">
+                                                    <strong>@tool.Title</strong>
+                                                    @if (!string.IsNullOrEmpty(tool.Description))
+                                                    {
+                                                        <br /><small class="text-muted">@tool.Description</small>
+                                                    }
+                                                </label>
+                                            </div>
+                                        }
+                                    }
+                                }
+
+                                <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-puzzle-piece"></i> Tool instances for browser agents</h6>
+                                @if (_model.WebMcpAvailableToolInstances.Count == 0)
+                                {
+                                    <div class="alert alert-info mb-0"><i class="fa-solid fa-circle-info"></i> No tool instances are configured.</div>
+                                }
+                                else
+                                {
+                                    @foreach (var instance in _model.WebMcpAvailableToolInstances)
+                                    {
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" checked="@instance.IsSelected" @onchange="e => ToggleWebMcpToolInstance(instance.ItemId, (bool)e.Value)" id="webmcp_toolinstance_@instance.ItemId" />
+                                            <label class="form-check-label" for="webmcp_toolinstance_@instance.ItemId">
+                                                <strong>@instance.Name</strong>
+                                                <span class="badge bg-info text-dark ms-1">@instance.Source</span>
+                                            </label>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        }
+                        <p class="text-muted small mb-0">
+                            The AI chat can also use the tools on the page a user chats from, such as reading the page and filling its forms. Turn that on per profile with <strong>Allow page tools</strong>.
+                        </p>
+                    </div>
+                </div>
+
                 @* ── Claude ── *@
 
                     <button type="submit" class="btn btn-primary">
@@ -987,6 +1059,7 @@ else
         var documentSettings = SiteSettings.Get<InteractionDocumentSettings>();
         var dataSourceSettings = SiteSettings.Get<AIDataSourceSettings>();
         var mcpServerSettings = SiteSettings.Get<McpServerOptions>();
+        var webMcpSettings = SiteSettings.Get<WebMcpOptions>();
         var chatInteractionMemorySettings = SiteSettings.Get<MemoryMetadata>();
         var copilotSettings = SiteSettings.Get<CopilotSettings>();
         var anthropicSettings = SiteSettings.Get<ClaudeSettings>();
@@ -1034,6 +1107,8 @@ else
             McpServerSelectedToolNames = mcpServerSettings.Tools?.ToArray() ?? [],
             McpServerExposeAllAgents = mcpServerSettings.ExposeAllAgents,
             McpServerSelectedAgentNames = mcpServerSettings.Agents?.ToArray() ?? [],
+            WebMcpExposeAllTools = webMcpSettings.ExposeAllTools,
+            WebMcpSelectedToolNames = webMcpSettings.Tools?.ToArray() ?? [],
 
             CopilotAuthenticationType = copilotSettings.AuthenticationType,
             CopilotClientId = copilotSettings.ClientId,
@@ -1108,6 +1183,7 @@ else
             .ToList();
 
         await PopulateMcpServerToolsAsync();
+        await PopulateWebMcpToolsAsync();
         await PopulateClaudeModelsAsync();
     }
 
@@ -1154,6 +1230,71 @@ else
                 IsSelected = selectedNames.Contains(instance.Name),
             })
             .ToList();
+    }
+
+    private async Task PopulateWebMcpToolsAsync()
+    {
+        var selectedNames = new HashSet<string>(_model.WebMcpSelectedToolNames ?? [], StringComparer.OrdinalIgnoreCase);
+
+        // Only selectable tools can be given to browser agents; system and hidden tools never are.
+        _model.WebMcpAvailableTools = ToolOptionsAccessor.Value.GetSelectableTools()
+            .Select(tool => new McpServerToolSelectionItem
+            {
+                Name = tool.Key,
+                Title = tool.Value.Title ?? tool.Key,
+                Description = tool.Value.Description,
+                Category = tool.Value.Category ?? "Miscellaneous",
+                IsSelected = selectedNames.Contains(tool.Key) || selectedNames.Contains(tool.Value.Name),
+            })
+            .OrderBy(tool => tool.Category, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(tool => tool.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        _model.WebMcpAvailableToolInstances = (await ToolInstanceCatalog.GetAllAsync())
+            .Where(instance => !string.IsNullOrWhiteSpace(instance.Name))
+            .OrderBy(instance => instance.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(instance => new McpServerToolInstanceSelectionItem
+            {
+                ItemId = instance.ItemId,
+                Name = instance.Name,
+                Description = instance.Description,
+                Source = instance.Source,
+                IsSelected = selectedNames.Contains(instance.Name),
+            })
+            .ToList();
+    }
+
+    private void ToggleWebMcpTool(string name, bool value)
+    {
+        var tool = _model.WebMcpAvailableTools.FirstOrDefault(item => item.Name == name);
+
+        if (tool is not null)
+        {
+            tool.IsSelected = value;
+        }
+    }
+
+    private void ToggleWebMcpToolInstance(string itemId, bool value)
+    {
+        var instance = _model.WebMcpAvailableToolInstances.FirstOrDefault(item => item.ItemId == itemId);
+
+        if (instance is not null)
+        {
+            instance.IsSelected = value;
+        }
+    }
+
+    private string[] GetSelectedWebMcpToolNames()
+    {
+        return _model.WebMcpAvailableTools
+            .Where(tool => tool.IsSelected)
+            .Select(tool => tool.Name)
+            .Concat(_model.WebMcpAvailableToolInstances
+                .Where(instance => instance.IsSelected)
+                .Select(instance => instance.Name))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private void OnCopilotAuthTypeChanged(ChangeEventArgs e)
@@ -1304,6 +1445,7 @@ else
         _errors.Clear();
         _model.McpServerSelectedToolNames = GetSelectedMcpServerToolNames();
         _model.McpServerSelectedAgentNames = GetSelectedMcpServerAgentNames();
+        _model.WebMcpSelectedToolNames = GetSelectedWebMcpToolNames();
 
         if (_model.MaximumIterationsPerRequest < 1)
         {
@@ -1484,6 +1626,14 @@ else
         {
             DefaultStrictness = _model.DataSourceDefaultStrictness,
             DefaultTopNDocuments = _model.DataSourceDefaultTopNDocuments,
+        });
+
+        SiteSettings.Set(new WebMcpOptions
+        {
+            ExposeAllTools = _model.WebMcpExposeAllTools,
+            Tools = _model.WebMcpExposeAllTools
+                ? []
+                : _model.WebMcpSelectedToolNames.ToList(),
         });
 
         SiteSettings.Set(new McpServerOptions

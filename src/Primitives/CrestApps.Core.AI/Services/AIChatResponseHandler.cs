@@ -52,6 +52,13 @@ public sealed class AIChatResponseHandler : IChatResponseHandler
                     ctx.UserMessage = context.Prompt;
                     ctx.ConversationHistory = context.ConversationHistory;
                     ctx.CompletionContext.AdditionalProperties[AICompletionContextKeys.Session] = context.ChatSession;
+
+                    if (!string.IsNullOrEmpty(context.ConnectionId))
+                    {
+                        // Lets tool registry providers reach the browser tab that sent the message, for example to
+                        // run the WebMCP page tools it registered.
+                        ctx.CompletionContext.AdditionalProperties[AICompletionContextKeys.ChatConnectionId] = context.ConnectionId;
+                    }
                 },
                 cancellationToken);
 
