@@ -4,26 +4,31 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Speech;
 using CrestApps.Core.Infrastructure;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Cartesia.Services;
 
 /// <summary>
 /// The "Cartesia" provider: speech services only. A deployment's model names the text-to-speech model (for example
-/// <c>sonic-2</c>) or the speech-to-text model (<c>ink-whisper</c>); its connection holds the API key.
+/// <c>sonic-2</c>) or the speech-to-text model (<c>ink-whisper</c>, or <c>ink-2</c> to hear in a cascaded realtime
+/// deployment); its connection holds the API key.
 /// </summary>
 public sealed class CartesiaClientProvider : IAIClientProvider, IVoiceLibraryProvider
 {
     private const int VoiceListSize = 100;
 
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILoggerFactory _loggerFactory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CartesiaClientProvider"/> class.
     /// </summary>
     /// <param name="httpClientFactory">The HTTP client factory.</param>
-    public CartesiaClientProvider(IHttpClientFactory httpClientFactory)
+    /// <param name="loggerFactory">The logger factory.</param>
+    public CartesiaClientProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory)
     {
         _httpClientFactory = httpClientFactory;
+        _loggerFactory = loggerFactory;
     }
 
     /// <inheritdoc />
@@ -63,8 +68,20 @@ public sealed class CartesiaClientProvider : IAIClientProvider, IVoiceLibraryPro
         => throw new NotSupportedException("Cartesia deployments only support speech services.");
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The client opens realtime transcription sessions only, so a Cartesia deployment can be the speech-to-text leg of
+    /// a cascaded realtime deployment. See <see cref="CartesiaRealtimeClient"/>.
+    /// </remarks>
     public ValueTask<IRealtimeClient> GetRealtimeClientAsync(AIProviderConnectionEntry connection, string deploymentName = null)
-        => throw new NotSupportedException("Cartesia deployments only support speech services. Use it as the text-to-speech and speech-to-text legs of a cascaded realtime deployment.");
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+
+        return ValueTask.FromResult<IRealtimeClient>(new CartesiaRealtimeClient(
+            connection.GetApiKey(),
+            connection.GetEndpoint(throwException: false),
+            deploymentName,
+            _loggerFactory.CreateLogger<CartesiaRealtimeClient>()));
+    }
 
     /// <inheritdoc />
     public Task<SpeechVoice[]> GetRealtimeVoicesAsync(AIProviderConnectionEntry connection, string deploymentName = null)

@@ -7,6 +7,7 @@ using CrestApps.Core.AI.Cartesia.Services;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Speech;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CrestApps.Core.Tests.Core.Speech;
 
@@ -194,7 +195,7 @@ public sealed class CartesiaTests
     public async Task Provider_BuildsClientsFromTheConnection()
     {
         var handler = new StubHttpHandler("""{"data":[{"id":"a","name":"Ana"}]}""");
-        var provider = new CartesiaClientProvider(new FakeHttpClientFactory(handler));
+        var provider = new CartesiaClientProvider(new FakeHttpClientFactory(handler), NullLoggerFactory.Instance);
         var connection = new AIProviderConnectionEntry(new Dictionary<string, object> { ["ApiKey"] = "k" });
 
         var voices = await provider.GetSpeechVoicesAsync(connection);

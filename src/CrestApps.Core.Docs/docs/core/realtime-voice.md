@@ -68,7 +68,7 @@ var deployment = await deploymentManager.NewAsync("cascaded-voice", clientName);
 
 deployment.Alter<CascadedRealtimeMetadata>(cascade =>
 {
-    cascade.SpeechToTextDeploymentName = "elevenlabs-scribe";
+    cascade.SpeechToTextDeploymentName = "cartesia-ink";
     cascade.ChatDeploymentName = "gpt-4o";
     cascade.TextToSpeechDeploymentName = "elevenlabs-tts";
 
@@ -85,9 +85,11 @@ deployment.Alter<AIDeploymentMetadata>(metadata =>
 
 What to expect from each leg:
 
-- **Speech-to-text** must expose a realtime client that supports a transcription session. It hears the user
-  continuously; a committed transcript is what ends the user's turn and starts the reply. It transcribes with
-  its own deployment's model, not the one a native realtime session would name.
+- **Speech-to-text** must expose a realtime client that supports a transcription session: an OpenAI or Azure OpenAI
+  transcription model, or Cartesia's realtime models (see [Hearing in a cascade](../providers/speech-voices.md#hearing-in-a-cascade)).
+  It hears the user continuously; a committed transcript is what ends the user's turn and starts the reply. It
+  transcribes with its own deployment's model, not the one a native realtime session would name. A provider whose
+  speech recognition only transcribes whole recordings, such as ElevenLabs, cannot be this leg.
 - **Chat** produces the reply. Tools, data sources, and the profile's system message are applied here, so a
   cascaded session keeps every capability a text profile has. Function invocation is applied automatically, and a
   reply's tool calls and their results stay in the history with its text, so the next turn knows what was looked
