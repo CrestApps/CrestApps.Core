@@ -1,11 +1,14 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace CrestApps.Core.AI.WebMcp.Services;
 
 /// <summary>
-/// Checks the page tools a browser tab reports before a model may use them. The browser is not trusted: a tool
-/// whose name an AI provider would refuse, or whose description or schema is missing, broken or too large, is dropped.
+/// Checks the page tools a browser tab reports before a model may use them. The browser is not trusted: a tool whose
+/// name WebMCP would refuse, or whose description or schema is missing, broken or too large, is dropped. Every valid
+/// WebMCP name gets a function name AI providers accept.
 /// </summary>
 internal static partial class WebMcpPageToolValidator
 {
@@ -24,10 +27,15 @@ internal static partial class WebMcpPageToolValidator
     /// </summary>
     public const int MaxSchemaLength = 16 * 1024;
 
+    /// <summary>
+    /// The longest function name AI providers accept.
+    /// </summary>
+    public const int MaxFunctionNameLength = 64;
+
     private static readonly JsonElement _emptySchema = JsonDocument.Parse("""{"type":"object","properties":{}}""").RootElement.Clone();
 
     /// <summary>
-    /// Keeps the valid tools, the first of each name, up to <see cref="MaxTools"/>.
+    /// Keeps the valid tools, the first of each function name, up to <see cref="MaxTools"/>.
     /// </summary>
     /// <param name="descriptors">The tools the browser reports.</param>
     /// <returns>The valid tools.</returns>
@@ -51,11 +59,17 @@ internal static partial class WebMcpPageToolValidator
 
             if (descriptor is null ||
                 string.IsNullOrEmpty(descriptor.Name) ||
-                !ToolNameRegex().IsMatch(descriptor.Name) ||
+                !WebMcpToolNameRegex().IsMatch(descriptor.Name) ||
                 string.IsNullOrWhiteSpace(descriptor.Description) ||
                 descriptor.Description.Length > MaxDescriptionLength ||
-                !TryParseSchema(descriptor.InputSchema, out var schema) ||
-                !seenNames.Add(descriptor.Name))
+                !TryParseSchema(descriptor.InputSchema, out var schema))
+            {
+                continue;
+            }
+
+            var functionName = ToFunctionName(descriptor.Name);
+
+            if (!seenNames.Add(functionName))
             {
                 continue;
             }
@@ -63,6 +77,10 @@ internal static partial class WebMcpPageToolValidator
             tools.Add(new WebMcpPageTool
             {
                 Name = descriptor.Name,
+                FunctionName = functionName,
+                ReadOnly = descriptor.ReadOnly,
+                Consequential = descriptor.Consequential,
+                UntrustedContent = descriptor.UntrustedContent,
                 Title = string.IsNullOrWhiteSpace(descriptor.Title)
                     ? descriptor.Name
                     : descriptor.Title.Trim(),
@@ -72,6 +90,32 @@ internal static partial class WebMcpPageToolValidator
         }
 
         return tools;
+    }
+
+    /// <summary>
+    /// Turns a WebMCP tool name into a function name AI providers accept: characters outside letters, digits, '_' and
+    /// '-' become '_', and a name longer than <see cref="MaxFunctionNameLength"/> keeps its start and ends with a hash
+    /// of the whole name, so it stays the same for the same tool and differs between tools.
+    /// </summary>
+    /// <param name="name">The WebMCP tool name.</param>
+    /// <returns>The function name.</returns>
+    public static string ToFunctionName(string name)
+    {
+        var builder = new StringBuilder(name.Length);
+
+        foreach (var character in name)
+        {
+            builder.Append(char.IsAsciiLetterOrDigit(character) || character is '_' or '-' ? character : '_');
+        }
+
+        if (builder.Length <= MaxFunctionNameLength)
+        {
+            return builder.ToString();
+        }
+
+        var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(name)), 0, 4);
+
+        return builder.ToString(0, MaxFunctionNameLength - hash.Length - 1) + "_" + hash;
     }
 
     private static bool TryParseSchema(string json, out JsonElement schema)
@@ -109,6 +153,6 @@ internal static partial class WebMcpPageToolValidator
         }
     }
 
-    [GeneratedRegex("^[a-zA-Z0-9_-]{1,64}$")]
-    private static partial Regex ToolNameRegex();
+    [GeneratedRegex("^[A-Za-z0-9_.-]{1,128}$")]
+    private static partial Regex WebMcpToolNameRegex();
 }

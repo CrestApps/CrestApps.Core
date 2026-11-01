@@ -258,7 +258,12 @@
                                     <InputCheckbox class="form-check-input" id="allowPageTools" @bind-Value="_model.AllowPageTools" />
                                     <label class="form-check-label" for="allowPageTools">Allow page tools</label>
                                 </div>
-                                <div class="form-text">When enabled, the chat can call the WebMCP tools of the page it is used from, such as reading the page and filling its forms.</div>
+                                <div class="form-text">When enabled, the chat can call the WebMCP tools of the page it is used from, whoever registered them: the page tools that read the page and fill its forms, and any tool the page's own scripts expose.</div>
+                                <div class="form-check form-switch mt-2">
+                                    <InputCheckbox class="form-check-input" id="allowConsequentialPageTools" @bind-Value="_model.AllowConsequentialPageTools" />
+                                    <label class="form-check-label" for="allowConsequentialPageTools">Allow consequential page tools</label>
+                                </div>
+                                <div class="form-text">Also allows page tools that mark themselves as consequential, such as placing an order or sending a payment. Leave this off unless the chat should take such actions for the user.</div>
                             </div>
                     }
 

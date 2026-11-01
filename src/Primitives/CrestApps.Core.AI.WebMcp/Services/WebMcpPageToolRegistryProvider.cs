@@ -34,7 +34,8 @@ internal sealed class WebMcpPageToolRegistryProvider : IToolRegistryProvider
 
     /// <summary>
     /// Gets the page tools for a completion: none unless it answers a chat message sent from a connection that
-    /// registered page tools, in a session whose profile allows them.
+    /// registered page tools, in a session whose profile allows them. Tools that declared the WebMCP
+    /// <c>consequentialHint</c> annotation are left out unless the profile also allows those.
     /// </summary>
     /// <param name="context">The completion context.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -70,10 +71,11 @@ internal sealed class WebMcpPageToolRegistryProvider : IToolRegistryProvider
         }
 
         return tools
+            .Where(tool => !tool.Consequential || settings.AllowConsequentialPageTools)
             .Select(tool => new ToolRegistryEntry
             {
                 Id = $"webmcp:{tool.Name}",
-                Name = tool.Name,
+                Name = tool.FunctionName,
                 Description = tool.Description,
                 Source = ToolRegistryEntrySource.Local,
                 SourceId = "webmcp",

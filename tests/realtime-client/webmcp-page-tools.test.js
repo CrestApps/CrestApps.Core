@@ -1,6 +1,7 @@
 // Unit tests for webmcp-page-tools.js: the WebMCP tools that work on the page the user sees.
 //
 // The tools only touch a small part of the DOM, so each test hands them a small fake document instead of a browser.
+// As WebMCP defines, a tool answers a JSON-serializable value and reports a failure by rejecting.
 //
 // Run with: node --test tests/realtime-client/webmcp-page-tools.test.js
 const { describe, it, mock } = require('node:test');
@@ -9,13 +10,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const assetsDirectory = path.join(__dirname, '../../src/Resources/CrestApps.AI.Resources/Assets/js');
+const { createFakeModelContext } = require('./fake-model-context.js');
+
+const assetsDirectory = path.join(__dirname, '../../src/Resources/CrestApps.AI.WebMcp.Resources/Assets/js');
 
 globalThis.window = {};
-vm.runInThisContext(fs.readFileSync(path.join(assetsDirectory, 'webmcp.js'), 'utf8'), { filename: 'webmcp.js' });
 vm.runInThisContext(fs.readFileSync(path.join(assetsDirectory, 'webmcp-page-tools.js'), 'utf8'), { filename: 'webmcp-page-tools.js' });
 
-const webMcp = globalThis.window.CrestAppsWebMcp;
 const pageTools = globalThis.window.CrestAppsWebMcpPageTools;
 const selectors = pageTools.selectors;
 
@@ -83,9 +84,11 @@ function tools(doc, isAdmin = true) {
 }
 
 async function run(tool, input) {
-    const result = await tool.execute(input || {}, { signal: new AbortController().signal });
+    return { data: await tool.execute(input || {}, { signal: new AbortController().signal }) };
+}
 
-    return { result, data: webMcp.isErrorResult(result) ? null : JSON.parse(webMcp.serializeResult(result)) };
+async function rejects(tool, input) {
+    await assert.rejects(Promise.resolve().then(() => tool.execute(input || {}, { signal: new AbortController().signal })));
 }
 
 function formFields() {
@@ -120,12 +123,20 @@ describe('createPageTools', () => {
         });
     });
 
-    it('registers every page tool with the page list', () => {
-        const api = { registerTool: mock.fn() };
+    it('registers every page tool with the page\'s ModelContext, where any agent can run it, and unregisters them on abort', async () => {
+        const modelContext = createFakeModelContext();
+        const controller = new AbortController();
 
-        pageTools.register(api, { doc: fakeDocument(), loc: location, isAdmin: false });
+        await pageTools.register(modelContext, { doc: fakeDocument({ title: 'Orders' }), loc: location, isAdmin: false }, controller.signal);
 
-        assert.strictEqual(api.registerTool.mock.callCount(), 5);
+        const tools = await modelContext.getTools();
+
+        assert.deepStrictEqual(tools.map((tool) => tool.name), ['page_get_info', 'page_list_form_fields', 'page_list_links', 'page_navigate', 'page_set_form_field']);
+        assert.strictEqual(JSON.parse(await modelContext.executeTool(tools[0], {})).title, 'Orders');
+
+        controller.abort();
+
+        assert.deepStrictEqual(await modelContext.getTools(), []);
     });
 });
 
@@ -195,9 +206,7 @@ describe('page_navigate', () => {
         location.assign.mock.resetCalls();
 
         for (const input of [{ url: 'https://other.example/' }, { url: 'javascript:alert(1)' }, {}]) {
-            const { result } = await run(tools(fakeDocument()).page_navigate, input);
-
-            assert.strictEqual(webMcp.isErrorResult(result), true);
+            await rejects(tools(fakeDocument()).page_navigate, input);
         }
 
         assert.strictEqual(location.assign.mock.callCount(), 0);
@@ -260,9 +269,7 @@ describe('page_set_form_field', () => {
 
         assert.strictEqual(fields.status.value, 'live');
 
-        const { result } = await run(tools(doc).page_set_form_field, { field: 'Status', value: 'Archived' });
-
-        assert.strictEqual(webMcp.isErrorResult(result), true);
+        await rejects(tools(doc).page_set_form_field, { field: 'Status', value: 'Archived' });
     });
 
     it('refuses fields it does not list', async () => {
@@ -270,9 +277,7 @@ describe('page_set_form_field', () => {
         const doc = fakeDocument({ fields: Object.values(fields) });
 
         for (const field of ['__RequestVerificationToken', 'Password', 'Nope']) {
-            const { result } = await run(tools(doc).page_set_form_field, { field, value: 'x' });
-
-            assert.strictEqual(webMcp.isErrorResult(result), true);
+            await rejects(tools(doc).page_set_form_field, { field, value: 'x' });
         }
 
         assert.strictEqual(fields.token.value, 'secret');

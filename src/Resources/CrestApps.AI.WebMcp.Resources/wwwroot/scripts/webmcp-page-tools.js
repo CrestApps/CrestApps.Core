@@ -3,7 +3,7 @@
 ** Edit its sources under Assets/ and rebuild; see Assets.json for the files it is built from.
 */
 (function() {
-	//#region src/Resources/CrestApps.AI.Resources/Assets/js/webmcp-page-tools.js
+	//#region src/Resources/CrestApps.AI.WebMcp.Resources/Assets/js/webmcp-page-tools.js
 	(function() {
 		"use strict";
 		var MAX_HEADINGS = 20;
@@ -28,12 +28,6 @@
 		var SKIPPED_NAMES = ["__RequestVerificationToken"];
 		function cleanText(value) {
 			return (value == null ? "" : String(value)).replace(/\s+/g, " ").trim();
-		}
-		function textResult(text, isError) {
-			return window.CrestAppsWebMcp.textResult(text, isError);
-		}
-		function json(data) {
-			return textResult(JSON.stringify(data));
 		}
 		function resolveSameOrigin(href, loc) {
 			if (!href) return null;
@@ -135,13 +129,13 @@
 								text
 							});
 						}
-						return json({
+						return {
 							title: doc.title,
 							url: loc.href,
 							description: meta ? meta.getAttribute("content") : null,
 							headings,
 							isAdmin: !!options.isAdmin
-						});
+						};
 					}
 				},
 				{
@@ -171,7 +165,7 @@
 								url: url.href
 							});
 						}
-						return json({ links });
+						return { links };
 					}
 				},
 				{
@@ -188,9 +182,9 @@
 					},
 					execute: function(input) {
 						var url = resolveSameOrigin(input && input.url, loc);
-						if (!url) return textResult("Only addresses on this site can be opened.", true);
+						if (!url) throw new Error("Only addresses on this site can be opened.");
 						loc.assign(url.href);
-						return json({ navigatedTo: url.href });
+						return { navigatedTo: url.href };
 					}
 				},
 				{
@@ -203,7 +197,7 @@
 					},
 					annotations: { readOnlyHint: true },
 					execute: function() {
-						return json({ fields: listFields(doc).map(describeField) });
+						return { fields: listFields(doc).map(describeField) };
 					}
 				},
 				{
@@ -223,7 +217,7 @@
 					},
 					execute: function(input) {
 						var field = findField(doc, input && input.field);
-						if (!field) return textResult("No editable field on the page is named \"" + cleanText(input && input.field) + "\".", true);
+						if (!field) throw new Error("No editable field on the page is named \"" + cleanText(input && input.field) + "\".");
 						var type = fieldType(field);
 						var value = input.value;
 						if (type === "checkbox" || type === "radio") field.checked = value === true || String(value).toLowerCase() === "true";
@@ -232,37 +226,43 @@
 							var option = Array.prototype.find.call(field.options || [], function(candidate) {
 								return String(candidate.value).toLowerCase() === wanted || cleanText(candidate.text).toLowerCase() === wanted;
 							});
-							if (!option) return textResult("The list \"" + fieldLabel(field) + "\" has no choice \"" + cleanText(value) + "\".", true);
+							if (!option) throw new Error("The list \"" + fieldLabel(field) + "\" has no choice \"" + cleanText(value) + "\".");
 							field.value = option.value;
 						} else field.value = value == null ? "" : String(value);
 						raise(field, "input");
 						raise(field, "change");
-						return json({ field: describeField(field) });
+						return { field: describeField(field) };
 					}
 				}
 			];
 		}
 		/**
-		* Registers the page tools with the page's list of tools.
+		* Registers the page tools with the page's ModelContext.
 		*
-		* @param {{ registerTool: Function }} api The page's list of tools.
+		* @param {any} modelContext The page's ModelContext (document.modelContext).
 		* @param {{ doc: any, loc: any, isAdmin?: boolean }} options The document, its location, and whether it is an admin page.
+		* @param {AbortSignal} [signal] Unregisters the tools when aborted.
 		*/
-		function register(api, options) {
-			createPageTools(options).forEach(function(tool) {
-				api.registerTool(tool);
-			});
+		function register(modelContext, options, signal) {
+			return Promise.all(createPageTools(options).map(function(tool) {
+				return modelContext.registerTool(tool, signal ? { signal } : {}).catch(function(error) {
+					console.warn("The page tool \"" + tool.name + "\" could not be registered.", error);
+				});
+			}));
 		}
 		window.CrestAppsWebMcpPageTools = {
 			selectors,
 			createPageTools,
 			register
 		};
-		if (window.crestAppsWebMcp && window.document) register(window.crestAppsWebMcp, {
-			doc: window.document,
-			loc: window.location,
-			isAdmin: !!(window.crestAppsWebMcp.config && window.crestAppsWebMcp.config.isAdmin)
-		});
+		if (window.document && window.document.modelContext) {
+			var config = window.crestAppsWebMcp && window.crestAppsWebMcp.config;
+			register(window.document.modelContext, {
+				doc: window.document,
+				loc: window.location,
+				isAdmin: !!(config && config.isAdmin)
+			});
+		}
 	})();
 	//#endregion
 })();

@@ -1,7 +1,8 @@
-// Unit tests for webmcp.js: the page's list of WebMCP tools, how it mirrors them to the browser's ModelContext,
-// the proxies that call the site's AI tools, and the bridge that lets the CrestApps chat run page tools.
+// Unit tests for webmcp.js, against a stand-in that follows the WebMCP draft (see fake-model-context.js).
 //
-// The script is loaded into this test's own realm with a bare `window`, so the tests see plain objects and arrays.
+// The script uses only the standard document.modelContext API: it registers the site's AI tools with registerTool,
+// and lets the CrestApps chat discover every tool the page exposes with getTools and run it with executeTool. The
+// browser test webmcp-polyfill.spec.js runs the same script against the reference polyfill.
 //
 // Run with: node --test tests/realtime-client/webmcp.test.js
 const { describe, it, mock } = require('node:test');
@@ -9,35 +10,21 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { createFakeModelContext } = require('./fake-model-context.js');
 
-const assetsDirectory = path.join(__dirname, '../../src/Resources/CrestApps.AI.Resources/Assets/js');
+const assetsDirectory = path.join(__dirname, '../../src/Resources/CrestApps.AI.WebMcp.Resources/Assets/js');
 
 globalThis.window = {};
 vm.runInThisContext(fs.readFileSync(path.join(assetsDirectory, 'webmcp.js'), 'utf8'), { filename: 'webmcp.js' });
 
 const webMcp = globalThis.window.CrestAppsWebMcp;
 
-function echoTool(name, extra) {
-    return Object.assign({
-        name,
-        description: 'Echoes its input.',
-        inputSchema: { type: 'object', properties: { text: { type: 'string' } } },
-        execute: (input) => webMcp.textResult(input.text),
-    }, extra);
-}
-
-function fakeModelContext() {
-    const registered = [];
-
-    return {
-        registered,
-        registerTool: mock.fn((tool, options) => {
-            registered.push({ tool, options });
-
-            return Promise.resolve();
-        }),
-    };
-}
+const serverConfig = {
+    toolsUrl: '/api/ai/webmcp/tools',
+    invokeUrlTemplate: '/api/ai/webmcp/tools/{name}/invoke',
+    antiforgeryHeaderName: 'RequestVerificationToken',
+    antiforgeryToken: 'token-1',
+};
 
 function jsonResponse(body, status = 200) {
     return {
@@ -47,247 +34,36 @@ function jsonResponse(body, status = 200) {
     };
 }
 
+function siteTool(name, extra) {
+    return Object.assign({
+        name,
+        title: 'Title ' + name,
+        description: 'Does ' + name + '.',
+        inputSchema: { type: 'object', properties: { text: { type: 'string' } } },
+        execute: (input) => ({ ran: name, text: input.text }),
+    }, extra);
+}
+
 describe('getModelContext', () => {
-    it('prefers the document, as the current draft defines it', () => {
-        const documentContext = {};
+    it('answers the document\'s ModelContext, the only place the WebMCP draft defines it', () => {
+        const modelContext = {};
 
-        assert.strictEqual(webMcp.getModelContext({ modelContext: documentContext }, { modelContext: {} }), documentContext);
+        assert.strictEqual(webMcp.getModelContext({ modelContext }), modelContext);
     });
 
-    it('falls back to the navigator, as earlier browser previews define it', () => {
-        const navigatorContext = {};
-
-        assert.strictEqual(webMcp.getModelContext({}, { modelContext: navigatorContext }), navigatorContext);
-    });
-
-    it('answers null when the browser has no WebMCP', () => {
-        assert.strictEqual(webMcp.getModelContext({}, {}), null);
-        assert.strictEqual(webMcp.getModelContext(undefined, undefined), null);
-    });
-});
-
-describe('createRegistry', () => {
-    it('registers a tool and lists it without its callback', () => {
-        const registry = webMcp.createRegistry(null);
-
-        registry.registerTool(echoTool('echo', { title: 'Echo', annotations: { readOnlyHint: true } }));
-
-        assert.deepStrictEqual(registry.getTools(), [{
-            name: 'echo',
-            description: 'Echoes its input.',
-            inputSchema: { type: 'object', properties: { text: { type: 'string' } } },
-            source: 'page',
-            title: 'Echo',
-            annotations: { readOnlyHint: true },
-        }]);
-    });
-
-    it('refuses a tool without a name, a description or a callback', () => {
-        const registry = webMcp.createRegistry(null);
-
-        assert.throws(() => registry.registerTool({ description: 'x', execute: () => null }), TypeError);
-        assert.throws(() => registry.registerTool({ name: 'x', execute: () => null }), TypeError);
-        assert.throws(() => registry.registerTool({ name: 'x', description: 'x' }), TypeError);
-    });
-
-    it('mirrors a tool to the browser and unregisters it there with its signal', () => {
-        const modelContext = fakeModelContext();
-        const registry = webMcp.createRegistry(modelContext);
-
-        registry.registerTool(echoTool('echo'));
-        registry.unregisterTool('echo');
-
-        assert.strictEqual(modelContext.registered.length, 1);
-        assert.strictEqual(modelContext.registered[0].tool.name, 'echo');
-        assert.strictEqual(typeof modelContext.registered[0].tool.execute, 'function');
-        assert.strictEqual(modelContext.registered[0].options.signal.aborted, true);
-        assert.deepStrictEqual(registry.getTools(), []);
-    });
-
-    it('calls unregisterTool on browsers that offer it', () => {
-        const modelContext = fakeModelContext();
-
-        modelContext.unregisterTool = mock.fn();
-
-        const registry = webMcp.createRegistry(modelContext);
-
-        registry.registerTool(echoTool('echo'));
-        registry.unregisterTool('echo');
-
-        assert.deepStrictEqual(modelContext.unregisterTool.mock.calls.map((call) => call.arguments), [['echo']]);
-    });
-
-    it('keeps the tool on the page when the browser refuses it', () => {
-        const warn = mock.method(console, 'warn', () => {});
-        const registry = webMcp.createRegistry({
-            registerTool: () => {
-                throw new Error('Not allowed.');
-            },
-        });
-
-        registry.registerTool(echoTool('echo'));
-        warn.mock.restore();
-
-        assert.deepStrictEqual(registry.getTools().map((tool) => tool.name), ['echo']);
-    });
-
-    it('replaces a tool registered again under the same name', () => {
-        const modelContext = fakeModelContext();
-        const registry = webMcp.createRegistry(modelContext);
-
-        registry.registerTool(echoTool('echo'));
-        registry.registerTool(echoTool('echo', { description: 'Second.' }));
-
-        assert.strictEqual(registry.getTools().length, 1);
-        assert.strictEqual(registry.getTools()[0].description, 'Second.');
-        assert.strictEqual(modelContext.registered[0].options.signal.aborted, true);
-        assert.strictEqual(modelContext.registered[1].options.signal.aborted, false);
-    });
-
-    it('executes a tool by name with its input', async () => {
-        const registry = webMcp.createRegistry(null);
-
-        registry.registerTool(echoTool('echo'));
-
-        assert.deepStrictEqual(await registry.executeTool('echo', { text: 'hello' }), webMcp.textResult('hello'));
-    });
-
-    it('answers an error result for a tool that does not exist', async () => {
-        const registry = webMcp.createRegistry(null);
-
-        assert.strictEqual(webMcp.isErrorResult(await registry.executeTool('missing', {})), true);
-    });
-
-    it('tells listeners when the tools change, until they stop listening', () => {
-        const registry = webMcp.createRegistry(null);
-        const listener = mock.fn();
-        const stop = registry.onToolsChanged(listener);
-
-        registry.registerTool(echoTool('echo'));
-        registry.unregisterTool('echo');
-        stop();
-        registry.registerTool(echoTool('other'));
-
-        assert.strictEqual(listener.mock.callCount(), 2);
-    });
-
-    it('says whether the browser supports WebMCP', () => {
-        assert.strictEqual(webMcp.createRegistry(null).isSupported(), false);
-        assert.strictEqual(webMcp.createRegistry(fakeModelContext()).isSupported(), true);
-    });
-});
-
-describe('createServerToolProxy', () => {
-    const config = {
-        invokeUrlTemplate: '/api/ai/webmcp/tools/{name}/invoke',
-        antiforgeryHeaderName: 'RequestVerificationToken',
-        antiforgeryToken: 'token-1',
-    };
-
-    const descriptor = {
-        name: 'list_time_zones',
-        title: 'List System Time Zones',
-        description: 'Lists time zones.',
-        inputSchema: { type: 'object', properties: {} },
-    };
-
-    it('describes the server tool and marks it as a server tool', () => {
-        const proxy = webMcp.createServerToolProxy(descriptor, config, mock.fn());
-
-        assert.strictEqual(proxy.name, 'list_time_zones');
-        assert.strictEqual(proxy.title, 'List System Time Zones');
-        assert.strictEqual(proxy.source, 'server');
-        assert.deepStrictEqual(proxy.annotations, { untrustedContentHint: true });
-    });
-
-    it('posts the input with the antiforgery token and answers the server result', async () => {
-        const fetchImpl = mock.fn(() => Promise.resolve(jsonResponse({ content: [{ type: 'text', text: 'UTC' }], isError: false })));
-        const proxy = webMcp.createServerToolProxy(descriptor, config, fetchImpl);
-
-        const result = await proxy.execute({ filter: 'u' });
-
-        assert.deepStrictEqual(fetchImpl.mock.calls[0].arguments, ['/api/ai/webmcp/tools/list_time_zones/invoke', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                RequestVerificationToken: 'token-1',
-            },
-            body: JSON.stringify({ filter: 'u' }),
-        }]);
-        assert.deepStrictEqual(result, { content: [{ type: 'text', text: 'UTC' }], isError: false });
-    });
-
-    it('encodes the tool name in the address', async () => {
-        const fetchImpl = mock.fn(() => Promise.resolve(jsonResponse({ content: [], isError: false })));
-        const proxy = webMcp.createServerToolProxy(Object.assign({}, descriptor, { name: 'a b' }), config, fetchImpl);
-
-        await proxy.execute({});
-
-        assert.strictEqual(fetchImpl.mock.calls[0].arguments[0], '/api/ai/webmcp/tools/a%20b/invoke');
-    });
-
-    it('answers an error result when the server refuses the call or cannot be reached', async () => {
-        const refused = webMcp.createServerToolProxy(descriptor, config, () => Promise.resolve(jsonResponse({}, 403)));
-        const offline = webMcp.createServerToolProxy(descriptor, config, () => Promise.reject(new Error('offline')));
-
-        const refusedResult = await refused.execute({});
-        const offlineResult = await offline.execute({});
-
-        assert.strictEqual(webMcp.isErrorResult(refusedResult), true);
-        assert.match(webMcp.serializeResult(refusedResult), /403/);
-        assert.strictEqual(webMcp.isErrorResult(offlineResult), true);
-    });
-
-    it('refuses a tool without a name or an address to call', () => {
-        assert.throws(() => webMcp.createServerToolProxy({ description: 'x' }, config, mock.fn()), TypeError);
-        assert.throws(() => webMcp.createServerToolProxy(descriptor, {}, mock.fn()), TypeError);
-    });
-});
-
-describe('loadServerTools', () => {
-    const config = { toolsUrl: '/api/ai/webmcp/tools', invokeUrlTemplate: '/api/ai/webmcp/tools/{name}/invoke' };
-
-    it('registers a proxy for every tool the server lists, skipping one it cannot call', async () => {
-        const warn = mock.method(console, 'warn', () => {});
-        const registry = webMcp.createRegistry(null);
-        const fetchImpl = mock.fn(() => Promise.resolve(jsonResponse({
-            tools: [
-                { name: 'one', description: 'One.' },
-                { description: 'No name.' },
-                { name: 'two', description: 'Two.' },
-            ],
-        })));
-
-        const count = await webMcp.loadServerTools(registry, config, fetchImpl);
-
-        warn.mock.restore();
-        assert.strictEqual(count, 2);
-        assert.deepStrictEqual(fetchImpl.mock.calls[0].arguments, ['/api/ai/webmcp/tools', { credentials: 'same-origin', headers: { Accept: 'application/json' } }]);
-        assert.deepStrictEqual(registry.getTools().map((tool) => tool.name), ['one', 'two']);
-        assert.ok(registry.getTools().every((tool) => tool.source === 'server'));
-    });
-
-    it('registers nothing when the server refuses the list or there is no address', async () => {
-        const registry = webMcp.createRegistry(null);
-        const fetchImpl = mock.fn();
-
-        assert.strictEqual(await webMcp.loadServerTools(registry, config, () => Promise.resolve(jsonResponse({}, 401))), 0);
-        assert.strictEqual(await webMcp.loadServerTools(registry, {}, fetchImpl), 0);
-        assert.strictEqual(fetchImpl.mock.callCount(), 0);
-        assert.deepStrictEqual(registry.getTools(), []);
+    it('answers null when the page has no WebMCP, for example outside a secure context', () => {
+        assert.strictEqual(webMcp.getModelContext({}), null);
+        assert.strictEqual(webMcp.getModelContext(undefined), null);
     });
 });
 
 describe('readConfig', () => {
     it('reads the configuration block the site writes', () => {
         const doc = {
-            getElementById: (id) => id === 'crestapps-webmcp-config'
-                ? { textContent: '{"toolsUrl":"/api/ai/webmcp/tools","isAdmin":true}' }
-                : null,
+            getElementById: (id) => (id === 'crestapps-webmcp-config' ? { textContent: '{"toolsUrl":"/t","isAdmin":true}' } : null),
         };
 
-        assert.deepStrictEqual(webMcp.readConfig(doc), { toolsUrl: '/api/ai/webmcp/tools', isAdmin: true });
+        assert.deepStrictEqual(webMcp.readConfig(doc), { toolsUrl: '/t', isAdmin: true });
     });
 
     it('answers null when the block is missing or broken', () => {
@@ -296,47 +72,137 @@ describe('readConfig', () => {
     });
 });
 
-describe('results', () => {
-    it('serializes results to their text, strings as they are and other values as JSON', () => {
-        assert.strictEqual(webMcp.serializeResult(webMcp.textResult('one')), 'one');
-        assert.strictEqual(webMcp.serializeResult({ content: [{ type: 'text', text: 'a' }, { type: 'image' }, { type: 'text', text: 'b' }] }), 'a\nb');
-        assert.strictEqual(webMcp.serializeResult('plain'), 'plain');
-        assert.strictEqual(webMcp.serializeResult({ count: 2 }), '{"count":2}');
-        assert.strictEqual(webMcp.serializeResult(undefined), '');
-        assert.strictEqual(webMcp.serializeResult(null), '');
+describe('createServerTool', () => {
+    const descriptor = {
+        name: 'calculator',
+        title: 'Calculator',
+        description: 'Adds numbers.',
+        inputSchema: { type: 'object', properties: { a: { type: 'number' } } },
+    };
+
+    it('describes the site tool as a standard ModelContextTool', () => {
+        const tool = webMcp.createServerTool(descriptor, serverConfig, mock.fn());
+
+        assert.strictEqual(tool.name, 'calculator');
+        assert.strictEqual(tool.title, 'Calculator');
+        assert.strictEqual(tool.description, 'Adds numbers.');
+        assert.deepStrictEqual(tool.inputSchema, descriptor.inputSchema);
+        assert.deepStrictEqual(tool.annotations, { untrustedContentHint: true });
+        assert.strictEqual(typeof tool.execute, 'function');
     });
 
-    it('recognizes error results', () => {
-        assert.strictEqual(webMcp.isErrorResult(webMcp.textResult('x', true)), true);
-        assert.strictEqual(webMcp.isErrorResult(webMcp.textResult('x')), false);
-        assert.strictEqual(webMcp.isErrorResult('x'), false);
+    it('posts the input with the antiforgery token and answers the tool\'s text', async () => {
+        const fetchImpl = mock.fn(() => Promise.resolve(jsonResponse({ content: [{ type: 'text', text: '42' }], isError: false })));
+        const tool = webMcp.createServerTool(descriptor, serverConfig, fetchImpl);
+
+        assert.strictEqual(await tool.execute({ a: 1 }), '42');
+        assert.deepStrictEqual(fetchImpl.mock.calls[0].arguments, ['/api/ai/webmcp/tools/calculator/invoke', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', RequestVerificationToken: 'token-1' },
+            body: '{"a":1}',
+        }]);
+    });
+
+    it('rejects, as the draft expects of a failed tool, when the site refuses the call, the tool fails or the site cannot be reached', async () => {
+        const refused = webMcp.createServerTool(descriptor, serverConfig, () => Promise.resolve(jsonResponse({}, 403)));
+        const failed = webMcp.createServerTool(descriptor, serverConfig, () => Promise.resolve(jsonResponse({ content: [{ type: 'text', text: 'Boom.' }], isError: true })));
+        const offline = webMcp.createServerTool(descriptor, serverConfig, () => Promise.reject(new Error('offline')));
+
+        await assert.rejects(refused.execute({}), /403/);
+        await assert.rejects(failed.execute({}), /Boom\./);
+        await assert.rejects(offline.execute({}));
+    });
+
+    it('refuses a tool without a name or an address to call', () => {
+        assert.throws(() => webMcp.createServerTool({ description: 'x' }, serverConfig, mock.fn()), TypeError);
+        assert.throws(() => webMcp.createServerTool(descriptor, {}, mock.fn()), TypeError);
+    });
+});
+
+describe('registerServerTools', () => {
+    it('registers every tool the site lists with the page\'s ModelContext, where any agent can find and run it', async () => {
+        const modelContext = createFakeModelContext();
+        const fetchImpl = mock.fn((url) => Promise.resolve(url === '/api/ai/webmcp/tools'
+            ? jsonResponse({ tools: [{ name: 'calculator', description: 'Adds.' }, { description: 'No name.' }, { name: 'weather', description: 'Weather.' }] })
+            : jsonResponse({ content: [{ type: 'text', text: 'ok' }], isError: false })));
+        const warn = mock.method(console, 'warn', () => {});
+
+        const names = await webMcp.registerServerTools(modelContext, serverConfig, fetchImpl);
+
+        warn.mock.restore();
+        assert.deepStrictEqual(names, ['calculator', 'weather']);
+        assert.deepStrictEqual((await modelContext.getTools()).map((tool) => tool.name), ['calculator', 'weather']);
+
+        const calculator = (await modelContext.getTools()).find((tool) => tool.name === 'calculator');
+
+        assert.strictEqual(await modelContext.executeTool(calculator, {}), '"ok"');
+    });
+
+    it('unregisters the tools when its signal is aborted', async () => {
+        const modelContext = createFakeModelContext();
+        const controller = new AbortController();
+        const fetchImpl = () => Promise.resolve(jsonResponse({ tools: [{ name: 'calculator', description: 'Adds.' }] }));
+
+        await webMcp.registerServerTools(modelContext, serverConfig, fetchImpl, controller.signal);
+        controller.abort();
+
+        assert.deepStrictEqual(await modelContext.getTools(), []);
+    });
+
+    it('registers nothing when the site refuses the list or there is no address', async () => {
+        const modelContext = createFakeModelContext();
+
+        assert.deepStrictEqual(await webMcp.registerServerTools(modelContext, serverConfig, () => Promise.resolve(jsonResponse({}, 401))), []);
+        assert.deepStrictEqual(await webMcp.registerServerTools(modelContext, {}, mock.fn()), []);
+        assert.deepStrictEqual(await modelContext.getTools(), []);
     });
 });
 
 describe('toPageToolDescriptors', () => {
-    it('keeps page tools with names AI providers accept and sends their schemas as text', () => {
+    it('turns registered tools into what the chat hub accepts, with their annotations and their schemas as text', () => {
         const descriptors = webMcp.toPageToolDescriptors([
-            { name: 'page_get_info', title: 'Info', description: 'Info.', inputSchema: { type: 'object' }, source: 'page' },
-            { name: 'list_time_zones', description: 'Server.', inputSchema: { type: 'object' }, source: 'server' },
-            { name: 'has space', description: 'Bad name.', source: 'page' },
-            { name: 'x'.repeat(65), description: 'Too long.', source: 'page' },
-            { name: 'no_schema', description: 'No schema.', source: 'page' },
-        ]);
+            { name: 'shop.get_order', title: 'Get order', description: 'Gets an order.', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true, untrustedContentHint: true } },
+            { name: 'shop.place_order', title: '', description: 'Places an order.', annotations: { consequentialHint: true } },
+            { name: 'calculator', title: 'Calculator', description: 'Site tool.' },
+            { name: 'bad name', title: '', description: 'Not a WebMCP name.' },
+        ], new Set(['calculator']));
 
         assert.deepStrictEqual(descriptors, [
-            { name: 'page_get_info', title: 'Info', description: 'Info.', inputSchema: '{"type":"object"}' },
-            { name: 'no_schema', title: null, description: 'No schema.', inputSchema: '{"type":"object","properties":{}}' },
+            { name: 'shop.get_order', title: 'Get order', description: 'Gets an order.', inputSchema: '{"type":"object"}', readOnly: true, consequential: false, untrustedContent: true },
+            { name: 'shop.place_order', title: null, description: 'Places an order.', inputSchema: null, readOnly: false, consequential: true, untrustedContent: false },
         ]);
     });
+});
 
-    it('sends at most sixty-four tools', () => {
-        const tools = [];
+describe('runPageTool', () => {
+    it('finds the tool with getTools, runs it with executeTool and answers the text the model reads', async () => {
+        const modelContext = createFakeModelContext();
 
-        for (let i = 0; i < 70; i++) {
-            tools.push({ name: 'tool_' + i, description: 'Tool.', source: 'page' });
-        }
+        await modelContext.registerTool(siteTool('shop.get_order'));
 
-        assert.strictEqual(webMcp.toPageToolDescriptors(tools).length, 64);
+        assert.deepStrictEqual(await webMcp.runPageTool(modelContext, 'shop.get_order', '{"text":"A-1"}'), { text: '{"ran":"shop.get_order","text":"A-1"}', isError: false });
+    });
+
+    it('answers a string result as its text', async () => {
+        const modelContext = createFakeModelContext();
+
+        await modelContext.registerTool(siteTool('greet', { execute: () => 'Hello.' }));
+
+        assert.deepStrictEqual(await webMcp.runPageTool(modelContext, 'greet', '{}'), { text: 'Hello.', isError: false });
+    });
+
+    it('reports a failed, missing or excluded tool, and input that is not a JSON object', async () => {
+        const modelContext = createFakeModelContext();
+
+        await modelContext.registerTool(siteTool('fails', { execute: () => { throw new Error('Boom'); } }));
+        await modelContext.registerTool(siteTool('calculator'));
+
+        assert.strictEqual((await webMcp.runPageTool(modelContext, 'fails', '{}')).isError, true);
+        assert.strictEqual((await webMcp.runPageTool(modelContext, 'missing', '{}')).isError, true);
+        assert.deepStrictEqual(await webMcp.runPageTool(modelContext, 'fails', '{broken'), { text: 'The tool input is not valid JSON.', isError: true });
+        assert.deepStrictEqual(await webMcp.runPageTool(modelContext, 'fails', '[1]'), { text: 'The tool input must be a JSON object.', isError: true });
+        assert.strictEqual((await webMcp.runPageTool(modelContext, 'calculator', '{}', { excludedNames: new Set(['calculator']) })).isError, true);
     });
 });
 
@@ -356,81 +222,62 @@ describe('connectChat', () => {
         };
     }
 
-    function setup() {
-        const api = webMcp.createRegistry(null);
+    function calls(connection) {
+        return connection.invoke.mock.calls.map((call) => call.arguments);
+    }
+
+    it('sends every tool the page exposes, including ones a third-party script registered directly', async () => {
+        const modelContext = createFakeModelContext();
         const connection = fakeConnection();
-        const chat = webMcp.connectChat(api, connection);
+        const chat = webMcp.connectChat(modelContext, connection);
 
-        return { api, connection, chat };
-    }
-
-    function pageTool(name, execute) {
-        return {
-            name,
-            title: 'Title ' + name,
-            description: 'Does ' + name + '.',
-            inputSchema: { type: 'object', properties: { text: { type: 'string' } } },
-            execute: execute || ((input) => webMcp.textResult('ran ' + name + ' with ' + input.text)),
-        };
-    }
-
-    it('sends the page tools before a message', async () => {
-        const { api, connection, chat } = setup();
-
-        api.registerTool(pageTool('page_one'));
+        await modelContext.registerTool(siteTool('shop.get_order', { annotations: { readOnlyHint: true } }));
 
         assert.strictEqual(await chat.sync(), 1);
-        assert.deepStrictEqual(connection.invoke.mock.calls.map((call) => call.arguments), [['SetPageTools', [{
-            name: 'page_one',
-            title: 'Title page_one',
-            description: 'Does page_one.',
+        assert.deepStrictEqual(calls(connection), [['SetPageTools', [{
+            name: 'shop.get_order',
+            title: 'Title shop.get_order',
+            description: 'Does shop.get_order.',
             inputSchema: '{"type":"object","properties":{"text":{"type":"string"}}}',
+            readOnly: true,
+            consequential: false,
+            untrustedContent: false,
         }]]]);
     });
 
-    it('sends nothing again until the tools change', async () => {
-        const { api, connection, chat } = setup();
+    it('leaves out the site tools it registered itself, which the chat reaches on the server', async () => {
+        const modelContext = createFakeModelContext();
+        const connection = fakeConnection();
+        const chat = webMcp.connectChat(modelContext, connection, { excludedNames: new Set(['calculator']) });
 
-        api.registerTool(pageTool('page_one'));
-        await chat.sync();
-        await chat.sync();
-
-        assert.strictEqual(connection.invoke.mock.callCount(), 1);
-
-        api.registerTool(pageTool('page_two'));
-        await chat.sync();
-
-        assert.strictEqual(connection.invoke.mock.callCount(), 2);
-    });
-
-    it('sends nothing for a page that never had page tools, and clears them once they are gone', async () => {
-        const { api, connection, chat } = setup();
-
+        await modelContext.registerTool(siteTool('calculator'));
         await chat.sync();
 
         assert.strictEqual(connection.invoke.mock.callCount(), 0);
-
-        api.registerTool(pageTool('page_one'));
-        await chat.sync();
-        api.unregisterTool('page_one');
-        await chat.sync();
-
-        assert.deepStrictEqual(connection.invoke.mock.calls.map((call) => call.arguments[0]), ['SetPageTools', 'ClearPageTools']);
     });
 
-    it('leaves the server tools out', async () => {
-        const { api, connection, chat } = setup();
+    it('sends nothing again until the tools change, then sends the new set or clears it', async () => {
+        const modelContext = createFakeModelContext();
+        const connection = fakeConnection();
+        const chat = webMcp.connectChat(modelContext, connection);
+        const registration = new AbortController();
 
-        api.registerTool(Object.assign(pageTool('list_time_zones'), { source: 'server' }));
+        await chat.sync();
+        await modelContext.registerTool(siteTool('one'), { signal: registration.signal });
+        await chat.sync();
+        await chat.sync();
+        registration.abort();
         await chat.sync();
 
-        assert.strictEqual(connection.invoke.mock.callCount(), 0);
+        assert.deepStrictEqual(calls(connection).map((call) => call[0]), ['SetPageTools', 'ClearPageTools']);
     });
 
     it('sends the tools again after the connection comes back', async () => {
-        const { api, connection, chat } = setup();
+        const modelContext = createFakeModelContext();
+        const connection = fakeConnection();
+        const chat = webMcp.connectChat(modelContext, connection);
 
-        api.registerTool(pageTool('page_one'));
+        await modelContext.registerTool(siteTool('one'));
         await chat.sync();
         connection.reconnect();
         await chat.sync();
@@ -439,11 +286,13 @@ describe('connectChat', () => {
     });
 
     it('tries again on the next message when sending fails', async () => {
+        const modelContext = createFakeModelContext();
+        const connection = fakeConnection();
+        const chat = webMcp.connectChat(modelContext, connection);
         const warn = mock.method(console, 'warn', () => {});
-        const { api, connection, chat } = setup();
 
         connection.invoke.mock.mockImplementationOnce(() => Promise.reject(new Error('Down.')));
-        api.registerTool(pageTool('page_one'));
+        await modelContext.registerTool(siteTool('one'));
         await chat.sync();
         await chat.sync();
         warn.mock.restore();
@@ -451,40 +300,39 @@ describe('connectChat', () => {
         assert.strictEqual(connection.invoke.mock.callCount(), 2);
     });
 
-    it('runs a tool the chat asks for and returns its text', async () => {
-        const { api, connection } = setup();
+    it('runs the tool the hub asks for through executeTool and returns what the hub expects', async () => {
+        const modelContext = createFakeModelContext();
+        const connection = fakeConnection();
 
-        api.registerTool(pageTool('page_one'));
+        webMcp.connectChat(modelContext, connection);
+        await modelContext.registerTool(siteTool('shop.get_order'));
 
-        assert.deepStrictEqual(await connection.handlers.ExecutePageTool('page_one', '{"text":"hi"}'), { text: 'ran page_one with hi', isError: false });
+        assert.deepStrictEqual(await connection.handlers.ExecutePageTool('shop.get_order', '{"text":"A-1"}'), {
+            text: '{"ran":"shop.get_order","text":"A-1"}',
+            isError: false,
+        });
     });
 
-    it('returns an error when the tool fails, is missing, gets broken input or is a server tool', async () => {
-        const { api, connection } = setup();
-        const serverExecute = mock.fn();
+    it('does nothing when the page has no WebMCP', async () => {
+        const connection = fakeConnection();
+        const chat = webMcp.connectChat(null, connection);
 
-        api.registerTool(pageTool('page_fails', () => {
-            throw new Error('Boom');
-        }));
-        api.registerTool(Object.assign(pageTool('list_time_zones', serverExecute), { source: 'server' }));
-
-        assert.deepStrictEqual(await connection.handlers.ExecutePageTool('page_fails', '{}'), { text: 'The tool failed: Boom', isError: true });
-        assert.strictEqual((await connection.handlers.ExecutePageTool('page_missing', '{}')).isError, true);
-        assert.deepStrictEqual(await connection.handlers.ExecutePageTool('page_fails', '{broken'), { text: 'The tool input is not valid JSON.', isError: true });
-        assert.deepStrictEqual(await connection.handlers.ExecutePageTool('list_time_zones', '{}'), { text: 'The tool "list_time_zones" is not a page tool.', isError: true });
-        assert.strictEqual(serverExecute.mock.callCount(), 0);
+        assert.strictEqual(await chat.sync(), 0);
+        assert.strictEqual(connection.handlers.ExecutePageTool, undefined);
     });
 });
 
 describe('init', () => {
-    it('creates the page list once, reads the configuration and connects chats to it', () => {
+    it('creates the page facade once, registers the site tools and connects chats to the page\'s ModelContext', async () => {
+        const modelContext = createFakeModelContext();
         const events = [];
         const win = {
             document: {
-                getElementById: () => ({ textContent: '{"isAdmin":true}' }),
+                modelContext,
+                getElementById: () => ({ textContent: JSON.stringify(Object.assign({ isAdmin: true }, serverConfig)) }),
                 dispatchEvent: (event) => events.push(event.type),
             },
-            navigator: {},
+            fetch: () => Promise.resolve(jsonResponse({ tools: [{ name: 'calculator', description: 'Adds.' }] })),
             CustomEvent: function (type, init) {
                 this.type = type;
                 this.detail = init.detail;
@@ -495,14 +343,18 @@ describe('init', () => {
 
         assert.strictEqual(webMcp.init(win), api);
         assert.strictEqual(win.crestAppsWebMcp, api);
-        assert.deepStrictEqual(api.config, { isAdmin: true });
-        assert.strictEqual(api.isSupported(), false);
+        assert.strictEqual(api.isSupported(), true);
+        assert.strictEqual(api.config.isAdmin, true);
+        await api.ready;
+        assert.deepStrictEqual((await modelContext.getTools()).map((tool) => tool.name), ['calculator']);
         assert.deepStrictEqual(events, ['crestapps-webmcp-ready']);
 
-        const handlers = {};
-        const chat = api.connectChat({ on: (name, handler) => { handlers[name] = handler; }, invoke: () => Promise.resolve() });
+        const connection = { invoke: mock.fn(() => Promise.resolve()), on: mock.fn() };
+        const chat = api.connectChat(connection);
 
-        assert.strictEqual(typeof chat.sync, 'function');
-        assert.strictEqual(typeof handlers.ExecutePageTool, 'function');
+        await modelContext.registerTool(siteTool('shop.get_order'));
+        await chat.sync();
+
+        assert.deepStrictEqual(connection.invoke.mock.calls[0].arguments[1].map((tool) => tool.name), ['shop.get_order']);
     });
 });

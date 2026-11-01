@@ -7,7 +7,7 @@ namespace CrestApps.Core.AI.WebMcp;
 public sealed class WebMcpPageToolDescriptor
 {
     /// <summary>
-    /// Gets or sets the function name of the tool.
+    /// Gets or sets the WebMCP name of the tool, as the page registered it with <c>document.modelContext.registerTool</c>.
     /// </summary>
     public string Name { get; set; }
 
@@ -25,4 +25,21 @@ public sealed class WebMcpPageToolDescriptor
     /// Gets or sets the JSON schema of the tool's input, as JSON text.
     /// </summary>
     public string InputSchema { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the tool declared the WebMCP <c>readOnlyHint</c> annotation: it only reads.
+    /// </summary>
+    public bool ReadOnly { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the tool declared the WebMCP <c>consequentialHint</c> annotation: running
+    /// it has significant, real-world or irreversible effects, such as placing an order.
+    /// </summary>
+    public bool Consequential { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the tool declared the WebMCP <c>untrustedContentHint</c> annotation: what it
+    /// answers holds content the page did not write.
+    /// </summary>
+    public bool UntrustedContent { get; set; }
 }

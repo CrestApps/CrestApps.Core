@@ -1,0 +1,395 @@
+// @ts-check
+/*
+ * WebMCP for CrestApps.
+ *
+ * WebMCP (https://webmachinelearning.github.io/webmcp/) lets a web page give tools to AI agents through
+ * `document.modelContext`. This script uses only that standard API:
+ *
+ * - It registers the AI tools the site lets the signed-in user call, each as a standard tool whose `execute` posts to
+ *   the site with the user's antiforgery token. Any agent that reads the page's tools, such as the browser's own
+ *   assistant, can find and run them.
+ * - It lets the CrestApps AI chat use every tool the page exposes, whoever registered it: `getTools()` lists them,
+ *   and `executeTool()` runs the one the model calls. Only the site tools it registered itself are left out, because
+ *   the chat reaches those on the server.
+ *
+ * Load webmcp-polyfill.js first, so browsers without native WebMCP get the reference implementation; a browser that
+ * has WebMCP keeps its own. The page configuration is read from a
+ * `<script type="application/json" id="crestapps-webmcp-config">` block: `toolsUrl` and `invokeUrlTemplate` (with a
+ * `{name}` placeholder) for the site's tools, `antiforgeryHeaderName` and `antiforgeryToken` for the calls,
+ * `pageToolOrigins` for the cross-origin frames whose tools the chat may use, and any setting other page scripts need.
+ */
+(function () {
+  'use strict';
+
+  var CONFIG_ELEMENT_ID = 'crestapps-webmcp-config';
+  var MAX_PAGE_TOOLS = 64;
+  var TOOL_NAME = /^[A-Za-z0-9_.-]{1,128}$/;
+
+  /**
+   * Finds the page's WebMCP ModelContext.
+   *
+   * @param {any} doc The document.
+   */
+  function getModelContext(doc) {
+    return doc && doc.modelContext ? doc.modelContext : null;
+  }
+
+  /**
+   * Reads the configuration block the site writes into the page.
+   *
+   * @param {any} doc The document.
+   */
+  function readConfig(doc) {
+    var element = doc && doc.getElementById ? doc.getElementById(CONFIG_ELEMENT_ID) : null;
+
+    if (!element) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(element.textContent);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Creates the standard tool that calls one of the site's AI tools.
+   *
+   * @param {{ name: string, title?: string, description: string, inputSchema?: any }} descriptor The tool the site lists.
+   * @param {{ invokeUrlTemplate?: string, antiforgeryHeaderName?: string, antiforgeryToken?: string }} config The page configuration.
+   * @param {Function} fetchImpl The fetch function.
+   */
+  function createServerTool(descriptor, config, fetchImpl) {
+    if (!descriptor || !descriptor.name || !config || !config.invokeUrlTemplate) {
+      throw new TypeError('A site tool needs a name and an address to call.');
+    }
+
+    var url = config.invokeUrlTemplate.replace('{name}', encodeURIComponent(descriptor.name));
+    /** @type {any} */
+    var tool = {
+      name: descriptor.name,
+      description: descriptor.description,
+      // The site's tools read data the page did not write, so agents are told to treat what they answer as data.
+      annotations: { untrustedContentHint: true },
+      execute: async function (input) {
+        /** @type {Record<string, string>} */
+        var headers = { 'Content-Type': 'application/json' };
+
+        if (config.antiforgeryHeaderName && config.antiforgeryToken) {
+          headers[config.antiforgeryHeaderName] = config.antiforgeryToken;
+        }
+
+        var response = await fetchImpl(url, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: headers,
+          body: JSON.stringify(input || {}),
+        });
+
+        if (!response.ok) {
+          throw new Error('The site refused the tool call (' + response.status + ').');
+        }
+
+        var data = await response.json();
+        var text = (Array.isArray(data.content) ? data.content : [])
+          .filter(function (part) {
+            return part && part.type === 'text';
+          })
+          .map(function (part) {
+            return part.text == null ? '' : String(part.text);
+          })
+          .join('\n');
+
+        if (data.isError) {
+          // A rejected execute is how WebMCP reports a failed tool.
+          throw new Error(text || 'The tool failed.');
+        }
+
+        return text;
+      },
+    };
+
+    if (descriptor.title) {
+      tool.title = descriptor.title;
+    }
+
+    if (descriptor.inputSchema) {
+      tool.inputSchema = descriptor.inputSchema;
+    }
+
+    return tool;
+  }
+
+  /**
+   * Fetches the AI tools the site lets this user call and registers each with the page's ModelContext.
+   *
+   * @param {any} modelContext The page's ModelContext.
+   * @param {any} config The page configuration.
+   * @param {Function} fetchImpl The fetch function.
+   * @param {AbortSignal} [signal] Unregisters the tools when aborted.
+   * @returns {Promise<string[]>} The names of the tools registered.
+   */
+  async function registerServerTools(modelContext, config, fetchImpl, signal) {
+    if (!modelContext || !config || !config.toolsUrl || !config.invokeUrlTemplate) {
+      return [];
+    }
+
+    var descriptors;
+
+    try {
+      var response = await fetchImpl(config.toolsUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+
+      if (!response.ok) {
+        return [];
+      }
+
+      var data = await response.json();
+
+      descriptors = data && Array.isArray(data.tools) ? data.tools : [];
+    } catch (error) {
+      console.warn('The site\'s WebMCP tools could not be loaded.', error);
+
+      return [];
+    }
+
+    /** @type {string[]} */
+    var names = [];
+
+    for (var i = 0; i < descriptors.length; i++) {
+      try {
+        await modelContext.registerTool(createServerTool(descriptors[i], config, fetchImpl), signal ? { signal: signal } : {});
+        names.push(descriptors[i].name);
+      } catch (error) {
+        console.warn('A site WebMCP tool could not be registered.', error);
+      }
+    }
+
+    return names;
+  }
+
+  /**
+   * Turns the page's registered tools into what the chat hub accepts: tools with valid WebMCP names, at most 64, with
+   * their schemas as JSON text and their annotations as flags.
+   *
+   * @param {Array<any>} tools The RegisteredTool records getTools() answered.
+   * @param {Set<string>} [excludedNames] The names to leave out.
+   */
+  function toPageToolDescriptors(tools, excludedNames) {
+    /** @type {Array<any>} */
+    var descriptors = [];
+
+    (tools || []).forEach(function (tool) {
+      if (descriptors.length >= MAX_PAGE_TOOLS || !tool || !TOOL_NAME.test(tool.name || '') || (excludedNames && excludedNames.has(tool.name))) {
+        return;
+      }
+
+      var annotations = tool.annotations || {};
+
+      descriptors.push({
+        name: tool.name,
+        title: tool.title || null,
+        description: tool.description,
+        inputSchema: tool.inputSchema === undefined ? null : JSON.stringify(tool.inputSchema),
+        readOnly: annotations.readOnlyHint === true,
+        consequential: annotations.consequentialHint === true,
+        untrustedContent: annotations.untrustedContentHint === true,
+      });
+    });
+
+    return descriptors;
+  }
+
+  /**
+   * Runs a page tool the chat asked for with executeTool, and answers what the hub expects back: `{ text, isError }`.
+   *
+   * @param {any} modelContext The page's ModelContext.
+   * @param {string} name The tool's name.
+   * @param {string} argumentsJson The tool's input as JSON.
+   * @param {{ fromOrigins?: string[], excludedNames?: Set<string> }} [options] The frames to look in and the names to refuse.
+   */
+  async function runPageTool(modelContext, name, argumentsJson, options) {
+    var input;
+
+    try {
+      input = argumentsJson ? JSON.parse(argumentsJson) : {};
+    } catch (error) {
+      return { text: 'The tool input is not valid JSON.', isError: true };
+    }
+
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      return { text: 'The tool input must be a JSON object.', isError: true };
+    }
+
+    var excludedNames = options && options.excludedNames;
+
+    if (excludedNames && excludedNames.has(name)) {
+      return { text: 'The tool "' + name + '" is not a page tool.', isError: true };
+    }
+
+    try {
+      var tools = await modelContext.getTools(options && options.fromOrigins ? { fromOrigins: options.fromOrigins } : {});
+      var tool = tools.find(function (candidate) {
+        return candidate.name === name;
+      });
+
+      if (!tool) {
+        return { text: 'The page has no tool named "' + name + '".', isError: true };
+      }
+
+      var serialized = await modelContext.executeTool(tool, input);
+      var text = serialized;
+
+      try {
+        var value = JSON.parse(serialized);
+
+        if (typeof value === 'string') {
+          text = value;
+        }
+      } catch (error) {
+        // The result is not JSON; keep it as it is.
+      }
+
+      return { text: text == null ? '' : String(text), isError: false };
+    } catch (error) {
+      return { text: 'The tool failed: ' + (error && error.message ? error.message : String(error)), isError: true };
+    }
+  }
+
+  /**
+   * Connects the page's tools to a CrestApps chat hub connection. The hub calls `ExecutePageTool` on the connection
+   * and waits for the result; `sync` sends the page's tools before a message, only when they changed.
+   *
+   * @param {any} modelContext The page's ModelContext, or null when the page has no WebMCP.
+   * @param {any} connection The SignalR hub connection of the chat.
+   * @param {{ fromOrigins?: string[], excludedNames?: Set<string> }} [options] The frames to look in and the names to leave out.
+   */
+  function connectChat(modelContext, connection, options) {
+    if (!modelContext) {
+      return {
+        sync: function () {
+          return Promise.resolve(0);
+        },
+        reset: function () { },
+      };
+    }
+
+    var settings = options || {};
+    /** @type {string | null} */
+    var lastSignature = null;
+
+    connection.on('ExecutePageTool', function (name, argumentsJson) {
+      return runPageTool(modelContext, name, argumentsJson, settings);
+    });
+
+    if (typeof connection.onreconnected === 'function') {
+      // A reconnected connection has a new identifier, and the hub forgot the tools of the old one.
+      connection.onreconnected(function () {
+        lastSignature = null;
+      });
+    }
+
+    async function sync() {
+      var tools;
+
+      try {
+        tools = await modelContext.getTools(settings.fromOrigins ? { fromOrigins: settings.fromOrigins } : {});
+      } catch (error) {
+        console.warn('The page\'s WebMCP tools could not be read.', error);
+
+        return 0;
+      }
+
+      var descriptors = toPageToolDescriptors(tools, settings.excludedNames);
+      var signature = JSON.stringify(descriptors);
+
+      if (signature === lastSignature) {
+        return descriptors.length;
+      }
+
+      if (descriptors.length === 0 && lastSignature === null) {
+        lastSignature = signature;
+
+        return 0;
+      }
+
+      try {
+        if (descriptors.length === 0) {
+          await connection.invoke('ClearPageTools');
+        } else {
+          await connection.invoke('SetPageTools', descriptors);
+        }
+
+        lastSignature = signature;
+      } catch (error) {
+        console.warn('The page tools could not be sent to the chat.', error);
+      }
+
+      return descriptors.length;
+    }
+
+    return {
+      sync: sync,
+      reset: function () {
+        lastSignature = null;
+      },
+    };
+  }
+
+  function init(win) {
+    if (win.crestAppsWebMcp) {
+      return win.crestAppsWebMcp;
+    }
+
+    var config = readConfig(win.document) || {};
+    var modelContext = getModelContext(win.document);
+    /** @type {Set<string>} */
+    var serverToolNames = new Set();
+    var ready = modelContext && config.toolsUrl && typeof win.fetch === 'function'
+      ? registerServerTools(modelContext, config, win.fetch.bind(win)).then(function (names) {
+        names.forEach(function (name) {
+          serverToolNames.add(name);
+        });
+
+        return names;
+      })
+      : Promise.resolve([]);
+
+    var api = {
+      config: config,
+      ready: ready,
+      isSupported: function () {
+        return !!modelContext;
+      },
+      connectChat: function (connection) {
+        return connectChat(modelContext, connection, {
+          fromOrigins: Array.isArray(config.pageToolOrigins) ? config.pageToolOrigins : undefined,
+          excludedNames: serverToolNames,
+        });
+      },
+    };
+
+    win.crestAppsWebMcp = api;
+
+    if (win.document && typeof win.document.dispatchEvent === 'function' && typeof win.CustomEvent === 'function') {
+      win.document.dispatchEvent(new win.CustomEvent('crestapps-webmcp-ready', { detail: api }));
+    }
+
+    return api;
+  }
+
+  window.CrestAppsWebMcp = {
+    getModelContext: getModelContext,
+    readConfig: readConfig,
+    createServerTool: createServerTool,
+    registerServerTools: registerServerTools,
+    toPageToolDescriptors: toPageToolDescriptors,
+    runPageTool: runPageTool,
+    connectChat: connectChat,
+    init: init,
+  };
+
+  if (window.document) {
+    init(window);
+  }
+})();

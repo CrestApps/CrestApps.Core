@@ -1,0 +1,34 @@
+[
+  {
+    "action": "copy",
+    "name": "webmcp-polyfill.js",
+    "source": "node_modules/@mcp-b/webmcp-polyfill/dist/index.iife.js",
+    "dest": "wwwroot/scripts/webmcp-polyfill.js",
+    "tags": [
+      "vendor"
+    ]
+  },
+  {
+    "action": "copy",
+    "name": "webmcp-polyfill-license",
+    "source": "node_modules/@mcp-b/webmcp-polyfill/LICENSE.webmcp-polyfill",
+    "dest": "wwwroot/scripts/webmcp-polyfill.LICENSE.txt",
+    "tags": [
+      "vendor"
+    ]
+  },
+  {
+    "action": "vite",
+    "name": "webmcp.js",
+    "source": "Assets/js/webmcp.js",
+    "dest": "wwwroot/scripts/webmcp.js",
+    "sourceMap": true
+  },
+  {
+    "action": "vite",
+    "name": "webmcp-page-tools.js",
+    "source": "Assets/js/webmcp-page-tools.js",
+    "dest": "wwwroot/scripts/webmcp-page-tools.js",
+    "sourceMap": true
+  }
+]

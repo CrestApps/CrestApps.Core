@@ -17,7 +17,7 @@ public sealed class WebMcpPageToolRegistryProviderTests
 
         var entries = await provider.GetToolsAsync(context, TestContext.Current.CancellationToken);
 
-        var entry = Assert.Single(entries);
+        var entry = Assert.Single(entries, candidate => candidate.Id == "webmcp:page_get_info");
         Assert.Equal("webmcp:page_get_info", entry.Id);
         Assert.Equal("page_get_info", entry.Name);
         Assert.Equal("Describes the page.", entry.Description);
@@ -27,6 +27,30 @@ public sealed class WebMcpPageToolRegistryProviderTests
         var function = Assert.IsType<WebMcpPageToolFunction>(tool);
 
         Assert.Equal("page_get_info", function.Name);
+    }
+
+    [Fact]
+    public async Task GetToolsAsync_GivesTheModelTheFunctionNameOfADottedWebMcpName()
+    {
+        var provider = CreateProvider(allowPageTools: true);
+
+        var entries = await provider.GetToolsAsync(CreateContext("connection-1"), TestContext.Current.CancellationToken);
+
+        var entry = Assert.Single(entries, candidate => candidate.Id == "webmcp:store.get_order");
+        Assert.Equal("store_get_order", entry.Name);
+    }
+
+    [Fact]
+    public async Task GetToolsAsync_LeavesOutConsequentialToolsUnlessTheProfileAllowsThem()
+    {
+        var refusing = CreateProvider(allowPageTools: true);
+        var allowing = CreateProvider(allowPageTools: true, allowConsequential: true);
+
+        var refused = await refusing.GetToolsAsync(CreateContext("connection-1"), TestContext.Current.CancellationToken);
+        var allowed = await allowing.GetToolsAsync(CreateContext("connection-1"), TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain(refused, entry => entry.Id == "webmcp:store.place_order");
+        Assert.Contains(allowed, entry => entry.Id == "webmcp:store.place_order");
     }
 
     [Fact]
@@ -81,7 +105,7 @@ public sealed class WebMcpPageToolRegistryProviderTests
         return context;
     }
 
-    private static WebMcpPageToolRegistryProvider CreateProvider(bool allowPageTools)
+    private static WebMcpPageToolRegistryProvider CreateProvider(bool allowPageTools, bool allowConsequential = false)
     {
         var registry = new DefaultWebMcpPageToolRegistry();
 
@@ -93,6 +117,18 @@ public sealed class WebMcpPageToolRegistryProviderTests
                 Description = "Describes the page.",
                 InputSchema = """{"type":"object"}""",
             },
+            new WebMcpPageToolDescriptor
+            {
+                Name = "store.get_order",
+                Description = "Gets an order.",
+                ReadOnly = true,
+            },
+            new WebMcpPageToolDescriptor
+            {
+                Name = "store.place_order",
+                Description = "Places the order.",
+                Consequential = true,
+            },
         ]);
 
         var profile = new AIProfile
@@ -100,7 +136,11 @@ public sealed class WebMcpPageToolRegistryProviderTests
             ItemId = "profile-1",
         };
 
-        profile.AlterSettings<WebMcpProfileSettings>(settings => settings.AllowPageTools = allowPageTools);
+        profile.AlterSettings<WebMcpProfileSettings>(settings =>
+        {
+            settings.AllowPageTools = allowPageTools;
+            settings.AllowConsequentialPageTools = allowConsequential;
+        });
 
         var profileManager = new Mock<IAIProfileManager>();
 

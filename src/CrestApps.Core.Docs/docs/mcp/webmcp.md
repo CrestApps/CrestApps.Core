@@ -2,24 +2,32 @@
 sidebar_label: WebMCP
 sidebar_position: 4
 title: WebMCP
-description: Give AI tools and page tools to AI agents in the browser through WebMCP, and let the AI chat call the tools of the page it is used from.
+description: Register your AI tools and page tools with the standard WebMCP API, and let the AI chat discover and run every WebMCP tool the page it is used from exposes.
 ---
 
 # WebMCP
 
-> Give your AI tools to AI agents in the browser, and let the AI chat work with the page the user has open.
+> Give your AI tools to AI agents in the browser, and let the AI chat use every tool the page the user has open exposes.
 
-[WebMCP](https://github.com/webmachinelearning/webmcp) is a proposed web standard that lets a web page give tools to an AI agent running in the browser, such as the browser's own assistant or an agent extension. The page registers each tool with the browser's `ModelContext` (`document.modelContext` in the current draft, `navigator.modelContext` in earlier browser previews): a name, a description, a JSON schema and a JavaScript function. The tool runs in the page, with the user's session, so no API key or OAuth setup is needed.
+[WebMCP](https://webmachinelearning.github.io/webmcp/) is a proposed web standard of the W3C Web Machine Learning Community Group. It lets a web page give tools to an AI agent in the browser, such as the browser's own assistant, an agent extension, or a chat on the page. The page registers each tool with `document.modelContext.registerTool()`: a name, a description, a JSON schema, annotations and a JavaScript `execute` function. An agent lists the tools with `getTools()` and runs one with `executeTool()`. The tool runs in the page, with the user's session, so no API key or OAuth setup is needed.
 
-`CrestApps.Core.AI.WebMcp` connects your application to WebMCP in two ways:
+CrestApps uses only that standard API, in both directions:
 
 | Part | What it does |
 | --- | --- |
-| **Server tools for browser agents** | Gives the AI tools and tool instances you select to browser agents. The page script registers one proxy per tool; calling it posts to your application, which runs the tool as the signed-in user. |
-| **Page tools in the AI chat** | Lets the CrestApps AI chat call the WebMCP tools of the browser tab a message is sent from, such as reading the page and filling its forms, for the AI profiles that allow it. |
+| **Your AI tools as WebMCP tools** | Registers the AI tools and tool instances you select with `document.modelContext`. Calling one posts to your application, which runs the tool as the signed-in user. Any WebMCP agent can find and run them. |
+| **Page tools** | Registers tools that read the page, list its links, open another page of the site, and read and fill its forms. |
+| **The AI chat as a WebMCP agent** | Lets the CrestApps AI chat discover and run **every** WebMCP tool the page exposes, whoever registered it: your page tools, tools your own scripts register, a third-party script's tools, or a frame's tools shared with `exposedTo`. Only for the AI profiles that allow it. |
+
+There are two parts to install:
+
+| Package | What it has |
+| --- | --- |
+| `CrestApps.Core.AI.WebMcp` (NuGet) | The server: the endpoints that list and run your AI tools, and the page tools in the chat. |
+| `CrestApps.AI.WebMcp.Resources` (Razor class library) and `@crestapps/webmcp` (npm) | The browser scripts, served from `_content/CrestApps.AI.WebMcp.Resources/scripts/`, and the [WebMCP polyfill](#the-polyfill). |
 
 :::note[Browser support]
-WebMCP is experimental. It is behind an origin trial in Chrome 149 and Edge 150, and behind the `enable-webmcp-testing` flag in `about:flags` for local work. The scripts give tools to the browser only when it has a `ModelContext`; the page's own list of tools works in every browser, so the AI chat's page tools do not depend on browser support.
+WebMCP is experimental. Chrome and Edge are trialling it natively. In the other browsers, `webmcp-polyfill.js` installs the reference implementation of `document.modelContext`, so the tools and the AI chat work everywhere. WebMCP needs a secure context: HTTPS, or `localhost` while developing.
 :::
 
 ## Quick Start
@@ -70,14 +78,30 @@ Then add the configuration block and the scripts to the pages of signed-in users
     };
 
     <script type="application/json" id="crestapps-webmcp-config">@Html.Raw(JsonSerializer.Serialize(configuration))</script>
-    <script src="~/_content/CrestApps.AI.Resources/scripts/webmcp.js"></script>
-    <script src="~/_content/CrestApps.AI.Resources/scripts/webmcp-page-tools.js"></script>
+    <script src="~/_content/CrestApps.AI.WebMcp.Resources/scripts/webmcp-polyfill.js"></script>
+    <script src="~/_content/CrestApps.AI.WebMcp.Resources/scripts/webmcp.js"></script>
+    <script src="~/_content/CrestApps.AI.WebMcp.Resources/scripts/webmcp-page-tools.js"></script>
 }
 ```
 
+Reference the `CrestApps.AI.WebMcp.Resources` project (or copy the scripts from the `@crestapps/webmcp` npm package) to serve the scripts. The polyfill comes first, so every script after it finds `document.modelContext`.
+
 The MVC sample host does this in `Views/Shared/_WebMcp.cshtml`, and the Blazor sample host in `Components/App.razor`.
 
-## Server tools for browser agents
+### Configuration
+
+| Key | What it does |
+| --- | --- |
+| `toolsUrl`, `invokeUrlTemplate` | Where `webmcp.js` lists your AI tools and calls one (`{name}` is replaced with the tool name). Leave them out to register no AI tools. |
+| `antiforgeryHeaderName`, `antiforgeryToken` | Sent with every tool call. |
+| `isAdmin` | Tells `page_get_info` whether the page is an admin page. |
+| `pageToolOrigins` | The origins of cross-origin frames whose shared tools the AI chat may use, passed to `getTools({ fromOrigins })`. Leave it out to use only the page's own tools. |
+
+## The polyfill
+
+`webmcp-polyfill.js` is the reference polyfill of the W3C Web Machine Learning Community Group, from the MIT-licensed [`@mcp-b/webmcp-polyfill`](https://www.npmjs.com/package/@mcp-b/webmcp-polyfill) package; its license is next to it as `webmcp-polyfill.LICENSE.txt`. It installs `document.modelContext` only when the browser does not have it, so a browser with native WebMCP keeps its own. CrestApps does not reimplement the standard; `CrestApps.AI.WebMcp.Resources` depends on the polyfill and copies it at build time.
+
+## Your AI tools as WebMCP tools
 
 ### Choosing the tools
 
@@ -113,26 +137,24 @@ A tool that throws answers `isError: true` with a generic message; the exception
 
 ### The page script
 
-`webmcp.js` reads the configuration block and keeps the page's list of tools at `window.crestAppsWebMcp`:
+`webmcp.js` registers each of your AI tools with `document.modelContext.registerTool()`. Each tool has the `untrustedContentHint` annotation, because it answers data the page did not write. Its `execute` posts the input to the invoke endpoint with the antiforgery token, answers the text the tool returned, and rejects when the tool fails, which is how WebMCP reports a failed tool. The script never sets `exposedTo`, so your tools are not given to cross-origin frames.
+
+It also keeps a small facade at `window.crestAppsWebMcp`:
 
 | Member | What it does |
 | --- | --- |
-| `registerTool(tool)` | Adds a tool `{ name, title?, description, inputSchema?, annotations?, execute }` and gives it to the browser's `ModelContext`. A tool registered again under the same name replaces the first. |
-| `unregisterTool(name)` | Removes a tool from the page and from the browser. |
-| `getTools()` | Lists the tools without their functions. Server tools have `source: 'server'`, the others `source: 'page'`. |
-| `executeTool(name, input)` | Runs a tool on the page. |
-| `onToolsChanged(listener)` | Calls the listener when the list changes, and answers a function that stops it. |
-| `isSupported()` | Says whether the browser supports WebMCP. |
-| `connectChat(connection)` | Connects the page tools to a chat hub connection. `ai-chat.js` calls it. |
+| `ready` | A promise of the names of the AI tools it registered. |
+| `isSupported()` | Says whether the page has `document.modelContext`. |
+| `connectChat(connection)` | Connects the AI chat to the page's tools. `ai-chat.js` calls it. |
 | `config` | The page configuration. |
 
-Each server tool is a proxy with the `untrustedContentHint` annotation that posts to the invoke endpoint with the antiforgery token. Tools are unregistered from the browser with the `AbortSignal` passed to `registerTool`, and with `unregisterTool` where the browser offers it. The script never sets `exposedTo`, so tools are not given to cross-origin frames.
-
-Add your own tools after the script has loaded:
+Register your own tools with the standard API. Nothing CrestApps-specific is needed, and the AI chat finds them like any other tool:
 
 ```javascript
-window.crestAppsWebMcp.registerTool({
-    name: 'contoso_find_store',
+const registration = new AbortController();
+
+document.modelContext.registerTool({
+    name: 'contoso.find_store',
     title: 'Find a store',
     description: 'Finds the Contoso store nearest to a postal code.',
     inputSchema: {
@@ -141,15 +163,16 @@ window.crestAppsWebMcp.registerTool({
         required: ['postalCode'],
     },
     annotations: { readOnlyHint: true },
-    execute: async ({ postalCode }) => ({
-        content: [{ type: 'text', text: await findStore(postalCode) }],
-    }),
-});
+    execute: async ({ postalCode }) => findStore(postalCode),
+}, { signal: registration.signal });
+
+// Later, to unregister it:
+registration.abort();
 ```
 
 ## Page tools
 
-`webmcp-page-tools.js` registers tools that run in the browser only:
+`webmcp-page-tools.js` registers these tools with `document.modelContext`. Each answers a JSON value and rejects when it fails, so any WebMCP agent can use them:
 
 | Tool | Read-only | What it does |
 | --- | --- | --- |
@@ -159,25 +182,55 @@ window.crestAppsWebMcp.registerTool({
 | `page_list_form_fields` | Yes | Up to 200 form fields: name, id, label, type, value (cut to 2,000 characters), required and, for lists, the choices. Hidden, password, file, button and disabled fields and the antiforgery token are left out. |
 | `page_set_form_field` | No | Puts a value into one listed field, found by name, id or label, and raises `input` and `change`. For a list, the value is a choice's value or text. It never submits the form. |
 
-## Page tools in the AI chat
+## The AI chat as a WebMCP agent
 
-With `AddPageTools<THub>()`, the AI chat calls the page tools of the browser tab a message is sent from:
+With `AddPageTools<THub>()`, the AI chat acts as a WebMCP agent for the browser tab a message is sent from. It uses every tool `document.modelContext.getTools()` lists, not only the CrestApps ones:
 
-1. Before it sends a message, `ai-chat.js` sends the page's tools (page tools only, not server tools) to the hub with `SetPageTools`, when they changed since the last message. A tab with no tools sends nothing.
-2. `AIChatHubCore.SetPageTools` hands them to `IWebMcpPageToolRegistry`, which keeps them for the connection. The registry checks each tool: at most 64, names AI providers accept (`^[a-zA-Z0-9_-]{1,64}$`), a description of at most 2,000 characters and a JSON object schema of at most 16 KB. `ClearPageTools` and a closed connection forget them.
+1. Before it sends a message, `ai-chat.js` reads the page's tools with `getTools()` and sends them to the hub with `SetPageTools`, when they changed since the last message. It leaves out the AI tools `webmcp.js` registered, because the chat reaches those on the server. A tool registered after the page loaded is picked up with the next message.
+2. `AIChatHubCore.SetPageTools` hands them to `IWebMcpPageToolRegistry`, which keeps them for the connection. The registry checks each tool: at most 64, WebMCP names (`^[A-Za-z0-9_.-]{1,128}$`), a description of at most 2,000 characters and a JSON object schema of at most 16 KB. `ClearPageTools` and a closed connection forget them.
 3. `AIChatResponseHandler` puts the connection id in the completion context under `AICompletionContextKeys.ChatConnectionId`.
 4. `WebMcpPageToolRegistryProvider`, an `IToolRegistryProvider`, adds one `WebMcpPageToolFunction` per page tool when the chat session's profile has `WebMcpProfileSettings.AllowPageTools` set.
-5. When the model calls a page tool, `HubWebMcpPageToolClient<THub>` invokes `ExecutePageTool` on the connection with SignalR client results and waits for the `{ text, isError }` the tab returns, up to `WebMcpPageToolOptions.ToolCallTimeout` (60 seconds by default).
+5. When the model calls a page tool, `HubWebMcpPageToolClient<THub>` invokes `ExecutePageTool` on the connection with SignalR client results. The tab runs the tool with `executeTool()` and returns `{ text, isError }`, which the server waits for up to `WebMcpPageToolOptions.ToolCallTimeout` (60 seconds by default).
+
+### Tool names
+
+WebMCP names may contain `.`, which AI providers do not accept in function names. The model sees each tool under a function name: characters other than letters, digits, `_` and `-` become `_`, and a name longer than 64 characters keeps its start and ends with a short hash. `store.add_to_cart` is offered as `store_add_to_cart`, and the tab still runs `store.add_to_cart`. `WebMcpPageToolValidator.ToFunctionName` does the mapping.
+
+### Annotations
+
+The chat honors the annotations the page sets:
+
+| Annotation | What the chat does |
+| --- | --- |
+| `readOnlyHint` | Kept with the tool (`WebMcpPageTool.ReadOnly`). |
+| `consequentialHint` | The tool is offered to the model only when the profile also has `WebMcpProfileSettings.AllowConsequentialPageTools`, because it can do something that cannot be undone, such as placing an order. |
+| `untrustedContentHint` | The result reaches the model after a notice that it is untrusted content to treat as data, not as instructions (`WebMcpPageToolFunction.UntrustedContentNotice`). |
+
+### Profiles
 
 Only profiles that opt in get page tools:
 
 ```csharp
-profile.AlterSettings<WebMcpProfileSettings>(settings => settings.AllowPageTools = true);
+profile.AlterSettings<WebMcpProfileSettings>(settings =>
+{
+    settings.AllowPageTools = true;
+
+    // Also offer the tools the page marks with consequentialHint.
+    settings.AllowConsequentialPageTools = true;
+});
 ```
 
-The sample hosts show this as **Allow page tools** in the profile editor.
+The sample hosts show these as **Allow page tools** and **Allow consequential page tools** in the profile editor.
+
+### Frames on other origins
+
+A frame on another origin can share its tools with the page by registering them with `exposedTo`, and the page must allow it with the `tools` permissions policy: `<iframe src="https://partner.example" allow="tools">`. List the frame's origin in `pageToolOrigins` for the chat to use those tools.
 
 The registry is in memory. A connection lives on one server and the completions of the messages it sends run on the same server, so it needs no shared store in a web farm. Client results need `HubOptions.MaximumParallelInvocationsPerClient` above 1, which `ConfigureCrestAppsChatHubOptions<THub>()` sets.
+
+## The WebMCP playground
+
+Both sample hosts have a **WebMCP Playground** page (`/webmcp/playground`) for checking that an agent finds and runs the tools a page exposes. It is a fake store whose script, `wwwroot/js/webmcp-playground.js`, uses only the standard API and no CrestApps code: it registers `store.search_products`, `store.get_order`, `store.read_reviews` (`untrustedContentHint`), `store.add_to_cart` and `store.place_order` (`consequentialHint`), lists every tool on the page with `getTools()`, and unregisters its tools when you leave the page. Ask the chat widget, with a profile that allows page tools, to check order A-1001 or add a desk lamp to the cart.
 
 ## Security
 
@@ -186,4 +239,6 @@ The registry is in memory. A connection lives on one server and the completions 
 - Calls need the antiforgery token, so another site cannot make the user's browser call a tool.
 - A browser agent acts as the signed-in user. Give agents only the tools you would let the user run, and prefer read-only tools.
 - Page tools never submit forms and never leave the site, so the user reviews and saves what an agent changes.
-- Page tools only reach the completions of messages sent from the same connection, and only for profiles that allow them.
+- Page tools only reach the completions of messages sent from the same connection, and only for profiles that allow them. A profile that allows page tools lets the model run any tool the page exposes, including a third-party script's, so allow them only on profiles used on pages whose scripts you trust.
+- Tools marked `consequentialHint` need a second opt-in, and results marked `untrustedContentHint` reach the model as data.
+- Frames on other origins reach the chat only when the page allows them with `allow="tools"` and you list their origin in `pageToolOrigins`.

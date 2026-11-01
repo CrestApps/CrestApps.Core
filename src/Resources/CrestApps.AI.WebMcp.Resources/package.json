@@ -1,0 +1,48 @@
+{
+  "name": "@crestapps/webmcp",
+  "version": "2.0.0-preview",
+  "description": "WebMCP for CrestApps: registers a site's AI tools and page tools with the standard document.modelContext API, and lets the CrestApps AI chat discover and run any WebMCP tool a page exposes. Ships the W3C Web Machine Learning Community Group polyfill for browsers without native WebMCP.",
+  "license": "MIT",
+  "author": "CrestApps",
+  "homepage": "https://crestapps.com/docs/core/mcp/webmcp",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CrestApps/CrestApps.Core.git",
+    "directory": "src/Resources/CrestApps.AI.WebMcp.Resources"
+  },
+  "bugs": {
+    "url": "https://github.com/CrestApps/CrestApps.Core/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": [
+    "ai",
+    "webmcp",
+    "mcp",
+    "model-context-protocol",
+    "modelcontext",
+    "browser-agents",
+    "crestapps"
+  ],
+  "files": [
+    "dist/"
+  ],
+  "main": "dist/webmcp.js",
+  "exports": {
+    ".": "./dist/webmcp.js",
+    "./webmcp": "./dist/webmcp.js",
+    "./webmcp.min": "./dist/webmcp.min.js",
+    "./webmcp-page-tools": "./dist/webmcp-page-tools.js",
+    "./webmcp-page-tools.min": "./dist/webmcp-page-tools.min.js",
+    "./webmcp-polyfill": "./dist/webmcp-polyfill.js",
+    "./dist/*": "./dist/*"
+  },
+  "scripts": {
+    "prepublishOnly": "node scripts/prepare-dist.js"
+  },
+  "devDependencies": {
+    "@mcp-b/webmcp-polyfill": "6.0.3"
+  }
+}

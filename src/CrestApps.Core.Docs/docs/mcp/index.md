@@ -67,7 +67,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 
 ## WebMCP — Tools for AI Agents in the Browser
 
-Give your AI tools to AI agents in the browser through WebMCP, and let the AI chat call the tools of the page it is used from, such as reading the page and filling its forms.
+Register your AI tools and page tools with the standard WebMCP API (`document.modelContext`), and let the AI chat discover and run every WebMCP tool the page it is used from exposes. The W3C reference polyfill brings WebMCP to browsers without native support.
 
 ```csharp
 builder.Services.AddCrestAppsCore(crestApps => crestApps
@@ -77,7 +77,7 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 app.MapWebMcpTools();
 ```
 
-📖 **[WebMCP →](./webmcp.md)** — Server tools for browser agents, the page scripts, page tools in the chat, and security.
+📖 **[WebMCP →](./webmcp.md)** — Your AI tools as WebMCP tools, the page scripts and polyfill, the AI chat as a WebMCP agent, the playground, and security.
 
 ## Resource Type Handlers
 

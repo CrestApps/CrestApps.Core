@@ -1,7 +1,7 @@
 {
   "name": "@crestapps/ai-chat-ui",
   "version": "2.0.0-preview",
-  "description": "Browser-ready JavaScript widgets and CSS for CrestApps AI chat sessions and chat interactions. Supports streaming responses, WebMCP page tools, image generation, Chart.js interactive charts, a stacked image carousel, document uploads, copy-to-clipboard, and feedback buttons.",
+  "description": "Browser-ready JavaScript widgets and CSS for CrestApps AI chat sessions and chat interactions. Supports streaming responses, image generation, Chart.js interactive charts, a stacked image carousel, document uploads, copy-to-clipboard, and feedback buttons.",
   "license": "MIT",
   "author": "CrestApps",
   "homepage": "https://crestapps.com/docs/core/chat",
@@ -28,7 +28,6 @@
     "carousel",
     "streaming",
     "vue",
-    "webmcp",
     "css"
   ],
   "files": [
@@ -53,14 +52,6 @@
     "./chat-image-carousel.min": "./dist/chat-image-carousel.min.js",
     "./chat-image-carousel.js.map": "./dist/chat-image-carousel.js.map",
     "./chat-image-carousel.min.js.map": "./dist/chat-image-carousel.min.js.map",
-    "./webmcp": "./dist/webmcp.js",
-    "./webmcp.min": "./dist/webmcp.min.js",
-    "./webmcp.js.map": "./dist/webmcp.js.map",
-    "./webmcp.min.js.map": "./dist/webmcp.min.js.map",
-    "./webmcp-page-tools": "./dist/webmcp-page-tools.js",
-    "./webmcp-page-tools.min": "./dist/webmcp-page-tools.min.js",
-    "./webmcp-page-tools.js.map": "./dist/webmcp-page-tools.js.map",
-    "./webmcp-page-tools.min.js.map": "./dist/webmcp-page-tools.min.js.map",
     "./realtime-audio": "./dist/realtime-audio.js",
     "./realtime-audio.min": "./dist/realtime-audio.min.js",
     "./realtime-audio.js.map": "./dist/realtime-audio.js.map",

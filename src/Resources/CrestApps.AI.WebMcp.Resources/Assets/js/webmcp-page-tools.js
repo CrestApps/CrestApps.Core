@@ -6,7 +6,9 @@
  * site, and reading and filling its forms. They never submit a form and never leave the site, so the user always
  * reviews and saves the changes an agent makes.
  *
- * Load it after webmcp.js, which it reads its result helper from and registers the tools with.
+ * The tools are registered with the standard `document.modelContext.registerTool`, so any WebMCP agent can use them:
+ * the browser's own assistant, or the CrestApps AI chat. As WebMCP defines, each answers a JSON-serializable value and
+ * reports a failure by rejecting. Load webmcp-polyfill.js first in browsers without native WebMCP.
  */
 
 (function () {
@@ -33,13 +35,6 @@
     return (value == null ? '' : String(value)).replace(/\s+/g, ' ').trim();
   }
 
-  function textResult(text, isError) {
-    return window.CrestAppsWebMcp.textResult(text, isError);
-  }
-
-  function json(data) {
-    return textResult(JSON.stringify(data));
-  }
 
   function resolveSameOrigin(href, loc) {
     if (!href) {
@@ -183,7 +178,7 @@
             }
           }
 
-          return json({
+          return ({
             title: doc.title,
             url: loc.href,
             description: meta ? meta.getAttribute('content') : null,
@@ -221,7 +216,7 @@
             links.push({ text: text, url: url.href });
           }
 
-          return json({ links: links });
+          return ({ links: links });
         },
       },
       {
@@ -239,12 +234,12 @@
           var url = resolveSameOrigin(input && input.url, loc);
 
           if (!url) {
-            return textResult('Only addresses on this site can be opened.', true);
+            throw new Error('Only addresses on this site can be opened.');
           }
 
           loc.assign(url.href);
 
-          return json({ navigatedTo: url.href });
+          return ({ navigatedTo: url.href });
         },
       },
       {
@@ -254,7 +249,7 @@
         inputSchema: { type: 'object', properties: {} },
         annotations: { readOnlyHint: true },
         execute: function () {
-          return json({ fields: listFields(doc).map(describeField) });
+          return ({ fields: listFields(doc).map(describeField) });
         },
       },
       {
@@ -273,7 +268,7 @@
           var field = findField(doc, input && input.field);
 
           if (!field) {
-            return textResult('No editable field on the page is named "' + cleanText(input && input.field) + '".', true);
+            throw new Error('No editable field on the page is named "' + cleanText(input && input.field) + '".');
           }
 
           var type = fieldType(field);
@@ -288,7 +283,7 @@
             });
 
             if (!option) {
-              return textResult('The list "' + fieldLabel(field) + '" has no choice "' + cleanText(value) + '".', true);
+              throw new Error('The list "' + fieldLabel(field) + '" has no choice "' + cleanText(value) + '".');
             }
 
             field.value = option.value;
@@ -299,22 +294,25 @@
           raise(field, 'input');
           raise(field, 'change');
 
-          return json({ field: describeField(field) });
+          return ({ field: describeField(field) });
         },
       },
     ];
   }
 
   /**
-   * Registers the page tools with the page's list of tools.
+   * Registers the page tools with the page's ModelContext.
    *
-   * @param {{ registerTool: Function }} api The page's list of tools.
+   * @param {any} modelContext The page's ModelContext (document.modelContext).
    * @param {{ doc: any, loc: any, isAdmin?: boolean }} options The document, its location, and whether it is an admin page.
+   * @param {AbortSignal} [signal] Unregisters the tools when aborted.
    */
-  function register(api, options) {
-    createPageTools(options).forEach(function (tool) {
-      api.registerTool(tool);
-    });
+  function register(modelContext, options, signal) {
+    return Promise.all(createPageTools(options).map(function (tool) {
+      return modelContext.registerTool(tool, signal ? { signal: signal } : {}).catch(function (error) {
+        console.warn('The page tool "' + tool.name + '" could not be registered.', error);
+      });
+    }));
   }
 
   window.CrestAppsWebMcpPageTools = {
@@ -323,11 +321,13 @@
     register: register,
   };
 
-  if (window.crestAppsWebMcp && window.document) {
-    register(window.crestAppsWebMcp, {
+  if (window.document && window.document.modelContext) {
+    var config = window.crestAppsWebMcp && window.crestAppsWebMcp.config;
+
+    register(window.document.modelContext, {
       doc: window.document,
       loc: window.location,
-      isAdmin: !!(window.crestAppsWebMcp.config && window.crestAppsWebMcp.config.isAdmin),
+      isAdmin: !!(config && config.isAdmin),
     });
   }
 })();

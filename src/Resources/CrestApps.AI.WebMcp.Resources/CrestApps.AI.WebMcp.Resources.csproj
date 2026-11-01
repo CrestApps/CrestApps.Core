@@ -1,0 +1,9 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(CommonTargetFrameworks)</TargetFrameworks>
+    <IsPackable>false</IsPackable>
+    <PackageTags>$(PackageTags) ai webmcp resources javascript assets</PackageTags>
+  </PropertyGroup>
+
+</Project>

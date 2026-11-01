@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>WebMCP harness</title>
+    <!--
+        A page that exposes WebMCP tools the way any website would, for webmcp-polyfill.spec.js. The polyfill is the
+        reference implementation from the W3C Web Machine Learning Community Group; it installs document.modelContext
+        when the browser has no native WebMCP.
+    -->
+    <script src="../../node_modules/@mcp-b/webmcp-polyfill/dist/index.iife.js"></script>
+    <script type="application/json" id="crestapps-webmcp-config">{
+        "toolsUrl": "/fake-site/api/ai/webmcp/tools",
+        "invokeUrlTemplate": "/fake-site/api/ai/webmcp/tools/{name}/invoke",
+        "antiforgeryHeaderName": "RequestVerificationToken",
+        "antiforgeryToken": "harness-token",
+        "isAdmin": false
+    }</script>
+</head>
+<body>
+    <nav><a href="/orders">Orders</a></nav>
+    <h1>Fake store</h1>
+    <form>
+        <label for="note">Order note</label>
+        <input id="note" name="Note" />
+    </form>
+    <ul id="cart"></ul>
+
+    <script>
+        // A third party registers its tools straight with the standard API, without any CrestApps code.
+        window.thirdPartyRegistrations = (async () => {
+            const context = document.modelContext;
+            await context.registerTool({
+                name: 'store.get_order',
+                title: 'Get order',
+                description: 'Gets the status of an order by its number.',
+                inputSchema: { type: 'object', properties: { orderId: { type: 'string' } }, required: ['orderId'] },
+                annotations: { readOnlyHint: true },
+                execute: ({ orderId }) => ({ orderId, status: 'shipped' }),
+            });
+            await context.registerTool({
+                name: 'store.add_to_cart',
+                description: 'Adds a product to the cart.',
+                inputSchema: { type: 'object', properties: { product: { type: 'string' } }, required: ['product'] },
+                execute: ({ product }) => {
+                    const item = document.createElement('li');
+                    item.textContent = product;
+                    document.getElementById('cart').append(item);
+                    return 'Added ' + product + '.';
+                },
+            });
+            await context.registerTool({
+                name: 'store.place_order',
+                description: 'Places the order and charges the card.',
+                annotations: { consequentialHint: true },
+                execute: () => ({ placed: true }),
+            });
+            await context.registerTool({
+                name: 'store.broken',
+                description: 'Always fails.',
+                execute: () => { throw new Error('Out of stock'); },
+            });
+        })();
+    </script>
+    <!-- Cross-origin frames need the WebMCP "tools" permissions policy, whose default allowlist is 'self'. -->
+    <iframe id="partner" title="Partner frame" allow="tools"></iframe>
+    <script src="../../src/Resources/CrestApps.AI.WebMcp.Resources/Assets/js/webmcp.js"></script>
+    <script src="../../src/Resources/CrestApps.AI.WebMcp.Resources/Assets/js/webmcp-page-tools.js"></script>
+</body>
+</html>

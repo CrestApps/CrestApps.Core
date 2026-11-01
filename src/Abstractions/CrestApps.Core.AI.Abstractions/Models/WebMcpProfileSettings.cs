@@ -11,4 +11,11 @@ public sealed class WebMcpProfileSettings
     /// registered. The default is <see langword="false"/>.
     /// </summary>
     public bool AllowPageTools { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the profile's chat may also call page tools that declare the WebMCP
+    /// <c>consequentialHint</c> annotation, such as placing an order or sending a payment. The default is
+    /// <see langword="false"/>, which leaves them out.
+    /// </summary>
+    public bool AllowConsequentialPageTools { get; set; }
 }

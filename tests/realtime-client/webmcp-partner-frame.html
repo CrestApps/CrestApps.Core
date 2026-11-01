@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>WebMCP partner frame</title>
+    <script src="../../node_modules/@mcp-b/webmcp-polyfill/dist/index.iife.js"></script>
+</head>
+<body>
+    <p>A partner widget on another origin.</p>
+    <script>
+        // The frame shares one tool with the page that embeds it, through the standard exposedTo option.
+        const embedder = new URLSearchParams(location.search).get('embedder');
+        document.modelContext.registerTool({
+            name: 'partner.track_shipment',
+            description: 'Tracks a shipment with the partner carrier.',
+            execute: ({ trackingNumber }) => ({ trackingNumber, location: 'Chicago' }),
+        }, { exposedTo: [embedder] }).then(() => parent.postMessage('partner-ready', embedder));
+    </script>
+</body>
+</html>

@@ -22,20 +22,6 @@
   },
   {
     "action": "vite",
-    "name": "webmcp.js",
-    "source": "Assets/js/webmcp.js",
-    "dest": "wwwroot/scripts/webmcp.js",
-    "sourceMap": true
-  },
-  {
-    "action": "vite",
-    "name": "webmcp-page-tools.js",
-    "source": "Assets/js/webmcp-page-tools.js",
-    "dest": "wwwroot/scripts/webmcp-page-tools.js",
-    "sourceMap": true
-  },
-  {
-    "action": "vite",
     "name": "ai-chat.js",
     "source": "Assets/js/ai-chat.js",
     "dest": "wwwroot/scripts/ai-chat.js",

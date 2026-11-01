@@ -4,9 +4,10 @@
 @inject IAntiforgery Antiforgery
 
 @*
-    Gives the page's WebMCP tools to AI agents in the browser: the AI tools selected in the WebMCP settings, through
-    the endpoints at /api/ai/webmcp, and the page tools that read the page and fill its forms. The AI chat uses the
-    page tools too, for profiles that allow them. Anonymous visitors get nothing.
+    WebMCP for signed-in users. webmcp-polyfill.js installs the standard document.modelContext in browsers without
+    native WebMCP; webmcp.js registers the AI tools selected in the WebMCP settings with it, and connects the AI chat to
+    every tool the page exposes; webmcp-page-tools.js registers the tools that read the page and fill its forms.
+    Anonymous visitors get nothing.
 *@
 @if (User.Identity?.IsAuthenticated == true)
 {
@@ -21,6 +22,7 @@
     };
 
     <script type="application/json" id="@WebMcpConstants.ConfigurationElementId">@Html.Raw(JsonSerializer.Serialize(configuration))</script>
-    <script src="~/_content/CrestApps.AI.Resources/scripts/webmcp.js" asp-append-version="true"></script>
-    <script src="~/_content/CrestApps.AI.Resources/scripts/webmcp-page-tools.js" asp-append-version="true"></script>
+    <script src="~/_content/CrestApps.AI.WebMcp.Resources/scripts/webmcp-polyfill.js" asp-append-version="true"></script>
+    <script src="~/_content/CrestApps.AI.WebMcp.Resources/scripts/webmcp.js" asp-append-version="true"></script>
+    <script src="~/_content/CrestApps.AI.WebMcp.Resources/scripts/webmcp-page-tools.js" asp-append-version="true"></script>
 }

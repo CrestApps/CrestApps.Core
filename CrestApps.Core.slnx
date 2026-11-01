@@ -66,6 +66,7 @@
   </Folder>
   <Folder Name="/src/Resources/">
     <Project Path="src/Resources/CrestApps.AI.Resources/CrestApps.AI.Resources.csproj" />
+    <Project Path="src/Resources/CrestApps.AI.WebMcp.Resources/CrestApps.AI.WebMcp.Resources.csproj" />
   </Folder>
   <Folder Name="/src/Startup/">
     <Project Path="src/Startup/CrestApps.Core.Aspire.AppHost/CrestApps.Core.Aspire.AppHost.csproj" />

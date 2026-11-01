@@ -59,6 +59,9 @@ public sealed class AIProfileViewModel
     // Whether the chat may call the WebMCP page tools of the browser tab it is used from.
     public bool AllowPageTools { get; set; }
 
+    // Whether the chat may also call page tools that declare the WebMCP consequentialHint annotation.
+    public bool AllowConsequentialPageTools { get; set; }
+
     // AI Parameters (from AIProfileMetadata)
     public string SystemMessage { get; set; }
 
@@ -392,6 +395,7 @@ public sealed class AIProfileViewModel
             VoiceName = chatModeSettings?.VoiceName,
             EnableTextToSpeechPlayback = chatModeSettings?.EnableTextToSpeechPlayback ?? false,
             AllowPageTools = webMcpSettings?.AllowPageTools ?? false,
+            AllowConsequentialPageTools = webMcpSettings?.AllowConsequentialPageTools ?? false,
 
             LockSystemMessage = settings.LockSystemMessage,
             IsListable = settings.IsListable,
@@ -656,7 +660,11 @@ public sealed class AIProfileViewModel
             settings.EnableTextToSpeechPlayback = EnableTextToSpeechPlayback;
         });
 
-        profile.AlterSettings<WebMcpProfileSettings>(settings => settings.AllowPageTools = AllowPageTools);
+        profile.AlterSettings<WebMcpProfileSettings>(settings =>
+        {
+            settings.AllowPageTools = AllowPageTools;
+            settings.AllowConsequentialPageTools = AllowPageTools && AllowConsequentialPageTools;
+        });
 
         var toolNames = SelectedToolNames?.Where(n => !string.IsNullOrWhiteSpace(n)).ToArray();
 

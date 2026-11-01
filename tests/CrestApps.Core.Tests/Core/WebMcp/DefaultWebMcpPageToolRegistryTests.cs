@@ -79,11 +79,74 @@ public sealed class DefaultWebMcpPageToolRegistryTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("has space")]
-    [InlineData("dotted.name")]
-    [InlineData("a-name-that-is-far-too-long-for-an-ai-provider-to-accept-as-a-function-1")]
-    public void Validate_DropsToolsWithNamesProvidersRefuse(string name)
+    [InlineData("slash/name")]
+    public void Validate_DropsToolsWhoseNamesWebMcpRefuses(string name)
     {
         Assert.Empty(WebMcpPageToolValidator.Validate([Descriptor(name)]));
+    }
+
+    [Fact]
+    public void Validate_DropsToolsWithNamesLongerThanWebMcpAllows()
+    {
+        Assert.Empty(WebMcpPageToolValidator.Validate([Descriptor(new string('a', 129))]));
+    }
+
+    [Fact]
+    public void Validate_KeepsAWebMcpNameAndGivesTheModelAFunctionNameProvidersAccept()
+    {
+        var tools = WebMcpPageToolValidator.Validate(
+        [
+            Descriptor("store.get_order"),
+            Descriptor("page_get_info"),
+        ]);
+
+        Assert.Equal(["store.get_order", "page_get_info"], tools.Select(tool => tool.Name));
+        Assert.Equal(["store_get_order", "page_get_info"], tools.Select(tool => tool.FunctionName));
+    }
+
+    [Fact]
+    public void Validate_ShortensALongNameToAStableFunctionName()
+    {
+        var name = "store." + new string('x', 100);
+
+        var first = Assert.Single(WebMcpPageToolValidator.Validate([Descriptor(name)]));
+        var second = Assert.Single(WebMcpPageToolValidator.Validate([Descriptor(name)]));
+
+        Assert.Equal(name, first.Name);
+        Assert.Equal(64, first.FunctionName.Length);
+        Assert.Matches("^[a-zA-Z0-9_-]{1,64}$", first.FunctionName);
+        Assert.Equal(first.FunctionName, second.FunctionName);
+        Assert.NotEqual(
+            first.FunctionName,
+            Assert.Single(WebMcpPageToolValidator.Validate([Descriptor("store." + new string('x', 99) + "y")])).FunctionName);
+    }
+
+    [Fact]
+    public void Validate_KeepsTheAnnotations()
+    {
+        var descriptor = Descriptor("store.place_order");
+
+        descriptor.ReadOnly = true;
+        descriptor.Consequential = true;
+        descriptor.UntrustedContent = true;
+
+        var tool = Assert.Single(WebMcpPageToolValidator.Validate([descriptor]));
+
+        Assert.True(tool.ReadOnly);
+        Assert.True(tool.Consequential);
+        Assert.True(tool.UntrustedContent);
+    }
+
+    [Fact]
+    public void Validate_KeepsTheFirstToolOfEachFunctionName()
+    {
+        var tool = Assert.Single(WebMcpPageToolValidator.Validate(
+        [
+            Descriptor("store.order", description: "First."),
+            Descriptor("store_order", description: "Second."),
+        ]));
+
+        Assert.Equal("First.", tool.Description);
     }
 
     [Theory]

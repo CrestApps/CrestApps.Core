@@ -8,9 +8,15 @@ namespace CrestApps.Core.AI.WebMcp;
 public sealed class WebMcpPageTool
 {
     /// <summary>
-    /// Gets the function name of the tool.
+    /// Gets the WebMCP name of the tool, which the browser tab runs it by.
     /// </summary>
     public string Name { get; init; }
+
+    /// <summary>
+    /// Gets the function name the model calls the tool by. WebMCP names may hold dots and run to 128 characters, which AI
+    /// providers refuse, so this is the name with those characters replaced and, when too long, shortened with a hash.
+    /// </summary>
+    public string FunctionName { get; init; }
 
     /// <summary>
     /// Gets the human-readable title of the tool.
@@ -26,4 +32,19 @@ public sealed class WebMcpPageTool
     /// Gets the JSON schema of the tool's input.
     /// </summary>
     public JsonElement InputSchema { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the tool declared the WebMCP <c>readOnlyHint</c> annotation.
+    /// </summary>
+    public bool ReadOnly { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the tool declared the WebMCP <c>consequentialHint</c> annotation.
+    /// </summary>
+    public bool Consequential { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the tool declared the WebMCP <c>untrustedContentHint</c> annotation.
+    /// </summary>
+    public bool UntrustedContent { get; init; }
 }

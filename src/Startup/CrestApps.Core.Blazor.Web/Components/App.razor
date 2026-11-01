@@ -39,10 +39,13 @@
     <script src="/_content/CrestApps.AI.Resources/scripts/chat-image-carousel.js?v=@AssetVersion"></script>
     @if (WebMcpConfiguration is not null)
     {
-        @* WebMCP: the AI tools selected in the settings and the page tools, for signed-in users only. *@
+        @* WebMCP for signed-in users: the standard document.modelContext (native or polyfilled), the AI tools selected
+           in the settings, the page tools, and the WebMCP playground's fake store tools, which its page starts. *@
         <script type="application/json" id="@WebMcpConstants.ConfigurationElementId">@((MarkupString)WebMcpConfiguration)</script>
-        <script src="/_content/CrestApps.AI.Resources/scripts/webmcp.js?v=@AssetVersion"></script>
-        <script src="/_content/CrestApps.AI.Resources/scripts/webmcp-page-tools.js?v=@AssetVersion"></script>
+        <script src="/_content/CrestApps.AI.WebMcp.Resources/scripts/webmcp-polyfill.js?v=@AssetVersion"></script>
+        <script src="/_content/CrestApps.AI.WebMcp.Resources/scripts/webmcp.js?v=@AssetVersion"></script>
+        <script src="/_content/CrestApps.AI.WebMcp.Resources/scripts/webmcp-page-tools.js?v=@AssetVersion"></script>
+        <script src="/js/webmcp-playground.js?v=@AssetVersion"></script>
     }
     <script src="/_content/CrestApps.AI.Resources/scripts/ai-chat.js?v=@AssetVersion"></script>
     <script src="/_content/CrestApps.AI.Resources/scripts/ai-chat-widget.js?v=@AssetVersion"></script>
