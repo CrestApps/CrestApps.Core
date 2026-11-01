@@ -842,6 +842,75 @@
                 </div>
             </div>
 
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">WebMCP</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        Give AI tools to AI agents in the browser, such as the browser's own assistant, through
+                        <a href="https://github.com/webmachinelearning/webmcp" target="_blank" rel="noopener">WebMCP</a>.
+                        The tools run as the signed-in user, and each tool also needs that user's access to it. Browsers
+                        without WebMCP ignore them. Nothing is given until you select it.
+                    </p>
+                    <div class="form-check form-switch mb-3">
+                        <input asp-for="WebMcpExposeAllTools" class="form-check-input" type="checkbox" />
+                        <label asp-for="WebMcpExposeAllTools" class="form-check-label">Give all tools and tool instances</label>
+                    </div>
+                    <div class="mb-3 @(Model.WebMcpExposeAllTools ? "d-none" : null)" data-webmcp-tools-picker="true">
+                        <h6 class="mb-2 border-bottom pb-2"><i class="fa-solid fa-screwdriver-wrench"></i> Tools for browser agents</h6>
+                        @if (Model.WebMcpAvailableTools.Count == 0)
+                        {
+                            <div class="alert alert-info mb-3"><i class="fa-solid fa-circle-info"></i> No selectable AI tools are registered.</div>
+                        }
+                        else
+                        {
+                            @foreach (var group in Model.WebMcpAvailableTools.GroupBy(tool => tool.Category).OrderBy(group => group.Key))
+                            {
+                                <h6 class="text-secondary mt-3 mb-2"><i class="fa-solid fa-folder"></i> @group.Key</h6>
+                                @foreach (var tool in group)
+                                {
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" name="WebMcpSelectedToolNames" value="@tool.Name" id="webmcp_tool_@tool.Name" @(tool.IsSelected ? "checked" : null) />
+                                        <label class="form-check-label" for="webmcp_tool_@tool.Name">
+                                            <strong>@tool.Title</strong>
+                                            @if (!string.IsNullOrEmpty(tool.Description))
+                                            {
+                                                <br />
+
+                                                <small class="text-muted">@tool.Description</small>
+                                            }
+                                        </label>
+                                    </div>
+                                }
+                            }
+                        }
+
+                        <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-puzzle-piece"></i> Tool instances for browser agents</h6>
+                        @if (Model.WebMcpAvailableToolInstances.Count == 0)
+                        {
+                            <div class="alert alert-info mb-0"><i class="fa-solid fa-circle-info"></i> No tool instances are configured.</div>
+                        }
+                        else
+                        {
+                            @foreach (var instance in Model.WebMcpAvailableToolInstances)
+                            {
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="WebMcpSelectedToolNames" value="@instance.Name" id="webmcp_toolinstance_@instance.ItemId" @(instance.IsSelected ? "checked" : null) />
+                                    <label class="form-check-label" for="webmcp_toolinstance_@instance.ItemId">
+                                        <strong>@instance.Name</strong>
+                                        <span class="badge bg-info text-dark ms-1">@instance.Source</span>
+                                    </label>
+                                </div>
+                            }
+                        }
+                    </div>
+                    <p class="text-muted small mb-0">
+                        The AI chat can also use the tools on the page a user chats from, such as reading the page and filling its forms. Turn that on per profile with <strong>Allow page tools</strong>.
+                    </p>
+                </div>
+            </div>
+
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">
                     <i class="fa-solid fa-check"></i> Save Settings
@@ -1077,6 +1146,18 @@
         });
 
         loadRealtimeVoiceOptions();
+    });
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const webMcpExposeAllTools = document.getElementById('@Html.IdFor(m => m.WebMcpExposeAllTools)');
+        const webMcpToolsPicker = document.querySelector('[data-webmcp-tools-picker="true"]');
+
+        if (webMcpExposeAllTools && webMcpToolsPicker) {
+            webMcpExposeAllTools.addEventListener('change', function () {
+                webMcpToolsPicker.classList.toggle('d-none', webMcpExposeAllTools.checked);
+            });
+        }
     });
 </script>
 <script>

@@ -237,6 +237,14 @@ else if (_model != null)
                                 </div>
                                 <div class="form-text">When enabled, assistant messages show a play button that reads the response aloud using the configured text-to-speech deployment.</div>
                             </div>
+
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <InputCheckbox class="form-check-input" id="allowPageTools" @bind-Value="_model.AllowPageTools" />
+                                    <label class="form-check-label" for="allowPageTools">Allow page tools</label>
+                                </div>
+                                <div class="form-text">When enabled, the chat can call the WebMCP tools of the page it is used from, such as reading the page and filling its forms.</div>
+                            </div>
                         }
 
                         @if (_model.Type == AIProfileType.Agent)

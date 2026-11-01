@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.ResponseHandling;
@@ -41,6 +42,20 @@ public sealed class AIChatResponseHandlerTests
         Assert.Same(session, AIInvocationScope.Current.ChatSession);
         Assert.Same(builder.Context.CompletionContext, AIInvocationScope.Current.CompletionContext);
         Assert.Equal("ds-1", AIInvocationScope.Current.DataSourceId);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ChatSession_PassesTheChatConnectionToTheCompletion()
+    {
+        // Tool registry providers reach the browser tab that sent the message through its connection, for example
+        // to run the WebMCP page tools that tab registered.
+        var session = new AIChatSession { SessionId = "session-1" };
+        var builder = new RecordingContextBuilder();
+        using var scope = AIInvocationScope.Begin();
+
+        await new AIChatResponseHandler().HandleAsync(CreateContext(builder, ChatContextType.AIChatSession, session: session), TestContext.Current.CancellationToken);
+
+        Assert.Equal("connection-1", builder.Context.CompletionContext.AdditionalProperties[AICompletionContextKeys.ChatConnectionId]);
     }
 
     private static ChatResponseHandlerContext CreateContext(

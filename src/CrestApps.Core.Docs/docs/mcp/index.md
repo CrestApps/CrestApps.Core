@@ -65,6 +65,20 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
 
 📖 **[MCP Server →](./server.md)** — Full documentation with endpoint setup, authentication, and resource configuration.
 
+## WebMCP — Tools for AI Agents in the Browser
+
+Give your AI tools to AI agents in the browser through WebMCP, and let the AI chat call the tools of the page it is used from, such as reading the page and filling its forms.
+
+```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddWebMcp(webMcp => webMcp.AddPageTools<AIChatHub>())));
+
+app.MapWebMcpTools();
+```
+
+📖 **[WebMCP →](./webmcp.md)** — Server tools for browser agents, the page scripts, page tools in the chat, and security.
+
 ## Resource Type Handlers
 
 Create custom resource type handlers to serve files, data, or content from any protocol as MCP resources.

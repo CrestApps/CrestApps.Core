@@ -1,0 +1,26 @@
+@using System.Text.Json
+@using CrestApps.Core.AI.WebMcp
+@using Microsoft.AspNetCore.Antiforgery
+@inject IAntiforgery Antiforgery
+
+@*
+    Gives the page's WebMCP tools to AI agents in the browser: the AI tools selected in the WebMCP settings, through
+    the endpoints at /api/ai/webmcp, and the page tools that read the page and fill its forms. The AI chat uses the
+    page tools too, for profiles that allow them. Anonymous visitors get nothing.
+*@
+@if (User.Identity?.IsAuthenticated == true)
+{
+    var tokens = Antiforgery.GetAndStoreTokens(Context);
+    var configuration = new Dictionary<string, object>
+    {
+        ["toolsUrl"] = Url.Content($"~/{WebMcpConstants.DefaultRoutePrefix}/tools"),
+        ["invokeUrlTemplate"] = Url.Content($"~/{WebMcpConstants.DefaultRoutePrefix}/tools/") + "{name}/invoke",
+        ["antiforgeryHeaderName"] = tokens.HeaderName,
+        ["antiforgeryToken"] = tokens.RequestToken,
+        ["isAdmin"] = string.Equals(ViewContext.RouteData.Values["area"]?.ToString(), "Admin", StringComparison.OrdinalIgnoreCase),
+    };
+
+    <script type="application/json" id="@WebMcpConstants.ConfigurationElementId">@Html.Raw(JsonSerializer.Serialize(configuration))</script>
+    <script src="~/_content/CrestApps.AI.Resources/scripts/webmcp.js" asp-append-version="true"></script>
+    <script src="~/_content/CrestApps.AI.Resources/scripts/webmcp-page-tools.js" asp-append-version="true"></script>
+}

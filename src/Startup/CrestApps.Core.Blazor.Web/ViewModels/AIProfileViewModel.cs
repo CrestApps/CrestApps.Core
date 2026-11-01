@@ -56,6 +56,9 @@ public sealed class AIProfileViewModel
 
     public bool EnableTextToSpeechPlayback { get; set; }
 
+    // Whether the chat may call the WebMCP page tools of the browser tab it is used from.
+    public bool AllowPageTools { get; set; }
+
     // AI Parameters (from AIProfileMetadata)
     public string SystemMessage { get; set; }
 
@@ -365,6 +368,7 @@ public sealed class AIProfileViewModel
         var postSessionSettings = profile.GetOrCreateSettings<AIProfilePostSessionSettings>();
         var memoryMetadata = profile.GetOrCreate<MemoryMetadata>();
         profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings);
+        profile.TryGetSettings<WebMcpProfileSettings>(out var webMcpSettings);
         profile.TryGetSettings<AIProfileSpeechSettings>(out var speechSettings);
 
         var vm = new AIProfileViewModel
@@ -387,6 +391,7 @@ public sealed class AIProfileViewModel
             ConversationDeploymentName = chatModeSettings?.ConversationDeploymentName,
             VoiceName = chatModeSettings?.VoiceName,
             EnableTextToSpeechPlayback = chatModeSettings?.EnableTextToSpeechPlayback ?? false,
+            AllowPageTools = webMcpSettings?.AllowPageTools ?? false,
 
             LockSystemMessage = settings.LockSystemMessage,
             IsListable = settings.IsListable,
@@ -650,6 +655,8 @@ public sealed class AIProfileViewModel
                 : null;
             settings.EnableTextToSpeechPlayback = EnableTextToSpeechPlayback;
         });
+
+        profile.AlterSettings<WebMcpProfileSettings>(settings => settings.AllowPageTools = AllowPageTools);
 
         var toolNames = SelectedToolNames?.Where(n => !string.IsNullOrWhiteSpace(n)).ToArray();
 

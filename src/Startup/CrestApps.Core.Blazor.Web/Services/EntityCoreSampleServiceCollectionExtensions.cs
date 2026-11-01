@@ -6,6 +6,7 @@ using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.AI.WebMcp.Models;
 using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Data.EntityCore;
 using CrestApps.Core.Data.EntityCore.Services;
@@ -56,6 +57,7 @@ internal static class EntityCoreSampleServiceCollectionExtensions
 
         services.AddSingleton<IConfigureOptions<A2AHostOptions>, SiteSettingsConfigureStoredOptions<A2AHostOptions>>();
         services.AddSingleton<IConfigureOptions<McpServerOptions>, SiteSettingsConfigureStoredOptions<McpServerOptions>>();
+        services.AddSingleton<IConfigureOptions<WebMcpOptions>, SiteSettingsConfigureStoredOptions<WebMcpOptions>>();
         services.ConfigureOptions<Areas.AIChat.Services.SampleCopilotOptionsConfiguration>();
         services.ConfigureOptions<Areas.AIChat.Services.SampleClaudeOptionsConfiguration>();
 

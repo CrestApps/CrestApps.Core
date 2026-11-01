@@ -20,6 +20,13 @@ public static class AICompletionContextKeys
     public const string ClientName = "ClientName";
 
     /// <summary>
+    /// Holds the SignalR connection identifier (a <see cref="string"/>) of the chat client that sent the message being
+    /// answered. Tool registry providers use it to reach that browser tab, for example to run the WebMCP page tools it
+    /// registered.
+    /// </summary>
+    public const string ChatConnectionId = "ChatConnectionId";
+
+    /// <summary>
     /// Holds the <see cref="Models.ResolvedAIPersona"/> resolved for the request when the profile or interaction links to
     /// one, so downstream consumers can read its name, avatar or voice without resolving it again.
     /// </summary>

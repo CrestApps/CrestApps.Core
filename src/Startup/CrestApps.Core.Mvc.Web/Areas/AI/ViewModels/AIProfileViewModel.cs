@@ -63,6 +63,9 @@ public sealed class AIProfileViewModel
 
     public bool EnableTextToSpeechPlayback { get; set; }
 
+    // Whether the chat may call the WebMCP page tools of the browser tab it is used from.
+    public bool AllowPageTools { get; set; }
+
     // The model that carries a Conversation-mode chat. Empty inherits the site's default realtime deployment.
     public string ConversationDeploymentName { get; set; }
 
@@ -304,6 +307,7 @@ public sealed class AIProfileViewModel
         var memoryMetadata = profile.GetOrCreate<MemoryMetadata>();
         profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings);
         profile.TryGetSettings<AIProfileSpeechSettings>(out var speechSettings);
+        profile.TryGetSettings<WebMcpProfileSettings>(out var webMcpSettings);
 
         var vm = new AIProfileViewModel
         {
@@ -324,6 +328,7 @@ public sealed class AIProfileViewModel
             ConversationDeploymentName = chatModeSettings?.ConversationDeploymentName,
             VoiceName = chatModeSettings?.VoiceName,
             EnableTextToSpeechPlayback = chatModeSettings?.EnableTextToSpeechPlayback ?? false,
+            AllowPageTools = webMcpSettings?.AllowPageTools ?? false,
             LockSystemMessage = settings.LockSystemMessage,
             IsListable = settings.IsListable,
             IsRemovable = settings.IsRemovable,
@@ -677,6 +682,8 @@ public sealed class AIProfileViewModel
                 : null;
             settings.EnableTextToSpeechPlayback = EnableTextToSpeechPlayback;
         });
+
+        profile.AlterSettings<WebMcpProfileSettings>(settings => settings.AllowPageTools = AllowPageTools);
 
         ApplySpeechTo(profile);
 
