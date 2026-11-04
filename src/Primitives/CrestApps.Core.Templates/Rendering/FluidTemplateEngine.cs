@@ -2,17 +2,14 @@ using CrestApps.Core.Templates.Tags;
 using Fluid;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using FluidTemplateOptions = Fluid.TemplateOptions;
 
 namespace CrestApps.Core.Templates.Rendering;
 
 /// <summary>
 /// Processes Liquid templates using the Fluid template engine.
-/// Member access on POCO arguments is governed by the configured
-/// <see cref="FluidTemplateOptions.MemberAccessStrategy"/>; the framework
-/// defaults to <see cref="DefaultMemberAccessStrategy"/> (deny by default).
-/// Consumers must register types they wish to expose via
-/// <c>services.Configure&lt;Fluid.TemplateOptions&gt;(o =&gt; o.MemberAccessStrategy.Register&lt;MyType&gt;())</c>.
+/// Templates can read the public members of any argument passed to them, so pass only data a template may read.
+/// Custom member access and filters are configured through
+/// <c>services.Configure&lt;Fluid.TemplateOptionsBuilder&gt;(o =&gt; ...)</c>.
 /// </summary>
 public sealed class FluidTemplateEngine : ITemplateEngine
 {
@@ -25,22 +22,22 @@ public sealed class FluidTemplateEngine : ITemplateEngine
     internal const string CancellationTokenAmbientKey = "__crestapps_cancellation_token";
 
     private readonly IServiceProvider _serviceProvider;
-    private readonly FluidTemplateOptions _options;
+    private readonly Fluid.TemplateOptions _options;
     private readonly ILogger<FluidTemplateEngine> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FluidTemplateEngine"/> class.
     /// </summary>
     /// <param name="serviceProvider">The service provider.</param>
-    /// <param name="options">The Fluid template options.</param>
+    /// <param name="options">The builder of the Fluid template options.</param>
     /// <param name="logger">The logger.</param>
     public FluidTemplateEngine(
         IServiceProvider serviceProvider,
-        IOptions<FluidTemplateOptions> options,
+        IOptions<TemplateOptionsBuilder> options,
         ILogger<FluidTemplateEngine> logger)
     {
         _serviceProvider = serviceProvider;
-        _options = options?.Value ?? new FluidTemplateOptions();
+        _options = (options?.Value ?? new TemplateOptionsBuilder()).Build();
         _logger = logger;
     }
 

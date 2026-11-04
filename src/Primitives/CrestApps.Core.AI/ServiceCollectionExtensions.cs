@@ -65,13 +65,6 @@ public static class ServiceCollectionExtensions
                 entry.Description = new LocalizedString(AITemplateSources.SystemPrompt, "Create a reusable system prompt template.");
             });
 
-        services.Configure<Fluid.TemplateOptions>(options =>
-        {
-            Fluid.MemberAccessStrategyExtensions.Register<AIToolDefinitionEntry>(options.MemberAccessStrategy);
-            Fluid.MemberAccessStrategyExtensions.Register<ChatDocumentInfo>(options.MemberAccessStrategy);
-            Fluid.MemberAccessStrategyExtensions.Register<ToolRegistryEntry>(options.MemberAccessStrategy);
-        });
-
         services.TryAddScoped<IAIProfileTemplateManager, DefaultAIProfileTemplateManager>();
         services.TryAddScoped<ISourceCatalogManager<AIProfileTemplate>>(sp => (ISourceCatalogManager<AIProfileTemplate>)sp.GetRequiredService<IAIProfileTemplateManager>());
         services.TryAddScoped<INamedSourceCatalogManager<AIProfileTemplate>>(sp => sp.GetRequiredService<IAIProfileTemplateManager>());

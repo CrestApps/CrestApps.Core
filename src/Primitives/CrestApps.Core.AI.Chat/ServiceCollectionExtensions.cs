@@ -14,7 +14,6 @@ using CrestApps.Core.AI.Services;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Services;
 using CrestApps.Core.Templates.Extensions;
-using Fluid;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
@@ -112,11 +111,6 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatSessionHandler, DefaultAIChatSessionAnalyticsHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatSessionHandler, DataExtractionChatSessionHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIChatSessionHandler, PostSessionProcessingChatSessionHandler>());
-
-        services.Configure<TemplateOptions>(o =>
-        {
-            o.MemberAccessStrategy.Register<ExtractedFieldChange>();
-        });
 
         return services;
     }

@@ -43,11 +43,11 @@ public static class RenderTemplateTag
     /// <returns>The Fluid completion value.</returns>
     public static async ValueTask<Completion> WriteToAsync(
         Expression expression,
-        TextWriter writer,
+        IFluidOutput writer,
         TextEncoder encoder,
         TemplateContext context)
     {
-        var templateId = (await expression.EvaluateAsync(context)).ToStringValue();
+        var templateId = (await expression.EvaluateAsync(context)).ToStringValue(context);
 
         if (string.IsNullOrWhiteSpace(templateId))
         {
@@ -104,15 +104,15 @@ public static class RenderTemplateTag
         // Render in a child scope so that parent variables are accessible
         // but new variables defined in the sub-template do not leak upward.
         context.AmbientValues[RecursionDepthKey] = depth + 1;
-        context.EnterChildScope();
 
         try
         {
+            using var scope = context.EnterScope(ScopeBehavior.Local);
+
             await fluidTemplate.RenderAsync(writer, encoder, context);
         }
         finally
         {
-            context.ReleaseScope();
             context.AmbientValues[RecursionDepthKey] = depth;
         }
 

@@ -96,7 +96,7 @@ public sealed class RenderAITemplateTagTests
         var services = new ServiceCollection();
         services.AddSingleton<ITemplateService>(new InMemoryTemplateService(subTemplates));
         var sp = services.BuildServiceProvider();
-        return new FluidTemplateEngine(sp, Microsoft.Extensions.Options.Options.Create(new Fluid.TemplateOptions { MemberAccessStrategy = new Fluid.UnsafeMemberAccessStrategy() }), NullLogger<FluidTemplateEngine>.Instance);
+        return new FluidTemplateEngine(sp, Microsoft.Extensions.Options.Options.Create(new Fluid.TemplateOptionsBuilder()), NullLogger<FluidTemplateEngine>.Instance);
     }
 
     private sealed class InMemoryTemplateService : ITemplateService

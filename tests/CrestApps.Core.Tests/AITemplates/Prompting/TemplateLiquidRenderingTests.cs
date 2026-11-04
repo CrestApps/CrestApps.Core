@@ -20,14 +20,10 @@ public sealed class TemplateLiquidRenderingTests
     public TemplateLiquidRenderingTests()
     {
         var services = new ServiceCollection().BuildServiceProvider();
-        var templateOptions = new Fluid.TemplateOptions();
-        Fluid.MemberAccessStrategyExtensions.Register<AIToolDefinitionEntry>(templateOptions.MemberAccessStrategy);
-        Fluid.MemberAccessStrategyExtensions.Register<ChatDocumentInfo>(templateOptions.MemberAccessStrategy);
-        Fluid.MemberAccessStrategyExtensions.Register<ToolRegistryEntry>(templateOptions.MemberAccessStrategy);
-
+        
         _engine = new FluidTemplateEngine(
             services,
-            Microsoft.Extensions.Options.Options.Create(templateOptions),
+            Microsoft.Extensions.Options.Options.Create(new Fluid.TemplateOptionsBuilder()),
             NullLogger<FluidTemplateEngine>.Instance);
     }
 

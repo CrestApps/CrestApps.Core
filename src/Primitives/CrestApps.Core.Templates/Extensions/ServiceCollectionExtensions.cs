@@ -40,13 +40,13 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITemplateProvider, OptionsTemplateProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITemplateProvider, FileSystemTemplateProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITemplateProvider, PromptsFileSystemTemplateProvider>());
-        services.Configure<Fluid.TemplateOptions>(options =>
+        services.Configure<Fluid.TemplateOptionsBuilder>(builder => builder.ConfigureFilters(filters =>
         {
-            if (!options.Filters.TryGetValue(IncludeTemplateFilter.FilterName, out _))
+            if (!filters.TryGetValue(IncludeTemplateFilter.FilterName, out _))
             {
-                options.Filters.AddFilter(IncludeTemplateFilter.FilterName, IncludeTemplateFilter.IncludePromptAsync);
+                filters.AddFilter(IncludeTemplateFilter.FilterName, IncludeTemplateFilter.IncludePromptAsync);
             }
-        });
+        }));
 
         if (configure != null)
         {
