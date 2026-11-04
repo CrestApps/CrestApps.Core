@@ -55,7 +55,7 @@ public static class IncludeTemplateFilter
     /// <returns>The rendered template content, or <see cref="NilValue.Instance"/> when resolution fails.</returns>
     private static async ValueTask<FluidValue> ResolveAsync(FluidValue input, TemplateContext context)
     {
-        var promptId = input?.ToStringValue();
+        var promptId = input?.ToStringValue(context);
 
         if (string.IsNullOrWhiteSpace(promptId))
         {
@@ -93,7 +93,7 @@ public static class IncludeTemplateFilter
                 return NilValue.Instance;
             }
 
-            return new StringValue(rendered);
+            return StringValue.Create(rendered);
         }
         finally
         {

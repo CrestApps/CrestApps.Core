@@ -13,7 +13,7 @@ public sealed class FluidAITemplateEngineTests
         var services = new ServiceCollection().BuildServiceProvider();
         _renderer = new FluidTemplateEngine(
             services,
-            Microsoft.Extensions.Options.Options.Create(new Fluid.TemplateOptions()),
+            Microsoft.Extensions.Options.Options.Create(new Fluid.TemplateOptionsBuilder()),
             NullLogger<FluidTemplateEngine>.Instance);
     }
 

@@ -326,7 +326,7 @@ public sealed class DefaultAITemplateServiceTests
 
         return new FluidTemplateEngine(
         sp,
-        Microsoft.Extensions.Options.Options.Create(new Fluid.TemplateOptions()),
+        Microsoft.Extensions.Options.Options.Create(new Fluid.TemplateOptionsBuilder()),
         NullLogger<FluidTemplateEngine>.Instance);
     }
 

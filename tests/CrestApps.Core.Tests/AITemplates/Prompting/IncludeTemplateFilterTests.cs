@@ -20,11 +20,11 @@ public sealed class IncludeTemplateFilterTests
         var context = CreateContext(service);
 
         var result = await IncludeTemplateFilter.IncludePromptAsync(
-            new StringValue("greeting"),
+            StringValue.Create("greeting"),
             new FilterArguments(),
             context);
 
-        Assert.Equal("Hello World", result.ToStringValue());
+        Assert.Equal("Hello World", result.ToStringValue(context));
     }
 
     [Theory]
@@ -37,7 +37,7 @@ public sealed class IncludeTemplateFilterTests
         var context = CreateContext(service);
 
         var result = await IncludeTemplateFilter.IncludePromptAsync(
-            promptId is null ? NilValue.Instance : new StringValue(promptId),
+            promptId is null ? NilValue.Instance : StringValue.Create(promptId),
             new FilterArguments(),
             context);
 
@@ -51,7 +51,7 @@ public sealed class IncludeTemplateFilterTests
         var context = CreateContext(service);
 
         var result = await IncludeTemplateFilter.IncludePromptAsync(
-            new StringValue("not-found"),
+            StringValue.Create("not-found"),
             new FilterArguments(),
             context);
 
@@ -64,7 +64,7 @@ public sealed class IncludeTemplateFilterTests
         var context = new TemplateContext();
 
         var result = await IncludeTemplateFilter.IncludePromptAsync(
-            new StringValue("anything"),
+            StringValue.Create("anything"),
             new FilterArguments(),
             context);
 
@@ -79,7 +79,7 @@ public sealed class IncludeTemplateFilterTests
         context.AmbientValues["ServiceProvider"] = sp;
 
         var result = await IncludeTemplateFilter.IncludePromptAsync(
-            new StringValue("anything"),
+            StringValue.Create("anything"),
             new FilterArguments(),
             context);
 
@@ -100,7 +100,7 @@ public sealed class IncludeTemplateFilterTests
         context.AmbientValues["__include_prompt_stack"] = new List<string> { "LOOP" };
 
         var result = await IncludeTemplateFilter.IncludePromptAsync(
-            new StringValue("loop"),
+            StringValue.Create("loop"),
             new FilterArguments(),
             context);
 
@@ -131,7 +131,7 @@ public sealed class IncludeTemplateFilterTests
         context.AmbientValues["__include_prompt_stack"] = seeded;
 
         var result = await IncludeTemplateFilter.IncludePromptAsync(
-            new StringValue("any"),
+            StringValue.Create("any"),
             new FilterArguments(),
             context);
 
@@ -153,11 +153,11 @@ public sealed class IncludeTemplateFilterTests
         var context = CreateContext(service);
 
         var result = await IncludeTemplateFilter.IncludePromptAsync(
-            new StringValue("a"),
+            StringValue.Create("a"),
             new FilterArguments(),
             context);
 
-        Assert.Equal("A-content", result.ToStringValue());
+        Assert.Equal("A-content", result.ToStringValue(context));
 
         var stack = (List<string>)context.AmbientValues["__include_prompt_stack"];
         Assert.Empty(stack);
