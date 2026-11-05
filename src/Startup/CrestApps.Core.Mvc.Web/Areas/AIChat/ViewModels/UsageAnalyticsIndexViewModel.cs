@@ -16,5 +16,7 @@ public sealed class UsageAnalyticsIndexViewModel
 
     public long TotalTokens { get; set; }
 
+    public IReadOnlyList<string> EstimatedCosts { get; set; } = [];
+
     public IReadOnlyList<AICompletionUsageSummaryViewModel> Rows { get; set; } = [];
 }

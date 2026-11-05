@@ -104,6 +104,7 @@ public sealed class AIDeploymentController : Controller
         await ValidateUniqueNameAsync(model.TechnicalName);
 
         model.ValidateModelParameters(_capabilityService.GetRegisteredParameters(), ModelState);
+        model.ValidatePrices(ModelState);
 
         if (!ModelState.IsValid)
         {
@@ -186,6 +187,7 @@ public sealed class AIDeploymentController : Controller
         await ValidateUniqueNameAsync(model.TechnicalName, model.ItemId);
 
         model.ValidateModelParameters(_capabilityService.GetRegisteredParameters(), ModelState);
+        model.ValidatePrices(ModelState);
 
         if (!ModelState.IsValid)
         {

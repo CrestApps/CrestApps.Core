@@ -206,7 +206,62 @@ minimum. The Blazor and MVC sample apps include an Audio Usage Analytics page bu
 ### Turning usage into cost
 
 Providers bill each unit on its own meter: input, cached input, output, and audio tokens per model, audio
-duration, characters, images. Multiplying a row by list prices gives an estimate. To match what was actually
+duration, characters, images. Multiplying a row by list prices gives an estimate.
+
+#### Deployment pricing
+
+Each deployment can carry its own prices in `AIDeploymentPricing`: a currency and any number of
+`AIDeploymentPrice` entries, one per billed unit. A price is an `Amount` for `Per` base units of a meter from
+`AIUsageMeters`:
+
+| Meter | Base unit | Typical `Per` |
+|---|---|---|
+| `InputTokens`, `CachedInputTokens`, `OutputTokens` | token | `1000000` |
+| `InputAudioTokens`, `OutputAudioTokens` | token | `1000000` |
+| `AudioSeconds` | second of audio | `60` (per minute) or `3600` (per hour) |
+| `Characters` | character | `1000000` |
+| `Images` | image | `1` |
+| `Requests` | request | `1` |
+
+Cached input and audio tokens are part of the input and output token counts. They are taken out and billed at
+their own price only when the deployment has a price for them; otherwise they stay in at the token price.
+Several prices for the same meter add up, so a per-request fee and a per-thousand-requests fee can sit side by side.
+
+Set pricing in code with `deployment.SetPricing(currency, prices)`, which drops incomplete prices and removes the
+pricing when none is left, or in configuration under the deployment's `Properties`:
+
+```json
+{
+  "Name": "gpt-4o",
+  "Properties": {
+    "AIDeploymentPricing": {
+      "Currency": "USD",
+      "Prices": [
+        { "Meter": "InputTokens", "Amount": 2.5, "Per": 1000000 },
+        { "Meter": "CachedInputTokens", "Amount": 1.25, "Per": 1000000 },
+        { "Meter": "OutputTokens", "Amount": 10, "Per": 1000000 }
+      ]
+    }
+  }
+}
+```
+
+Pass the pricing to a report and every row carries `Currency` and `EstimatedCost`. Each request is priced by its
+`DeploymentName`; requests to deployments in different currencies, or without a price, land in separate rows:
+
+```csharp
+var pricing = await deploymentStore.GetPricingByDeploymentAsync();
+
+var perModel = AIUsageReport.Build(records, AIUsageReportGrouping.Model, pricing);
+var audio = AIAudioUsageReport.Build(records, AIAudioUsageReportGrouping.Model, pricing);
+```
+
+`AIUsageCostEstimator.Estimate` prices a single record, or any set of records, for reports of your own. The MVC
+and Blazor sample apps edit the prices on the deployment page and show the estimated cost on the usage pages.
+
+#### Matching the bill
+
+To match what was actually
 paid, including discounts and credits, take the cost of each meter from the provider's bill for a period and
 divide it in proportion to the units each group used on that meter in the same period. A single blended price
 per model misprices groups whose mix of input and output tokens differs from the average.

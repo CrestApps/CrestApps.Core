@@ -4,7 +4,9 @@
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Services
 @using CrestApps.Core.Blazor.Web.ViewModels
+@using CrestApps.Core.AI.Deployments
 @inject IAICompletionUsageService UsageService
+@inject IAIDeploymentStore DeploymentStore
 @inject Microsoft.Extensions.Options.IOptionsMonitor<CrestApps.Core.AI.Models.GeneralAIOptions> GeneralAIOptions
 
 <PageTitle>AI Usage Analytics - Blazor AI Integration Sample</PageTitle>
@@ -50,6 +52,15 @@ else
         <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Total tokens</div><div class="fs-3 fw-semibold">@_model.TotalTokens</div></div></div></div>
     </div>
 
+    @if (_model.EstimatedCosts.Count > 0)
+    {
+        <div class="alert alert-light border mb-4">
+            <span class="text-muted">Estimated cost:</span>
+            <span class="fw-semibold">@string.Join(" + ", _model.EstimatedCosts)</span>
+            <span class="text-muted small ms-2">from the prices set on the AI deployments.</span>
+        </div>
+    }
+
     <div class="card">
         <div class="card-header">Usage by user and model</div>
         <div class="table-responsive">
@@ -66,6 +77,7 @@ else
                         <th class="text-end">Output</th>
                         <th class="text-end">Tokens</th>
                         <th class="text-end">Avg latency</th>
+                        <th class="text-end">Est. cost</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -85,6 +97,7 @@ else
                             <td class="text-end">@row.TotalOutputTokens</td>
                             <td class="text-end fw-semibold">@row.TotalTokens</td>
                             <td class="text-end">@(row.AverageResponseLatencyMs > 0 ? $"{row.AverageResponseLatencyMs} ms" : "-")</td>
+                            <td class="text-end text-nowrap">@UsageCostFormatter.Format(row.Currency, row.EstimatedCost)</td>
                         </tr>
                     }
                 </tbody>
@@ -99,10 +112,11 @@ else
     private async Task RunReportAsync()
     {
         var records = await UsageService.GetAsync(_model.StartDateUtc, _model.EndDateUtc);
-        ApplyReport(records);
+        var pricing = await DeploymentStore.GetPricingByDeploymentAsync();
+        ApplyReport(records, pricing);
     }
 
-    private void ApplyReport(IReadOnlyList<AICompletionUsageRecord> records)
+    private void ApplyReport(IReadOnlyList<AICompletionUsageRecord> records, IReadOnlyDictionary<string, AIDeploymentPricing> pricing)
     {
         _model.ShowReport = true;
 
@@ -122,6 +136,7 @@ else
                 r.IsAuthenticated,
                 ClientName = r.ClientName ?? "Unknown",
                 ModelName = r.ModelName ?? r.DeploymentName ?? "Unknown",
+                AIUsageCostEstimator.GetPricing(pricing, r)?.Currency,
             })
             .Select(group =>
             {
@@ -140,12 +155,16 @@ else
                     TotalOutputTokens = group.Sum(r => (long)r.OutputTokenCount),
                     TotalTokens = group.Sum(r => (long)r.TotalTokenCount),
                     AverageResponseLatencyMs = latencySamples.Count > 0 ? Math.Round(latencySamples.Average(r => r.ResponseLatencyMs), 0) : 0,
+                    Currency = group.Key.Currency,
+                    EstimatedCost = AIUsageCostEstimator.Estimate(group, pricing),
                 };
             })
             .OrderByDescending(r => r.TotalTokens)
             .ThenByDescending(r => r.TotalCalls)
             .ThenBy(r => r.UserLabel, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        _model.EstimatedCosts = UsageCostFormatter.Totals(_model.Rows.Select(row => (row.Currency, row.EstimatedCost)));
     }
 
     private static string GetUserLabel(AICompletionUsageRecord record)

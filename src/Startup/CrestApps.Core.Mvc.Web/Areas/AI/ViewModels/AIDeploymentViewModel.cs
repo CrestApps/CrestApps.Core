@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -63,6 +64,16 @@ public sealed class AIDeploymentViewModel
     [BindNever]
     public IEnumerable<AIDeploymentModelFeatureViewModel> AvailableFeatures { get; set; } = [];
 
+    /// <summary>
+    /// Gets or sets the currency of <see cref="Prices"/>.
+    /// </summary>
+    public string PricingCurrency { get; set; } = "USD";
+
+    /// <summary>
+    /// Gets or sets what the deployment costs, used to estimate the cost of its usage.
+    /// </summary>
+    public List<AIDeploymentPrice> Prices { get; set; } = [];
+
     public static AIDeploymentViewModel FromDeployment(AIDeployment deployment)
     {
         var model = new AIDeploymentViewModel
@@ -74,6 +85,12 @@ public sealed class AIDeploymentViewModel
             ClientName = AIProviderNameNormalizer.Normalize(deployment.ClientName),
             IsReadOnly = deployment.IsReadOnly,
         };
+
+        if (deployment.GetPricing() is { } pricing)
+        {
+            model.PricingCurrency = pricing.Currency;
+            model.Prices = pricing.Prices ?? [];
+        }
 
         if (deployment.Properties != null)
         {
@@ -352,6 +369,30 @@ public sealed class AIDeploymentViewModel
         }
 
         ApplyModelMetadataTo(deployment);
+        deployment.SetPricing(PricingCurrency, Prices);
+    }
+
+    public void ValidatePrices(ModelStateDictionary modelState)
+    {
+        for (var index = 0; index < Prices.Count; index++)
+        {
+            var price = Prices[index];
+
+            if (AIUsageMeters.Find(price.Meter) is null)
+            {
+                modelState.AddModelError($"{nameof(Prices)}[{index}].{nameof(price.Meter)}", "Select what the price is for.");
+            }
+
+            if (price.Amount < 0)
+            {
+                modelState.AddModelError($"{nameof(Prices)}[{index}].{nameof(price.Amount)}", "The price cannot be negative.");
+            }
+
+            if (price.Per <= 0)
+            {
+                modelState.AddModelError($"{nameof(Prices)}[{index}].{nameof(price.Per)}", "Select the quantity the price is for.");
+            }
+        }
     }
 
     private void ApplyModelMetadataTo(AIDeployment deployment)

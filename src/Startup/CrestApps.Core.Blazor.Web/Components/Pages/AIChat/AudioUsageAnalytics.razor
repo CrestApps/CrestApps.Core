@@ -3,7 +3,10 @@
 @using CrestApps.Core.AI.Completions
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.AI.Services
+@using CrestApps.Core.AI.Deployments
+@using CrestApps.Core.Blazor.Web.ViewModels
 @inject IAICompletionUsageService UsageService
+@inject IAIDeploymentStore DeploymentStore
 
 <PageTitle>Audio Usage Analytics - Blazor AI Integration Sample</PageTitle>
 
@@ -82,6 +85,7 @@ else
                         <th class="text-end">Segments</th>
                         <th class="text-end">Tokens</th>
                         <th class="text-end">Avg latency</th>
+                        <th class="text-end">Est. cost</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -114,6 +118,7 @@ else
                             <td class="text-end">@row.SegmentCount</td>
                             <td class="text-end">@row.TotalTokenCount</td>
                             <td class="text-end">@(row.AverageResponseLatencyMs > 0 ? $"{row.AverageResponseLatencyMs} ms" : "-")</td>
+                            <td class="text-end text-nowrap">@UsageCostFormatter.Format(row.Currency, row.EstimatedCost)</td>
                         </tr>
                     }
                 </tbody>
@@ -136,7 +141,7 @@ else
         var records = await UsageService.GetAsync(_startDateUtc, _endDateUtc);
 
         _reportGrouping = _grouping;
-        _rows = AIAudioUsageReport.Build(records, _grouping);
+        _rows = AIAudioUsageReport.Build(records, _grouping, await DeploymentStore.GetPricingByDeploymentAsync());
         _showReport = true;
     }
 }

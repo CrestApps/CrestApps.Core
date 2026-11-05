@@ -1,4 +1,5 @@
-@model CrestApps.Core.Mvc.Web.Areas.AIChat.ViewModels.UsageAnalyticsIndexViewModel
+@using CrestApps.Core.Mvc.Web.Areas.AIChat.ViewModels
+@model UsageAnalyticsIndexViewModel
 @{
     ViewData["Title"] = "AI usage analytics";
 }
@@ -45,6 +46,15 @@ else
         <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="text-muted small">Total tokens</div><div class="fs-3 fw-semibold">@Model.TotalTokens</div></div></div></div>
     </div>
 
+    @if (Model.EstimatedCosts.Count > 0)
+    {
+        <div class="alert alert-light border mb-4">
+            <span class="text-muted">Estimated cost:</span>
+            <span class="fw-semibold">@string.Join(" + ", Model.EstimatedCosts)</span>
+            <span class="text-muted small ms-2">from the prices set on the AI deployments.</span>
+        </div>
+    }
+
     <div class="card">
         <div class="card-header">Usage by user and model</div>
         <div class="table-responsive">
@@ -61,6 +71,7 @@ else
                         <th class="text-end">Output</th>
                         <th class="text-end">Tokens</th>
                         <th class="text-end">Avg latency</th>
+                        <th class="text-end">Est. cost</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -80,6 +91,7 @@ else
                         <td class="text-end">@row.TotalOutputTokens</td>
                         <td class="text-end fw-semibold">@row.TotalTokens</td>
                         <td class="text-end">@(row.AverageResponseLatencyMs > 0 ? $"{row.AverageResponseLatencyMs} ms" : "-")</td>
+                        <td class="text-end text-nowrap">@UsageCostFormatter.Format(row.Currency, row.EstimatedCost)</td>
                     </tr>
                 }
                 </tbody>

@@ -1,0 +1,192 @@
+@using System.Globalization
+@using System.Text.Json
+@using CrestApps.Core.AI.Completions
+@using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
+@model AIDeploymentViewModel
+
+@{
+    var meters = AIUsageMeters.All;
+    var metersJson = JsonSerializer.Serialize(meters.Select(meter => new
+    {
+        name = meter.Name,
+        quantities = meter.Quantities.Select(quantity => new { per = quantity.Per, label = quantity.DisplayName }),
+    }));
+}
+
+<div class="card mb-3" id="deploymentPricing" data-meters="@metersJson">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="card-title mb-0"><i class="fa-solid fa-coins"></i> Pricing</h6>
+        <div class="dropdown">
+            <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fa-solid fa-plus"></i> Add price
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                @foreach (var meter in meters)
+                {
+                    <li><button type="button" class="dropdown-item" data-price-add="@meter.Name">@meter.DisplayName</button></li>
+                }
+            </ul>
+        </div>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small">
+            Optional. What this deployment costs with its provider, used to estimate the cost of its usage in the usage reports.
+            Add one price per billed unit; a model billed per request and per token gets one of each.
+            Cached and audio tokens are taken out of the input and output tokens when they have their own price.
+        </p>
+
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-md-3">
+                <label asp-for="PricingCurrency" class="form-label">Currency</label>
+                <input asp-for="PricingCurrency" class="form-control" maxlength="3" placeholder="USD" data-price-currency-input />
+            </div>
+        </div>
+
+        <div data-price-rows>
+            @for (var index = 0; index < Model.Prices.Count; index++)
+            {
+                var price = Model.Prices[index];
+                var selectedMeter = AIUsageMeters.Find(price.Meter) ?? meters[0];
+                <div class="row g-2 align-items-start mb-2" data-price-row>
+                    <div class="col-12 col-md-4">
+                        <select name="Prices[@index].Meter" class="form-select" data-price-meter aria-label="Billed unit">
+                            @foreach (var meter in meters)
+                            {
+                                <option value="@meter.Name" selected="@(meter.Name == selectedMeter.Name)">@meter.DisplayName</option>
+                            }
+                        </select>
+                        <span asp-validation-for="Prices[index].Meter" class="text-danger small"></span>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="input-group">
+                            <span class="input-group-text" data-price-currency>@Model.PricingCurrency</span>
+                            <input name="Prices[@index].Amount" type="number" step="any" min="0" class="form-control" value="@price.Amount.ToString(CultureInfo.InvariantCulture)" aria-label="Price" />
+                        </div>
+                        <span asp-validation-for="Prices[index].Amount" class="text-danger small"></span>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="input-group">
+                            <span class="input-group-text">per</span>
+                            <select name="Prices[@index].Per" class="form-select" data-price-per aria-label="Quantity">
+                                @foreach (var quantity in selectedMeter.Quantities)
+                                {
+                                    <option value="@quantity.Per" selected="@(quantity.Per == price.Per)">@quantity.DisplayName</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-1 text-md-end">
+                        <button type="button" class="btn btn-outline-danger" data-price-remove title="Remove this price" aria-label="Remove this price">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="text-muted small fst-italic @(Model.Prices.Count > 0 ? "d-none" : "")" data-price-empty>
+            No prices. Usage of this deployment is reported without a cost.
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var container = document.getElementById('deploymentPricing');
+
+        if (!container) {
+            return;
+        }
+
+        var meters = JSON.parse(container.dataset.meters);
+        var rows = container.querySelector('[data-price-rows]');
+        var empty = container.querySelector('[data-price-empty]');
+        var currencyInput = container.querySelector('[data-price-currency-input]');
+
+        function findMeter(name) {
+            return meters.find(function (meter) { return meter.name === name; }) || meters[0];
+        }
+
+        function fillQuantities(select, meterName, selected) {
+            var meter = findMeter(meterName);
+            select.innerHTML = '';
+            meter.quantities.forEach(function (quantity) {
+                var option = document.createElement('option');
+                option.value = quantity.per;
+                option.textContent = quantity.label;
+                option.selected = String(quantity.per) === String(selected);
+                select.appendChild(option);
+            });
+        }
+
+        function currency() {
+            return (currencyInput.value || 'USD').trim().toUpperCase();
+        }
+
+        function reindex() {
+            rows.querySelectorAll('[data-price-row]').forEach(function (row, index) {
+                row.querySelectorAll('[name^="Prices["]').forEach(function (input) {
+                    input.name = input.name.replace(/^Prices\[\d+\]/, 'Prices[' + index + ']');
+                });
+            });
+            empty.classList.toggle('d-none', rows.children.length > 0);
+        }
+
+        function addRow(meterName) {
+            var row = document.createElement('div');
+            row.className = 'row g-2 align-items-start mb-2';
+            row.setAttribute('data-price-row', '');
+            row.innerHTML =
+                '<div class="col-12 col-md-4"><select name="Prices[0].Meter" class="form-select" data-price-meter aria-label="Billed unit"></select></div>' +
+                '<div class="col-6 col-md-3"><div class="input-group"><span class="input-group-text" data-price-currency></span>' +
+                '<input name="Prices[0].Amount" type="number" step="any" min="0" class="form-control" aria-label="Price" /></div></div>' +
+                '<div class="col-6 col-md-4"><div class="input-group"><span class="input-group-text">per</span>' +
+                '<select name="Prices[0].Per" class="form-select" data-price-per aria-label="Quantity"></select></div></div>' +
+                '<div class="col-12 col-md-1 text-md-end"><button type="button" class="btn btn-outline-danger" data-price-remove title="Remove this price" aria-label="Remove this price"><i class="fa-solid fa-trash"></i></button></div>';
+
+            var meterSelect = row.querySelector('[data-price-meter]');
+            container.querySelectorAll('[data-price-add]').forEach(function (item) {
+                var option = document.createElement('option');
+                option.value = item.dataset.priceAdd;
+                option.textContent = item.textContent;
+                option.selected = item.dataset.priceAdd === meterName;
+                meterSelect.appendChild(option);
+            });
+
+            fillQuantities(row.querySelector('[data-price-per]'), meterName, findMeter(meterName).quantities[0].per);
+            row.querySelector('[data-price-currency]').textContent = currency();
+            rows.appendChild(row);
+            reindex();
+            row.querySelector('input[type="number"]').focus();
+        }
+
+        container.addEventListener('click', function (event) {
+            var add = event.target.closest('[data-price-add]');
+
+            if (add) {
+                addRow(add.dataset.priceAdd);
+                return;
+            }
+
+            var remove = event.target.closest('[data-price-remove]');
+
+            if (remove) {
+                remove.closest('[data-price-row]').remove();
+                reindex();
+            }
+        });
+
+        container.addEventListener('change', function (event) {
+            if (event.target.matches('[data-price-meter]')) {
+                var per = event.target.closest('[data-price-row]').querySelector('[data-price-per]');
+                fillQuantities(per, event.target.value, per.value);
+            }
+        });
+
+        currencyInput.addEventListener('input', function () {
+            container.querySelectorAll('[data-price-currency]').forEach(function (label) {
+                label.textContent = currency();
+            });
+        });
+    })();
+</script>
