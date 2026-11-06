@@ -84,6 +84,48 @@ builder.Services.AddElasticsearchODataFilterTranslator();
 
 The translator prefixes each field with `filters.`, because the knowledge base index stores the source document's fields in a `filters` object (`category eq 'support'` becomes a `term` query on `filters.category`). A field that already starts with `filters.` is not prefixed again, and the typed knowledge columns (`contentType`, `rootId`, `parentId`, `page`) are not prefixed. `eq` and `ne` become `term` queries. When the `filters` object is mapped dynamically, Elasticsearch maps a string as `text` with a `keyword` sub-field, and a `term` query on the analyzed `text` field does not match a mixed-case or multi-word value. Use the `keyword` sub-field for an exact match, for example `category.keyword eq 'Support Docs'`.
 
+### Supplying your own client
+
+By default, every service uses the `ElasticsearchClient` that `IElasticsearchClientFactory` builds from `ElasticsearchConnectionOptions`. A host that already holds its own client, for example a multi-tenant host that resolves a client per tenant, passes a client factory instead. Each overload takes a `Func<IServiceProvider, ElasticsearchClient>`:
+
+```csharp
+// Every core service, with the host's client. No IElasticsearchClientFactory or ElasticsearchClient is registered.
+builder.Services.AddCoreElasticsearchServices(sp => sp.GetRequiredService<MyTenantSearchClients>().Elasticsearch);
+
+// Or only the services the host does not provide itself.
+builder.Services
+    .AddElasticsearchDataSourceContentManager(sp => sp.GetRequiredService<MyTenantSearchClients>().Elasticsearch)
+    .AddElasticsearchDataSourceDocumentReader(sp => sp.GetRequiredService<MyTenantSearchClients>().Elasticsearch)
+    .AddElasticsearchODataFilterTranslator();
+```
+
+The AI search services in `CrestApps.Core.AI.Elasticsearch` have matching overloads. They register the service alone, without the index profile source or handler that `AddAIDocuments()`, `AddAIMemory()` and `AddAIDataSources()` add:
+
+```csharp
+builder.Services
+    .AddElasticsearchVectorSearchService(
+        sp => sp.GetRequiredService<MyTenantSearchClients>().Elasticsearch,
+        new DocumentIndexColumnNames { FileName = "file_name" })
+    .AddElasticsearchMemoryVectorSearchService(sp => sp.GetRequiredService<MyTenantSearchClients>().Elasticsearch)
+    .AddElasticsearchAIDataSourceSourceHandler();
+```
+
+| Method | Registers |
+|--------|-----------|
+| `AddCoreElasticsearchServices(Func<IServiceProvider, ElasticsearchClient>)` | Every service in the table above, with the supplied client |
+| `AddElasticsearchDataSourceContentManager(Func<IServiceProvider, ElasticsearchClient>)` | `IDataSourceContentManager` |
+| `AddElasticsearchDataSourceDocumentReader(Func<IServiceProvider, ElasticsearchClient>)` | `IDataSourceDocumentReader` |
+| `AddElasticsearchVectorSearchService(Func<IServiceProvider, ElasticsearchClient>, DocumentIndexColumnNames)` | `IVectorSearchService` for AI documents |
+| `AddElasticsearchMemoryVectorSearchService(Func<IServiceProvider, ElasticsearchClient>)` | `IMemoryVectorSearchService` for AI memory |
+| `AddElasticsearchAIDataSourceSourceHandler()` | `IAIDataSourceSourceHandler` for external Elasticsearch sources, with the default `ElasticsearchClientFactory` |
+| `AddElasticsearchAIDataSourceSourceHandler(Func<IServiceProvider, IElasticsearchClientFactory>)` | The same handler, with the supplied factory |
+
+- The factory runs each time a scoped service is created, so return a client the host already holds rather than building a new one.
+- Each search service is added only when none is registered for its key yet, so a host can register its own client first and still call `AddAIDocuments()` or `AddAIMemory()` afterward. The source handler is added with `AddKeyedScoped`, so the last registration wins.
+- The source handler connects with the connection settings stored on each data source, not with the host's client, which is why it takes an `IElasticsearchClientFactory` instead.
+- `DocumentIndexColumnNames` sets the field names the vector search reads. Each name defaults to `DocumentIndexConstants.ColumnNames`, and `null` keeps all the defaults.
+- The old registration methods call these overloads with the client of `IElasticsearchClientFactory`, so their behavior does not change.
+
 AI-specific Elasticsearch registrations now live in `CrestApps.Core.AI.Elasticsearch`. Register that package when you need `AddAIDocuments()`, `AddAIDataSources()`, `AddAIMemory()`, or Elasticsearch-backed AI RAG/search flows.
 
 When you call `AddAIDataSources()`, the feature builder also pulls in the shared asynchronous data-source synchronization stack from `AddCoreAIDataSourceRag()`, including:

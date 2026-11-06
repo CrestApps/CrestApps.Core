@@ -40,61 +40,6 @@ internal static class DataSourceAzureAISearchDocumentIdFilterBuilder
             return null;
         }
 
-        var filterLength = 0;
-
-        checked
-        {
-            for (var index = 0; index < documentIds.Count; index++)
-            {
-                filterLength += keyFieldName.Length + documentIds[index].Length + 6;
-
-                if (index > 0)
-                {
-                    filterLength += 4;
-                }
-
-                foreach (var character in documentIds[index])
-                {
-                    if (character == '\'')
-                    {
-                        filterLength++;
-                    }
-                }
-            }
-        }
-
-        return string.Create(
-            filterLength,
-            (DocumentIds: documentIds, KeyFieldName: keyFieldName),
-            static (destination, state) =>
-            {
-                var position = 0;
-
-                for (var index = 0; index < state.DocumentIds.Count; index++)
-                {
-                    if (index > 0)
-                    {
-                        " or ".AsSpan().CopyTo(destination[position..]);
-                        position += 4;
-                    }
-
-                    state.KeyFieldName.AsSpan().CopyTo(destination[position..]);
-                    position += state.KeyFieldName.Length;
-                    " eq '".AsSpan().CopyTo(destination[position..]);
-                    position += 5;
-
-                    foreach (var character in state.DocumentIds[index])
-                    {
-                        destination[position++] = character;
-
-                        if (character == '\'')
-                        {
-                            destination[position++] = '\'';
-                        }
-                    }
-
-                    destination[position++] = '\'';
-                }
-            });
+        return ODataFilter.AnyEqual(keyFieldName, documentIds);
     }
 }
