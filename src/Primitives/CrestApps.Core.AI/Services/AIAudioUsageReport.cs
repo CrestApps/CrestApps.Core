@@ -16,6 +16,21 @@ public static class AIAudioUsageReport
     /// <param name="records">The metered requests.</param>
     /// <param name="grouping">How to group them.</param>
     public static IReadOnlyList<AIAudioUsageReportRow> Build(IEnumerable<AICompletionUsageRecord> records, AIAudioUsageReportGrouping grouping)
+        => Build(records, grouping, pricingByDeployment: null);
+
+    /// <summary>
+    /// Builds the report rows with the estimated cost of each, ordered by audio length and then by request count,
+    /// both descending. Requests to deployments priced in different currencies, or not priced at all, are kept in
+    /// separate rows.
+    /// </summary>
+    /// <param name="records">The metered requests.</param>
+    /// <param name="grouping">How to group them.</param>
+    /// <param name="pricingByDeployment">The pricing of each deployment by name, from
+    /// <see cref="AIUsageCostEstimator.GetPricingByDeploymentAsync"/>.</param>
+    public static IReadOnlyList<AIAudioUsageReportRow> Build(
+        IEnumerable<AICompletionUsageRecord> records,
+        AIAudioUsageReportGrouping grouping,
+        IReadOnlyDictionary<string, AIDeploymentPricing> pricingByDeployment)
     {
         ArgumentNullException.ThrowIfNull(records);
 
@@ -26,8 +41,9 @@ public static class AIAudioUsageReport
                 AIUsageReport.GetModelName(record),
                 AIUsageReport.GetOperationType(record),
                 grouping == AIAudioUsageReportGrouping.ModelAndVoice ? Label(record.VoiceId) : null,
-                grouping == AIAudioUsageReportGrouping.ModelAndLanguage ? Label(record.Language) : null))
-            .Select(group => Summarize(group.Key, group.ToList()))
+                grouping == AIAudioUsageReportGrouping.ModelAndLanguage ? Label(record.Language) : null,
+                AIUsageCostEstimator.GetPricing(pricingByDeployment, record)?.Currency))
+            .Select(group => Summarize(group.Key, group.ToList(), pricingByDeployment))
             .OrderByDescending(row => row.AudioDurationMs)
             .ThenByDescending(row => row.RequestCount)
             .ThenBy(row => row.ModelName, StringComparer.OrdinalIgnoreCase)
@@ -49,7 +65,7 @@ public static class AIAudioUsageReport
 
     private static string Label(string value) => string.IsNullOrEmpty(value) ? AIUsageReport.Unspecified : value;
 
-    private static AIAudioUsageReportRow Summarize(GroupKey key, List<AICompletionUsageRecord> records)
+    private static AIAudioUsageReportRow Summarize(GroupKey key, List<AICompletionUsageRecord> records, IReadOnlyDictionary<string, AIDeploymentPricing> pricingByDeployment)
     {
         var latencySamples = records.Where(record => record.ResponseLatencyMs > 0).ToList();
 
@@ -74,6 +90,8 @@ public static class AIAudioUsageReport
             AverageResponseLatencyMs = latencySamples.Count > 0
                 ? Math.Round(latencySamples.Average(record => record.ResponseLatencyMs), 0)
                 : 0,
+            Currency = key.Currency,
+            EstimatedCost = AIUsageCostEstimator.Estimate(records, pricingByDeployment),
         };
     }
 
@@ -82,5 +100,6 @@ public static class AIAudioUsageReport
         string ModelName,
         string OperationType,
         string VoiceId,
-        string Language);
+        string Language,
+        string Currency);
 }

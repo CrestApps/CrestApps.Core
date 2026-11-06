@@ -146,24 +146,97 @@ public static class AICompletionUsageRecordFactory
         record.OutputAudioTokenCount = Normalize(usage.OutputAudioTokenCount ?? 0);
 #pragma warning restore MEAI001 // The audio token counts are for evaluation purposes only and may change in future updates.
 
-        if (usage.AdditionalCounts is not { Count: > 0 } additionalCounts)
+        if (usage.AdditionalCounts is { Count: > 0 } additionalCounts)
         {
-            return;
+            foreach (var (name, value) in additionalCounts)
+            {
+                ApplyAdditionalCount(record, name, value);
+            }
         }
 
-        if (additionalCounts.TryGetValue(AIUsageAdditionalCounts.AudioDurationMs, out var audioDurationMs))
+        // A text-to-speech model billed by token reports its output only as output tokens, which are all audio, and an
+        // image model billed by token reports its output only as output tokens, which are all image tokens.
+        if (record.OperationType == AIUsageOperationTypes.TextToSpeech && record.OutputAudioTokenCount == 0)
         {
-            record.AudioDurationMs = Math.Max(0, audioDurationMs);
+            record.OutputAudioTokenCount = record.OutputTokenCount;
         }
-
-        if (additionalCounts.TryGetValue(AIUsageAdditionalCounts.CharacterCount, out var characterCount))
+        else if (record.OperationType == AIUsageOperationTypes.Image && record.OutputImageTokenCount == 0)
         {
-            record.CharacterCount = Normalize(characterCount);
+            record.OutputImageTokenCount = record.OutputTokenCount;
         }
+    }
 
-        if (additionalCounts.TryGetValue(AIUsageAdditionalCounts.ImageCount, out var imageCount))
+    /// <summary>
+    /// Copies one count from <see cref="UsageDetails.AdditionalCounts"/> onto the record: the framework's own keys from
+    /// <see cref="AIUsageAdditionalCounts"/>, the names the OpenAI and Anthropic adapters use for the same units, and
+    /// every other count into <see cref="AICompletionUsageRecord.AdditionalCounts"/>. A count the response also
+    /// reported in its own <see cref="UsageDetails"/> property is not overwritten.
+    /// </summary>
+    private static void ApplyAdditionalCount(AICompletionUsageRecord record, string name, long value)
+    {
+        switch (name)
         {
-            record.ImageCount = Normalize(imageCount);
+            case AIUsageAdditionalCounts.AudioDurationMs:
+                record.AudioDurationMs = Math.Max(0, value);
+                break;
+            case AIUsageAdditionalCounts.CharacterCount:
+                record.CharacterCount = Normalize(value);
+                break;
+            case AIUsageAdditionalCounts.ImageCount:
+                record.ImageCount = Normalize(value);
+                break;
+            case AIUsageAdditionalCounts.CacheWriteInputTokenCount:
+            case "CacheCreationInputTokens":
+                record.CacheWriteInputTokenCount = Normalize(value);
+                break;
+            case AIUsageAdditionalCounts.CachedInputAudioTokenCount:
+                record.CachedInputAudioTokenCount = Normalize(value);
+                break;
+            case AIUsageAdditionalCounts.InputImageTokenCount:
+            case "InputTokenDetails.ImageTokenCount":
+                record.InputImageTokenCount = Normalize(value);
+                break;
+            case AIUsageAdditionalCounts.OutputImageTokenCount:
+                record.OutputImageTokenCount = Normalize(value);
+                break;
+            case AIUsageAdditionalCounts.WebSearchCount:
+            case "WebSearchRequests":
+                record.WebSearchCount = Normalize(value);
+                break;
+            case AIUsageAdditionalCounts.WebFetchCount:
+            case "WebFetchRequests":
+                record.WebFetchCount = Normalize(value);
+                break;
+            case "OutputTokenDetails.AcceptedPredictionTokenCount":
+                record.AcceptedPredictionTokenCount = Normalize(value);
+                break;
+            case "OutputTokenDetails.RejectedPredictionTokenCount":
+                record.RejectedPredictionTokenCount = Normalize(value);
+                break;
+            case "InputTokenDetails.AudioTokenCount":
+                record.InputAudioTokenCount = record.InputAudioTokenCount > 0 ? record.InputAudioTokenCount : Normalize(value);
+                break;
+            case "OutputTokenDetails.AudioTokenCount":
+                record.OutputAudioTokenCount = record.OutputAudioTokenCount > 0 ? record.OutputAudioTokenCount : Normalize(value);
+                break;
+            case "InputTokenDetails.CachedTokenCount":
+                record.CachedInputTokenCount = record.CachedInputTokenCount > 0 ? record.CachedInputTokenCount : Normalize(value);
+                break;
+            case "OutputTokenDetails.ReasoningTokenCount":
+                record.ReasoningTokenCount = record.ReasoningTokenCount > 0 ? record.ReasoningTokenCount : Normalize(value);
+                break;
+            case "InputTokenDetails.TextTokenCount":
+            case "OutputTokenDetails.TextTokenCount":
+                // The text share is what is left once the other kinds are taken out, so it is not kept twice.
+                break;
+            default:
+                if (value != 0 && !string.IsNullOrEmpty(name))
+                {
+                    record.AdditionalCounts ??= new Dictionary<string, long>(StringComparer.Ordinal);
+                    record.AdditionalCounts[name] = value;
+                }
+
+                break;
         }
     }
 

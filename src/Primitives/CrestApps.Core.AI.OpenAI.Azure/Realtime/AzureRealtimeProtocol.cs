@@ -511,15 +511,30 @@ internal static class AzureRealtimeProtocol
             OutputTextTokenCount = GetInt64(outputDetails, "text_tokens"),
         };
 
+        var counts = new AdditionalPropertiesDictionary<long>();
+
+        // Cached tokens are billed at their own rate for text and for audio.
+        if (GetInt64(GetProperty(inputDetails, "cached_tokens_details"), "audio_tokens") is long cachedAudioTokens and > 0)
+        {
+            counts[AIUsageAdditionalCounts.CachedInputAudioTokenCount] = cachedAudioTokens;
+        }
+
+        if (GetInt64(inputDetails, "image_tokens") is long imageTokens and > 0)
+        {
+            counts[AIUsageAdditionalCounts.InputImageTokenCount] = imageTokens;
+        }
+
         if (string.Equals(GetString(usage, "type"), "duration", StringComparison.Ordinal) &&
             usage.TryGetProperty("seconds", out var seconds) &&
             seconds.ValueKind == JsonValueKind.Number &&
             seconds.TryGetDouble(out var audioSeconds))
         {
-            details.AdditionalCounts = new AdditionalPropertiesDictionary<long>
-            {
-                [AIUsageAdditionalCounts.AudioDurationMs] = (long)Math.Round(audioSeconds * 1000),
-            };
+            counts[AIUsageAdditionalCounts.AudioDurationMs] = (long)Math.Round(audioSeconds * 1000);
+        }
+
+        if (counts.Count > 0)
+        {
+            details.AdditionalCounts = counts;
         }
 
         return details;

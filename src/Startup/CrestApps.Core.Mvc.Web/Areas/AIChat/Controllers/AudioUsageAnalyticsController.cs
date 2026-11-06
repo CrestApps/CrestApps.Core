@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Mvc.Web.Areas.AIChat.ViewModels;
 using Microsoft.AspNetCore.Authorization;
@@ -11,10 +12,12 @@ namespace CrestApps.Core.Mvc.Web.Areas.AIChat.Controllers;
 public sealed class AudioUsageAnalyticsController : Controller
 {
     private readonly IAICompletionUsageService _usageService;
+    private readonly IAIDeploymentStore _deploymentStore;
 
-    public AudioUsageAnalyticsController(IAICompletionUsageService usageService)
+    public AudioUsageAnalyticsController(IAICompletionUsageService usageService, IAIDeploymentStore deploymentStore)
     {
         _usageService = usageService;
+        _deploymentStore = deploymentStore;
     }
 
     [HttpGet]
@@ -31,7 +34,7 @@ public sealed class AudioUsageAnalyticsController : Controller
         var records = await _usageService.GetAsync(model.StartDateUtc, model.EndDateUtc);
 
         model.ShowReport = true;
-        model.Rows = AIAudioUsageReport.Build(records, model.Grouping);
+        model.Rows = AIAudioUsageReport.Build(records, model.Grouping, await _deploymentStore.GetPricingByDeploymentAsync());
 
         return View("Index", model);
     }

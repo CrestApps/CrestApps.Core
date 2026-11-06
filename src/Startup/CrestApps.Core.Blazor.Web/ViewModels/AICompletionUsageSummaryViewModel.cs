@@ -23,4 +23,12 @@ public sealed class AICompletionUsageSummaryViewModel
     public long TotalTokens { get; set; }
 
     public double AverageResponseLatencyMs { get; set; }
+
+    public long TotalCachedInputTokens { get; set; }
+
+    public IReadOnlyList<string> OtherUsage { get; set; } = [];
+
+    public string Currency { get; set; }
+
+    public decimal? EstimatedCost { get; set; }
 }

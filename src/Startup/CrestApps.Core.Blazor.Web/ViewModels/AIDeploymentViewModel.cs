@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 
@@ -57,6 +58,16 @@ public sealed class AIDeploymentViewModel
     /// </summary>
     public List<AIDeploymentFeatureDescriptor> AvailableFeatures { get; set; } = [];
 
+    /// <summary>
+    /// Gets or sets the currency of <see cref="Prices"/>.
+    /// </summary>
+    public string PricingCurrency { get; set; } = "USD";
+
+    /// <summary>
+    /// Gets or sets what the deployment costs, used to estimate the cost of its usage.
+    /// </summary>
+    public List<AIDeploymentPrice> Prices { get; set; } = [];
+
     public static AIDeploymentViewModel FromDeployment(AIDeployment deployment)
     {
         var model = new AIDeploymentViewModel
@@ -68,6 +79,12 @@ public sealed class AIDeploymentViewModel
             ClientName = AIProviderNameNormalizer.Normalize(deployment.ClientName),
             IsReadOnly = deployment.IsReadOnly,
         };
+
+        if (deployment.GetPricing() is { } pricing)
+        {
+            model.PricingCurrency = pricing.Currency;
+            model.Prices = pricing.Prices ?? [];
+        }
 
         if (deployment.Properties != null)
         {
@@ -188,6 +205,32 @@ public sealed class AIDeploymentViewModel
         }
 
         ApplyModelMetadataTo(deployment);
+        deployment.SetPricing(PricingCurrency, Prices);
+    }
+
+    public IReadOnlyList<string> ValidatePrices()
+    {
+        var errors = new List<string>();
+
+        foreach (var price in Prices)
+        {
+            if (price.Amount < 0)
+            {
+                errors.Add("A price cannot be negative.");
+            }
+
+            if (AIUsageMeters.Find(price.Meter) is { RequiresCountName: true } && string.IsNullOrWhiteSpace(price.CountName))
+            {
+                errors.Add("Enter the name of the count an 'Other reported count' price is for.");
+            }
+
+            if (price.Increment < 0 || price.AboveInputTokens < 0)
+            {
+                errors.Add("The long-context threshold and billing increment cannot be negative.");
+            }
+        }
+
+        return errors;
     }
 
     /// <summary>

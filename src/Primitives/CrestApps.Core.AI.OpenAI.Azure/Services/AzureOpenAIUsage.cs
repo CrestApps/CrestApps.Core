@@ -4,6 +4,7 @@ using OpenAI.Chat;
 namespace CrestApps.Core.AI.OpenAI.Azure.Services;
 
 #pragma warning disable MEAI001 // The audio token counts are for evaluation purposes only and may change in future updates.
+#pragma warning disable OPENAI001 // The predicted output token counts are for evaluation purposes only and may change in future updates.
 /// <summary>
 /// Converts the token usage the OpenAI SDK reports into the provider-agnostic <see cref="UsageDetails"/>, keeping
 /// the cached, reasoning, and audio token counts that are billed as separate meters.
@@ -22,7 +23,7 @@ internal static class AzureOpenAIUsage
             return null;
         }
 
-        return new UsageDetails
+        var details = new UsageDetails
         {
             InputTokenCount = usage.InputTokenCount,
             OutputTokenCount = usage.OutputTokenCount,
@@ -32,6 +33,18 @@ internal static class AzureOpenAIUsage
             ReasoningTokenCount = usage.OutputTokenDetails?.ReasoningTokenCount,
             OutputAudioTokenCount = usage.OutputTokenDetails?.AudioTokenCount,
         };
+
+        if (usage.OutputTokenDetails is { AcceptedPredictionTokenCount: > 0 } or { RejectedPredictionTokenCount: > 0 })
+        {
+            // The same names the Microsoft.Extensions.AI OpenAI adapter uses, so metering reads both the same way.
+            details.AdditionalCounts = new AdditionalPropertiesDictionary<long>
+            {
+                ["OutputTokenDetails.AcceptedPredictionTokenCount"] = usage.OutputTokenDetails.AcceptedPredictionTokenCount,
+                ["OutputTokenDetails.RejectedPredictionTokenCount"] = usage.OutputTokenDetails.RejectedPredictionTokenCount,
+            };
+        }
+
+        return details;
     }
 
     /// <summary>
@@ -59,4 +72,5 @@ internal static class AzureOpenAIUsage
         return total;
     }
 }
+#pragma warning restore OPENAI001 // The predicted output token counts are for evaluation purposes only and may change in future updates.
 #pragma warning restore MEAI001 // The audio token counts are for evaluation purposes only and may change in future updates.

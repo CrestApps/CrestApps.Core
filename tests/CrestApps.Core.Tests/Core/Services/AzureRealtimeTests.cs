@@ -272,6 +272,17 @@ public sealed class AzureRealtimeTests
     }
 
     [Fact]
+    public void ReadServerMessage_ResponseDone_MapsCachedAudioAndImageTokens()
+    {
+        var message = ReadFromJson("""{"type":"response.done","response":{"id":"r1","status":"completed","usage":{"total_tokens":300,"input_tokens":200,"output_tokens":100,"input_token_details":{"text_tokens":60,"audio_tokens":120,"image_tokens":20,"cached_tokens":90,"cached_tokens_details":{"text_tokens":30,"audio_tokens":60}},"output_token_details":{"text_tokens":20,"audio_tokens":80}}}}""");
+
+        var done = Assert.IsType<ResponseCreatedRealtimeServerMessage>(message);
+        Assert.NotNull(done.Usage?.AdditionalCounts);
+        Assert.Equal(60, done.Usage.AdditionalCounts[AIUsageAdditionalCounts.CachedInputAudioTokenCount]);
+        Assert.Equal(20, done.Usage.AdditionalCounts[AIUsageAdditionalCounts.InputImageTokenCount]);
+    }
+
+    [Fact]
     public void ReadServerMessage_ResponseDoneWithoutUsage_LeavesUsageEmpty()
     {
         var message = ReadFromJson("""{"type":"response.done","response":{"id":"r1","status":"cancelled"}}""");

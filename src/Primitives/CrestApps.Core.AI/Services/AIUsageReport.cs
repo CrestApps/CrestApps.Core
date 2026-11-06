@@ -20,6 +20,21 @@ public static class AIUsageReport
     /// <param name="records">The metered requests.</param>
     /// <param name="grouping">How to group them.</param>
     public static IReadOnlyList<AIUsageReportRow> Build(IEnumerable<AICompletionUsageRecord> records, AIUsageReportGrouping grouping)
+        => Build(records, grouping, pricingByDeployment: null);
+
+    /// <summary>
+    /// Builds the report rows with the estimated cost of each, ordered by total tokens and then by request count,
+    /// both descending. Requests to deployments priced in different currencies, or not priced at all, are kept in
+    /// separate rows.
+    /// </summary>
+    /// <param name="records">The metered requests.</param>
+    /// <param name="grouping">How to group them.</param>
+    /// <param name="pricingByDeployment">The pricing of each deployment by name, from
+    /// <see cref="AIUsageCostEstimator.GetPricingByDeploymentAsync"/>.</param>
+    public static IReadOnlyList<AIUsageReportRow> Build(
+        IEnumerable<AICompletionUsageRecord> records,
+        AIUsageReportGrouping grouping,
+        IReadOnlyDictionary<string, AIDeploymentPricing> pricingByDeployment)
     {
         ArgumentNullException.ThrowIfNull(records);
 
@@ -29,8 +44,9 @@ public static class AIUsageReport
                 GetModelName(record),
                 GetOperationType(record),
                 grouping == AIUsageReportGrouping.ModelAndCategory ? Label(record.ContextType) : null,
-                grouping == AIUsageReportGrouping.ModelAndPurpose ? Label(record.Purpose) : null))
-            .Select(group => Summarize(group.Key, group.ToList()))
+                grouping == AIUsageReportGrouping.ModelAndPurpose ? Label(record.Purpose) : null,
+                AIUsageCostEstimator.GetPricing(pricingByDeployment, record)?.Currency))
+            .Select(group => Summarize(group.Key, group.ToList(), pricingByDeployment))
             .OrderByDescending(row => row.TotalTokenCount)
             .ThenByDescending(row => row.RequestCount)
             .ThenBy(row => row.ModelName, StringComparer.OrdinalIgnoreCase)
@@ -66,7 +82,7 @@ public static class AIUsageReport
 
     private static string Label(string value) => string.IsNullOrEmpty(value) ? Unspecified : value;
 
-    private static AIUsageReportRow Summarize(GroupKey key, List<AICompletionUsageRecord> records)
+    private static AIUsageReportRow Summarize(GroupKey key, List<AICompletionUsageRecord> records, IReadOnlyDictionary<string, AIDeploymentPricing> pricingByDeployment)
     {
         var latencySamples = records.Where(record => record.ResponseLatencyMs > 0).ToList();
 
@@ -84,14 +100,51 @@ public static class AIUsageReport
             ReasoningTokenCount = records.Sum(record => (long)record.ReasoningTokenCount),
             InputAudioTokenCount = records.Sum(record => (long)record.InputAudioTokenCount),
             OutputAudioTokenCount = records.Sum(record => (long)record.OutputAudioTokenCount),
+            CacheWriteInputTokenCount = records.Sum(record => (long)record.CacheWriteInputTokenCount),
+            CachedInputAudioTokenCount = records.Sum(record => (long)record.CachedInputAudioTokenCount),
+            InputImageTokenCount = records.Sum(record => (long)record.InputImageTokenCount),
+            OutputImageTokenCount = records.Sum(record => (long)record.OutputImageTokenCount),
+            AcceptedPredictionTokenCount = records.Sum(record => (long)record.AcceptedPredictionTokenCount),
+            RejectedPredictionTokenCount = records.Sum(record => (long)record.RejectedPredictionTokenCount),
             TotalTokenCount = records.Sum(record => (long)record.TotalTokenCount),
+            WebSearchCount = records.Sum(record => (long)record.WebSearchCount),
+            WebFetchCount = records.Sum(record => (long)record.WebFetchCount),
+            AdditionalCounts = SumAdditionalCounts(records),
             AudioDurationMs = records.Sum(record => record.AudioDurationMs),
             CharacterCount = records.Sum(record => (long)record.CharacterCount),
             ImageCount = records.Sum(record => (long)record.ImageCount),
             AverageResponseLatencyMs = latencySamples.Count > 0
                 ? Math.Round(latencySamples.Average(record => record.ResponseLatencyMs), 0)
                 : 0,
+            Currency = key.Currency,
+            EstimatedCost = AIUsageCostEstimator.Estimate(records, pricingByDeployment),
         };
+    }
+
+    /// <summary>
+    /// Sums the counts providers reported without a field of their own, by name.
+    /// </summary>
+    /// <param name="records">The records.</param>
+    public static Dictionary<string, long> SumAdditionalCounts(IEnumerable<AICompletionUsageRecord> records)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+
+        var totals = new Dictionary<string, long>(StringComparer.Ordinal);
+
+        foreach (var record in records)
+        {
+            if (record.AdditionalCounts is null)
+            {
+                continue;
+            }
+
+            foreach (var (name, count) in record.AdditionalCounts)
+            {
+                totals[name] = totals.GetValueOrDefault(name) + count;
+            }
+        }
+
+        return totals;
     }
 
     private sealed record GroupKey(
@@ -99,5 +152,6 @@ public static class AIUsageReport
         string ModelName,
         string OperationType,
         string ContextType,
-        string Purpose);
+        string Purpose,
+        string Currency);
 }

@@ -1,3 +1,4 @@
+@using CrestApps.Core.Mvc.Web.Areas.AIChat.ViewModels
 @using CrestApps.Core.AI.Completions
 @model CrestApps.Core.Mvc.Web.Areas.AIChat.ViewModels.AudioUsageAnalyticsIndexViewModel
 @{
@@ -80,6 +81,7 @@ else
                         <th class="text-end">Segments</th>
                         <th class="text-end">Tokens</th>
                         <th class="text-end">Avg latency</th>
+                        <th class="text-end">Est. cost</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -112,6 +114,7 @@ else
                         <td class="text-end">@row.SegmentCount</td>
                         <td class="text-end">@row.TotalTokenCount</td>
                         <td class="text-end">@(row.AverageResponseLatencyMs > 0 ? $"{row.AverageResponseLatencyMs} ms" : "-")</td>
+                        <td class="text-end text-nowrap">@UsageCostFormatter.Format(row.Currency, row.EstimatedCost)</td>
                     </tr>
                 }
                 </tbody>

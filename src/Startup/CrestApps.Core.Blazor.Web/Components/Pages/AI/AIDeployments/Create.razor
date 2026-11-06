@@ -103,6 +103,8 @@
 
             <ModelCapabilitiesEditor Model="_model" />
 
+            <DeploymentPricingEditor Model="_model" />
+
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">
                     <i class="fa-solid fa-check"></i> Create
@@ -244,6 +246,7 @@
         }
 
         _validationErrors.AddRange(_model.ValidateModelParameters());
+        _validationErrors.AddRange(_model.ValidatePrices());
 
         if (_validationErrors.Count > 0)
         {

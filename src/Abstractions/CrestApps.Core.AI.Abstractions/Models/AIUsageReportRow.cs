@@ -68,9 +68,54 @@ public sealed class AIUsageReportRow
     public long OutputAudioTokenCount { get; set; }
 
     /// <summary>
+    /// Gets or sets the input tokens written to the provider's prompt cache.
+    /// </summary>
+    public long CacheWriteInputTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the cached input tokens that were audio.
+    /// </summary>
+    public long CachedInputAudioTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the input image tokens.
+    /// </summary>
+    public long InputImageTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the output image tokens.
+    /// </summary>
+    public long OutputImageTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the output tokens from accepted predicted outputs.
+    /// </summary>
+    public long AcceptedPredictionTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the rejected predicted output tokens, which are still billed as output tokens.
+    /// </summary>
+    public long RejectedPredictionTokenCount { get; set; }
+
+    /// <summary>
     /// Gets or sets the total tokens.
     /// </summary>
     public long TotalTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the web searches the provider ran on its side.
+    /// </summary>
+    public long WebSearchCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the web pages the provider fetched on its side.
+    /// </summary>
+    public long WebFetchCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets every other count the providers reported, summed by name.
+    /// </summary>
+    public Dictionary<string, long> AdditionalCounts { get; set; } = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets or sets the milliseconds of audio transcribed.
@@ -91,4 +136,16 @@ public sealed class AIUsageReportRow
     /// Gets or sets the average response latency in milliseconds across the requests that measured one.
     /// </summary>
     public double AverageResponseLatencyMs { get; set; }
+
+    /// <summary>
+    /// Gets or sets the currency of <see cref="EstimatedCost"/>, or <see langword="null"/> when the requests'
+    /// deployments have no price.
+    /// </summary>
+    public string Currency { get; set; }
+
+    /// <summary>
+    /// Gets or sets the estimated cost from the prices set on the requests' deployments, or <see langword="null"/>
+    /// when they have no price.
+    /// </summary>
+    public decimal? EstimatedCost { get; set; }
 }

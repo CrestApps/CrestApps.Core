@@ -98,4 +98,16 @@ public sealed class AIAudioUsageReportRow
     /// Gets or sets the average response latency in milliseconds.
     /// </summary>
     public double AverageResponseLatencyMs { get; set; }
+
+    /// <summary>
+    /// Gets or sets the currency of <see cref="EstimatedCost"/>, or <see langword="null"/> when the requests'
+    /// deployments have no price.
+    /// </summary>
+    public string Currency { get; set; }
+
+    /// <summary>
+    /// Gets or sets the estimated cost from the prices set on the requests' deployments, or <see langword="null"/>
+    /// when they have no price.
+    /// </summary>
+    public decimal? EstimatedCost { get; set; }
 }

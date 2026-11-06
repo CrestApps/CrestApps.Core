@@ -1,6 +1,7 @@
 using System.Globalization;
 using CrestApps.Core.AI;
 using CrestApps.Core.AI.Capabilities;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI;
@@ -272,6 +273,37 @@ public sealed class ConfigurationAIDeploymentCatalogTests
     /// number. A parameter's <c>DefaultValue</c> and <c>AllowedValues</c> are text, so a default such as
     /// <c>0.7</c> used to make the metadata unreadable and the deployment disappear.
     /// </summary>
+    [Fact]
+    public async Task GetAllAsync_WhenADeploymentDeclaresPricing_ShouldReadThePrices()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string>
+        {
+            ["CrestApps:AI:Deployments:0:ClientName"] = "OpenAI",
+            ["CrestApps:AI:Deployments:0:ConnectionName"] = "shared-openai",
+            ["CrestApps:AI:Deployments:0:Name"] = "priced-chat",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentMetadata:Features:0"] = AIDeploymentFeatureNames.TextGeneration,
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentPricing:Currency"] = "EUR",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentPricing:Prices:0:Meter"] = AIUsageMeters.InputTokens,
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentPricing:Prices:0:Amount"] = "2.5",
+            ["CrestApps:AI:Deployments:0:Properties:AIDeploymentPricing:Prices:0:Per"] = "1000000",
+        }).Build();
+        var aiOptions = new AIOptions();
+        aiOptions.AddDeploymentProvider("OpenAI");
+        var store = CreateStore(configuration, aiOptions);
+
+        // Act
+        var pricing = await store.GetPricingByDeploymentAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var deploymentPricing = Assert.Contains("priced-chat", pricing);
+        Assert.Equal("EUR", deploymentPricing.Currency);
+        var price = Assert.Single(deploymentPricing.Prices);
+        Assert.Equal(AIUsageMeters.InputTokens, price.Meter);
+        Assert.Equal(2.5m, price.Amount);
+        Assert.Equal(1_000_000, price.Per);
+    }
+
     [Fact]
     public async Task GetAllAsync_WhenAParameterValueLooksLikeANumber_ShouldKeepItAsText()
     {
