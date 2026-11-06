@@ -133,6 +133,54 @@ public sealed class AICompletionUsageRecord : ExtensibleEntity
     public int OutputAudioTokenCount { get; set; }
 
     /// <summary>
+    /// Gets or sets how many of the input tokens were written to the provider's prompt cache. Providers that charge
+    /// for cache writes, such as Anthropic, bill these at a premium over regular input tokens.
+    /// </summary>
+    public int CacheWriteInputTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many of the cached input tokens (<see cref="CachedInputTokenCount"/>) were audio tokens.
+    /// Realtime models bill cached audio at its own rate.
+    /// </summary>
+    public int CachedInputAudioTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many of the input tokens were image tokens.
+    /// </summary>
+    public int InputImageTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many of the output tokens were image tokens, for image models billed by token.
+    /// </summary>
+    public int OutputImageTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many output tokens came from an accepted predicted output.
+    /// </summary>
+    public int AcceptedPredictionTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many predicted output tokens were rejected. Providers still bill them as output tokens.
+    /// </summary>
+    public int RejectedPredictionTokenCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many web searches the provider ran on its side to answer the request.
+    /// </summary>
+    public int WebSearchCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many web pages the provider fetched on its side to answer the request.
+    /// </summary>
+    public int WebFetchCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets every other count the provider reported that has no field of its own, by the name the provider
+    /// gave it, so it can still be reported and priced.
+    /// </summary>
+    public Dictionary<string, long> AdditionalCounts { get; set; }
+
+    /// <summary>
     /// Gets or sets the length of the audio in milliseconds: the audio that was transcribed (measured to where the last
     /// recognized speech ended) for speech-to-text, or the audio that was generated for text-to-speech, when it could be
     /// determined. Providers bill audio by duration rather than by tokens.

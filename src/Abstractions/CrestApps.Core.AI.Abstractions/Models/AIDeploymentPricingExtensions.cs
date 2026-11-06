@@ -33,12 +33,15 @@ public static class AIDeploymentPricingExtensions
         var kept = (prices ?? [])
             .Where(price => price is not null && price.Amount > 0 && price.Per > 0)
             .Select(price => (Price: price, Meter: AIUsageMeters.Find(price.Meter)))
-            .Where(entry => entry.Meter is not null)
+            .Where(entry => entry.Meter is not null && (!entry.Meter.RequiresCountName || !string.IsNullOrWhiteSpace(entry.Price.CountName)))
             .Select(entry => new AIDeploymentPrice
             {
                 Meter = entry.Meter.Name,
                 Amount = entry.Price.Amount,
                 Per = entry.Price.Per,
+                CountName = entry.Meter.RequiresCountName ? entry.Price.CountName.Trim() : null,
+                AboveInputTokens = entry.Price.AboveInputTokens is > 0 ? entry.Price.AboveInputTokens : null,
+                Increment = Math.Max(0, entry.Price.Increment),
             })
             .ToList();
 

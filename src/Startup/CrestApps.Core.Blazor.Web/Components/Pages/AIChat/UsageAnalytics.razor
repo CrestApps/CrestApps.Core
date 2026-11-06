@@ -74,8 +74,10 @@ else
                         <th class="text-end">Sessions</th>
                         <th class="text-end">Interactions</th>
                         <th class="text-end">Input</th>
+                        <th class="text-end">Cached</th>
                         <th class="text-end">Output</th>
                         <th class="text-end">Tokens</th>
+                        <th>Other usage</th>
                         <th class="text-end">Avg latency</th>
                         <th class="text-end">Est. cost</th>
                     </tr>
@@ -94,8 +96,10 @@ else
                             <td class="text-end">@row.TotalSessions</td>
                             <td class="text-end">@row.TotalChatInteractions</td>
                             <td class="text-end">@row.TotalInputTokens</td>
+                            <td class="text-end">@row.TotalCachedInputTokens</td>
                             <td class="text-end">@row.TotalOutputTokens</td>
                             <td class="text-end fw-semibold">@row.TotalTokens</td>
+                            <td class="small text-muted">@(row.OtherUsage.Count > 0 ? string.Join(", ", row.OtherUsage) : "-")</td>
                             <td class="text-end">@(row.AverageResponseLatencyMs > 0 ? $"{row.AverageResponseLatencyMs} ms" : "-")</td>
                             <td class="text-end text-nowrap">@UsageCostFormatter.Format(row.Currency, row.EstimatedCost)</td>
                         </tr>
@@ -153,6 +157,8 @@ else
                     TotalChatInteractions = group.Select(r => r.InteractionId).Where(id => !string.IsNullOrEmpty(id)).Distinct(StringComparer.Ordinal).Count(),
                     TotalInputTokens = group.Sum(r => (long)r.InputTokenCount),
                     TotalOutputTokens = group.Sum(r => (long)r.OutputTokenCount),
+                    TotalCachedInputTokens = group.Sum(r => (long)r.CachedInputTokenCount),
+                    OtherUsage = UsageCostFormatter.DescribeOtherUsage(group.ToList()),
                     TotalTokens = group.Sum(r => (long)r.TotalTokenCount),
                     AverageResponseLatencyMs = latencySamples.Count > 0 ? Math.Round(latencySamples.Average(r => r.ResponseLatencyMs), 0) : 0,
                     Currency = group.Key.Currency,

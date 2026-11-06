@@ -100,7 +100,16 @@ public static class AIUsageReport
             ReasoningTokenCount = records.Sum(record => (long)record.ReasoningTokenCount),
             InputAudioTokenCount = records.Sum(record => (long)record.InputAudioTokenCount),
             OutputAudioTokenCount = records.Sum(record => (long)record.OutputAudioTokenCount),
+            CacheWriteInputTokenCount = records.Sum(record => (long)record.CacheWriteInputTokenCount),
+            CachedInputAudioTokenCount = records.Sum(record => (long)record.CachedInputAudioTokenCount),
+            InputImageTokenCount = records.Sum(record => (long)record.InputImageTokenCount),
+            OutputImageTokenCount = records.Sum(record => (long)record.OutputImageTokenCount),
+            AcceptedPredictionTokenCount = records.Sum(record => (long)record.AcceptedPredictionTokenCount),
+            RejectedPredictionTokenCount = records.Sum(record => (long)record.RejectedPredictionTokenCount),
             TotalTokenCount = records.Sum(record => (long)record.TotalTokenCount),
+            WebSearchCount = records.Sum(record => (long)record.WebSearchCount),
+            WebFetchCount = records.Sum(record => (long)record.WebFetchCount),
+            AdditionalCounts = SumAdditionalCounts(records),
             AudioDurationMs = records.Sum(record => record.AudioDurationMs),
             CharacterCount = records.Sum(record => (long)record.CharacterCount),
             ImageCount = records.Sum(record => (long)record.ImageCount),
@@ -110,6 +119,32 @@ public static class AIUsageReport
             Currency = key.Currency,
             EstimatedCost = AIUsageCostEstimator.Estimate(records, pricingByDeployment),
         };
+    }
+
+    /// <summary>
+    /// Sums the counts providers reported without a field of their own, by name.
+    /// </summary>
+    /// <param name="records">The records.</param>
+    public static Dictionary<string, long> SumAdditionalCounts(IEnumerable<AICompletionUsageRecord> records)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+
+        var totals = new Dictionary<string, long>(StringComparer.Ordinal);
+
+        foreach (var record in records)
+        {
+            if (record.AdditionalCounts is null)
+            {
+                continue;
+            }
+
+            foreach (var (name, count) in record.AdditionalCounts)
+            {
+                totals[name] = totals.GetValueOrDefault(name) + count;
+            }
+        }
+
+        return totals;
     }
 
     private sealed record GroupKey(

@@ -94,6 +94,87 @@ public sealed class AIUsageCostEstimatorTests
     }
 
     [Fact]
+    public void Estimate_PricesCacheReadsAndWritesApartFromInput()
+    {
+        // Anthropic-style: 1,500 input tokens of which 1,000 were cache reads and 400 cache writes.
+        var pricing = Pricing(
+            Price(AIUsageMeters.InputTokens, 3m, 1_000_000),
+            Price(AIUsageMeters.CachedInputTokens, 0.3m, 1_000_000),
+            Price(AIUsageMeters.CacheWriteInputTokens, 3.75m, 1_000_000));
+        var record = new AICompletionUsageRecord { InputTokenCount = 1_500, CachedInputTokenCount = 1_000, CacheWriteInputTokenCount = 400 };
+
+        var expected = (100 * 3m + 1_000 * 0.3m + 400 * 3.75m) / 1_000_000m;
+
+        Assert.Equal(expected, AIUsageCostEstimator.Estimate(record, pricing));
+    }
+
+    [Fact]
+    public void Estimate_PricesCachedAudioApartFromCachedTextAndAudio()
+    {
+        var pricing = Pricing(
+            Price(AIUsageMeters.InputTokens, 4m, 1_000_000),
+            Price(AIUsageMeters.CachedInputTokens, 0.4m, 1_000_000),
+            Price(AIUsageMeters.InputAudioTokens, 32m, 1_000_000),
+            Price(AIUsageMeters.CachedInputAudioTokens, 0.4m, 1_000_000),
+            Price(AIUsageMeters.InputImageTokens, 5m, 1_000_000));
+
+        // 200 input: 120 audio (60 of them cached), 20 image, 60 text (30 of them cached).
+        var record = new AICompletionUsageRecord
+        {
+            InputTokenCount = 200,
+            InputAudioTokenCount = 120,
+            CachedInputTokenCount = 90,
+            CachedInputAudioTokenCount = 60,
+            InputImageTokenCount = 20,
+        };
+
+        var expected = (60 * 0.4m + 60 * 32m + 20 * 5m + 30 * 0.4m + 30 * 4m) / 1_000_000m;
+
+        Assert.Equal(expected, AIUsageCostEstimator.Estimate(record, pricing));
+    }
+
+    [Fact]
+    public void Estimate_PricesImageOutputTokensWebSearchesAndOtherCounts()
+    {
+        var pricing = Pricing(
+            Price(AIUsageMeters.OutputTokens, 10m, 1_000_000),
+            Price(AIUsageMeters.OutputImageTokens, 40m, 1_000_000),
+            Price(AIUsageMeters.WebSearches, 10m, 1_000),
+            new AIDeploymentPrice { Meter = AIUsageMeters.AdditionalCount, CountName = "CodeExecutionSeconds", Amount = 0.05m, Per = 3_600 });
+        var record = new AICompletionUsageRecord
+        {
+            OutputTokenCount = 5_000,
+            OutputImageTokenCount = 4_000,
+            WebSearchCount = 2,
+            AdditionalCounts = new() { ["CodeExecutionSeconds"] = 360 },
+        };
+
+        var expected = 1_000 * 10m / 1_000_000m + 4_000 * 40m / 1_000_000m + 0.02m + 0.005m;
+
+        Assert.Equal(expected, AIUsageCostEstimator.Estimate(record, pricing));
+    }
+
+    [Fact]
+    public void Estimate_UsesTheLongContextPriceAboveItsThreshold()
+    {
+        var pricing = Pricing(
+            Price(AIUsageMeters.InputTokens, 3m, 1_000_000),
+            new AIDeploymentPrice { Meter = AIUsageMeters.InputTokens, Amount = 6m, Per = 1_000_000, AboveInputTokens = 200_000 });
+
+        Assert.Equal(0.3m, AIUsageCostEstimator.Estimate(new AICompletionUsageRecord { InputTokenCount = 100_000 }, pricing));
+        Assert.Equal(1.8m, AIUsageCostEstimator.Estimate(new AICompletionUsageRecord { InputTokenCount = 300_000 }, pricing));
+    }
+
+    [Fact]
+    public void Estimate_RoundsEachRequestUpToTheBillingIncrement()
+    {
+        var pricing = Pricing(new AIDeploymentPrice { Meter = AIUsageMeters.AudioSeconds, Amount = 0.6m, Per = 60, Increment = 15 });
+
+        // 16 seconds bill as 30.
+        Assert.Equal(0.3m, AIUsageCostEstimator.Estimate(new AICompletionUsageRecord { AudioDurationMs = 16_000 }, pricing));
+    }
+
+    [Fact]
     public void Build_AddsTheEstimatedCostAndCurrencyToEachRow()
     {
         var pricing = new Dictionary<string, AIDeploymentPricing>(StringComparer.OrdinalIgnoreCase)

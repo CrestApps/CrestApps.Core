@@ -71,6 +71,8 @@ public sealed class UsageAnalyticsController : Controller
                 TotalChatInteractions = group.Select(record => record.InteractionId).Where(interactionId => !string.IsNullOrEmpty(interactionId)).Distinct(StringComparer.Ordinal).Count(),
                 TotalInputTokens = group.Sum(record => (long)record.InputTokenCount),
                 TotalOutputTokens = group.Sum(record => (long)record.OutputTokenCount),
+                TotalCachedInputTokens = group.Sum(record => (long)record.CachedInputTokenCount),
+                OtherUsage = UsageCostFormatter.DescribeOtherUsage(group.ToList()),
                 TotalTokens = group.Sum(record => (long)record.TotalTokenCount),
                 AverageResponseLatencyMs = latencySamples.Count > 0 ? Math.Round(latencySamples.Average(record => record.ResponseLatencyMs), 0) : 0,
                 Currency = group.Key.Currency,

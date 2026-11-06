@@ -378,9 +378,20 @@ public sealed class AIDeploymentViewModel
         {
             var price = Prices[index];
 
-            if (AIUsageMeters.Find(price.Meter) is null)
+            var meter = AIUsageMeters.Find(price.Meter);
+
+            if (meter is null)
             {
                 modelState.AddModelError($"{nameof(Prices)}[{index}].{nameof(price.Meter)}", "Select what the price is for.");
+            }
+            else if (meter.RequiresCountName && string.IsNullOrWhiteSpace(price.CountName))
+            {
+                modelState.AddModelError($"{nameof(Prices)}[{index}].{nameof(price.CountName)}", "Enter the name of the count an 'Other reported count' price is for.");
+            }
+
+            if (price.Increment < 0 || price.AboveInputTokens < 0)
+            {
+                modelState.AddModelError($"{nameof(Prices)}[{index}].{nameof(price.Increment)}", "The long-context threshold and billing increment cannot be negative.");
             }
 
             if (price.Amount < 0)

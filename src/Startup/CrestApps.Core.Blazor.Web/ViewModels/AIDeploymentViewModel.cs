@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 
@@ -216,6 +217,16 @@ public sealed class AIDeploymentViewModel
             if (price.Amount < 0)
             {
                 errors.Add("A price cannot be negative.");
+            }
+
+            if (AIUsageMeters.Find(price.Meter) is { RequiresCountName: true } && string.IsNullOrWhiteSpace(price.CountName))
+            {
+                errors.Add("Enter the name of the count an 'Other reported count' price is for.");
+            }
+
+            if (price.Increment < 0 || price.AboveInputTokens < 0)
+            {
+                errors.Add("The long-context threshold and billing increment cannot be negative.");
             }
         }
 

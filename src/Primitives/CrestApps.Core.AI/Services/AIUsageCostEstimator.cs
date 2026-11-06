@@ -26,40 +26,74 @@ public static class AIUsageCostEstimator
             return null;
         }
 
-        var cachedPrice = UnitPrice(pricing, AIUsageMeters.CachedInputTokens);
-        var inputAudioPrice = UnitPrice(pricing, AIUsageMeters.InputAudioTokens);
-        var outputAudioPrice = UnitPrice(pricing, AIUsageMeters.OutputAudioTokens);
-
-        // Input and output tokens include the cached and audio tokens. Those are billed at their own price only when
-        // the deployment has one; otherwise they stay in, at the token price.
-        var inputTokens = (decimal)record.InputTokenCount;
-        var outputTokens = (decimal)record.OutputTokenCount;
+        var prices = GetApplicablePrices(pricing, record.InputTokenCount);
         var cost = 0m;
 
-        if (cachedPrice is not null)
+        // Input and output tokens include the cached, cache-write, audio, and image tokens. Each of those is taken out
+        // and billed at its own price only when the deployment has one; otherwise it stays in at the token price.
+        var inputTokens = (long)record.InputTokenCount;
+        var cachedAudioTokens = HasPrice(prices, AIUsageMeters.CachedInputAudioTokens) ? record.CachedInputAudioTokenCount : 0;
+
+        cost += Charge(prices, AIUsageMeters.CachedInputAudioTokens, cachedAudioTokens);
+        inputTokens -= cachedAudioTokens;
+
+        if (HasPrice(prices, AIUsageMeters.InputAudioTokens))
         {
-            inputTokens -= record.CachedInputTokenCount;
-            cost += record.CachedInputTokenCount * cachedPrice.Value;
+            var audioTokens = Math.Max(0, record.InputAudioTokenCount - cachedAudioTokens);
+            cost += Charge(prices, AIUsageMeters.InputAudioTokens, audioTokens);
+            inputTokens -= audioTokens;
         }
 
-        if (inputAudioPrice is not null)
+        if (HasPrice(prices, AIUsageMeters.InputImageTokens))
         {
-            inputTokens -= record.InputAudioTokenCount;
-            cost += record.InputAudioTokenCount * inputAudioPrice.Value;
+            cost += Charge(prices, AIUsageMeters.InputImageTokens, record.InputImageTokenCount);
+            inputTokens -= record.InputImageTokenCount;
         }
 
-        if (outputAudioPrice is not null)
+        if (HasPrice(prices, AIUsageMeters.CacheWriteInputTokens))
         {
+            cost += Charge(prices, AIUsageMeters.CacheWriteInputTokens, record.CacheWriteInputTokenCount);
+            inputTokens -= record.CacheWriteInputTokenCount;
+        }
+
+        if (HasPrice(prices, AIUsageMeters.CachedInputTokens))
+        {
+            var cachedTokens = Math.Max(0, record.CachedInputTokenCount - cachedAudioTokens);
+            cost += Charge(prices, AIUsageMeters.CachedInputTokens, cachedTokens);
+            inputTokens -= cachedTokens;
+        }
+
+        var outputTokens = (long)record.OutputTokenCount;
+
+        if (HasPrice(prices, AIUsageMeters.OutputAudioTokens))
+        {
+            cost += Charge(prices, AIUsageMeters.OutputAudioTokens, record.OutputAudioTokenCount);
             outputTokens -= record.OutputAudioTokenCount;
-            cost += record.OutputAudioTokenCount * outputAudioPrice.Value;
         }
 
-        cost += Math.Max(0, inputTokens) * (UnitPrice(pricing, AIUsageMeters.InputTokens) ?? 0);
-        cost += Math.Max(0, outputTokens) * (UnitPrice(pricing, AIUsageMeters.OutputTokens) ?? 0);
-        cost += UnitPrice(pricing, AIUsageMeters.Requests) ?? 0;
-        cost += record.AudioDurationMs / 1_000m * (UnitPrice(pricing, AIUsageMeters.AudioSeconds) ?? 0);
-        cost += record.CharacterCount * (UnitPrice(pricing, AIUsageMeters.Characters) ?? 0);
-        cost += record.ImageCount * (UnitPrice(pricing, AIUsageMeters.Images) ?? 0);
+        if (HasPrice(prices, AIUsageMeters.OutputImageTokens))
+        {
+            cost += Charge(prices, AIUsageMeters.OutputImageTokens, record.OutputImageTokenCount);
+            outputTokens -= record.OutputImageTokenCount;
+        }
+
+        cost += Charge(prices, AIUsageMeters.InputTokens, Math.Max(0, inputTokens));
+        cost += Charge(prices, AIUsageMeters.OutputTokens, Math.Max(0, outputTokens));
+        cost += Charge(prices, AIUsageMeters.Requests, 1);
+        cost += Charge(prices, AIUsageMeters.AudioSeconds, record.AudioDurationMs / 1_000m);
+        cost += Charge(prices, AIUsageMeters.Characters, record.CharacterCount);
+        cost += Charge(prices, AIUsageMeters.Images, record.ImageCount);
+        cost += Charge(prices, AIUsageMeters.WebSearches, record.WebSearchCount);
+        cost += Charge(prices, AIUsageMeters.WebFetches, record.WebFetchCount);
+
+        foreach (var price in prices)
+        {
+            if (price.Meter == AIUsageMeters.AdditionalCount &&
+                record.AdditionalCounts?.TryGetValue(price.CountName, out var count) == true)
+            {
+                cost += Charge(price, count);
+            }
+        }
 
         return cost;
     }
@@ -109,7 +143,7 @@ public static class AIUsageCostEstimator
     /// </summary>
     /// <param name="pricing">The pricing.</param>
     public static bool HasPrices(AIDeploymentPricing pricing)
-        => pricing?.Prices is { Count: > 0 } prices && prices.Any(price => price.Amount > 0 && price.Per > 0 && AIUsageMeters.Find(price.Meter) is not null);
+        => pricing?.Prices is { Count: > 0 } prices && prices.Any(IsValid);
 
     /// <summary>
     /// Loads the pricing of every deployment that has a price, keyed by deployment name, to estimate the cost of
@@ -137,21 +171,77 @@ public static class AIUsageCostEstimator
     }
 
     /// <summary>
-    /// Gets the price of one base unit of a meter, summing the deployment's prices for it, or <see langword="null"/>
-    /// when the deployment has no price for it.
+    /// Gets the prices that apply to a request of the given input size. For each meter (and count name), only the prices
+    /// with the highest long-context threshold the request exceeds apply, so a long-context price replaces the regular
+    /// one; prices at the same threshold add up.
     /// </summary>
-    private static decimal? UnitPrice(AIDeploymentPricing pricing, string meter)
+    private static List<AIDeploymentPrice> GetApplicablePrices(AIDeploymentPricing pricing, long inputTokens)
     {
-        decimal? total = null;
+        var applicable = new List<AIDeploymentPrice>();
 
-        foreach (var price in pricing.Prices)
+        foreach (var group in pricing.Prices
+            .Where(IsValid)
+            .Where(price => price.AboveInputTokens is not > 0 || inputTokens > price.AboveInputTokens)
+            .GroupBy(price => (Meter: AIUsageMeters.Find(price.Meter).Name, CountName: price.CountName ?? string.Empty)))
         {
-            if (price.Amount > 0 && price.Per > 0 && string.Equals(price.Meter, meter, StringComparison.OrdinalIgnoreCase))
+            var threshold = group.Max(price => price.AboveInputTokens ?? 0);
+
+            applicable.AddRange(group
+                .Where(price => (price.AboveInputTokens ?? 0) == threshold)
+                .Select(price => price.Meter == group.Key.Meter ? price : new AIDeploymentPrice
+                {
+                    Meter = group.Key.Meter,
+                    Amount = price.Amount,
+                    Per = price.Per,
+                    CountName = price.CountName,
+                    AboveInputTokens = price.AboveInputTokens,
+                    Increment = price.Increment,
+                }));
+        }
+
+        return applicable;
+    }
+
+    private static bool IsValid(AIDeploymentPrice price)
+        => price is not null &&
+            price.Amount > 0 &&
+            price.Per > 0 &&
+            AIUsageMeters.Find(price.Meter) is { } meter &&
+            (!meter.RequiresCountName || !string.IsNullOrEmpty(price.CountName));
+
+    private static bool HasPrice(List<AIDeploymentPrice> prices, string meter)
+        => prices.Any(price => price.Meter == meter);
+
+    private static decimal Charge(List<AIDeploymentPrice> prices, string meter, decimal quantity)
+    {
+        var cost = 0m;
+
+        foreach (var price in prices)
+        {
+            if (price.Meter == meter)
             {
-                total = (total ?? 0) + price.Amount / price.Per;
+                cost += Charge(price, quantity);
             }
         }
 
-        return total;
+        return cost;
+    }
+
+    /// <summary>
+    /// Charges one price for a quantity, rounded up to the price's billing increment.
+    /// </summary>
+    private static decimal Charge(AIDeploymentPrice price, decimal quantity)
+    {
+        if (quantity <= 0)
+        {
+            return 0;
+        }
+
+        if (price.Increment > 0)
+        {
+            quantity = Math.Ceiling(quantity / price.Increment) * price.Increment;
+        }
+
+        return quantity * price.Amount / price.Per;
     }
 }

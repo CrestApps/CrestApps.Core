@@ -22,4 +22,42 @@ public static class AIUsageAdditionalCounts
     /// The number of images generated. Copied to <see cref="Models.AICompletionUsageRecord.ImageCount"/>.
     /// </summary>
     public const string ImageCount = "ImageCount";
+
+    /// <summary>
+    /// The number of input tokens written to the prompt cache. Copied to
+    /// <see cref="Models.AICompletionUsageRecord.CacheWriteInputTokenCount"/>. Anthropic's
+    /// <c>CacheCreationInputTokens</c> is read the same way.
+    /// </summary>
+    public const string CacheWriteInputTokenCount = "CacheWriteInputTokenCount";
+
+    /// <summary>
+    /// The number of cached input tokens that were audio. Copied to
+    /// <see cref="Models.AICompletionUsageRecord.CachedInputAudioTokenCount"/>.
+    /// </summary>
+    public const string CachedInputAudioTokenCount = "CachedInputAudioTokenCount";
+
+    /// <summary>
+    /// The number of input tokens that were image tokens. Copied to
+    /// <see cref="Models.AICompletionUsageRecord.InputImageTokenCount"/>. The OpenAI adapter's
+    /// <c>InputTokenDetails.ImageTokenCount</c> is read the same way.
+    /// </summary>
+    public const string InputImageTokenCount = "InputImageTokenCount";
+
+    /// <summary>
+    /// The number of output tokens that were image tokens. Copied to
+    /// <see cref="Models.AICompletionUsageRecord.OutputImageTokenCount"/>.
+    /// </summary>
+    public const string OutputImageTokenCount = "OutputImageTokenCount";
+
+    /// <summary>
+    /// The number of web searches the provider ran. Copied to <see cref="Models.AICompletionUsageRecord.WebSearchCount"/>.
+    /// Anthropic's <c>WebSearchRequests</c> is read the same way.
+    /// </summary>
+    public const string WebSearchCount = "WebSearchCount";
+
+    /// <summary>
+    /// The number of web pages the provider fetched. Copied to <see cref="Models.AICompletionUsageRecord.WebFetchCount"/>.
+    /// Anthropic's <c>WebFetchRequests</c> is read the same way.
+    /// </summary>
+    public const string WebFetchCount = "WebFetchCount";
 }

@@ -42,4 +42,22 @@ public sealed class AIDeploymentPrice
     /// price per million tokens or <c>60</c> for a price per minute of audio, which is metered in seconds.
     /// </summary>
     public long Per { get; set; } = 1;
+
+    /// <summary>
+    /// Gets or sets, for <see cref="Completions.AIUsageMeters.AdditionalCount"/>, the name of the count the provider
+    /// reported, as it appears in <see cref="AICompletionUsageRecord.AdditionalCounts"/>.
+    /// </summary>
+    public string CountName { get; set; }
+
+    /// <summary>
+    /// Gets or sets an input size above which this price applies, for models with long-context pricing. A request
+    /// whose input tokens exceed it pays this price instead of the meter's prices with a lower threshold, or none.
+    /// </summary>
+    public long? AboveInputTokens { get; set; }
+
+    /// <summary>
+    /// Gets or sets the increment, in the meter's base units, each request's quantity is rounded up to, such as
+    /// <c>15</c> for audio billed in 15-second increments. Zero bills the exact quantity.
+    /// </summary>
+    public long Increment { get; set; }
 }
