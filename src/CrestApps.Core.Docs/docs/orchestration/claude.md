@@ -64,6 +64,7 @@ public sealed class ClaudeOptions
     public string ApiKey { get; set; }
     public string BaseUrl { get; set; } = "https://api.anthropic.com";
     public string DefaultModel { get; set; }
+    public bool EnablePromptCaching { get; set; } = true;
 }
 ```
 
@@ -74,7 +75,8 @@ public sealed class ClaudeOptions
   "ClaudeOptions": {
     "ApiKey": "sk-ant-...",
     "BaseUrl": "https://api.anthropic.com",
-    "DefaultModel": "claude-sonnet-4-6"
+    "DefaultModel": "claude-sonnet-4-6",
+    "EnablePromptCaching": true
   }
 }
 ```
@@ -82,6 +84,20 @@ public sealed class ClaudeOptions
 The orchestrator requires an API key. A default model is optional when profiles, templates, or chat interactions provide their own Claude model override.
 
 Per-profile, per-template, and per-chat overrides are stored in `ClaudeSessionMetadata`.
+
+### Prompt caching
+
+With `EnablePromptCaching` on (the default), every request marks Anthropic [prompt-cache](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) breakpoints on its stable prefix:
+
+- the last function tool in `ChatOptions.Tools`
+- the end of the system prompt
+- the last block of the latest message
+
+Anthropic caches everything up to and including a marked block for five minutes, so the next turn, and every later round trip of the tool-calling loop within a turn, reads that prefix at the cache-read rate instead of paying the full input price. Three of Anthropic's four breakpoints are used. Marked messages and tools are copies, so the conversation history passed to the orchestrator is never changed.
+
+A prefix shorter than the model's minimum cacheable length (1,024 to 4,096 tokens, depending on the model) is sent uncached, without an error. The first request that writes a prefix to the cache costs more than an uncached one, so turn caching off with `"EnablePromptCaching": false` only for workloads that never repeat a prefix within five minutes.
+
+Usage metering records cache reads as `CachedInputTokenCount`, so the savings appear in the usage reports.
 
 ## Services registered by `AddCoreAIClaudeOrchestrator()`
 
