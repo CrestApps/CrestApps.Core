@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Anthropic.Models.Messages;
 using CrestApps.Core.AI.Claude.Models;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Handlers;
@@ -120,6 +121,12 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         var configuredClient = builder.Build(context.ServiceProvider);
         var chatOptions = BuildChatOptions(context.CompletionContext, modelId, effortLevel);
         var prompts = BuildPrompts(context);
+
+        if (anthropicOptions.EnablePromptCaching)
+        {
+            ApplyPromptCaching(prompts, chatOptions);
+        }
+
         ChatResponseUpdate errorResponse = null;
 
         await using var responseEnumerator = configuredClient
@@ -290,6 +297,70 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         }
     }
 
+    /// <summary>
+    /// Marks Anthropic prompt-cache breakpoints on the stable prefix of the request: the last tool definition,
+    /// the end of the system prompt and the latest message. Anthropic caches everything up to and including a
+    /// marked block, so later turns, and later round trips of the tool-calling loop, read that prefix at the
+    /// cache-read rate. At most three of Anthropic's four breakpoints are used. A prefix shorter than the
+    /// model's minimum cacheable length is sent uncached without error.
+    /// </summary>
+    /// <param name="prompts">The prompts to send. Marked messages are replaced by copies, so the caller's
+    /// conversation history is never modified.</param>
+    /// <param name="options">The chat options whose last function tool is marked.</param>
+    private static void ApplyPromptCaching(List<ChatMessage> prompts, ChatOptions options)
+    {
+        if (options?.Tools is { Count: > 0 } tools)
+        {
+            for (var index = tools.Count - 1; index >= 0; index--)
+            {
+                if (tools[index] is AIFunction function)
+                {
+                    tools[index] = new CacheBreakpointAIFunction(function);
+
+                    break;
+                }
+            }
+        }
+
+        if (prompts.Count == 0)
+        {
+            return;
+        }
+
+        if (prompts[0].Role == ChatRole.System)
+        {
+            prompts[0] = WithCacheBreakpoint(prompts[0]);
+
+            if (prompts.Count == 1)
+            {
+                return;
+            }
+        }
+
+        prompts[^1] = WithCacheBreakpoint(prompts[^1]);
+    }
+
+    private static ChatMessage WithCacheBreakpoint(ChatMessage message)
+    {
+        if (message.Contents.Count == 0 || message.Contents[^1] is not TextContent text)
+        {
+            return message;
+        }
+
+        var contents = new List<AIContent>(message.Contents)
+        {
+            [^1] = new TextContent(text.Text)
+            {
+                AdditionalProperties = text.AdditionalProperties?.Clone(),
+            }.WithCacheControl(new CacheControlEphemeral()),
+        };
+
+        var copy = message.Clone();
+        copy.Contents = contents;
+
+        return copy;
+    }
+
     private static ChatResponseUpdate CreateTextResponse(string text)
     {
         return new ChatResponseUpdate
@@ -297,5 +368,24 @@ public sealed class ClaudeOrchestrator : IOrchestrator
             Role = ChatRole.Assistant,
             Contents = [new TextContent(text)],
         };
+    }
+
+    /// <summary>
+    /// Wraps a tool so the Anthropic chat client places a prompt-cache breakpoint after its definition.
+    /// </summary>
+    private sealed class CacheBreakpointAIFunction : DelegatingAIFunction
+    {
+        private readonly Dictionary<string, object> _additionalProperties;
+
+        public CacheBreakpointAIFunction(AIFunction innerFunction)
+            : base(innerFunction)
+        {
+            _additionalProperties = new Dictionary<string, object>(innerFunction.AdditionalProperties)
+            {
+                [nameof(Tool.CacheControl)] = new CacheControlEphemeral(),
+            };
+        }
+
+        public override IReadOnlyDictionary<string, object> AdditionalProperties => _additionalProperties;
     }
 }

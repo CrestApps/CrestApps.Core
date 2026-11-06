@@ -19,4 +19,11 @@ public sealed class ClaudeOptions
     /// The default model identifier used when a session does not override it.
     /// </summary>
     public string DefaultModel { get; set; }
+
+    /// <summary>
+    /// Whether requests mark Anthropic prompt-cache breakpoints on the last tool definition, the end of the
+    /// system prompt and the latest message, so the repeated prefix is billed at the cache-read rate.
+    /// Defaults to <see langword="true"/>.
+    /// </summary>
+    public bool EnablePromptCaching { get; set; } = true;
 }
