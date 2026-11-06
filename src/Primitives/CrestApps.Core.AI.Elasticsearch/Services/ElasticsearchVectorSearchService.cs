@@ -14,18 +14,22 @@ namespace CrestApps.Core.AI.Elasticsearch.Services;
 internal sealed class ElasticsearchVectorSearchService : IVectorSearchService
 {
     private readonly ElasticsearchClient _elasticClient;
+    private readonly DocumentIndexColumnNames _columnNames;
     private readonly ILogger<ElasticsearchVectorSearchService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ElasticsearchVectorSearchService"/> class.
     /// </summary>
     /// <param name="elasticClient">The elastic client.</param>
+    /// <param name="columnNames">The index field names, or <see langword="null"/> for <see cref="DocumentIndexColumnNames.Default"/>.</param>
     /// <param name="logger">The logger.</param>
     public ElasticsearchVectorSearchService(
         ElasticsearchClient elasticClient,
+        DocumentIndexColumnNames columnNames,
         ILogger<ElasticsearchVectorSearchService> logger)
     {
         _elasticClient = elasticClient;
+        _columnNames = columnNames ?? DocumentIndexColumnNames.Default;
         _logger = logger;
     }
 
@@ -61,7 +65,7 @@ internal sealed class ElasticsearchVectorSearchService : IVectorSearchService
             var response = await _elasticClient.SearchAsync<JsonObject>(s => s
                 .Indices(indexProfile.IndexFullName)
                 .Knn(k => k
-                    .Field(DocumentIndexConstants.ColumnNames.Embedding)
+                    .Field(_columnNames.Embedding)
                     .QueryVector(embedding)
                     .K(topN)
                     .NumCandidates(topN * 10)
@@ -69,10 +73,10 @@ internal sealed class ElasticsearchVectorSearchService : IVectorSearchService
                         .Bool(b => b
                             .Must(
                                 m => m.Term(t => t
-                                    .Field(DocumentIndexConstants.ColumnNames.ReferenceId)
+                                    .Field(_columnNames.ReferenceId)
                                     .Value(referenceId)),
                                 m => m.Term(t => t
-                                    .Field(DocumentIndexConstants.ColumnNames.ReferenceType)
+                                    .Field(_columnNames.ReferenceType)
                                     .Value(referenceType))))))
                 .Size(topN),
                 cancellationToken);
@@ -98,22 +102,22 @@ internal sealed class ElasticsearchVectorSearchService : IVectorSearchService
                     continue;
                 }
 
-                var chunkText = document.TryGetPropertyValue(DocumentIndexConstants.ColumnNames.Content, out var textNode)
+                var chunkText = document.TryGetPropertyValue(_columnNames.Content, out var textNode)
                     ? textNode?.GetValue<string>()
                     : null;
                 var chunkIndex = 0;
 
-                if (document.TryGetPropertyValue(DocumentIndexConstants.ColumnNames.ChunkIndex, out var indexNode) && indexNode != null)
+                if (document.TryGetPropertyValue(_columnNames.ChunkIndex, out var indexNode) && indexNode != null)
                 {
                     chunkIndex = indexNode.GetValue<int>();
                 }
 
                 if (!string.IsNullOrEmpty(chunkText))
                 {
-                    var documentKey = document.TryGetPropertyValue(DocumentIndexConstants.ColumnNames.DocumentId, out var docIdNode)
+                    var documentKey = document.TryGetPropertyValue(_columnNames.DocumentId, out var docIdNode)
                         ? docIdNode?.GetValue<string>()
                         : null;
-                    var fileName = document.TryGetPropertyValue(DocumentIndexConstants.ColumnNames.FileName, out var fileNameNode)
+                    var fileName = document.TryGetPropertyValue(_columnNames.FileName, out var fileNameNode)
                         ? fileNameNode?.GetValue<string>()
                         : null;
 

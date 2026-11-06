@@ -74,6 +74,61 @@ builder.Services.AddAzureAISearchODataFilterTranslator();
 
 The translator prefixes each field with `filters/` (`category eq 'support'` becomes `filters/category eq 'support'`). Azure AI Search accepts a filter only on a field that the index schema declares as filterable, so the knowledge base index must declare the `filters` complex field and each sub-field that a filter names. Otherwise, the search request fails.
 
+### Supplying your own client
+
+By default, every service uses the `SearchIndexClient` that `IAzureAISearchClientFactory` builds from `AzureAISearchConnectionOptions`. A host that already holds its own client, for example a multi-tenant host that resolves a client per tenant, passes a client factory instead. Each overload takes a `Func<IServiceProvider, SearchIndexClient>`:
+
+```csharp
+// Every core service, with the host's client. No IAzureAISearchClientFactory or SearchIndexClient is registered.
+builder.Services.AddCoreAzureAISearchServices(sp => sp.GetRequiredService<MyTenantSearchClients>().IndexClient);
+
+// Or only the services the host does not provide itself.
+builder.Services
+    .AddAzureAISearchDataSourceContentManager(sp => sp.GetRequiredService<MyTenantSearchClients>().IndexClient)
+    .AddAzureAISearchDataSourceDocumentReader(sp => sp.GetRequiredService<MyTenantSearchClients>().IndexClient)
+    .AddAzureAISearchODataFilterTranslator();
+```
+
+The AI search services in `CrestApps.Core.AI.Azure.AISearch` have matching overloads. They register the service alone, without the index profile source or handler that `AddAIDocuments()`, `AddAIMemory()` and `AddAIDataSources()` add:
+
+```csharp
+builder.Services
+    .AddAzureAISearchVectorSearchService(
+        sp => sp.GetRequiredService<MyTenantSearchClients>().IndexClient,
+        new DocumentIndexColumnNames { FileName = "file_name" })
+    .AddAzureAISearchMemoryVectorSearchService(sp => sp.GetRequiredService<MyTenantSearchClients>().IndexClient)
+    .AddAzureAISearchAIDataSourceSourceHandler();
+```
+
+| Method | Registers |
+|--------|-----------|
+| `AddCoreAzureAISearchServices(Func<IServiceProvider, SearchIndexClient>)` | Every service in the table above, with the supplied client |
+| `AddAzureAISearchDataSourceContentManager(Func<IServiceProvider, SearchIndexClient>)` | `IDataSourceContentManager` |
+| `AddAzureAISearchDataSourceDocumentReader(Func<IServiceProvider, SearchIndexClient>)` | `IDataSourceDocumentReader` |
+| `AddAzureAISearchVectorSearchService(Func<IServiceProvider, SearchIndexClient>, DocumentIndexColumnNames)` | `IVectorSearchService` for AI documents |
+| `AddAzureAISearchMemoryVectorSearchService(Func<IServiceProvider, SearchIndexClient>)` | `IMemoryVectorSearchService` for AI memory |
+| `AddAzureAISearchAIDataSourceSourceHandler()` | `IAIDataSourceSourceHandler` for external Azure AI Search sources, with the default `AzureAISearchClientFactory` |
+| `AddAzureAISearchAIDataSourceSourceHandler(Func<IServiceProvider, IAzureAISearchClientFactory>)` | The same handler, with the supplied factory |
+
+- The factory runs each time a scoped service is created, so return a client the host already holds rather than building a new one.
+- Each search service is added only when none is registered for its key yet, so a host can register its own client first and still call `AddAIDocuments()` or `AddAIMemory()` afterward. The source handler is added with `AddKeyedScoped`, so the last registration wins.
+- The source handler connects with the endpoint and credentials stored on each data source, not with the host's client, which is why it takes an `IAzureAISearchClientFactory` instead.
+- `DocumentIndexColumnNames` sets the field names the vector search reads. Each name defaults to `DocumentIndexConstants.ColumnNames`, and `null` keeps all the defaults.
+- The old registration methods call these overloads with the client of `IAzureAISearchClientFactory`, so their behavior does not change.
+
+### Escaping filter values
+
+Every filter the provider builds escapes its values through the public `ODataFilter` helper in `CrestApps.Core.Azure.AISearch`. A value placed in a filter without escaping can close its string literal and add conditions of its own. Use the helper whenever you build an Azure AI Search filter from a value you do not control:
+
+```csharp
+ODataFilter.Quote("O'Brien");                    // 'O''Brien'
+ODataFilter.Equal("userId", userId);             // userId eq '...'
+ODataFilter.AnyEqual("referenceId", ["a", "b"]); // referenceId eq 'a' or referenceId eq 'b'
+ODataFilter.Escape("O'Brien");                   // O''Brien, without the enclosing quotes
+```
+
+`Quote(null)` returns the OData `null` literal. Field names are written as is, so pass only names your code controls.
+
 AI-specific Azure AI Search registrations now live in `CrestApps.Core.AI.Azure.AISearch`. Register that package when you need `AddAIDocuments()`, `AddAIDataSources()`, `AddAIMemory()`, or Azure AI Search-backed AI RAG/search flows.
 
 When you call `AddAIDataSources()`, the feature builder also pulls in the shared asynchronous data-source synchronization stack from `AddCoreAIDataSourceRag()`, including:

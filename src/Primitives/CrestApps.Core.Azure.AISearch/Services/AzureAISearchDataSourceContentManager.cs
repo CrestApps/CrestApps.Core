@@ -26,7 +26,7 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
     internal static string BuildODataFilter(string dataSourceId, string filter)
     {
         // Always filter by dataSourceId.
-        var odataFilter = $"{DataSourceConstants.ColumnNames.DataSourceId} eq '{SanitizeODataValue(dataSourceId)}'";
+        var odataFilter = ODataFilter.Equal(DataSourceConstants.ColumnNames.DataSourceId, dataSourceId);
 
         // Merge with user-provided filter (already translated to OData for Azure).
 
@@ -408,7 +408,7 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
         {
             var searchClient = _searchIndexClient.GetSearchClient(indexProfile.IndexFullName);
 
-            var odataFilter = $"{DataSourceConstants.ColumnNames.DataSourceId} eq '{SanitizeODataValue(dataSourceId)}'";
+            var odataFilter = ODataFilter.Equal(DataSourceConstants.ColumnNames.DataSourceId, dataSourceId);
 
             long totalDeleted = 0;
 
@@ -498,20 +498,13 @@ internal sealed class AzureAISearchDataSourceContentManager : IDataSourceContent
     /// </remarks>
     internal static string BuildReferenceIdFilter(string dataSourceId, IEnumerable<string> referenceIds)
     {
-        var comparisons = string.Join(
-            " or ",
-            referenceIds.Select(id => $"{DataSourceConstants.ColumnNames.ReferenceId} eq '{SanitizeODataValue(id)}'"));
+        var comparisons = ODataFilter.AnyEqual(DataSourceConstants.ColumnNames.ReferenceId, referenceIds as IReadOnlyList<string> ?? referenceIds.ToArray());
 
-        return $"{DataSourceConstants.ColumnNames.DataSourceId} eq '{SanitizeODataValue(dataSourceId)}' and ({comparisons})";
+        return $"{ODataFilter.Equal(DataSourceConstants.ColumnNames.DataSourceId, dataSourceId)} and ({comparisons})";
     }
 
     /// <summary>
     /// Gets how many reference identifiers go into one filter.
     /// </summary>
     internal static int ReferenceIdBatchSize => ReferenceIdsPerFilter;
-
-    private static string SanitizeODataValue(string value)
-    {
-        return value.Replace("'", "''");
-    }
 }

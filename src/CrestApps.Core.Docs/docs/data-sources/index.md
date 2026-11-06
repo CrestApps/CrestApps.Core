@@ -425,7 +425,7 @@ For example, the Elasticsearch translator converts `category eq 'support'` into 
 
 The translator is resolved as a keyed service by the knowledge base index profile's `ProviderName`. The filter comes from `AIDataSourceRagMetadata` on the AI profile or on the chat interaction, and the preemptive retrieval and the `search_data_sources` tool (`DataSourceSearchTool`) read it the same way, so both apply the same filter, strictness and top-N to the same resource. When a filter is set and no translator is registered for the provider, both paths log a warning and search without the filter.
 
-`AddCoreElasticsearchServices()` and `AddCoreAzureAISearchServices()` register their translator. A host that brings its own clients and content managers for those providers can register only the translator with `AddElasticsearchODataFilterTranslator()` or `AddAzureAISearchODataFilterTranslator()`.
+`AddCoreElasticsearchServices()` and `AddCoreAzureAISearchServices()` register their translator. A host that brings its own clients and content managers for those providers can register only the translator with `AddElasticsearchODataFilterTranslator()` or `AddAzureAISearchODataFilterTranslator()`. A host that brings only its own client can register the CrestApps.Core services with that client instead. See *Supplying your own client* in [Elasticsearch](./elasticsearch.md#supplying-your-own-client) and [Azure AI Search](./azure-ai.md#supplying-your-own-client).
 
 ## Adding a Custom Backend
 

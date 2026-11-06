@@ -4,6 +4,7 @@ using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Models;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.Azure.AISearch;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using Microsoft.Extensions.Logging;
 using AzureSearchDocument = Azure.Search.Documents.Models.SearchDocument;
@@ -62,7 +63,7 @@ internal sealed class AzureAISearchMemoryVectorSearchService : IMemoryVectorSear
 
             var searchOptions = new SearchOptions
             {
-                Filter = $"{MemoryConstants.ColumnNames.UserId} eq '{userId}'",
+                Filter = ODataFilter.Equal(MemoryConstants.ColumnNames.UserId, userId),
                 Size = topN,
                 Select =
                 {
