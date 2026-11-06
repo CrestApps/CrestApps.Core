@@ -7,6 +7,7 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.Security;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -21,6 +22,8 @@ public sealed class ClaudeOrchestrator : IOrchestrator
     public const string OrchestratorName = "anthropic";
 
     private readonly IToolRegistry _toolRegistry;
+    private readonly IToolMaterializer _toolMaterializer;
+    private readonly IUserAccessor _userAccessor;
     private readonly ClaudeClientService _clientService;
     private readonly IOptionsSnapshot<ClaudeOptions> _anthropicOptions;
     private readonly DefaultAIOptions _defaultOptions;
@@ -31,6 +34,8 @@ public sealed class ClaudeOrchestrator : IOrchestrator
     /// Initializes a new instance of the <see cref="ClaudeOrchestrator"/> class.
     /// </summary>
     /// <param name="toolRegistry">The tool registry.</param>
+    /// <param name="toolMaterializer">The shared scoped-entries-to-tools materializer.</param>
+    /// <param name="userAccessor">The accessor that resolves the principal owning the current request.</param>
     /// <param name="clientService">The client service.</param>
     /// <param name="anthropicOptions">The anthropic options.</param>
     /// <param name="defaultOptions">The default options.</param>
@@ -38,6 +43,8 @@ public sealed class ClaudeOrchestrator : IOrchestrator
     /// <param name="logger">The logger.</param>
     public ClaudeOrchestrator(
         IToolRegistry toolRegistry,
+        IToolMaterializer toolMaterializer,
+        IUserAccessor userAccessor,
         ClaudeClientService clientService,
         IOptionsSnapshot<ClaudeOptions> anthropicOptions,
         IOptions<DefaultAIOptions> defaultOptions,
@@ -45,6 +52,8 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         ILogger<ClaudeOrchestrator> logger)
     {
         _toolRegistry = toolRegistry;
+        _toolMaterializer = toolMaterializer;
+        _userAccessor = userAccessor;
         _clientService = clientService;
         _anthropicOptions = anthropicOptions;
         _defaultOptions = defaultOptions.Value;
@@ -122,6 +131,9 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         var chatOptions = BuildChatOptions(context.CompletionContext, modelId, effortLevel);
         var prompts = BuildPrompts(context);
 
+        await AddToolsAsync(context.CompletionContext, scopedEntries, chatOptions, cancellationToken);
+
+        // Runs after the tools are added so the last tool gets its cache breakpoint.
         if (anthropicOptions.EnablePromptCaching)
         {
             ApplyPromptCaching(prompts, chatOptions);
@@ -167,6 +179,53 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         return options is not null &&
             !string.IsNullOrWhiteSpace(options.ApiKey) &&
             !string.IsNullOrWhiteSpace(options.DefaultModel);
+    }
+
+    /// <summary>
+    /// Materializes the scoped tool entries into <see cref="ChatOptions.Tools"/>. The Anthropic chat client is called
+    /// directly rather than through the AI completion service, so the function-invocation completion handler never
+    /// runs for this orchestrator and the tools are added here the same way.
+    /// </summary>
+    /// <param name="completionContext">The completion context.</param>
+    /// <param name="scopedEntries">The scoped tool entries.</param>
+    /// <param name="chatOptions">The chat options to add the tools to.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    private async Task AddToolsAsync(
+        AICompletionContext completionContext,
+        IReadOnlyList<ToolRegistryEntry> scopedEntries,
+        ChatOptions chatOptions,
+        CancellationToken cancellationToken)
+    {
+        if (completionContext.DisableTools || scopedEntries.Count == 0)
+        {
+            return;
+        }
+
+        // The per-user access check applies to Chat Interaction requests only. AI Sessions run the
+        // profile exactly as configured (the profile is the authorization boundary) and may be
+        // anonymous, so no session-time tool gate is applied.
+        var isChatInteraction = completionContext.AdditionalProperties.ContainsKey(AICompletionContextKeys.Interaction);
+
+        var result = await _toolMaterializer.MaterializeAsync(
+            scopedEntries,
+            new ToolMaterializationOptions
+            {
+                EnforceListableAccess = isChatInteraction,
+                User = isChatInteraction ? _userAccessor.User : null,
+            },
+            cancellationToken);
+
+        if (result.Tools.Count > 0)
+        {
+            chatOptions.Tools = [.. result.Tools];
+        }
+
+        if (result.DeniedToolNames.Count > 0)
+        {
+            _logger.LogWarning(
+                "The current Chat Interaction caller is not authorized to use the following listable AI tools, which were excluded from the request: {ToolNames}.",
+                string.Join(", ", result.DeniedToolNames));
+        }
     }
 
     private static ChatOptions BuildChatOptions(AICompletionContext context, string modelId, ClaudeEffortLevel effortLevel)

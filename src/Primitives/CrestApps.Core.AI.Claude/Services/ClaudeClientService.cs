@@ -13,6 +13,7 @@ public sealed class ClaudeClientService
 {
     private readonly IOptionsSnapshot<ClaudeOptions> _options;
     private readonly ILogger<ClaudeClientService> _logger;
+    private readonly HttpClient _httpClient;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ClaudeClientService"/> class.
@@ -25,6 +26,22 @@ public sealed class ClaudeClientService
     {
         _options = options;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ClaudeClientService"/> class that sends every request
+    /// through the given HTTP client, so tests can capture the request body.
+    /// </summary>
+    /// <param name="options">The options.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="httpClient">The HTTP client the Anthropic client uses.</param>
+    internal ClaudeClientService(
+        IOptionsSnapshot<ClaudeOptions> options,
+        ILogger<ClaudeClientService> logger,
+        HttpClient httpClient)
+        : this(options, logger)
+    {
+        _httpClient = httpClient;
     }
 
     /// <summary>
@@ -46,6 +63,11 @@ public sealed class ClaudeClientService
         if (!string.IsNullOrWhiteSpace(options.BaseUrl))
         {
             clientOptions.BaseUrl = options.BaseUrl;
+        }
+
+        if (_httpClient is not null)
+        {
+            clientOptions.HttpClient = _httpClient;
         }
 
         return new AnthropicClient(clientOptions);

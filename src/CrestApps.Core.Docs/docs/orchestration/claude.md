@@ -49,6 +49,7 @@ The `CrestApps.Core.AI.Claude` package mirrors the Copilot integration points th
 - registers a named orchestrator (`"anthropic"`) with the title **Claude**
 - adds an orchestration-context handler that reads `ClaudeSessionMetadata`
 - adds a chat-interaction settings handler so SignalR/MVC chat settings persist Claude model overrides
+- sends the request's scoped tools to Claude through `IToolMaterializer` and runs the tool-calling loop, re-checking a Chat Interaction's selectable tools against the current user
 - exposes `ClaudeClientService` for live model discovery through the Anthropic Models API
 - keeps all dependencies inside normal NuGet restore and application publish flows
 
