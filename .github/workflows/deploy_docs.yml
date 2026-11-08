@@ -61,3 +61,39 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  # A "Deploy from branch" Pages source starts a legacy build of /docs on every push
+  # to main. That build races this workflow, and if it finishes last it replaces the
+  # real site with an empty one (404 on every page). Fail loudly when that happens.
+  verify:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      pages: read
+    steps:
+      - name: Require the Pages source to be GitHub Actions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          build_type=$(gh api "repos/${{ github.repository }}/pages" --jq .build_type)
+          if [ "$build_type" != "workflow" ]; then
+            echo "::error::Pages build_type is '$build_type'. Set Settings > Pages > Build and deployment > Source to 'GitHub Actions'; a branch build of /docs can overwrite this deployment."
+            exit 1
+          fi
+
+      - name: Verify the published site responds
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          site_url=$(gh api "repos/${{ github.repository }}/pages" --jq .html_url)
+          for attempt in 1 2 3 4 5 6 7 8; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${site_url}?verify=${GITHUB_RUN_ID}")
+            if [ "$status" = "200" ]; then
+              echo "$site_url returned 200"
+              exit 0
+            fi
+            echo "Attempt $attempt: $site_url returned $status"
+            sleep 15
+          done
+          echo "::error::$site_url did not return 200 after deploying. Another deployment may have replaced this one."
+          exit 1
