@@ -2252,6 +2252,9 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             ChatLog.SessionResolved(Logger, chatSession.SessionId, isNew, Context.ConnectionId, services.GetHashCode());
         }
 
+        // The first message of a new chat arrives before its session exists, so the turn's span gets the id here.
+        Activity.Current?.SetTag(AITelemetry.SessionIdAttribute, chatSession.SessionId);
+
         await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
         var utcNow = GetUtcNow();
         if (IsEndedStatus(chatSession.Status))
