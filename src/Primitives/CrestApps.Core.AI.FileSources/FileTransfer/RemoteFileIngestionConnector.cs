@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Ingestion;
@@ -47,6 +48,8 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
         ArgumentNullException.ThrowIfNull(source);
 
         var folder = source.GetOrCreate<RemoteFileSourceMetadata>();
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
 
         try
         {
@@ -73,13 +76,21 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            outcome = CrestAppsTelemetry.OutcomeCancelled;
+
             throw;
         }
         catch (Exception ex)
         {
+            outcome = CrestAppsTelemetry.OutcomeError;
+
             _logger.LogWarning(ex, "Failed to list '{RootPath}' for source '{FileSourceId}'.", folder.RootPath, source.ItemId);
 
             return new IngestionDiscoveryResult([], IsComplete: false, "The folder could not be listed.");
+        }
+        finally
+        {
+            RecordOperation("list", startTimestamp, outcome);
         }
     }
 
@@ -101,6 +112,8 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
         }
 
         IRemoteFileClient client = null;
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
 
         try
         {
@@ -124,7 +137,7 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
             {
                 // The client is released when the content is, so a connection is never held open longer
                 // than the stream that needs it.
-                Content = new ClientOwningStream(stream, client),
+                Content = new ClientOwningStream(stream, client, Name),
                 MediaType = MediaTypeHelper.InferMediaType(Path.GetExtension(fileName), fallbackContentType: string.Empty),
                 Title = fileName,
                 FileName = fileName,
@@ -132,6 +145,8 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            outcome = CrestAppsTelemetry.OutcomeCancelled;
+
             if (client is not null)
             {
                 await client.DisposeAsync();
@@ -141,6 +156,8 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
         }
         catch (Exception ex)
         {
+            outcome = CrestAppsTelemetry.OutcomeError;
+
             _logger.LogWarning(ex, "Failed to read '{ItemId}' for source '{FileSourceId}'.", itemId, settings.ItemId);
 
             if (client is not null)
@@ -150,6 +167,19 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
 
             return null;
         }
+        finally
+        {
+            RecordOperation("read", startTimestamp, outcome);
+        }
+    }
+
+    private void RecordOperation(string operation, long startTimestamp, string outcome)
+    {
+        AITelemetry.IngestionConnectorDuration.Record(
+            Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+            new KeyValuePair<string, object>(AITelemetry.ConnectorTag, Name),
+            new KeyValuePair<string, object>(CrestAppsTelemetry.OperationTag, operation),
+            new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
     }
 
     /// <summary>
@@ -181,11 +211,15 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
     {
         private readonly Stream _inner;
         private readonly IRemoteFileClient _client;
+        private readonly string _connectorName;
 
-        public ClientOwningStream(Stream inner, IRemoteFileClient client)
+        private long _bytesRead;
+
+        public ClientOwningStream(Stream inner, IRemoteFileClient client, string connectorName)
         {
             _inner = inner;
             _client = client;
+            _connectorName = connectorName;
         }
 
         public override bool CanRead => _inner.CanRead;
@@ -209,7 +243,11 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            return _inner.Read(buffer, offset, count);
+            var read = _inner.Read(buffer, offset, count);
+
+            _bytesRead += read;
+
+            return read;
         }
 
         public override long Seek(long offset, SeekOrigin origin)
@@ -239,6 +277,14 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
         {
             if (disposing)
             {
+                // Disposing twice must not count the bytes twice.
+                var bytesRead = Interlocked.Exchange(ref _bytesRead, 0);
+
+                if (bytesRead > 0)
+                {
+                    AITelemetry.IngestionConnectorBytes.Add(bytesRead, new KeyValuePair<string, object>(AITelemetry.ConnectorTag, _connectorName));
+                }
+
                 _inner.Dispose();
                 _client.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }

@@ -1,4 +1,5 @@
 using System.ClientModel.Primitives;
+using System.Net;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using Microsoft.Extensions.Logging;
 
@@ -6,6 +7,8 @@ namespace CrestApps.Core.AI.OpenAI.Azure.Services;
 
 internal sealed class CrestAppsAzureOpenAIClientRetryPolicy : ClientRetryPolicy
 {
+    private const int MaxRecordedRetryAttempt = 5;
+
     private readonly AzureRetryBackoffType _backoffType;
     private readonly TimeSpan _baseDelay;
     private readonly TimeSpan? _maxRetryDelay;
@@ -49,6 +52,17 @@ internal sealed class CrestAppsAzureOpenAIClientRetryPolicy : ClientRetryPolicy
     /// <returns>The amount of time to wait before retrying.</returns>
     protected override TimeSpan GetNextDelay(PipelineMessage message, int tryCount)
     {
+        // The SDK asks for a delay only when it is about to retry, so this is where each retry is counted.
+        AITelemetry.ResilienceRetries.Add(
+            1,
+            new KeyValuePair<string, object>(AITelemetry.ClientTag, AzureOpenAIConstants.ClientName),
+            new KeyValuePair<string, object>(
+                AITelemetry.ReasonTag,
+                message?.Response?.Status == (int)HttpStatusCode.TooManyRequests
+                    ? "rate_limit"
+                    : "transient"),
+            new KeyValuePair<string, object>(AITelemetry.AttemptTag, Math.Min(tryCount, MaxRecordedRetryAttempt)));
+
         var multiplier = _backoffType switch
         {
             AzureRetryBackoffType.Constant => 1D,

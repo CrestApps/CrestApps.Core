@@ -35,6 +35,9 @@ public sealed class YesSqlStoreCommitter : IStoreCommitter
     {
         _logger.LogDebug("YesSqlStoreCommitter flushing the current YesSql session.");
 
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.store.commit");
+        activity?.SetTag(CrestAppsTelemetry.StoreTag, "YesSql");
+
         var startTimestamp = Stopwatch.GetTimestamp();
         var outcome = CrestAppsTelemetry.OutcomeOk;
 
@@ -45,6 +48,7 @@ public sealed class YesSqlStoreCommitter : IStoreCommitter
         catch (Exception ex)
         {
             outcome = CrestAppsTelemetry.GetOutcome(ex);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
 
             throw;
         }

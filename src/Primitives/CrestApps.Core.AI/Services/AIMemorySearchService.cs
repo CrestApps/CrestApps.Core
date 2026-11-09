@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
@@ -102,16 +103,30 @@ public sealed class AIMemorySearchService : IAIMemorySearchService
         var topN = requestedTopN.GetValueOrDefault(configuredTopN);
         topN = Math.Clamp(topN > 0 ? topN : configuredTopN, 1, 20);
 
+        var startTimestamp = Stopwatch.GetTimestamp();
         var vectorResults = await SearchIndexAsync(memoryOptions, userId, normalizedQueries, topN, cancellationToken);
 
         // No usable index, or an index that holds nothing for this user (for example, memories saved before the
         // index was configured): fall back to the store, so a saved memory can always be found again.
         if (vectorResults is { Count: > 0 })
         {
+            RecordSearch(startTimestamp, "index");
+
             return vectorResults;
         }
 
-        return await SearchStoreAsync(userId, normalizedQueries, topN);
+        var storeResults = await SearchStoreAsync(userId, normalizedQueries, topN);
+
+        RecordSearch(startTimestamp, "store");
+
+        return storeResults;
+    }
+
+    private static void RecordSearch(long startTimestamp, string mode)
+    {
+        AITelemetry.MemorySearchDuration.Record(
+            Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+            new KeyValuePair<string, object>(AITelemetry.ModeTag, mode));
     }
 
     private async Task<List<AIMemorySearchResult>> SearchIndexAsync(

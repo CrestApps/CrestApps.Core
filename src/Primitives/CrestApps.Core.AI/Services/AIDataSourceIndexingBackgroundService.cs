@@ -42,6 +42,12 @@ internal sealed class AIDataSourceIndexingBackgroundService : BackgroundService
             activity?.SetTag(CrestAppsTelemetry.ServiceTag, nameof(AIDataSourceIndexingBackgroundService));
             activity?.SetTag(CrestAppsTelemetry.WorkItemTypeTag, workItem.Type.ToString());
 
+            using var logScope = _logger.BeginScope(new Dictionary<string, object>
+            {
+                ["WorkItemType"] = workItem.Type,
+                ["DataSourceId"] = workItem.DataSource?.ItemId,
+            });
+
             var startTimestamp = Stopwatch.GetTimestamp();
             var outcome = CrestAppsTelemetry.OutcomeOk;
 

@@ -127,6 +127,8 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
         var now = _timeProvider.GetUtcNow();
         var result = MultiTierRateLimitEvaluator.Evaluate(_windows, groups, now);
 
+        AITelemetry.RateLimitTrackedKeys.Record(_windows.Count, new KeyValuePair<string, object>(AITelemetry.LimiterTag, "chat"));
+
         if (result.IsThrottled)
         {
             AITelemetry.RateLimitRejections.Add(1, new KeyValuePair<string, object>(AITelemetry.LimiterTag, "chat"));

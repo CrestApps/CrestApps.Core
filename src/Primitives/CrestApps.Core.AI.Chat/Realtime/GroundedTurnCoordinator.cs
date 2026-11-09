@@ -404,6 +404,8 @@ internal sealed class GroundedTurnCoordinator : IAsyncDisposable
         try
         {
             await _conversation.RequestAcknowledgementAsync(AcknowledgementInstructions, cancellationToken);
+
+            CountAcknowledgement("spoken");
         }
         catch (OperationCanceledException)
         {
@@ -411,6 +413,8 @@ internal sealed class GroundedTurnCoordinator : IAsyncDisposable
         }
         catch (Exception ex)
         {
+            CountAcknowledgement("failed");
+
             // The filler is cosmetic. Losing it must not cost the answer, so clear the wait it would have imposed.
             _logger.LogWarning(ex, "Realtime session {SessionId}: the spoken acknowledgement could not be requested.", _sessionId);
 
@@ -473,6 +477,8 @@ internal sealed class GroundedTurnCoordinator : IAsyncDisposable
             DisposeWatchdog(key);
         }
 
+        AITelemetry.RealtimeWatchdogFires.Add(1);
+
         // Warning, not debug: reaching here means a turn was swallowed. The session recovers, but something
         // upstream is not behaving and it will keep happening.
         _logger.LogWarning(
@@ -480,6 +486,11 @@ internal sealed class GroundedTurnCoordinator : IAsyncDisposable
             _sessionId, (int)timeout.TotalSeconds);
 
         await TryRequestResponseAsync(CancellationToken.None);
+    }
+
+    private static void CountAcknowledgement(string result)
+    {
+        AITelemetry.RealtimeAcknowledgements.Add(1, new KeyValuePair<string, object?>(AITelemetry.ResultTag, result));
     }
 
     private async Task RequestAnswerAfterAsync(Task previousTurn, CancellationToken cancellationToken)

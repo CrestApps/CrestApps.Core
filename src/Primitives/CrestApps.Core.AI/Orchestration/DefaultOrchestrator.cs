@@ -103,6 +103,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
         var profileToolCount = allTools.Count;
 
         IReadOnlyList<ToolRegistryEntry> scopedEntries;
+        string toolsMode;
 
         if (profileToolCount <= _options.ScopingThreshold)
         {
@@ -115,6 +116,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
             }
 
             scopedEntries = allTools;
+            toolsMode = "all";
         }
         else
         {
@@ -132,6 +134,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
 
                 var plan = await PlanAsync(context, allTools, cancellationToken);
                 scopedEntries = await ScopeToolsAsync(plan, context, allTools);
+                toolsMode = "planned";
 
                 // Add the plan as additional system context for the execution phase.
                 if (!string.IsNullOrWhiteSpace(plan))
@@ -157,6 +160,7 @@ public sealed class DefaultOrchestrator : IOrchestrator
                 }
 
                 scopedEntries = await ScopeToolsAsync(null, context, allTools);
+                toolsMode = "relevance";
             }
         }
 
@@ -165,7 +169,8 @@ public sealed class DefaultOrchestrator : IOrchestrator
         context.CompletionContext.ToolNames = scopedEntries.Select(e => e.Name).ToArray();
         context.CompletionContext.AdditionalProperties[FunctionInvocationAICompletionServiceHandler.ScopedEntriesKey] = scopedEntries;
 
-        AITelemetry.ScopedTools.Record(scopedEntries.Count);
+        AITelemetry.ScopedTools.Record(scopedEntries.Count, new KeyValuePair<string, object>(AITelemetry.ToolsModeTag, toolsMode));
+        Activity.Current?.SetTag(AITelemetry.ToolsModeTag, toolsMode);
 
         // Execute the completion with the scoped tool set.
         var chatDeployment = await ResolveChatDeploymentAsync(context);

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
@@ -83,6 +84,9 @@ public sealed class PreemptiveSearchQueryProvider
             return [context.UserMessage];
         }
 
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
+
         try
         {
             var systemPrompt = await _aiTemplateService.RenderAsync(AITemplateIds.SearchQueryExtraction);
@@ -128,9 +132,17 @@ public sealed class PreemptiveSearchQueryProvider
         }
         catch (Exception ex)
         {
+            outcome = CrestAppsTelemetry.GetOutcome(ex);
+
             _logger.LogWarning(ex, "Failed to extract search queries using utility model. Falling back to raw user message.");
 
             return [context.UserMessage];
+        }
+        finally
+        {
+            AITelemetry.RagQueryExtractionDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
         }
     }
 

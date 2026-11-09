@@ -49,6 +49,8 @@ public abstract class AIChatDocumentEndpointBase
 
         if (file.Length > DefaultMaxFileSizeBytes)
         {
+            CountRejectedUpload("size");
+
             return (false, S["The uploaded file exceeds the maximum allowed size of {0} MB.", DefaultMaxFileSizeBytes / (1024 * 1024)].Value, null);
         }
 
@@ -63,6 +65,8 @@ public abstract class AIChatDocumentEndpointBase
                 scanResult.Status,
                 scanResult.ThreatName ?? "unknown");
 
+            CountRejectedUpload("scan");
+
             return (false, S["The uploaded file was rejected by the security scanner."].Value, null);
         }
 
@@ -70,22 +74,30 @@ public abstract class AIChatDocumentEndpointBase
 
         if (MediaTypeHelper.IsVisionImageExtension(extension) && !allowVisionImages)
         {
+            CountRejectedUpload("disabled");
+
             return (false, S["Image uploads are not enabled or no vision deployment is configured."].Value, null);
         }
 
         if (!MediaTypeHelper.IsVisionImageExtension(extension) && !allowDocumentUploads)
         {
+            CountRejectedUpload("disabled");
+
             return (false, S["Document uploads are not enabled."].Value, null);
         }
 
         if (allowVisionImages && MediaTypeHelper.IsVisionImageExtension(extension) &&
             documentOptions.MaxVisionImageBytesPerFile > 0 && file.Length > documentOptions.MaxVisionImageBytesPerFile)
         {
+            CountRejectedUpload("size");
+
             return (false, S["The uploaded image exceeds the maximum allowed size of {0} MB.", documentOptions.MaxVisionImageBytesPerFile / (1024 * 1024)].Value, null);
         }
 
         if (!documentOptions.IsAllowedFileExtension(extension, allowVisionImages, allowDocumentUploads))
         {
+            CountRejectedUpload("type");
+
             return (false, S["File type '{0}' is not supported.", extension].Value, null);
         }
 
@@ -143,6 +155,11 @@ public abstract class AIChatDocumentEndpointBase
 
             return (false, S["Failed to process file."].Value, null);
         }
+    }
+
+    private static void CountRejectedUpload(string reason)
+    {
+        AITelemetry.UploadRejections.Add(1, new KeyValuePair<string, object>(AITelemetry.ReasonTag, reason));
     }
 
     /// <summary>

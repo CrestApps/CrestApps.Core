@@ -7,55 +7,55 @@ internal static class A2ALog
     private static readonly Action<ILogger, string, Exception> _failedToLoadAgentCardForConnection =
         LoggerMessage.Define<string>(
             LogLevel.Warning,
-            new EventId(1001, nameof(FailedToLoadAgentCardForConnection)),
+            new EventId(7001, nameof(FailedToLoadAgentCardForConnection)),
             "Failed to load agent card for A2A connection '{ConnectionId}'.");
 
     private static readonly Action<ILogger, string, string, Exception> _failedToFetchAgentCardFromHost =
         LoggerMessage.Define<string, string>(
             LogLevel.Warning,
-            new EventId(1002, nameof(FailedToFetchAgentCardFromHost)),
+            new EventId(7002, nameof(FailedToFetchAgentCardFromHost)),
             "Failed to fetch agent card from A2A host '{Endpoint}' for connection '{ConnectionId}'.");
 
     private static readonly Action<ILogger, string, string, Exception> _failedToCommunicateWithRemoteAgent =
         LoggerMessage.Define<string, string>(
             LogLevel.Error,
-            new EventId(1003, nameof(FailedToCommunicateWithRemoteAgent)),
+            new EventId(7003, nameof(FailedToCommunicateWithRemoteAgent)),
             "Failed to communicate with remote A2A agent '{AgentName}' at '{Endpoint}'.");
 
     private static readonly Action<ILogger, Exception> _failedToListLocalAgentProfiles =
         LoggerMessage.Define(
             LogLevel.Warning,
-            new EventId(1004, nameof(FailedToListLocalAgentProfiles)),
+            new EventId(7004, nameof(FailedToListLocalAgentProfiles)),
             "Failed to list local agent profiles.");
 
     private static readonly Action<ILogger, string, Exception> _failedToFetchAgentCardFromConnection =
         LoggerMessage.Define<string>(
             LogLevel.Warning,
-            new EventId(1005, nameof(FailedToFetchAgentCardFromConnection)),
+            new EventId(7005, nameof(FailedToFetchAgentCardFromConnection)),
             "Failed to fetch agent card from A2A connection '{ConnectionId}'.");
 
     private static readonly Action<ILogger, Exception> _failedToListRemoteA2AAgents =
         LoggerMessage.Define(
             LogLevel.Warning,
-            new EventId(1006, nameof(FailedToListRemoteA2AAgents)),
+            new EventId(7006, nameof(FailedToListRemoteA2AAgents)),
             "Failed to list remote A2A agents.");
 
     private static readonly Action<ILogger, Exception> _failedToSearchForTools =
         LoggerMessage.Define(
             LogLevel.Warning,
-            new EventId(1007, nameof(FailedToSearchForTools)),
+            new EventId(7007, nameof(FailedToSearchForTools)),
             "Failed to search for tools.");
 
     private static readonly Action<ILogger, Exception> _failedToSearchLocalAgentProfiles =
         LoggerMessage.Define(
             LogLevel.Warning,
-            new EventId(1008, nameof(FailedToSearchLocalAgentProfiles)),
+            new EventId(7008, nameof(FailedToSearchLocalAgentProfiles)),
             "Failed to search local agent profiles.");
 
     private static readonly Action<ILogger, Exception> _failedToSearchRemoteA2AAgents =
         LoggerMessage.Define(
             LogLevel.Warning,
-            new EventId(1009, nameof(FailedToSearchRemoteA2AAgents)),
+            new EventId(7009, nameof(FailedToSearchRemoteA2AAgents)),
             "Failed to search remote A2A agents.");
 
     public static void FailedToLoadAgentCardForConnection(ILogger logger, string connectionId, Exception exception)

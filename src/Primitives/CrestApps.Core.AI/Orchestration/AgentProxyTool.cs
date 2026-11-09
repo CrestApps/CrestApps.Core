@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
@@ -164,6 +165,8 @@ internal sealed class AgentProxyTool : AIFunction
         // Enter the sub-agent scope before building the context so that agent enrichment and
         // agent tools are suppressed for the agent's own orchestration.
         invocationContext.AgentInvocationDepth++;
+
+        Activity.Current?.SetTag(AITelemetry.AgentDepthAttribute, invocationContext.AgentInvocationDepth);
 
         try
         {

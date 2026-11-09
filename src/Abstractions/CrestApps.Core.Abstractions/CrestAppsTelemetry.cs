@@ -118,6 +118,15 @@ public static class CrestAppsTelemetry
         "The duration of a search index read or write.");
 
     /// <summary>
+    /// The number of documents written to or deleted from a search index, tagged with <see cref="ProviderTag"/> and
+    /// <see cref="OperationTag"/>. Only operations that succeeded are counted.
+    /// </summary>
+    public static readonly Counter<long> IndexDocuments = Meter.CreateCounter<long>(
+        "crestapps.core.index.documents",
+        "{document}",
+        "The number of documents written to or deleted from a search index.");
+
+    /// <summary>
     /// The duration of committing a unit of work to a store, tagged with <see cref="StoreTag"/> and <see cref="OutcomeTag"/>.
     /// </summary>
     public static readonly Histogram<double> StoreCommitDuration = CreateDurationHistogram(
@@ -157,6 +166,25 @@ public static class CrestAppsTelemetry
         "crestapps.core.background.cycle.duration",
         "The duration of one cycle of a periodic background service.",
         LongDurationBucketBoundaries);
+
+    /// <summary>
+    /// The Unix time, in seconds, a periodic background service last finished a cycle without an error, tagged
+    /// with <see cref="ServiceTag"/>. Alert when it falls too far behind the current time: the service has stopped
+    /// or keeps failing.
+    /// </summary>
+    public static readonly Gauge<long> BackgroundLastSuccess = Meter.CreateGauge<long>(
+        "crestapps.core.background.last_success",
+        "s",
+        "The Unix time a periodic background service last finished a cycle without an error.");
+
+    /// <summary>
+    /// The number of fire-and-forget tasks that failed, tagged with <see cref="ServiceTag"/>. Nothing awaits such a
+    /// task, so without this count its failure would only be a log line.
+    /// </summary>
+    public static readonly Counter<long> BackgroundTaskFaults = Meter.CreateCounter<long>(
+        "crestapps.core.background.task.faults",
+        "{fault}",
+        "The number of fire-and-forget tasks that failed.");
 
     /// <summary>
     /// Creates a histogram on <see cref="Meter"/> that records a duration in seconds with bucket boundaries suited
@@ -200,6 +228,28 @@ public static class CrestAppsTelemetry
     }
 
     /// <summary>
+    /// Records one cycle of a periodic background service on <see cref="BackgroundCycleDuration"/> and, when it
+    /// succeeded, on <see cref="BackgroundLastSuccess"/>.
+    /// </summary>
+    /// <param name="service">The service, by its type name.</param>
+    /// <param name="startTimestamp">The <see cref="Stopwatch"/> timestamp taken when the cycle started.</param>
+    /// <param name="outcome">How the cycle ended.</param>
+    public static void RecordBackgroundCycle(string service, long startTimestamp, string outcome)
+    {
+        var serviceTag = new KeyValuePair<string, object>(ServiceTag, service);
+
+        BackgroundCycleDuration.Record(
+            Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+            serviceTag,
+            new KeyValuePair<string, object>(OutcomeTag, outcome));
+
+        if (outcome == OutcomeOk)
+        {
+            BackgroundLastSuccess.Record(DateTimeOffset.UtcNow.ToUnixTimeSeconds(), serviceTag);
+        }
+    }
+
+    /// <summary>
     /// Records one search index read or write on <see cref="IndexOperationDuration"/>. The providers report a failed
     /// write by returning <c>false</c> rather than throwing, so the outcome is passed in rather than inferred.
     /// </summary>
@@ -207,17 +257,28 @@ public static class CrestAppsTelemetry
     /// <param name="operation">The operation, such as <c>search</c> or <c>write</c>.</param>
     /// <param name="startTimestamp">The <see cref="Stopwatch"/> timestamp taken when the operation started.</param>
     /// <param name="succeeded">Whether the operation succeeded.</param>
-    public static void RecordIndexOperation(string provider, string operation, long startTimestamp, bool succeeded)
+    /// <param name="documentCount">
+    /// The number of documents the operation wrote or deleted, counted on <see cref="IndexDocuments"/> when it succeeded.
+    /// </param>
+    public static void RecordIndexOperation(string provider, string operation, long startTimestamp, bool succeeded, int documentCount = 0)
     {
+        var providerTag = new KeyValuePair<string, object>(ProviderTag, provider);
+        var operationTag = new KeyValuePair<string, object>(OperationTag, operation);
+
         IndexOperationDuration.Record(
             Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
-            new KeyValuePair<string, object>(ProviderTag, provider),
-            new KeyValuePair<string, object>(OperationTag, operation),
+            providerTag,
+            operationTag,
             new KeyValuePair<string, object>(
                 OutcomeTag,
                 succeeded
                     ? OutcomeOk
                     : OutcomeError));
+
+        if (succeeded && documentCount > 0)
+        {
+            IndexDocuments.Add(documentCount, providerTag, operationTag);
+        }
     }
 
     /// <summary>

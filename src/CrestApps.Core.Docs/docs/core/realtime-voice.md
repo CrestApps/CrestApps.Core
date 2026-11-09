@@ -852,6 +852,10 @@ buffer overflows. The runner logs response start/completion and session end reas
 conversation without the provider ever reporting user speech, which means that deployment's events are not
 recognised and barge-in cannot work for it.
 
+With OpenTelemetry collected, every session is also a `crestapps.realtime.session` trace, and its grounding,
+first-audio latency, interruptions, provider errors, swallowed turns, the legs of a cascaded session and the WebRTC
+peer's state and codec failures are metrics. See [Observability](./observability.md#realtime-voice).
+
 ### Tracing knowledge grounding
 
 To confirm grounding is working, raise `CrestApps.Core.AI.Services.DefaultRealtimeTurnGrounding` and

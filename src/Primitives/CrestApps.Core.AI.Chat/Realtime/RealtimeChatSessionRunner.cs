@@ -123,6 +123,12 @@ public sealed class RealtimeChatSessionRunner
         using var sessionTrace = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.realtime.session");
         sessionTrace?.SetTag(AITelemetry.SessionIdAttribute, context.SessionId);
 
+        // Every log the session writes, including those of the tasks it starts, carries the session id.
+        using var logScope = _logger.BeginScope(new Dictionary<string, object>
+        {
+            ["SessionId"] = context.SessionId,
+        });
+
         var startTimestamp = Stopwatch.GetTimestamp();
 
         AITelemetry.RealtimeActiveSessions.Add(1);
@@ -276,6 +282,11 @@ public sealed class RealtimeChatSessionRunner
 
     // Provider errors that are an expected consequence of open-mic turn-taking rather than a real failure, so
     // they should be logged but never surfaced to the user as a chat message.
+    private static void CountProviderError(string reason)
+    {
+        AITelemetry.RealtimeProviderErrors.Add(1, new KeyValuePair<string, object?>(AITelemetry.ReasonTag, reason));
+    }
+
     private static bool IsBenignRealtimeError(string? message)
     {
         if (string.IsNullOrWhiteSpace(message))
@@ -482,6 +493,8 @@ public sealed class RealtimeChatSessionRunner
                             await sink.UserTurnDroppedAsync(sessionId, failed.TurnId, cancellationToken);
                         }
 
+                        CountProviderError("transcription");
+
                         if (_logger.IsEnabled(LogLevel.Debug))
                         {
                             _logger.LogDebug(
@@ -676,6 +689,8 @@ public sealed class RealtimeChatSessionRunner
                     if (!string.IsNullOrWhiteSpace(evt.ErrorMessage) &&
                         !string.Equals(evt.ResponseStatus, RealtimeResponseStatus.Cancelled, StringComparison.OrdinalIgnoreCase))
                     {
+                        CountProviderError("response");
+
                         _logger.LogWarning(
                             "Realtime response for session {SessionId} ended with status '{Status}': {Message}", sessionId, evt.ResponseStatus ?? "(none)", evt.ErrorMessage);
                         await sink.ErrorAsync(evt.ErrorMessage, cancellationToken);
@@ -721,6 +736,8 @@ public sealed class RealtimeChatSessionRunner
 
                         break;
                     }
+
+                    CountProviderError("error");
 
                     _logger.LogWarning("Realtime session error for session {SessionId}: {Message}", sessionId, evt.ErrorMessage);
                     await sink.ErrorAsync(evt.ErrorMessage ?? "An error occurred during the conversation.", cancellationToken);
@@ -926,6 +943,12 @@ public sealed class RealtimeChatSessionRunner
             catch (OperationCanceledException)
             {
                 // The session is tearing down; nothing left to gate.
+            }
+            catch (Exception ex)
+            {
+                CrestAppsTelemetry.BackgroundTaskFaults.Add(1, new KeyValuePair<string, object?>(CrestAppsTelemetry.ServiceTag, nameof(RealtimeChatSessionRunner)));
+
+                _logger.LogError(ex, "Realtime session {SessionId}: releasing the half-duplex gate failed.", sessionId);
             }
         }, CancellationToken.None);
 

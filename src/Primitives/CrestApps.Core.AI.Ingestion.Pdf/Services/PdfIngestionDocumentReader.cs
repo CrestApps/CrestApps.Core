@@ -142,7 +142,8 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
                 // Layout analysis is an improvement on reading the text, not a precondition for it. A page
                 // whose glyph geometry defeats the segmenter must cost this document its structure, not its
                 // content, so fall back to the reader that shipped before any of this existed.
-                _logger.LogWarning(ex, "Layout analysis failed for '{Identifier}'. Falling back to raw page text.", identifier);
+                CountFallback("layout");
+                PdfIngestionLog.LayoutAnalysisFailed(_logger, ex, identifier);
 
                 return ReadRawPageText(pdf, identifier, cancellationToken);
             }
@@ -226,7 +227,8 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
             {
                 // One page the segmenter cannot make sense of is one page without structure, not a document
                 // that cannot be read.
-                _logger.LogWarning(ex, "Segmenting page {PageNumber} of '{Identifier}' failed. Its text is kept unsegmented.", pageNumber, identifier);
+                CountFallback("segmentation");
+                PdfIngestionLog.PageSegmentationFailed(_logger, ex, pageNumber, identifier);
 
                 unsegmented.Add(pageNumber);
                 pages.Add([]);
@@ -443,7 +445,8 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
         catch (Exception ex)
         {
             // A page whose geometry cannot be read keeps its text. Nothing here may cost the page that.
-            _logger.LogWarning(ex, "Reading the drawn geometry failed on page {PageNumber} of '{Identifier}'.", page.Number, identifier);
+            CountFallback("geometry");
+            PdfIngestionLog.GeometryReadFailed(_logger, ex, page.Number, identifier);
 
             return [];
         }
@@ -489,7 +492,8 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
         {
             // A table that could not be read is a table read as prose, which is what it was before. Nothing
             // here may cost the page its text.
-            _logger.LogWarning(ex, "Table detection failed on page {PageNumber}.", page.Number);
+            CountFallback("tables");
+            PdfIngestionLog.TableDetectionFailed(_logger, ex, page.Number);
 
             return;
         }
@@ -560,7 +564,8 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Vector figure detection failed on page {PageNumber}.", page.Number);
+            CountFallback("vector_figures");
+            PdfIngestionLog.VectorFigureDetectionFailed(_logger, ex, page.Number);
 
             return;
         }
@@ -626,7 +631,8 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Chart extraction failed on page {PageNumber}.", page.Number);
+            CountFallback("charts");
+            PdfIngestionLog.ChartExtractionFailed(_logger, ex, page.Number);
 
             return;
         }
@@ -1129,6 +1135,16 @@ public sealed class PdfIngestionDocumentReader : IngestionDocumentReader
                 }
             }
         }
+    }
+
+    // A step of reading a PDF that failed and was skipped. The page keeps its text; it only loses the structure the
+    // step would have found.
+    private static void CountFallback(string operation)
+    {
+        AITelemetry.IngestionReaderFallbacks.Add(
+            1,
+            new KeyValuePair<string, object>(AITelemetry.ReaderTag, nameof(PdfIngestionDocumentReader)),
+            new KeyValuePair<string, object>(CrestAppsTelemetry.OperationTag, operation));
     }
 
     /// <summary>

@@ -93,7 +93,7 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
         }
         finally
         {
-            CrestAppsTelemetry.RecordIndexOperation(profile.ProviderName, "write", startTimestamp, succeeded);
+            CrestAppsTelemetry.RecordIndexOperation(profile.ProviderName, "write", startTimestamp, succeeded, documents.Count);
         }
     }
 
@@ -113,6 +113,9 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
             return;
         }
 
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var succeeded = false;
+
         try
         {
             var searchClient = _searchIndexClient.GetSearchClient(profile.IndexFullName);
@@ -120,6 +123,8 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
             var keyFieldName = await GetKeyFieldNameAsync(profile.IndexFullName, cancellationToken);
             var batch = IndexDocumentsBatch.Delete(keyFieldName, ids);
             await searchClient.IndexDocumentsAsync(batch, cancellationToken: cancellationToken);
+
+            succeeded = true;
 
             await NotifyDocumentsDeletedAsync(profile, ids, cancellationToken);
         }
@@ -130,6 +135,10 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting documents from Azure AI Search index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
+        }
+        finally
+        {
+            CrestAppsTelemetry.RecordIndexOperation(profile.ProviderName, "delete", startTimestamp, succeeded, ids.Count);
         }
     }
 

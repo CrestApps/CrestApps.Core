@@ -46,6 +46,12 @@ internal sealed class AIMemoryIndexingBackgroundService : BackgroundService
         activity?.SetTag(CrestAppsTelemetry.ServiceTag, nameof(AIMemoryIndexingBackgroundService));
         activity?.SetTag(CrestAppsTelemetry.WorkItemTypeTag, workItemType);
 
+        using var logScope = _logger.BeginScope(new Dictionary<string, object>
+        {
+            ["WorkItemType"] = workItemType,
+            ["MemoryId"] = workItem.Memory?.ItemId ?? workItem.DeletedMemoryId,
+        });
+
         var startTimestamp = Stopwatch.GetTimestamp();
         var outcome = CrestAppsTelemetry.OutcomeOk;
 

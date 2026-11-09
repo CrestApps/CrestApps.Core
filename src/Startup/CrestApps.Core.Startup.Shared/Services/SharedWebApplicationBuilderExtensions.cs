@@ -94,6 +94,10 @@ public static class SharedWebApplicationBuilderExtensions
             return builder;
         }
 
+        // The Azure OpenAI chat client calls the OpenAI SDK directly, which reports gen_ai telemetry of its own
+        // once this switch is on.
+        AppContext.SetSwitch("OpenAI.Experimental.EnableOpenTelemetry", true);
+
         // Logs reach both NLog and the collector, with their scopes and trace ids.
         builder.Logging.AddOpenTelemetry(logging =>
         {

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
@@ -53,6 +54,8 @@ public sealed partial class AzureOpenAICompletionClient
     private async IAsyncEnumerable<ChatResponseUpdate> CompleteStreamingWithResponsesApiAsync(IEnumerable<ChatMessage> messages, AICompletionContext context, AIDeployment deployment, AIProviderConnectionEntry connection, AzureRequestOptions requestOptions, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var chatClient = await CreateResponsesChatClientAsync(deployment);
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var receivedText = false;
 
         await using var updates = chatClient
             .GetStreamingResponseAsync(GetResponsesPrompts(messages, context), GetResponsesOptions(context, requestOptions), cancellationToken)
@@ -78,6 +81,15 @@ public sealed partial class AzureOpenAICompletionClient
                 throw;
             }
 
+            if (!receivedText && !string.IsNullOrEmpty(updates.Current.Text))
+            {
+                receivedText = true;
+
+                AITelemetry.CompletionTimeToFirstToken.Record(
+                    Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                    new KeyValuePair<string, object>(AITelemetry.ClientTag, ClientName));
+            }
+
             yield return updates.Current;
         }
     }
@@ -93,15 +105,24 @@ public sealed partial class AzureOpenAICompletionClient
     /// <param name="deployment">The deployment that serves the request.</param>
     private ValueTask<IChatClient> CreateResponsesChatClientAsync(AIDeployment deployment)
     {
-        return _clientFactory.CreateChatClientAsync(deployment, builder => builder.Use((innerClient, services) =>
+        return _clientFactory.CreateChatClientAsync(deployment, builder =>
         {
-            var functionInvokingClient = new FunctionInvokingChatClient(innerClient, _loggerFactory, services)
+            builder.Use((innerClient, services) =>
             {
-                MaximumIterationsPerRequest = _defaultOptions.MaximumIterationsPerRequest,
-            };
+                var functionInvokingClient = new FunctionInvokingChatClient(innerClient, _loggerFactory, services)
+                {
+                    MaximumIterationsPerRequest = _defaultOptions.MaximumIterationsPerRequest,
+                };
 
-            return functionInvokingClient.UseTextToolResults();
-        }));
+                return functionInvokingClient.UseTextToolResults();
+            });
+
+            // Innermost, as in NamedAICompletionClient, so every round trip and the tool calls between them are traced.
+            if (_defaultOptions.EnableOpenTelemetry)
+            {
+                builder.UseOpenTelemetry(_loggerFactory, CrestAppsTelemetry.AIClientSourceName, telemetry => telemetry.EnableSensitiveData = _defaultOptions.EnableSensitiveData);
+            }
+        });
     }
 
     private static ChatOptions GetResponsesOptions(AICompletionContext context, AzureRequestOptions requestOptions)

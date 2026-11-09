@@ -53,6 +53,44 @@ public sealed class ToolInvocationTelemetryTests
         Assert.Equal("unknown", span.GetTagItem(AITelemetry.ToolSourceTag));
     }
 
+    [Fact]
+    public async Task AToolThatHandsItsFailureBackAsAResult_IsRecordedAsAnError()
+    {
+        using var collector = new TelemetryCollector();
+        var toolName = "tool_" + Guid.NewGuid().ToString("N");
+
+        var tool = AIFunctionFactory.Create(
+            () =>
+            {
+                AIToolInvocation.ReportFailure();
+
+                return "The remote service could not be reached.";
+            },
+            toolName);
+
+        await InvokeToolAsync(tool, ToolRegistryEntrySource.McpServer);
+
+        var span = Assert.Single(collector.Activities, activity => activity.OperationName == "crestapps.tool.invoke" && Equals(activity.GetTagItem(AITelemetry.ToolNameTag), toolName));
+
+        Assert.Equal(System.Diagnostics.ActivityStatusCode.Error, span.Status);
+        Assert.Contains(collector.GetMeasurements("crestapps.core.ai.tool.duration", AITelemetry.ToolSourceTag, "mcp"), item => Equals(item.Tags[CrestAppsTelemetry.OutcomeTag], CrestAppsTelemetry.OutcomeError));
+    }
+
+    [Fact]
+    public async Task InvokingAToolForAClientOtherThanAModel_RecordsTheSourceItWasGiven()
+    {
+        using var collector = new TelemetryCollector();
+        var toolName = "tool_" + Guid.NewGuid().ToString("N");
+
+        var result = await AIToolInvocation.InvokeAsync(AIFunctionFactory.Create(() => "done", toolName), new AIFunctionArguments(), "mcp_server", TestContext.Current.CancellationToken);
+
+        Assert.Equal("done", result?.ToString());
+
+        var span = Assert.Single(collector.Activities, activity => activity.OperationName == "crestapps.tool.invoke" && Equals(activity.GetTagItem(AITelemetry.ToolNameTag), toolName));
+
+        Assert.Equal("mcp_server", span.GetTagItem(AITelemetry.ToolSourceTag));
+    }
+
     private static async Task InvokeToolAsync(AIFunction tool, ToolRegistryEntrySource? source)
     {
         using var invocationScope = AIInvocationScope.Begin();

@@ -86,6 +86,8 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
             {
                 (deniedToolNames ??= []).Add(entry.Name);
 
+                AITelemetry.ToolDenials.Add(1, new KeyValuePair<string, object>(AITelemetry.ReasonTag, "access"));
+
                 if (_logger.IsEnabled(LogLevel.Debug))
                 {
                     _logger.LogDebug(

@@ -85,10 +85,7 @@ internal sealed class FileSourceBackgroundService : BackgroundService
             }
             finally
             {
-                CrestAppsTelemetry.BackgroundCycleDuration.Record(
-                    Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
-                    new KeyValuePair<string, object>(CrestAppsTelemetry.ServiceTag, nameof(FileSourceBackgroundService)),
-                    new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
+                CrestAppsTelemetry.RecordBackgroundCycle(nameof(FileSourceBackgroundService), startTimestamp, outcome);
             }
         }
     }

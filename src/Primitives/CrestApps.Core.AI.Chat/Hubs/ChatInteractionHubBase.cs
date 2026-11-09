@@ -1715,6 +1715,7 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
         var startTimestamp = Stopwatch.GetTimestamp();
         var outcome = CrestAppsTelemetry.OutcomeOk;
+        string responseHandler = null;
 
         try
         {
@@ -1782,6 +1783,9 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
             var chatMode = await GetChatModeAsync(services);
             var handler = handlerResolver.Resolve(interaction.ResponseHandlerName, chatMode);
+
+            responseHandler = handler.Name;
+            Activity.Current?.SetTag(AITelemetry.ResponseHandlerTag, responseHandler);
 
             var handlerContext = new ChatResponseHandlerContext
             {
@@ -1935,9 +1939,14 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         {
             writer.Complete();
 
-            AITelemetry.ChatTurnDuration.Record(
-                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
-                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
+            var outcomeTag = new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome);
+
+            AITelemetry.ChatTurnDuration.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds, outcomeTag);
+
+            if (responseHandler is not null)
+            {
+                AITelemetry.ChatMessages.Add(1, outcomeTag, new KeyValuePair<string, object>(AITelemetry.ResponseHandlerTag, responseHandler));
+            }
         }
     }
 

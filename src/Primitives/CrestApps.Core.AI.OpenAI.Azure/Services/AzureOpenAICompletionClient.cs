@@ -270,6 +270,8 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
         var accumulatedToolCalls = new StreamingToolCallAccumulator();
         var iterations = 0;
         var stopwatch = Stopwatch.StartNew();
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var receivedText = false;
         Microsoft.Extensions.AI.UsageDetails usage = null;
         string responseId = null;
         string modelId = null;
@@ -346,6 +348,15 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
                 else
                 {
                     var result = CreateStreamingResponseUpdate(update);
+
+                    if (!receivedText && !string.IsNullOrEmpty(result.Text))
+                    {
+                        receivedText = true;
+
+                        AITelemetry.CompletionTimeToFirstToken.Record(
+                            Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                            new KeyValuePair<string, object>(AITelemetry.ClientTag, ClientName));
+                    }
 
                     responseId ??= result.ResponseId;
                     modelId ??= result.ModelId;

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using CrestApps.Core.AI.Mcp.Functions;
 using CrestApps.Core.AI.Mcp.Models;
@@ -58,6 +59,8 @@ internal sealed class McpToolRegistryProvider : IToolRegistryProvider
         }
 
         var entries = new List<ToolRegistryEntry>();
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
 
         foreach (var connection in connections)
         {
@@ -127,12 +130,19 @@ internal sealed class McpToolRegistryProvider : IToolRegistryProvider
             }
             catch (Exception ex)
             {
+                outcome = CrestAppsTelemetry.OutcomeError;
+
                 _logger.LogWarning(
                     ex,
                     "Failed to load MCP tool metadata from connection '{ConnectionId}'. Skipping.",
                     connection.ItemId);
             }
         }
+
+        AITelemetry.McpToolResolutionDuration.Record(
+            Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+            new KeyValuePair<string, object>(CrestAppsTelemetry.OperationTag, "registry"),
+            new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
 
         return entries;
     }

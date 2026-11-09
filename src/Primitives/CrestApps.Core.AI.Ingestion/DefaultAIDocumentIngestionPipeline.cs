@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.DataIngestion;
 
 namespace CrestApps.Core.AI.Ingestion;
@@ -56,7 +57,33 @@ public sealed class DefaultAIDocumentIngestionPipeline : IAIDocumentIngestionPip
             throw new NotSupportedException($"No document reader registered for extension '{Path.GetExtension(fileName)}'.");
         }
 
-        var document = await reader.ReadAsync(content, fileName, mediaType, cancellationToken);
+        var readerName = reader.GetType().Name;
+
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.ingest.read");
+        activity?.SetTag(AITelemetry.ReaderTag, readerName);
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
+        IngestionDocument document;
+
+        try
+        {
+            document = await reader.ReadAsync(content, fileName, mediaType, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            outcome = CrestAppsTelemetry.GetOutcome(ex);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+
+            throw;
+        }
+        finally
+        {
+            AITelemetry.IngestionReaderDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(AITelemetry.ReaderTag, readerName),
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
+        }
 
         foreach (var processor in _processors)
         {

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using Microsoft.Extensions.Logging;
@@ -54,6 +55,8 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
 
         // The handlers run preemptive retrieval and memory lookups, so their spans hang under this one.
         using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.orchestrate.context");
+
+        var startTimestamp = Stopwatch.GetTimestamp();
 
         var context = new OrchestrationContext
         {
@@ -157,6 +160,10 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
                 Array.Clear(handlerBuffer, 0, _handlerArray.Length);
                 ArrayPool<IOrchestrationContextBuilderHandler>.Shared.Return(handlerBuffer);
             }
+
+            AITelemetry.ContextBuildDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(AITelemetry.PhaseTag, "orchestration"));
         }
 
         // Flush accumulated system message.

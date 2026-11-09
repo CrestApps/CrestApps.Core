@@ -22,6 +22,11 @@ namespace CrestApps.Core.AI.Mcp;
 public static class McpServerBuilderExtensions
 {
     /// <summary>
+    /// The tool source a call from an MCP client is recorded under, apart from the tools a model calls.
+    /// </summary>
+    private const string McpServerToolSource = "mcp_server";
+
+    /// <summary>
     /// The input schema advertised for an agent exposed as a tool. It mirrors the schema
     /// <c>AgentProxyTool</c> presents to the model, so an MCP client calls an agent exactly the way the
     /// orchestrator does.
@@ -188,7 +193,7 @@ public static class McpServerBuilderExtensions
 
                 if (codeTool is not null)
                 {
-                    var result = await codeTool.InvokeAsync(BuildArguments(request), cancellationToken);
+                    var result = await AIToolInvocation.InvokeAsync(codeTool, BuildArguments(request), McpServerToolSource, cancellationToken);
 
                     return McpToolResultMapper.ToCallToolResult(result);
                 }
@@ -207,7 +212,7 @@ public static class McpServerBuilderExtensions
 
                         if (source is not null && source.CreateTool(instance) is AIFunction instanceFunction)
                         {
-                            var result = await instanceFunction.InvokeAsync(BuildArguments(request), cancellationToken);
+                            var result = await AIToolInvocation.InvokeAsync(instanceFunction, BuildArguments(request), McpServerToolSource, cancellationToken);
 
                             return McpToolResultMapper.ToCallToolResult(result);
                         }
@@ -223,7 +228,7 @@ public static class McpServerBuilderExtensions
                     // may invoke, never what an agent uses internally to do its job — filtering those would
                     // force an operator to expose each of them directly, which is the opposite of the point.
                     var agentTool = new AgentProxyTool(agent.Name, agent.Description);
-                    var agentResult = await agentTool.InvokeAsync(BuildArguments(request), cancellationToken);
+                    var agentResult = await AIToolInvocation.InvokeAsync(agentTool, BuildArguments(request), McpServerToolSource, cancellationToken);
 
                     return McpToolResultMapper.ToCallToolResult(agentResult);
                 }

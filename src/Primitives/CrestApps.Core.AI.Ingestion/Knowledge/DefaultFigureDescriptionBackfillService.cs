@@ -159,12 +159,20 @@ public sealed class DefaultFigureDescriptionBackfillService : IFigureDescription
             if (item.IsTransient)
             {
                 // Left exactly as it was found, which is what makes the next pass pick it up again.
+                CountFigure("retry");
+
                 continue;
             }
 
             if (Record(item))
             {
                 described++;
+
+                CountFigure("described");
+            }
+            else
+            {
+                CountFigure("failed");
             }
 
             await _store.UpdateAsync(item.Entry, cancellationToken);
@@ -273,11 +281,11 @@ public sealed class DefaultFigureDescriptionBackfillService : IFigureDescription
                 // The model was never reached, so this says nothing about whether the picture is readable.
                 // A figure marked failed is never retried, and retiring one over a dropped connection would
                 // lose it permanently, so it stays pending for the next pass instead.
-                _logger.LogWarning(ex, "Figure transcription could not be attempted for '{CanonicalId}'. It stays pending.", item.Entry.CanonicalId);
+                IngestionLog.FigureTranscriptionDeferred(_logger, ex, item.Entry.CanonicalId);
             }
             else
             {
-                _logger.LogWarning(ex, "Figure transcription failed for '{CanonicalId}'. The figure keeps its caption.", item.Entry.CanonicalId);
+                IngestionLog.FigureTranscriptionFailed(_logger, ex, item.Entry.CanonicalId);
             }
         }
         finally
@@ -310,6 +318,11 @@ public sealed class DefaultFigureDescriptionBackfillService : IFigureDescription
             TaskCanceledException => true,
             _ => false,
         };
+    }
+
+    private static void CountFigure(string result)
+    {
+        AITelemetry.IngestionFigures.Add(1, new KeyValuePair<string, object>(AITelemetry.ResultTag, result));
     }
 
     private static bool Record(FigureWork item)
@@ -360,7 +373,7 @@ public sealed class DefaultFigureDescriptionBackfillService : IFigureDescription
         catch (Exception ex)
         {
             // A cache that cannot be read costs one model call, never a transcription.
-            _logger.LogWarning(ex, "Failed to look up a cached description for '{CanonicalId}'.", entry.CanonicalId);
+            IngestionLog.FigureCacheLookupFailed(_logger, ex, entry.CanonicalId);
 
             return null;
         }
@@ -389,7 +402,7 @@ public sealed class DefaultFigureDescriptionBackfillService : IFigureDescription
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to read the stored figure '{StoragePath}'.", entry.StoragePath);
+            IngestionLog.FigureReadFailed(_logger, ex, entry.StoragePath);
 
             return ReadOnlyMemory<byte>.Empty;
         }
@@ -421,7 +434,7 @@ public sealed class DefaultFigureDescriptionBackfillService : IFigureDescription
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to read the vision deployment configured for source '{FileSourceId}'.", entry.FileSourceId);
+            IngestionLog.FigureDeploymentReadFailed(_logger, ex, entry.FileSourceId);
 
             return fallback;
         }

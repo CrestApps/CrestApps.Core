@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
@@ -170,12 +171,17 @@ public sealed class DataExtractionService
             return ([], false);
         }
 
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
+
         try
         {
             var chatClient = await GetChatClientAsync(profile);
 
             if (chatClient == null)
             {
+                outcome = CrestAppsTelemetry.OutcomeError;
+
                 _logger.LogWarning("Unable to create a chat client for data extraction on profile '{ProfileId}'.", profile.ItemId);
 
                 return ([], false);
@@ -246,9 +252,18 @@ public sealed class DataExtractionService
         }
         catch (Exception ex)
         {
+            outcome = CrestAppsTelemetry.GetOutcome(ex);
+
             _logger.LogError(ex, "Data extraction failed for session '{SessionId}'.", session.SessionId);
 
             return ([], false);
+        }
+        finally
+        {
+            AITelemetry.ChatPostProcessingDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OperationTag, "data_extraction"),
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
         }
     }
 

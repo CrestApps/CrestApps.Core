@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.Logging;
@@ -126,6 +127,41 @@ public sealed class AIChatSessionPostCloseProcessor
         AIChatSession chatSession,
         IReadOnlyList<AIChatSessionPrompt> prompts,
         CancellationToken cancellationToken = default)
+    {
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeError;
+
+        try
+        {
+            var result = await ProcessCoreAsync(profile, chatSession, prompts, cancellationToken);
+
+            if (result.IsCompleted)
+            {
+                outcome = CrestAppsTelemetry.OutcomeOk;
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            outcome = CrestAppsTelemetry.GetOutcome(ex);
+
+            throw;
+        }
+        finally
+        {
+            AITelemetry.ChatPostProcessingDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OperationTag, "post_close"),
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
+        }
+    }
+
+    private async Task<AIChatSessionPostCloseProcessingResult> ProcessCoreAsync(
+        AIProfile profile,
+        AIChatSession chatSession,
+        IReadOnlyList<AIChatSessionPrompt> prompts,
+        CancellationToken cancellationToken)
     {
         var result = new AIChatSessionPostCloseProcessingResult();
 

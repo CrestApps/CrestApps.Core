@@ -18,7 +18,30 @@ internal static class PromptSecurityTelemetry
         var directionTag = new KeyValuePair<string, object>(AITelemetry.DirectionTag, direction);
 
         AITelemetry.PromptEvaluationDuration.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds, directionTag);
-        AITelemetry.PromptChecks.Add(1, directionTag, new KeyValuePair<string, object>(AITelemetry.DecisionTag, GetDecision(result)));
+
+        var tags = new TagList
+        {
+            directionTag,
+            { AITelemetry.DecisionTag, GetDecision(result) },
+        };
+
+        if (!string.IsNullOrEmpty(result.DetectionRule))
+        {
+            tags.Add(AITelemetry.RuleCategoryTag, GetRuleCategory(result.DetectionRule));
+        }
+
+        AITelemetry.PromptChecks.Add(1, tags);
+    }
+
+    // A guardrail's rule ends with the topic its model named, such as "guardrail:medical-advice". Only the part
+    // before the colon is a bounded value.
+    private static string GetRuleCategory(string detectionRule)
+    {
+        var separatorIndex = detectionRule.IndexOf(':');
+
+        return separatorIndex < 0
+            ? detectionRule
+            : detectionRule[..separatorIndex];
     }
 
     private static string GetDecision(PromptSecurityResult result)

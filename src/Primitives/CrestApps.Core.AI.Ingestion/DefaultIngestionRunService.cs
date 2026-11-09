@@ -94,6 +94,28 @@ public sealed class DefaultIngestionRunService : IIngestionRunService
             AddRunItems(summary.ItemsDeleted, "deleted");
             AddRunItems(summary.ItemsFailed, "failed");
 
+            if (summary.FiguresPendingDescription > 0)
+            {
+                AITelemetry.IngestionFigures.Add(
+                    summary.FiguresPendingDescription,
+                    new KeyValuePair<string, object>(AITelemetry.ResultTag, "pending"));
+            }
+
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                var elapsedMilliseconds = (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
+
+                IngestionLog.RunCompleted(
+                    _logger,
+                    ingestionSource.ItemId,
+                    elapsedMilliseconds,
+                    summary.Status,
+                    summary.ItemsIndexed,
+                    summary.ItemsSkipped,
+                    summary.ItemsDeleted,
+                    summary.ItemsFailed);
+            }
+
             return summary;
         }
         catch (Exception ex)
@@ -321,8 +343,10 @@ public sealed class DefaultIngestionRunService : IIngestionRunService
         }
     }
 
-    private static async Task DiscardAsync(Task<IngestionItemContent> fetch)
+    private async Task DiscardAsync(Task<IngestionItemContent> fetch)
     {
+        AddRunItems(1, "discarded");
+
         try
         {
             var content = await fetch;
@@ -332,9 +356,10 @@ public sealed class DefaultIngestionRunService : IIngestionRunService
                 await content.DisposeAsync();
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // The fetch already failed or was cancelled; there is nothing left to release.
+            IngestionLog.DiscardedFetchFailed(_logger, ex);
         }
     }
 

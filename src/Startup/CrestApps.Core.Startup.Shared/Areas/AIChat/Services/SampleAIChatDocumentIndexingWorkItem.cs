@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.Startup.Shared.Areas.AIChat.Services;
@@ -8,6 +9,8 @@ internal sealed class SampleAIChatDocumentIndexingWorkItem
     public IReadOnlyCollection<AIDocumentChunk> Chunks { get; private init; } = [];
     public IReadOnlyCollection<string> ChunkIds { get; private init; } = [];
     public SampleAIChatDocumentIndexingWorkItemType Type { get; private init; }
+    public long QueuedTimestamp { get; } = Stopwatch.GetTimestamp();
+    public ActivityContext QueuedContext { get; } = Activity.Current?.Context ?? default;
 
     public static SampleAIChatDocumentIndexingWorkItem ForIndex(AIDocument document, IReadOnlyCollection<AIDocumentChunk> chunks)
     {

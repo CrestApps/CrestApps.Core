@@ -39,6 +39,9 @@ public sealed class EntityCoreStoreCommitter : IStoreCommitter
 
         _logger.LogDebug("EntityCoreStoreCommitter flushing tracked Entity Framework Core changes.");
 
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.store.commit");
+        activity?.SetTag(CrestAppsTelemetry.StoreTag, "EntityCore");
+
         var startTimestamp = Stopwatch.GetTimestamp();
         var outcome = CrestAppsTelemetry.OutcomeOk;
 
@@ -49,6 +52,7 @@ public sealed class EntityCoreStoreCommitter : IStoreCommitter
         catch (Exception ex)
         {
             outcome = CrestAppsTelemetry.GetOutcome(ex);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
 
             throw;
         }

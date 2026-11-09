@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.AI.DataSources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -59,6 +60,12 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
                 continue;
             }
 
+            using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.background.cycle");
+            activity?.SetTag(CrestAppsTelemetry.ServiceTag, nameof(AIDataSourceAlignmentBackgroundService));
+
+            var startTimestamp = Stopwatch.GetTimestamp();
+            var outcome = CrestAppsTelemetry.OutcomeOk;
+
             try
             {
                 if (_logger.IsEnabled(LogLevel.Trace))
@@ -71,11 +78,20 @@ internal sealed class AIDataSourceAlignmentBackgroundService : BackgroundService
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
+                outcome = CrestAppsTelemetry.OutcomeCancelled;
+
                 break;
             }
             catch (Exception ex)
             {
+                outcome = CrestAppsTelemetry.OutcomeError;
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+
                 _logger.LogError(ex, "An error occurred during nightly AI data-source alignment.");
+            }
+            finally
+            {
+                CrestAppsTelemetry.RecordBackgroundCycle(nameof(AIDataSourceAlignmentBackgroundService), startTimestamp, outcome);
             }
         }
     }

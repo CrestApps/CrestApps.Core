@@ -166,6 +166,12 @@ public sealed class ClaudeOrchestrator : IOrchestrator
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                // The failure reaches the user as text, so it is counted here or it would read as a successful turn.
+                AITelemetry.CompletionErrors.Add(
+                    1,
+                    new KeyValuePair<string, object>(AITelemetry.ClientTag, OrchestratorName),
+                    new KeyValuePair<string, object>(CrestAppsTelemetry.ErrorTypeTag, ex.GetType().FullName));
+
                 _logger.LogError(ex, "ClaudeOrchestrator: Unexpected error during Anthropic session.");
                 errorResponse = CreateTextResponse("An unexpected error occurred while communicating with Anthropic. Please try again.");
                 break;

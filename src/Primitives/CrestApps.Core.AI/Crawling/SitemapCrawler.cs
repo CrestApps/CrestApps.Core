@@ -213,6 +213,8 @@ public sealed class SitemapCrawler : ISitemapCrawler
         }
         catch (Exception ex)
         {
+            CountSitemapError("robots");
+
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 _logger.LogDebug(ex, "Failed to read robots.txt '{RobotsUrl}' during sitemap discovery.", robotsUrl);
@@ -252,10 +254,17 @@ public sealed class SitemapCrawler : ISitemapCrawler
         }
         catch (Exception ex)
         {
+            CountSitemapError("sitemap");
+
             _logger.LogWarning(ex, "Failed to read sitemap '{SitemapUrl}' during sitemap discovery.", url);
 
             return null;
         }
+    }
+
+    private static void CountSitemapError(string reason)
+    {
+        AITelemetry.WebCrawlSitemapErrors.Add(1, new KeyValuePair<string, object>(AITelemetry.ReasonTag, reason));
     }
 
     /// <summary>

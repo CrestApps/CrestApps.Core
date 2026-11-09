@@ -329,6 +329,12 @@ builder.Services
     .AddMyProvider();
 ```
 
+## Telemetry
+
+Every provider's streamed completions report their time to first token and their failures on the `CrestApps.Core`
+meter, tagged with the client, and get the OpenTelemetry `gen_ai.*` spans and metrics when `EnableOpenTelemetry` is
+on. See [Observability](../core/observability.md).
+
 ## Fallback Strategies
 
 The framework does not include automatic provider failover, but you can implement fallback logic at the application level:

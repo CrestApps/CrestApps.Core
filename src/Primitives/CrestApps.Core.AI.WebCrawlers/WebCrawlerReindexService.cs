@@ -152,6 +152,14 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
                 {
                     await _planner.PlanAndEnqueueAsync(crawler, cancellationToken);
                 }
+
+                if (_logger.IsEnabled(LogLevel.Information))
+                {
+                    _logger.LogInformation(
+                        "Re-indexed web crawler '{CrawlerId}' in {ElapsedMilliseconds} ms.",
+                        crawler.ItemId,
+                        (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

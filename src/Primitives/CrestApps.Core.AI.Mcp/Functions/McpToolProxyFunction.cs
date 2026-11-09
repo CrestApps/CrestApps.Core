@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Text.Json;
 using CrestApps.Core.AI.Mcp.Models;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,17 +59,17 @@ internal sealed class McpToolProxyFunction : AIFunction
 
         var logger = arguments.Services.GetRequiredService<ILogger<McpToolProxyFunction>>();
 
-        if (logger.IsEnabled(LogLevel.Debug))
-        {
-            logger.LogDebug("AI tool '{ToolName}' invoked.", Name);
-        }
+        Activity.Current?.SetTag(AITelemetry.McpConnectionAttribute, _connectionId);
+
+        McpLog.ToolInvoked(logger, Name);
 
         var store = arguments.Services.GetRequiredService<ISourceCatalog<McpConnection>>();
         var connection = await store.FindByIdAsync(_connectionId, cancellationToken);
 
         if (connection is null)
         {
-            logger.LogWarning("AI tool '{ToolName}' failed: MCP connection '{ConnectionId}' not found.", Name, _connectionId);
+            McpLog.ConnectionNotFound(logger, Name, _connectionId);
+            AIToolInvocation.ReportFailure();
 
             return JsonSerializer.Serialize(new { error = $"MCP connection '{_connectionId}' not found." });
         }
@@ -77,7 +79,8 @@ internal sealed class McpToolProxyFunction : AIFunction
 
         if (client is null)
         {
-            logger.LogWarning("AI tool '{ToolName}' failed: could not connect to MCP server '{ConnectionId}'.", Name, _connectionId);
+            McpLog.ConnectFailed(logger, Name, _connectionId);
+            AIToolInvocation.ReportFailure();
 
             return JsonSerializer.Serialize(new { error = $"Failed to connect to MCP server '{_connectionId}'." });
         }
@@ -100,16 +103,19 @@ internal sealed class McpToolProxyFunction : AIFunction
 
             var result = await client.CallToolAsync(_name, args, cancellationToken: cancellationToken);
 
-            if (logger.IsEnabled(LogLevel.Debug))
+            if (result.IsError == true)
             {
-                logger.LogDebug("AI tool '{ToolName}' completed.", Name);
+                AIToolInvocation.ReportFailure();
             }
+
+            McpLog.ToolCompleted(logger, Name);
 
             return JsonSerializer.Serialize(result);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error invoking MCP tool '{ToolName}' on server '{ConnectionId}'.", _name, _connectionId);
+            McpLog.ToolFailed(logger, ex, _name, _connectionId);
+            AIToolInvocation.ReportFailure();
 
             return JsonSerializer.Serialize(new { error = $"Error invoking MCP tool '{_name}'." });
         }

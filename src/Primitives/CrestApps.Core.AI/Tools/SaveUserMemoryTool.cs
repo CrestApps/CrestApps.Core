@@ -117,6 +117,8 @@ public sealed partial class SaveUserMemoryTool : AIFunction
 
         if (!safetyService.TryValidate(name, description, content, out var errorMessage))
         {
+            CountSave("rejected");
+
             return errorMessage;
         }
 
@@ -150,6 +152,10 @@ public sealed partial class SaveUserMemoryTool : AIFunction
             await manager.UpdateAsync(existingMemory, cancellationToken: cancellationToken);
         }
 
+        CountSave(created
+            ? "created"
+            : "updated");
+
         return JsonSerializer.Serialize(new
         {
             existingMemory.ItemId,
@@ -160,5 +166,10 @@ public sealed partial class SaveUserMemoryTool : AIFunction
             existingMemory.UpdatedUtc,
             Created = created,
         });
+    }
+
+    private static void CountSave(string result)
+    {
+        AITelemetry.MemorySaves.Add(1, new KeyValuePair<string, object>(AITelemetry.ResultTag, result));
     }
 }

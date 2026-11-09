@@ -50,6 +50,9 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 {
     private const string _conversationCtsKey = "ConversationCts";
 
+    // The invocation item that hands the name of the turn's response handler back up to the turn.
+    private const string _responseHandlerItemKey = "ResponseHandlerName";
+
     private readonly IServiceProvider _services;
     private readonly TimeProvider _timeProvider;
 
@@ -2084,10 +2087,13 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
         var startTimestamp = Stopwatch.GetTimestamp();
         var outcome = CrestAppsTelemetry.OutcomeOk;
+        AIInvocationContext invocationContext = null;
 
         try
         {
             using var invocationScope = AIInvocationScope.Begin();
+            invocationContext = invocationScope.Context;
+
             if (string.IsNullOrWhiteSpace(profileId))
             {
                 await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(profileId)));
@@ -2194,9 +2200,14 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         {
             writer.Complete();
 
-            AITelemetry.ChatTurnDuration.Record(
-                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
-                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
+            var outcomeTag = new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome);
+
+            AITelemetry.ChatTurnDuration.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds, outcomeTag);
+
+            if (invocationContext?.Items.GetValueOrDefault(_responseHandlerItemKey) is string responseHandler)
+            {
+                AITelemetry.ChatMessages.Add(1, outcomeTag, new KeyValuePair<string, object>(AITelemetry.ResponseHandlerTag, responseHandler));
+            }
         }
     }
 
@@ -2238,12 +2249,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
         if (Logger.IsEnabled(LogLevel.Debug))
         {
-            Logger.LogDebug(
-                "[ChatPersist] Resolved session {SessionId} (isNew={IsNew}) on connection {ConnectionId} using services scope {ServicesHash}.",
-                chatSession.SessionId,
-                isNew,
-                Context.ConnectionId,
-                services.GetHashCode());
+            ChatLog.SessionResolved(Logger, chatSession.SessionId, isNew, Context.ConnectionId, services.GetHashCode());
         }
 
         await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
@@ -2275,12 +2281,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var existingPrompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
         if (Logger.IsEnabled(LogLevel.Debug))
         {
-            Logger.LogDebug(
-                "[ChatPersist] Staged user prompt {ItemId} for session {SessionId}; store now reports {StagedCount} prompt(s) (promptStore {StoreHash}).",
-                userPromptRecord.ItemId,
-                chatSession.SessionId,
-                existingPrompts.Count,
-                promptStore.GetHashCode());
+            ChatLog.UserPromptStaged(Logger, userPromptRecord.ItemId, chatSession.SessionId, existingPrompts.Count, promptStore.GetHashCode());
         }
 
         var conversationHistory = ChatConversationHistoryBuilder.Build(
@@ -2289,6 +2290,16 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         // Resolve the chat response handler for this session.
         var chatMode = profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings) ? chatModeSettings.ChatMode : ChatMode.TextInput;
         var handler = handlerResolver.Resolve(chatSession.ResponseHandlerName, chatMode);
+        var responseHandlerTag = new KeyValuePair<string, object>(AITelemetry.ResponseHandlerTag, handler.Name);
+
+        Activity.Current?.SetTag(AITelemetry.ResponseHandlerTag, handler.Name);
+
+        // The message is counted by the turn, once the turn knows how it ended.
+        if (AIInvocationScope.Current is { } invocationContext)
+        {
+            invocationContext.Items[_responseHandlerItemKey] = handler.Name;
+        }
+
         var handlerContext = new ChatResponseHandlerContext
         {
             Prompt = prompt,
@@ -2354,6 +2365,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         CollectStreamingReferences(services, handlerContext, references, contentItemIds);
         stopwatch.Stop();
 
+        AITelemetry.ChatResponseDuration.Record(stopwatch.Elapsed.TotalSeconds, responseHandlerTag);
+
         // The answer has streamed. A Stop click from here on only ends the stream on the client: the turn
         // must still be checked, completed and saved, so the remaining work ignores the caller's token.
         // A cancelled token would otherwise fail even the channel writes below, and lose the whole turn.
@@ -2386,10 +2399,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
             if (Logger.IsEnabled(LogLevel.Debug))
             {
-                Logger.LogDebug(
-                    "[ChatPersist] Staged assistant prompt {ItemId} for session {SessionId}.",
-                    assistantMessage.ItemId,
-                    chatSession.SessionId);
+                ChatLog.AssistantPromptStaged(Logger, assistantMessage.ItemId, chatSession.SessionId);
             }
         }
         else
@@ -2420,10 +2430,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
         if (Logger.IsEnabled(LogLevel.Debug))
         {
-            Logger.LogDebug(
-                "[ChatPersist] Session {SessionId} has {StagedCount} prompt(s) staged before final commit.",
-                chatSession.SessionId,
-                prompts.Count);
+            ChatLog.PromptsStagedBeforeCommit(Logger, chatSession.SessionId, prompts.Count);
         }
 
         await sessionHandlers.InvokeAsync((h, ctx) => h.MessageCompletedAsync(ctx), context, Logger);
@@ -2729,11 +2736,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
         if (Logger.IsEnabled(LogLevel.Debug))
         {
-            Logger.LogDebug(
-                "[ChatPersist] Committing session {SessionId} using committer {CommitterHash} resolved from services scope {ServicesHash}.",
-                chatSession.SessionId,
-                committer.GetHashCode(),
-                services.GetHashCode());
+            ChatLog.SessionCommitting(Logger, chatSession.SessionId, committer.GetHashCode(), services.GetHashCode());
         }
 
         await committer.CommitAsync();
@@ -2746,11 +2749,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             {
                 var persistedCount = await promptStore.CountAsync(chatSession.SessionId);
 
-                Logger.LogDebug(
-                    "[ChatPersist] After commit, session {SessionId} reports {PersistedCount} persisted prompt(s) (promptStore {StoreHash}).",
-                    chatSession.SessionId,
-                    persistedCount,
-                    promptStore.GetHashCode());
+                ChatLog.SessionCommitted(Logger, chatSession.SessionId, persistedCount, promptStore.GetHashCode());
             }
         }
     }
