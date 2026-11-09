@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using CrestApps.Core.AI.Completions;
@@ -77,6 +78,63 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         ArgumentException.ThrowIfNullOrEmpty(referenceId);
         ArgumentException.ThrowIfNullOrEmpty(referenceType);
 
+        // The file name stays off the span: it can identify a person, and the extension says what was read.
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.ingest.process");
+        activity?.SetTag("crestapps.document.extension", Path.GetExtension(file.FileName));
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeError;
+
+        try
+        {
+            var result = await ProcessCoreAsync(file, referenceId, referenceType, embeddingGenerator, maxIndexableCharacters, describeFiguresInUploads);
+
+            if (result.Success)
+            {
+                outcome = CrestAppsTelemetry.OutcomeOk;
+
+                AITelemetry.IngestionChunks.Record(result.Chunks.Count);
+            }
+            else
+            {
+                // Without the description: the error text can repeat the file name.
+                activity?.SetStatus(ActivityStatusCode.Error);
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            outcome = CrestAppsTelemetry.GetOutcome(ex);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+
+            throw;
+        }
+        finally
+        {
+            AITelemetry.IngestionDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
+        }
+    }
+
+    /// <summary>
+    /// Reads, chunks and embeds a file.
+    /// </summary>
+    /// <param name="file">The file.</param>
+    /// <param name="referenceId">The reference id.</param>
+    /// <param name="referenceType">The reference type.</param>
+    /// <param name="embeddingGenerator">The embedding generator.</param>
+    /// <param name="maxIndexableCharacters">The profile's ceiling on indexable characters, when it set one.</param>
+    /// <param name="describeFiguresInUploads">The profile's choice of describing figures, when it made one.</param>
+    private async Task<DocumentProcessingResult> ProcessCoreAsync(
+        IFormFile file,
+        string referenceId,
+        string referenceType,
+        IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
+        int? maxIndexableCharacters,
+        bool? describeFiguresInUploads)
+    {
         var extension = Path.GetExtension(file.FileName);
         var options = _extractorOptions.Value;
         var isTabular = options.IsTabularFileExtension(extension);
@@ -153,7 +211,7 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Document processing: failed to read file '{FileName}' with extension '{Extension}'.", file.FileName, extension);
+            DocumentProcessingLog.ReadFailed(_logger, ex, file.FileName, extension);
 
             return DocumentProcessingResult.Failed($"Failed to read the document '{file.FileName}'.");
         }
@@ -233,7 +291,9 @@ public sealed class DefaultAIDocumentProcessingService : IAIDocumentProcessingSe
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to generate embeddings for '{FileName}'. Chunks will be stored without embeddings.", file.FileName);
+                    AITelemetry.EmbeddingFallbacks.Add(chunksForEmbedding.Count);
+
+                    DocumentProcessingLog.EmbeddingFailed(_logger, ex, file.FileName);
                 }
             }
         }

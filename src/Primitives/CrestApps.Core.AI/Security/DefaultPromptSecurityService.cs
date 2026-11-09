@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -89,7 +90,11 @@ public sealed class DefaultPromptSecurityService : IPromptSecurityService
             MaxPromptLength = maxPromptLength,
             BlockingThreshold = blockingThreshold,
         };
+
+        var startTimestamp = Stopwatch.GetTimestamp();
         var result = await _detector.EvaluateAsync(evaluationContext, cancellationToken);
+
+        PromptSecurityTelemetry.RecordCheck(result, AITelemetry.InputDirection, startTimestamp);
 
         if (result.RiskLevel != PromptRiskLevel.None)
         {

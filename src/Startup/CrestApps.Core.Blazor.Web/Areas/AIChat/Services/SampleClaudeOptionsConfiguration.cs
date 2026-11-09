@@ -12,7 +12,7 @@ internal sealed class SampleClaudeOptionsConfiguration : IConfigureOptions<Claud
     private static readonly Action<ILogger, Exception> _failedToUnprotectApiKey =
         LoggerMessage.Define(
             LogLevel.Warning,
-            new EventId(1001, nameof(FailedToUnprotectApiKey)),
+            new EventId(9021, nameof(FailedToUnprotectApiKey)),
             "Failed to unprotect Anthropic API key.");
 
     private readonly SiteSettingsStore _siteSettings;

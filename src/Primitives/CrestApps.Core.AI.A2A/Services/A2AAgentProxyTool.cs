@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Text.Json;
 using A2A;
 using CrestApps.Core.AI.A2A.Models;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -128,7 +130,7 @@ internal sealed class A2AAgentProxyTool : AIFunction
                 Message = agentMessage,
             };
 
-            var response = await client.SendMessageAsync(sendRequest, cancellationToken);
+            var response = await SendAsync(client, sendRequest, cancellationToken);
 
             var responseText = ExtractTextFromResponse(response);
 
@@ -141,8 +143,33 @@ internal sealed class A2AAgentProxyTool : AIFunction
         catch (Exception ex)
         {
             A2ALog.FailedToCommunicateWithRemoteAgent(logger, _agentName, _endpoint, ex);
+            AIToolInvocation.ReportFailure();
 
             return $"An error occurred while communicating with remote agent '{_agentName}'.";
+        }
+    }
+
+    // The call to the remote agent is timed on its own, apart from building the client and reading the reply.
+    private static async Task<SendMessageResponse> SendAsync(A2AClient client, SendMessageRequest request, CancellationToken cancellationToken)
+    {
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
+
+        try
+        {
+            return await client.SendMessageAsync(request, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            outcome = CrestAppsTelemetry.GetOutcome(ex);
+
+            throw;
+        }
+        finally
+        {
+            AITelemetry.A2AClientDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
         }
     }
 

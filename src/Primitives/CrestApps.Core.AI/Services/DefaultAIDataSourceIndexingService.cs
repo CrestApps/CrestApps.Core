@@ -430,7 +430,11 @@ public sealed class DefaultAIDataSourceIndexingService : IAIDataSourceIndexingSe
         await FlushAsync(context, documents, summary, cancellationToken);
         if (_logger.IsEnabled(LogLevel.Information))
         {
-            _logger.LogInformation("Synchronized {ChunkCount} knowledge-base chunk(s) for data source '{DataSourceId}'.", summary.DocumentsIndexed, context.DataSource.ItemId);
+            _logger.LogInformation(
+                "Synchronized {ChunkCount} knowledge-base chunk(s) for data source '{DataSourceId}' in {ElapsedMilliseconds} ms.",
+                summary.DocumentsIndexed,
+                context.DataSource.ItemId,
+                (long)(_timeProvider.GetUtcNow().UtcDateTime - summary.StartedUtc).TotalMilliseconds);
         }
     }
 

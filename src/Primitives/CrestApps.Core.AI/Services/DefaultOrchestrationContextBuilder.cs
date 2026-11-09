@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using Microsoft.Extensions.Logging;
@@ -52,6 +53,11 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
     {
         ArgumentNullException.ThrowIfNull(resource);
 
+        // The handlers run preemptive retrieval and memory lookups, so their spans hang under this one.
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.orchestrate.context");
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+
         var context = new OrchestrationContext
         {
             ServiceProvider = _serviceProvider,
@@ -79,7 +85,9 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
                         }
                         catch (Exception ex) when (ex is not OperationCanceledException)
                         {
-                            _logger.LogError(ex, "Error in orchestration context building handler {Handler}.", handler.GetType().Name);
+                            AILog.CountHandlerFailure(handler);
+
+                            _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in orchestration context building handler {Handler}.", handler.GetType().Name);
                         }
                     }
                 }
@@ -94,7 +102,9 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        _logger.LogError(ex, "Error in orchestration context building handler {Handler}.", handler.GetType().Name);
+                        AILog.CountHandlerFailure(handler);
+
+                        _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in orchestration context building handler {Handler}.", handler.GetType().Name);
                     }
                 }
             }
@@ -119,7 +129,9 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
                         }
                         catch (Exception ex) when (ex is not OperationCanceledException)
                         {
-                            _logger.LogError(ex, "Error in orchestration context built handler {Handler}.", handler.GetType().Name);
+                            AILog.CountHandlerFailure(handler);
+
+                            _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in orchestration context built handler {Handler}.", handler.GetType().Name);
                         }
                     }
                 }
@@ -134,7 +146,9 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        _logger.LogError(ex, "Error in orchestration context built handler {Handler}.", handler.GetType().Name);
+                        AILog.CountHandlerFailure(handler);
+
+                        _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in orchestration context built handler {Handler}.", handler.GetType().Name);
                     }
                 }
             }
@@ -146,6 +160,10 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
                 Array.Clear(handlerBuffer, 0, _handlerArray.Length);
                 ArrayPool<IOrchestrationContextBuilderHandler>.Shared.Return(handlerBuffer);
             }
+
+            AITelemetry.ContextBuildDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(AITelemetry.PhaseTag, "orchestration"));
         }
 
         // Flush accumulated system message.

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Services;
@@ -41,6 +42,12 @@ public sealed class AIChatSessionCloseCycleService
     /// <param name="cancellationToken">The cancellation token.</param>
     public async Task RunOnceAsync(IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
     {
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.background.cycle");
+        activity?.SetTag(CrestAppsTelemetry.ServiceTag, nameof(AIChatSessionCloseCycleService));
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
+
         try
         {
             var utcNow = _timeProvider.GetUtcNow().UtcDateTime;
@@ -86,10 +93,14 @@ public sealed class AIChatSessionCloseCycleService
                 failedCount += result.FailedCount;
             }
 
+            AITelemetry.ChatSessionsClosed.Add(closedCount, new KeyValuePair<string, object>(AITelemetry.ReasonTag, "closed"));
+            AITelemetry.ChatSessionsClosed.Add(abandonedCount, new KeyValuePair<string, object>(AITelemetry.ReasonTag, "abandoned"));
+
             if (_logger.IsEnabled(LogLevel.Information))
             {
                 _logger.LogInformation(
-                    "AI chat session close cycle completed. Sessions={SessionCount}, Closed={ClosedCount}, Abandoned={AbandonedCount}, Retried={RetriedCount}, Recovered={RecoveredCount}, Failed={FailedCount}.",
+                    "AI chat session close cycle completed in {ElapsedMilliseconds} ms. Sessions={SessionCount}, Closed={ClosedCount}, Abandoned={AbandonedCount}, Retried={RetriedCount}, Recovered={RecoveredCount}, Failed={FailedCount}.",
+                    (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds,
                     workItems.Count,
                     closedCount,
                     abandonedCount,
@@ -100,11 +111,20 @@ public sealed class AIChatSessionCloseCycleService
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            outcome = CrestAppsTelemetry.OutcomeCancelled;
+
             throw;
         }
         catch (Exception ex)
         {
+            outcome = CrestAppsTelemetry.OutcomeError;
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+
             _logger.LogError(ex, "An error occurred while closing inactive AI chat sessions.");
+        }
+        finally
+        {
+            CrestAppsTelemetry.RecordBackgroundCycle(nameof(AIChatSessionCloseCycleService), startTimestamp, outcome);
         }
     }
 

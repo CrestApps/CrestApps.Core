@@ -57,6 +57,14 @@ internal static class TabularToolRunner
             context.ImportToWorkspaceAsync,
             cancellationToken);
 
+        var outcome = tables.Count == 0
+            ? CrestAppsTelemetry.OutcomeError
+            : CrestAppsTelemetry.OutcomeOk;
+
+        AITelemetry.TabularPreparationDuration.Record(
+            stopwatch.Elapsed.TotalSeconds,
+            new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
+
         if (tables.Count == 0)
         {
             // The conversation has tabular files but none of them could be read. Say so instead of

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.OpenTelemetry</RootNamespace>
+    <Title>CrestApps OpenTelemetry</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      Registers the CrestApps.Core traces and metrics, and those of the libraries it builds on, with the OpenTelemetry SDK.
+      The framework packages emit through System.Diagnostics and take no OpenTelemetry dependency; this is the only package that does.
+    </Description>
+    <PackageTags>$(PackageTags) opentelemetry observability tracing metrics</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Abstractions/CrestApps.Core.Abstractions/CrestApps.Core.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

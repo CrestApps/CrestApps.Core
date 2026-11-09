@@ -12,13 +12,13 @@ internal sealed class SampleCopilotOptionsConfiguration : IConfigureOptions<Copi
     private static readonly Action<ILogger, Exception> _failedToUnprotectClientSecret =
         LoggerMessage.Define(
             LogLevel.Warning,
-            new EventId(1001, nameof(FailedToUnprotectClientSecret)),
+            new EventId(9031, nameof(FailedToUnprotectClientSecret)),
             "Failed to unprotect Copilot client secret.");
 
     private static readonly Action<ILogger, Exception> _failedToUnprotectApiKey =
         LoggerMessage.Define(
             LogLevel.Warning,
-            new EventId(1002, nameof(FailedToUnprotectApiKey)),
+            new EventId(9032, nameof(FailedToUnprotectApiKey)),
             "Failed to unprotect Copilot API key.");
 
     private readonly SiteSettingsStore _siteSettings;

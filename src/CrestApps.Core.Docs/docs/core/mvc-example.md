@@ -364,3 +364,6 @@ dotnet run --project .\src\Startup\CrestApps.Core.Mvc.Web\CrestApps.Core.Mvc.Web
 The MVC sample resolves its content root to the project directory automatically, so you can run this command from the repository root without breaking view, static-file, or `App_Data` discovery.
 
 The application starts on `https://localhost:5001`. Configure AI provider connections in `App_Data/appsettings.json` before using AI features.
+
+To see the app's traces, metrics and logs in the Aspire dashboard, run it from the Aspire AppHost, or set
+`OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_SERVICE_NAME` for it. See [Observability](./observability.md).

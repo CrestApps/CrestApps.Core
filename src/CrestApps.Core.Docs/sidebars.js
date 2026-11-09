@@ -46,6 +46,7 @@ const sidebars = {
                 'core/ai-model-capabilities',
                 'core/ai-templates',
                 'core/ai-usage-metering',
+                'core/observability',
                 'core/chat',
                 'core/context-builders',
                 {

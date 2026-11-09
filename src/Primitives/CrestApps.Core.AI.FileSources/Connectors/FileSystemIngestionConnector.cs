@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Ingestion;
@@ -99,6 +100,8 @@ public sealed class FileSystemIngestionConnector : IIngestionConnector
         var resumed = !string.IsNullOrEmpty(continuationToken);
         var items = new List<IngestionItemRef>();
         string cursor = null;
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
 
         try
         {
@@ -140,13 +143,21 @@ public sealed class FileSystemIngestionConnector : IIngestionConnector
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            outcome = CrestAppsTelemetry.OutcomeCancelled;
+
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to list files under '{RootPath}'.", root);
+            outcome = CrestAppsTelemetry.OutcomeError;
+
+            FileSourceLog.FolderListFailed(_logger, ex, root);
 
             return Task.FromResult(new IngestionDiscoveryResult([], IsComplete: false, "The folder could not be listed."));
+        }
+        finally
+        {
+            RecordOperation("list", startTimestamp, outcome);
         }
 
         var complete = cursor is null && !resumed;
@@ -196,9 +207,14 @@ public sealed class FileSystemIngestionConnector : IIngestionConnector
             return Task.FromResult<IngestionItemContent>(null);
         }
 
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
+
         try
         {
             var stream = File.OpenRead(path);
+
+            AITelemetry.IngestionConnectorBytes.Add(stream.Length, new KeyValuePair<string, object>(AITelemetry.ConnectorTag, ConnectorName));
 
             return Task.FromResult(new IngestionItemContent
             {
@@ -210,10 +226,25 @@ public sealed class FileSystemIngestionConnector : IIngestionConnector
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to read '{Path}'.", path);
+            outcome = CrestAppsTelemetry.OutcomeError;
+
+            FileSourceLog.FileReadFailed(_logger, ex, path);
 
             return Task.FromResult<IngestionItemContent>(null);
         }
+        finally
+        {
+            RecordOperation("read", startTimestamp, outcome);
+        }
+    }
+
+    private static void RecordOperation(string operation, long startTimestamp, string outcome)
+    {
+        AITelemetry.IngestionConnectorDuration.Record(
+            Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+            new KeyValuePair<string, object>(AITelemetry.ConnectorTag, ConnectorName),
+            new KeyValuePair<string, object>(CrestAppsTelemetry.OperationTag, operation),
+            new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
     }
 
     private bool TryResolveRoot(FileSystemFileSourceMetadata metadata, out string root, out string reason)

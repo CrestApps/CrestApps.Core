@@ -31,6 +31,8 @@ namespace CrestApps.Core.AI.Cartesia.Services;
 /// </remarks>
 internal sealed class CartesiaTranscriptionSession : IRealtimeClientSession
 {
+    private static readonly KeyValuePair<string, object> _providerTag = new(CrestAppsTelemetry.ProviderTag, "Cartesia");
+
     private const int MaximumMessageBytes = 256 * 1024;
 
     // How long past Cartesia's own turn timeout a turn it left open is ended here: Cartesia hears with a delay of its
@@ -202,9 +204,17 @@ internal sealed class CartesiaTranscriptionSession : IRealtimeClientSession
 
                 lock (_turnGate)
                 {
+                    var stalled = false;
+
                     foreach (var message in _assembler.EndStalledTurn())
                     {
+                        stalled = true;
                         _messages.Writer.TryWrite(message);
+                    }
+
+                    if (stalled)
+                    {
+                        AITelemetry.RealtimeSpeechStalls.Add(1, _providerTag);
                     }
                 }
             }
@@ -212,6 +222,14 @@ internal sealed class CartesiaTranscriptionSession : IRealtimeClientSession
         catch (OperationCanceledException)
         {
             // The session is ending.
+        }
+        catch (Exception ex)
+        {
+            // Nothing awaits this task. Without the count, a turn Cartesia never finishes would go unanswered and
+            // leave nothing behind but this log line.
+            CrestAppsTelemetry.BackgroundTaskFaults.Add(1, new KeyValuePair<string, object>(CrestAppsTelemetry.ServiceTag, nameof(CartesiaTranscriptionSession)));
+
+            _logger.LogError(ex, "Watching for stalled Cartesia turns failed. A turn Cartesia never finishes is no longer ended.");
         }
     }
 
@@ -274,6 +292,8 @@ internal sealed class CartesiaTranscriptionSession : IRealtimeClientSession
         // holds the call replace the session; ending the stream quietly would not.
         if (Volatile.Read(ref _disposed) == 0)
         {
+            AITelemetry.RealtimeSpeechDisconnects.Add(1, _providerTag);
+
             _logger.LogWarning(
                 "Cartesia's transcription stream ended while the session was in use, after {Seconds} s of audio: {Reason}",
                 Interlocked.Read(ref _audioBytesSent) / _bytesPerSecond,

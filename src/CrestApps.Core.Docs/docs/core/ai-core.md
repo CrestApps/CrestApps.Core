@@ -196,6 +196,13 @@ Global default deployment settings, typically loaded from configuration:
 
 Use `DefaultVisionDeploymentName` when chat and document flows need a default deployment that can accept image inputs.
 
+### Telemetry
+
+The AI pipeline reports traces and metrics through the `CrestApps.Core` activity source and meter whether or not
+anything collects them. `GeneralAIOptions.EnableOpenTelemetry` adds the OpenTelemetry `gen_ai.*` spans and metrics to
+the AI clients, and `EnableSensitiveData` adds prompts and responses to those spans. See
+[Observability](./observability.md).
+
 ## Streaming Example
 
 Use `CompleteStreamingAsync` to stream tokens as they are generated:

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json.Nodes;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
@@ -49,6 +50,9 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
             return true;
         }
 
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var succeeded = false;
+
         try
         {
             var operations = new List<IBulkOperation>();
@@ -77,6 +81,8 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
 
             await NotifyDocumentsAddedOrUpdatedAsync(profile, documents, cancellationToken);
 
+            succeeded = true;
+
             return true;
         }
         catch (Exception ex)
@@ -84,6 +90,10 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
             _logger.LogError(ex, "Error indexing documents in Elasticsearch index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
 
             return false;
+        }
+        finally
+        {
+            CrestAppsTelemetry.RecordIndexOperation(profile.ProviderName, "write", startTimestamp, succeeded, documents.Count);
         }
     }
 
@@ -103,6 +113,9 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
             return;
         }
 
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var succeeded = false;
+
         try
         {
             var operations = new List<IBulkOperation>();
@@ -116,6 +129,7 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
                 Operations = operations,
             };
             var response = await _elasticClient.BulkAsync(request, cancellationToken);
+            succeeded = response.IsValidResponse;
             if (!response.IsValidResponse)
             {
                 _logger.LogWarning("Elasticsearch bulk delete failed for index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
@@ -126,6 +140,10 @@ internal sealed class ElasticsearchSearchDocumentManager : ISearchDocumentManage
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting documents from Elasticsearch index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
+        }
+        finally
+        {
+            CrestAppsTelemetry.RecordIndexOperation(profile.ProviderName, "delete", startTimestamp, succeeded, ids.Count);
         }
     }
 

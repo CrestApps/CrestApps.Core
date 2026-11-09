@@ -3,6 +3,7 @@ using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Memory;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Security;
+using CrestApps.Core.OpenTelemetry;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
@@ -12,12 +13,17 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NLog.Web;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 
 namespace CrestApps.Core.Startup.Shared.Services;
 
 public static class SharedWebApplicationBuilderExtensions
 {
     private const string AppDataPathConfigurationKey = "CrestApps:AppDataPath";
+
+    private const string OtlpEndpointConfigurationKey = "OTEL_EXPORTER_OTLP_ENDPOINT";
 
     /// <summary>
     /// The folder under <c>App_Data</c> that the sample hosts allow the file-system connector to read.
@@ -69,6 +75,48 @@ public static class SharedWebApplicationBuilderExtensions
         builder.Services.AddSharedSiteSettings(appDataPath);
 
         return appDataPath;
+    }
+
+    /// <summary>
+    /// Sends the sample host's traces, metrics and logs to an OpenTelemetry collector, such as the Aspire dashboard,
+    /// when <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> is set. The Aspire AppHost sets it for every project it runs; without
+    /// it nothing is collected or exported. Call it after <see cref="AddSharedSampleHostDefaults"/>, which clears the
+    /// logging providers.
+    /// </summary>
+    /// <param name="builder">The web application builder.</param>
+    /// <returns>The builder.</returns>
+    public static WebApplicationBuilder AddSharedSampleOpenTelemetry(this WebApplicationBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        if (string.IsNullOrWhiteSpace(builder.Configuration[OtlpEndpointConfigurationKey]))
+        {
+            return builder;
+        }
+
+        // The Azure OpenAI chat client calls the OpenAI SDK directly, which reports gen_ai telemetry of its own
+        // once this switch is on.
+        AppContext.SetSwitch("OpenAI.Experimental.EnableOpenTelemetry", true);
+
+        // Logs reach both NLog and the collector, with their scopes and trace ids.
+        builder.Logging.AddOpenTelemetry(logging =>
+        {
+            logging.IncludeFormattedMessage = true;
+            logging.IncludeScopes = true;
+        });
+
+        builder.Services.AddOpenTelemetry()
+            .WithTracing(tracing => tracing
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation())
+            .WithMetrics(metrics => metrics
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddMeter("System.Runtime"))
+            .AddCrestAppsOpenTelemetry()
+            .UseOtlpExporter();
+
+        return builder;
     }
 
     /// <summary>

@@ -90,7 +90,8 @@ public sealed class AIChatResponseHandler : IChatResponseHandler
         context.Properties["OrchestrationContext"] = orchestratorContext;
 
         var orchestrator = orchestratorResolver.Resolve(orchestratorName);
-        var stream = orchestrator.ExecuteStreamingAsync(orchestratorContext, cancellationToken);
+        var stream = orchestrator.ExecuteStreamingAsync(orchestratorContext, cancellationToken)
+            .WithOrchestrationTelemetry(orchestrator.Name, cancellationToken);
 
         return ChatResponseHandlerResult.Streaming(stream);
     }

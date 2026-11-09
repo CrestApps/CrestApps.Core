@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.AI.Ingestion;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -59,17 +60,32 @@ internal sealed class FileSourceBackgroundService : BackgroundService
                 break;
             }
 
+            using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.background.cycle");
+            activity?.SetTag(CrestAppsTelemetry.ServiceTag, nameof(FileSourceBackgroundService));
+
+            var startTimestamp = Stopwatch.GetTimestamp();
+            var outcome = CrestAppsTelemetry.OutcomeOk;
+
             try
             {
                 await RunDueAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
+                outcome = CrestAppsTelemetry.OutcomeCancelled;
+
                 break;
             }
             catch (Exception ex)
             {
+                outcome = CrestAppsTelemetry.OutcomeError;
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+
                 _logger.LogError(ex, "An error occurred while running file sources.");
+            }
+            finally
+            {
+                CrestAppsTelemetry.RecordBackgroundCycle(nameof(FileSourceBackgroundService), startTimestamp, outcome);
             }
         }
     }

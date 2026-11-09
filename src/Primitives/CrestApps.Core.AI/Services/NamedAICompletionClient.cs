@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
@@ -179,7 +180,12 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "An error occurred while chatting with the {Name} service.", ClientName);
+            AITelemetry.CompletionErrors.Add(
+                1,
+                new KeyValuePair<string, object>(AITelemetry.ClientTag, ClientName),
+                new KeyValuePair<string, object>(CrestAppsTelemetry.ErrorTypeTag, ex.GetType().FullName));
+
+            AILog.CompletionFailed(Logger, ex, ClientName);
         }
 
         return null;
@@ -220,8 +226,20 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
         var prompts = GetPrompts(messages, context);
 
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var receivedText = false;
+
         await foreach (var update in chatClient.GetStreamingResponseAsync(prompts, chatOptions, cancellationToken))
         {
+            if (!receivedText && !string.IsNullOrEmpty(update.Text))
+            {
+                receivedText = true;
+
+                AITelemetry.CompletionTimeToFirstToken.Record(
+                    Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                    new KeyValuePair<string, object>(AITelemetry.ClientTag, ClientName));
+            }
+
             ProcessChatResponseUpdate(update, prompts);
 
             yield return update;
@@ -378,9 +396,15 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
             builder.UseDistributedCache(_distributedCache);
         }
 
+        // Added last, so it sits innermost: under the function-invoking client, each provider round trip gets
+        // its own gen_ai span and the tool calls between them get execute_tool spans.
         if (_defaultOptions.EnableOpenTelemetry)
         {
-            builder.UseOpenTelemetry(LoggerFactory, sourceName: DefaultLogCategory, ConfigureOpenTelemetry);
+            builder.UseOpenTelemetry(LoggerFactory, sourceName: CrestAppsTelemetry.AIClientSourceName, client =>
+            {
+                client.EnableSensitiveData = _defaultOptions.EnableSensitiveData;
+                ConfigureOpenTelemetry(client);
+            });
         }
 
         return builder.Build(_serviceProvider);

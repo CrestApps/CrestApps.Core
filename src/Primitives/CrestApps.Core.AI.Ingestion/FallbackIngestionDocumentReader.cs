@@ -74,6 +74,11 @@ public sealed class FallbackIngestionDocumentReader : IngestionDocumentReader
         }
         catch (Exception ex)
         {
+            AITelemetry.IngestionReaderFallbacks.Add(
+                1,
+                new KeyValuePair<string, object>(AITelemetry.ReaderTag, _preferred.GetType().Name),
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OperationTag, "read"));
+
             _logger.LogWarning(
                 ex,
                 "Preferred document reader failed for '{Identifier}'. Falling back to local extraction.",

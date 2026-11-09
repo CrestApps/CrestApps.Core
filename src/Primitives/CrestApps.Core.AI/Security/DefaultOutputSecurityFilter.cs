@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Security;
 using Microsoft.Extensions.Logging;
@@ -52,6 +53,21 @@ public sealed partial class DefaultOutputSecurityFilter : IOutputSecurityFilter
             return PromptSecurityResult.Safe;
         }
 
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var result = await EvaluateAsync(context, cancellationToken);
+
+        PromptSecurityTelemetry.RecordCheck(result, AITelemetry.OutputDirection, startTimestamp);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Runs the output checks, most critical first, and returns the first finding.
+    /// </summary>
+    /// <param name="context">The output security context.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    private async Task<PromptSecurityResult> EvaluateAsync(OutputSecurityContext context, CancellationToken cancellationToken)
+    {
         // Check for system prompt leakage (most critical — exact match of system prompt content).
         var leakResult = DetectSystemPromptLeak(context);
 

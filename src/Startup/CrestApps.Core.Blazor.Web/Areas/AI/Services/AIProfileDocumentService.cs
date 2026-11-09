@@ -20,19 +20,19 @@ public sealed class AIProfileDocumentService
     private static readonly Action<ILogger, string, string, Exception> _failedToProcessFile =
         LoggerMessage.Define<string, string>(
             LogLevel.Warning,
-            new EventId(1001, nameof(FailedToProcessFile)),
+            new EventId(9001, nameof(FailedToProcessFile)),
             "Failed to process file '{FileName}': {Error}");
 
     private static readonly Action<ILogger, string, Exception> _errorProcessingUploadedFile =
         LoggerMessage.Define<string>(
             LogLevel.Error,
-            new EventId(1002, nameof(ErrorProcessingUploadedFile)),
+            new EventId(9002, nameof(ErrorProcessingUploadedFile)),
             "Error processing uploaded file '{FileName}'.");
 
     private static readonly Action<ILogger, string, Exception> _errorRemovingDocument =
         LoggerMessage.Define<string>(
             LogLevel.Error,
-            new EventId(1003, nameof(ErrorRemovingDocument)),
+            new EventId(9003, nameof(ErrorRemovingDocument)),
             "Error removing document '{DocumentId}'.");
 
     private readonly IServiceProvider _serviceProvider;

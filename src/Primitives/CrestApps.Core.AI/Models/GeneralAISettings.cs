@@ -57,4 +57,14 @@ public sealed class GeneralAISettings
     /// Gets or sets a value indicating whether enables Open Telemetry.
     /// </summary>
     public bool EnableOpenTelemetry { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether <see cref="EnableSensitiveData"/> overrides the configured value.
+    /// </summary>
+    public bool OverrideEnableSensitiveData { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the <c>gen_ai.*</c> spans include prompts, responses and tool arguments.
+    /// </summary>
+    public bool EnableSensitiveData { get; set; }
 }

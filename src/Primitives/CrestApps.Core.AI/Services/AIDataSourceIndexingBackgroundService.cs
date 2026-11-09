@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -34,6 +35,22 @@ internal sealed class AIDataSourceIndexingBackgroundService : BackgroundService
 
         await foreach (var workItem in queue.ReadAllAsync(stoppingToken))
         {
+            CrestAppsTelemetry.QueueDepth.Add(-1, AIDataSourceIndexingQueue.QueueTag);
+            CrestAppsTelemetry.QueueWaitDuration.Record(Stopwatch.GetElapsedTime(workItem.QueuedTimestamp).TotalSeconds, AIDataSourceIndexingQueue.QueueTag);
+
+            using var activity = CrestAppsTelemetry.StartLinkedActivity("crestapps.background.item", workItem.QueuedContext);
+            activity?.SetTag(CrestAppsTelemetry.ServiceTag, nameof(AIDataSourceIndexingBackgroundService));
+            activity?.SetTag(CrestAppsTelemetry.WorkItemTypeTag, workItem.Type.ToString());
+
+            using var logScope = _logger.BeginScope(new Dictionary<string, object>
+            {
+                ["WorkItemType"] = workItem.Type,
+                ["DataSourceId"] = workItem.DataSource?.ItemId,
+            });
+
+            var startTimestamp = Stopwatch.GetTimestamp();
+            var outcome = CrestAppsTelemetry.OutcomeOk;
+
             try
             {
                 if (_logger.IsEnabled(LogLevel.Trace))
@@ -86,11 +103,24 @@ internal sealed class AIDataSourceIndexingBackgroundService : BackgroundService
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
+                outcome = CrestAppsTelemetry.OutcomeCancelled;
+
                 break;
             }
             catch (Exception ex)
             {
+                outcome = CrestAppsTelemetry.OutcomeError;
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+
                 _logger.LogError(ex, "An error occurred while processing queued data-source indexing work.");
+            }
+            finally
+            {
+                CrestAppsTelemetry.BackgroundItemDuration.Record(
+                    Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                    new KeyValuePair<string, object>(CrestAppsTelemetry.ServiceTag, nameof(AIDataSourceIndexingBackgroundService)),
+                    new KeyValuePair<string, object>(CrestAppsTelemetry.WorkItemTypeTag, workItem.Type.ToString()),
+                    new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
             }
         }
     }

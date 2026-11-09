@@ -191,7 +191,9 @@ public sealed class DefaultAICompletionService : IAICompletionService
         IAICompletionHandler handler,
         Exception exception)
     {
-        _logger.LogError(exception, "Error invoking completion handler '{HandlerType}'.", handler.GetType().Name);
+        AILog.CountHandlerFailure(handler);
+
+        _logger.LogError(AILog.HandlerFailedEventId, exception, "Error invoking completion handler '{HandlerType}'.", handler.GetType().Name);
     }
 
     /// <summary>

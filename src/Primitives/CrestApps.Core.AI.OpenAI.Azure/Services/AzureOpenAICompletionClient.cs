@@ -10,6 +10,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Extensions;
 using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Templates.Services;
@@ -27,6 +28,9 @@ namespace CrestApps.Core.AI.OpenAI.Azure.Services;
 public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBase, IAICompletionClient
 {
     private readonly IServiceProvider _serviceProvider;
+    // The same id the AI pipeline gives every completion it logs as failed and turns into an empty answer.
+    private static readonly EventId _completionFailedEventId = new(2001, "CompletionFailed");
+
     private readonly ILoggerFactory _loggerFactory;
     private readonly IEnumerable<IAICompletionServiceHandler> _completionServiceHandlers;
     private readonly IEnumerable<IAIProviderConnectionHandler> _connectionHandlers;
@@ -269,6 +273,8 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
         var accumulatedToolCalls = new StreamingToolCallAccumulator();
         var iterations = 0;
         var stopwatch = Stopwatch.StartNew();
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var receivedText = false;
         Microsoft.Extensions.AI.UsageDetails usage = null;
         string responseId = null;
         string modelId = null;
@@ -345,6 +351,15 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
                 else
                 {
                     var result = CreateStreamingResponseUpdate(update);
+
+                    if (!receivedText && !string.IsNullOrEmpty(result.Text))
+                    {
+                        receivedText = true;
+
+                        AITelemetry.CompletionTimeToFirstToken.Record(
+                            Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                            new KeyValuePair<string, object>(AITelemetry.ClientTag, ClientName));
+                    }
 
                     responseId ??= result.ResponseId;
                     modelId ??= result.ModelId;
@@ -450,7 +465,7 @@ omit optional fields, or split the operation into multiple smaller calls.
             arguments.Services = _serviceProvider;
             try
             {
-                var result = await function.InvokeAsync(arguments);
+                var result = await AIToolInvocation.InvokeAsync(function, arguments);
                 if (result is string str)
                 {
                     prompts.Add(new ToolChatMessage(toolCall.Id, str));
@@ -551,7 +566,13 @@ omit optional fields, or split the operation into multiple smaller calls.
     /// <param name="connection">The connection that served the request.</param>
     private void LogCompletionFailure(Exception exception, AIDeployment deployment, AIProviderConnectionEntry connection)
     {
+        AITelemetry.CompletionErrors.Add(
+            1,
+            new KeyValuePair<string, object>(AITelemetry.ClientTag, ClientName),
+            new KeyValuePair<string, object>(CrestAppsTelemetry.ErrorTypeTag, exception.GetType().FullName));
+
         _logger.LogError(
+            _completionFailedEventId,
             exception,
             "Unable to get chat completion result from Azure OpenAI using deployment '{DeploymentName}' (model '{ModelName}') on connection '{ConnectionName}' at '{Endpoint}'.",
             deployment.Name,

@@ -185,11 +185,15 @@ public sealed class CopilotOrchestrator : IOrchestrator
         }
         catch (IOException ex)
         {
+            CountFailure(ex.GetType().FullName);
+
             _logger.LogError(ex, "CopilotOrchestrator: CLI process error. The Copilot CLI may have crashed or failed to start.");
             responseText = "The Copilot service encountered an error and could not process your request. Please try again.";
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            CountFailure(ex.GetType().FullName);
+
             _logger.LogError(ex, "CopilotOrchestrator: Unexpected error during Copilot session.");
             responseText = "An unexpected error occurred while communicating with Copilot. Please try again.";
         }
@@ -383,6 +387,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
             else if (ev is SessionErrorEvent errorEvent)
             {
                 var data = errorEvent.Data;
+                CountFailure(data?.ErrorType ?? nameof(SessionErrorEvent));
                 _logger.LogError("CopilotOrchestrator: Session error - {ErrorType}: {Message} (StatusCode: {StatusCode})", data?.ErrorType, data?.Message, data?.StatusCode);
                 errorMessage = BuildErrorMessage(data);
                 completionSource.TrySetResult(false);
@@ -406,6 +411,18 @@ public sealed class CopilotOrchestrator : IOrchestrator
         }
 
         return responseText;
+    }
+
+    /// <summary>
+    /// Counts a Copilot failure that reaches the user as a text reply, which would otherwise read as a successful turn.
+    /// </summary>
+    /// <param name="errorType">The exception type, or the error type the Copilot session reported.</param>
+    private static void CountFailure(string errorType)
+    {
+        AITelemetry.CompletionErrors.Add(
+            1,
+            new KeyValuePair<string, object>(AITelemetry.ClientTag, OrchestratorName),
+            new KeyValuePair<string, object>(CrestAppsTelemetry.ErrorTypeTag, errorType));
     }
 
     /// <summary>
@@ -669,7 +686,8 @@ public sealed class CopilotOrchestrator : IOrchestrator
         {
             arguments.Services ??= _services;
 
-            return _inner.InvokeAsync(arguments, cancellationToken);
+            // Through the shared invoker, so the tools Copilot calls are traced and timed like every other client's.
+            return AIToolInvocation.InvokeAsync(_inner, arguments, cancellationToken);
         }
     }
 

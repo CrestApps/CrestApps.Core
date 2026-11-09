@@ -5,7 +5,6 @@ using CrestApps.Core.AI.Models;
 using CrestApps.Core.Templates.Services;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Services;
 
@@ -28,7 +27,7 @@ public sealed class ProviderAICompletionClient<TProvider> : NamedAICompletionCli
     /// <param name="distributedCache">The distributed cache.</param>
     /// <param name="serviceProvider">The service provider.</param>
     /// <param name="handlers">The handlers.</param>
-    /// <param name="defaultOptions">The default options.</param>
+    /// <param name="defaultOptions">The default options with the site's overrides applied.</param>
     /// <param name="aiTemplateService">The ai template service.</param>
     /// <param name="deploymentManager">The deployment manager.</param>
     public ProviderAICompletionClient(
@@ -37,10 +36,10 @@ public sealed class ProviderAICompletionClient<TProvider> : NamedAICompletionCli
         IDistributedCache distributedCache,
         IServiceProvider serviceProvider,
         IEnumerable<IAICompletionServiceHandler> handlers,
-        IOptions<DefaultAIOptions> defaultOptions,
+        DefaultAIOptions defaultOptions,
         ITemplateService aiTemplateService,
         IAIDeploymentManager deploymentManager)
-        : base(TProvider.ClientName, aIClientFactory, distributedCache, loggerFactory, serviceProvider, defaultOptions.Value, handlers, aiTemplateService, deploymentManager)
+        : base(TProvider.ClientName, aIClientFactory, distributedCache, loggerFactory, serviceProvider, defaultOptions, handlers, aiTemplateService, deploymentManager)
     {
     }
 }

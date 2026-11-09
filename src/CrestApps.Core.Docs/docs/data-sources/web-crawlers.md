@@ -78,6 +78,12 @@ rather than the incremental pass. Re-index diffing and scheduling are exposed as
 The scraped page URL is stored as each chunk's reference id, and a keyed `IAIReferenceLinkResolver` returns
 that URL as the citation link, so chat answers grounded in scraped content link back to the original page.
 
+## Monitoring
+
+Each re-index of a crawler is a `crestapps.webcrawler.crawl` span, and its duration, the pages fetched, skipped or
+failed and the sitemaps that could not be read are metrics. See
+[Observability](../core/observability.md#web-crawlers).
+
 ## Registration
 
 Both sample hosts opt in. Register the feature and a persistence backend:

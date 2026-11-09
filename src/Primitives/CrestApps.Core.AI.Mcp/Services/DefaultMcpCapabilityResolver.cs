@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
@@ -70,6 +71,9 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
         {
             return McpCapabilityResolutionResult.Empty;
         }
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
 
         try
         {
@@ -160,13 +164,24 @@ internal sealed class DefaultMcpCapabilityResolver : IMcpCapabilityResolver
         }
         catch (OperationCanceledException)
         {
+            outcome = CrestAppsTelemetry.OutcomeCancelled;
+
             throw;
         }
         catch (Exception ex)
         {
+            outcome = CrestAppsTelemetry.OutcomeError;
+
             _logger.LogWarning(ex, "MCP capability resolution failed. Continuing without pre-resolved capabilities.");
 
             return McpCapabilityResolutionResult.Empty;
+        }
+        finally
+        {
+            AITelemetry.McpToolResolutionDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OperationTag, "capabilities"),
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
         }
     }
 

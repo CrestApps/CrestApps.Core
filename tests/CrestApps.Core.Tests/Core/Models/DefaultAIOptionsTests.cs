@@ -119,4 +119,34 @@ public sealed class DefaultAIOptionsTests
         Assert.False(result.EnableDistributedCaching);
         Assert.True(result.EnableOpenTelemetry);
     }
+
+    [Fact]
+    public void New_WhenNothingIsConfigured_KeepsPromptsOutOfTelemetry()
+    {
+        Assert.False(new DefaultAIOptions().EnableSensitiveData);
+    }
+
+    [Fact]
+    public void ApplySiteOverrides_WhenSensitiveDataIsOverridden_UsesTheSiteValue()
+    {
+        var result = new DefaultAIOptions { EnableSensitiveData = false }.ApplySiteOverrides(new GeneralAIOptions
+        {
+            OverrideEnableSensitiveData = true,
+            EnableSensitiveData = true,
+        });
+
+        Assert.True(result.EnableSensitiveData);
+    }
+
+    [Fact]
+    public void ApplySiteOverrides_WhenSensitiveDataIsNotOverridden_KeepsTheConfiguredValue()
+    {
+        var result = new DefaultAIOptions { EnableSensitiveData = true }.ApplySiteOverrides(new GeneralAIOptions
+        {
+            OverrideEnableSensitiveData = false,
+            EnableSensitiveData = false,
+        });
+
+        Assert.True(result.EnableSensitiveData);
+    }
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using CrestApps.Core.Templates.Models;
 using CrestApps.Core.Templates.Providers;
@@ -122,13 +123,28 @@ public class DefaultTemplateService : ITemplateService
             return null;
         }
 
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = "ok";
+
         try
         {
             return await _renderer.RenderAsync(template.Content, arguments, cancellationToken);
         }
+        catch (Exception ex)
+        {
+            outcome = ex is OperationCanceledException
+                ? "cancelled"
+                : "error";
+
+            throw;
+        }
         finally
         {
             IncludeTemplateFilter.ExitTemplateFrame(pushed, ownsAsyncStack);
+
+            TemplateTelemetry.RenderDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>("outcome", outcome));
         }
     }
 

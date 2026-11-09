@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using A2A;
 using CrestApps.Core.AI.A2A.Models;
 using Microsoft.AspNetCore.Http;
@@ -46,8 +47,15 @@ internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheServic
         var cacheKey = GetCacheKey(connectionId);
         if (_memoryCache.TryGetValue(cacheKey, out AgentCard cachedCard))
         {
+            CountLookup("hit");
+
             return cachedCard;
         }
+
+        CountLookup("miss");
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
 
         try
         {
@@ -75,10 +83,23 @@ internal sealed class DefaultA2AAgentCardCacheService : IA2AAgentCardCacheServic
         }
         catch (Exception ex)
         {
+            outcome = CrestAppsTelemetry.GetOutcome(ex);
+
             A2ALog.FailedToFetchAgentCardFromHost(_logger, connection.Endpoint, connectionId, ex);
 
             return null;
         }
+        finally
+        {
+            AITelemetry.A2AAgentCardFetchDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
+        }
+    }
+
+    private static void CountLookup(string cache)
+    {
+        AITelemetry.A2AAgentCardLookups.Add(1, new KeyValuePair<string, object>(AITelemetry.CacheTag, cache));
     }
 
     /// <summary>

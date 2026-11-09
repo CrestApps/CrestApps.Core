@@ -2,6 +2,7 @@ using Elastic.Clients.Elasticsearch;
 using Elastic.Transport;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Polly;
 
@@ -187,12 +188,15 @@ public sealed class ElasticsearchClientFactory : IElasticsearchClientFactory
     {
         var options = new HttpStandardResilienceOptions();
 
-        return new ResiliencePipelineBuilder<HttpResponseMessage>()
+        // Named and with telemetry configured, so the retries, timeouts and open circuits of this static pipeline
+        // reach the Polly meter like those of a pipeline registered through dependency injection.
+        return new ResiliencePipelineBuilder<HttpResponseMessage> { Name = "CrestApps.Elasticsearch" }
             .AddRateLimiter(options.RateLimiter)
             .AddTimeout(options.TotalRequestTimeout)
             .AddRetry(options.Retry)
             .AddCircuitBreaker(options.CircuitBreaker)
             .AddTimeout(options.AttemptTimeout)
+            .ConfigureTelemetry(NullLoggerFactory.Instance)
             .Build();
     }
 }

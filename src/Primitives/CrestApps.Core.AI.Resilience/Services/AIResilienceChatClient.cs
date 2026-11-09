@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Completions;
 using Microsoft.Extensions.AI;
 using Polly;
 
@@ -95,8 +96,23 @@ internal sealed class AIResilienceChatClient : DelegatingChatClient
             yield return streamingResult.FirstUpdate!;
         }
 
-        while (await enumerator.MoveNextAsync())
+        while (true)
         {
+            try
+            {
+                if (!await enumerator.MoveNextAsync())
+                {
+                    break;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // The pipeline only retried until the first update arrived, so this failure reaches the caller.
+                AITelemetry.ResilienceStreamFailures.Add(1, new KeyValuePair<string, object>(CrestAppsTelemetry.OperationTag, AIUsageOperationTypes.Chat));
+
+                throw;
+            }
+
             yield return enumerator.Current;
         }
     }

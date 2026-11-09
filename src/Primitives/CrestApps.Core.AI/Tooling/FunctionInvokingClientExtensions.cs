@@ -41,7 +41,7 @@ public static class FunctionInvokingClientExtensions
 
     private static async ValueTask<object> InvokeAsync(FunctionInvocationContext context, CancellationToken cancellationToken)
     {
-        var result = await context.Function.InvokeAsync(context.Arguments, cancellationToken);
+        var result = await AIToolInvocation.InvokeAsync(context.Function, context.Arguments, cancellationToken);
 
         return AIToolResultText.Normalize(result);
     }

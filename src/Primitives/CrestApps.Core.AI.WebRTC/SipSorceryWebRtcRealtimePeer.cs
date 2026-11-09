@@ -270,6 +270,8 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         _pc.oniceconnectionstatechange += OnIceConnectionStateChanged;
         _pc.OnRtpPacketReceived += OnRtpPacketReceived;
 
+        AITelemetry.RealtimeWebRtcActivePeers.Add(1);
+
         // A dedicated thread, not the thread pool: the pool is what a build or a test run in the same process
         // starves, and an audio pacer that is late by a scheduler quantum is an audio pacer that bursts.
         _pacingThread = new Thread(PaceOutgoing)
@@ -386,6 +388,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         }
         catch (Exception ex)
         {
+            CountCodecError("encode");
             _logger.LogWarning(ex, "Failed to Opus-encode a realtime audio frame.");
             return;
         }
@@ -763,6 +766,7 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
         }
         catch (Exception ex)
         {
+            CountCodecError("decode");
             _logger.LogWarning(ex, "Failed to Opus-decode an incoming realtime audio packet.");
             return;
         }
@@ -887,6 +891,8 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 
     private void OnConnectionStateChanged(RTCPeerConnectionState state)
     {
+        AITelemetry.RealtimeWebRtcConnectionStates.Add(1, new KeyValuePair<string, object>(AITelemetry.StateTag, state.ToString()));
+
         if (_logger.IsEnabled(LogLevel.Information))
         {
             _logger.LogInformation("WebRTC realtime: connection state {State}.", state);
@@ -980,7 +986,17 @@ internal sealed class SipSorceryWebRtcRealtimePeer : IWebRtcRealtimePeer
 
         _closedRaised = true;
         _incoming.Writer.TryComplete();
+
+        AITelemetry.RealtimeWebRtcActivePeers.Add(-1);
+        AITelemetry.RealtimeWebRtcStallFrames.Add(Interlocked.Read(ref _midReplySilenceFrames), new KeyValuePair<string, object>(AITelemetry.ReasonTag, "provider"));
+        AITelemetry.RealtimeWebRtcStallFrames.Add(Interlocked.Read(ref _stallSlotsSkipped), new KeyValuePair<string, object>(AITelemetry.ReasonTag, "pacing"));
+
         Closed?.Invoke();
+    }
+
+    private static void CountCodecError(string operation)
+    {
+        AITelemetry.RealtimeWebRtcCodecErrors.Add(1, new KeyValuePair<string, object>(CrestAppsTelemetry.OperationTag, operation));
     }
 
     public async ValueTask DisposeAsync()

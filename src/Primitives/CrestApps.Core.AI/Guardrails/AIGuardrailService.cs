@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using CrestApps.Core.AI.Clients;
@@ -150,6 +151,16 @@ public sealed class AIGuardrailService
         IReadOnlyList<AIGuardrailTopic> topics;
         AIGuardrailJudgement judgement;
 
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.guardrail.check");
+
+        var directionTag = new KeyValuePair<string, object>(
+            AITelemetry.DirectionTag,
+            direction == AIGuardrailDirection.Customer
+                ? AITelemetry.InputDirection
+                : AITelemetry.OutputDirection);
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+
         try
         {
             topics = await LoadTopicsAsync(settings.Topics, cancellationToken);
@@ -186,12 +197,28 @@ public sealed class AIGuardrailService
         {
             // The conversation goes on unchecked rather than failing: a guardrail is a second line behind the
             // instructions and prompt security, and a customer left without an answer is worse than one unchecked turn.
-            _logger.LogWarning(ex, "The guardrails of AI profile '{ProfileId}' could not be checked.", profile.ItemId);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+
+            AITelemetry.GuardrailDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                directionTag,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, CrestAppsTelemetry.OutcomeError));
+
+            AILog.GuardrailCheckFailed(_logger, ex, profile.ItemId);
 
             return null;
         }
 
         var verdict = ToVerdict(judgement, topics, settings.OtherTopics, profile, text, direction, sessionId);
+
+        AITelemetry.GuardrailDuration.Record(
+            Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+            directionTag,
+            new KeyValuePair<string, object>(
+                CrestAppsTelemetry.OutcomeTag,
+                verdict is null
+                    ? CrestAppsTelemetry.OutcomeOk
+                    : CrestAppsTelemetry.OutcomeBlocked));
 
         if (verdict is null)
         {
@@ -216,7 +243,9 @@ public sealed class AIGuardrailService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "A guardrail handler failed for AI profile '{ProfileId}'.", profile.ItemId);
+                AILog.CountHandlerFailure(handler);
+
+                _logger.LogError(AILog.HandlerFailedEventId, ex, "A guardrail handler failed for AI profile '{ProfileId}'.", profile.ItemId);
             }
         }
 

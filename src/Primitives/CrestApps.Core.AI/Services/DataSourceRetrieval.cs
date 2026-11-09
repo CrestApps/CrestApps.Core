@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
@@ -99,6 +100,14 @@ internal static partial class DataSourceRetrieval
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(request);
+
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.retrieval.search");
+        activity?.SetTag(AITelemetry.DataSourceIdAttribute, request.DataSourceId);
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var mode = request.RetrievalMode == DataSourceRetrievalMode.Hierarchical
+            ? "hierarchical"
+            : "chunk";
 
         var queries = NormalizeQueries(request.Queries);
 
@@ -243,6 +252,8 @@ internal static partial class DataSourceRetrieval
                     searchFailed = false;
                     contentTypeFilterDropped = true;
 
+                    AITelemetry.RetrievalFallbacks.Add(1, new KeyValuePair<string, object>(AITelemetry.ReasonTag, "content_type_filter"));
+
                     if (logger.IsEnabled(LogLevel.Information))
                     {
                         logger.LogInformation(
@@ -256,6 +267,8 @@ internal static partial class DataSourceRetrieval
 
         if (IsEmpty(resultSets))
         {
+            RecordSearch(startTimestamp, mode, searchFailed, 0);
+
             // Nothing came back, and the reason decides what may be said. An index that was searched and
             // matched nothing supports a statement about the data source; an index that was never reached
             // supports no statement at all.
@@ -268,6 +281,8 @@ internal static partial class DataSourceRetrieval
 
         var minimumScore = siteSettings.GetMinimumScore(request.Strictness);
         var selected = DataSourceSearchResultSelector.FuseTopResults(resultSets.Select(resultSet => resultSet.Results), topN, minimumScore);
+
+        RecordSearch(startTimestamp, mode, searchFailed, selected.Count);
 
         if (selected.Count == 0)
         {
@@ -339,6 +354,37 @@ internal static partial class DataSourceRetrieval
             Figures = typed.Figures,
             Tables = typed.Tables,
         };
+    }
+
+    /// <summary>
+    /// Records how a search that reached the index ended and how many results it handed to the model.
+    /// </summary>
+    /// <param name="startTimestamp">The <see cref="Stopwatch"/> timestamp taken when the search started.</param>
+    /// <param name="mode">The retrieval mode.</param>
+    /// <param name="searchFailed">Whether at least one phrase could not be searched.</param>
+    /// <param name="resultCount">The number of results handed to the model.</param>
+    private static void RecordSearch(long startTimestamp, string mode, bool searchFailed, int resultCount)
+    {
+        var outcome = searchFailed
+            ? "partial"
+            : CrestAppsTelemetry.OutcomeOk;
+
+        if (resultCount == 0)
+        {
+            // A phrase that could not be searched, with nothing to show for it, is a failure rather than an empty result.
+            outcome = searchFailed
+                ? CrestAppsTelemetry.OutcomeError
+                : "empty";
+        }
+
+        var modeTag = new KeyValuePair<string, object>(AITelemetry.ModeTag, mode);
+
+        AITelemetry.RetrievalDuration.Record(
+            Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+            modeTag,
+            new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
+
+        AITelemetry.RetrievalResults.Record(resultCount, modeTag);
     }
 
     /// <summary>
@@ -743,6 +789,8 @@ internal static partial class DataSourceRetrieval
         {
             if (sourceHandler == null)
             {
+                AITelemetry.RetrievalFallbacks.Add(1, new KeyValuePair<string, object>(AITelemetry.ReasonTag, "chunk"));
+
                 logger.LogWarning("Hierarchical retrieval is unavailable because source type '{SourceType}' is not registered. Falling back to chunk retrieval.", sourceType);
             }
 
@@ -769,7 +817,9 @@ internal static partial class DataSourceRetrieval
         {
             // A source that can no longer be read (a deleted index, revoked credentials) must not sink the
             // search: the matching chunks are already in hand, so degrade to chunk retrieval instead.
-            logger.LogWarning(ex, "Failed to read full documents for data source '{DataSourceId}'. Falling back to chunk retrieval.", dataSource.ItemId);
+            AITelemetry.RetrievalFallbacks.Add(1, new KeyValuePair<string, object>(AITelemetry.ReasonTag, "chunk"));
+
+            AILog.HierarchicalRetrievalFailed(logger, ex, dataSource.ItemId);
 
             return AppendChunkContext(results, textNormalizer, references);
         }

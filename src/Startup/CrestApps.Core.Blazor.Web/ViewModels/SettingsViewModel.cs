@@ -17,6 +17,8 @@ public sealed class SettingsViewModel
 
     public bool EnableOpenTelemetry { get; set; }
 
+    public bool EnableSensitiveData { get; set; }
+
     public bool DefaultOrchestratorEnablePreemptiveRag { get; set; } = true;
 
     public ChatMode ChatInteractionChatMode { get; set; }

@@ -104,6 +104,7 @@ public sealed class SettingsController : Controller
             MaxPostCloseAttempts = chatSessionProcessingSettings.MaxPostCloseAttempts,
             EnableDistributedCaching = settings.EnableDistributedCaching,
             EnableOpenTelemetry = settings.EnableOpenTelemetry,
+            EnableSensitiveData = settings.EnableSensitiveData,
             ChatInteractionChatMode = chatInteractionSettings.ChatMode,
             ChatInteractionEnableTextToSpeechPlayback = chatInteractionSettings.EnableTextToSpeechPlayback,
             DefaultOrchestratorEnablePreemptiveRag = defaultOrchestratorSettings.EnablePreemptiveRag,
@@ -327,7 +328,12 @@ public sealed class SettingsController : Controller
             settings.EnablePreemptiveMemoryRetrieval = model.EnablePreemptiveMemoryRetrieval;
             settings.MaximumIterationsPerRequest = model.MaximumIterationsPerRequest;
             settings.EnableDistributedCaching = model.EnableDistributedCaching;
+
+            // The override flags make the saved values win over configuration; without them the toggles had no effect.
+            settings.OverrideEnableOpenTelemetry = true;
             settings.EnableOpenTelemetry = model.EnableOpenTelemetry;
+            settings.OverrideEnableSensitiveData = true;
+            settings.EnableSensitiveData = model.EnableSensitiveData;
         });
 
         _siteSettings.Set(new AIChatSessionProcessingOptions

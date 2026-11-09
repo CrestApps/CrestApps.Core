@@ -1,5 +1,6 @@
 #pragma warning disable MEAI001 // The realtime types from Microsoft.Extensions.AI are for evaluation purposes only.
 #nullable enable
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -266,10 +267,14 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     {
         try
         {
+            long lastPartialTimestamp = 0;
+
             await foreach (var message in _transcription.GetStreamingResponseAsync(cancellationToken))
             {
                 if (message.Type == RealtimeServerMessageType.InputAudioTranscriptionDelta)
                 {
+                    lastPartialTimestamp = Stopwatch.GetTimestamp();
+
                     // The transcription leg reports no speech-start event of its own, but a partial
                     // transcript only exists because the user is talking. Treating the first one as the
                     // start of a turn is what lets a caller cut off audio that is still playing.
@@ -290,6 +295,14 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
                 {
                     _turnWords = 0;
                     _backchannel?.Reset();
+
+                    // The last partial transcript is about when the caller stopped talking, so this is how long the
+                    // final transcript took after that.
+                    if (lastPartialTimestamp != 0)
+                    {
+                        RecordLeg("stt", lastPartialTimestamp);
+                        lastPartialTimestamp = 0;
+                    }
                 }
 
                 await _messages.Writer.WriteAsync(message, cancellationToken);
@@ -492,6 +505,15 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         {
             // The session was disposed.
         }
+        catch (Exception exception)
+        {
+            // Nothing awaits this task, so a failure here would otherwise leave the session silently unanswered.
+            CrestAppsTelemetry.BackgroundTaskFaults.Add(1, new KeyValuePair<string, object?>(CrestAppsTelemetry.ServiceTag, nameof(CascadedRealtimeSession)));
+
+            _logger.LogError(exception, "The cascaded realtime work queue failed. The session no longer answers.");
+
+            await WriteErrorAsync(exception);
+        }
     }
 
     /// <summary>
@@ -529,6 +551,11 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         // An out-of-band reply ("let me look that up") is spoken but never becomes part of the conversation.
         var keepInHistory = response?.ExcludeFromConversation != true;
 
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.realtime.turn");
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var awaitingFirstUpdate = true;
+
         try
         {
             await WriteAsync(new ResponseCreatedRealtimeServerMessage(RealtimeServerMessageType.ResponseCreated)
@@ -539,6 +566,12 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
             await foreach (var update in _chatClient.GetStreamingResponseAsync(ConversationFor(response), OptionsFor(response), cancellationToken))
             {
                 updates.Add(update);
+
+                if (awaitingFirstUpdate)
+                {
+                    awaitingFirstUpdate = false;
+                    RecordLeg("llm", startTimestamp);
+                }
 
                 // A tool call ends the line said before it, as a speech-to-speech provider finishes its message item when
                 // the model calls a function, and what the model says after the tool's answer is a line of its own. As one
@@ -617,6 +650,8 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         }
         catch (Exception exception)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, exception.Message).AddException(exception);
+
             _logger.LogError(exception, "The cascaded realtime turn failed.");
 
             await WriteErrorAsync(exception);
@@ -722,6 +757,9 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
     /// <param name="cancellationToken">A token that cancels this turn.</param>
     private async Task SpeakAsync(string text, string responseId, CancellationToken cancellationToken)
     {
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var awaitingFirstAudio = true;
+
         await foreach (var update in _speechClient.GetStreamingAudioAsync(text, SpeechOptionsAtTheCurrentSpeed(), cancellationToken))
         {
             foreach (var content in update.Contents)
@@ -736,6 +774,12 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
                     throw new NotSupportedException($"The text-to-speech deployment answered with '{audio.MediaType}' audio, but a realtime session plays raw PCM ('{PcmMediaType}'). Configure that deployment to produce raw PCM at the session's output sample rate, or choose one that can.");
                 }
 
+                if (awaitingFirstAudio)
+                {
+                    awaitingFirstAudio = false;
+                    RecordLeg("tts", startTimestamp);
+                }
+
                 await WriteAsync(new OutputTextAudioRealtimeServerMessage(RealtimeServerMessageType.OutputAudioDelta)
                 {
                     Audio = Convert.ToBase64String(audio.Data.Span),
@@ -743,6 +787,13 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
                 });
             }
         }
+    }
+
+    private static void RecordLeg(string leg, long startTimestamp)
+    {
+        AITelemetry.RealtimeCascadedLegLatency.Record(
+            Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+            new KeyValuePair<string, object?>(AITelemetry.LegTag, leg));
     }
 
     /// <summary>

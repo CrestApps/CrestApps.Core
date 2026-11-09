@@ -10,7 +10,7 @@ public sealed class SendEmailTool : AIFunction
     private static readonly Action<ILogger, string, string, string, Exception> _sendEmailToolInvoked =
         LoggerMessage.Define<string, string, string>(
             LogLevel.Information,
-            new EventId(1001, nameof(SendEmailToolInvoked)),
+            new EventId(9051, nameof(SendEmailToolInvoked)),
             "Blazor sendEmail tool invoked. To: {To}; Subject: {Subject}; Message: {Message}");
 
     private static readonly JsonElement _jsonSchema = JsonSerializer.Deserialize<JsonElement>("""

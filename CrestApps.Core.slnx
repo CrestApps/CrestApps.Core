@@ -59,6 +59,7 @@
     <Project Path="src/Primitives/CrestApps.Core.DataIngestion/CrestApps.Core.DataIngestion.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Elasticsearch/CrestApps.Core.Elasticsearch.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Infrastructure/CrestApps.Core.Infrastructure.csproj" />
+    <Project Path="src/Primitives/CrestApps.Core.OpenTelemetry/CrestApps.Core.OpenTelemetry.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.PostgreSQL/CrestApps.Core.PostgreSQL.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.SignalR/CrestApps.Core.SignalR.csproj" />
     <Project Path="src/Primitives/CrestApps.Core.Templates/CrestApps.Core.Templates.csproj" />

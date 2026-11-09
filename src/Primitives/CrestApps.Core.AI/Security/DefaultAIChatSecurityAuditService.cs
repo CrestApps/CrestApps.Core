@@ -9,6 +9,10 @@ namespace CrestApps.Core.AI.Security;
 /// </summary>
 public sealed class DefaultAIChatSecurityAuditService : IAIChatSecurityAuditService
 {
+    // Event ids let a log pipeline route audit events without matching the SECURITY_AUDIT text prefix.
+    private static readonly EventId _inputEventId = new(2101, "SecurityAuditInput");
+    private static readonly EventId _outputEventId = new(2102, "SecurityAuditOutput");
+
     private readonly ILogger<DefaultAIChatSecurityAuditService> _logger;
 
     /// <summary>
@@ -29,6 +33,7 @@ public sealed class DefaultAIChatSecurityAuditService : IAIChatSecurityAuditServ
     public Task RecordInputEventAsync(PromptSecurityContext context, PromptSecurityResult result, CancellationToken cancellationToken = default)
     {
         _logger.LogWarning(
+            _inputEventId,
             "SECURITY_AUDIT: Input {Action} | Rule={Rule} | Risk={RiskLevel} | Score={Score} | Rules={Rules} | Session={SessionId} | Profile={ProfileId} | Connection={ConnectionId}",
             result.IsBlocked ? "BLOCKED" : "FLAGGED",
             result.DetectionRule,
@@ -51,6 +56,7 @@ public sealed class DefaultAIChatSecurityAuditService : IAIChatSecurityAuditServ
     public Task RecordOutputEventAsync(OutputSecurityContext context, PromptSecurityResult result, CancellationToken cancellationToken = default)
     {
         _logger.LogWarning(
+            _outputEventId,
             "SECURITY_AUDIT: Output {Action} | Rule={Rule} | Risk={RiskLevel} | Score={Score} | Rules={Rules} | Session={SessionId}",
             result.IsBlocked ? "BLOCKED" : "FLAGGED",
             result.DetectionRule,

@@ -96,7 +96,7 @@ public sealed class DefaultWebMcpToolService : IWebMcpToolService
             // A WebMCP call stands in for a top-level completion, so it opens the invocation scope tools expect.
             using var invocationScope = AIInvocationScope.Begin();
 
-            var result = await tool.Function.InvokeAsync(functionArguments, cancellationToken);
+            var result = await AIToolInvocation.InvokeAsync(tool.Function, functionArguments, "webmcp", cancellationToken);
 
             return WebMcpToolInvocationResult.Success(WebMcpToolResultFormatter.Format(result));
         }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging;
 
@@ -37,6 +38,30 @@ public sealed class EntityCoreStoreCommitter : IStoreCommitter
         }
 
         _logger.LogDebug("EntityCoreStoreCommitter flushing tracked Entity Framework Core changes.");
-        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.store.commit");
+        activity?.SetTag(CrestAppsTelemetry.StoreTag, "EntityCore");
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            outcome = CrestAppsTelemetry.GetOutcome(ex);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+
+            throw;
+        }
+        finally
+        {
+            CrestAppsTelemetry.StoreCommitDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.StoreTag, "EntityCore"),
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
+        }
     }
 }

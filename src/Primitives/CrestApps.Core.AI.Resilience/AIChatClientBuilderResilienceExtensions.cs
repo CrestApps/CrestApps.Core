@@ -1,6 +1,8 @@
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Resilience.Models;
 using CrestApps.Core.AI.Resilience.Services;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
 
@@ -12,7 +14,12 @@ namespace CrestApps.Core.AI.Resilience;
 /// </summary>
 public static class AIChatClientBuilderResilienceExtensions
 {
+    private const int MaxRecordedRetryAttempt = 5;
+
     private static readonly TimeSpan _defaultRetryDelay = TimeSpan.FromSeconds(1);
+
+    // The same id the AI pipeline gives its other provider failures that it recovers from, in the 2000s.
+    private static readonly EventId _rateLimitRetryEventId = new(2005, "RateLimitRetry");
 
     /// <summary>
     /// Adds a custom resilience pipeline to the chat-client middleware pipeline.
@@ -76,7 +83,8 @@ public static class AIChatClientBuilderResilienceExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder.UseResilience(CreateDefaultPipeline(configure));
+        // The pipeline is built with the client, so its retries are logged through the host's logging.
+        return builder.Use((innerClient, services) => new AIResilienceChatClient(innerClient, CreateDefaultPipeline(configure, AIUsageOperationTypes.Chat, services)));
     }
 
     /// <summary>
@@ -150,7 +158,7 @@ public static class AIChatClientBuilderResilienceExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder.UseResilience(CreateDefaultPipeline(configure));
+        return builder.Use((innerGenerator, services) => new AIResilienceEmbeddingGenerator<TInput, TEmbedding>(innerGenerator, CreateDefaultPipeline(configure, AIUsageOperationTypes.Embedding, services)));
     }
 
     /// <summary>
@@ -215,7 +223,7 @@ public static class AIChatClientBuilderResilienceExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder.UseResilience(CreateDefaultPipeline(configure));
+        return builder.Use((innerGenerator, services) => new AIResilienceImageGenerator(innerGenerator, CreateDefaultPipeline(configure, AIUsageOperationTypes.Image, services)));
     }
 
     /// <summary>
@@ -280,7 +288,7 @@ public static class AIChatClientBuilderResilienceExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder.UseResilience(CreateDefaultPipeline(configure));
+        return builder.Use((innerClient, services) => new AIResilienceSpeechToTextClient(innerClient, CreateDefaultPipeline(configure, AIUsageOperationTypes.SpeechToText, services)));
     }
 
     /// <summary>
@@ -345,13 +353,15 @@ public static class AIChatClientBuilderResilienceExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder.UseResilience(CreateDefaultPipeline(configure));
+        return builder.Use((innerClient, services) => new AIResilienceTextToSpeechClient(innerClient, CreateDefaultPipeline(configure, AIUsageOperationTypes.TextToSpeech, services)));
     }
 
-    private static ResiliencePipeline CreateDefaultPipeline(Action<AIChatClientRetryOptions> configure = null)
+    private static ResiliencePipeline CreateDefaultPipeline(Action<AIChatClientRetryOptions> configure, string operation, IServiceProvider services)
     {
         var options = new AIChatClientRetryOptions();
         configure?.Invoke(options);
+
+        var logger = (services?.GetService(typeof(ILoggerFactory)) as ILoggerFactory)?.CreateLogger("CrestApps.Core.AI.Resilience");
 
         var maxRetryAttempts = Math.Max(options.MaxRateLimitRetries, 0);
         var retryDelay = options.RateLimitRetryDelay < TimeSpan.Zero
@@ -372,6 +382,28 @@ public static class AIChatClientBuilderResilienceExtensions
                 ShouldHandle = args => ValueTask.FromResult(
                     args.Outcome.Exception is { } ex &&
                     AIProviderErrorHelper.IsRateLimitException(ex)),
+                OnRetry = args =>
+                {
+                    // The attempt is capped so the tag stays bounded; the last value counts every later retry.
+                    AITelemetry.ResilienceRetries.Add(
+                        1,
+                        new KeyValuePair<string, object>(CrestAppsTelemetry.OperationTag, operation),
+                        new KeyValuePair<string, object>(AITelemetry.ReasonTag, "rate_limit"),
+                        new KeyValuePair<string, object>(AITelemetry.AttemptTag, Math.Min(args.AttemptNumber + 1, MaxRecordedRetryAttempt)));
+
+                    if (logger?.IsEnabled(LogLevel.Warning) == true)
+                    {
+                        logger.LogWarning(
+                            _rateLimitRetryEventId,
+                            args.Outcome.Exception,
+                            "The provider rate limited a {Operation} request. Retrying in {RetryDelay} (retry {Attempt}).",
+                            operation,
+                            args.RetryDelay,
+                            args.AttemptNumber + 1);
+                    }
+
+                    return default;
+                },
             })
             .Build();
     }

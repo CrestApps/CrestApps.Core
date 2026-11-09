@@ -8,6 +8,8 @@ namespace CrestApps.Core.AI.Services;
 /// <typeparam name="TClient">The cached client type.</typeparam>
 internal sealed class BoundedClientCache<TClient> where TClient : class
 {
+    private static readonly KeyValuePair<string, object> _cacheTag = new(AITelemetry.CacheTag, typeof(TClient).Name);
+
     private readonly int _capacity;
     private readonly Dictionary<string, LinkedListNode<Entry>> _map;
     private readonly LinkedList<Entry> _order = new();
@@ -81,6 +83,8 @@ internal sealed class BoundedClientCache<TClient> where TClient : class
                 DisposeIfNeeded(first.Value.Client);
             }
 
+            AITelemetry.ClientCacheSize.Record(_map.Count, _cacheTag);
+
             return created;
         }
     }
@@ -101,6 +105,8 @@ internal sealed class BoundedClientCache<TClient> where TClient : class
             _map.Clear();
             _order.Clear();
         }
+
+        AITelemetry.ClientCacheSize.Record(0, _cacheTag);
 
         foreach (var client in toDispose)
         {

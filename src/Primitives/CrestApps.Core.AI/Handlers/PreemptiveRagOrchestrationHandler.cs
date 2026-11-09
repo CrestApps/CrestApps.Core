@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -177,13 +178,33 @@ internal sealed class PreemptiveRagOrchestrationHandler : IOrchestrationContextB
         var ragContext = new PreemptiveRagContext(buildContext.OrchestrationContext, buildContext.Resource, queries);
         foreach (var handler in handlers)
         {
+            var handlerName = handler.GetType().Name;
+
+            using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.rag.preemptive");
+            activity?.SetTag(AITelemetry.HandlerTag, handlerName);
+
+            var startTimestamp = Stopwatch.GetTimestamp();
+            var outcome = CrestAppsTelemetry.OutcomeOk;
+
             try
             {
                 await handler.HandleAsync(ragContext);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Preemptive RAG handler '{HandlerType}' failed.", handler.GetType().Name);
+                outcome = CrestAppsTelemetry.GetOutcome(ex);
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+
+                AILog.CountHandlerFailure(handler);
+
+                _logger.LogError(AILog.HandlerFailedEventId, ex, "Preemptive RAG handler '{HandlerType}' failed.", handlerName);
+            }
+            finally
+            {
+                AITelemetry.RagPreemptiveDuration.Record(
+                    Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                    new KeyValuePair<string, object>(AITelemetry.HandlerTag, handlerName),
+                    new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
             }
         }
 

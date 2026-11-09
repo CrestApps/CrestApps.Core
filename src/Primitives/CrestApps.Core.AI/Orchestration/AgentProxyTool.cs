@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
@@ -165,6 +166,8 @@ internal sealed class AgentProxyTool : AIFunction
         // agent tools are suppressed for the agent's own orchestration.
         invocationContext.AgentInvocationDepth++;
 
+        Activity.Current?.SetTag(AITelemetry.AgentDepthAttribute, invocationContext.AgentInvocationDepth);
+
         try
         {
             var orchestrationContext = await orchestrationContextBuilder.BuildAsync(
@@ -186,7 +189,10 @@ internal sealed class AgentProxyTool : AIFunction
 
             using var builder = ZString.CreateStringBuilder();
 
-            await foreach (var update in orchestrator.ExecuteStreamingAsync(orchestrationContext, cancellationToken))
+            var updates = orchestrator.ExecuteStreamingAsync(orchestrationContext, cancellationToken)
+                .WithOrchestrationTelemetry(orchestrator.Name, cancellationToken);
+
+            await foreach (var update in updates)
             {
                 if (!string.IsNullOrEmpty(update.Text))
                 {

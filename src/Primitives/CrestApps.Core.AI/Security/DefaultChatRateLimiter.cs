@@ -127,8 +127,19 @@ public sealed class DefaultChatRateLimiter : IChatRateLimiter
         var now = _timeProvider.GetUtcNow();
         var result = MultiTierRateLimitEvaluator.Evaluate(_windows, groups, now);
 
+        AITelemetry.RateLimitTrackedKeys.Record(_windows.Count, new KeyValuePair<string, object>(AITelemetry.LimiterTag, "chat"));
+
         if (result.IsThrottled)
         {
+            AITelemetry.RateLimitRejections.Add(
+                1,
+                new KeyValuePair<string, object>(AITelemetry.LimiterTag, "chat"),
+                new KeyValuePair<string, object>(
+                    AITelemetry.TierTag,
+                    isAuthenticated
+                        ? "authenticated"
+                        : "anonymous"));
+
             _logger.LogWarning(
                 "Rate limit exceeded: Key={Key}, Count={Count}/{Max}, RetryAfter={RetryAfter}s, Session={SessionId}",
                 groups[0].Keys.Count > 0 ? groups[0].Keys[0].SanitizeForLog() : "unknown",

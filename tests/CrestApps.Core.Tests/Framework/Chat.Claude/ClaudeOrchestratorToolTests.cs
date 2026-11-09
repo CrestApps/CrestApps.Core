@@ -210,7 +210,7 @@ public sealed class ClaudeOrchestratorToolTests
                 userAccessor.Object,
                 clientService,
                 claudeOptions,
-                Options.Create(new DefaultAIOptions()),
+                new DefaultAIOptions(),
                 NullLoggerFactory.Instance,
                 NullLogger<ClaudeOrchestrator>.Instance);
 

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -53,6 +54,12 @@ internal sealed class FigureDescriptionBackfillBackgroundService : BackgroundSer
                 break;
             }
 
+            using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.background.cycle");
+            activity?.SetTag(CrestAppsTelemetry.ServiceTag, nameof(FigureDescriptionBackfillBackgroundService));
+
+            var startTimestamp = Stopwatch.GetTimestamp();
+            var outcome = CrestAppsTelemetry.OutcomeOk;
+
             try
             {
                 using var scope = _serviceProvider.CreateScope();
@@ -77,11 +84,20 @@ internal sealed class FigureDescriptionBackfillBackgroundService : BackgroundSer
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
+                outcome = CrestAppsTelemetry.OutcomeCancelled;
+
                 break;
             }
             catch (Exception ex)
             {
+                outcome = CrestAppsTelemetry.OutcomeError;
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+
                 _logger.LogError(ex, "An error occurred while transcribing pending figures.");
+            }
+            finally
+            {
+                CrestAppsTelemetry.RecordBackgroundCycle(nameof(FigureDescriptionBackfillBackgroundService), startTimestamp, outcome);
             }
         }
     }

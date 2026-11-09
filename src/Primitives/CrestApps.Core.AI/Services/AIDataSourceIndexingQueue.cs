@@ -6,6 +6,8 @@ namespace CrestApps.Core.AI.Services;
 
 internal sealed class AIDataSourceIndexingQueue : IAIDataSourceIndexingQueue
 {
+    internal static readonly KeyValuePair<string, object> QueueTag = new(CrestAppsTelemetry.QueueTag, nameof(AIDataSourceIndexingQueue));
+
     private readonly ILogger<AIDataSourceIndexingQueue> _logger;
     private readonly Channel<AIDataSourceIndexingWorkItem> _channel = Channel.CreateUnbounded<AIDataSourceIndexingWorkItem>(new UnboundedChannelOptions
     {
@@ -35,7 +37,7 @@ internal sealed class AIDataSourceIndexingQueue : IAIDataSourceIndexingQueue
 
         LogQueuedWorkItem(workItem, dataSource.ItemId, 0);
 
-        return _channel.Writer.WriteAsync(workItem, cancellationToken);
+        return EnqueueAsync(workItem, cancellationToken);
     }
 
     /// <summary>
@@ -51,7 +53,7 @@ internal sealed class AIDataSourceIndexingQueue : IAIDataSourceIndexingQueue
 
         LogQueuedWorkItem(workItem, dataSource.ItemId, 0);
 
-        return _channel.Writer.WriteAsync(workItem, cancellationToken);
+        return EnqueueAsync(workItem, cancellationToken);
     }
 
     /// <summary>
@@ -126,7 +128,7 @@ internal sealed class AIDataSourceIndexingQueue : IAIDataSourceIndexingQueue
 
         LogQueuedWorkItem(workItem, sourceIndexProfileName, ids.Length);
 
-        return _channel.Writer.WriteAsync(workItem, cancellationToken);
+        return EnqueueAsync(workItem, cancellationToken);
     }
 
     private ValueTask QueueDataSourceDocumentIdsAsync(string dataSourceId, IReadOnlyCollection<string> documentIds, Func<string, IReadOnlyCollection<string>, AIDataSourceIndexingWorkItem> factory, CancellationToken cancellationToken)
@@ -151,6 +153,13 @@ internal sealed class AIDataSourceIndexingQueue : IAIDataSourceIndexingQueue
         var workItem = factory(dataSourceId, ids);
 
         LogQueuedWorkItem(workItem, dataSourceId, ids.Length);
+
+        return EnqueueAsync(workItem, cancellationToken);
+    }
+
+    private ValueTask EnqueueAsync(AIDataSourceIndexingWorkItem workItem, CancellationToken cancellationToken)
+    {
+        CrestAppsTelemetry.QueueDepth.Add(1, QueueTag);
 
         return _channel.Writer.WriteAsync(workItem, cancellationToken);
     }

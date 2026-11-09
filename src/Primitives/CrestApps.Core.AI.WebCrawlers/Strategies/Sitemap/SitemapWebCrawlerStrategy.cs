@@ -137,6 +137,8 @@ public sealed class SitemapWebCrawlerStrategy : IWebCrawlerStrategy
                         response.Content.Headers.ContentType?.MediaType);
                 }
 
+                CountPage("skipped");
+
                 return null;
             }
 
@@ -147,8 +149,12 @@ public sealed class SitemapWebCrawlerStrategy : IWebCrawlerStrategy
 
             if (string.IsNullOrWhiteSpace(content))
             {
+                CountPage("skipped");
+
                 return null;
             }
+
+            CountPage("fetched");
 
             return new CrawledPage(title, content);
         }
@@ -163,8 +169,15 @@ public sealed class SitemapWebCrawlerStrategy : IWebCrawlerStrategy
                 _logger.LogDebug(ex, "Failed to fetch page '{Url}' for web crawler '{CrawlerId}'.", url, crawler.ItemId);
             }
 
+            CountPage("failed");
+
             return null;
         }
+    }
+
+    private static void CountPage(string result)
+    {
+        AITelemetry.WebCrawlPages.Add(1, new KeyValuePair<string, object>(AITelemetry.ResultTag, result));
     }
 
     private static string FlattenDocument(Microsoft.Extensions.DataIngestion.IngestionDocument document)

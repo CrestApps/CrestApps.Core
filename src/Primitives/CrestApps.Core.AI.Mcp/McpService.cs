@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.AI.Mcp.Models;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Client;
@@ -52,6 +53,39 @@ public sealed class McpService
             return null;
         }
 
-        return await McpClient.CreateAsync(transport);
+        // Every call connects and runs the MCP handshake again, so the rate of this metric is also the rate of
+        // new MCP clients, which makes a leak or a missing cache visible.
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.mcp.connect", ActivityKind.Client);
+        activity?.SetTag(AITelemetry.TransportTag, connection.Source);
+
+        var transportTag = new KeyValuePair<string, object>(AITelemetry.TransportTag, connection.Source);
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
+
+        try
+        {
+            var client = await McpClient.CreateAsync(transport);
+
+            // The session stays open until the client is disposed or its transport closes. A caller that never
+            // disposes its client shows here as a count that only grows.
+            AITelemetry.McpActiveClients.Add(1, transportTag);
+            _ = client.Completion.ContinueWith(_ => AITelemetry.McpActiveClients.Add(-1, transportTag), TaskScheduler.Default);
+
+            return client;
+        }
+        catch (Exception ex)
+        {
+            outcome = CrestAppsTelemetry.GetOutcome(ex);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+
+            throw;
+        }
+        finally
+        {
+            AITelemetry.McpClientConnectDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                transportTag,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
+        }
     }
 }

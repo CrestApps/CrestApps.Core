@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
@@ -1704,6 +1705,18 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         string prompt,
         CancellationToken cancellationToken)
     {
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.chat.turn");
+        activity?.SetTag(AITelemetry.SessionIdAttribute, itemId);
+
+        using var logScope = Logger.BeginScope(new Dictionary<string, object>
+        {
+            ["InteractionId"] = itemId,
+        });
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
+        string responseHandler = null;
+
         try
         {
             using var invocationScope = AIInvocationScope.Begin();
@@ -1770,6 +1783,9 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
 
             var chatMode = await GetChatModeAsync(services);
             var handler = handlerResolver.Resolve(interaction.ResponseHandlerName, chatMode);
+
+            responseHandler = handler.Name;
+            Activity.Current?.SetTag(AITelemetry.ResponseHandlerTag, responseHandler);
 
             var handlerContext = new ChatResponseHandlerContext
             {
@@ -1893,10 +1909,15 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         {
             if (ex is OperationCanceledException || (ex is TaskCanceledException && cancellationToken.IsCancellationRequested))
             {
+                outcome = CrestAppsTelemetry.OutcomeCancelled;
+
                 Logger.LogDebug("Chat interaction processing was cancelled.");
 
                 return;
             }
+
+            outcome = CrestAppsTelemetry.OutcomeError;
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
 
             Logger.LogError(ex, "An error occurred while processing the chat interaction.");
             try
@@ -1917,6 +1938,15 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         finally
         {
             writer.Complete();
+
+            var outcomeTag = new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome);
+
+            AITelemetry.ChatTurnDuration.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds, outcomeTag);
+
+            if (responseHandler is not null)
+            {
+                AITelemetry.ChatMessages.Add(1, outcomeTag, new KeyValuePair<string, object>(AITelemetry.ResponseHandlerTag, responseHandler));
+            }
         }
     }
 

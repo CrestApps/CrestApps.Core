@@ -38,7 +38,7 @@ public sealed class ClaudeOrchestrator : IOrchestrator
     /// <param name="userAccessor">The accessor that resolves the principal owning the current request.</param>
     /// <param name="clientService">The client service.</param>
     /// <param name="anthropicOptions">The anthropic options.</param>
-    /// <param name="defaultOptions">The default options.</param>
+    /// <param name="defaultOptions">The default options with the site's overrides applied.</param>
     /// <param name="loggerFactory">The logger factory.</param>
     /// <param name="logger">The logger.</param>
     public ClaudeOrchestrator(
@@ -47,7 +47,7 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         IUserAccessor userAccessor,
         ClaudeClientService clientService,
         IOptionsSnapshot<ClaudeOptions> anthropicOptions,
-        IOptions<DefaultAIOptions> defaultOptions,
+        DefaultAIOptions defaultOptions,
         ILoggerFactory loggerFactory,
         ILogger<ClaudeOrchestrator> logger)
     {
@@ -56,7 +56,7 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         _userAccessor = userAccessor;
         _clientService = clientService;
         _anthropicOptions = anthropicOptions;
-        _defaultOptions = defaultOptions.Value;
+        _defaultOptions = defaultOptions;
         _loggerFactory = loggerFactory;
         _logger = logger;
     }
@@ -125,7 +125,16 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         builder.UseFunctionInvocation(_loggerFactory, invocation =>
         {
             invocation.MaximumIterationsPerRequest = _defaultOptions.MaximumIterationsPerRequest;
+
+            // Through the shared invoker, so Claude's tool calls are traced and timed like every other client's.
+            invocation.FunctionInvoker = (functionContext, functionCancellationToken) => AIToolInvocation.InvokeAsync(functionContext.Function, functionContext.Arguments, functionCancellationToken);
         });
+
+        // Innermost, as in NamedAICompletionClient, so every round trip and the tool calls between them are traced.
+        if (_defaultOptions.EnableOpenTelemetry)
+        {
+            builder.UseOpenTelemetry(_loggerFactory, CrestAppsTelemetry.AIClientSourceName, telemetry => telemetry.EnableSensitiveData = _defaultOptions.EnableSensitiveData);
+        }
 
         var configuredClient = builder.Build(context.ServiceProvider);
         var chatOptions = BuildChatOptions(context.CompletionContext, modelId, effortLevel);
@@ -160,6 +169,12 @@ public sealed class ClaudeOrchestrator : IOrchestrator
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                // The failure reaches the user as text, so it is counted here or it would read as a successful turn.
+                AITelemetry.CompletionErrors.Add(
+                    1,
+                    new KeyValuePair<string, object>(AITelemetry.ClientTag, OrchestratorName),
+                    new KeyValuePair<string, object>(CrestAppsTelemetry.ErrorTypeTag, ex.GetType().FullName));
+
                 _logger.LogError(ex, "ClaudeOrchestrator: Unexpected error during Anthropic session.");
                 errorResponse = CreateTextResponse("An unexpected error occurred while communicating with Anthropic. Please try again.");
                 break;

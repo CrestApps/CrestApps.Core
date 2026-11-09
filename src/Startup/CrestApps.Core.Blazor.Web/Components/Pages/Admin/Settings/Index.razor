@@ -272,7 +272,15 @@ else
                                 <InputCheckbox id="openTelemetry" @bind-Value="_model.EnableOpenTelemetry" class="form-check-input" />
                                 <label for="openTelemetry" class="form-check-label">Enable OpenTelemetry</label>
                             </div>
-                            <div class="form-text">Enable distributed tracing and diagnostics for AI operations.</div>
+                            <div class="form-text">Adds the OpenTelemetry generative AI (gen_ai) spans and metrics to the requests of the Microsoft.Extensions.AI clients. The CrestApps spans and metrics are emitted either way; an exporter must be configured to collect them.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="sensitiveData" @bind-Value="_model.EnableSensitiveData" class="form-check-input" />
+                                <label for="sensitiveData" class="form-check-label">Include prompts and responses in telemetry</label>
+                            </div>
+                            <div class="form-text">Adds prompts, responses and tool arguments to the gen_ai spans. They can contain personal data. Applies only while OpenTelemetry is enabled.</div>
                         </div>
 
                         <div class="mb-3">
@@ -1074,6 +1082,7 @@ else
             MaximumIterationsPerRequest = settings.MaximumIterationsPerRequest,
             EnableDistributedCaching = settings.EnableDistributedCaching,
             EnableOpenTelemetry = settings.EnableOpenTelemetry,
+            EnableSensitiveData = settings.EnableSensitiveData,
             ChatInteractionChatMode = chatInteractionSettings.ChatMode,
             ChatInteractionEnableTextToSpeechPlayback = chatInteractionSettings.EnableTextToSpeechPlayback,
             DefaultOrchestratorEnablePreemptiveRag = defaultOrchestratorSettings.EnablePreemptiveRag,
@@ -1577,7 +1586,12 @@ else
             s.EnablePreemptiveMemoryRetrieval = _model.EnablePreemptiveMemoryRetrieval;
             s.MaximumIterationsPerRequest = _model.MaximumIterationsPerRequest;
             s.EnableDistributedCaching = _model.EnableDistributedCaching;
+
+            // The override flags make the saved values win over configuration; without them the toggles had no effect.
+            s.OverrideEnableOpenTelemetry = true;
             s.EnableOpenTelemetry = _model.EnableOpenTelemetry;
+            s.OverrideEnableSensitiveData = true;
+            s.EnableSensitiveData = _model.EnableSensitiveData;
         });
 
         SiteSettings.Set<ChatInteractionSettings>(s =>

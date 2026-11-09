@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.Logging;
@@ -49,6 +50,7 @@ public sealed class DefaultAICompletionContextBuilder : IAICompletionContextBuil
         ArgumentNullException.ThrowIfNull(resource);
 
         var context = new AICompletionContext();
+        var startTimestamp = Stopwatch.GetTimestamp();
 
         var building = new AICompletionContextBuildingContext(resource, context);
         IAICompletionContextBuilderHandler[] handlerBuffer = null;
@@ -72,7 +74,9 @@ public sealed class DefaultAICompletionContextBuilder : IAICompletionContextBuil
                         }
                         catch (Exception ex) when (ex is not OperationCanceledException)
                         {
-                            _logger.LogError(ex, "Error in completion context building handler {Handler}.", handler.GetType().Name);
+                            AILog.CountHandlerFailure(handler);
+
+                            _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in completion context building handler {Handler}.", handler.GetType().Name);
                         }
                     }
                 }
@@ -87,7 +91,9 @@ public sealed class DefaultAICompletionContextBuilder : IAICompletionContextBuil
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        _logger.LogError(ex, "Error in completion context building handler {Handler}.", handler.GetType().Name);
+                        AILog.CountHandlerFailure(handler);
+
+                        _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in completion context building handler {Handler}.", handler.GetType().Name);
                     }
                 }
             }
@@ -112,7 +118,9 @@ public sealed class DefaultAICompletionContextBuilder : IAICompletionContextBuil
                         }
                         catch (Exception ex) when (ex is not OperationCanceledException)
                         {
-                            _logger.LogError(ex, "Error in completion context built handler {Handler}.", handler.GetType().Name);
+                            AILog.CountHandlerFailure(handler);
+
+                            _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in completion context built handler {Handler}.", handler.GetType().Name);
                         }
                     }
                 }
@@ -127,7 +135,9 @@ public sealed class DefaultAICompletionContextBuilder : IAICompletionContextBuil
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        _logger.LogError(ex, "Error in completion context built handler {Handler}.", handler.GetType().Name);
+                        AILog.CountHandlerFailure(handler);
+
+                        _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in completion context built handler {Handler}.", handler.GetType().Name);
                     }
                 }
             }
@@ -139,6 +149,10 @@ public sealed class DefaultAICompletionContextBuilder : IAICompletionContextBuil
                 Array.Clear(handlerBuffer, 0, _handlerArray.Length);
                 ArrayPool<IAICompletionContextBuilderHandler>.Shared.Return(handlerBuffer);
             }
+
+            AITelemetry.ContextBuildDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(AITelemetry.PhaseTag, "completion"));
         }
 
         return context;
