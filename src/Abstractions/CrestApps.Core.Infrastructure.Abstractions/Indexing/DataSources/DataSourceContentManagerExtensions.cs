@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 
 namespace CrestApps.Core.Infrastructure.Indexing.DataSources;
@@ -41,6 +42,42 @@ public static class DataSourceContentManagerExtensions
     {
         ArgumentNullException.ThrowIfNull(contentManager);
 
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.index.search", ActivityKind.Client);
+        activity?.SetTag(CrestAppsTelemetry.ProviderTag, indexProfile?.ProviderName);
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = await RunSearchAsync(contentManager, indexProfile, embedding, dataSourceId, topN, filter, cancellationToken);
+
+        if (!outcome.Succeeded)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error);
+        }
+
+        CrestAppsTelemetry.RecordIndexOperation(indexProfile?.ProviderName, "search", startTimestamp, outcome.Succeeded);
+
+        return outcome;
+    }
+
+    /// <summary>
+    /// Runs the search through <see cref="IDataSourceContentManager.TrySearchAsync"/>, falling back to
+    /// <see cref="IDataSourceContentManager.SearchAsync"/> for a provider that does not implement it.
+    /// </summary>
+    /// <param name="contentManager">The provider's vector search service.</param>
+    /// <param name="indexProfile">The index profile describing the target index.</param>
+    /// <param name="embedding">The embedding vector to search against.</param>
+    /// <param name="dataSourceId">The identifier of the data source to search within.</param>
+    /// <param name="topN">The maximum number of results to return.</param>
+    /// <param name="filter">An optional filter expression to narrow the search.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    private static async Task<DataSourceSearchOutcome> RunSearchAsync(
+        IDataSourceContentManager contentManager,
+        IIndexProfileInfo indexProfile,
+        float[] embedding,
+        string dataSourceId,
+        int topN,
+        string filter,
+        CancellationToken cancellationToken)
+    {
         var outcome = await contentManager.TrySearchAsync(indexProfile, embedding, dataSourceId, topN, filter, cancellationToken);
 
         if (outcome != null)

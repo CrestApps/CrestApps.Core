@@ -242,7 +242,9 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         var client = await ResolveClientAsync(deployment, connection,
             (provider, conn, model) => provider.GetRealtimeClientAsync(conn, model));
 
-        return IsUsageTrackingEnabled ? new AIUsageTrackingRealtimeClient(client, CreateUsageRecorder(deployment)) : client;
+        client = IsUsageTrackingEnabled ? new AIUsageTrackingRealtimeClient(client, CreateUsageRecorder(deployment)) : client;
+
+        return BuildRealtimeClient(client);
     }
 
     /// <summary>
@@ -379,15 +381,34 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
         return builder.Build(_serviceProvider);
     }
 
+    // The gen_ai telemetry of the clients built below is added last, so it sits innermost and each provider call
+    // gets its own span. Chat clients are left alone: NamedAICompletionClient adds it under the function-invoking
+    // client, where the tool calls between round trips are traced as well.
+    private DefaultAIOptions GetOpenTelemetryOptions()
+    {
+        var options = _serviceProvider.GetService<DefaultAIOptions>();
+
+        return options?.EnableOpenTelemetry == true
+            ? options
+            : null;
+    }
+
     private IEmbeddingGenerator<string, Embedding<float>> BuildEmbeddingGenerator(IEmbeddingGenerator<string, Embedding<float>> generator, Action<EmbeddingGeneratorBuilder<string, Embedding<float>>> configurePipeline)
     {
-        if (configurePipeline is null)
+        var telemetryOptions = GetOpenTelemetryOptions();
+
+        if (configurePipeline is null && telemetryOptions is null)
         {
             return generator;
         }
 
         var builder = generator.AsBuilder();
-        configurePipeline.Invoke(builder);
+        configurePipeline?.Invoke(builder);
+
+        if (telemetryOptions is not null)
+        {
+            builder.UseOpenTelemetry(_serviceProvider.GetService<ILoggerFactory>(), CrestAppsTelemetry.AIClientSourceName, telemetry => telemetry.EnableSensitiveData = telemetryOptions.EnableSensitiveData);
+        }
 
         return builder.Build(_serviceProvider);
     }
@@ -395,41 +416,76 @@ public sealed class DefaultAIClientFactory : IAIClientFactory
 #pragma warning disable MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     private IImageGenerator BuildImageGenerator(IImageGenerator generator, Action<ImageGeneratorBuilder> configurePipeline)
     {
-        if (configurePipeline is null)
+        var telemetryOptions = GetOpenTelemetryOptions();
+
+        if (configurePipeline is null && telemetryOptions is null)
         {
             return generator;
         }
 
         var builder = generator.AsBuilder();
-        configurePipeline.Invoke(builder);
+        configurePipeline?.Invoke(builder);
+
+        if (telemetryOptions is not null)
+        {
+            builder.UseOpenTelemetry(_serviceProvider.GetService<ILoggerFactory>(), CrestAppsTelemetry.AIClientSourceName, telemetry => telemetry.EnableSensitiveData = telemetryOptions.EnableSensitiveData);
+        }
 
         return builder.Build(_serviceProvider);
     }
 
     private ISpeechToTextClient BuildSpeechToTextClient(ISpeechToTextClient client, Action<SpeechToTextClientBuilder> configurePipeline)
     {
-        if (configurePipeline is null)
+        var telemetryOptions = GetOpenTelemetryOptions();
+
+        if (configurePipeline is null && telemetryOptions is null)
         {
             return client;
         }
 
         var builder = client.AsBuilder();
-        configurePipeline.Invoke(builder);
+        configurePipeline?.Invoke(builder);
+
+        if (telemetryOptions is not null)
+        {
+            builder.UseOpenTelemetry(_serviceProvider.GetService<ILoggerFactory>(), CrestAppsTelemetry.AIClientSourceName, telemetry => telemetry.EnableSensitiveData = telemetryOptions.EnableSensitiveData);
+        }
 
         return builder.Build(_serviceProvider);
     }
 
     private ITextToSpeechClient BuildTextToSpeechClient(ITextToSpeechClient client, Action<TextToSpeechClientBuilder> configurePipeline)
     {
-        if (configurePipeline is null)
+        var telemetryOptions = GetOpenTelemetryOptions();
+
+        if (configurePipeline is null && telemetryOptions is null)
         {
             return client;
         }
 
         var builder = client.AsBuilder();
-        configurePipeline.Invoke(builder);
+        configurePipeline?.Invoke(builder);
+
+        if (telemetryOptions is not null)
+        {
+            builder.UseOpenTelemetry(_serviceProvider.GetService<ILoggerFactory>(), CrestAppsTelemetry.AIClientSourceName, telemetry => telemetry.EnableSensitiveData = telemetryOptions.EnableSensitiveData);
+        }
 
         return builder.Build(_serviceProvider);
+    }
+
+    private IRealtimeClient BuildRealtimeClient(IRealtimeClient client)
+    {
+        var telemetryOptions = GetOpenTelemetryOptions();
+
+        if (telemetryOptions is null)
+        {
+            return client;
+        }
+
+        return client.AsBuilder()
+            .UseOpenTelemetry(_serviceProvider.GetService<ILoggerFactory>(), CrestAppsTelemetry.AIClientSourceName, telemetry => telemetry.EnableSensitiveData = telemetryOptions.EnableSensitiveData)
+            .Build(_serviceProvider);
     }
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 }

@@ -72,7 +72,9 @@ public sealed class DefaultAICompletionContextBuilder : IAICompletionContextBuil
                         }
                         catch (Exception ex) when (ex is not OperationCanceledException)
                         {
-                            _logger.LogError(ex, "Error in completion context building handler {Handler}.", handler.GetType().Name);
+                            AILog.CountHandlerFailure(handler);
+
+                            _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in completion context building handler {Handler}.", handler.GetType().Name);
                         }
                     }
                 }
@@ -87,7 +89,9 @@ public sealed class DefaultAICompletionContextBuilder : IAICompletionContextBuil
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        _logger.LogError(ex, "Error in completion context building handler {Handler}.", handler.GetType().Name);
+                        AILog.CountHandlerFailure(handler);
+
+                        _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in completion context building handler {Handler}.", handler.GetType().Name);
                     }
                 }
             }
@@ -112,7 +116,9 @@ public sealed class DefaultAICompletionContextBuilder : IAICompletionContextBuil
                         }
                         catch (Exception ex) when (ex is not OperationCanceledException)
                         {
-                            _logger.LogError(ex, "Error in completion context built handler {Handler}.", handler.GetType().Name);
+                            AILog.CountHandlerFailure(handler);
+
+                            _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in completion context built handler {Handler}.", handler.GetType().Name);
                         }
                     }
                 }
@@ -127,7 +133,9 @@ public sealed class DefaultAICompletionContextBuilder : IAICompletionContextBuil
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        _logger.LogError(ex, "Error in completion context built handler {Handler}.", handler.GetType().Name);
+                        AILog.CountHandlerFailure(handler);
+
+                        _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in completion context built handler {Handler}.", handler.GetType().Name);
                     }
                 }
             }

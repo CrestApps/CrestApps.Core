@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
@@ -135,6 +136,12 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
                 continue;
             }
 
+            using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.webcrawler.crawl");
+            activity?.SetTag("crestapps.web_crawler.id", crawler.ItemId);
+
+            var startTimestamp = Stopwatch.GetTimestamp();
+            var outcome = CrestAppsTelemetry.OutcomeOk;
+
             try
             {
                 if (ingested)
@@ -148,11 +155,22 @@ public sealed class WebCrawlerReindexService : IWebCrawlerReindexService
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                outcome = CrestAppsTelemetry.OutcomeCancelled;
+
                 throw;
             }
             catch (Exception ex)
             {
+                outcome = CrestAppsTelemetry.OutcomeError;
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+
                 _logger.LogError(ex, "Failed to re-index web crawler '{CrawlerId}'.", crawler.ItemId);
+            }
+            finally
+            {
+                AITelemetry.WebCrawlDuration.Record(
+                    Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                    new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
             }
         }
     }

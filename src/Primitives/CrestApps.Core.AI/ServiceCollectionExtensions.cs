@@ -210,6 +210,9 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IAICompletionUsageService, DefaultAICompletionUsageService>();
         services.TryAddScoped<IAICompletionUsageObserver>(sp => sp.GetRequiredService<IAICompletionUsageService>());
 
+        // Registered after the store observer above, which TryAddScoped would otherwise skip.
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAICompletionUsageObserver, AIUsageTelemetryObserver>());
+
         return services;
     }
 

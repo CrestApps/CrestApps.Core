@@ -30,6 +30,9 @@ its clients are created through the factory.
 Each metered request becomes one
 `AICompletionUsageRecord`, handed to every registered `IAICompletionUsageObserver`. The default
 `IAICompletionUsageService` is one of them, and stores the record through `IAICompletionUsageStore`.
+`AddCoreAIUsageTracking()` registers a second one that emits each record as the `crestapps.core.ai.usage.*` metrics,
+which a host collecting OpenTelemetry can chart per client, deployment and purpose. See
+[Observability](./observability.md#usage).
 
 ## One record per request
 

@@ -52,6 +52,9 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
     {
         ArgumentNullException.ThrowIfNull(resource);
 
+        // The handlers run preemptive retrieval and memory lookups, so their spans hang under this one.
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.orchestrate.context");
+
         var context = new OrchestrationContext
         {
             ServiceProvider = _serviceProvider,
@@ -79,7 +82,9 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
                         }
                         catch (Exception ex) when (ex is not OperationCanceledException)
                         {
-                            _logger.LogError(ex, "Error in orchestration context building handler {Handler}.", handler.GetType().Name);
+                            AILog.CountHandlerFailure(handler);
+
+                            _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in orchestration context building handler {Handler}.", handler.GetType().Name);
                         }
                     }
                 }
@@ -94,7 +99,9 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        _logger.LogError(ex, "Error in orchestration context building handler {Handler}.", handler.GetType().Name);
+                        AILog.CountHandlerFailure(handler);
+
+                        _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in orchestration context building handler {Handler}.", handler.GetType().Name);
                     }
                 }
             }
@@ -119,7 +126,9 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
                         }
                         catch (Exception ex) when (ex is not OperationCanceledException)
                         {
-                            _logger.LogError(ex, "Error in orchestration context built handler {Handler}.", handler.GetType().Name);
+                            AILog.CountHandlerFailure(handler);
+
+                            _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in orchestration context built handler {Handler}.", handler.GetType().Name);
                         }
                     }
                 }
@@ -134,7 +143,9 @@ public sealed class DefaultOrchestrationContextBuilder : IOrchestrationContextBu
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        _logger.LogError(ex, "Error in orchestration context built handler {Handler}.", handler.GetType().Name);
+                        AILog.CountHandlerFailure(handler);
+
+                        _logger.LogError(AILog.HandlerFailedEventId, ex, "Error in orchestration context built handler {Handler}.", handler.GetType().Name);
                     }
                 }
             }

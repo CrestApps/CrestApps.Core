@@ -2070,6 +2070,21 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// <param name="cancellationToken">The cancellation token.</param>
     protected virtual async Task HandleSendMessageAsync(ChannelWriter<CompletionPartialMessage> writer, IServiceProvider services, string profileId, string prompt, string sessionId, string sessionProfileId, CancellationToken cancellationToken)
     {
+        // The turn's span is the parent of everything the message sets off: security checks, retrieval, the
+        // orchestrator, completions and tool calls. The ids go on the span and the log scope, never on a metric.
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.chat.turn");
+        activity?.SetTag(AITelemetry.SessionIdAttribute, sessionId);
+        activity?.SetTag(AITelemetry.ProfileIdAttribute, profileId);
+
+        using var logScope = Logger.BeginScope(new Dictionary<string, object>
+        {
+            ["SessionId"] = sessionId,
+            ["ProfileId"] = profileId,
+        });
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
+
         try
         {
             using var invocationScope = AIInvocationScope.Begin();
@@ -2110,6 +2125,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
                 if (utilitySecurityResult.IsBlocked)
                 {
+                    outcome = CrestAppsTelemetry.OutcomeBlocked;
+
                     await Clients.Caller.ReceiveError(GetBlockedPromptMessage(utilitySecurityResult));
 
                     return;
@@ -2133,6 +2150,8 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
                 if (securityResult.IsBlocked)
                 {
+                    outcome = CrestAppsTelemetry.OutcomeBlocked;
+
                     await Clients.Caller.ReceiveError(GetBlockedPromptMessage(securityResult));
 
                     return;
@@ -2145,10 +2164,15 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         {
             if (ex is OperationCanceledException || (ex is TaskCanceledException && cancellationToken.IsCancellationRequested))
             {
+                outcome = CrestAppsTelemetry.OutcomeCancelled;
+
                 Logger.LogDebug("Chat prompt processing was cancelled.");
 
                 return;
             }
+
+            outcome = CrestAppsTelemetry.OutcomeError;
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
 
             Logger.LogError(ex, "An error occurred while processing the chat prompt.");
             try
@@ -2169,6 +2193,10 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         finally
         {
             writer.Complete();
+
+            AITelemetry.ChatTurnDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
         }
     }
 

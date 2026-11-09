@@ -119,6 +119,8 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
             return null;
         }
 
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.realtime.grounding");
+
         var stopwatch = Stopwatch.StartNew();
         var turnContext = CreateTurnContext(context, utterance);
         var builtContext = new OrchestrationContextBuiltContext(resource, turnContext);
@@ -171,7 +173,9 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
             {
                 // One failing source must not silence the whole turn: the model still answers, just with less
                 // context, which is better than a conversation that stops replying.
-                _logger.LogError(ex, "Realtime preemptive RAG handler '{HandlerType}' failed.", handler.GetType().Name);
+                AILog.CountHandlerFailure(handler);
+
+                _logger.LogError(AILog.HandlerFailedEventId, ex, "Realtime preemptive RAG handler '{HandlerType}' failed.", handler.GetType().Name);
             }
         }
 
@@ -185,6 +189,8 @@ internal sealed class DefaultRealtimeTurnGrounding : IRealtimeTurnGrounding
         var retrieved = turnContext.SystemMessageBuilder.ToString();
 
         stopwatch.Stop();
+
+        AITelemetry.RealtimeGroundingDuration.Record(stopwatch.Elapsed.TotalSeconds);
 
         if (string.IsNullOrWhiteSpace(retrieved))
         {

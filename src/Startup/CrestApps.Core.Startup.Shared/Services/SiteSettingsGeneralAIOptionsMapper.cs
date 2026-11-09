@@ -26,5 +26,7 @@ internal static class SiteSettingsGeneralAIOptionsMapper
         options.EnableDistributedCaching = settings.EnableDistributedCaching;
         options.OverrideEnableOpenTelemetry = settings.OverrideEnableOpenTelemetry;
         options.EnableOpenTelemetry = settings.EnableOpenTelemetry;
+        options.OverrideEnableSensitiveData = settings.OverrideEnableSensitiveData;
+        options.EnableSensitiveData = settings.EnableSensitiveData;
     }
 }

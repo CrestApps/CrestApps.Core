@@ -20,4 +20,8 @@
     <InternalsVisibleTo Include="CrestApps.Core.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../../Abstractions/CrestApps.Core.AI.Abstractions/CrestApps.Core.AI.Abstractions.csproj" />
+  </ItemGroup>
+
 </Project>

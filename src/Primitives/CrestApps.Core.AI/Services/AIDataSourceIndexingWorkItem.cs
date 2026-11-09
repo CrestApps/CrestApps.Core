@@ -1,9 +1,20 @@
+using System.Diagnostics;
 using CrestApps.Core.AI.Models;
 
 namespace CrestApps.Core.AI.Services;
 
 internal sealed class AIDataSourceIndexingWorkItem
 {
+    /// <summary>
+    /// Gets the <see cref="Stopwatch"/> timestamp of when the item was queued.
+    /// </summary>
+    public long QueuedTimestamp { get; } = Stopwatch.GetTimestamp();
+
+    /// <summary>
+    /// Gets the trace that queued the item, so the worker's span can link back to it.
+    /// </summary>
+    public ActivityContext QueuedContext { get; } = Activity.Current?.Context ?? default;
+
     public AIDataSource DataSource { get; private init; }
 
     public string DataSourceId { get; private init; }

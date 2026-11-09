@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Resilience.Models;
 using CrestApps.Core.AI.Resilience.Services;
 using Microsoft.Extensions.AI;
@@ -12,6 +13,8 @@ namespace CrestApps.Core.AI.Resilience;
 /// </summary>
 public static class AIChatClientBuilderResilienceExtensions
 {
+    private const int MaxRecordedRetryAttempt = 5;
+
     private static readonly TimeSpan _defaultRetryDelay = TimeSpan.FromSeconds(1);
 
     /// <summary>
@@ -76,7 +79,7 @@ public static class AIChatClientBuilderResilienceExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder.UseResilience(CreateDefaultPipeline(configure));
+        return builder.UseResilience(CreateDefaultPipeline(configure, AIUsageOperationTypes.Chat));
     }
 
     /// <summary>
@@ -150,7 +153,7 @@ public static class AIChatClientBuilderResilienceExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder.UseResilience(CreateDefaultPipeline(configure));
+        return builder.UseResilience(CreateDefaultPipeline(configure, AIUsageOperationTypes.Embedding));
     }
 
     /// <summary>
@@ -215,7 +218,7 @@ public static class AIChatClientBuilderResilienceExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder.UseResilience(CreateDefaultPipeline(configure));
+        return builder.UseResilience(CreateDefaultPipeline(configure, AIUsageOperationTypes.Image));
     }
 
     /// <summary>
@@ -280,7 +283,7 @@ public static class AIChatClientBuilderResilienceExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder.UseResilience(CreateDefaultPipeline(configure));
+        return builder.UseResilience(CreateDefaultPipeline(configure, AIUsageOperationTypes.SpeechToText));
     }
 
     /// <summary>
@@ -345,10 +348,10 @@ public static class AIChatClientBuilderResilienceExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        return builder.UseResilience(CreateDefaultPipeline(configure));
+        return builder.UseResilience(CreateDefaultPipeline(configure, AIUsageOperationTypes.TextToSpeech));
     }
 
-    private static ResiliencePipeline CreateDefaultPipeline(Action<AIChatClientRetryOptions> configure = null)
+    private static ResiliencePipeline CreateDefaultPipeline(Action<AIChatClientRetryOptions> configure, string operation)
     {
         var options = new AIChatClientRetryOptions();
         configure?.Invoke(options);
@@ -372,6 +375,17 @@ public static class AIChatClientBuilderResilienceExtensions
                 ShouldHandle = args => ValueTask.FromResult(
                     args.Outcome.Exception is { } ex &&
                     AIProviderErrorHelper.IsRateLimitException(ex)),
+                OnRetry = args =>
+                {
+                    // The attempt is capped so the tag stays bounded; the last value counts every later retry.
+                    AITelemetry.ResilienceRetries.Add(
+                        1,
+                        new KeyValuePair<string, object>(CrestAppsTelemetry.OperationTag, operation),
+                        new KeyValuePair<string, object>(AITelemetry.ReasonTag, "rate_limit"),
+                        new KeyValuePair<string, object>(AITelemetry.AttemptTag, Math.Min(args.AttemptNumber + 1, MaxRecordedRetryAttempt)));
+
+                    return default;
+                },
             })
             .Build();
     }

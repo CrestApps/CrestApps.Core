@@ -46,9 +46,18 @@ public sealed class DefaultAIOptions
     public int AbsoluteMaximumIterationsPerRequest { get; set; } = 100;
 
     /// <summary>
-    /// Gets or sets a value indicating whether enables Open Telemetry.
+    /// Gets or sets a value indicating whether the AI clients emit the OpenTelemetry generative AI
+    /// (<c>gen_ai.*</c>) spans and metrics. The framework's own <c>CrestApps.Core</c> telemetry is emitted
+    /// regardless of this value.
     /// </summary>
     public bool EnableOpenTelemetry { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the <c>gen_ai.*</c> spans include prompts, responses and tool
+    /// arguments. They can hold personal data, so this is off by default and only applies while
+    /// <see cref="EnableOpenTelemetry"/> is on.
+    /// </summary>
+    public bool EnableSensitiveData { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether enables Distributed Caching.
@@ -92,6 +101,7 @@ public sealed class DefaultAIOptions
             MaximumIterationsPerRequest = MaximumIterationsPerRequest,
             AbsoluteMaximumIterationsPerRequest = AbsoluteMaximumIterationsPerRequest,
             EnableOpenTelemetry = EnableOpenTelemetry,
+            EnableSensitiveData = EnableSensitiveData,
             EnableDistributedCaching = EnableDistributedCaching,
         }.Normalize();
 
@@ -113,6 +123,11 @@ public sealed class DefaultAIOptions
         if (settings.OverrideEnableOpenTelemetry)
         {
             options.EnableOpenTelemetry = settings.EnableOpenTelemetry;
+        }
+
+        if (settings.OverrideEnableSensitiveData)
+        {
+            options.EnableSensitiveData = settings.EnableSensitiveData;
         }
 
         return options.Normalize();

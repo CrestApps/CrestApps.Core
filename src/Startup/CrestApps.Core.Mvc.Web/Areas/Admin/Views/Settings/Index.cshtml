@@ -207,7 +207,15 @@
                             <input asp-for="EnableOpenTelemetry" class="form-check-input" type="checkbox" />
                             <label asp-for="EnableOpenTelemetry" class="form-check-label">Enable OpenTelemetry</label>
                         </div>
-                        <div class="form-text">Enable distributed tracing and diagnostics for AI operations.</div>
+                        <div class="form-text">Adds the OpenTelemetry generative AI (gen_ai) spans and metrics to the requests of the Microsoft.Extensions.AI clients; the Azure OpenAI chat client does not emit them yet. The CrestApps spans and metrics are emitted either way; an exporter must be configured to collect them.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input asp-for="EnableSensitiveData" class="form-check-input" type="checkbox" />
+                            <label asp-for="EnableSensitiveData" class="form-check-label">Include prompts and responses in telemetry</label>
+                        </div>
+                        <div class="form-text">Adds prompts, responses and tool arguments to the gen_ai spans. They can contain personal data. Applies only while OpenTelemetry is enabled.</div>
                     </div>
 
                     <div class="mb-3">

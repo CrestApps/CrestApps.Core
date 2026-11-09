@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
@@ -1704,6 +1705,17 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         string prompt,
         CancellationToken cancellationToken)
     {
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.chat.turn");
+        activity?.SetTag(AITelemetry.SessionIdAttribute, itemId);
+
+        using var logScope = Logger.BeginScope(new Dictionary<string, object>
+        {
+            ["InteractionId"] = itemId,
+        });
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
+
         try
         {
             using var invocationScope = AIInvocationScope.Begin();
@@ -1893,10 +1905,15 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         {
             if (ex is OperationCanceledException || (ex is TaskCanceledException && cancellationToken.IsCancellationRequested))
             {
+                outcome = CrestAppsTelemetry.OutcomeCancelled;
+
                 Logger.LogDebug("Chat interaction processing was cancelled.");
 
                 return;
             }
+
+            outcome = CrestAppsTelemetry.OutcomeError;
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
 
             Logger.LogError(ex, "An error occurred while processing the chat interaction.");
             try
@@ -1917,6 +1934,10 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         finally
         {
             writer.Complete();
+
+            AITelemetry.ChatTurnDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
         }
     }
 

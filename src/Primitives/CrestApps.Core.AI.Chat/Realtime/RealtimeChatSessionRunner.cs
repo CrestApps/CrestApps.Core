@@ -119,6 +119,14 @@ public sealed class RealtimeChatSessionRunner
                 context.SessionId, context.Voice ?? "(default)", context.AllowInterruption, context.RealtimeDeploymentName ?? "(default)");
         }
 
+        // The span covers the whole conversation, so every turn's grounding, tool and provider spans share one trace.
+        using var sessionTrace = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.realtime.session");
+        sessionTrace?.SetTag(AITelemetry.SessionIdAttribute, context.SessionId);
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+
+        AITelemetry.RealtimeActiveSessions.Add(1);
+
         var endReason = RealtimeSessionEndReasons.Completed;
 
         // Set when a guard rail — not the user, the provider or a failure — is what stopped the session, so the
@@ -214,6 +222,11 @@ public sealed class RealtimeChatSessionRunner
                 ? RealtimeSessionEndReasons.Cancelled
                 : RealtimeSessionEndReasons.Error;
 
+            if (endReason == RealtimeSessionEndReasons.Error)
+            {
+                sessionTrace?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+            }
+
             throw;
         }
         finally
@@ -228,6 +241,13 @@ public sealed class RealtimeChatSessionRunner
             {
                 endReason = RealtimeSessionEndReasons.Cancelled;
             }
+
+            sessionTrace?.SetTag(AITelemetry.EndReasonTag, endReason);
+
+            AITelemetry.RealtimeActiveSessions.Add(-1);
+            AITelemetry.RealtimeSessionDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object?>(AITelemetry.EndReasonTag, endReason));
 
             // Always tell the client the session is over — provider close, cap, error, or a normal stop. Without
             // this the browser keeps the microphone open and streams audio into a session that no longer exists.
@@ -406,11 +426,20 @@ public sealed class RealtimeChatSessionRunner
         // detection; one fallback per session, never a loop.
         var turnDetectionFallbackDone = false;
 
+        // When the user's last utterance was committed, until the first audio of the reply to it is heard back.
+        var turnCommittedTimestamp = 0L;
+
         await foreach (var evt in conversation.GetEventsAsync(cancellationToken))
         {
             switch (evt.Type)
             {
                 case RealtimeConversationEventType.AssistantAudioDelta:
+                    if (turnCommittedTimestamp != 0)
+                    {
+                        AITelemetry.RealtimeFirstAudioLatency.Record(Stopwatch.GetElapsedTime(turnCommittedTimestamp).TotalSeconds);
+                        turnCommittedTimestamp = 0;
+                    }
+
                     // The assistant speaking is the conversation being alive just as much as the user speaking is,
                     // so it holds the idle watchdog off too.
                     activity.Touch(_timeProvider.GetUtcNow());
@@ -422,6 +451,7 @@ public sealed class RealtimeChatSessionRunner
                     {
                         // The end of the utterance that speech-started opened: the idle window runs from here.
                         activity.UserSpeechCommitted(_timeProvider.GetUtcNow());
+                        turnCommittedTimestamp = Stopwatch.GetTimestamp();
 
                         // The provider decides at commit time whether this utterance gets a response, so this — not
                         // speech-started — is where "will it be answered?" can be judged. An utterance that began
@@ -562,6 +592,11 @@ public sealed class RealtimeChatSessionRunner
                         // Whatever the user is saying now commits its own turn. Answering the one they talked over
                         // would arrive late and address the wrong question.
                         grounding?.AbandonTurn();
+
+                        if (responseState.Active)
+                        {
+                            AITelemetry.RealtimeInterruptions.Add(1);
+                        }
 
                         if (responseState.Active && _logger.IsEnabled(LogLevel.Information))
                         {

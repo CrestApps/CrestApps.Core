@@ -65,6 +65,10 @@ That produces an approximate retry schedule like this:
 
 The exact delay varies because jitter is enabled by default.
 
+Each retry is counted on the `crestapps.core.ai.resilience.retries` metric, by client kind and attempt, so a provider
+that keeps rate limiting shows up on a dashboard before it shows up as slow answers. See
+[Observability](./observability.md).
+
 ## Chat Example
 
 If you are resolving the client through `IAIClientFactory`, use the overload and let the factory own the final build:

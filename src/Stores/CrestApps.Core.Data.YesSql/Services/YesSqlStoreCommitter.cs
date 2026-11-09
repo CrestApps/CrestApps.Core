@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.Logging;
 using YesSql;
@@ -33,6 +34,26 @@ public sealed class YesSqlStoreCommitter : IStoreCommitter
     public async ValueTask CommitAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("YesSqlStoreCommitter flushing the current YesSql session.");
-        await _session.SaveChangesAsync(cancellationToken);
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
+
+        try
+        {
+            await _session.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            outcome = CrestAppsTelemetry.GetOutcome(ex);
+
+            throw;
+        }
+        finally
+        {
+            CrestAppsTelemetry.StoreCommitDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.StoreTag, "YesSql"),
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
+        }
     }
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CrestApps.Core.Infrastructure;
@@ -55,6 +56,9 @@ internal sealed class PostgreSQLSearchDocumentManager : ISearchDocumentManager
         var tableName = PostgreSQLSearchIndexManager.SanitizeTableName(profile.IndexFullName);
         var quotedTableName = PostgreSQLHelpers.QuoteIdentifier(tableName);
 
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var succeeded = false;
+
         try
         {
             var dataSource = _clientFactory.Create();
@@ -105,6 +109,8 @@ internal sealed class PostgreSQLSearchDocumentManager : ISearchDocumentManager
 
             await NotifyDocumentsAddedOrUpdatedAsync(profile, documents, cancellationToken);
 
+            succeeded = true;
+
             return true;
         }
         catch (Exception ex)
@@ -112,6 +118,10 @@ internal sealed class PostgreSQLSearchDocumentManager : ISearchDocumentManager
             _logger.LogError(ex, "Error indexing documents in PostgreSQL table '{IndexName}'.", tableName.SanitizeForLog());
 
             return false;
+        }
+        finally
+        {
+            CrestAppsTelemetry.RecordIndexOperation(profile.ProviderName, "write", startTimestamp, succeeded);
         }
     }
 

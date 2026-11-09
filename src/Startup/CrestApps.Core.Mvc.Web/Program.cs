@@ -77,6 +77,10 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 // and the SiteSettingsStore + option bridges that feed the sample admin UI.
 var appDataPath = builder.AddSharedSampleHostDefaults();
 
+// OpenTelemetry traces, metrics and logs, exported when OTEL_EXPORTER_OTLP_ENDPOINT is set; the Aspire AppHost
+// sets it for every project it runs.
+builder.AddSharedSampleOpenTelemetry();
+
 // =============================================================================
 // 2. ASP.NET CORE MVC SETUP
 // =============================================================================

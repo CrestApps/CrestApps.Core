@@ -10,6 +10,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Extensions;
 using CrestApps.Core.Infrastructure;
 using CrestApps.Core.Templates.Services;
@@ -450,7 +451,7 @@ omit optional fields, or split the operation into multiple smaller calls.
             arguments.Services = _serviceProvider;
             try
             {
-                var result = await function.InvokeAsync(arguments);
+                var result = await AIToolInvocation.InvokeAsync(function, arguments);
                 if (result is string str)
                 {
                     prompts.Add(new ToolChatMessage(toolCall.Id, str));
@@ -551,6 +552,11 @@ omit optional fields, or split the operation into multiple smaller calls.
     /// <param name="connection">The connection that served the request.</param>
     private void LogCompletionFailure(Exception exception, AIDeployment deployment, AIProviderConnectionEntry connection)
     {
+        AITelemetry.CompletionErrors.Add(
+            1,
+            new KeyValuePair<string, object>(AITelemetry.ClientTag, ClientName),
+            new KeyValuePair<string, object>(CrestAppsTelemetry.ErrorTypeTag, exception.GetType().FullName));
+
         _logger.LogError(
             exception,
             "Unable to get chat completion result from Azure OpenAI using deployment '{DeploymentName}' (model '{ModelName}') on connection '{ConnectionName}' at '{Endpoint}'.",

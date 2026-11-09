@@ -29,7 +29,7 @@ internal static class A2AHostExtensions
     private static readonly Action<ILogger, string, Exception> _failedToExecuteAgent =
         LoggerMessage.Define<string>(
             LogLevel.Error,
-            new EventId(1001, nameof(FailedToExecuteAgent)),
+            new EventId(9041, nameof(FailedToExecuteAgent)),
             "Failed to execute agent '{AgentName}'.");
 
     public static IServiceCollection AddA2AHost(this IServiceCollection services)

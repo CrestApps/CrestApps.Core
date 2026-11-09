@@ -9,7 +9,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="NLog.DiagnosticSource" />
     <PackageReference Include="NLog.Web.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
   </ItemGroup>
 
   <ItemGroup>
@@ -17,6 +21,7 @@
     <ProjectReference Include="..\..\Primitives\CrestApps.Core.AI\CrestApps.Core.AI.csproj" />
     <ProjectReference Include="..\..\Primitives\CrestApps.Core.AI.Chat\CrestApps.Core.AI.Chat.csproj" />
     <ProjectReference Include="..\..\Primitives\CrestApps.Core.AI.Documents\CrestApps.Core.AI.Documents.csproj" />
+    <ProjectReference Include="..\..\Primitives\CrestApps.Core.OpenTelemetry\CrestApps.Core.OpenTelemetry.csproj" />
     <ProjectReference Include="..\..\Primitives\CrestApps.Core.Templates\CrestApps.Core.Templates.csproj" />
     <ProjectReference Include="..\..\Utilities\CrestApps.Core.Support\CrestApps.Core.Support.csproj" />
   </ItemGroup>

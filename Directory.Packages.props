@@ -34,6 +34,14 @@
     <PackageVersion Include="ZString" Version="2.6.0" />
   </ItemGroup>
   <ItemGroup>
+    <!-- OpenTelemetry Packages: only CrestApps.Core.OpenTelemetry and the sample hosts reference these. -->
+    <PackageVersion Include="NLog.DiagnosticSource" Version="6.2.2" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.2" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.20.2" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Copilot Packages -->
     <PackageVersion Include="GitHub.Copilot.SDK" Version="$(GitHubCopilotSdkVersion)" />
   </ItemGroup>

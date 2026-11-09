@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using CrestApps.Core.AI.Capabilities;
 using CrestApps.Core.AI.Clients;
@@ -164,6 +165,8 @@ public sealed class DefaultOrchestrator : IOrchestrator
         context.CompletionContext.ToolNames = scopedEntries.Select(e => e.Name).ToArray();
         context.CompletionContext.AdditionalProperties[FunctionInvocationAICompletionServiceHandler.ScopedEntriesKey] = scopedEntries;
 
+        AITelemetry.ScopedTools.Record(scopedEntries.Count);
+
         // Execute the completion with the scoped tool set.
         var chatDeployment = await ResolveChatDeploymentAsync(context);
         var executionMessages = GetExecutionMessages(context);
@@ -201,6 +204,11 @@ public sealed class DefaultOrchestrator : IOrchestrator
         IReadOnlyList<ToolRegistryEntry> availableTools,
         CancellationToken cancellationToken)
     {
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.orchestrate.plan");
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeOk;
+
         try
         {
             var arguments = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
@@ -269,13 +277,24 @@ public sealed class DefaultOrchestrator : IOrchestrator
         }
         catch (OperationCanceledException)
         {
+            outcome = CrestAppsTelemetry.OutcomeCancelled;
+
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Planning phase failed. Falling back to full tool injection.");
+            outcome = CrestAppsTelemetry.OutcomeError;
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+
+            AILog.PlanningFailed(_logger, ex);
 
             return null;
+        }
+        finally
+        {
+            AITelemetry.PlanningDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
         }
     }
 

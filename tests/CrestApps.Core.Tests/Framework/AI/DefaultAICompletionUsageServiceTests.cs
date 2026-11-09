@@ -72,7 +72,13 @@ public sealed class DefaultAICompletionUsageServiceTests
         using var scope = provider.CreateScope();
 
         Assert.IsType<DefaultAICompletionUsageService>(scope.ServiceProvider.GetRequiredService<IAICompletionUsageService>());
-        Assert.Same(scope.ServiceProvider.GetRequiredService<IAICompletionUsageService>(), Assert.Single(scope.ServiceProvider.GetServices<IAICompletionUsageObserver>()));
+
+        // The store observer, and the one that emits each record as the usage metrics.
+        var observers = scope.ServiceProvider.GetServices<IAICompletionUsageObserver>().ToList();
+
+        Assert.Equal(2, observers.Count);
+        Assert.Contains(scope.ServiceProvider.GetRequiredService<IAICompletionUsageService>(), observers);
+        Assert.Contains(observers, observer => observer is AIUsageTelemetryObserver);
     }
 
     [Fact]

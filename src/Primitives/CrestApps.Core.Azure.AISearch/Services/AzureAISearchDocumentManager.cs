@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Azure;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
@@ -51,6 +52,9 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
             return true;
         }
 
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var succeeded = false;
+
         try
         {
             var searchClient = _searchIndexClient.GetSearchClient(profile.IndexFullName);
@@ -71,6 +75,8 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
 
             await NotifyDocumentsAddedOrUpdatedAsync(profile, documents, cancellationToken);
 
+            succeeded = true;
+
             return true;
         }
         catch (RequestFailedException ex)
@@ -84,6 +90,10 @@ internal sealed class AzureAISearchDocumentManager : ISearchDocumentManager
             _logger.LogError(ex, "Error indexing documents in Azure AI Search index '{IndexName}'.", profile.IndexFullName.SanitizeForLog());
 
             return false;
+        }
+        finally
+        {
+            CrestAppsTelemetry.RecordIndexOperation(profile.ProviderName, "write", startTimestamp, succeeded);
         }
     }
 

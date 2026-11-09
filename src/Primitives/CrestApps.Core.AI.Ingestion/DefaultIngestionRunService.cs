@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Indexing;
 using CrestApps.Core.AI.Ingestion.Knowledge;
@@ -71,6 +72,66 @@ public sealed class DefaultIngestionRunService : IIngestionRunService
     {
         ArgumentNullException.ThrowIfNull(ingestionSource);
 
+        using var activity = CrestAppsTelemetry.ActivitySource.StartActivity("crestapps.ingest.run");
+        activity?.SetTag("crestapps.ingestion_source.id", ingestionSource.ItemId);
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var outcome = CrestAppsTelemetry.OutcomeError;
+
+        try
+        {
+            var summary = await RunCoreAsync(ingestionSource, cancellationToken);
+
+            outcome = summary.Status switch
+            {
+                FileSourceRunStatus.Succeeded => CrestAppsTelemetry.OutcomeOk,
+                FileSourceRunStatus.PartiallyCompleted => "partial",
+                _ => CrestAppsTelemetry.OutcomeError,
+            };
+
+            AddRunItems(summary.ItemsIndexed, "indexed");
+            AddRunItems(summary.ItemsSkipped, "skipped");
+            AddRunItems(summary.ItemsDeleted, "deleted");
+            AddRunItems(summary.ItemsFailed, "failed");
+
+            return summary;
+        }
+        catch (Exception ex)
+        {
+            outcome = CrestAppsTelemetry.GetOutcome(ex);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message).AddException(ex);
+
+            throw;
+        }
+        finally
+        {
+            AITelemetry.IngestionRunDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+                new KeyValuePair<string, object>(CrestAppsTelemetry.OutcomeTag, outcome));
+        }
+    }
+
+    /// <summary>
+    /// Counts the items of a run that ended one way.
+    /// </summary>
+    /// <param name="count">The number of items.</param>
+    /// <param name="result">How they ended.</param>
+    private static void AddRunItems(int count, string result)
+    {
+        if (count > 0)
+        {
+            AITelemetry.IngestionRunItems.Add(count, new KeyValuePair<string, object>(AITelemetry.ResultTag, result));
+        }
+    }
+
+    /// <summary>
+    /// Discovers, fetches and ingests the source's items, then records the run summary on the source.
+    /// </summary>
+    /// <param name="ingestionSource">The configured source.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The summary of the run.</returns>
+    private async Task<FileSourceRunSummary> RunCoreAsync(IngestionSource ingestionSource, CancellationToken cancellationToken)
+    {
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var previous = ingestionSource.TryGet<FileSourceRunSummary>(out var last) ? last : null;
         var summary = new FileSourceRunSummary

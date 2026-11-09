@@ -186,7 +186,10 @@ internal sealed class AgentProxyTool : AIFunction
 
             using var builder = ZString.CreateStringBuilder();
 
-            await foreach (var update in orchestrator.ExecuteStreamingAsync(orchestrationContext, cancellationToken))
+            var updates = orchestrator.ExecuteStreamingAsync(orchestrationContext, cancellationToken)
+                .WithOrchestrationTelemetry(orchestrator.Name, cancellationToken);
+
+            await foreach (var update in updates)
             {
                 if (!string.IsNullOrEmpty(update.Text))
                 {
