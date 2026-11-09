@@ -151,7 +151,7 @@ public sealed class FileSystemIngestionConnector : IIngestionConnector
         {
             outcome = CrestAppsTelemetry.OutcomeError;
 
-            _logger.LogWarning(ex, "Failed to list files under '{RootPath}'.", root);
+            FileSourceLog.FolderListFailed(_logger, ex, root);
 
             return Task.FromResult(new IngestionDiscoveryResult([], IsComplete: false, "The folder could not be listed."));
         }
@@ -228,7 +228,7 @@ public sealed class FileSystemIngestionConnector : IIngestionConnector
         {
             outcome = CrestAppsTelemetry.OutcomeError;
 
-            _logger.LogWarning(ex, "Failed to read '{Path}'.", path);
+            FileSourceLog.FileReadFailed(_logger, ex, path);
 
             return Task.FromResult<IngestionItemContent>(null);
         }

@@ -28,6 +28,9 @@ namespace CrestApps.Core.AI.OpenAI.Azure.Services;
 public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBase, IAICompletionClient
 {
     private readonly IServiceProvider _serviceProvider;
+    // The same id the AI pipeline gives every completion it logs as failed and turns into an empty answer.
+    private static readonly EventId _completionFailedEventId = new(2001, "CompletionFailed");
+
     private readonly ILoggerFactory _loggerFactory;
     private readonly IEnumerable<IAICompletionServiceHandler> _completionServiceHandlers;
     private readonly IEnumerable<IAIProviderConnectionHandler> _connectionHandlers;
@@ -569,6 +572,7 @@ omit optional fields, or split the operation into multiple smaller calls.
             new KeyValuePair<string, object>(CrestAppsTelemetry.ErrorTypeTag, exception.GetType().FullName));
 
         _logger.LogError(
+            _completionFailedEventId,
             exception,
             "Unable to get chat completion result from Azure OpenAI using deployment '{DeploymentName}' (model '{ModelName}') on connection '{ConnectionName}' at '{Endpoint}'.",
             deployment.Name,

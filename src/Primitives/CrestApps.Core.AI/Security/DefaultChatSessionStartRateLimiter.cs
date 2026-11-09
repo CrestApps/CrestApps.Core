@@ -89,7 +89,11 @@ public sealed class DefaultChatSessionStartRateLimiter : IChatSessionStartRateLi
 
         if (result.IsThrottled)
         {
-            AITelemetry.RateLimitRejections.Add(1, new KeyValuePair<string, object>(AITelemetry.LimiterTag, "session_start"));
+            // Only anonymous callers are limited when they start a session.
+            AITelemetry.RateLimitRejections.Add(
+                1,
+                new KeyValuePair<string, object>(AITelemetry.LimiterTag, "session_start"),
+                new KeyValuePair<string, object>(AITelemetry.TierTag, "anonymous"));
 
             _logger.LogWarning(
                 "Anonymous chat session start rate limit exceeded: Key={Key}, Count={Count}/{Max}, RetryAfter={RetryAfter}s",

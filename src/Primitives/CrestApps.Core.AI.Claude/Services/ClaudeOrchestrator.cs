@@ -125,6 +125,9 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         builder.UseFunctionInvocation(_loggerFactory, invocation =>
         {
             invocation.MaximumIterationsPerRequest = _defaultOptions.MaximumIterationsPerRequest;
+
+            // Through the shared invoker, so Claude's tool calls are traced and timed like every other client's.
+            invocation.FunctionInvoker = (functionContext, functionCancellationToken) => AIToolInvocation.InvokeAsync(functionContext.Function, functionContext.Arguments, functionCancellationToken);
         });
 
         // Innermost, as in NamedAICompletionClient, so every round trip and the tool calls between them are traced.

@@ -65,8 +65,12 @@ internal static class OrchestrationTelemetryExtensions
                 yield return update;
 
                 // An iterator resumes with its consumer's Activity.Current, so the span is restored before the
-                // orchestrator produces the next update; otherwise its later spans would lose their parent.
-                Activity.Current = activity;
+                // orchestrator produces the next update; otherwise its later spans would lose their parent. With
+                // nothing listening there is no span, and the consumer's own one is left as it is.
+                if (activity is not null)
+                {
+                    Activity.Current = activity;
+                }
             }
         }
         finally

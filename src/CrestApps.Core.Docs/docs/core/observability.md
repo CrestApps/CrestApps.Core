@@ -157,7 +157,7 @@ fall back to millisecond buckets. Every `outcome` tag is one of `ok`, `error`, `
 | --- | --- | --- | --- |
 | `crestapps.core.ai.resilience.retries` | Counter | `operation`, `client`, `reason`, `attempt` | Requests retried after a rate limit or a transient failure, by client kind (`Chat`, `Embedding`, `Image`, `SpeechToText`, `TextToSpeech`) and by the Azure OpenAI client's own retry policy. `attempt` stops at 5. |
 | `crestapps.core.ai.resilience.stream_failures` | Counter | `operation` | Streams that failed after their first update, which are not retried. |
-| `crestapps.core.ai.ratelimit.rejections` | Counter | `limiter` | Chat requests the `chat` or `session_start` rate limiter refused. |
+| `crestapps.core.ai.ratelimit.rejections` | Counter | `limiter`, `tier` | Chat requests the `chat` or `session_start` rate limiter refused, under the `authenticated` or `anonymous` limits. |
 | `crestapps.core.ai.ratelimit.tracked_keys` | Gauge | `limiter` | The callers a rate limiter is tracking. |
 | `crestapps.core.ai.client_cache.size` | Gauge | `cache` | The AI clients a cache is holding. |
 
@@ -304,9 +304,9 @@ be counted and alerted on without matching text. Each also has a counter in the 
 
 | Range | Area | Examples |
 | --- | --- | --- |
-| 2000s | AI pipeline | 2001 completion failed, 2002 planning failed, 2003 handler skipped, 2004 guardrail check failed, 2101 and 2102 security audit events |
+| 2000s | AI pipeline | 2001 completion failed, 2002 planning failed, 2003 handler skipped, 2004 guardrail check failed, 2005 a rate-limited request is retried, 2101 and 2102 security audit events |
 | 3000s | Chat | 3001 to 3006 a message's persistence, from the session it resolved to the commit |
-| 4000s | Ingestion | 4001 a document could not be read, 4002 embeddings failed, 4101 to 4106 a PDF step skipped, 4201 to 4205 a figure description failed, 4206 a discarded fetch, 4207 a run finished |
+| 4000s | Ingestion | 4001 a document could not be read, 4002 embeddings failed, 4101 to 4106 a PDF step skipped, 4201 to 4205 a figure description failed, 4206 a discarded fetch, 4207 a run finished, 4301 to 4304 a connector could not list a folder or read a file |
 | 5000s | Retrieval | 5001 hierarchical retrieval fell back to chunks |
 | 7000s | MCP and A2A | 7001 to 7009 `A2ALog`, 7101 to 7105 a tool call proxied to an MCP server |
 | 9000s | Sample hosts | the Blazor and MVC samples' own messages |

@@ -124,6 +124,11 @@ public static class AITelemetry
     public const string LimiterTag = "limiter";
 
     /// <summary>
+    /// The tag that records which limits applied to a rate-limited caller: <c>authenticated</c> or <c>anonymous</c>.
+    /// </summary>
+    public const string TierTag = "tier";
+
+    /// <summary>
     /// The tag that records how a search was answered: <c>chunk</c> or <c>hierarchical</c> for a data source search,
     /// <c>index</c> or <c>store</c> for a memory search.
     /// </summary>

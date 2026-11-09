@@ -84,7 +84,7 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
         {
             outcome = CrestAppsTelemetry.OutcomeError;
 
-            _logger.LogWarning(ex, "Failed to list '{RootPath}' for source '{FileSourceId}'.", folder.RootPath, source.ItemId);
+            FileSourceLog.RemoteListFailed(_logger, ex, folder.RootPath, source.ItemId);
 
             return new IngestionDiscoveryResult([], IsComplete: false, "The folder could not be listed.");
         }
@@ -158,7 +158,7 @@ public abstract class RemoteFileIngestionConnector : IIngestionConnector
         {
             outcome = CrestAppsTelemetry.OutcomeError;
 
-            _logger.LogWarning(ex, "Failed to read '{ItemId}' for source '{FileSourceId}'.", itemId, settings.ItemId);
+            FileSourceLog.RemoteReadFailed(_logger, ex, itemId, settings.ItemId);
 
             if (client is not null)
             {

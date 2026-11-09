@@ -686,7 +686,8 @@ public sealed class CopilotOrchestrator : IOrchestrator
         {
             arguments.Services ??= _services;
 
-            return _inner.InvokeAsync(arguments, cancellationToken);
+            // Through the shared invoker, so the tools Copilot calls are traced and timed like every other client's.
+            return AIToolInvocation.InvokeAsync(_inner, arguments, cancellationToken);
         }
     }
 
