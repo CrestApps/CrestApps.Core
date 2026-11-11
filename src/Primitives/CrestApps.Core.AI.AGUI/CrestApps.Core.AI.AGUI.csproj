@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CrestApps.Core.AI.AGUI</RootNamespace>
+    <Title>CrestApps AI AG-UI</Title>
+    <Description>
+      $(CrestAppsDescription)
+
+      AG-UI (Agent-User Interaction protocol) support for CrestApps AI: turns a chat run into the standard AG-UI event stream (run lifecycle, text, reasoning, tool calls, shared state and interrupts for tool approvals) and reads the AG-UI run input.
+    </Description>
+    <PackageTags>$(PackageTags) ai ag-ui agui agent ui protocol events streaming human-in-the-loop</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CrestApps.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AGUI.Abstractions" />
+    <PackageReference Include="AGUI.Formatting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Abstractions/CrestApps.Core.AI.Abstractions/CrestApps.Core.AI.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
