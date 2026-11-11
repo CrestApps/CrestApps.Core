@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.AI;
@@ -169,19 +170,19 @@ internal static partial class ChatConversationHistoryBuilder
             if (!newPromptAdded &&
                 TAccessor.GetCreatedUtc(prompt) > newPromptCreatedUtc)
             {
-                history.Add(CreateMessage<TPrompt, TAccessor>(newPrompt));
+                AddMessages<TPrompt, TAccessor>(history, newPrompt);
                 newPromptAdded = true;
             }
 
             if (!TAccessor.GetIsGeneratedPrompt(prompt))
             {
-                history.Add(CreateMessage<TPrompt, TAccessor>(prompt));
+                AddMessages<TPrompt, TAccessor>(history, prompt);
             }
         }
 
         if (!newPromptAdded)
         {
-            history.Add(CreateMessage<TPrompt, TAccessor>(newPrompt));
+            AddMessages<TPrompt, TAccessor>(history, newPrompt);
         }
 
         return history;
@@ -209,11 +210,97 @@ internal static partial class ChatConversationHistoryBuilder
             historySource = historySource.Append(newPrompt);
         }
 
-        return historySource
+        var history = new List<ChatMessage>();
+
+        foreach (var prompt in historySource
             .OrderBy(static prompt => TAccessor.GetCreatedUtc(prompt))
-            .Where(static prompt => !TAccessor.GetIsGeneratedPrompt(prompt))
-            .Select(static prompt => CreateMessage<TPrompt, TAccessor>(prompt))
+            .Where(static prompt => !TAccessor.GetIsGeneratedPrompt(prompt)))
+        {
+            AddMessages<TPrompt, TAccessor>(history, prompt);
+        }
+
+        return history;
+    }
+
+    /// <summary>
+    /// Adds the messages of a stored prompt: the tool calls an assistant message made and their results first, so the
+    /// model sees what it did, then the prompt's text.
+    /// </summary>
+    /// <typeparam name="TPrompt">The prompt model type.</typeparam>
+    /// <typeparam name="TAccessor">The prompt accessor type.</typeparam>
+    /// <param name="history">The history to add to.</param>
+    /// <param name="prompt">The stored prompt.</param>
+    private static void AddMessages<TPrompt, TAccessor>(List<ChatMessage> history, TPrompt prompt)
+        where TAccessor : IPromptAccessor<TPrompt>
+    {
+        if (TAccessor.GetRole(prompt) == ChatRole.Assistant &&
+            TAccessor.GetToolActivity(prompt) is { ToolCalls.Count: > 0 } activity)
+        {
+            AddToolCallMessages(history, activity);
+
+            // A message that only made tool calls (for example one that paused for an approval) has no text of its own.
+            if (string.IsNullOrEmpty(TAccessor.GetText(prompt)))
+            {
+                return;
+            }
+        }
+
+        history.Add(CreateMessage<TPrompt, TAccessor>(prompt));
+    }
+
+    /// <summary>
+    /// Adds the tool calls of an assistant message that have a result (completed, or rejected by a person), as the
+    /// assistant tool call message and the tool message the model produced. Calls without a result (waiting for an
+    /// approval or for the client) are left out; a resumed run adds what it needs itself.
+    /// </summary>
+    /// <param name="history">The history to add to.</param>
+    /// <param name="activity">The tool calls the message made.</param>
+    internal static void AddToolCallMessages(List<ChatMessage> history, ChatTurnToolActivity activity)
+    {
+        if (activity?.ToolCalls is not { Count: > 0 } calls)
+        {
+            return;
+        }
+
+        var completed = calls
+            .Where(call => call.Status is ChatTurnToolCallStatus.Completed or ChatTurnToolCallStatus.Rejected &&
+                call.Result is not null &&
+                !string.IsNullOrEmpty(call.CallId))
             .ToList();
+
+        if (completed.Count == 0)
+        {
+            return;
+        }
+
+        history.Add(new ChatMessage(ChatRole.Assistant, completed
+            .Select(call => (AIContent)new FunctionCallContent(call.CallId, call.Name, ParseArguments(call.Arguments)))
+            .ToList()));
+        history.Add(new ChatMessage(ChatRole.Tool, completed
+            .Select(call => (AIContent)new FunctionResultContent(call.CallId, call.Result ?? string.Empty))
+            .ToList()));
+    }
+
+    /// <summary>
+    /// Reads the stored arguments of a tool call.
+    /// </summary>
+    /// <param name="arguments">The arguments, as a JSON object.</param>
+    /// <returns>The arguments.</returns>
+    internal static Dictionary<string, object> ParseArguments(string arguments)
+    {
+        if (string.IsNullOrWhiteSpace(arguments))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, object>>(arguments, AIJsonUtilities.DefaultOptions) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
     }
 
     /// <summary>
@@ -331,6 +418,13 @@ internal static partial class ChatConversationHistoryBuilder
         /// <param name="prompt">The prompt.</param>
         /// <returns>The references, keyed by marker.</returns>
         static abstract IReadOnlyDictionary<string, AICompletionReference> GetReferences(TPrompt prompt);
+
+        /// <summary>
+        /// Gets the tool calls the prompt was stored with.
+        /// </summary>
+        /// <param name="prompt">The prompt.</param>
+        /// <returns>The tool calls, or <see langword="null"/>.</returns>
+        static abstract ChatTurnToolActivity GetToolActivity(TPrompt prompt);
     }
 
     /// <summary>
@@ -356,6 +450,9 @@ internal static partial class ChatConversationHistoryBuilder
 
         /// <inheritdoc />
         public static IReadOnlyDictionary<string, AICompletionReference> GetReferences(ChatInteractionPrompt prompt) => prompt.References;
+
+        /// <inheritdoc />
+        public static ChatTurnToolActivity GetToolActivity(ChatInteractionPrompt prompt) => prompt.TryGet<ChatTurnToolActivity>(out var activity) ? activity : null;
     }
 
     /// <summary>
@@ -381,5 +478,8 @@ internal static partial class ChatConversationHistoryBuilder
 
         /// <inheritdoc />
         public static IReadOnlyDictionary<string, AICompletionReference> GetReferences(AIChatSessionPrompt prompt) => prompt.References;
+
+        /// <inheritdoc />
+        public static ChatTurnToolActivity GetToolActivity(AIChatSessionPrompt prompt) => prompt.TryGet<ChatTurnToolActivity>(out var activity) ? activity : null;
     }
 }

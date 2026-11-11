@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../CrestApps.Core.AI/CrestApps.Core.AI.csproj" />
+    <ProjectReference Include="../CrestApps.Core.AI.AGUI/CrestApps.Core.AI.AGUI.csproj" />
   </ItemGroup>
 
 </Project>
