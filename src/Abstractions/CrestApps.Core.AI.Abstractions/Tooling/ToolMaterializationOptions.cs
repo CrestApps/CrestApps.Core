@@ -27,4 +27,12 @@ public sealed class ToolMaterializationOptions
     /// request is treated as trusted server-side and no check is applied.
     /// </summary>
     public ClaimsPrincipal User { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the caller can ask a person to approve a tool call. When it is
+    /// <see langword="true"/>, the tools whose entry sets <see cref="Models.ToolRegistryEntry.RequiresApproval"/>
+    /// are wrapped in <see cref="Microsoft.Extensions.AI.ApprovalRequiredAIFunction"/>, so the function invocation
+    /// pauses for an approval instead of running them.
+    /// </summary>
+    public bool SupportsToolApproval { get; init; }
 }

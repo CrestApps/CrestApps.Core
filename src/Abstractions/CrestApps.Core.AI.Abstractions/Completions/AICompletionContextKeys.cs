@@ -92,4 +92,32 @@ public static class AICompletionContextKeys
     /// conversation variable or a detected caller language; it overrides the profile's starting language.
     /// </summary>
     public const string ConversationLanguage = "ConversationLanguage";
+
+    /// <summary>
+    /// The key whose <see langword="true"/> value tells the tool pipeline that the caller can ask a person to
+    /// approve a tool call, such as an AG-UI chat run. Tools that require an approval then pause the run for one
+    /// instead of running at once.
+    /// </summary>
+    public const string ToolApprovalSupported = "ToolApprovalSupported";
+
+    /// <summary>
+    /// The key of the context the client sent with the message (an <see cref="IReadOnlyList{T}"/> of
+    /// <see cref="Models.ChatClientContextEntry"/>), such as the page the user is on. It reaches the model as data,
+    /// never as instructions.
+    /// </summary>
+    public const string ClientContext = "ClientContext";
+
+    /// <summary>
+    /// The key of the state the user and the agent share during a chat run (a
+    /// <see cref="Models.ChatSharedState"/>). The agent changes it with the shared state tool, and the client is
+    /// told about each change.
+    /// </summary>
+    public const string SharedState = "SharedState";
+
+    /// <summary>
+    /// The key of the tools the client runs itself (an <see cref="IReadOnlyList{T}"/> of
+    /// <see cref="Microsoft.Extensions.AI.AITool"/> declarations), such as the frontend tools of an AG-UI client. The
+    /// model may call them; a call ends the request, and the client sends the result with its next request.
+    /// </summary>
+    public const string ClientTools = "ClientTools";
 }

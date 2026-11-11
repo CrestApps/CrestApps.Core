@@ -34,4 +34,10 @@ public sealed class AIChatResponseMessageDetailed : AIResponseMessage
     /// Gets or sets the references.
     /// </summary>
     public Dictionary<string, AICompletionReference> References { get; set; }
+
+    /// <summary>
+    /// Gets or sets the tool calls the message made, so the chat can show them, or <see langword="null"/> when it
+    /// made none.
+    /// </summary>
+    public IReadOnlyList<ChatTurnToolCall> ToolCalls { get; set; }
 }
