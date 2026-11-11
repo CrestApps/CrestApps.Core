@@ -16,6 +16,28 @@
  */
 // CoreAIChatMarkers lives in chat-markers.js, which every chat surface loads before this file.
 
+/*
+ * AG-UI: what scripts on the page give the chat. A context provider returns entries ({ description, value }) the chat
+ * sends with each message; a state provider shares a JSON object with the agent: get() returns it, and
+ * apply(state, delta) receives the agent's changes (AG-UI STATE_SNAPSHOT and STATE_DELTA). Both are optional. A script
+ * that runs before this file can set window.crestAppsAGUI = { _contextProviders: [...], _stateProvider: {...} }; this
+ * keeps them.
+ */
+window.crestAppsAGUI = (function (registry) {
+    registry._contextProviders = Array.isArray(registry._contextProviders) ? registry._contextProviders : [];
+    registry._stateProvider = registry._stateProvider || null;
+    registry.registerContextProvider = function (provider) {
+        if (typeof provider === 'function') {
+            registry._contextProviders.push(provider);
+        }
+    };
+    registry.registerStateProvider = function (provider) {
+        registry._stateProvider = provider && typeof provider === 'object' ? provider : null;
+    };
+
+    return registry;
+})(window.crestAppsAGUI || {});
+
 window.coreAIChatManager = function () {
 
     // Defaults (can be overridden by instanceConfig)
@@ -28,6 +50,26 @@ window.coreAIChatManager = function () {
         downloadChartButtonText: 'Download',
         userLabel: 'You',
         assistantLabel: 'Assistant',
+        // AG-UI: the chat talks to the hub's RunAgent method, which streams AG-UI events (tool calls, reasoning,
+        // shared state, approvals). 'legacy' keeps the text-only SendMessage stream.
+        protocol: 'agui',
+        // Sends the page the user is on (title, address, selected text) with each message, plus what the scripts
+        // registered with window.crestAppsAGUI.registerContextProvider add.
+        sendPageContext: true,
+        aguiThinkingLabel: 'Thinking',
+        aguiInputLabel: 'Input',
+        aguiResultLabel: 'Result',
+        aguiApprovalPrompt: 'Allow this action?',
+        aguiAllowLabel: 'Allow',
+        aguiDenyLabel: 'Deny',
+        aguiAllowedLabel: 'Allowed',
+        aguiDeniedLabel: 'Denied',
+        aguiWaitingLabel: 'Waiting for your answer',
+        aguiRunningLabel: 'Running',
+        aguiCurrentPageLabel: 'Current page',
+        aguiSelectedTextLabel: 'Text the user selected on the page',
+        // Friendly names of tools, keyed by tool name, shown on the tool cards.
+        aguiToolLabels: {},
         // The persona's avatar shown on assistant messages in place of the robot icon, when set.
         assistantAvatarUrl: null,
         thumbsUpTitle: 'Thumbs up',
@@ -425,9 +467,227 @@ window.coreAIChatManager = function () {
         // Split here too: the copy is built from the expanded content rather than the display path's output,
         // so a combined marker would otherwise survive into the clipboard as a raw key.
         message.copyContent = buildCopyContent(splitCombinedCitations(displayContent), citationDisplay.citations);
-        message.htmlContent = parseMarkdownContent(citationDisplay.content, message);
+        message.htmlContent = buildActivityHtml(message) + parseMarkdownContent(citationDisplay.content, message);
 
         return message;
+    }
+
+    const aguiRegistry = window.crestAppsAGUI;
+
+    const aguiDefaultToolLabels = {
+        page_get_info: 'Reading the page',
+        page_list_links: 'Looking at the page\'s links',
+        page_navigate: 'Opening a page',
+        page_list_form_fields: 'Reading the form',
+        page_set_form_field: 'Filling in a field',
+        update_shared_state: 'Updating what you share',
+    };
+
+    // The order of ChatTurnToolCallStatus on the server, for tool calls loaded with a session.
+    const aguiToolCallStatuses = ['requested', 'completed', 'awaitingApproval', 'approved', 'rejected', 'awaitingClient'];
+
+    function escapeHtmlText(text) {
+        return String(text ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function normalizeToolCallStatus(status) {
+        if (typeof status === 'number') {
+            return aguiToolCallStatuses[status] || 'requested';
+        }
+
+        if (typeof status === 'string' && status) {
+            return status.charAt(0).toLowerCase() + status.slice(1);
+        }
+
+        return 'requested';
+    }
+
+    function normalizeToolCalls(toolCalls) {
+        if (!Array.isArray(toolCalls)) {
+            return [];
+        }
+
+        return toolCalls
+            .filter(call => call && (call.callId || call.id))
+            .map(call => ({
+                id: call.callId || call.id,
+                name: call.name || '',
+                arguments: call.arguments || '',
+                result: call.result || '',
+                status: normalizeToolCallStatus(call.status),
+                interruptId: call.interruptId || call.approvalRequestId || null,
+            }));
+    }
+
+    function parseToolArguments(text) {
+        if (!text) {
+            return null;
+        }
+
+        try {
+            return JSON.parse(text);
+        } catch {
+            return null;
+        }
+    }
+
+    function describeToolCall(call) {
+        const labels = Object.assign({}, aguiDefaultToolLabels, defaultConfig.aguiToolLabels || {});
+        let label = labels[call.name];
+
+        if (!label) {
+            label = String(call.name || 'tool').replace(/[_.-]+/g, ' ');
+            label = label.charAt(0).toUpperCase() + label.slice(1);
+        }
+
+        const args = parseToolArguments(call.arguments);
+
+        if (args && call.name === 'page_set_form_field' && args.field) {
+            label += ': ' + args.field;
+        } else if (args && call.name === 'page_navigate' && args.url) {
+            label += ': ' + args.url;
+        }
+
+        return label;
+    }
+
+    function formatToolText(text, maxLength) {
+        const parsed = parseToolArguments(text);
+        let value = parsed !== null && typeof parsed === 'object' ? JSON.stringify(parsed, null, 2) : String(text ?? '');
+
+        if (value.length > maxLength) {
+            value = value.slice(0, maxLength) + '…';
+        }
+
+        return value;
+    }
+
+    function buildActivityHtml(message) {
+        const toolCalls = Array.isArray(message.toolCalls) ? message.toolCalls : [];
+        const parts = [];
+
+        if (message.reasoning) {
+            parts.push('<details class="ai-chat-agui-reasoning"><summary>' + escapeHtmlText(defaultConfig.aguiThinkingLabel) +
+                '</summary><div class="ai-chat-agui-reasoning-text">' + escapeHtmlText(message.reasoning) + '</div></details>');
+        }
+
+        for (const call of toolCalls) {
+            const status = call.status || 'requested';
+            let icon = 'fa-solid fa-circle-notch fa-spin';
+            let state = defaultConfig.aguiRunningLabel;
+
+            if (status === 'completed' || status === 'approved') {
+                icon = 'fa-solid fa-check';
+                state = status === 'approved' ? defaultConfig.aguiAllowedLabel : '';
+            } else if (status === 'rejected') {
+                icon = 'fa-solid fa-ban';
+                state = defaultConfig.aguiDeniedLabel;
+            } else if (status === 'awaitingApproval') {
+                icon = 'fa-solid fa-hand';
+                state = defaultConfig.aguiWaitingLabel;
+            }
+
+            let details = '';
+
+            if (call.arguments && call.arguments !== '{}') {
+                details += '<div class="ai-chat-agui-tool-section"><div class="ai-chat-agui-tool-section-label">' + escapeHtmlText(defaultConfig.aguiInputLabel) +
+                    '</div><pre>' + escapeHtmlText(formatToolText(call.arguments, 2000)) + '</pre></div>';
+            }
+
+            if (call.result) {
+                details += '<div class="ai-chat-agui-tool-section"><div class="ai-chat-agui-tool-section-label">' + escapeHtmlText(defaultConfig.aguiResultLabel) +
+                    '</div><pre>' + escapeHtmlText(formatToolText(call.result, 2000)) + '</pre></div>';
+            }
+
+            const summary = '<i class="' + icon + '" aria-hidden="true"></i> <span class="ai-chat-agui-tool-name">' + escapeHtmlText(describeToolCall(call)) + '</span>' +
+                (state ? ' <span class="ai-chat-agui-tool-state">' + escapeHtmlText(state) + '</span>' : '');
+            let html = '<div class="ai-chat-agui-tool ai-chat-agui-tool-' + escapeHtmlText(status) + '" data-agui-tool-call="' + escapeHtmlText(call.id) + '">';
+
+            html += details
+                ? '<details><summary>' + summary + '</summary>' + details + '</details>'
+                : '<div class="ai-chat-agui-tool-summary">' + summary + '</div>';
+
+            if (status === 'awaitingApproval' && call.interruptId) {
+                html += '<div class="ai-chat-agui-approval"><span>' + escapeHtmlText(defaultConfig.aguiApprovalPrompt) + '</span>' +
+                    '<button type="button" class="btn btn-sm btn-primary" data-agui-interrupt="' + escapeHtmlText(call.interruptId) + '" data-agui-approved="true">' + escapeHtmlText(defaultConfig.aguiAllowLabel) + '</button>' +
+                    '<button type="button" class="btn btn-sm btn-outline-secondary" data-agui-interrupt="' + escapeHtmlText(call.interruptId) + '" data-agui-approved="false">' + escapeHtmlText(defaultConfig.aguiDenyLabel) + '</button></div>';
+            }
+
+            html += '</div>';
+            parts.push(html);
+        }
+
+        if (!parts.length) {
+            return '';
+        }
+
+        return DOMPurify.sanitize('<div class="ai-chat-agui-activity">' + parts.join('') + '</div>');
+    }
+
+    function cloneJson(value) {
+        return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+    }
+
+    // Applies the add, replace and remove operations of a JSON Patch, the ones the server sends.
+    function applyJsonPatch(document, operations) {
+        let result = cloneJson(document) ?? {};
+
+        for (const operation of operations || []) {
+            if (!operation || typeof operation.path !== 'string') {
+                continue;
+            }
+
+            if (operation.path === '') {
+                if (operation.op === 'replace' && operation.value && typeof operation.value === 'object') {
+                    result = cloneJson(operation.value);
+                }
+
+                continue;
+            }
+
+            const segments = operation.path.slice(1).split('/').map(segment => segment.replace(/~1/g, '/').replace(/~0/g, '~'));
+            const key = segments.pop();
+            let parent = result;
+
+            for (const segment of segments) {
+                parent = parent == null ? undefined : parent[Array.isArray(parent) ? Number(segment) : segment];
+            }
+
+            if (parent == null || typeof parent !== 'object') {
+                continue;
+            }
+
+            if (Array.isArray(parent)) {
+                const index = key === '-' ? parent.length : Number(key);
+
+                if (operation.op === 'add') {
+                    parent.splice(index, 0, cloneJson(operation.value));
+                } else if (operation.op === 'replace') {
+                    parent[index] = cloneJson(operation.value);
+                } else if (operation.op === 'remove') {
+                    parent.splice(index, 1);
+                }
+            } else if (operation.op === 'remove') {
+                delete parent[key];
+            } else if (operation.op === 'add' || operation.op === 'replace') {
+                parent[key] = cloneJson(operation.value);
+            }
+        }
+
+        return result;
+    }
+
+    function newAGUIId() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return window.crypto.randomUUID().replace(/-/g, '');
+        }
+
+        return Date.now().toString(36) + Math.random().toString(36).slice(2);
     }
 
     const renderer = new marked.Renderer();
@@ -810,6 +1070,10 @@ window.coreAIChatManager = function () {
                     autoScroll: true,
                     stream: null,
                     pageTools: null,
+                    aguiRun: null,
+                    aguiDisabled: false,
+                    sharedStateCache: null,
+                    lastPageSelection: null,
                     messages: [],
                     notifications: [],
                     prompt: '',
@@ -1697,8 +1961,12 @@ window.coreAIChatManager = function () {
                         message.userRating = null;
                     }
 
-                    if (message.content) {
-                        message.rawContent = message.rawContent ?? message.content;
+                    if (message.role === 'assistant' && message.toolCalls) {
+                        message.toolCalls = normalizeToolCalls(message.toolCalls);
+                    }
+
+                    if (message.content || (message.toolCalls && message.toolCalls.length)) {
+                        message.rawContent = message.rawContent ?? message.content ?? '';
                         updateMessagePresentation(message, message.references);
                     }
 
@@ -1953,6 +2221,12 @@ window.coreAIChatManager = function () {
                 },
                 streamMessage(profileId, trimmedPrompt, sessionProfileId) {
 
+                    if ((config.protocol || 'agui') === 'agui' && !this.aguiDisabled) {
+                        this.streamAGUIRun(profileId, trimmedPrompt, sessionProfileId, null);
+
+                        return;
+                    }
+
                     if (this.stream) {
                         this.stream.dispose();
                         this.stream = null;
@@ -2084,6 +2358,467 @@ window.coreAIChatManager = function () {
 
                     // The page tools go first, so the reply to this message can already call them.
                     this.syncPageTools().then(openStream, openStream);
+                },
+                collectRunContext() {
+                    const context = [];
+
+                    if (config.sendPageContext === false) {
+                        return context;
+                    }
+
+                    try {
+                        context.push({
+                            description: config.aguiCurrentPageLabel,
+                            value: (document.title ? document.title + ' ' : '') + '(' + window.location.pathname + window.location.search + ')',
+                        });
+
+                        const selection = this.lastPageSelection;
+
+                        if (selection && selection.text && Date.now() - selection.at < 5 * 60 * 1000) {
+                            context.push({
+                                description: config.aguiSelectedTextLabel,
+                                value: selection.text.slice(0, 1000),
+                            });
+                        }
+                    } catch (e) {
+                        console.warn('The page context could not be read.', e);
+                    }
+
+                    for (const provider of aguiRegistry._contextProviders) {
+                        try {
+                            const entries = [].concat(provider() || []);
+
+                            for (const entry of entries) {
+                                if (entry && entry.value) {
+                                    context.push({
+                                        description: String(entry.description || 'Detail'),
+                                        value: typeof entry.value === 'string' ? entry.value : JSON.stringify(entry.value),
+                                    });
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('An AG-UI context provider failed.', e);
+                        }
+                    }
+
+                    return context.slice(0, 20);
+                },
+                trackPageSelection() {
+                    try {
+                        const selection = window.getSelection ? window.getSelection() : null;
+                        const text = selection ? String(selection).trim() : '';
+
+                        if (!text) {
+                            return;
+                        }
+
+                        // The chat's own text is not page context.
+                        if (this.chatContainer && selection.anchorNode && this.chatContainer.contains(selection.anchorNode)) {
+                            return;
+                        }
+
+                        this.lastPageSelection = { text: text, at: Date.now() };
+                    } catch {
+                        // Selections inside some frames cannot be read.
+                    }
+                },
+                getSharedState() {
+                    const provider = aguiRegistry._stateProvider;
+
+                    if (!provider || typeof provider.get !== 'function') {
+                        return undefined;
+                    }
+
+                    try {
+                        const state = provider.get();
+
+                        if (state && typeof state === 'object' && !Array.isArray(state)) {
+                            this.sharedStateCache = cloneJson(state);
+
+                            return state;
+                        }
+                    } catch (e) {
+                        console.warn('The AG-UI state provider failed.', e);
+                    }
+
+                    return undefined;
+                },
+                applySharedState(evt) {
+                    const delta = evt.type === 'STATE_DELTA' ? (evt.delta || []) : null;
+                    const state = delta
+                        ? applyJsonPatch(this.sharedStateCache ?? {}, delta)
+                        : cloneJson(evt.snapshot ?? {});
+
+                    this.sharedStateCache = state;
+
+                    const provider = aguiRegistry._stateProvider;
+
+                    if (provider && typeof provider.apply === 'function') {
+                        try {
+                            provider.apply(cloneJson(state), delta);
+                        } catch (e) {
+                            console.warn('The AG-UI state provider could not apply the state.', e);
+                        }
+                    }
+
+                    document.dispatchEvent(new CustomEvent('crestapps:agui-state', {
+                        detail: { type: evt.type, state: cloneJson(state), delta: delta },
+                    }));
+                },
+                ensureAGUIMessage(run, messageId) {
+                    if (run.message) {
+                        return run.message;
+                    }
+
+                    this.hideTypingIndicator();
+
+                    this.messages.push({
+                        id: messageId || run.assistantMessageId || newAGUIId(),
+                        role: 'assistant',
+                        title: run.title,
+                        content: '',
+                        htmlContent: '',
+                        isStreaming: true,
+                        userRating: null,
+                        toolCalls: [],
+                        reasoning: '',
+                        appearance: run.appearance,
+                    });
+
+                    run.messageIndex = this.messages.length - 1;
+                    run.message = this.messages[run.messageIndex];
+
+                    return run.message;
+                },
+                refreshAGUIMessage(run) {
+                    const message = run.message;
+
+                    if (!message) {
+                        return;
+                    }
+
+                    message.rawContent = run.content;
+                    updateMessagePresentation(message, run.references);
+                    this.messages[run.messageIndex] = message;
+
+                    this.$nextTick(() => {
+                        renderMessageMedia(message);
+                        this.scrollToBottom();
+                    });
+                },
+                handleAGUIEvent(run, evt) {
+                    if (!evt || typeof evt.type !== 'string') {
+                        return;
+                    }
+
+                    switch (evt.type) {
+                        case 'RUN_STARTED':
+                            if (evt.threadId && !this.getSessionId()) {
+                                this.initializeSession(evt.threadId);
+                            }
+
+                            break;
+
+                        case 'CUSTOM':
+                            this.handleAGUICustomEvent(run, evt.name, evt.value || {});
+                            break;
+
+                        case 'TEXT_MESSAGE_START': {
+                            this.ensureAGUIMessage(run, evt.messageId);
+
+                            // Text written again after a tool call is a new text message of the same answer.
+                            if (run.textMessageId && run.textMessageId !== evt.messageId && run.content) {
+                                run.content += '\n\n';
+                            }
+
+                            run.textMessageId = evt.messageId;
+                            break;
+                        }
+
+                        case 'TEXT_MESSAGE_CONTENT':
+                            this.ensureAGUIMessage(run, evt.messageId);
+                            run.content += evt.delta || '';
+                            this.refreshAGUIMessage(run);
+                            break;
+
+                        case 'REASONING_MESSAGE_CONTENT': {
+                            const message = this.ensureAGUIMessage(run, run.assistantMessageId);
+
+                            message.reasoning = (message.reasoning || '') + (evt.delta || '');
+                            this.refreshAGUIMessage(run);
+                            break;
+                        }
+
+                        case 'TOOL_CALL_START': {
+                            const message = this.ensureAGUIMessage(run, evt.parentMessageId);
+                            const call = { id: evt.toolCallId, name: evt.toolCallName, arguments: '', result: '', status: 'requested', interruptId: null };
+
+                            message.toolCalls = message.toolCalls || [];
+                            message.toolCalls.push(call);
+                            run.toolCalls[evt.toolCallId] = message.toolCalls[message.toolCalls.length - 1];
+                            this.refreshAGUIMessage(run);
+                            break;
+                        }
+
+                        case 'TOOL_CALL_ARGS': {
+                            const call = run.toolCalls[evt.toolCallId];
+
+                            if (call) {
+                                call.arguments += evt.delta || '';
+                            }
+
+                            break;
+                        }
+
+                        case 'TOOL_CALL_END':
+                            this.refreshAGUIMessage(run);
+                            break;
+
+                        case 'TOOL_CALL_RESULT': {
+                            const call = run.toolCalls[evt.toolCallId];
+
+                            if (call) {
+                                call.result = typeof evt.content === 'string' ? evt.content : JSON.stringify(evt.content ?? '');
+                                // A call the user denied comes back with the rejection as its result.
+                                call.status = run.rejectedCallIds.has(evt.toolCallId) ? 'rejected' : 'completed';
+                                this.refreshAGUIMessage(run);
+                            }
+
+                            break;
+                        }
+
+                        case 'STATE_SNAPSHOT':
+                        case 'STATE_DELTA':
+                            this.applySharedState(evt);
+                            break;
+
+                        case 'RUN_FINISHED': {
+                            const outcome = evt.outcome || {};
+
+                            if (outcome.type === 'interrupt' && Array.isArray(outcome.interrupts)) {
+                                for (const interrupt of outcome.interrupts) {
+                                    const call = interrupt && run.toolCalls[interrupt.toolCallId];
+
+                                    if (call) {
+                                        call.status = 'awaitingApproval';
+                                        call.interruptId = interrupt.id;
+                                    }
+                                }
+
+                                this.refreshAGUIMessage(run);
+                            }
+
+                            break;
+                        }
+
+                        case 'RUN_ERROR':
+                            run.error = evt.message || '';
+                            this.hideTypingIndicator();
+
+                            if (evt.code === 'session_start_rejected') {
+                                this.rejectPendingSessionRequest(evt.message);
+                            }
+
+                            if (!this.isNavigatingAway) {
+                                this.addMessage(this.getErrorMessage(evt.message));
+                            }
+
+                            break;
+                    }
+                },
+                handleAGUICustomEvent(run, name, value) {
+                    switch (name) {
+                        case 'crestapps.assistant_message': {
+                            run.assistantMessageId = value.messageId;
+                            run.title = value.title;
+                            run.appearance = this.normalizeAssistantAppearance(value.appearance);
+
+                            if (run.message) {
+                                run.message.title = run.title;
+                                run.message.appearance = run.appearance;
+                            }
+
+                            break;
+                        }
+
+                        case 'crestapps.references':
+                            for (const [key, reference] of Object.entries(value.references || {})) {
+                                run.references[key] = normalizeReference(reference) ?? {};
+                            }
+
+                            this.refreshAGUIMessage(run);
+                            break;
+
+                        case 'crestapps.message_replaced':
+                            this.ensureAGUIMessage(run, value.messageId);
+                            run.content = value.content || '';
+                            this.refreshAGUIMessage(run);
+                            break;
+
+                        case 'crestapps.tool_calls_resolved': {
+                            const message = this.messages.find(m => m.id === value.messageId);
+
+                            for (const call of normalizeToolCalls(value.toolCalls)) {
+                                if (call.status === 'rejected') {
+                                    run.rejectedCallIds.add(call.id);
+                                }
+                            }
+
+                            if (message) {
+                                message.toolCalls = normalizeToolCalls(value.toolCalls);
+                                message.rawContent = message.rawContent ?? message.content ?? '';
+                                updateMessagePresentation(message, message.references);
+                            }
+
+                            break;
+                        }
+                    }
+                },
+                finishAGUIRun(run) {
+                    if (run.finished) {
+                        return;
+                    }
+
+                    run.finished = true;
+
+                    if (run.message) {
+                        this.processReferences(run.references, run.messageIndex);
+                        run.message.isStreaming = false;
+                    } else {
+                        this.hideTypingIndicator();
+                    }
+
+                    this.streamingFinished();
+
+                    if (this.isConversationMode && this.textToSpeechEnabled && run.message && run.message.content) {
+                        this.synthesizeSpeech(run.message.content);
+                    }
+
+                    this.stream?.dispose();
+                    this.stream = null;
+
+                    if (this.aguiRun === run) {
+                        this.aguiRun = null;
+                    }
+                },
+                streamAGUIRun(profileId, prompt, sessionProfileId, resume) {
+                    if (this.stream) {
+                        this.stream.dispose();
+                        this.stream = null;
+                    }
+
+                    this.streamingStarted();
+                    this.showTypingIndicator();
+                    this.autoScroll = true;
+
+                    const run = {
+                        message: null,
+                        messageIndex: -1,
+                        assistantMessageId: null,
+                        title: null,
+                        appearance: null,
+                        content: '',
+                        references: {},
+                        textMessageId: null,
+                        toolCalls: {},
+                        rejectedCallIds: new Set(),
+                        finished: false,
+                        error: null,
+                    };
+
+                    this.aguiRun = run;
+
+                    const input = {
+                        threadId: this.getSessionId() || '',
+                        runId: newAGUIId(),
+                        messages: prompt ? [{ id: newAGUIId(), role: 'user', content: prompt }] : [],
+                        tools: [],
+                        context: this.collectRunContext(),
+                        forwardedProps: { profileId: profileId, sessionProfileId: sessionProfileId || null },
+                    };
+
+                    const state = this.getSharedState();
+
+                    if (state !== undefined) {
+                        input.state = state;
+                    }
+
+                    if (resume && resume.length) {
+                        input.resume = resume;
+                    }
+
+                    const openStream = () => {
+                        this.stream = this.connection.stream('RunAgent', input)
+                            .subscribe({
+                                next: (evt) => this.handleAGUIEvent(run, evt),
+                                complete: () => this.finishAGUIRun(run),
+                                error: (err) => {
+                                    const errorText = String((err && err.message) || err || '');
+
+                                    // A hub without RunAgent (an older server): fall back to the text-only stream.
+                                    if (!resume && !run.message && errorText.includes('Method does not exist')) {
+                                        this.aguiDisabled = true;
+                                        this.stream = null;
+                                        this.hideTypingIndicator();
+                                        this.streamingFinished();
+                                        this.streamMessage(profileId, prompt, sessionProfileId);
+
+                                        return;
+                                    }
+
+                                    this.finishAGUIRun(run);
+
+                                    if (!this.isNavigatingAway) {
+                                        this.addMessage(this.getServiceDownMessage());
+                                    }
+
+                                    console.error('Stream error:', err);
+                                },
+                            });
+                    };
+
+                    // The page tools go first, so the reply to this message can already call them.
+                    this.syncPageTools().then(openStream, openStream);
+                },
+                answerApproval(interruptId, approved) {
+                    let target = null;
+                    let targetCall = null;
+
+                    for (const message of this.messages) {
+                        const call = (message.toolCalls || []).find(c => c.interruptId === interruptId);
+
+                        if (call) {
+                            target = message;
+                            targetCall = call;
+                            break;
+                        }
+                    }
+
+                    if (!targetCall || targetCall.status !== 'awaitingApproval' || this.stream) {
+                        return;
+                    }
+
+                    targetCall.status = approved ? 'approved' : 'rejected';
+                    targetCall.decided = true;
+                    target.rawContent = target.rawContent ?? target.content ?? '';
+                    updateMessagePresentation(target, target.references);
+
+                    // The server resumes once every approval of the message is answered.
+                    const calls = target.toolCalls.filter(c => c.interruptId);
+
+                    if (calls.some(c => c.status === 'awaitingApproval')) {
+                        return;
+                    }
+
+                    const resume = calls
+                        .filter(c => c.decided)
+                        .map(c => ({
+                            interruptId: c.interruptId,
+                            status: 'resolved',
+                            payload: { approved: c.status === 'approved' },
+                        }));
+
+                    this.streamAGUIRun(this.getProfileId(), null, null, resume);
                 },
                 getServiceDownMessage() {
                     let newMessage = {
@@ -2917,6 +3652,20 @@ window.coreAIChatManager = function () {
                     }
 
                     this.applyOrchestratorAvailability();
+
+                    // AG-UI: the approval buttons are part of the rendered message, so their clicks are handled here.
+                    this.chatContainer.addEventListener('click', (event) => {
+                        const button = event.target && event.target.closest ? event.target.closest('[data-agui-interrupt]') : null;
+
+                        if (!button || !this.chatContainer.contains(button)) {
+                            return;
+                        }
+
+                        event.preventDefault();
+                        this.answerApproval(button.getAttribute('data-agui-interrupt'), button.getAttribute('data-agui-approved') === 'true');
+                    });
+
+                    document.addEventListener('selectionchange', () => this.trackPageSelection());
 
                     const sessionId = this.getSessionId();
                     if (!hasWidgetConfig && sessionId) {

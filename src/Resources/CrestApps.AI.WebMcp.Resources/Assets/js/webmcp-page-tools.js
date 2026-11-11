@@ -152,11 +152,13 @@
   /**
    * Creates the page tools for a document.
    *
-   * @param {{ doc: any, loc: any, isAdmin?: boolean }} options The document, its location, and whether it is an admin page.
+   * @param {{ doc: any, loc: any, isAdmin?: boolean, navigateDelayMs?: number }} options The document, its location,
+   *   whether it is an admin page, and how long page_navigate waits after answering before it opens the page.
    */
   function createPageTools(options) {
     var doc = options.doc;
     var loc = options.loc;
+    var navigateDelayMs = typeof options.navigateDelayMs === 'number' ? options.navigateDelayMs : 400;
 
     return [
       {
@@ -222,7 +224,7 @@
       {
         name: 'page_navigate',
         title: 'Open page',
-        description: 'Opens another page of this site in the current tab. Only addresses on this site are allowed. Unsaved changes on the current page are lost.',
+        description: 'Opens another page of this site in the current tab. Only addresses on this site are allowed; take them from page_list_links, and start a site path with /. Unsaved changes on the current page are lost.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -237,7 +239,12 @@
             throw new Error('Only addresses on this site can be opened.');
           }
 
-          loc.assign(url.href);
+          // Answer first and open the page a moment later, so the agent gets the result before this page (and
+          // the chat connection on it) goes away. The chat finishes the reply on the server and shows it on the
+          // next page.
+          setTimeout(function () {
+            loc.assign(url.href);
+          }, navigateDelayMs);
 
           return ({ navigatedTo: url.href });
         },

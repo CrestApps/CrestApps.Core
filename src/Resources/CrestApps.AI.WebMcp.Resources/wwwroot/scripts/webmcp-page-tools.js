@@ -103,11 +103,13 @@
 		/**
 		* Creates the page tools for a document.
 		*
-		* @param {{ doc: any, loc: any, isAdmin?: boolean }} options The document, its location, and whether it is an admin page.
+		* @param {{ doc: any, loc: any, isAdmin?: boolean, navigateDelayMs?: number }} options The document, its location,
+		*   whether it is an admin page, and how long page_navigate waits after answering before it opens the page.
 		*/
 		function createPageTools(options) {
 			var doc = options.doc;
 			var loc = options.loc;
+			var navigateDelayMs = typeof options.navigateDelayMs === "number" ? options.navigateDelayMs : 400;
 			return [
 				{
 					name: "page_get_info",
@@ -171,7 +173,7 @@
 				{
 					name: "page_navigate",
 					title: "Open page",
-					description: "Opens another page of this site in the current tab. Only addresses on this site are allowed. Unsaved changes on the current page are lost.",
+					description: "Opens another page of this site in the current tab. Only addresses on this site are allowed; take them from page_list_links, and start a site path with /. Unsaved changes on the current page are lost.",
 					inputSchema: {
 						type: "object",
 						properties: { url: {
@@ -183,7 +185,9 @@
 					execute: function(input) {
 						var url = resolveSameOrigin(input && input.url, loc);
 						if (!url) throw new Error("Only addresses on this site can be opened.");
-						loc.assign(url.href);
+						setTimeout(function() {
+							loc.assign(url.href);
+						}, navigateDelayMs);
 						return { navigatedTo: url.href };
 					}
 				},

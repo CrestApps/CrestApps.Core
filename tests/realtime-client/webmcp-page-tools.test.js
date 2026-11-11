@@ -198,8 +198,13 @@ describe('page_navigate', () => {
 
         const { data } = await run(tools(fakeDocument()).page_navigate, { url: '/Admin/Users' });
 
-        assert.deepStrictEqual(location.assign.mock.calls.map((call) => call.arguments), [['https://example.com/Admin/Users']]);
+        // The tool answers before the page goes away, so the agent gets the result.
         assert.deepStrictEqual(data, { navigatedTo: 'https://example.com/Admin/Users' });
+        assert.strictEqual(location.assign.mock.callCount(), 0);
+
+        await new Promise((resolve) => setTimeout(resolve, 450));
+
+        assert.deepStrictEqual(location.assign.mock.calls.map((call) => call.arguments), [['https://example.com/Admin/Users']]);
     });
 
     it('refuses other origins, script addresses and a missing address', async () => {
