@@ -135,7 +135,7 @@ public sealed partial class AzureOpenAICompletionClient
             PresencePenalty = context.PresencePenalty,
             MaxOutputTokens = context.MaxTokens,
             Reasoning = requestOptions.ResolvedOptions.Reasoning,
-            Tools = [.. requestOptions.Functions],
+            Tools = [.. requestOptions.Functions, .. requestOptions.Declarations],
             ToolMode = ChatToolMode.Auto,
         };
 
@@ -149,7 +149,8 @@ public sealed partial class AzureOpenAICompletionClient
     /// </summary>
     /// <remarks>
     /// Only the text of an assistant message is kept. A stored function call without its result would make the
-    /// Responses API reject the request.
+    /// Responses API reject the request. The one exception is a paused run's approval requests, which the
+    /// function-invoking client turns into calls and results before anything reaches the service.
     /// </remarks>
     /// <param name="messages">The conversation messages.</param>
     /// <param name="context">The completion context.</param>
@@ -160,6 +161,10 @@ public sealed partial class AzureOpenAICompletionClient
         foreach (var message in messages)
         {
             if (message.Role == ChatRole.User && (!string.IsNullOrEmpty(message.Text) || message.Contents.Count > 0))
+            {
+                history.Add(message);
+            }
+            else if (message.Role == ChatRole.Assistant && message.Contents.Any(IsApprovalRequest))
             {
                 history.Add(message);
             }
@@ -180,4 +185,11 @@ public sealed partial class AzureOpenAICompletionClient
 
         return prompts;
     }
+
+#pragma warning disable MEAI001 // Tool approvals are a preview API of Microsoft.Extensions.AI.
+    private static bool IsApprovalRequest(AIContent content)
+    {
+        return content is ToolApprovalRequestContent;
+    }
+#pragma warning restore MEAI001
 }

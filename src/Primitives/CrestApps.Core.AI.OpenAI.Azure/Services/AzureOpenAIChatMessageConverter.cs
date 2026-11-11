@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.AI;
 using OpenAI.Chat;
 using AIChatMessage = Microsoft.Extensions.AI.ChatMessage;
@@ -66,6 +67,10 @@ internal static class AzureOpenAIChatMessageConverter
                     currentPrompt = message.Text;
                 }
             }
+            else if (IsToolMessage(message))
+            {
+                converted.AddRange(CreateToolMessages(message));
+            }
             else if (message.Role == AIChatRole.Assistant && !string.IsNullOrWhiteSpace(message.Text))
             {
                 converted.Add(new AssistantChatMessage(message.Text));
@@ -74,7 +79,7 @@ internal static class AzureOpenAIChatMessageConverter
 
         _ = currentPrompt;
 
-        return converted;
+        return DropOrphanedToolResults(converted);
     }
 
     /// <summary>
@@ -93,25 +98,23 @@ internal static class AzureOpenAIChatMessageConverter
 
         foreach (var message in messages)
         {
+            if (IsToolMessage(message))
+            {
+                // Tool calls and their results are prebuilt: one framework message can be several SDK messages.
+                foreach (var toolMessage in CreateToolMessages(message))
+                {
+                    AddToTail(tail, PendingChatMessage.CreatePrebuilt(toolMessage), pastMessagesCount, ref nextIndex);
+                }
+
+                continue;
+            }
+
             if (!TryCreatePendingChatMessage(message, out var pendingMessage))
             {
                 continue;
             }
 
-            if (tail.Count < pastMessagesCount)
-            {
-                tail.Add(pendingMessage);
-            }
-            else
-            {
-                tail[nextIndex] = pendingMessage;
-                nextIndex++;
-
-                if (nextIndex == pastMessagesCount)
-                {
-                    nextIndex = 0;
-                }
-            }
+            AddToTail(tail, pendingMessage, pastMessagesCount, ref nextIndex);
         }
 
         var converted = new List<SdkChatMessage>(tail.Count);
@@ -126,7 +129,122 @@ internal static class AzureOpenAIChatMessageConverter
             converted.Add(tail[index].Create());
         }
 
+        return DropOrphanedToolResults(converted);
+    }
+
+    /// <summary>
+    /// Adds a pending message to the bounded tail, replacing the oldest one once the tail is full.
+    /// </summary>
+    /// <param name="tail">The tail.</param>
+    /// <param name="pendingMessage">The pending message.</param>
+    /// <param name="capacity">The tail capacity.</param>
+    /// <param name="nextIndex">The index of the oldest message once the tail is full.</param>
+    private static void AddToTail(List<PendingChatMessage> tail, PendingChatMessage pendingMessage, int capacity, ref int nextIndex)
+    {
+        if (tail.Count < capacity)
+        {
+            tail.Add(pendingMessage);
+
+            return;
+        }
+
+        tail[nextIndex] = pendingMessage;
+        nextIndex++;
+
+        if (nextIndex == capacity)
+        {
+            nextIndex = 0;
+        }
+    }
+
+    /// <summary>
+    /// Determines whether a message carries tool calls (an assistant message) or tool results (a tool message).
+    /// </summary>
+    /// <param name="message">The framework message.</param>
+    /// <returns><see langword="true"/> for a tool call or tool result message.</returns>
+    internal static bool IsToolMessage(AIChatMessage message)
+    {
+        if (message.Role == AIChatRole.Tool)
+        {
+            return true;
+        }
+
+        return message.Role == AIChatRole.Assistant && message.Contents.Any(content => content is FunctionCallContent);
+    }
+
+    /// <summary>
+    /// Converts a tool call message (with any text it has first) or a tool result message into SDK messages: an
+    /// assistant message with its tool calls, or one tool message per result.
+    /// </summary>
+    /// <param name="message">The framework message.</param>
+    /// <returns>The SDK messages.</returns>
+    internal static List<SdkChatMessage> CreateToolMessages(AIChatMessage message)
+    {
+        var converted = new List<SdkChatMessage>();
+
+        if (message.Role == AIChatRole.Tool)
+        {
+            foreach (var result in message.Contents.OfType<FunctionResultContent>())
+            {
+                converted.Add(new ToolChatMessage(result.CallId, ToToolResultText(result.Result)));
+            }
+
+            return converted;
+        }
+
+        if (!string.IsNullOrWhiteSpace(message.Text))
+        {
+            converted.Add(new AssistantChatMessage(message.Text));
+        }
+
+        var toolCalls = message.Contents
+            .OfType<FunctionCallContent>()
+            .Select(call => ChatToolCall.CreateFunctionToolCall(
+                call.CallId,
+                call.Name,
+                BinaryData.FromString(JsonSerializer.Serialize(call.Arguments ?? new Dictionary<string, object>(), AIJsonUtilities.DefaultOptions))))
+            .ToList();
+
+        if (toolCalls.Count > 0)
+        {
+            converted.Add(new AssistantChatMessage(toolCalls));
+        }
+
         return converted;
+    }
+
+    /// <summary>
+    /// Removes the tool results at the start of a history cut to its newest messages, whose tool calls were cut off.
+    /// The service rejects a tool result without the tool call before it.
+    /// </summary>
+    /// <param name="messages">The converted messages.</param>
+    /// <returns>The messages, without leading tool results.</returns>
+    internal static List<SdkChatMessage> DropOrphanedToolResults(List<SdkChatMessage> messages)
+    {
+        var leading = 0;
+
+        while (leading < messages.Count && messages[leading] is ToolChatMessage)
+        {
+            leading++;
+        }
+
+        if (leading > 0)
+        {
+            messages.RemoveRange(0, leading);
+        }
+
+        return messages;
+    }
+
+    private static string ToToolResultText(object result)
+    {
+        return result switch
+        {
+            null => string.Empty,
+            string text => text,
+            JsonElement element => element.ValueKind == JsonValueKind.String ? element.GetString() : element.GetRawText(),
+            _ => JsonSerializer.Serialize(result, AIJsonUtilities.DefaultOptions),
+        };
     }
 
     /// <summary>
@@ -270,6 +388,7 @@ internal static class AzureOpenAIChatMessageConverter
     {
         User,
         Assistant,
+        Prebuilt,
     }
 
     /// <summary>
@@ -332,6 +451,7 @@ internal static class AzureOpenAIChatMessageConverter
         private readonly PendingChatMessageKind _kind;
         private readonly PendingUserMessage _userMessage;
         private readonly string _assistantText;
+        private readonly SdkChatMessage _prebuilt;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="PendingChatMessage"/> struct.
@@ -347,6 +467,29 @@ internal static class AzureOpenAIChatMessageConverter
             _kind = kind;
             _userMessage = userMessage;
             _assistantText = assistantText;
+            _prebuilt = null;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="PendingChatMessage"/> struct for a prebuilt SDK message.
+        /// </summary>
+        /// <param name="prebuilt">The SDK message.</param>
+        private PendingChatMessage(SdkChatMessage prebuilt)
+        {
+            _kind = PendingChatMessageKind.Prebuilt;
+            _userMessage = default;
+            _assistantText = null;
+            _prebuilt = prebuilt;
+        }
+
+        /// <summary>
+        /// Creates a pending message from an SDK message built already, such as a tool call or a tool result.
+        /// </summary>
+        /// <param name="message">The SDK message.</param>
+        /// <returns>The pending chat message.</returns>
+        public static PendingChatMessage CreatePrebuilt(SdkChatMessage message)
+        {
+            return new PendingChatMessage(message);
         }
 
         /// <summary>
@@ -381,9 +524,12 @@ internal static class AzureOpenAIChatMessageConverter
         /// <returns>The converted SDK message.</returns>
         public SdkChatMessage Create()
         {
-            return _kind == PendingChatMessageKind.User
-                ? _userMessage.Create()
-                : new AssistantChatMessage(_assistantText);
+            return _kind switch
+            {
+                PendingChatMessageKind.User => _userMessage.Create(),
+                PendingChatMessageKind.Prebuilt => _prebuilt,
+                _ => new AssistantChatMessage(_assistantText),
+            };
         }
     }
 
