@@ -89,14 +89,11 @@ public sealed class GitHubOAuthService
             });
             var protectedState = stateProtector.Protect(statePayload);
 
-            httpContext.Response.Cookies.Append(StateCookieName, protectedState, new CookieOptions
-            {
-                HttpOnly = true,
-                IsEssential = true,
-                SameSite = SameSiteMode.Lax,
-                Secure = httpContext.Request.IsHttps,
-                Expires = _timeProvider.GetUtcNow().AddMinutes(10),
-            });
+            var cookieOptions = CreateStateCookieOptions(httpContext);
+
+            cookieOptions.Expires = _timeProvider.GetUtcNow().AddMinutes(10);
+
+            httpContext.Response.Cookies.Append(StateCookieName, protectedState, cookieOptions);
         }
 
         var queryParams = HttpUtility.ParseQueryString(string.Empty);
@@ -108,8 +105,22 @@ public sealed class GitHubOAuthService
         return $"https://github.com/login/oauth/authorize?{queryParams}";
     }
 
+    // The attributes that write the state cookie and the ones that delete it must agree, or a browser keeps the cookie.
+    private static CookieOptions CreateStateCookieOptions(HttpContext httpContext)
+    {
+        return new CookieOptions
+        {
+            HttpOnly = true,
+            IsEssential = true,
+            SameSite = SameSiteMode.Lax,
+            Secure = httpContext.Request.IsHttps,
+        };
+    }
+
     /// <summary>
-    /// Validates the callback state and extracts the safe return URL.
+    /// Validates the callback state and extracts the safe return URL. The state cookie is deleted once the state
+    /// validates, so one authorization round trip cannot be replayed. Without an <see cref="HttpContext"/> there is
+    /// nothing to validate the state against, so validation fails.
     /// </summary>
     /// <param name="state">The callback state.</param>
     /// <param name="validatedReturnUrl">The validated return URL when the state is valid.</param>
@@ -120,20 +131,8 @@ public sealed class GitHubOAuthService
 
         if (httpContext == null)
         {
-            if (string.Equals(state, "__popup__", StringComparison.Ordinal))
-            {
-                validatedReturnUrl = state;
-
-                return true;
-            }
-
-            if (IsLocalUrl(state))
-            {
-                validatedReturnUrl = state;
-
-                return true;
-            }
-
+            // Without a request there is no state cookie to compare the callback with, and a state that is only
+            // its own return URL proves nothing: anyone can send a victim to the callback with a state they chose.
             validatedReturnUrl = null;
 
             return false;
@@ -162,6 +161,10 @@ public sealed class GitHubOAuthService
 
             if (string.Equals(payload.ReturnUrl, "__popup__", StringComparison.Ordinal) || IsLocalUrl(payload.ReturnUrl))
             {
+                // The state is good for one callback. Left in the browser, the same cookie and state could be
+                // replayed until the cookie expired.
+                httpContext.Response.Cookies.Delete(StateCookieName, CreateStateCookieOptions(httpContext));
+
                 validatedReturnUrl = payload.ReturnUrl;
 
                 return true;

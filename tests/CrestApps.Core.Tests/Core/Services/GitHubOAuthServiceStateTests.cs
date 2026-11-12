@@ -38,6 +38,55 @@ public sealed class GitHubOAuthServiceStateTests
         Assert.Equal(ReturnUrl, recoveredReturnUrl);
     }
 
+    [Fact]
+    public void TryValidateCallbackState_AfterASuccessfulValidation_DeletesTheStateCookie()
+    {
+        var time = new TestTimeProvider(DateTimeOffset.Parse("2025-01-01T00:00:00Z"));
+        var (service, accessor) = CreateService(time);
+
+        accessor.HttpContext = NewHttpContext();
+        var nonce = ExtractStateParameter(service.GetAuthorizationUrl(CallbackUrl, ReturnUrl));
+        var protectedState = CapturedStateCookieValue(accessor.HttpContext);
+
+        var callback = NewHttpContext(stateCookieValue: protectedState);
+        accessor.HttpContext = callback;
+
+        Assert.True(service.TryValidateCallbackState(nonce, out _));
+
+        // The cookie is one use: left in place, the same state could be replayed until it expired.
+        var deletion = Assert.Single(callback.Response.Headers.SetCookie, header => header.StartsWith($"{StateCookieName}=", StringComparison.Ordinal));
+        Assert.Contains("expires=Thu, 01 Jan 1970", deletion, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryValidateCallbackState_AfterAFailedValidation_LeavesTheStateCookie()
+    {
+        var time = new TestTimeProvider(DateTimeOffset.Parse("2025-01-01T00:00:00Z"));
+        var (service, accessor) = CreateService(time);
+
+        accessor.HttpContext = NewHttpContext();
+        service.GetAuthorizationUrl(CallbackUrl, ReturnUrl);
+        var callback = NewHttpContext(stateCookieValue: CapturedStateCookieValue(accessor.HttpContext));
+        accessor.HttpContext = callback;
+
+        Assert.False(service.TryValidateCallbackState("an-attacker-supplied-nonce", out _));
+        Assert.Equal(0, callback.Response.Headers.SetCookie.Count);
+    }
+
+    [Theory]
+    [InlineData("__popup__")]
+    [InlineData("/dashboard")]
+    public void TryValidateCallbackState_WithoutAnHttpContext_Fails(string state)
+    {
+        var (service, accessor) = CreateService(new TestTimeProvider(DateTimeOffset.UtcNow));
+        accessor.HttpContext = null;
+
+        var ok = service.TryValidateCallbackState(state, out var returnUrl);
+
+        Assert.False(ok);
+        Assert.Null(returnUrl);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
