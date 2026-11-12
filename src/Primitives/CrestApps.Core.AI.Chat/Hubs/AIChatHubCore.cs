@@ -2365,25 +2365,26 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 // A template prompt runs inside the chat session of the profile the caller is chatting with, which is
                 // the session profile. Authorizing only the template profile would let a caller who may use the
                 // template start sessions of, and spend the model budget of, a profile they may not.
-                var parentProfile = string.IsNullOrWhiteSpace(sessionProfileId) || string.Equals(sessionProfileId, profile.ItemId, StringComparison.Ordinal)
-                    ? profile
-                    : await profileManager.FindByIdAsync(sessionProfileId, cancellationToken);
-
-                if (parentProfile is null)
+                if (string.IsNullOrWhiteSpace(sessionProfileId))
                 {
-                    await Clients.Caller.ReceiveError(GetProfileNotFoundMessage());
+                    await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(sessionProfileId)));
 
                     return;
                 }
 
-                if (!ReferenceEquals(parentProfile, profile) && !await AuthorizeProfileAsync(services, parentProfile))
+                // An unknown session profile and one the caller may not use get the same answer, so a caller probing ids
+                // cannot tell which exist.
+                var parentProfile = await profileManager.FindByIdAsync(sessionProfileId, cancellationToken);
+
+                if (parentProfile is null || !await AuthorizeProfileAsync(services, parentProfile))
                 {
                     await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
 
                     return;
                 }
 
-                if (!ReferenceEquals(parentProfile, profile) && parentProfile.Type != AIProfileType.Chat)
+                // Sessions are started under a chat profile, as StartSession requires, never under the template itself.
+                if (parentProfile.Type != AIProfileType.Chat)
                 {
                     await Clients.Caller.ReceiveError(GetOnlyChatProfilesMessage());
 
@@ -2448,6 +2449,21 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     outcome = CrestAppsTelemetry.OutcomeBlocked;
 
                     await Clients.Caller.ReceiveError(GetBlockedPromptMessage(securityResult));
+
+                    return;
+                }
+            }
+            else
+            {
+                // A blank message skips the prompt security checks, which is where the rate limit is applied, and still
+                // runs a turn. Without this a loop of blank messages is never counted.
+                var blankMessageLimit = await EvaluateMessageRateLimitAsync(services, profile, sessionId, cancellationToken);
+
+                if (blankMessageLimit.IsBlocked)
+                {
+                    outcome = CrestAppsTelemetry.OutcomeBlocked;
+
+                    await Clients.Caller.ReceiveError(GetBlockedPromptMessage(blankMessageLimit));
 
                     return;
                 }
@@ -3181,9 +3197,21 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             }
 
             builder.Append(chunk.Text);
+
+            if (writer is AGUIChatTurn aguiTurn)
+            {
+                // An AG-UI turn takes each chunk as the next piece of the message. Written as a partial message it would
+                // be read as a replacement for the whole message after the first chunk, and the page would show only the
+                // last chunk.
+                await aguiTurn.Events.WriteTextAsync(assistantMessage.ItemId, chunk.Text, cancellationToken);
+
+                continue;
+            }
+
             var partialMessage = new CompletionPartialMessage
             {
-                SessionId = sessionId,
+                // The session the answer is saved in, which is not the one the caller sent when this made a new one.
+                SessionId = chatSession.SessionId,
                 MessageId = assistantMessage.ItemId,
                 Content = chunk.Text,
                 References = references,
