@@ -12,6 +12,7 @@ internal sealed class AGUIRunCancellation : IDisposable
 
     private readonly CancellationTokenSource _source = new();
     private readonly CancellationTokenRegistration _registration;
+    private readonly CancellationToken _connectionAborted;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AGUIRunCancellation"/> class for a run with no connection: the
@@ -34,6 +35,7 @@ internal sealed class AGUIRunCancellation : IDisposable
         CancellationToken streamToken,
         CancellationToken connectionAborted)
     {
+        _connectionAborted = connectionAborted;
         _registration = streamToken.Register(() => _ = OnStreamCancelledAsync(disconnectedRunTimeout, connectionAborted));
     }
 
@@ -41,6 +43,11 @@ internal sealed class AGUIRunCancellation : IDisposable
     /// Gets the token of the run.
     /// </summary>
     public CancellationToken Token => _source.Token;
+
+    /// <summary>
+    /// Gets a value indicating whether the connection the run started on has dropped.
+    /// </summary>
+    public bool ConnectionLost => _connectionAborted.IsCancellationRequested;
 
     /// <summary>
     /// Releases the registration and the token source.

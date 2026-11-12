@@ -1578,6 +1578,12 @@ window.coreAIChatManager = function () {
                     this.connection.keepAliveIntervalInMilliseconds = 15000;
 
                     this.connection.on("LoadSession", (data) => {
+                        // The hub also sends the session when a run that outlived its page ends. A message the user
+                        // sent since then is streaming, and its answer must not be wiped by the older session.
+                        if (this.stream && data && data.sessionId === this.getSessionId()) {
+                            return;
+                        }
+
                         // Switching to another session must not leave a prior realtime/voice session running.
                         this.forceStopActiveVoice();
                         this.initializeSession(data.sessionId, true);
@@ -2513,8 +2519,10 @@ window.coreAIChatManager = function () {
 
                     switch (evt.type) {
                         case 'RUN_STARTED':
-                            if (evt.threadId && !this.getSessionId()) {
-                                this.initializeSession(evt.threadId);
+                            // A run sent without a session creates one; the chat continues in it, even when a new chat
+                            // the user started meanwhile set another session.
+                            if (evt.threadId && evt.threadId !== run.threadId && evt.threadId !== this.getSessionId()) {
+                                this.initializeSession(evt.threadId, true);
                             }
 
                             break;
@@ -2712,6 +2720,7 @@ window.coreAIChatManager = function () {
                     this.autoScroll = true;
 
                     const run = {
+                        threadId: '',
                         message: null,
                         messageIndex: -1,
                         assistantMessageId: null,
@@ -2728,26 +2737,28 @@ window.coreAIChatManager = function () {
 
                     this.aguiRun = run;
 
-                    const input = {
-                        threadId: this.getSessionId() || '',
-                        runId: newAGUIId(),
-                        messages: prompt ? [{ id: newAGUIId(), role: 'user', content: prompt }] : [],
-                        tools: [],
-                        context: this.collectRunContext(),
-                        forwardedProps: { profileId: profileId, sessionProfileId: sessionProfileId || null },
-                    };
-
-                    const state = this.getSharedState();
-
-                    if (state !== undefined) {
-                        input.state = state;
-                    }
-
-                    if (resume && resume.length) {
-                        input.resume = resume;
-                    }
-
                     const openStream = () => {
+                        run.threadId = this.getSessionId() || '';
+
+                        const input = {
+                            threadId: run.threadId,
+                            runId: newAGUIId(),
+                            messages: prompt ? [{ id: newAGUIId(), role: 'user', content: prompt }] : [],
+                            tools: [],
+                            context: this.collectRunContext(),
+                            forwardedProps: { profileId: profileId, sessionProfileId: sessionProfileId || null },
+                        };
+
+                        const state = this.getSharedState();
+
+                        if (state !== undefined) {
+                            input.state = state;
+                        }
+
+                        if (resume && resume.length) {
+                            input.resume = resume;
+                        }
+
                         this.stream = this.connection.stream('RunAgent', input)
                             .subscribe({
                                 next: (evt) => this.handleAGUIEvent(run, evt),
@@ -2777,8 +2788,15 @@ window.coreAIChatManager = function () {
                             });
                     };
 
-                    // The page tools go first, so the reply to this message can already call them.
-                    this.syncPageTools().then(openStream, openStream);
+                    // A new chat the user just started is created first, so the run continues in it; the page tools go
+                    // next, so the reply to this message can already call them.
+                    const pendingSession = this.pendingSessionPromise
+                        ? this.pendingSessionPromise.catch(() => null)
+                        : Promise.resolve();
+
+                    pendingSession
+                        .then(() => this.syncPageTools())
+                        .then(openStream, openStream);
                 },
                 answerApproval(interruptId, approved) {
                     let target = null;

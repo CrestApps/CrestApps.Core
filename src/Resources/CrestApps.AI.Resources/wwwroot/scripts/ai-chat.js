@@ -1032,6 +1032,7 @@
 						this.connection.serverTimeoutInMilliseconds = 6e5;
 						this.connection.keepAliveIntervalInMilliseconds = 15e3;
 						this.connection.on("LoadSession", (data) => {
+							if (this.stream && data && data.sessionId === this.getSessionId()) return;
 							this.forceStopActiveVoice();
 							this.initializeSession(data.sessionId, true);
 							this.messages = [];
@@ -1662,7 +1663,7 @@
 						if (!evt || typeof evt.type !== "string") return;
 						switch (evt.type) {
 							case "RUN_STARTED":
-								if (evt.threadId && !this.getSessionId()) this.initializeSession(evt.threadId);
+								if (evt.threadId && evt.threadId !== run.threadId && evt.threadId !== this.getSessionId()) this.initializeSession(evt.threadId, true);
 								break;
 							case "CUSTOM":
 								this.handleAGUICustomEvent(run, evt.name, evt.value || {});
@@ -1795,6 +1796,7 @@
 						this.showTypingIndicator();
 						this.autoScroll = true;
 						const run = {
+							threadId: "",
 							message: null,
 							messageIndex: -1,
 							assistantMessageId: null,
@@ -1809,25 +1811,26 @@
 							error: null
 						};
 						this.aguiRun = run;
-						const input = {
-							threadId: this.getSessionId() || "",
-							runId: newAGUIId(),
-							messages: prompt ? [{
-								id: newAGUIId(),
-								role: "user",
-								content: prompt
-							}] : [],
-							tools: [],
-							context: this.collectRunContext(),
-							forwardedProps: {
-								profileId,
-								sessionProfileId: sessionProfileId || null
-							}
-						};
-						const state = this.getSharedState();
-						if (state !== void 0) input.state = state;
-						if (resume && resume.length) input.resume = resume;
 						const openStream = () => {
+							run.threadId = this.getSessionId() || "";
+							const input = {
+								threadId: run.threadId,
+								runId: newAGUIId(),
+								messages: prompt ? [{
+									id: newAGUIId(),
+									role: "user",
+									content: prompt
+								}] : [],
+								tools: [],
+								context: this.collectRunContext(),
+								forwardedProps: {
+									profileId,
+									sessionProfileId: sessionProfileId || null
+								}
+							};
+							const state = this.getSharedState();
+							if (state !== void 0) input.state = state;
+							if (resume && resume.length) input.resume = resume;
 							this.stream = this.connection.stream("RunAgent", input).subscribe({
 								next: (evt) => this.handleAGUIEvent(run, evt),
 								complete: () => this.finishAGUIRun(run),
@@ -1847,7 +1850,7 @@
 								}
 							});
 						};
-						this.syncPageTools().then(openStream, openStream);
+						(this.pendingSessionPromise ? this.pendingSessionPromise.catch(() => null) : Promise.resolve()).then(() => this.syncPageTools()).then(openStream, openStream);
 					},
 					answerApproval(interruptId, approved) {
 						let target = null;

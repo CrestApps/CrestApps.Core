@@ -955,6 +955,47 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 await turn.Events.FinishAsync(CancellationToken.None);
                 output?.TryComplete();
             }
+
+            // The page that started the run is gone (a page tool opened another page). The page that took over loaded
+            // the session before the answer was saved, and joined the session's group, so it gets the session again.
+            if (output is not null && cancellation.ConnectionLost && !string.IsNullOrEmpty(turn.Events.ThreadId))
+            {
+                await SendSessionToGroupAsync(services, turn.Events.ThreadId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sends a session, as it is now, to the connections in its group, which loaded it or sent a message to it.
+    /// </summary>
+    /// <param name="services">The service provider.</param>
+    /// <param name="sessionId">The session id.</param>
+    /// <returns>A task that completes when the session is sent.</returns>
+    private async Task SendSessionToGroupAsync(IServiceProvider services, string sessionId)
+    {
+        try
+        {
+            var chatSession = await services.GetRequiredService<IAIChatSessionManager>().FindAsync(sessionId);
+
+            if (chatSession is null)
+            {
+                return;
+            }
+
+            var profile = await services.GetRequiredService<IAIProfileManager>().FindByIdAsync(chatSession.ProfileId);
+
+            if (profile is null)
+            {
+                return;
+            }
+
+            var prompts = await services.GetRequiredService<IAIChatSessionPromptStore>().GetPromptsAsync(chatSession.SessionId);
+
+            await Clients.Group(GetSessionGroupName(chatSession.SessionId)).LoadSession(CreateSessionPayload(chatSession, profile, prompts));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "The session {SessionId} could not be sent to its group after its run ended.", sessionId);
         }
     }
 
@@ -2459,6 +2500,18 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             CreatedUtc = utcNow,
         };
         await promptStore.CreateAsync(userPromptRecord, cancellationToken);
+
+        if (isNew && writer is AGUIChatTurn)
+        {
+            // An AG-UI run can outlive its page (a page tool opened another page), and the page that takes over loads
+            // the session. A new session is saved now, so that page finds it while the run goes on. The session is read
+            // again after the commit, so the save at the end of the turn updates it instead of adding a second one.
+            var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
+
+            await SaveChatSessionAsync(services, sessionManager, chatSession);
+            chatSession = await sessionManager.FindAsync(chatSession.SessionId, cancellationToken) ?? chatSession;
+        }
+
         var existingPrompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
         if (Logger.IsEnabled(LogLevel.Debug))
         {

@@ -141,7 +141,9 @@ The chat UI does not use frontend tools: the page's tools reach the chat through
 
 ## Runs that outlive the page
 
-A page tool can open another page (`page_navigate`). The tool answers first and opens the page a moment later, so the agent gets the result; the run then keeps going on the server after the connection drops, for `AGUIChatOptions.DisconnectedRunTimeout` (two minutes by default), and its answer is saved. The chat on the next page loads the session and shows it. A stop the user asks for ends the run at once.
+A page tool can open another page (`page_navigate`). The tool answers first and opens the page a moment later, so the agent gets the result; the run then keeps going on the server after the connection drops, for `AGUIChatOptions.DisconnectedRunTimeout` (two minutes by default), and its answer is saved. A stop the user asks for ends the run at once.
+
+The chat on the next page loads the session, which a new chat's run saves as soon as it starts, and joins its group; when the run ends, the hub sends the session to that group, so the answer appears on the next page as soon as it is saved. The rest of that run cannot use the next page's tools, since they belong to another connection: the next message the user sends can.
 
 ```csharp
 services.Configure<AGUIChatOptions>(options => options.DisconnectedRunTimeout = TimeSpan.FromMinutes(1));
