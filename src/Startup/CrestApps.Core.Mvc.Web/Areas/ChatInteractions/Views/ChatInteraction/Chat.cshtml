@@ -946,6 +946,9 @@
             loadInteractionRealtimeVoices();
 
             // --- Markdown rendering ---
+            // Hosts a Markdown image may be loaded from, besides this site. Empty keeps images same-origin; any other image is
+            // shown as a link, because the browser would send whatever the model put in its address when the answer appeared.
+            var allowedImageHosts = [];
             var renderer = new marked.Renderer();
             renderer.link = function (data) {
                 return '<a href="' + DOMPurify.sanitize(data.href) + '" target="_blank" rel="noopener noreferrer">' + data.text + '</a>';
@@ -954,6 +957,10 @@
                 var src = sanitizeUrl(data.href);
                 if (!src) {
                     return '';
+                }
+
+                if (!window.CoreAIImages.isAllowedSource(src, { allowedHosts: allowedImageHosts })) {
+                    return window.CoreAIImages.linkHtml(src, data.text);
                 }
 
                 var alt = data.text || 'Figure';
@@ -1079,7 +1086,7 @@
             }
 
             function renderMarkdown(text) {
-                var html = DOMPurify.sanitize(styleMarkdownTables(marked.parse(text || '')), { ADD_ATTR: ['target'] });
+                var html = window.CoreAIImages.sanitize(DOMPurify, styleMarkdownTables(marked.parse(text || '')), { ADD_ATTR: ['target'] }, { allowedHosts: allowedImageHosts });
 
                 if (typeof requestAnimationFrame === 'function') {
                     requestAnimationFrame(wireBrokenImageHandlers);

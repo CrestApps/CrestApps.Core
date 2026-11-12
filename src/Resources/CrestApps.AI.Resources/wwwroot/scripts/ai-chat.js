@@ -19,6 +19,7 @@
 		var defaultConfig = {
 			generatedImageAltText: "Generated Image",
 			generatedImageMaxWidth: 400,
+			allowedImageHosts: [],
 			downloadImageTitle: "Download image",
 			downloadChartTitle: "Download chart as image",
 			downloadChartButtonText: "Download",
@@ -480,6 +481,7 @@
 		renderer.image = function(data) {
 			const src = sanitizeUrl(data.href);
 			if (!src) return "";
+			if (!window.CoreAIImages.isAllowedSource(src, { allowedHosts: defaultConfig.allowedImageHosts })) return window.CoreAIImages.linkHtml(src, data.text);
 			const alt = data.text || defaultConfig.generatedImageAltText;
 			return `<span class="generated-image-container">
         <img src="${src}" alt="${alt}" class="img-thumbnail" style="max-width: ${defaultConfig.generatedImageMaxWidth}px; height: auto;" />
@@ -603,10 +605,10 @@
 			_pendingCharts = [];
 			const html = styleMarkdownTables(marked.parse(content, { renderer }));
 			message._pendingCharts = _pendingCharts.length > 0 ? [..._pendingCharts] : [];
-			const sanitizedHtml = DOMPurify.sanitize(html, {
+			const sanitizedHtml = window.CoreAIImages.sanitize(DOMPurify, html, {
 				ADD_TAGS: ["canvas"],
 				ADD_ATTR: ["target"]
-			});
+			}, { allowedHosts: defaultConfig.allowedImageHosts });
 			return window.CoreAIChatImageCarousel ? window.CoreAIChatImageCarousel.stackAdjacentImages(sanitizedHtml) : sanitizedHtml;
 		}
 		function compactObject(source) {

