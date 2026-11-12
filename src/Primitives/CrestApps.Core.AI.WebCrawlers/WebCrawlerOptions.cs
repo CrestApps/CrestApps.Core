@@ -12,6 +12,13 @@ public sealed class WebCrawlerOptions
     public int DefaultMaxPages { get; set; } = 500;
 
     /// <summary>
+    /// Gets or sets the most bytes the crawler reads from one response: a crawled page, a sitemap or <c>robots.txt</c>. A
+    /// response that declares or turns out to be larger is discarded, so a page named by a remote sitemap cannot make the
+    /// crawler buffer a body of any size. Defaults to 10 MB.
+    /// </summary>
+    public long MaxResponseBytes { get; set; } = 10 * 1024 * 1024;
+
+    /// <summary>
     /// Gets or sets the default maximum number of concurrent page requests per crawler.
     /// </summary>
     public int DefaultMaxConcurrentRequests { get; set; } = 4;

@@ -9,14 +9,17 @@ namespace CrestApps.Core.AI.Ftp;
 internal sealed class FtpRemoteFileClient : IRemoteFileClient
 {
     private readonly AsyncFtpClient _client;
+    private readonly long _maxFileBytes;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FtpRemoteFileClient"/> class.
     /// </summary>
     /// <param name="client">The connected client.</param>
-    public FtpRemoteFileClient(AsyncFtpClient client)
+    /// <param name="maxFileBytes">The most bytes of one file to read into memory.</param>
+    public FtpRemoteFileClient(AsyncFtpClient client, long maxFileBytes = RemoteFileLimits.DefaultMaxFileBytes)
     {
         _client = client;
+        _maxFileBytes = maxFileBytes;
     }
 
     /// <inheritdoc />
@@ -58,18 +61,8 @@ internal sealed class FtpRemoteFileClient : IRemoteFileClient
     public async Task<Stream> OpenReadAsync(string rootPath, string path, CancellationToken cancellationToken = default)
     {
         var full = Combine(rootPath, path);
-        var buffer = new MemoryStream();
-
-        if (!await _client.DownloadStream(buffer, full, token: cancellationToken))
-        {
-            await buffer.DisposeAsync();
-
-            return null;
-        }
-
-        buffer.Position = 0;
-
-        return buffer;
+        // A file of any size would otherwise be buffered whole.
+        return await BoundedRemoteDownload.OpenAsync(buffer => _client.DownloadStream(buffer, full, token: cancellationToken), _maxFileBytes);
     }
 
     /// <inheritdoc />

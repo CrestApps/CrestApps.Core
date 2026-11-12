@@ -104,7 +104,7 @@ public sealed class FtpRemoteFileClientFactory : IRemoteFileClientFactory
             throw;
         }
 
-        return new FtpRemoteFileClient(client);
+        return new FtpRemoteFileClient(client, metadata.MaxFileBytes is > 0 ? metadata.MaxFileBytes.Value : RemoteFileLimits.DefaultMaxFileBytes);
     }
 
     private string Unprotect(string value, string sourceId)

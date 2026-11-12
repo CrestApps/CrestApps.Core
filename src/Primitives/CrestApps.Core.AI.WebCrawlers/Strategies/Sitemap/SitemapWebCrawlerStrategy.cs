@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 using CrestApps.Core.AI.Crawling;
+using CrestApps.Core.AI.Http;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.DataIngestion;
 using CrestApps.Core.Models;
@@ -125,7 +126,7 @@ public sealed class SitemapWebCrawlerStrategy : IWebCrawlerStrategy
                 request.Headers.TryAddWithoutValidation("User-Agent", userAgent);
             }
 
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, timeoutSource.Token);
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeoutSource.Token);
             response.EnsureSuccessStatusCode();
 
             if (!IsSupportedPageContent(response.Content.Headers.ContentType?.MediaType, url))
@@ -142,7 +143,7 @@ public sealed class SitemapWebCrawlerStrategy : IWebCrawlerStrategy
                 return null;
             }
 
-            var html = await response.Content.ReadAsStringAsync(timeoutSource.Token);
+            var html = await BoundedHttpContent.ReadStringAsync(response.Content, ResolveMaxResponseBytes(), timeoutSource.Token);
             var title = HtmlIngestionDocumentReader.ExtractTitle(html);
             var document = HtmlIngestionDocumentReader.Read(html, url);
             var content = FlattenDocument(document);
@@ -162,6 +163,14 @@ public sealed class SitemapWebCrawlerStrategy : IWebCrawlerStrategy
         {
             throw;
         }
+        catch (HttpContentTooLargeException ex)
+        {
+            _logger.LogWarning(ex, "Skipped page '{Url}' for web crawler '{CrawlerId}' because it is larger than the crawler reads.", url, crawler.ItemId);
+
+            CountPage("skipped");
+
+            return null;
+        }
         catch (Exception ex)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
@@ -173,6 +182,11 @@ public sealed class SitemapWebCrawlerStrategy : IWebCrawlerStrategy
 
             return null;
         }
+    }
+
+    private long ResolveMaxResponseBytes()
+    {
+        return _options.MaxResponseBytes > 0 ? _options.MaxResponseBytes : new WebCrawlerOptions().MaxResponseBytes;
     }
 
     private static void CountPage(string result)

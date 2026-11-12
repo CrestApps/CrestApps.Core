@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CrestApps.Core.AI.Http;
 using CrestApps.Core.AI.Tooling.Parameters;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.DataProtection;
@@ -21,6 +22,9 @@ namespace CrestApps.Core.AI.Tooling.Instances;
 public sealed class HttpApiRequestToolFunction : AIFunction
 {
     private const int _maxResponseLength = 16000;
+
+    // A token endpoint answers with a small JSON document; anything larger is not one.
+    private const long MaxTokenResponseBytes = 1024 * 1024;
     private static readonly char[] _headerLineBreaks = ['\r', '\n'];
     private static readonly HashSet<string> _bodyMethods = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -171,12 +175,15 @@ public sealed class HttpApiRequestToolFunction : AIFunction
         try
         {
             using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, effectiveToken);
-            var body = response.Content is null
-                ? string.Empty
-                : await response.Content.ReadAsStringAsync(effectiveToken);
-            var truncated = body.Length > _maxResponseLength;
 
-            if (truncated)
+            // Only what the tool returns is read: a response of any size would otherwise be buffered to be cut. A UTF-8
+            // character is at most four bytes, so this is never less than the characters that are kept.
+            var (body, bodyTruncated) = response.Content is null
+                ? (string.Empty, false)
+                : await BoundedHttpContent.ReadStringTruncatedAsync(response.Content, _maxResponseLength * 4L, effectiveToken);
+            var truncated = bodyTruncated || body.Length > _maxResponseLength;
+
+            if (body.Length > _maxResponseLength)
             {
                 body = body[.._maxResponseLength];
             }
@@ -471,7 +478,7 @@ public sealed class HttpApiRequestToolFunction : AIFunction
             using var response = await httpClient.SendAsync(tokenRequest, cancellationToken);
             var payload = response.Content is null
                 ? string.Empty
-                : await response.Content.ReadAsStringAsync(cancellationToken);
+                : await BoundedHttpContent.ReadStringAsync(response.Content, MaxTokenResponseBytes, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {

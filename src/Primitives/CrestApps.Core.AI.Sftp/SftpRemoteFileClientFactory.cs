@@ -99,7 +99,7 @@ public sealed class SftpRemoteFileClientFactory : IRemoteFileClientFactory
             throw;
         }
 
-        return Task.FromResult<IRemoteFileClient>(new SftpRemoteFileClient(client));
+        return Task.FromResult<IRemoteFileClient>(new SftpRemoteFileClient(client, metadata.MaxFileBytes is > 0 ? metadata.MaxFileBytes.Value : RemoteFileLimits.DefaultMaxFileBytes));
     }
 
     private string Unprotect(string value, string sourceId)

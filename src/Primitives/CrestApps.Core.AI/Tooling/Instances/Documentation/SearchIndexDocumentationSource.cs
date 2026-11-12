@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CrestApps.Core.AI.Http;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
@@ -55,8 +56,8 @@ public sealed class SearchIndexDocumentationSource : CachingDocumentationSource
         {
             var client = _httpClientFactory.CreateClient(DocumentationToolConstants.HttpClientName);
 
-            using var stream = await client.GetStreamAsync(indexUrl, cancellationToken);
-            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            var bytes = await BoundedHttpContent.GetBytesAsync(client, indexUrl.ToString(), DocumentationToolConstants.MaxSearchIndexBytes, cancellationToken);
+            using var document = JsonDocument.Parse(bytes);
 
             var entries = ReadEntries(document.RootElement, indexUrl);
 

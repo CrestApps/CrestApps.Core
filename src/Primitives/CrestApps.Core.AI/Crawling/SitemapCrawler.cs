@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 using System.Xml.Linq;
+using CrestApps.Core.AI.Http;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Crawling;
@@ -191,7 +192,7 @@ public sealed class SitemapCrawler : ISitemapCrawler
 
         try
         {
-            var content = DecodeText(await ReadBoundedAsync(client, robotsUrl, maxResponseBytes, cancellationToken));
+            var content = DecodeText(await BoundedHttpContent.GetBytesAsync(client, robotsUrl, maxResponseBytes, cancellationToken));
             var results = new List<string>();
 
             foreach (var line in content.Split('\n'))
@@ -236,7 +237,7 @@ public sealed class SitemapCrawler : ISitemapCrawler
     {
         try
         {
-            var bytes = await ReadBoundedAsync(client, url, ResolveMaxResponseBytes(request), cancellationToken);
+            var bytes = await BoundedHttpContent.GetBytesAsync(client, url, ResolveMaxResponseBytes(request), cancellationToken);
 
             if (bytes.Length == 0)
             {
@@ -256,7 +257,7 @@ public sealed class SitemapCrawler : ISitemapCrawler
         {
             throw;
         }
-        catch (SitemapTooLargeException ex)
+        catch (Exception ex) when (ex is SitemapTooLargeException or HttpContentTooLargeException)
         {
             CountSitemapError("size");
 
@@ -464,40 +465,6 @@ public sealed class SitemapCrawler : ISitemapCrawler
     private static long ResolveMaxResponseBytes(SitemapCrawlRequest request)
     {
         return request.MaxResponseBytes > 0 ? request.MaxResponseBytes : DefaultMaxResponseBytes;
-    }
-
-    /// <summary>
-    /// Reads a response body, giving up as soon as it is known to be larger than <paramref name="maxBytes"/>: from the
-    /// declared <c>Content-Length</c> before any of it is read, or from the bytes read when a body does not declare one
-    /// or declares less than it sends.
-    /// </summary>
-    private static async Task<byte[]> ReadBoundedAsync(HttpClient client, string url, long maxBytes, CancellationToken cancellationToken)
-    {
-        using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-
-        response.EnsureSuccessStatusCode();
-
-        if (response.Content.Headers.ContentLength > maxBytes)
-        {
-            throw new SitemapTooLargeException(url, maxBytes);
-        }
-
-        await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var destination = new MemoryStream();
-        var buffer = new byte[81920];
-        int read;
-
-        while ((read = await body.ReadAsync(buffer, cancellationToken)) > 0)
-        {
-            if (destination.Length + read > maxBytes)
-            {
-                throw new SitemapTooLargeException(url, maxBytes);
-            }
-
-            destination.Write(buffer, 0, read);
-        }
-
-        return destination.ToArray();
     }
 
     private static byte[] Decompress(byte[] input, long maxBytes)

@@ -14,6 +14,17 @@ public static class DocumentationToolConstants
     public const string SitemapSourceName = "sitemap-documentation";
 
     /// <summary>
+    /// The most bytes read from one documentation page. A page larger than this is skipped, so a site cannot make the
+    /// source buffer a body of any size.
+    /// </summary>
+    public const long MaxPageBytes = 10L * 1024 * 1024;
+
+    /// <summary>
+    /// The most bytes read from a documentation site's search index. An index larger than this is not used.
+    /// </summary>
+    public const long MaxSearchIndexBytes = 50L * 1024 * 1024;
+
+    /// <summary>
     /// The registered source name of the prebuilt JSON search index documentation source (for example a
     /// MkDocs Material <c>search_index.json</c>).
     /// </summary>
