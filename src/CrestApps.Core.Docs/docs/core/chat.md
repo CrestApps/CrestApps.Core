@@ -295,13 +295,30 @@ The MVC sample also registers an `AIChatSessionCloseBackgroundService` that runs
 The framework now ships reusable minimal API extensions for chat document uploads and removals:
 
 ```csharp
-app.AddUploadChatInteractionDocumentEndpoint()
-    .AddRemoveChatInteractionDocumentEndpoint()
-    .AddUploadChatSessionDocumentEndpoint()
-    .AddRemoveChatSessionDocumentEndpoint();
+app.AddUploadChatInteractionDocumentEndpoint();
+app.AddRemoveChatInteractionDocumentEndpoint();
+app.AddUploadChatSessionDocumentEndpoint();
+app.AddRemoveChatSessionDocumentEndpoint();
 ```
 
 The built-in document endpoints commit staged store writes before returning so uploaded files, removed files, and updated document metadata persist across reloads. When you build your own minimal APIs on top of the same store abstractions, apply `StoreCommitterEndpointFilter` or call `IStoreCommitter.CommitAsync()` explicitly before returning.
+
+Each `Add*Endpoint()` method returns the endpoint's `RouteHandlerBuilder`, so a host can add its own endpoint filters or
+metadata. Because the return type is no longer the route builder, call each method on `app` as above instead of
+chaining them.
+
+The session upload endpoint is safe to expose to signed-in users and anonymous visitors:
+
+- it authorizes the caller (`AIChatDocumentOperations.ManageDocuments`) before it creates or saves a session, and a
+  session id that does not exist, or that another user owns, is treated as no session at all
+- an upload that starts a session is counted by the same session-start limiter as the chat hub (`IChatSessionStartRateLimiter`)
+  and answers `429` when the caller started too many
+- a session holds at most `ChatDocumentsOptions.MaxDocumentsPerSession` documents (default `20`; `0` disables the limit),
+  and files past it come back in the `failed` list
+- the four upload and remove endpoints run `CookieAuthenticationAntiforgeryEndpointFilter`, which validates the
+  antiforgery token (the `RequestVerificationToken` header or form field) of a request the browser authenticated on its
+  own, as cookie authentication does. A request with an `Authorization` header, and an anonymous request, need no token.
+  The host must register antiforgery services (`AddAntiforgery()`, which MVC, Razor Pages and Razor components already do)
 
 These endpoints:
 

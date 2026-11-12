@@ -124,9 +124,9 @@ builder.Services.AddCrestAppsCore(crestApps => crestApps
     )
 );
 
-app.AddChatApiEndpoints()
-    .AddDownloadAIDocumentEndpoint()
-    .AddDownloadAIDocumentFigureEndpoint();
+app.AddChatApiEndpoints();
+app.AddDownloadAIDocumentEndpoint();
+app.AddDownloadAIDocumentFigureEndpoint();
 ```
 
 The second endpoint serves the figures read out of an uploaded document, which is what lets an answer show a chart from a PDF rather than describe it. See [Showing a figure in the chat](#showing-a-figure-in-the-chat).
@@ -423,9 +423,9 @@ The text tells the model a figure exists and what was read off it; the picture r
 - the `view_document_figure` system tool takes a document ID and the figure ID from a figure block and returns the caption, the page and the link, together with the markdown image to embed (`![caption](link)`). Passing a `question` makes a vision deployment look at the picture and answer it, for the cases where the stored transcription does not say what the model needs. `get_document_metadata` lists a document's figures so the model can discover them.
 
 ```csharp
-app.AddChatApiEndpoints()
-    .AddDownloadAIDocumentEndpoint()
-    .AddDownloadAIDocumentFigureEndpoint();
+app.AddChatApiEndpoints();
+app.AddDownloadAIDocumentEndpoint();
+app.AddDownloadAIDocumentFigureEndpoint();
 ```
 
 Tool results that render themselves — `DataSourceRetrievalResult`, `KnowledgeObjectToolResult` and anything else implementing `IAIToolContentProvider` — reach a chat model as their text. The function-invoking client would otherwise serialize them as JSON, handing the model an envelope around its text or a picture as a base64 string many kilobytes long; the rich shape is kept for transports that can use it, such as the MCP server.

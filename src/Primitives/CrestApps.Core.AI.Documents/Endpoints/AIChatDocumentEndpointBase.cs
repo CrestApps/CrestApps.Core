@@ -1,9 +1,11 @@
+using System.Security.Claims;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Security;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Localization;
@@ -177,6 +179,35 @@ public abstract class AIChatDocumentEndpointBase
         var singleFile = form.Files.GetFile("file");
 
         return singleFile == null ? [] : [singleFile];
+    }
+
+    /// <summary>
+    /// Determines whether the caller owns a chat session: the signed-in user who started it, or, for a visitor's
+    /// session, the same visitor. Knowing a session's id is not enough to change it.
+    /// </summary>
+    /// <param name="session">The session.</param>
+    /// <param name="user">The caller.</param>
+    /// <param name="visitorIdentityResolver">The resolver of the anonymous visitor, if the host registered one.</param>
+    protected static bool IsSessionOwner(AIChatSession session, ClaimsPrincipal user, IAIVisitorIdentityResolver visitorIdentityResolver)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        if (!string.IsNullOrEmpty(session.UserId))
+        {
+            var userId = user?.Identity?.IsAuthenticated == true
+                ? user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.Identity.Name
+                : null;
+
+            return string.Equals(session.UserId, userId, StringComparison.Ordinal);
+        }
+
+        if (!string.IsNullOrEmpty(session.ClientId))
+        {
+            return string.Equals(session.ClientId, visitorIdentityResolver?.Resolve()?.VisitorId, StringComparison.Ordinal);
+        }
+
+        // A session with no owner belongs to nobody who can prove it.
+        return false;
     }
 
     /// <summary>

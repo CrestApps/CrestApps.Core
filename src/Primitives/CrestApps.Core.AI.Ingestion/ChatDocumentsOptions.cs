@@ -57,6 +57,13 @@ public sealed class ChatDocumentsOptions
     /// </summary>
     public int MaxInspectImageCallsPerRequest { get; set; } = 2;
 
+    /// <summary>
+    /// Gets or sets the maximum number of documents a single chat session can hold. An upload that would go past it
+    /// is rejected file by file, so a caller cannot grow one session, and the storage and embedding work behind it,
+    /// without bound. Defaults to <c>20</c>. Set to <c>0</c> or a negative value to disable the limit.
+    /// </summary>
+    public int MaxDocumentsPerSession { get; set; } = 20;
+
     internal void Add(string extension, bool embeddable = true, bool isTabular = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(extension);

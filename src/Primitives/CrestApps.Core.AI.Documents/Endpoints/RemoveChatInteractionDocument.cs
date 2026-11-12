@@ -21,10 +21,11 @@ public static class RemoveChatInteractionDocument
     /// </summary>
     /// <param name="builder">The route builder.</param>
     /// <param name="routeName">An optional route name for URL generation.</param>
-    /// <returns>The route builder.</returns>
-    public static IEndpointRouteBuilder AddRemoveChatInteractionDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = null)
+    /// <returns>The route handler builder of the endpoint, so a host can add its own endpoint filters or metadata.</returns>
+    public static RouteHandlerBuilder AddRemoveChatInteractionDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = null)
     {
         var endpoint = builder.MapPost("ai/chat-interactions/remove-document", RemoveChatInteractionDocumentEndpoint.HandleAsync)
+            .AddEndpointFilter<CookieAuthenticationAntiforgeryEndpointFilter>()
             .AddEndpointFilter<StoreCommitterEndpointFilter>()
             .DisableAntiforgery();
         if (!string.IsNullOrEmpty(routeName))
@@ -32,7 +33,7 @@ public static class RemoveChatInteractionDocument
             _ = endpoint.WithName(routeName);
         }
 
-        return builder;
+        return endpoint;
     }
 
     private sealed class RemoveChatInteractionDocumentEndpoint : AIChatDocumentEndpointBase

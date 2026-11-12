@@ -363,14 +363,14 @@ app.MapAGUIChat<AIChatHub>();
 app.MapMcp("mcp");
 app.MapWebMcpTools();
 app.MapA2AHost();
-app.AddChatApiEndpoints()
-    .AddDownloadAIDocumentEndpoint()
-    .AddDownloadKnowledgeFigureEndpoint()
-    .AddDownloadAIDocumentFigureEndpoint()
-    .AddUploadChatInteractionDocumentEndpoint()
-    .AddRemoveChatInteractionDocumentEndpoint()
-    .AddUploadChatSessionDocumentEndpoint()
-    .AddRemoveChatSessionDocumentEndpoint();
+app.AddChatApiEndpoints();
+app.AddDownloadAIDocumentEndpoint();
+app.AddDownloadKnowledgeFigureEndpoint();
+app.AddDownloadAIDocumentFigureEndpoint();
+app.AddUploadChatInteractionDocumentEndpoint();
+app.AddRemoveChatInteractionDocumentEndpoint();
+app.AddUploadChatSessionDocumentEndpoint();
+app.AddRemoveChatSessionDocumentEndpoint();
 
 app.MapControllerRoute(name: "areas", pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}");
 app.MapControllerRoute(name: "default", pattern: "{controller=Home}/{action=Index}/{id?}");
