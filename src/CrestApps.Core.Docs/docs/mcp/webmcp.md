@@ -177,6 +177,7 @@ registration.abort();
 | Tool | Read-only | What it does |
 | --- | --- | --- |
 | `page_get_info` | Yes | The page's title, address, description, first 20 `h1` and `h2` headings, and whether it is an admin page (the `isAdmin` setting). |
+| `page_read_content` | Yes | What the page shows in `main` (or `[role="main"]`, else the body): its text, one line per block and cut to 8,000 characters, and up to 10 tables as caption, headers and the first 50 rows (cells cut to 300 characters), each marked `[table N]` in the text. Menus, forms, scripts, hidden parts, the chat and anything marked `data-webmcp-ignore` are left out, and `truncated` says whether something was cut. |
 | `page_list_links` | Yes | Up to 200 same-origin links in `nav`, `header`, `aside` and `[role="navigation"]`, with their text. An optional `filter` keeps the links whose text contains it. |
 | `page_navigate` | No | Opens a same-origin address. Other origins and script addresses are refused. It answers first and opens the page a moment later (`navigateDelayMs`, 400 ms by default), so a chat that called it gets the result; an [AG-UI run](../core/ag-ui.md#runs-that-continue-on-the-next-page) then ends its turn, and the chat on the next page continues it with that page's tools. |
 | `page_list_form_fields` | Yes | Up to 200 form fields: name, id, label, type, value (cut to 2,000 characters), required and, for lists, the choices. Hidden, password, file, button and disabled fields and the antiforgery token are left out. |

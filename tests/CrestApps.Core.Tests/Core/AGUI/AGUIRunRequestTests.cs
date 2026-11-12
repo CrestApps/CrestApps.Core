@@ -43,12 +43,14 @@ public sealed class AGUIRunRequestTests
     [Fact]
     public void From_ReadsAContinuationOnTheNextPage()
     {
-        var continuation = Read("""{ "threadId": "session-1", "messages": [], "tools": [], "context": [], "forwardedProps": { "profileId": "profile-1", "continueRun": true } }""");
+        var continuation = Read("""{ "threadId": "session-1", "messages": [], "tools": [], "context": [], "forwardedProps": { "profileId": "profile-1", "continueRun": true, "continuePage": "Articles (/Admin/Article)" } }""");
         var normal = Read("""{ "threadId": "session-1", "messages": [], "tools": [], "context": [], "forwardedProps": { "profileId": "profile-1", "continueRun": "yes" } }""");
 
         Assert.True(continuation.IsContinuation);
+        Assert.Equal("Articles (/Admin/Article)", continuation.ContinuePage);
         Assert.False(continuation.IsResume);
         Assert.False(normal.IsContinuation);
+        Assert.Null(normal.ContinuePage);
     }
 
     [Fact]

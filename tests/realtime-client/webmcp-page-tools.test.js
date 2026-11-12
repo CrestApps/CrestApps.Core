@@ -46,12 +46,22 @@ function element(tagName, props) {
     }, props);
 }
 
-function fakeDocument({ title = 'Page', description = null, headings = [], links = [], fields = [] } = {}) {
+function fakeDocument({ title = 'Page', description = null, headings = [], links = [], fields = [], main = null, body = null } = {}) {
     const meta = description === null ? null : element('meta', { attributes: { content: description } });
 
     return {
         title,
-        querySelector: (selector) => (selector === selectors.description ? meta : null),
+        body,
+        querySelector: (selector) => {
+            switch (selector) {
+                case selectors.description:
+                    return meta;
+                case selectors.main:
+                    return main;
+                default:
+                    return null;
+            }
+        },
         querySelectorAll: (selector) => {
             switch (selector) {
                 case selectors.headings:
@@ -111,11 +121,11 @@ function formFields() {
 }
 
 describe('createPageTools', () => {
-    it('offers the five page tools, marking the ones that only read', () => {
+    it('offers the six page tools, marking the ones that only read', () => {
         const list = pageTools.createPageTools({ doc: fakeDocument(), loc: location, isAdmin: true });
 
-        assert.deepStrictEqual(list.map((tool) => tool.name), ['page_get_info', 'page_list_links', 'page_navigate', 'page_list_form_fields', 'page_set_form_field']);
-        assert.deepStrictEqual(list.filter((tool) => tool.annotations && tool.annotations.readOnlyHint).map((tool) => tool.name), ['page_get_info', 'page_list_links', 'page_list_form_fields']);
+        assert.deepStrictEqual(list.map((tool) => tool.name), ['page_get_info', 'page_read_content', 'page_list_links', 'page_navigate', 'page_list_form_fields', 'page_set_form_field']);
+        assert.deepStrictEqual(list.filter((tool) => tool.annotations && tool.annotations.readOnlyHint).map((tool) => tool.name), ['page_get_info', 'page_read_content', 'page_list_links', 'page_list_form_fields']);
 
         list.forEach((tool) => {
             assert.ok(tool.description.length > 10);
@@ -131,7 +141,7 @@ describe('createPageTools', () => {
 
         const tools = await modelContext.getTools();
 
-        assert.deepStrictEqual(tools.map((tool) => tool.name), ['page_get_info', 'page_list_form_fields', 'page_list_links', 'page_navigate', 'page_set_form_field']);
+        assert.deepStrictEqual(tools.map((tool) => tool.name), ['page_get_info', 'page_list_form_fields', 'page_list_links', 'page_navigate', 'page_read_content', 'page_set_form_field']);
         assert.strictEqual(JSON.parse(await modelContext.executeTool(tools[0], {})).title, 'Orders');
 
         controller.abort();
@@ -161,6 +171,103 @@ describe('page_get_info', () => {
             headings: [{ level: 1, text: 'Content Items' }, { level: 2, text: 'Filters' }],
             isAdmin: true,
         });
+    });
+});
+
+// A small DOM tree for page_read_content: text nodes, and elements that match the ignored selector by tag or class.
+function text(value) {
+    return { nodeType: 3, nodeValue: value };
+}
+
+function node(tagName, children = [], props = {}) {
+    const tag = tagName.toUpperCase();
+    const ignoredTags = ['SCRIPT', 'STYLE', 'NAV', 'FORM', 'ASIDE'];
+
+    return Object.assign({
+        nodeType: 1,
+        tagName: tag,
+        childNodes: children,
+        hidden: false,
+        className: '',
+        get textContent() {
+            return children.map((child) => (child.nodeType === 3 ? child.nodeValue : child.textContent)).join(' ');
+        },
+        matches(selector) {
+            assert.strictEqual(selector, selectors.ignored);
+
+            return ignoredTags.includes(tag) || this.className.includes('ai-chat-widget');
+        },
+    }, props);
+}
+
+function row(tag, values) {
+    return { cells: values.map((value) => node(tag, [text(value)])) };
+}
+
+describe('page_read_content', () => {
+    it('reads the main area as lines of text and its tables as rows, leaving out menus, forms, scripts and the chat', async () => {
+        const table = node('table', [], {
+            caption: node('caption', [text('Articles')]),
+            rows: [
+                row('th', ['Title', 'Created']),
+                row('td', ['What Are Large Language Models?', '5/25/2026']),
+                row('td', ['Understanding Embeddings', '5/25/2026']),
+            ],
+        });
+        const main = node('main', [
+            node('h2', [text('Articles')]),
+            node('p', [text('Manage the '), node('strong', [text('sample')]), text(' content.')]),
+            node('nav', [text('Dashboard')]),
+            node('form', [text('Search')]),
+            node('script', [text('var secret = 1;')]),
+            node('div', [text('Hidden alert')], { hidden: true }),
+            node('div', [text('Chat')], { className: 'ai-chat-widget-container' }),
+            table,
+            node('p', [text('6 articles')]),
+        ]);
+
+        const { data } = await run(tools(fakeDocument({ main })).page_read_content);
+
+        assert.deepStrictEqual(data, {
+            text: 'Articles\nManage the sample content.\n[table 1]\n6 articles',
+            tables: [{
+                caption: 'Articles',
+                headers: ['Title', 'Created'],
+                rows: [['What Are Large Language Models?', '5/25/2026'], ['Understanding Embeddings', '5/25/2026']],
+                totalRows: 2,
+            }],
+            truncated: false,
+        });
+    });
+
+    it('reads the body when the page has no main area, and caps long text and long tables', async () => {
+        const rows = [];
+
+        for (let i = 0; i < 60; i++) {
+            rows.push(row('td', ['Row ' + i]));
+        }
+
+        const body = node('body', [node('p', [text('x'.repeat(9000))]), node('table', [], { rows })]);
+
+        const { data } = await run(tools(fakeDocument({ body })).page_read_content);
+
+        assert.strictEqual(data.text.length, 8001);
+        assert.ok(data.text.endsWith('…'));
+        assert.deepStrictEqual(data.tables[0].headers, []);
+        assert.strictEqual(data.tables[0].rows.length, 50);
+        assert.strictEqual(data.tables[0].totalRows, 60);
+        assert.strictEqual(data.truncated, true);
+    });
+
+    it('skips the parts the page hides with CSS', async () => {
+        const main = node('main', [
+            node('p', [text('Shown')]),
+            node('div', [text('Closed modal')], { checkVisibility: () => false }),
+        ]);
+
+        const { data } = await run(tools(fakeDocument({ main })).page_read_content);
+
+        assert.strictEqual(data.text, 'Shown');
     });
 });
 

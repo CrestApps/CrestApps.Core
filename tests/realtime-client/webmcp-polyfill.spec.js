@@ -80,7 +80,7 @@ test.describe('WebMCP with the reference polyfill', () => {
 
         expect(names).toEqual(expect.arrayContaining([
             'store.get_order', 'store.add_to_cart', 'store.place_order', 'store.broken',
-            'page_get_info', 'page_list_links', 'page_navigate', 'page_list_form_fields', 'page_set_form_field',
+            'page_get_info', 'page_read_content', 'page_list_links', 'page_navigate', 'page_list_form_fields', 'page_set_form_field',
             'calculator',
         ]));
     });

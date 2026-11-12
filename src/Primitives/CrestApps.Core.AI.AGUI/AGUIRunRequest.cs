@@ -23,6 +23,11 @@ public sealed class AGUIRunRequest
     public const int MaxContextEntries = 20;
 
     /// <summary>
+    /// The longest description of the page a continuation run continues on.
+    /// </summary>
+    public const int MaxContinuePageLength = 500;
+
+    /// <summary>
     /// Gets the run input.
     /// </summary>
     public RunAgentInput Input { get; private init; }
@@ -85,6 +90,12 @@ public sealed class AGUIRunRequest
     public bool IsContinuation { get; private init; }
 
     /// <summary>
+    /// Gets the page a continuation run continues on, as the client describes it (<c>forwardedProps.continuePage</c>,
+    /// cut to <see cref="MaxContinuePageLength"/> characters), or <see langword="null"/>.
+    /// </summary>
+    public string ContinuePage { get; private init; }
+
+    /// <summary>
     /// Gets a value indicating whether the run continues a previous run that waited for approvals or for the client.
     /// </summary>
     public bool IsResume => Resume.Count > 0 || (ClientToolResults.Count > 0 && string.IsNullOrWhiteSpace(Prompt));
@@ -112,6 +123,7 @@ public sealed class AGUIRunRequest
             IsContinuation = forwarded.ValueKind == JsonValueKind.Object &&
                 forwarded.TryGetProperty("continueRun", out var continueRun) &&
                 continueRun.ValueKind == JsonValueKind.True,
+            ContinuePage = Truncate(GetString(forwarded, "continuePage"), MaxContinuePageLength),
             Prompt = GetPrompt(input.Messages),
             Context = GetContext(input.Context),
             State = GetState(input.State),
@@ -142,6 +154,11 @@ public sealed class AGUIRunRequest
             value.ValueKind == JsonValueKind.True;
 
         return true;
+    }
+
+    private static string Truncate(string value, int maxLength)
+    {
+        return value is null || value.Length <= maxLength ? value : value[..maxLength];
     }
 
     private static string GetString(JsonElement element, string name)

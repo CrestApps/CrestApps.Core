@@ -476,6 +476,7 @@ window.coreAIChatManager = function () {
 
     const aguiDefaultToolLabels = {
         page_get_info: 'Reading the page',
+        page_read_content: 'Reading the page\'s content',
         page_list_links: 'Looking at the page\'s links',
         page_navigate: 'Opening a page',
         page_list_form_fields: 'Reading the form',
@@ -2795,6 +2796,7 @@ window.coreAIChatManager = function () {
 
                         if (continueRun) {
                             input.forwardedProps.continueRun = true;
+                            input.forwardedProps.continuePage = (document.title ? document.title + ' ' : '') + '(' + window.location.pathname + window.location.search + ')';
                         }
 
                         const state = this.getSharedState();

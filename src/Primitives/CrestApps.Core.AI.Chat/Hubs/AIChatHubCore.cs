@@ -908,9 +908,13 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// <summary>
     /// Gets the message the model reads when a run continues, on the page a page tool opened, the turn that opened it.
     /// </summary>
-    protected virtual string GetContinueOnNextPagePrompt()
+    /// <param name="loadedPage">The page that loaded, as the client describes it (its title and address), or
+    /// <see langword="null"/>.</param>
+    protected virtual string GetContinueOnNextPagePrompt(string loadedPage)
     {
-        return "The page you opened has loaded. Continue with my last request on this page, using its tools if you need them. Do not repeat what you already did.";
+        var page = string.IsNullOrWhiteSpace(loadedPage) ? "A new page" : $"The page \"{loadedPage}\"";
+
+        return $"{page} has loaded in my browser. Continue with my last request, using this page's tools if you need them. If this is not the page the request needs, open the right one. Do not repeat what you already did.";
     }
 
     /// <summary>
@@ -2868,7 +2872,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
         await StartAGUIRunInSessionAsync(turn, chatSession, cancellationToken);
 
-        var prompt = GetContinueOnNextPagePrompt();
+        var prompt = GetContinueOnNextPagePrompt(turn.Request.ContinuePage);
         var conversationHistory = ChatConversationHistoryBuilder.Build(prompts, lastPrompt);
 
         conversationHistory.Add(new ChatMessage(ChatRole.User, prompt));

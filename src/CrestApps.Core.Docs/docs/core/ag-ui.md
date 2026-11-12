@@ -144,8 +144,8 @@ The chat UI does not use frontend tools: the page's tools reach the chat through
 A page tool can open another page (`page_navigate`). The tool answers first and opens the page a moment later, so the agent gets the result. In a run on the chat hub, opening a page then ends the turn: the rest of the work needs the new page's tools, which only the chat on that page has.
 
 1. The turn is saved with the tool calls it made and marked to continue on the next page (`ChatTurnToolActivity.ContinuesOnNextPage`), and the run sends the `crestapps.continues_on_next_page` event.
-2. The chat on the next page loads the session (a new chat's run saves it as soon as it starts). When the tab that sent the message opened that page, and the session's last message is marked, the chat starts a run with `forwardedProps.continueRun` set to `true`.
-3. `ContinueAGUIRunAsync` clears the mark, so the turn continues only once, and asks the model to carry on with the user's request on the loaded page (`GetContinueOnNextPagePrompt`, which a hub can override). The model calls the new page's tools, and may open another page.
+2. The chat on the next page loads the session (a new chat's run saves it as soon as it starts). When the tab that sent the message opened that page, and the session's last message is marked, the chat starts a run with `forwardedProps.continueRun` set to `true` and `forwardedProps.continuePage` set to the page's title and address.
+3. `ContinueAGUIRunAsync` clears the mark, so the turn continues only once, and tells the model which page loaded and to carry on with the user's request, opening the right page if this is not it (`GetContinueOnNextPagePrompt`, which a hub can override). The model calls the new page's tools, and may open another page.
 
 The chat continues at most five pages in a row; the next message the user sends starts a new chain. A run over HTTP (`MapAGUIChat`) has no page to continue on, so its turn goes on as usual.
 
