@@ -3211,7 +3211,7 @@ window.chatInteractionDocumentManager = function () {
 
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', config.uploadDocumentUrl, true);
-                window.CoreAIAntiforgery.apply(xhr, config);
+                window.CoreAIAntiforgery.apply(xhr, config, config.uploadDocumentUrl);
 
                 xhr.upload.addEventListener('progress', event => {
                     if (!event.lengthComputable) {
@@ -3401,7 +3401,7 @@ window.chatInteractionDocumentManager = function () {
                     method: 'POST',
                     headers: window.CoreAIAntiforgery.headers(config, {
                         'Content-Type': 'application/json'
-                    }),
+                    }, config.removeDocumentUrl),
                     body: JSON.stringify({
                         itemId: config.itemId,
                         documentId: documentId

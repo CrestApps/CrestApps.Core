@@ -186,3 +186,19 @@ function imageNode(src, alt) {
 
     return node;
 }
+
+test('an allowlist entry with the default port matches an address that leaves the port out, and a wrong port does not', () => {
+    assert.strictEqual(allowed('https://images.example.test/a.png', ['images.example.test:443']), true);
+    assert.strictEqual(allowed('https://images.example.test:443/a.png', ['images.example.test:443']), true);
+    assert.strictEqual(allowed('http://images.example.test/a.png', ['images.example.test:80']), true);
+    assert.strictEqual(allowed('https://images.example.test:8443/a.png', ['images.example.test:443']), false);
+    assert.strictEqual(allowed('https://images.example.test:8443/a.png', ['images.example.test:8443']), true);
+    assert.strictEqual(allowed('https://images.example.test:8443/a.png', ['images.example.test']), true);
+});
+
+test('a relative address is resolved against the document base URL when there is no explicit base', () => {
+    const images = loadImages({ document: { baseURI: 'https://cdn.example.test/app/' } });
+
+    assert.strictEqual(images.isAllowedSource('fig.png', { allowedHosts: [] }), true);
+    assert.strictEqual(images.isAllowedSource('https://chat.example.test/fig.png', { allowedHosts: [] }), false);
+});

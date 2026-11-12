@@ -560,10 +560,27 @@ window.CoreAIAntiforgery = window.CoreAIAntiforgery || (function () {
         return readFromPage();
     }
 
-    // The headers of a fetch: the ones given, plus the token when there is one.
-    function headers(config, extra) {
+    // The token belongs to this site. Sent to another origin it would hand the page's token to a third party, and the
+    // custom header would force a CORS preflight that server may not allow. An address that cannot be resolved is not sent.
+    function isSameOrigin(url) {
+        if (url === undefined || url === null) {
+            return true;
+        }
+
+        try {
+            const base = typeof document !== 'undefined' && document && document.baseURI ? document.baseURI : window.location.href;
+
+            return new URL(url, base).origin === new URL(base).origin;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    // The headers of a fetch to the given address: the ones given, plus the token when there is one and the address is on
+    // this site.
+    function headers(config, extra, url) {
         const result = Object.assign({}, extra);
-        const token = findToken(config);
+        const token = isSameOrigin(url) ? findToken(config) : null;
 
         if (token) {
             result[headerName] = token;
@@ -572,9 +589,9 @@ window.CoreAIAntiforgery = window.CoreAIAntiforgery || (function () {
         return result;
     }
 
-    // Sets the token on an XMLHttpRequest that has been opened and not yet sent.
-    function apply(request, config) {
-        const token = findToken(config);
+    // Sets the token on an XMLHttpRequest that has been opened and not yet sent, when its address is on this site.
+    function apply(request, config, url) {
+        const token = isSameOrigin(url) ? findToken(config) : null;
 
         if (token && request && typeof request.setRequestHeader === 'function') {
             request.setRequestHeader(headerName, token);
@@ -607,6 +624,24 @@ window.CoreAIImages = window.CoreAIImages || (function () {
     'use strict';
 
     const rawImageHook = 'afterSanitizeAttributes';
+    // Elements and attributes that make the browser request an address when they are rendered, with no click: media and
+    // its poster, tracks, form image buttons, SVG and MathML images, table backgrounds. DOMPurify keeps them by default.
+    // <img> is not listed because an allowed image has to stay; it is handled one by one in the hook below.
+    const fetchingTags = ['style', 'video', 'audio', 'source', 'track', 'input', 'svg', 'math'];
+    const fetchingAttributes = ['background', 'poster', 'srcset', 'lowsrc', 'dynsrc'];
+
+    // Declarations made of names, plain values, colons and semicolons: no url(), no function at all, no escape, no quote.
+    const safeStyle = /^[\w\s:;.%#,-]*$/;
+
+    function withFetcherLimits(config) {
+        const limited = Object.assign({}, config);
+
+        limited.FORBID_TAGS = (config && config.FORBID_TAGS ? config.FORBID_TAGS : []).concat(fetchingTags);
+        limited.FORBID_ATTR = (config && config.FORBID_ATTR ? config.FORBID_ATTR : []).concat(fetchingAttributes);
+
+        return limited;
+    }
+
 
     function escapeHtml(text) {
         return String(text == null ? '' : text)
@@ -626,6 +661,10 @@ window.CoreAIImages = window.CoreAIImages || (function () {
         return entry.trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, '').split(/[/?#]/)[0];
     }
 
+    function defaultPort(url) {
+        return url.protocol === 'https:' ? '443' : '80';
+    }
+
     function hostMatches(url, entry) {
         const host = normalizeHost(entry);
 
@@ -633,19 +672,32 @@ window.CoreAIImages = window.CoreAIImages || (function () {
             return false;
         }
 
-        // An entry with a port names that port; one without matches the host on any port.
-        const candidate = host.includes(':') ? url.host.toLowerCase() : url.hostname.toLowerCase();
+        // An entry with a port names that port, and an address that leaves its port out means the scheme's default one;
+        // an entry without a port matches the host on any port.
+        const separator = host.lastIndexOf(':');
+        const entryPort = separator > 0 ? host.slice(separator + 1) : null;
+        const entryHost = separator > 0 ? host.slice(0, separator) : host;
+        const candidate = url.hostname.toLowerCase();
 
-        if (host.startsWith('*.')) {
-            return candidate.endsWith(host.slice(1)) && candidate.length > host.length - 1;
+        if (entryPort !== null && entryPort !== (url.port || defaultPort(url))) {
+            return false;
         }
 
-        return candidate === host;
+        if (entryHost.startsWith('*.')) {
+            return candidate.endsWith(entryHost.slice(1)) && candidate.length > entryHost.length - 1;
+        }
+
+        return candidate === entryHost;
     }
 
     function pageAddress(options) {
         if (options && options.baseUrl) {
             return options.baseUrl;
+        }
+
+        // Relative addresses resolve against the document's base URL, which a <base> element can move away from the address.
+        if (typeof document !== 'undefined' && document && document.baseURI) {
+            return document.baseURI;
         }
 
         return window.location && window.location.href ? window.location.href : null;
@@ -744,17 +796,13 @@ window.CoreAIImages = window.CoreAIImages || (function () {
                 return;
             }
 
-            const tag = node.tagName.toUpperCase();
-
-            // A srcset names more addresses than src does, and a <source> in a <picture> is read like one.
-            if (tag === 'SOURCE') {
-                node.removeAttribute('srcset');
-                node.removeAttribute('src');
-
-                return;
+            // A style can fetch with url(), image-set() and friends, and a CSS escape can spell any of them. Only plain
+            // declarations (such as the size the chat gives its own images) are kept.
+            if (typeof node.getAttribute === 'function' && node.getAttribute('style') !== null && !safeStyle.test(node.getAttribute('style'))) {
+                node.removeAttribute('style');
             }
 
-            if (tag !== 'IMG') {
+            if (node.tagName.toUpperCase() !== 'IMG') {
                 return;
             }
 
@@ -770,7 +818,7 @@ window.CoreAIImages = window.CoreAIImages || (function () {
         purify.addHook(rawImageHook, hook);
 
         try {
-            return purify.sanitize(html, purifyConfig);
+            return purify.sanitize(html, withFetcherLimits(purifyConfig));
         } finally {
             purify.removeHook(rawImageHook, hook);
         }

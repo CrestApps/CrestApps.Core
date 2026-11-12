@@ -781,6 +781,12 @@ where `images.example.com` matches that host and `*.example.com` matches its sub
 empty by default, which means same-origin only. Figures served by this host (`/ai/documents/{id}/figures/{figureId}`)
 are same-origin and need no entry.
 
+The same rule covers everything else in an answer's HTML that makes the browser fetch an address without a click:
+`<video>`, `<audio>`, `<source>`, `<track>`, `<input>`, SVG and MathML, the `poster`, `background` and `srcset` attributes,
+and any `style` that is more than plain declarations (so no `url()`, `image-set()` or CSS escape). Those are removed,
+not allowlisted. An allowed host that redirects to another site is still followed by the browser, so list only hosts you
+trust to serve images and not to redirect.
+
 ```js
 window.coreAIChatManager().initialize({
     // ...

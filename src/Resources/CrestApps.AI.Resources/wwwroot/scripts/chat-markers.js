@@ -205,14 +205,23 @@
 			if (config && typeof config.antiforgeryToken === "string" && config.antiforgeryToken) return config.antiforgeryToken;
 			return readFromPage();
 		}
-		function headers(config, extra) {
+		function isSameOrigin(url) {
+			if (url === void 0 || url === null) return true;
+			try {
+				const base = typeof document !== "undefined" && document && document.baseURI ? document.baseURI : window.location.href;
+				return new URL(url, base).origin === new URL(base).origin;
+			} catch (error) {
+				return false;
+			}
+		}
+		function headers(config, extra, url) {
 			const result = Object.assign({}, extra);
-			const token = findToken(config);
+			const token = isSameOrigin(url) ? findToken(config) : null;
 			if (token) result[headerName] = token;
 			return result;
 		}
-		function apply(request, config) {
-			const token = findToken(config);
+		function apply(request, config, url) {
+			const token = isSameOrigin(url) ? findToken(config) : null;
 			if (token && request && typeof request.setRequestHeader === "function") request.setRequestHeader(headerName, token);
 		}
 		return {
@@ -225,6 +234,30 @@
 	window.CoreAIImages = window.CoreAIImages || (function() {
 		"use strict";
 		const rawImageHook = "afterSanitizeAttributes";
+		const fetchingTags = [
+			"style",
+			"video",
+			"audio",
+			"source",
+			"track",
+			"input",
+			"svg",
+			"math"
+		];
+		const fetchingAttributes = [
+			"background",
+			"poster",
+			"srcset",
+			"lowsrc",
+			"dynsrc"
+		];
+		const safeStyle = /^[\w\s:;.%#,-]*$/;
+		function withFetcherLimits(config) {
+			const limited = Object.assign({}, config);
+			limited.FORBID_TAGS = (config && config.FORBID_TAGS ? config.FORBID_TAGS : []).concat(fetchingTags);
+			limited.FORBID_ATTR = (config && config.FORBID_ATTR ? config.FORBID_ATTR : []).concat(fetchingAttributes);
+			return limited;
+		}
 		function escapeHtml(text) {
 			return String(text == null ? "" : text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 		}
@@ -232,15 +265,23 @@
 			if (typeof entry !== "string") return "";
 			return entry.trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "").split(/[/?#]/)[0];
 		}
+		function defaultPort(url) {
+			return url.protocol === "https:" ? "443" : "80";
+		}
 		function hostMatches(url, entry) {
 			const host = normalizeHost(entry);
 			if (!host) return false;
-			const candidate = host.includes(":") ? url.host.toLowerCase() : url.hostname.toLowerCase();
-			if (host.startsWith("*.")) return candidate.endsWith(host.slice(1)) && candidate.length > host.length - 1;
-			return candidate === host;
+			const separator = host.lastIndexOf(":");
+			const entryPort = separator > 0 ? host.slice(separator + 1) : null;
+			const entryHost = separator > 0 ? host.slice(0, separator) : host;
+			const candidate = url.hostname.toLowerCase();
+			if (entryPort !== null && entryPort !== (url.port || defaultPort(url))) return false;
+			if (entryHost.startsWith("*.")) return candidate.endsWith(entryHost.slice(1)) && candidate.length > entryHost.length - 1;
+			return candidate === entryHost;
 		}
 		function pageAddress(options) {
 			if (options && options.baseUrl) return options.baseUrl;
+			if (typeof document !== "undefined" && document && document.baseURI) return document.baseURI;
 			return window.location && window.location.href ? window.location.href : null;
 		}
 		function isAllowedSource(src, options) {
@@ -288,20 +329,15 @@
 		function sanitize(purify, html, purifyConfig, options) {
 			const hook = function(node) {
 				if (!node || typeof node.tagName !== "string") return;
-				const tag = node.tagName.toUpperCase();
-				if (tag === "SOURCE") {
-					node.removeAttribute("srcset");
-					node.removeAttribute("src");
-					return;
-				}
-				if (tag !== "IMG") return;
+				if (typeof node.getAttribute === "function" && node.getAttribute("style") !== null && !safeStyle.test(node.getAttribute("style"))) node.removeAttribute("style");
+				if (node.tagName.toUpperCase() !== "IMG") return;
 				node.removeAttribute("srcset");
 				const src = node.getAttribute("src");
 				if (!isAllowedSource(src, options)) node.replaceWith(linkElement(src, node.getAttribute("alt")));
 			};
 			purify.addHook(rawImageHook, hook);
 			try {
-				return purify.sanitize(html, purifyConfig);
+				return purify.sanitize(html, withFetcherLimits(purifyConfig));
 			} finally {
 				purify.removeHook(rawImageHook, hook);
 			}

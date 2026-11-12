@@ -3,7 +3,7 @@
 // The document upload and remove endpoints validate the antiforgery token of a request the browser authenticated on its
 // own, which is what cookie authentication does, so a page on another site cannot make a visitor's browser upload a
 // file as them. The token has to come from somewhere the chat can read: the config the host hands the chat, a meta tag
-// or the hidden field of a form on the page. These tests cover where it is found and that both chat clients send it on
+// or the hidden field of a form on the page. These tests cover where it is found, that it is only sent to this site, and that both clients send it on
 // every POST they make; they run in a bare sandbox with no browser.
 //
 // Run with: node --test tests/realtime-client/antiforgery-header.test.js
@@ -16,7 +16,7 @@ const vm = require('node:vm');
 const assetsDirectory = path.join(__dirname, '../../src/Resources/CrestApps.AI.Resources/Assets/js');
 
 function loadAntiforgery(document) {
-    const sandbox = { window: {}, document };
+    const sandbox = { window: {}, document, URL };
 
     vm.runInNewContext(fs.readFileSync(path.join(assetsDirectory, 'chat-markers.js'), 'utf8'), sandbox);
 
@@ -78,6 +78,29 @@ test('a request that is not a browser one (no document) still works', () => {
     const antiforgery = loadAntiforgery(undefined);
 
     assert.deepStrictEqual({ ...antiforgery.headers({}) }, {});
+});
+
+test('the token is sent to an address on this site, and not to another origin', () => {
+    const antiforgery = loadAntiforgery({ ...fakeDocument(), baseURI: 'https://chat.example.test/chat/page' });
+    const config = { antiforgeryToken: 'from-config' };
+
+    assert.strictEqual(antiforgery.headers(config, undefined, '/ai/chat-sessions/upload-document').RequestVerificationToken, 'from-config');
+    assert.strictEqual(antiforgery.headers(config, undefined, 'https://chat.example.test/upload').RequestVerificationToken, 'from-config');
+    assert.strictEqual(antiforgery.headers(config, undefined, 'https://other.example.test/upload').RequestVerificationToken, undefined);
+    assert.strictEqual(antiforgery.headers(config, undefined, '//other.example.test/upload').RequestVerificationToken, undefined);
+    assert.strictEqual(antiforgery.headers(config, undefined, 'http://chat.example.test/upload').RequestVerificationToken, undefined);
+});
+
+test('an XMLHttpRequest to another origin gets no token', () => {
+    const antiforgery = loadAntiforgery({ ...fakeDocument(), baseURI: 'https://chat.example.test/' });
+    const sent = [];
+    const request = { setRequestHeader: (name, value) => sent.push([name, value]) };
+
+    antiforgery.apply(request, { antiforgeryToken: 't' }, 'https://other.example.test/upload');
+    assert.deepStrictEqual(sent, []);
+
+    antiforgery.apply(request, { antiforgeryToken: 't' }, '/upload');
+    assert.deepStrictEqual(sent, [['RequestVerificationToken', 't']]);
 });
 
 // The two chat clients are separate bundles, so each is checked on its own: every POST goes through the helper.

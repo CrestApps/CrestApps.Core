@@ -1877,7 +1877,7 @@
 
                     var xhr = new XMLHttpRequest();
                     xhr.open('POST', uploadDocumentUrl, true);
-                    window.CoreAIAntiforgery.apply(xhr, {});
+                    window.CoreAIAntiforgery.apply(xhr, {}, uploadDocumentUrl);
 
                     xhr.upload.addEventListener('progress', function (event) {
                         if (!event.lengthComputable) {
@@ -2092,7 +2092,7 @@
                         method: 'POST',
                         headers: window.CoreAIAntiforgery.headers({}, {
                             'Content-Type': 'application/json'
-                        }),
+                        }, removeDocumentUrl),
                         body: JSON.stringify({
                             itemId: itemId,
                             documentId: documentId
