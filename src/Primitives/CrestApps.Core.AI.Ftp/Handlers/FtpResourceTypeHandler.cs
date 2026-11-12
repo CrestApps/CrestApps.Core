@@ -1,23 +1,21 @@
 using System.Net;
 using CrestApps.Core.AI.Ftp.Models;
 using CrestApps.Core.AI.Mcp;
-using CrestApps.Core.AI.Mcp.Models;
 using FluentFTP;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using ModelContextProtocol.Protocol;
 
 namespace CrestApps.Core.AI.Ftp.Handlers;
 
 /// <summary>
-/// Represents the FTP Resource Type Handler.
+/// Reads one file from an FTP or FTPS server for an MCP resource. The download goes through
+/// <see cref="RemoteFileResourceHandlerBase{TMetadata}"/>, which caps how much of the file is buffered
+/// (<see cref="FtpConnectionMetadata.MaxResourceBytes"/>, 5 MB by default), and a connection that asks to accept any
+/// certificate is only honored when the host allows it (<see cref="FtpOptions.AllowAnyCertificate"/>).
 /// </summary>
-public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
+public sealed class FtpResourceTypeHandler : RemoteFileResourceHandlerBase<FtpConnectionMetadata>
 {
-    private static readonly FileExtensionContentTypeProvider _contentTypeProvider = new();
-
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IOptions<FtpOptions> _options;
     private readonly ILogger<FtpResourceTypeHandler> _logger;
@@ -32,43 +30,46 @@ public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
         IDataProtectionProvider dataProtectionProvider,
         IOptions<FtpOptions> options,
         ILogger<FtpResourceTypeHandler> logger)
-        : base(FtpResourceConstants.Type)
+        : base(FtpResourceConstants.Type, logger)
     {
         _dataProtectionProvider = dataProtectionProvider;
         _options = options;
         _logger = logger;
     }
 
-    /// <summary>
-    /// Gets result.
-    /// </summary>
-    /// <param name="resource">The resource.</param>
-    /// <param name="variables">The variables.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    protected override async Task<ReadResourceResult> GetResultAsync(McpResource resource, IReadOnlyDictionary<string, string> variables, CancellationToken cancellationToken)
+    /// <inheritdoc />
+    protected override string TransportName => "FTP";
+
+    /// <inheritdoc />
+    protected override long? GetMaxResourceBytes(FtpConnectionMetadata metadata)
     {
-        if (!resource.TryGet<FtpConnectionMetadata>(out var metadata))
-        {
-            return CreateErrorResult(resource.Resource.Uri, "FTP connection metadata is missing.");
-        }
+        return metadata.MaxResourceBytes;
+    }
 
-        var host = metadata.Host;
+    /// <inheritdoc />
+    protected override bool TryGetHost(FtpConnectionMetadata metadata, out string host)
+    {
+        host = metadata?.Host;
 
-        if (string.IsNullOrEmpty(host))
-        {
-            return CreateErrorResult(resource.Resource.Uri, "FTP host is required in the connection metadata.");
-        }
+        return !string.IsNullOrEmpty(host);
+    }
 
+    /// <inheritdoc />
+    protected override string ValidateMetadata(FtpConnectionMetadata metadata)
+    {
         // The setting is stored data that whoever edits the resource controls, so it is only honored when the host
         // allowed it.
         if (metadata.ValidateAnyCertificate && !_options.Value.AllowAnyCertificate)
         {
-            return CreateErrorResult(resource.Resource.Uri, FtpOptions.AnyCertificateNotAllowedMessage);
+            return FtpOptions.AnyCertificateNotAllowedMessage;
         }
 
-        var port = metadata.Port ?? 21;
-        var rawPath = variables.TryGetValue("path", out var pathValue) ? pathValue : string.Empty;
-        var remotePath = "/" + SanitizePath(rawPath);
+        return null;
+    }
+
+    /// <inheritdoc />
+    protected override async Task DownloadAsync(FtpConnectionMetadata metadata, string host, string remotePath, Stream destination, CancellationToken cancellationToken)
+    {
         string password = null;
 
         if (!string.IsNullOrEmpty(metadata.Password))
@@ -79,11 +80,11 @@ public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to unprotect FTP password for resource {ResourceId}", resource.ItemId);
+                _logger.LogWarning(ex, "Failed to unprotect the FTP password for host {Host}", host);
             }
         }
 
-        using var client = new AsyncFtpClient(host, port);
+        using var client = new AsyncFtpClient(host, metadata.Port ?? 21);
 
         if (!string.IsNullOrEmpty(metadata.Username))
         {
@@ -129,32 +130,7 @@ public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
 
         try
         {
-            using var stream = new MemoryStream();
-            await client.DownloadStream(stream, remotePath, token: cancellationToken);
-            stream.Position = 0;
-
-            using var reader = new StreamReader(stream);
-            var content = await reader.ReadToEndAsync(cancellationToken);
-
-            var mimeType = resource.Resource?.MimeType;
-
-            if (string.IsNullOrEmpty(mimeType) && !_contentTypeProvider.TryGetContentType(remotePath, out mimeType))
-            {
-                mimeType = "application/octet-stream";
-            }
-
-            return new ReadResourceResult
-            {
-                Contents =
-                [
-                    new TextResourceContents
-                    {
-                        Uri = resource.Resource.Uri,
-                        MimeType = mimeType,
-                        Text = content,
-                    }
-                ]
-            };
+            await client.DownloadStream(destination, remotePath, token: cancellationToken);
         }
         finally
         {

@@ -48,6 +48,13 @@ MCP resources represent files, URLs, or data that clients can read. FTP and SFTP
 Register them explicitly with `AddCoreAIFtpMcpResources()`, `AddCoreAISftpMcpResources()` and
 `AddCoreAIKnowledgeMcpResources()`.
 
+### Size limits on remote file reads
+
+The FTP and SFTP handlers read a file into memory to hand it to the model, so they cap how much they will buffer:
+`FtpConnectionMetadata.MaxResourceBytes` and `SftpConnectionMetadata.MaxResourceBytes` set the limit per resource (5 MB
+when not set). A file larger than the limit is not returned; the read answers with an error that says so. Custom handlers
+get the same behavior by deriving from `RemoteFileResourceHandlerBase<TMetadata>`.
+
 ### Knowledge figures
 
 `CrestApps.Core.AI.Mcp.Knowledge` publishes one template,

@@ -26,6 +26,10 @@ public sealed class SitemapCrawler : ISitemapCrawler
     /// </summary>
     private const int MaxSitemapDocuments = 50;
 
+    // Applied when a request does not carry a positive limit of its own; the same values SitemapCrawlRequest defaults to.
+    private const long DefaultMaxResponseBytes = 10 * 1024 * 1024;
+    private const long DefaultMaxDecompressedBytes = 50 * 1024 * 1024;
+
     private readonly ILogger<SitemapCrawler> _logger;
 
     /// <summary>
@@ -79,7 +83,7 @@ public sealed class SitemapCrawler : ISitemapCrawler
             var (sitemapUrl, depth) = queue.Dequeue();
             processedSitemaps++;
 
-            var content = await DownloadSitemapContentAsync(client, sitemapUrl, cancellationToken);
+            var content = await DownloadSitemapContentAsync(client, sitemapUrl, request, cancellationToken);
 
             if (content is null)
             {
@@ -161,7 +165,7 @@ public sealed class SitemapCrawler : ISitemapCrawler
 
         if (!string.IsNullOrWhiteSpace(request.BaseUrl))
         {
-            foreach (var advertised in await GetRobotsSitemapsAsync(client, request.BaseUrl, cancellationToken))
+            foreach (var advertised in await GetRobotsSitemapsAsync(client, request.BaseUrl, ResolveMaxResponseBytes(request), cancellationToken))
             {
                 Add(advertised);
             }
@@ -180,14 +184,14 @@ public sealed class SitemapCrawler : ISitemapCrawler
     /// <summary>
     /// Reads any <c>Sitemap:</c> directives advertised in the site's <c>robots.txt</c>.
     /// </summary>
-    private async Task<IReadOnlyList<string>> GetRobotsSitemapsAsync(HttpClient client, string baseUrl, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<string>> GetRobotsSitemapsAsync(HttpClient client, string baseUrl, long maxResponseBytes, CancellationToken cancellationToken)
     {
         const string directive = "Sitemap:";
         var robotsUrl = $"{baseUrl.TrimEnd('/')}/robots.txt";
 
         try
         {
-            var content = await client.GetStringAsync(robotsUrl, cancellationToken);
+            var content = DecodeText(await ReadBoundedAsync(client, robotsUrl, maxResponseBytes, cancellationToken));
             var results = new List<string>();
 
             foreach (var line in content.Split('\n'))
@@ -228,11 +232,11 @@ public sealed class SitemapCrawler : ISitemapCrawler
     /// Downloads a sitemap document and returns its decoded text, transparently decompressing gzip
     /// payloads (both <c>.xml.gz</c> files and gzip-encoded responses).
     /// </summary>
-    private async Task<string> DownloadSitemapContentAsync(HttpClient client, string url, CancellationToken cancellationToken)
+    private async Task<string> DownloadSitemapContentAsync(HttpClient client, string url, SitemapCrawlRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            var bytes = await client.GetByteArrayAsync(url, cancellationToken);
+            var bytes = await ReadBoundedAsync(client, url, ResolveMaxResponseBytes(request), cancellationToken);
 
             if (bytes.Length == 0)
             {
@@ -243,7 +247,7 @@ public sealed class SitemapCrawler : ISitemapCrawler
             // binary content type, which HttpClient's automatic decompression does not unwrap.
             if (bytes.Length >= 2 && bytes[0] == 0x1F && bytes[1] == 0x8B)
             {
-                bytes = Decompress(bytes);
+                bytes = Decompress(bytes, request.MaxDecompressedBytes > 0 ? request.MaxDecompressedBytes : DefaultMaxDecompressedBytes);
             }
 
             return DecodeText(bytes);
@@ -251,6 +255,14 @@ public sealed class SitemapCrawler : ISitemapCrawler
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (SitemapTooLargeException ex)
+        {
+            CountSitemapError("size");
+
+            _logger.LogWarning(ex, "Skipped sitemap '{SitemapUrl}' because it is larger than the crawler reads.", url);
+
+            return null;
         }
         catch (Exception ex)
         {
@@ -449,15 +461,72 @@ public sealed class SitemapCrawler : ISitemapCrawler
         return null;
     }
 
-    private static byte[] Decompress(byte[] input)
+    private static long ResolveMaxResponseBytes(SitemapCrawlRequest request)
+    {
+        return request.MaxResponseBytes > 0 ? request.MaxResponseBytes : DefaultMaxResponseBytes;
+    }
+
+    /// <summary>
+    /// Reads a response body, giving up as soon as it is known to be larger than <paramref name="maxBytes"/>: from the
+    /// declared <c>Content-Length</c> before any of it is read, or from the bytes read when a body does not declare one
+    /// or declares less than it sends.
+    /// </summary>
+    private static async Task<byte[]> ReadBoundedAsync(HttpClient client, string url, long maxBytes, CancellationToken cancellationToken)
+    {
+        using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+
+        if (response.Content.Headers.ContentLength > maxBytes)
+        {
+            throw new SitemapTooLargeException(url, maxBytes);
+        }
+
+        await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var destination = new MemoryStream();
+        var buffer = new byte[81920];
+        int read;
+
+        while ((read = await body.ReadAsync(buffer, cancellationToken)) > 0)
+        {
+            if (destination.Length + read > maxBytes)
+            {
+                throw new SitemapTooLargeException(url, maxBytes);
+            }
+
+            destination.Write(buffer, 0, read);
+        }
+
+        return destination.ToArray();
+    }
+
+    private static byte[] Decompress(byte[] input, long maxBytes)
     {
         using var source = new MemoryStream(input);
         using var gzip = new GZipStream(source, CompressionMode.Decompress);
         using var destination = new MemoryStream();
+        var buffer = new byte[81920];
+        int read;
 
-        gzip.CopyTo(destination);
+        while ((read = gzip.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            if (destination.Length + read > maxBytes)
+            {
+                throw new SitemapTooLargeException("the gzip sitemap", maxBytes);
+            }
+
+            destination.Write(buffer, 0, read);
+        }
 
         return destination.ToArray();
+    }
+
+    private sealed class SitemapTooLargeException : Exception
+    {
+        public SitemapTooLargeException(string source, long maxBytes)
+            : base($"{source} is larger than the {maxBytes:N0} bytes the crawler reads.")
+        {
+        }
     }
 
     private static string DecodeText(byte[] bytes)

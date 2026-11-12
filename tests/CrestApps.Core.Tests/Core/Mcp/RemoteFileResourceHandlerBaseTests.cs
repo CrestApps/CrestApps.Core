@@ -98,6 +98,52 @@ public sealed class RemoteFileResourceHandlerBaseTests
         AssertSingleTextContent(result, expectedSubstring: "exceeds the maximum allowed size");
     }
 
+    [Fact]
+    public async Task ReadAsync_OversizedDownloadWrappedByTheTransport_ReturnsSizeLimitError()
+    {
+        // FTP and SFTP libraries wrap what their output stream throws, so the limit has to be found inside the wrapper.
+        var handler = new TestRemoteHandler
+        {
+            MaxResourceBytesOverride = 4,
+            DownloadAction = (dest, ct) =>
+            {
+                try
+                {
+                    dest.Write(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, 0, 8);
+                }
+                catch (Exception ex)
+                {
+                    throw new IOException("The transfer failed.", ex);
+                }
+
+                return Task.CompletedTask;
+            },
+        };
+        var resource = CreateResource(includeMetadata: true, host: "host.example.com");
+
+        var result = await handler.ReadAsync(
+            resource,
+            new Dictionary<string, string> { ["path"] = "f.txt" },
+            TestContext.Current.CancellationToken);
+
+        AssertSingleTextContent(result, expectedSubstring: "exceeds the maximum allowed size");
+    }
+
+    [Fact]
+    public void TheFtpAndSftpHandlers_ReadThroughTheSizeLimitedBase()
+    {
+        // They used to buffer the whole download into a MemoryStream with no limit.
+        Assert.True(typeof(RemoteFileResourceHandlerBase<CrestApps.Core.AI.Sftp.Models.SftpConnectionMetadata>).IsAssignableFrom(typeof(CrestApps.Core.AI.Sftp.Handlers.SftpResourceTypeHandler)));
+        Assert.True(typeof(RemoteFileResourceHandlerBase<CrestApps.Core.AI.Ftp.Models.FtpConnectionMetadata>).IsAssignableFrom(typeof(CrestApps.Core.AI.Ftp.Handlers.FtpResourceTypeHandler)));
+    }
+
+    [Fact]
+    public void TheFtpAndSftpMetadata_CanSetAPerResourceSizeLimit()
+    {
+        Assert.Null(new CrestApps.Core.AI.Sftp.Models.SftpConnectionMetadata().MaxResourceBytes);
+        Assert.Null(new CrestApps.Core.AI.Ftp.Models.FtpConnectionMetadata().MaxResourceBytes);
+    }
+
     private static Dictionary<string, string> EmptyVariables() => [];
 
     private static McpResource CreateResource(bool includeMetadata, string host = "host.example.com")

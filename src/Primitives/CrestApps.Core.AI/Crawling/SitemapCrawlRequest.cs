@@ -25,4 +25,18 @@ public sealed class SitemapCrawlRequest
     /// been found, bounding the work for very large sites.
     /// </summary>
     public int MaxPages { get; set; } = int.MaxValue;
+
+    /// <summary>
+    /// Gets or sets the most bytes the crawler reads from a single response (a sitemap or <c>robots.txt</c>); a
+    /// response that declares or turns out to be larger is discarded unread, so a hostile or misconfigured site cannot
+    /// make the crawler buffer an unbounded body. Defaults to 10 MB.
+    /// </summary>
+    public long MaxResponseBytes { get; set; } = 10 * 1024 * 1024;
+
+    /// <summary>
+    /// Gets or sets the most bytes a gzip sitemap may inflate to. A few kilobytes of gzip can expand to gigabytes, so the
+    /// crawler stops inflating at this size and discards the document. Defaults to 50 MB, the largest uncompressed
+    /// sitemap the sitemap protocol allows.
+    /// </summary>
+    public long MaxDecompressedBytes { get; set; } = 50 * 1024 * 1024;
 }

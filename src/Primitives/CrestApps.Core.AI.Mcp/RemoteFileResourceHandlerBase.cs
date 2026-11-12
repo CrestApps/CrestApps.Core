@@ -90,7 +90,7 @@ public abstract class RemoteFileResourceHandlerBase<TMetadata> : McpResourceType
         {
             await DownloadAsync(metadata, host, remotePath, limited, cancellationToken);
         }
-        catch (ResourceSizeLimitExceededException ex)
+        catch (Exception exception) when (FindSizeLimitException(exception) is { } ex)
         {
             _logger.LogWarning(ex, "{Transport} resource {ResourceId} exceeded the maximum allowed size of {MaxBytes} bytes.", TransportName, resource.ItemId, ex.MaxBytes);
 
@@ -133,6 +133,32 @@ public abstract class RemoteFileResourceHandlerBase<TMetadata> : McpResourceType
         var configured = GetMaxResourceBytes(metadata);
 
         return configured is > 0 ? configured.Value : DefaultMaxResourceBytes;
+    }
+
+    // Transport libraries wrap what their output stream throws (SSH.NET and FluentFTP both do), so the size limit is
+    // looked for through the exception's causes as well.
+    private static ResourceSizeLimitExceededException FindSizeLimitException(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is ResourceSizeLimitExceededException found)
+            {
+                return found;
+            }
+
+            if (current is AggregateException aggregate)
+            {
+                foreach (var inner in aggregate.InnerExceptions)
+                {
+                    if (FindSizeLimitException(inner) is { } nested)
+                    {
+                        return nested;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
