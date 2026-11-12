@@ -22,16 +22,17 @@
   var MAX_TABLES = 10;
   var MAX_TABLE_ROWS = 50;
   var MAX_CELL_LENGTH = 300;
+  var MAX_FIELD_TEXT_LENGTH = 500;
 
   // The selectors the tools read the page with.
   var selectors = {
     description: 'meta[name="description"]',
     headings: 'h1, h2',
     main: 'main, [role="main"]',
-    // What page_read_content leaves out of the page's text: scripts, menus, the choices and text of form controls
-    // (page_list_form_fields reads them), hidden parts, the chat itself, and anything a page marks with
-    // data-webmcp-ignore. A form's other content is read: admin pages often wrap a whole list in one, for bulk actions.
-    ignored: 'script, style, noscript, template, svg, nav, aside, select, textarea, datalist, dialog:not([open]), [hidden], [aria-hidden="true"], [role="navigation"], [data-webmcp-ignore], [class*="ai-chat-widget"]',
+    // What page_read_content leaves out of the page's text: scripts, menus, hidden parts, the chat itself, and anything
+    // a page marks with data-webmcp-ignore. A form is read, with what its fields hold: admin pages often wrap a whole
+    // list in one, for bulk actions, and an editor's values are what the user sees.
+    ignored: 'script, style, noscript, template, svg, nav, aside, datalist, dialog:not([open]), [hidden], [aria-hidden="true"], [role="navigation"], [data-webmcp-ignore], [class*="ai-chat-widget"]',
     links: 'nav a[href], header a[href], aside a[href], [role="navigation"] a[href]',
     fields: 'form input, form select, form textarea',
   };
@@ -62,6 +63,33 @@
 
     // Parts the page hides with CSS, such as closed menus and modals.
     return typeof node.checkVisibility === 'function' && !node.checkVisibility();
+  }
+
+  var FIELD_TAGS = ['INPUT', 'SELECT', 'TEXTAREA'];
+
+  /**
+   * The text page_read_content shows for a form field, where the page shows it: its value, the chosen option of a
+   * list, or [x] / [ ] for a check box. Fields an agent never reads (hidden, password, file, buttons, disabled, the
+   * antiforgery token) and empty fields show nothing.
+   */
+  function fieldText(field) {
+    if (!isListed(field)) {
+      return '';
+    }
+
+    var type = fieldType(field);
+
+    if (type === 'checkbox' || type === 'radio') {
+      return field.checked ? '[x]' : '[ ]';
+    }
+
+    var text = type === 'select'
+      ? Array.prototype.filter.call(field.options || [], function (option) { return option.selected; })
+        .map(function (option) { return cleanText(option.text); })
+        .join(', ')
+      : cleanText(field.value);
+
+    return text.length > MAX_FIELD_TEXT_LENGTH ? text.slice(0, MAX_FIELD_TEXT_LENGTH) + '…' : text;
   }
 
   function cellText(cell) {
@@ -123,6 +151,12 @@
       }
 
       var tag = (node.tagName || '').toUpperCase();
+
+      if (FIELD_TAGS.indexOf(tag) >= 0) {
+        line.push(fieldText(node));
+
+        return;
+      }
 
       if (tag === 'TABLE') {
         endLine();
@@ -347,7 +381,7 @@
       {
         name: 'page_read_content',
         title: 'Read page content',
-        description: 'Reads what the page shows in its main area: its text, and its tables as headers and rows (for example the records a list page shows). Menus, forms and hidden parts are left out; use page_list_links and page_list_form_fields for those.',
+        description: 'Reads what the page shows in its main area: its text, what its form fields hold (next to their labels), and its tables as headers and rows (for example the records a list page shows). Menus and hidden parts are left out. Use page_list_form_fields for the fields\' names and choices before filling them, and page_list_links for the menus.',
         inputSchema: { type: 'object', properties: {} },
         annotations: { readOnlyHint: true },
         execute: function () {

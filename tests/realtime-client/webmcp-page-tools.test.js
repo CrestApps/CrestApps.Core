@@ -211,7 +211,7 @@ function text(value) {
 
 function node(tagName, children = [], props = {}) {
     const tag = tagName.toUpperCase();
-    const ignoredTags = ['SCRIPT', 'STYLE', 'NAV', 'SELECT', 'TEXTAREA', 'ASIDE'];
+    const ignoredTags = ['SCRIPT', 'STYLE', 'NAV', 'ASIDE'];
 
     return Object.assign({
         nodeType: 1,
@@ -235,7 +235,7 @@ function row(tag, values) {
 }
 
 describe('page_read_content', () => {
-    it('reads the main area as lines of text and its tables as rows, leaving out menus, form controls, scripts and the chat', async () => {
+    it('reads the main area as lines of text and its tables as rows, leaving out menus, scripts and the chat', async () => {
         const table = node('table', [], {
             caption: node('caption', [text('Articles')]),
             rows: [
@@ -248,8 +248,6 @@ describe('page_read_content', () => {
             node('h2', [text('Articles')]),
             node('p', [text('Manage the '), node('strong', [text('sample')]), text(' content.')]),
             node('nav', [text('Dashboard')]),
-            node('select', [node('option', [text('Draft')]), node('option', [text('Published')])]),
-            node('textarea', [text('Typed text')]),
             node('script', [text('var secret = 1;')]),
             node('div', [text('Hidden alert')], { hidden: true }),
             node('div', [text('Chat')], { className: 'ai-chat-widget-container' }),
@@ -279,13 +277,41 @@ describe('page_read_content', () => {
                     node('li', [node('a', [text('Man must explore')]), text(' BlogPost')]),
                     node('li', [node('a', [text('The day the music died')]), text(' BlogPost')]),
                 ]),
-                node('select', [node('option', [text('Publish now')])]),
+                node('select', [], { name: 'BulkAction', value: '', type: '', disabled: false, options: [{ text: 'Choose an action', selected: true }] }),
             ]),
         ]);
 
         const { data } = await run(tools(fakeDocument({ body })).page_read_content);
 
-        assert.strictEqual(data.text, 'Blog Post\nMan must explore BlogPost\nThe day the music died BlogPost');
+        assert.strictEqual(data.text, 'Blog Post\nMan must explore BlogPost\nThe day the music died BlogPost\nChoose an action');
+    });
+
+    it('reads what the form fields hold next to their labels, leaving out secrets, hidden and empty fields', async () => {
+        const field = (tag, props) => node(tag, [], Object.assign({ name: '', value: '', type: '', disabled: false, checked: false, options: [] }, props));
+        const main = node('main', [
+            node('div', [node('label', [text('Title')]), field('input', { type: 'text', name: 'Title', value: 'Man must explore' })]),
+            node('div', [node('label', [text('Subtitle')]), field('input', { type: 'text', name: 'Subtitle', value: 'Problems look mighty small' })]),
+            node('div', [node('label', [text('Body')]), field('textarea', { name: 'Body', value: 'x'.repeat(600) })]),
+            node('div', [node('label', [text('Status')]), field('select', { name: 'Status', options: [{ text: 'Draft', selected: false }, { text: 'Published', selected: true }] })]),
+            node('div', [field('input', { type: 'checkbox', name: 'Featured', checked: true }), node('label', [text('Featured')])]),
+            node('div', [node('label', [text('Notes')]), field('input', { type: 'text', name: 'Notes', value: '' })]),
+            node('div', [node('label', [text('Password')]), field('input', { type: 'password', name: 'Password', value: 'secret' })]),
+            field('input', { type: 'hidden', name: '__RequestVerificationToken', value: 'token' }),
+            node('div', [node('label', [text('Locked')]), field('input', { type: 'text', name: 'Locked', value: 'locked value', disabled: true })]),
+        ]);
+
+        const { data } = await run(tools(fakeDocument({ main })).page_read_content);
+
+        assert.strictEqual(data.text, [
+            'Title Man must explore',
+            'Subtitle Problems look mighty small',
+            'Body ' + 'x'.repeat(500) + '…',
+            'Status Published',
+            '[x] Featured',
+            'Notes',
+            'Password',
+            'Locked',
+        ].join('\n'));
     });
 
     it('reads the body when the page has no main area, and caps long text and long tables', async () => {
