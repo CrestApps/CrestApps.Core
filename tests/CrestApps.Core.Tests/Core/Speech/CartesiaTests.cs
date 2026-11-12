@@ -65,7 +65,7 @@ public sealed class CartesiaTests
             updates.Add(update);
         }
 
-        var root = JsonDocument.Parse(handler.LastBody).RootElement;
+        var root = JsonElement.Parse(handler.LastBody);
         Assert.Equal("sonic-3", root.GetProperty("model_id").GetString());
         Assert.Equal("en", root.GetProperty("language").GetString());
         Assert.Equal("mp3", root.GetProperty("output_format").GetProperty("container").GetString());
@@ -98,7 +98,7 @@ public sealed class CartesiaTests
 
         await client.GetAudioAsync("Wait<break time=\"1s\"/>then <spell>AB1</spell>", new TextToSpeechOptions { VoiceId = "v" }, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Wait<break time=\"1.0s\"/>then <spell>AB1</spell>", JsonDocument.Parse(handler.LastBody).RootElement.GetProperty("transcript").GetString());
+        Assert.Equal("Wait<break time=\"1.0s\"/>then <spell>AB1</spell>", JsonElement.Parse(handler.LastBody).GetProperty("transcript").GetString());
     }
 
     [Fact]

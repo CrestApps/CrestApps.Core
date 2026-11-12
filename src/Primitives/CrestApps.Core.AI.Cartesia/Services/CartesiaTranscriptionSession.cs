@@ -157,7 +157,8 @@ internal sealed class CartesiaTranscriptionSession : IRealtimeClientSession
         }
 
         await _sessionCancellation.CancelAsync();
-        await Task.WhenAny(Task.WhenAll(_receiving, _watching), Task.Delay(TimeSpan.FromSeconds(2)));
+        // Waits up to two seconds for the loops to end, without throwing when they fail or take longer.
+        await Task.WhenAll(_receiving, _watching).WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
         if (_logger.IsEnabled(LogLevel.Debug))
         {

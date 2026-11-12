@@ -414,7 +414,7 @@ internal sealed class CascadedRealtimeSession : IRealtimeClientSession
         await _messages.Writer.WriteAsync(new RealtimeServerMessage
         {
             Type = RealtimeServerMessageType.RawContentOnly,
-            RawRepresentation = JsonDocument.Parse($$"""{"type":"input_audio_buffer.speech_started","item_id":{{JsonSerializer.Serialize(message.MessageId)}}}""").RootElement.Clone(),
+            RawRepresentation = JsonElement.Parse($$"""{"type":"input_audio_buffer.speech_started","item_id":{{JsonSerializer.Serialize(message.MessageId)}}}"""),
         });
     }
 

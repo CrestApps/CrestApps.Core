@@ -17,7 +17,7 @@ public sealed class WebMcpPageToolFunctionTests
         FunctionName = "page_set_form_field",
         Title = "Set form field",
         Description = "Sets a field.",
-        InputSchema = JsonDocument.Parse("""{"type":"object","properties":{"field":{"type":"string"}}}""").RootElement.Clone(),
+        InputSchema = JsonElement.Parse("""{"type":"object","properties":{"field":{"type":"string"}}}"""),
     };
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class WebMcpPageToolFunctionTests
         var arguments = new AIFunctionArguments
         {
             ["field"] = "Title",
-            ["value"] = JsonDocument.Parse("42").RootElement,
+            ["value"] = JsonElement.Parse("42"),
         };
 
         var result = await function.InvokeAsync(arguments, TestContext.Current.CancellationToken);

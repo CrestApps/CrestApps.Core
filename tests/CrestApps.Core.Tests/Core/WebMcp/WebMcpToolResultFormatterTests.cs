@@ -22,13 +22,13 @@ public sealed class WebMcpToolResultFormatterTests
     [Fact]
     public void Format_ReadsAJsonStringAsItsText()
     {
-        Assert.Equal("Hello", WebMcpToolResultFormatter.Format(JsonDocument.Parse("\"Hello\"").RootElement));
+        Assert.Equal("Hello", WebMcpToolResultFormatter.Format(JsonElement.Parse("\"Hello\"")));
     }
 
     [Fact]
     public void Format_WritesOtherJsonAsJson()
     {
-        Assert.Equal("""{"count":2}""", WebMcpToolResultFormatter.Format(JsonDocument.Parse("""{"count":2}""").RootElement));
+        Assert.Equal("""{"count":2}""", WebMcpToolResultFormatter.Format(JsonElement.Parse("""{"count":2}""")));
         Assert.Equal("[1,2]", WebMcpToolResultFormatter.Format(JsonNode.Parse("[1,2]")));
     }
 

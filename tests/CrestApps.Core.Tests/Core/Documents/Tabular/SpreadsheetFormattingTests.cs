@@ -603,6 +603,6 @@ public sealed class SpreadsheetFormattingTests
 
     private static SpreadsheetFormatting Parse(string json)
     {
-        return SpreadsheetFormattingJson.Parse(JsonDocument.Parse(json).RootElement);
+        return SpreadsheetFormattingJson.Parse(JsonElement.Parse(json));
     }
 }
