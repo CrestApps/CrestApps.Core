@@ -51,14 +51,69 @@ public sealed class YesSqlAIChatSessionIndexClientIdTests
     }
 
     [Fact]
-    public async Task UpgradeMethod_CanBeRunOnlyOnceAgainstTheSameTable()
+    public async Task UpgradeMethod_CanBeRunAnyNumberOfTimes()
     {
         await using var harness = await Harness.CreateAsync(upgradeFromOldSchema: true);
 
-        // The column already exists, so a second run is rejected rather than silently doing nothing; hosts call the upgrade
-        // from a migration that runs once.
-        await Assert.ThrowsAnyAsync<Exception>(() => harness.UpgradeAsync());
+        await harness.UpgradeAsync();
+        await harness.UpgradeAsync();
+
+        await harness.SaveSessionAsync("session-1", clientId: "visitor-1");
+        Assert.Equal("visitor-1", await harness.ReadIndexedClientIdAsync("session-1"));
+        Assert.Equal(1, await harness.CountIndexesNamedAsync("IDX_AIChatSession_ClientId"));
     }
+
+    [Fact]
+    public async Task UpgradeMethod_OnADatabaseThatAlreadyHasTheColumn_DoesNothing()
+    {
+        // The sample host runs it on every start, including on a database the create method just made.
+        await using var harness = await Harness.CreateAsync(upgradeFromOldSchema: false);
+
+        await harness.UpgradeAsync();
+        await harness.UpgradeAsync();
+
+        await harness.SaveSessionAsync("session-1", clientId: "visitor-1");
+        Assert.Equal("visitor-1", await harness.ReadIndexedClientIdAsync("session-1"));
+    }
+
+    [Fact]
+    public async Task UpgradeMethod_CreatesTheIndexWhenAnEarlierRunAddedOnlyTheColumn()
+    {
+        await using var harness = await Harness.CreateAsync(upgradeFromOldSchema: false);
+        await harness.DropIndexAsync("IDX_AIChatSession_ClientId");
+        Assert.Equal(0, await harness.CountIndexesNamedAsync("IDX_AIChatSession_ClientId"));
+
+        await harness.UpgradeAsync();
+
+        Assert.Equal(1, await harness.CountIndexesNamedAsync("IDX_AIChatSession_ClientId"));
+    }
+
+    [Fact]
+    public async Task Backfill_IndexesTheClientIdOfSessionsSavedBeforeTheColumnExisted()
+    {
+        await using var harness = await Harness.CreateAsync(upgradeFromOldSchema: false);
+        await harness.SaveSessionAsync("anonymous-1", clientId: "visitor-1");
+        await harness.SaveSessionAsync("anonymous-2", clientId: "visitor-2");
+        await harness.ClearIndexedClientIdsAsync();
+        Assert.Null(await harness.ReadIndexedClientIdAsync("anonymous-1"));
+
+        var count = await harness.BackfillAsync();
+
+        Assert.Equal(2, count);
+        Assert.Equal("visitor-1", await harness.ReadIndexedClientIdAsync("anonymous-1"));
+        Assert.Equal("visitor-2", await harness.ReadIndexedClientIdAsync("anonymous-2"));
+        Assert.Equal(1, (await harness.PageAsync(new AIChatSessionQueryContext { ClientId = "visitor-1" })).Count);
+    }
+
+    [Fact]
+    public async Task Backfill_LeavesSessionsThatAlreadyHaveAClientIdAlone()
+    {
+        await using var harness = await Harness.CreateAsync(upgradeFromOldSchema: false);
+        await harness.SaveSessionAsync("anonymous-1", clientId: "visitor-1");
+
+        Assert.Equal(0, await harness.BackfillAsync());
+    }
+
 
     private sealed class Harness : IAsyncDisposable
     {
@@ -138,6 +193,60 @@ public sealed class YesSqlAIChatSessionIndexClientIdTests
             var value = await command.ExecuteScalarAsync(TestContext.Current.CancellationToken);
 
             return value is null or DBNull ? null : (string)value;
+        }
+
+        public async Task<long> CountIndexesNamedAsync(string indexName)
+        {
+            return await ScalarAsync("SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name LIKE '%' || $name;", ("$name", indexName));
+        }
+
+        public async Task DropIndexAsync(string indexName)
+        {
+            await using var connection = new SqliteConnection(_connectionString);
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await using var find = connection.CreateCommand();
+            find.CommandText = "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE '%' || $name;";
+            find.Parameters.AddWithValue("$name", indexName);
+            var name = (string)await find.ExecuteScalarAsync(TestContext.Current.CancellationToken);
+            await using var drop = connection.CreateCommand();
+            drop.CommandText = $"DROP INDEX \"{name}\";";
+            await drop.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        public async Task ClearIndexedClientIdsAsync()
+        {
+            await using var connection = new SqliteConnection(_connectionString);
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE AI_AIChatSessionIndex SET ClientId = NULL;";
+            await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        public async Task<int> BackfillAsync()
+        {
+            await using var scope = _services.CreateAsyncScope();
+            var session = scope.ServiceProvider.GetRequiredService<YesSql.ISession>();
+            var options = scope.ServiceProvider.GetRequiredService<IOptions<YesSqlStoreOptions>>().Value;
+            var count = await session.BackfillAIChatSessionIndexClientIdAsync(options, TestContext.Current.CancellationToken);
+
+            await scope.ServiceProvider.GetRequiredService<IStoreCommitter>().CommitAsync(TestContext.Current.CancellationToken);
+
+            return count;
+        }
+
+        private async Task<long> ScalarAsync(string sql, params (string Name, object Value)[] parameters)
+        {
+            await using var connection = new SqliteConnection(_connectionString);
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+
+            foreach (var (name, value) in parameters)
+            {
+                command.Parameters.AddWithValue(name, value);
+            }
+
+            return Convert.ToInt64(await command.ExecuteScalarAsync(TestContext.Current.CancellationToken));
         }
 
         public async Task UpgradeAsync()
