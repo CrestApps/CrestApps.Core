@@ -191,6 +191,37 @@
 			citationMarkerHtml
 		};
 	})();
+	window.CoreAIAntiforgery = window.CoreAIAntiforgery || (function() {
+		"use strict";
+		const headerName = "RequestVerificationToken";
+		function readFromPage() {
+			if (typeof document === "undefined" || !document || typeof document.querySelector !== "function") return null;
+			const meta = document.querySelector("meta[name=\"" + headerName + "\"]");
+			if (meta && meta.content) return meta.content;
+			const field = document.querySelector("input[name=\"__RequestVerificationToken\"]");
+			return field && field.value ? field.value : null;
+		}
+		function findToken(config) {
+			if (config && typeof config.antiforgeryToken === "string" && config.antiforgeryToken) return config.antiforgeryToken;
+			return readFromPage();
+		}
+		function headers(config, extra) {
+			const result = Object.assign({}, extra);
+			const token = findToken(config);
+			if (token) result[headerName] = token;
+			return result;
+		}
+		function apply(request, config) {
+			const token = findToken(config);
+			if (token && request && typeof request.setRequestHeader === "function") request.setRequestHeader(headerName, token);
+		}
+		return {
+			headerName,
+			findToken,
+			headers,
+			apply
+		};
+	})();
 	//#endregion
 })();
 //# sourceMappingURL=chat-markers.js.map

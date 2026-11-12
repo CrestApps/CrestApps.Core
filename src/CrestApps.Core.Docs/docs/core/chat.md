@@ -320,6 +320,16 @@ The session upload endpoint is safe to expose to signed-in users and anonymous v
   own, as cookie authentication does. A request with an `Authorization` header, and an anonymous request, need no token.
   The host must register antiforgery services (`AddAntiforgery()`, which MVC, Razor Pages and Razor components already do)
 
+The vendored `ai-chat.js` and `chat-interaction.js` send the token for you. They read it from the chat config's
+`antiforgeryToken`, else from `<meta name="RequestVerificationToken" content="...">`, else from the hidden
+`__RequestVerificationToken` field of a form on the page. Put the token on the page when users sign in with cookies:
+
+```cshtml
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+
+<meta name="RequestVerificationToken" content="@Antiforgery.GetAndStoreTokens(Context).RequestToken" />
+```
+
 These endpoints:
 
 - process files through `IAIDocumentProcessingService`

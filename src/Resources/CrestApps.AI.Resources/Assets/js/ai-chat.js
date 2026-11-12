@@ -1283,6 +1283,7 @@ window.coreAIChatManager = function () {
 
                             var response = await fetch(config.uploadDocumentUrl, {
                                 method: 'POST',
+                                headers: window.CoreAIAntiforgery.headers(config),
                                 body: formData
                             });
 
@@ -1339,7 +1340,7 @@ window.coreAIChatManager = function () {
                             var sessionId = this.getSessionId();
                             var response = await fetch(config.removeDocumentUrl, {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
+                                headers: window.CoreAIAntiforgery.headers(config, { 'Content-Type': 'application/json' }),
                                 body: JSON.stringify({ itemId: sessionId, documentId: doc.documentId })
                             });
 

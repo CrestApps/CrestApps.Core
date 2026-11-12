@@ -2087,6 +2087,7 @@
 					formData.append("files", file);
 					const xhr = new XMLHttpRequest();
 					xhr.open("POST", config.uploadDocumentUrl, true);
+					window.CoreAIAntiforgery.apply(xhr, config);
 					xhr.upload.addEventListener("progress", (event) => {
 						if (!event.lengthComputable) return;
 						updateUploadItem(itemIdToUpdate, {
@@ -2227,7 +2228,7 @@
 				try {
 					const response = await fetch(config.removeDocumentUrl, {
 						method: "POST",
-						headers: { "Content-Type": "application/json" },
+						headers: window.CoreAIAntiforgery.headers(config, { "Content-Type": "application/json" }),
 						body: JSON.stringify({
 							itemId: config.itemId,
 							documentId

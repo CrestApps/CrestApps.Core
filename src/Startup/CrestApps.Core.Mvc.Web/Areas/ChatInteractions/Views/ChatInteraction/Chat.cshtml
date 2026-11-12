@@ -1870,6 +1870,7 @@
 
                     var xhr = new XMLHttpRequest();
                     xhr.open('POST', uploadDocumentUrl, true);
+                    window.CoreAIAntiforgery.apply(xhr, {});
 
                     xhr.upload.addEventListener('progress', function (event) {
                         if (!event.lengthComputable) {
@@ -2082,9 +2083,9 @@
                 try {
                     var response = await fetch(removeDocumentUrl, {
                         method: 'POST',
-                        headers: {
+                        headers: window.CoreAIAntiforgery.headers({}, {
                             'Content-Type': 'application/json'
-                        },
+                        }),
                         body: JSON.stringify({
                             itemId: itemId,
                             documentId: documentId

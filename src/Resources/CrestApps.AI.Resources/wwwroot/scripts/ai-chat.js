@@ -817,6 +817,7 @@
 								for (var i = 0; i < filesToUpload.length; i++) formData.append("files", filesToUpload[i]);
 								var response = await fetch(config.uploadDocumentUrl, {
 									method: "POST",
+									headers: window.CoreAIAntiforgery.headers(config),
 									body: formData
 								});
 								if (!response.ok) {
@@ -866,7 +867,7 @@
 								var sessionId = this.getSessionId();
 								var response = await fetch(config.removeDocumentUrl, {
 									method: "POST",
-									headers: { "Content-Type": "application/json" },
+									headers: window.CoreAIAntiforgery.headers(config, { "Content-Type": "application/json" }),
 									body: JSON.stringify({
 										itemId: sessionId,
 										documentId: doc.documentId

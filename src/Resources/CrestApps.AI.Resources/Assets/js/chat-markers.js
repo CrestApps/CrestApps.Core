@@ -520,3 +520,71 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || (function () {
         citationMarkerHtml: citationMarkerHtml
     };
 })();
+
+/*
+ * The antiforgery token the chat sends with the POSTs it makes (uploading and removing documents).
+ *
+ * Those endpoints validate the token of a request the browser authenticated on its own, which is what cookie
+ * authentication does, so a page on another site cannot make a visitor's browser upload a file as them. The token goes
+ * in the RequestVerificationToken header. It is read from, in order: the chat config's antiforgeryToken, a
+ * <meta name="RequestVerificationToken" content="..."> tag, and the hidden __RequestVerificationToken field a form on
+ * the page carries (Razor writes one with @Html.AntiForgeryToken() or any form tag helper). When there is none, no
+ * header is sent: the request is then an anonymous or bearer-token one, and the server asks for no token.
+ */
+window.CoreAIAntiforgery = window.CoreAIAntiforgery || (function () {
+    'use strict';
+
+    const headerName = 'RequestVerificationToken';
+
+    function readFromPage() {
+        if (typeof document === 'undefined' || !document || typeof document.querySelector !== 'function') {
+            return null;
+        }
+
+        const meta = document.querySelector('meta[name="' + headerName + '"]');
+
+        if (meta && meta.content) {
+            return meta.content;
+        }
+
+        const field = document.querySelector('input[name="__RequestVerificationToken"]');
+
+        return field && field.value ? field.value : null;
+    }
+
+    function findToken(config) {
+        if (config && typeof config.antiforgeryToken === 'string' && config.antiforgeryToken) {
+            return config.antiforgeryToken;
+        }
+
+        return readFromPage();
+    }
+
+    // The headers of a fetch: the ones given, plus the token when there is one.
+    function headers(config, extra) {
+        const result = Object.assign({}, extra);
+        const token = findToken(config);
+
+        if (token) {
+            result[headerName] = token;
+        }
+
+        return result;
+    }
+
+    // Sets the token on an XMLHttpRequest that has been opened and not yet sent.
+    function apply(request, config) {
+        const token = findToken(config);
+
+        if (token && request && typeof request.setRequestHeader === 'function') {
+            request.setRequestHeader(headerName, token);
+        }
+    }
+
+    return {
+        headerName: headerName,
+        findToken: findToken,
+        headers: headers,
+        apply: apply
+    };
+})();
