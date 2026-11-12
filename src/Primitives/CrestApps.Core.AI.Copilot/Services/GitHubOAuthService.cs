@@ -1,5 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Web;
 using CrestApps.Core.AI.Copilot.Models;
@@ -19,6 +21,9 @@ public sealed class GitHubOAuthService
     private const string ProtectorPurpose = "CrestApps.Core.AI.Copilot.GitHubTokens";
     private const string StateProtectorPurpose = "CrestApps.Core.AI.Copilot.GitHubOAuthState";
     private const string StateCookieName = ".crestapps.gh-oauth-state";
+
+    // Over HTTPS the __Host- prefix makes a browser refuse a cookie set from a sibling subdomain, so the state cookie cannot be planted.
+    private const string HostStateCookieName = "__Host-crestapps-gh-oauth-state";
 
     private readonly ICopilotCredentialStore _credentialStore;
     private readonly IDataProtectionProvider _dataProtectionProvider;
@@ -73,28 +78,33 @@ public sealed class GitHubOAuthService
 
         var scopes = string.Join(" ", settings.Scopes ?? ["user:email", "read:org"]);
 
-        var state = returnUrl ?? string.Empty;
         var httpContext = _httpContextAccessor?.HttpContext;
 
-        if (httpContext != null)
+        // The state is what ties the callback to the request that started it, and that needs a request to hold the state
+        // cookie. A state that is only the return URL proves nothing, and TryValidateCallbackState would never accept it.
+        if (httpContext is null)
         {
-            state = Guid.NewGuid().ToString("N");
-
-            var stateProtector = _dataProtectionProvider.CreateProtector(StateProtectorPurpose);
-            var statePayload = JsonSerializer.Serialize(new GitHubOAuthState
-            {
-                Nonce = state,
-                ReturnUrl = returnUrl,
-                ExpiresUtc = _timeProvider.GetUtcNow().AddMinutes(10),
-            });
-            var protectedState = stateProtector.Protect(statePayload);
-
-            var cookieOptions = CreateStateCookieOptions(httpContext);
-
-            cookieOptions.Expires = _timeProvider.GetUtcNow().AddMinutes(10);
-
-            httpContext.Response.Cookies.Append(StateCookieName, protectedState, cookieOptions);
+            throw new InvalidOperationException("The GitHub OAuth flow needs an HTTP request to hold its state.");
         }
+
+        var state = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(24));
+        var stateProtector = _dataProtectionProvider.CreateProtector(StateProtectorPurpose);
+        var statePayload = JsonSerializer.Serialize(new GitHubOAuthState
+        {
+            Nonce = state,
+            ReturnUrl = returnUrl,
+            ExpiresUtc = _timeProvider.GetUtcNow().AddMinutes(10),
+
+            // The state belongs to the user who started the flow. A valid state cookie planted from elsewhere is then
+            // useless against a different user.
+            UserId = GetUserId(httpContext),
+        });
+        var protectedState = stateProtector.Protect(statePayload);
+        var cookieOptions = CreateStateCookieOptions(httpContext);
+
+        cookieOptions.Expires = _timeProvider.GetUtcNow().AddMinutes(10);
+
+        httpContext.Response.Cookies.Append(GetStateCookieName(httpContext), protectedState, cookieOptions);
 
         var queryParams = HttpUtility.ParseQueryString(string.Empty);
         queryParams["client_id"] = settings.ClientId;
@@ -103,6 +113,20 @@ public sealed class GitHubOAuthService
         queryParams["state"] = state;
 
         return $"https://github.com/login/oauth/authorize?{queryParams}";
+    }
+
+    private static string GetStateCookieName(HttpContext httpContext)
+    {
+        return httpContext.Request.IsHttps ? HostStateCookieName : StateCookieName;
+    }
+
+    private static string GetUserId(HttpContext httpContext)
+    {
+        var user = httpContext.User;
+
+        return user?.Identity?.IsAuthenticated == true
+            ? user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.Identity.Name
+            : null;
     }
 
     // The attributes that write the state cookie and the ones that delete it must agree, or a browser keeps the cookie.
@@ -138,7 +162,7 @@ public sealed class GitHubOAuthService
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(state) || !httpContext.Request.Cookies.TryGetValue(StateCookieName, out var protectedState) || string.IsNullOrWhiteSpace(protectedState))
+        if (string.IsNullOrWhiteSpace(state) || !httpContext.Request.Cookies.TryGetValue(GetStateCookieName(httpContext), out var protectedState) || string.IsNullOrWhiteSpace(protectedState))
         {
             validatedReturnUrl = null;
 
@@ -152,7 +176,8 @@ public sealed class GitHubOAuthService
 
             if (payload == null ||
                 !string.Equals(payload.Nonce, state, StringComparison.Ordinal) ||
-                payload.ExpiresUtc < _timeProvider.GetUtcNow())
+                payload.ExpiresUtc < _timeProvider.GetUtcNow() ||
+                !string.Equals(payload.UserId, GetUserId(httpContext), StringComparison.Ordinal))
             {
                 validatedReturnUrl = null;
 
@@ -163,7 +188,7 @@ public sealed class GitHubOAuthService
             {
                 // The state is good for one callback. Left in the browser, the same cookie and state could be
                 // replayed until the cookie expired.
-                httpContext.Response.Cookies.Delete(StateCookieName, CreateStateCookieOptions(httpContext));
+                httpContext.Response.Cookies.Delete(GetStateCookieName(httpContext), CreateStateCookieOptions(httpContext));
 
                 validatedReturnUrl = payload.ReturnUrl;
 
@@ -481,5 +506,7 @@ public sealed class GitHubOAuthService
         public string ReturnUrl { get; set; }
 
         public DateTimeOffset ExpiresUtc { get; set; }
+
+        public string UserId { get; set; }
     }
 }
