@@ -16,8 +16,10 @@ const assetsDirectory = path.join(__dirname, '../../src/Resources/CrestApps.AI.W
 
 globalThis.window = {};
 vm.runInThisContext(fs.readFileSync(path.join(assetsDirectory, 'webmcp.js'), 'utf8'), { filename: 'webmcp.js' });
+vm.runInThisContext(fs.readFileSync(path.join(assetsDirectory, 'webmcp-page-tools.js'), 'utf8'), { filename: 'webmcp-page-tools.js' });
 
 const webMcp = globalThis.window.CrestAppsWebMcp;
+const pageTools = globalThis.window.CrestAppsWebMcpPageTools;
 
 const serverConfig = {
     toolsUrl: '/api/ai/webmcp/tools',
@@ -206,6 +208,86 @@ describe('runPageTool', () => {
     });
 });
 
+describe('runPageTool with the page tools CrestApps registered', () => {
+    function ownTools(modelContext, names) {
+        return (registeredTool) => (names.includes(registeredTool.name) ? modelContext.tools.get(registeredTool.name) : null);
+    }
+
+    it('runs them through their own execute and tells the model why one failed, which executeTool hides', async () => {
+        const modelContext = createFakeModelContext();
+
+        await modelContext.registerTool(siteTool('page_navigate', { execute: () => { throw new Error('"ArticlesAdmin" is not an address on this site. Call page_list_links.'); } }));
+
+        assert.deepStrictEqual(await webMcp.runPageTool(modelContext, 'page_navigate', '{"url":"ArticlesAdmin"}'), {
+            text: 'The tool failed: UnknownError: Tool execution failed',
+            isError: true,
+        });
+        assert.deepStrictEqual(await webMcp.runPageTool(modelContext, 'page_navigate', '{"url":"ArticlesAdmin"}', { findOwnTool: ownTools(modelContext, ['page_navigate']) }), {
+            text: 'The tool failed: "ArticlesAdmin" is not an address on this site. Call page_list_links.',
+            isError: true,
+        });
+    });
+
+    it('answers their results as executeTool would, on a copy of the input', async () => {
+        const modelContext = createFakeModelContext();
+        const findOwnTool = ownTools(modelContext, ['page_get_info', 'greet', 'nothing']);
+        const input = '{"text":"A-1"}';
+        let received;
+
+        await modelContext.registerTool(siteTool('page_get_info', {
+            execute: (value) => {
+                received = value;
+
+                return { title: 'Orders' };
+            },
+        }));
+        await modelContext.registerTool(siteTool('greet', { execute: () => 'Hello.' }));
+        await modelContext.registerTool(siteTool('nothing', { execute: () => undefined }));
+
+        assert.deepStrictEqual(await webMcp.runPageTool(modelContext, 'page_get_info', input, { findOwnTool }), { text: '{"title":"Orders"}', isError: false });
+        assert.deepStrictEqual(received, { text: 'A-1' });
+        assert.deepStrictEqual(await webMcp.runPageTool(modelContext, 'greet', '{}', { findOwnTool }), { text: 'Hello.', isError: false });
+        assert.deepStrictEqual(await webMcp.runPageTool(modelContext, 'nothing', '{}', { findOwnTool }), { text: '', isError: false });
+    });
+
+    it('leaves the tools other scripts registered on executeTool, the standard way to run them', async () => {
+        const modelContext = createFakeModelContext();
+        const executeTool = mock.method(modelContext, 'executeTool');
+
+        await modelContext.registerTool(siteTool('shop.get_order'));
+
+        assert.deepStrictEqual(await webMcp.runPageTool(modelContext, 'shop.get_order', '{"text":"A-1"}', { findOwnTool: () => null }), {
+            text: '{"ran":"shop.get_order","text":"A-1"}',
+            isError: false,
+        });
+        assert.strictEqual(executeTool.mock.callCount(), 1);
+    });
+});
+
+describe('findOwnPageTool', () => {
+    const emptyDocument = { querySelector: () => null, querySelectorAll: () => [] };
+
+    it('finds only the page tools webmcp-page-tools.js registered in this window', async () => {
+        const win = { CrestAppsWebMcpPageTools: pageTools };
+        const modelContext = createFakeModelContext({ window: win });
+        const location = { href: 'https://example.com/Admin', origin: 'https://example.com', assign: () => {} };
+
+        await pageTools.register(modelContext, { doc: emptyDocument, loc: location });
+        await modelContext.registerTool(siteTool('shop.get_order'));
+
+        const tools = await modelContext.getTools();
+        const byName = (name) => tools.find((tool) => tool.name === name);
+        const fromAnotherFrame = Object.assign({}, byName('page_navigate'), { window: {} });
+
+        assert.strictEqual(webMcp.findOwnPageTool(win, modelContext, byName('page_navigate')).name, 'page_navigate');
+        assert.strictEqual(webMcp.findOwnPageTool(win, modelContext, byName('shop.get_order')), null);
+        // The same tool listed from another frame, and a page without the page tools script, are left to executeTool.
+        assert.strictEqual(webMcp.findOwnPageTool(win, modelContext, fromAnotherFrame), null);
+        assert.strictEqual(webMcp.findOwnPageTool({}, modelContext, byName('page_navigate')), null);
+        assert.strictEqual(webMcp.findOwnPageTool(win, modelContext, undefined), null);
+    });
+});
+
 describe('connectChat', () => {
     function fakeConnection() {
         const handlers = {};
@@ -356,5 +438,36 @@ describe('init', () => {
         await chat.sync();
 
         assert.deepStrictEqual(connection.invoke.mock.calls[0].arguments[1].map((tool) => tool.name), ['shop.get_order']);
+    });
+
+    it('lets the chat model learn why page_navigate refused an address, so it can list the links and try again', async () => {
+        const assigned = [];
+        const win = { CrestAppsWebMcpPageTools: pageTools, document: { getElementById: () => null } };
+        const modelContext = createFakeModelContext({ window: win });
+        const location = { href: 'https://example.com/Admin', origin: 'https://example.com', assign: (url) => assigned.push(url) };
+        const handlers = {};
+
+        win.document.modelContext = modelContext;
+
+        const api = webMcp.init(win);
+
+        await pageTools.register(modelContext, { doc: { querySelector: () => null, querySelectorAll: () => [] }, loc: location });
+        api.connectChat({
+            invoke: mock.fn(() => Promise.resolve()),
+            on: (name, handler) => {
+                handlers[name] = handler;
+            },
+        });
+
+        const refused = await handlers.ExecutePageTool('page_navigate', '{"url":"ArticlesAdmin"}');
+
+        assert.strictEqual(refused.isError, true);
+        assert.match(refused.text, /^The tool failed: "ArticlesAdmin" is not an address on this site\./);
+        assert.match(refused.text, /page_list_links/);
+        assert.deepStrictEqual(await handlers.ExecutePageTool('page_navigate', '{"url":"/Admin/Articles"}'), {
+            text: '{"navigatedTo":"https://example.com/Admin/Articles"}',
+            isError: false,
+        });
+        assert.deepStrictEqual(assigned, ['https://example.com/Admin/Articles']);
     });
 });

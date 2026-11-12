@@ -138,6 +138,36 @@ describe('createPageTools', () => {
 
         assert.deepStrictEqual(await modelContext.getTools(), []);
     });
+
+    it('remembers the tools it registered with each ModelContext, so the chat can run them and tell the model why one failed', async () => {
+        const modelContext = createFakeModelContext();
+        const controller = new AbortController();
+
+        await pageTools.register(modelContext, { doc: fakeDocument(), loc: location }, controller.signal);
+
+        const navigate = pageTools.getRegisteredTool(modelContext, 'page_navigate');
+
+        assert.strictEqual(navigate.name, 'page_navigate');
+        assert.strictEqual(typeof navigate.execute, 'function');
+        assert.strictEqual(pageTools.getRegisteredTool(createFakeModelContext(), 'page_navigate'), null);
+        assert.strictEqual(pageTools.getRegisteredTool(modelContext, 'shop.get_order'), null);
+
+        controller.abort();
+
+        assert.strictEqual(pageTools.getRegisteredTool(modelContext, 'page_navigate'), null);
+    });
+
+    it('does not claim a tool another script registered first under the same name', async () => {
+        const modelContext = createFakeModelContext();
+        const warn = mock.method(console, 'warn', () => {});
+
+        await modelContext.registerTool({ name: 'page_navigate', description: 'Opens pages, from another script.', execute: () => 'theirs' });
+        await pageTools.register(modelContext, { doc: fakeDocument(), loc: location });
+        warn.mock.restore();
+
+        assert.strictEqual(pageTools.getRegisteredTool(modelContext, 'page_navigate'), null);
+        assert.strictEqual(pageTools.getRegisteredTool(modelContext, 'page_get_info').name, 'page_get_info');
+    });
 });
 
 describe('page_get_info', () => {
@@ -210,6 +240,66 @@ describe('page_navigate', () => {
         }
 
         assert.strictEqual(location.assign.mock.callCount(), 0);
+    });
+
+    it('opens a full address on this site', async () => {
+        location.assign.mock.resetCalls();
+
+        const { data } = await run(tools(fakeDocument()).page_navigate, { url: 'https://example.com/Admin/Users' });
+
+        assert.deepStrictEqual(data, { navigatedTo: 'https://example.com/Admin/Users' });
+    });
+
+    it('refuses a bare relative path, which is a guess, and tells the model to list the links', async () => {
+        location.assign.mock.resetCalls();
+
+        for (const url of ['ArticlesAdmin', 'Admin/Articles', './Users', '../Users', '?page=2']) {
+            await assert.rejects(
+                Promise.resolve().then(() => tools(fakeDocument()).page_navigate.execute({ url }, { signal: new AbortController().signal })),
+                (error) => error.message.includes('"' + url + '" is not an address on this site') && error.message.includes('page_list_links'));
+        }
+
+        assert.strictEqual(location.assign.mock.callCount(), 0);
+    });
+
+    it('asks the site whether the page exists, and refuses one it does not have, so the model stops guessing', async () => {
+        location.assign.mock.resetCalls();
+
+        const requests = [];
+        const fetch = (url, init) => {
+            requests.push([url, init.method]);
+
+            return Promise.resolve({ status: url.endsWith('/ArticlesAdmin') ? 404 : 200 });
+        };
+        const navigate = pageTools.createPageTools({ doc: fakeDocument(), loc: location, fetch })
+            .find((tool) => tool.name === 'page_navigate');
+
+        await assert.rejects(
+            navigate.execute({ url: '/ArticlesAdmin' }, { signal: new AbortController().signal }),
+            (error) => error.message.includes('no page at "/ArticlesAdmin" (404)') && error.message.includes('page_list_links'));
+        assert.deepStrictEqual(await navigate.execute({ url: '/Admin/Article' }, { signal: new AbortController().signal }), { navigatedTo: 'https://example.com/Admin/Article' });
+        assert.deepStrictEqual(requests, [['https://example.com/ArticlesAdmin', 'HEAD'], ['https://example.com/Admin/Article', 'HEAD']]);
+        assert.deepStrictEqual(location.assign.mock.calls.map((call) => call.arguments), [['https://example.com/Admin/Article']]);
+    });
+
+    it('opens the page when the site refuses HEAD, sends elsewhere or cannot be reached', async () => {
+        for (const fetch of [() => Promise.resolve({ status: 405 }), () => Promise.resolve({ status: 302 }), () => Promise.reject(new Error('Offline.'))]) {
+            location.assign.mock.resetCalls();
+
+            const navigate = pageTools.createPageTools({ doc: fakeDocument(), loc: location, fetch })
+                .find((tool) => tool.name === 'page_navigate');
+
+            assert.deepStrictEqual(await navigate.execute({ url: '/Admin/Users' }, { signal: new AbortController().signal }), { navigatedTo: 'https://example.com/Admin/Users' });
+            assert.strictEqual(location.assign.mock.callCount(), 1);
+        }
+    });
+
+    it('points to page_list_links when the address is missing or on another site', async () => {
+        for (const input of [{}, { url: '  ' }, { url: 'https://other.example/' }, { url: '//other.example/x' }]) {
+            await assert.rejects(
+                Promise.resolve().then(() => tools(fakeDocument()).page_navigate.execute(input, { signal: new AbortController().signal })),
+                /page_list_links/);
+        }
     });
 });
 
