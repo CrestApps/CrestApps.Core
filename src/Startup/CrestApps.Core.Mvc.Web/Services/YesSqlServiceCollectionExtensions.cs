@@ -157,7 +157,8 @@ internal static class YesSqlServiceCollectionExtensions
         await TryCreateTableAsync(() => schemaBuilder.CreateAIProfileTemplateIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateAIPersonaIndexSchemaAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionIndexSchemaAsync(storeOptions));
-        // A database created before the index had a ClientId column gets it here; on a new one the column exists and this is a no-op.
+        // A database created before the index had a ClientId column gets it here. The method checks first, so on a database
+        // that has it already (a new one included) it changes nothing, and it can run at every start.
         await TryCreateTableAsync(() => schemaBuilder.AddAIChatSessionIndexClientIdColumnAsync(storeOptions));
         await TryCreateTableAsync(() => schemaBuilder.CreateAIChatSessionMetricsSchemaAsync(storeOptions, options));
         await TryCreateTableAsync(() => schemaBuilder.CreateAICompletionUsageIndexSchemaAsync(storeOptions));

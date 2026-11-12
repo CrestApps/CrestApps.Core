@@ -316,9 +316,16 @@ The session upload endpoint is safe to expose to signed-in users and anonymous v
 - a session holds at most `ChatDocumentsOptions.MaxDocumentsPerSession` documents (default `20`; `0` disables the limit),
   and files past it come back in the `failed` list
 - the four upload and remove endpoints run `CookieAuthenticationAntiforgeryEndpointFilter`, which validates the
-  antiforgery token (the `RequestVerificationToken` header or form field) of a request the browser authenticated on its
-  own, as cookie authentication does. A request with an `Authorization` header, and an anonymous request, need no token.
-  The host must register antiforgery services (`AddAntiforgery()`, which MVC, Razor Pages and Razor components already do)
+  antiforgery token (the `RequestVerificationToken` header or form field) of a request whose credential the browser
+  attaches by itself. It exempts only identities from the schemes in
+  `AntiforgeryEndpointFilterOptions.NonCookieAuthenticationTypes` (`Bearer`, `Api`, `ApiKey`, `OpenIddict.Validation.AspNetCore`;
+  add the one your API scheme produces); an `Authorization` header exempts nothing. An anonymous request carrying the
+  visitor cookie is validated too, and an anonymous request without it needs no token. `AddCoreAIDocumentProcessing`
+  registers `AddAntiforgery()`.
+- the remove endpoint and the document download endpoints check that the caller owns the session whose documents they
+  touch, as upload does, and answer `404` for someone else's. A signed-in caller owns a session stamped with their
+  name identifier or their name. Uploads to one session run one at a time inside the process, so the cap holds under
+  parallel uploads; across several instances, use a store that checks concurrency or sticky routing.
 
 The vendored `ai-chat.js` and `chat-interaction.js` send the token for you. They read it from the chat config's
 `antiforgeryToken`, else from `<meta name="RequestVerificationToken" content="...">`, else from the hidden
