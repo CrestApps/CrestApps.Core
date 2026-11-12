@@ -1,4 +1,6 @@
-﻿.ai-chat-message-heading {
+﻿@import "./agui-activity.css";
+
+.ai-chat-message-heading {
     font-size: 0.75rem;
     margin-bottom: 0.35rem;
 }
@@ -592,3 +594,4 @@ img.medium-zoom-image--opened {
         animation: none;
     }
 }
+

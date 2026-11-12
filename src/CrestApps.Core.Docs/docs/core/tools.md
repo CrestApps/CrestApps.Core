@@ -57,6 +57,7 @@ Returns an `AIToolBuilder<TTool>` for fluent configuration:
 | `.WithoutDependency(string)` / `.WithoutDependencies(params string[])` | Removes previously registered dependency tools |
 | `.Hidden()` | Makes the tool private to explicitly named profiles or agents and excludes it from picker-style/public export surfaces |
 | `.Selectable()` | Makes the tool visible in UI and assignable to profiles |
+| `.RequireApproval()` | Asks the user to approve each call before it runs, in chat runs that can ask (AG-UI runs). See [AG-UI tool approvals](./ag-ui.md#tool-approvals) |
 
 ### Tool Purposes
 

@@ -17,7 +17,7 @@ internal static class AIFunctionExtensions
     /// To chat tools chat tool.
     /// </summary>
     /// <param name="function">The function.</param>
-    public static ChatTool ToChatTool(this AIFunction function)
+    public static ChatTool ToChatTool(this AIFunctionDeclaration function)
     {
         var parameters = BinaryData.FromObjectAsJson(function.JsonSchema, _jsonSerializerOptions);
 

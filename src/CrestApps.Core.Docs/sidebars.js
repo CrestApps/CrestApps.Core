@@ -40,6 +40,7 @@ const sidebars = {
                     ],
                 },
                 'core/agents',
+                'core/ag-ui',
                 'core/ai-core',
                 'core/ai-documents',
                 'core/ai-memory',

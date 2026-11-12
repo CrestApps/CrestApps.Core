@@ -141,4 +141,17 @@ public sealed class AIToolBuilder<TTool>
 
         return this;
     }
+
+    /// <summary>
+    /// Asks a person to approve each call of this tool before it runs, when the caller can ask for an approval
+    /// (such as an AG-UI chat run). Use it for tools that change or delete data, send messages, or have other
+    /// effects that are hard to undo.
+    /// </summary>
+    /// <param name="requiresApproval">Whether each call needs an approval.</param>
+    public AIToolBuilder<TTool> RequireApproval(bool requiresApproval = true)
+    {
+        _entry.RequiresApproval = requiresApproval;
+
+        return this;
+    }
 }

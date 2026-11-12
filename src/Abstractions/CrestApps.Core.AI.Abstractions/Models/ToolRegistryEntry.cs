@@ -47,4 +47,11 @@ public sealed class ToolRegistryEntry
     /// MCP proxy creation for MCP tools).
     /// </summary>
     public Func<IServiceProvider, ValueTask<AITool>> CreateAsync { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether a person must approve each call of this tool before it runs.
+    /// It applies only to callers that can ask for an approval, such as an AG-UI chat run; other callers run the
+    /// tool as before.
+    /// </summary>
+    public bool RequiresApproval { get; set; }
 }

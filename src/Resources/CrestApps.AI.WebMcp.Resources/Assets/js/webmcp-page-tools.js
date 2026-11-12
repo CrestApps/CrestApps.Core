@@ -2,8 +2,8 @@
 /*
  * WebMCP page tools.
  *
- * Tools that work on the page the user sees: what the page is, where its menus lead, opening another page of the same
- * site, and reading and filling its forms. They never submit a form and never leave the site, so the user always
+ * Tools that work on the page the user sees: what the page is, what it shows, where its menus lead, opening another
+ * page of the same site, and reading and filling its forms. They never submit a form and never leave the site, so the user always
  * reviews and saves the changes an agent makes.
  *
  * The tools are registered with the standard `document.modelContext.registerTool`, so any WebMCP agent can use them:
@@ -18,11 +18,19 @@
   var MAX_LINKS = 200;
   var MAX_FIELDS = 200;
   var MAX_VALUE_LENGTH = 2000;
+  var MAX_CONTENT_LENGTH = 8000;
+  var MAX_TABLES = 10;
+  var MAX_TABLE_ROWS = 50;
+  var MAX_CELL_LENGTH = 300;
 
   // The selectors the tools read the page with.
   var selectors = {
     description: 'meta[name="description"]',
     headings: 'h1, h2',
+    main: 'main, [role="main"]',
+    // What page_read_content leaves out of the page's text: scripts, menus, forms (page_list_form_fields reads them),
+    // hidden parts, the chat itself, and anything a page marks with data-webmcp-ignore.
+    ignored: 'script, style, noscript, template, svg, nav, aside, form, dialog:not([open]), [hidden], [aria-hidden="true"], [role="navigation"], [data-webmcp-ignore], [class*="ai-chat-widget"]',
     links: 'nav a[href], header a[href], aside a[href], [role="navigation"] a[href]',
     fields: 'form input, form select, form textarea',
   };
@@ -42,6 +50,123 @@
   // The tools register() registered, by ModelContext and name, so the CrestApps chat can run them through their own
   // execute and tell the model why one failed (executeTool reports every failure as "Tool execution failed").
   var registeredTools = new WeakMap();
+
+  // Elements that start a new line in the text page_read_content reads.
+  var BLOCK_TAGS = ['ADDRESS', 'ARTICLE', 'BLOCKQUOTE', 'BR', 'DD', 'DETAILS', 'DIV', 'DL', 'DT', 'FIELDSET', 'FIGCAPTION', 'FIGURE', 'FOOTER', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HEADER', 'HR', 'LI', 'OL', 'P', 'PRE', 'SECTION', 'SUMMARY', 'UL'];
+
+  function isIgnored(node) {
+    if (node.hidden || (typeof node.matches === 'function' && node.matches(selectors.ignored))) {
+      return true;
+    }
+
+    // Parts the page hides with CSS, such as closed menus and modals.
+    return typeof node.checkVisibility === 'function' && !node.checkVisibility();
+  }
+
+  function cellText(cell) {
+    var text = cleanText(cell.textContent);
+
+    return text.length > MAX_CELL_LENGTH ? text.slice(0, MAX_CELL_LENGTH) + '…' : text;
+  }
+
+  function readTable(table) {
+    var rows = Array.prototype.slice.call(table.rows || []);
+    var headers = [];
+
+    if (rows.length && Array.prototype.every.call(rows[0].cells || [], function (cell) { return (cell.tagName || '').toUpperCase() === 'TH'; })) {
+      headers = Array.prototype.map.call(rows.shift().cells, cellText);
+    }
+
+    var caption = table.caption ? cleanText(table.caption.textContent) : '';
+
+    return {
+      caption: caption || null,
+      headers: headers,
+      rows: rows.slice(0, MAX_TABLE_ROWS).map(function (row) {
+        return Array.prototype.map.call(row.cells || [], cellText);
+      }),
+      totalRows: rows.length,
+    };
+  }
+
+  /**
+   * Reads the text and the tables of the page's main region, the way a person reads it: menus, forms, hidden parts
+   * and the chat are left out, and each table is read once, as rows, where the text says [table N].
+   */
+  function readContent(doc) {
+    var root = doc.querySelector(selectors.main) || doc.body;
+    var lines = [];
+    var line = [];
+    var tables = [];
+    var tableCount = 0;
+
+    function endLine() {
+      var text = cleanText(line.join(' '));
+
+      if (text) {
+        lines.push(text);
+      }
+
+      line = [];
+    }
+
+    function walk(node) {
+      if (node.nodeType === 3) {
+        line.push(node.nodeValue);
+
+        return;
+      }
+
+      if (node.nodeType !== 1 || isIgnored(node)) {
+        return;
+      }
+
+      var tag = (node.tagName || '').toUpperCase();
+
+      if (tag === 'TABLE') {
+        endLine();
+        tableCount++;
+
+        if (tables.length < MAX_TABLES) {
+          tables.push(readTable(node));
+          lines.push('[table ' + tables.length + ']');
+        }
+
+        return;
+      }
+
+      var isBlock = BLOCK_TAGS.indexOf(tag) >= 0;
+
+      if (isBlock) {
+        endLine();
+      }
+
+      var children = node.childNodes || [];
+
+      for (var i = 0; i < children.length; i++) {
+        walk(children[i]);
+      }
+
+      if (isBlock) {
+        endLine();
+      }
+    }
+
+    if (root) {
+      walk(root);
+      endLine();
+    }
+
+    var text = lines.join('\n');
+    var truncated = text.length > MAX_CONTENT_LENGTH || tableCount > tables.length ||
+      tables.some(function (table) { return table.totalRows > table.rows.length; });
+
+    return {
+      text: text.length > MAX_CONTENT_LENGTH ? text.slice(0, MAX_CONTENT_LENGTH) + '…' : text,
+      tables: tables,
+      truncated: truncated,
+    };
+  }
 
   function resolveSameOrigin(href, loc) {
     if (!href) {
@@ -180,18 +305,20 @@
   /**
    * Creates the page tools for a document.
    *
-   * @param {{ doc: any, loc: any, isAdmin?: boolean, fetch?: Function }} options The document, its location, whether it
-   *   is an admin page, and the fetch function page_navigate checks that a page exists with (no check without it).
+   * @param {{ doc: any, loc: any, isAdmin?: boolean, fetch?: Function, navigateDelayMs?: number }} options The document,
+   *   its location, whether it is an admin page, the fetch function page_navigate checks that a page exists with (no
+   *   check without it), and how long page_navigate waits after answering before it opens the page.
    */
   function createPageTools(options) {
     var doc = options.doc;
     var loc = options.loc;
+    var navigateDelayMs = typeof options.navigateDelayMs === 'number' ? options.navigateDelayMs : 400;
 
     return [
       {
         name: 'page_get_info',
         title: 'Get page info',
-        description: 'Describes the page the user has open: its title, address, description and main headings, and whether it is an admin page.',
+        description: 'Describes the page the user has open: its title, address, description and main headings, and whether it is an admin page. To read what the page shows, use page_read_content.',
         inputSchema: { type: 'object', properties: {} },
         annotations: { readOnlyHint: true },
         execute: function () {
@@ -214,6 +341,16 @@
             headings: headings,
             isAdmin: !!options.isAdmin,
           });
+        },
+      },
+      {
+        name: 'page_read_content',
+        title: 'Read page content',
+        description: 'Reads what the page shows in its main area: its text, and its tables as headers and rows (for example the records a list page shows). Menus, forms and hidden parts are left out; use page_list_links and page_list_form_fields for those.',
+        inputSchema: { type: 'object', properties: {} },
+        annotations: { readOnlyHint: true },
+        execute: function () {
+          return readContent(doc);
         },
       },
       {
@@ -251,7 +388,7 @@
       {
         name: 'page_navigate',
         title: 'Open page',
-        description: 'Opens another page of this site in the current tab. Only addresses on this site are allowed. Unsaved changes on the current page are lost.',
+        description: 'Opens another page of this site in the current tab. Only addresses on this site are allowed; take them from page_list_links, and start a site path with /. Unsaved changes on the current page are lost.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -282,7 +419,12 @@
             throw new Error('The site has no page at "' + url.pathname + url.search + '" (404). Do not guess addresses: call page_list_links to find the page to open.');
           }
 
-          loc.assign(url.href);
+          // Answer first and open the page a moment later, so the agent gets the result before this page (and
+          // the chat connection on it) goes away. The chat finishes the reply on the server and shows it on the
+          // next page.
+          setTimeout(function () {
+            loc.assign(url.href);
+          }, navigateDelayMs);
 
           return ({ navigatedTo: url.href });
         },

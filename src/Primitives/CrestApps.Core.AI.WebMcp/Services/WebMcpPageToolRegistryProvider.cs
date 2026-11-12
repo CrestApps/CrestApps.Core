@@ -70,8 +70,14 @@ internal sealed class WebMcpPageToolRegistryProvider : IToolRegistryProvider
             return [];
         }
 
+        // A client that can approve tool calls (an AG-UI chat run) gets the consequential tools too, and is asked
+        // before each call unless the profile lets them run without asking. Other clients get them only when the
+        // profile allows them, as before.
+        var supportsApproval = context.AdditionalProperties.TryGetValue(AICompletionContextKeys.ToolApprovalSupported, out var approvalValue) &&
+            approvalValue is true;
+
         return tools
-            .Where(tool => !tool.Consequential || settings.AllowConsequentialPageTools)
+            .Where(tool => !tool.Consequential || settings.AllowConsequentialPageTools || supportsApproval)
             .Select(tool => new ToolRegistryEntry
             {
                 Id = $"webmcp:{tool.Name}",
@@ -79,6 +85,7 @@ internal sealed class WebMcpPageToolRegistryProvider : IToolRegistryProvider
                 Description = tool.Description,
                 Source = ToolRegistryEntrySource.Local,
                 SourceId = "webmcp",
+                RequiresApproval = tool.Consequential && !settings.AllowConsequentialPageTools,
                 CreateAsync = _ => ValueTask.FromResult<AITool>(new WebMcpPageToolFunction(tool, connectionId, _client)),
             })
             .ToList();

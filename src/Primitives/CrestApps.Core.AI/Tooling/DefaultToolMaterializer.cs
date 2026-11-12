@@ -123,7 +123,7 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
 
                 if (tool is not null)
                 {
-                    tools.Add(tool);
+                    tools.Add(WrapForApproval(tool, entry, options));
                 }
                 else if (_logger.IsEnabled(LogLevel.Debug))
                 {
@@ -142,6 +142,29 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
             DeniedToolNames = (IReadOnlyList<string>)deniedToolNames ?? [],
         };
     }
+
+    /// <summary>
+    /// Wraps a tool that requires an approval in <see cref="ApprovalRequiredAIFunction"/> when the caller can ask a
+    /// person for one, so the function invocation pauses for the approval instead of running it.
+    /// </summary>
+    /// <param name="tool">The materialized tool.</param>
+    /// <param name="entry">The registry entry the tool came from.</param>
+    /// <param name="options">The materialization options.</param>
+    /// <returns>The tool to offer.</returns>
+#pragma warning disable MEAI001 // ApprovalRequiredAIFunction is a preview API of Microsoft.Extensions.AI.
+    internal static AITool WrapForApproval(AITool tool, ToolRegistryEntry entry, ToolMaterializationOptions options)
+    {
+        if (!options.SupportsToolApproval ||
+            !entry.RequiresApproval ||
+            tool is not AIFunction function ||
+            tool is ApprovalRequiredAIFunction)
+        {
+            return tool;
+        }
+
+        return new ApprovalRequiredAIFunction(function);
+    }
+#pragma warning restore MEAI001
 
     /// <summary>
     /// Determines whether an entry represents a listable (user-selectable) tool. Only listable tools are

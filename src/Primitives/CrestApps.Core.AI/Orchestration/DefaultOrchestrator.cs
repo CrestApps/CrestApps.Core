@@ -374,9 +374,29 @@ public sealed class DefaultOrchestrator : IOrchestrator
         return messages;
     }
 
+    /// <summary>
+    /// Determines whether the history ends with a person's answer to a tool approval, which makes the run a resume.
+    /// </summary>
+    /// <param name="messages">The conversation history.</param>
+    /// <returns><see langword="true"/> when the last message answers an approval.</returns>
+#pragma warning disable MEAI001 // ToolApprovalResponseContent is a preview API of Microsoft.Extensions.AI.
+    internal static bool IsApprovalResume(IReadOnlyList<ChatMessage> messages)
+    {
+        return messages.Count > 0 && messages[^1].Contents.Any(content => content is ToolApprovalResponseContent);
+    }
+#pragma warning restore MEAI001
+
     private static List<ChatMessage> GetExecutionMessages(OrchestrationContext context)
     {
         var messages = context.ConversationHistory?.ToList() ?? [];
+
+        // A run that resumes after a person answered a tool approval ends with that answer. The history already holds
+        // the user's message and the paused turn, so it goes to the model as it is.
+        if (IsApprovalResume(messages))
+        {
+            return messages;
+        }
+
         var currentUserMessage = new ChatMessage(ChatRole.User, context.UserMessage);
 
         if (messages.Count == 0)

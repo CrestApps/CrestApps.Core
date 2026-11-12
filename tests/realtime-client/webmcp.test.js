@@ -451,7 +451,7 @@ describe('init', () => {
 
         const api = webMcp.init(win);
 
-        await pageTools.register(modelContext, { doc: { querySelector: () => null, querySelectorAll: () => [] }, loc: location });
+        await pageTools.register(modelContext, { doc: { querySelector: () => null, querySelectorAll: () => [] }, loc: location, navigateDelayMs: 0 });
         api.connectChat({
             invoke: mock.fn(() => Promise.resolve()),
             on: (name, handler) => {
@@ -468,6 +468,9 @@ describe('init', () => {
             text: '{"navigatedTo":"https://example.com/Admin/Articles"}',
             isError: false,
         });
+
+        // The page opens a moment after the tool answers.
+        await new Promise((resolve) => setTimeout(resolve, 0));
         assert.deepStrictEqual(assigned, ['https://example.com/Admin/Articles']);
     });
 });

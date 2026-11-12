@@ -67,6 +67,13 @@ public sealed class AIToolDefinitionEntry
     public string Purpose { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether a person must approve each call of this tool before it runs,
+    /// when the caller can ask for an approval (such as an AG-UI chat run). Set it on tools that change or delete
+    /// data, send messages, or have other effects that are hard to undo.
+    /// </summary>
+    public bool RequiresApproval { get; set; }
+
+    /// <summary>
     /// Gets the registered tool dependencies that should be included when this tool is selected.
     /// Missing dependencies are ignored by dependency expansion helpers.
     /// </summary>

@@ -1,4 +1,6 @@
-﻿/* CrestApps AI Chat Widget */
+﻿@import "./agui-activity.css";
+
+/* CrestApps AI Chat Widget */
 :root {
     --ai-widget-primary: var(--bs-secondary, #6c757d);
     --ai-widget-primary-rgb: var(--bs-secondary-rgb, 108, 117, 125);

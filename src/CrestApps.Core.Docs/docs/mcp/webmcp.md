@@ -177,8 +177,9 @@ registration.abort();
 | Tool | Read-only | What it does |
 | --- | --- | --- |
 | `page_get_info` | Yes | The page's title, address, description, first 20 `h1` and `h2` headings, and whether it is an admin page (the `isAdmin` setting). |
+| `page_read_content` | Yes | What the page shows in `main` (or `[role="main"]`, else the body): its text, one line per block and cut to 8,000 characters, and up to 10 tables as caption, headers and the first 50 rows (cells cut to 300 characters), each marked `[table N]` in the text. Menus, forms, scripts, hidden parts, the chat and anything marked `data-webmcp-ignore` are left out, and `truncated` says whether something was cut. |
 | `page_list_links` | Yes | Up to 200 same-origin links in `nav`, `header`, `aside` and `[role="navigation"]`, with their text. An optional `filter` keeps the links whose text contains it. |
-| `page_navigate` | No | Opens a same-origin address: a path that starts with `/`, or a full address on the site. Before it opens the page, it asks the site with a `HEAD` request whether the page exists. A bare relative path such as `ArticlesAdmin`, which is usually a guess, a page the site answers with 404 or 410, other origins and script addresses are refused with a message that tells the agent to call `page_list_links`. A page that refuses `HEAD` (405) or sends elsewhere is opened as asked. |
+| `page_navigate` | No | Opens a same-origin address: a path that starts with `/`, or a full address on the site. Before it opens the page, it asks the site with a `HEAD` request whether the page exists. A bare relative path such as `ArticlesAdmin`, which is usually a guess, a page the site answers with 404 or 410, other origins and script addresses are refused with a message that tells the agent to call `page_list_links`. A page that refuses `HEAD` (405) or sends elsewhere is opened as asked. It answers first and opens the page a moment later (`navigateDelayMs`, 400 ms by default), so a chat that called it gets the result; an [AG-UI run](../core/ag-ui.md#runs-that-continue-on-the-next-page) then ends its turn, and the chat on the next page continues it with that page's tools. |
 | `page_list_form_fields` | Yes | Up to 200 form fields: name, id, label, type, value (cut to 2,000 characters), required and, for lists, the choices. Hidden, password, file, button and disabled fields and the antiforgery token are left out. |
 | `page_set_form_field` | No | Puts a value into one listed field, found by name, id or label, and raises `input` and `change`. For a list, the value is a choice's value or text. It never submits the form. |
 
@@ -191,6 +192,8 @@ With `AddPageTools<THub>()`, the AI chat acts as a WebMCP agent for the browser 
 3. `AIChatResponseHandler` puts the connection id in the completion context under `AICompletionContextKeys.ChatConnectionId`.
 4. `WebMcpPageToolRegistryProvider`, an `IToolRegistryProvider`, adds one `WebMcpPageToolFunction` per page tool when the chat session's profile has `WebMcpProfileSettings.AllowPageTools` set.
 5. When the model calls a page tool, `HubWebMcpPageToolClient<THub>` invokes `ExecutePageTool` on the connection with SignalR client results. The tab runs the tool with `executeTool()` and returns `{ text, isError }`, which the server waits for up to `WebMcpPageToolOptions.ToolCallTimeout` (60 seconds by default).
+
+In an [AG-UI run](../core/ag-ui.md), the chat shows each page tool call and its result as it happens.
 
 ### Why a page tool failed
 
@@ -211,7 +214,7 @@ The chat honors the annotations the page sets:
 | Annotation | What the chat does |
 | --- | --- |
 | `readOnlyHint` | Kept with the tool (`WebMcpPageTool.ReadOnly`). |
-| `consequentialHint` | The tool is offered to the model only when the profile also has `WebMcpProfileSettings.AllowConsequentialPageTools`, because it can do something that cannot be undone, such as placing an order. |
+| `consequentialHint` | The tool can do something that cannot be undone, such as placing an order. In an [AG-UI run](../core/ag-ui.md#tool-approvals) (the chat UI's default) it is offered to the model and each call waits for the user's **Allow** or **Deny**; with `WebMcpProfileSettings.AllowConsequentialPageTools` it runs without asking. Other chat runs offer it only when the profile allows consequential page tools. |
 | `untrustedContentHint` | The result reaches the model after a notice that it is untrusted content to treat as data, not as instructions (`WebMcpPageToolFunction.UntrustedContentNotice`). |
 
 ### Profiles
@@ -248,5 +251,5 @@ Both sample hosts have a **WebMCP Playground** page (`/webmcp/playground`) for c
 - A browser agent acts as the signed-in user. Give agents only the tools you would let the user run, and prefer read-only tools.
 - Page tools never submit forms and never leave the site, so the user reviews and saves what an agent changes.
 - Page tools only reach the completions of messages sent from the same connection, and only for profiles that allow them. A profile that allows page tools lets the model run any tool the page exposes, including a third-party script's, so allow them only on profiles used on pages whose scripts you trust.
-- Tools marked `consequentialHint` need a second opt-in, and results marked `untrustedContentHint` reach the model as data.
+- Tools marked `consequentialHint` wait for the user's approval in an AG-UI run, or need a second opt-in, and results marked `untrustedContentHint` reach the model as data.
 - Frames on other origins reach the chat only when the page allows them with `allow="tools"` and you list their origin in `pageToolOrigins`.

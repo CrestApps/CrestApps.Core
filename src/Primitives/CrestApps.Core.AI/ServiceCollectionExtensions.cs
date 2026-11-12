@@ -18,6 +18,7 @@ using CrestApps.Core.AI.Security;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Speech;
 using CrestApps.Core.AI.Tooling;
+using CrestApps.Core.AI.Tooling.SharedState;
 using CrestApps.Core.AI.Tools;
 using CrestApps.Core.Builders;
 using CrestApps.Core.Infrastructure.Indexing;
@@ -1017,6 +1018,8 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, SystemToolRegistryProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, ProfileToolRegistryProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, AgentToolRegistryProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, SharedStateToolRegistryProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IToolRegistryProvider, ClientToolRegistryProvider>());
         services.TryAddScoped<IToolRegistry, DefaultToolRegistry>();
         services.TryAddScoped<IToolMaterializer, DefaultToolMaterializer>();
         services.TryAddSingleton(sp => new ToolRelevanceScoper(
@@ -1027,6 +1030,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, PreemptiveRagOrchestrationHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, RealtimeRagGuidanceHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, AIToolExecutionContextOrchestrationHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IOrchestrationContextBuilderHandler, ClientContextOrchestrationHandler>());
 
         services.TryAddScoped<CrestApps.Core.AI.Realtime.IRealtimeSessionConfigurator, DefaultRealtimeSessionConfigurator>();
         services.TryAddScoped<CrestApps.Core.AI.Realtime.IRealtimeTurnGrounding, DefaultRealtimeTurnGrounding>();

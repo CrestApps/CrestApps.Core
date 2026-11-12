@@ -59,6 +59,8 @@ public sealed class AIChatResponseHandler : IChatResponseHandler
                         // run the WebMCP page tools it registered.
                         ctx.CompletionContext.AdditionalProperties[AICompletionContextKeys.ChatConnectionId] = context.ConnectionId;
                     }
+
+                    ApplyClientOptions(context, ctx.CompletionContext);
                 },
                 cancellationToken);
 
@@ -78,6 +80,13 @@ public sealed class AIChatResponseHandler : IChatResponseHandler
                 {
                     ctx.UserMessage = context.Prompt;
                     ctx.ConversationHistory = context.ConversationHistory;
+
+                    if (!string.IsNullOrEmpty(context.ConnectionId))
+                    {
+                        ctx.CompletionContext.AdditionalProperties[AICompletionContextKeys.ChatConnectionId] = context.ConnectionId;
+                    }
+
+                    ApplyClientOptions(context, ctx.CompletionContext);
                 },
                 cancellationToken);
 
@@ -94,5 +103,44 @@ public sealed class AIChatResponseHandler : IChatResponseHandler
             .WithOrchestrationTelemetry(orchestrator.Name, cancellationToken);
 
         return ChatResponseHandlerResult.Streaming(stream);
+    }
+
+    /// <summary>
+    /// Passes what the client sent with the message on to the completion: its context, the state it shares with
+    /// the agent, whether it can approve tool calls, and the tools it runs itself.
+    /// </summary>
+    /// <param name="context">The handler context.</param>
+    /// <param name="completionContext">The completion context.</param>
+    private static void ApplyClientOptions(ChatResponseHandlerContext context, AICompletionContext completionContext)
+    {
+        if (completionContext is null)
+        {
+            return;
+        }
+
+        if (context.ClientContext is { Count: > 0 })
+        {
+            completionContext.AdditionalProperties[AICompletionContextKeys.ClientContext] = context.ClientContext;
+        }
+
+        if (context.SharedState is not null)
+        {
+            completionContext.AdditionalProperties[AICompletionContextKeys.SharedState] = context.SharedState;
+        }
+
+        if (context.SupportsToolApproval)
+        {
+            completionContext.AdditionalProperties[AICompletionContextKeys.ToolApprovalSupported] = true;
+        }
+
+        if (context.ContinuesOnNextPage)
+        {
+            completionContext.AdditionalProperties[AICompletionContextKeys.ContinuesOnNextPage] = true;
+        }
+
+        if (context.ClientTools is { Count: > 0 })
+        {
+            completionContext.AdditionalProperties[AICompletionContextKeys.ClientTools] = context.ClientTools;
+        }
     }
 }

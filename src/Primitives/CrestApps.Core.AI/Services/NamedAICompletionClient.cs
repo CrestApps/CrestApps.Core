@@ -256,9 +256,11 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         IEnumerable<ChatMessage> messages,
         AICompletionContext context)
     {
+        // A tool message is kept when it carries tool results: the answers to the tool calls an earlier answer made.
         var chatMessages = messages.Where(static x =>
-            (x.Role == ChatRole.User || x.Role == ChatRole.Assistant) &&
-            (!string.IsNullOrEmpty(x.Text) || x.Contents is { Count: > 0 }));
+            ((x.Role == ChatRole.User || x.Role == ChatRole.Assistant) &&
+                (!string.IsNullOrEmpty(x.Text) || x.Contents is { Count: > 0 })) ||
+            (x.Role == ChatRole.Tool && x.Contents.Any(static content => content is FunctionResultContent)));
 
         var prompts = new List<ChatMessage>();
 
@@ -272,6 +274,15 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
         if (context.PastMessagesCount > 0)
         {
             AddLastMessages(prompts, chatMessages, context.PastMessagesCount.Value);
+
+            // A history cut to its newest messages can start with tool results whose tool calls were cut off, which
+            // providers reject.
+            var firstMessage = string.IsNullOrEmpty(systemMessage) ? 0 : 1;
+
+            while (prompts.Count > firstMessage && prompts[firstMessage].Role == ChatRole.Tool)
+            {
+                prompts.RemoveAt(firstMessage);
+            }
         }
         else
         {
