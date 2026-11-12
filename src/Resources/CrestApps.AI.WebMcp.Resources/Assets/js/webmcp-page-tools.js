@@ -44,6 +44,13 @@
   }
 
 
+  // An address that starts with a scheme, such as "https:" or "javascript:".
+  var ABSOLUTE_ADDRESS = /^[A-Za-z][A-Za-z0-9+.-]*:/;
+
+  // The tools register() registered, by ModelContext and name, so the CrestApps chat can run them through their own
+  // execute and tell the model why one failed (executeTool reports every failure as "Tool execution failed").
+  var registeredTools = new WeakMap();
+
   // Elements that start a new line in the text page_read_content reads.
   var BLOCK_TAGS = ['ADDRESS', 'ARTICLE', 'BLOCKQUOTE', 'BR', 'DD', 'DETAILS', 'DIV', 'DL', 'DT', 'FIELDSET', 'FIGCAPTION', 'FIGURE', 'FOOTER', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HEADER', 'HR', 'LI', 'OL', 'P', 'PRE', 'SECTION', 'SUMMARY', 'UL'];
 
@@ -270,6 +277,27 @@
     return null;
   }
 
+  /**
+   * Asks the site whether a page exists, with a HEAD request that downloads nothing. Only a 404 or 410 answer means it
+   * does not: a page that refuses HEAD (405), sends to the login page or cannot be reached is opened as asked.
+   *
+   * @param {Function | undefined} fetchImpl The fetch function, or nothing to skip the check.
+   * @param {string} href The address.
+   */
+  async function pageIsMissing(fetchImpl, href) {
+    if (typeof fetchImpl !== 'function') {
+      return false;
+    }
+
+    try {
+      var response = await fetchImpl(href, { method: 'HEAD', credentials: 'same-origin', redirect: 'follow' });
+
+      return response.status === 404 || response.status === 410;
+    } catch (error) {
+      return false;
+    }
+  }
+
   function raise(field, type) {
     field.dispatchEvent(new Event(type, { bubbles: true }));
   }
@@ -277,8 +305,9 @@
   /**
    * Creates the page tools for a document.
    *
-   * @param {{ doc: any, loc: any, isAdmin?: boolean, navigateDelayMs?: number }} options The document, its location,
-   *   whether it is an admin page, and how long page_navigate waits after answering before it opens the page.
+   * @param {{ doc: any, loc: any, isAdmin?: boolean, fetch?: Function, navigateDelayMs?: number }} options The document,
+   *   its location, whether it is an admin page, the fetch function page_navigate checks that a page exists with (no
+   *   check without it), and how long page_navigate waits after answering before it opens the page.
    */
   function createPageTools(options) {
     var doc = options.doc;
@@ -363,15 +392,31 @@
         inputSchema: {
           type: 'object',
           properties: {
-            url: { type: 'string', description: 'The address to open, relative to the site or absolute on the same site.' },
+            url: { type: 'string', description: 'The address to open: a path that starts with "/", or a full address on this site, as page_list_links lists them.' },
           },
           required: ['url'],
         },
-        execute: function (input) {
-          var url = resolveSameOrigin(input && input.url, loc);
+        execute: async function (input) {
+          var address = cleanText(input && input.url);
+
+          if (!address) {
+            throw new Error('Give the address of the page to open. Call page_list_links to find it.');
+          }
+
+          // A bare relative path, such as "ArticlesAdmin", resolves against the current page and usually names a page
+          // that does not exist: it is a guess, not an address the site gave.
+          if (address.charAt(0) !== '/' && !ABSOLUTE_ADDRESS.test(address)) {
+            throw new Error('"' + address + '" is not an address on this site. Give a path that starts with "/" or a full address on this site, as page_list_links lists them. Call page_list_links to find the page to open.');
+          }
+
+          var url = resolveSameOrigin(address, loc);
 
           if (!url) {
-            throw new Error('Only addresses on this site can be opened.');
+            throw new Error('Only addresses on this site can be opened. Call page_list_links to find the page to open.');
+          }
+
+          if (await pageIsMissing(options.fetch, url.href)) {
+            throw new Error('The site has no page at "' + url.pathname + url.search + '" (404). Do not guess addresses: call page_list_links to find the page to open.');
           }
 
           // Answer first and open the page a moment later, so the agent gets the result before this page (and
@@ -446,21 +491,57 @@
    * Registers the page tools with the page's ModelContext.
    *
    * @param {any} modelContext The page's ModelContext (document.modelContext).
-   * @param {{ doc: any, loc: any, isAdmin?: boolean }} options The document, its location, and whether it is an admin page.
+   * @param {{ doc: any, loc: any, isAdmin?: boolean, fetch?: Function }} options The document, its location, whether it
+   *   is an admin page, and the fetch function page_navigate checks that a page exists with (no check without it).
    * @param {AbortSignal} [signal] Unregisters the tools when aborted.
    */
   function register(modelContext, options, signal) {
+    var tools = registeredTools.get(modelContext);
+
+    if (!tools) {
+      tools = new Map();
+      registeredTools.set(modelContext, tools);
+    }
+
     return Promise.all(createPageTools(options).map(function (tool) {
-      return modelContext.registerTool(tool, signal ? { signal: signal } : {}).catch(function (error) {
+      return modelContext.registerTool(tool, signal ? { signal: signal } : {}).then(function () {
+        if (signal && signal.aborted) {
+          return;
+        }
+
+        tools.set(tool.name, tool);
+
+        if (signal) {
+          signal.addEventListener('abort', function () {
+            if (tools.get(tool.name) === tool) {
+              tools.delete(tool.name);
+            }
+          }, { once: true });
+        }
+      }, function (error) {
         console.warn('The page tool "' + tool.name + '" could not be registered.', error);
       });
     }));
+  }
+
+  /**
+   * Answers the page tool register() registered with a ModelContext under a name, with its execute callback, or null
+   * when it registered none: another script may have registered a tool of that name first.
+   *
+   * @param {any} modelContext The ModelContext the tool was registered with.
+   * @param {string} name The tool's name.
+   */
+  function getRegisteredTool(modelContext, name) {
+    var tools = modelContext ? registeredTools.get(modelContext) : null;
+
+    return (tools && tools.get(name)) || null;
   }
 
   window.CrestAppsWebMcpPageTools = {
     selectors: selectors,
     createPageTools: createPageTools,
     register: register,
+    getRegisteredTool: getRegisteredTool,
   };
 
   if (window.document && window.document.modelContext) {
@@ -469,6 +550,7 @@
     register(window.document.modelContext, {
       doc: window.document,
       loc: window.location,
+      fetch: typeof window.fetch === 'function' ? window.fetch.bind(window) : undefined,
       isAdmin: !!(config && config.isAdmin),
     });
   }

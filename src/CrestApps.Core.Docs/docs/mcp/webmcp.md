@@ -179,7 +179,7 @@ registration.abort();
 | `page_get_info` | Yes | The page's title, address, description, first 20 `h1` and `h2` headings, and whether it is an admin page (the `isAdmin` setting). |
 | `page_read_content` | Yes | What the page shows in `main` (or `[role="main"]`, else the body): its text, one line per block and cut to 8,000 characters, and up to 10 tables as caption, headers and the first 50 rows (cells cut to 300 characters), each marked `[table N]` in the text. Menus, forms, scripts, hidden parts, the chat and anything marked `data-webmcp-ignore` are left out, and `truncated` says whether something was cut. |
 | `page_list_links` | Yes | Up to 200 same-origin links in `nav`, `header`, `aside` and `[role="navigation"]`, with their text. An optional `filter` keeps the links whose text contains it. |
-| `page_navigate` | No | Opens a same-origin address. Other origins and script addresses are refused. It answers first and opens the page a moment later (`navigateDelayMs`, 400 ms by default), so a chat that called it gets the result; an [AG-UI run](../core/ag-ui.md#runs-that-continue-on-the-next-page) then ends its turn, and the chat on the next page continues it with that page's tools. |
+| `page_navigate` | No | Opens a same-origin address: a path that starts with `/`, or a full address on the site. Before it opens the page, it asks the site with a `HEAD` request whether the page exists. A bare relative path such as `ArticlesAdmin`, which is usually a guess, a page the site answers with 404 or 410, other origins and script addresses are refused with a message that tells the agent to call `page_list_links`. A page that refuses `HEAD` (405) or sends elsewhere is opened as asked. It answers first and opens the page a moment later (`navigateDelayMs`, 400 ms by default), so a chat that called it gets the result; an [AG-UI run](../core/ag-ui.md#runs-that-continue-on-the-next-page) then ends its turn, and the chat on the next page continues it with that page's tools. |
 | `page_list_form_fields` | Yes | Up to 200 form fields: name, id, label, type, value (cut to 2,000 characters), required and, for lists, the choices. Hidden, password, file, button and disabled fields and the antiforgery token are left out. |
 | `page_set_form_field` | No | Puts a value into one listed field, found by name, id or label, and raises `input` and `change`. For a list, the value is a choice's value or text. It never submits the form. |
 
@@ -194,6 +194,14 @@ With `AddPageTools<THub>()`, the AI chat acts as a WebMCP agent for the browser 
 5. When the model calls a page tool, `HubWebMcpPageToolClient<THub>` invokes `ExecutePageTool` on the connection with SignalR client results. The tab runs the tool with `executeTool()` and returns `{ text, isError }`, which the server waits for up to `WebMcpPageToolOptions.ToolCallTimeout` (60 seconds by default).
 
 In an [AG-UI run](../core/ag-ui.md), the chat shows each page tool call and its result as it happens.
+
+### Why a page tool failed
+
+WebMCP's `executeTool()` reports every failure the same way: the reference polyfill rejects with `DOMException('Tool execution failed')`, whatever the tool threw. A model that only reads "The tool failed: Tool execution failed" cannot tell a wrong address from a broken page, so it keeps guessing.
+
+The page tools of `webmcp-page-tools.js` therefore run differently in the CrestApps chat. `register()` remembers each tool it registered, and `CrestAppsWebMcpPageTools.getRegisteredTool(modelContext, name)` answers it. When the model calls one of them in the same window, the tab runs the tool's own `execute`, the way `executeTool()` would (on a copy of the input, answering the result as JSON text), and returns the message the tool failed with, such as `The site has no page at "/ArticlesAdmin" (404). Do not guess addresses: call page_list_links to find the page to open.` The model can then list the links and try again.
+
+Every other tool, including one a third-party script registered, one from a frame, and one another script registered first under a page tool's name, still runs through `executeTool()`. The tools stay standard WebMCP tools for every other agent, which runs them with `executeTool()` as before.
 
 ### Tool names
 
