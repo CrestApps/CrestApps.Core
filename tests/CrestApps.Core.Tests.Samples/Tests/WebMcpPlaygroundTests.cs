@@ -167,6 +167,6 @@ public sealed class WebMcpPlaygroundTests : BothAppsTestBase
             }
             """, new object[] { name, input });
 
-        return JsonDocument.Parse(serialized).RootElement.Clone();
+        return JsonElement.Parse(serialized);
     }
 }

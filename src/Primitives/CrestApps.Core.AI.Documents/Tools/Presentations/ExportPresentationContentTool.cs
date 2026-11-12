@@ -108,7 +108,7 @@ internal sealed class ExportPresentationContentTool : PresentationToolBase
 
             foreach (var paragraph in BodyParagraphs(slide))
             {
-                builder.Append(new string(' ', paragraph.Level * 2)).Append("- ").AppendLine(paragraph.Text.Trim());
+                builder.Append(' ', paragraph.Level * 2).Append("- ").AppendLine(paragraph.Text.Trim());
             }
 
             builder.AppendLine();
@@ -172,7 +172,7 @@ internal sealed class ExportPresentationContentTool : PresentationToolBase
 
             foreach (var paragraph in BodyParagraphs(slide))
             {
-                builder.Append(new string(' ', paragraph.Level * 2)).Append("- ").AppendLine(paragraph.Text.Trim());
+                builder.Append(' ', paragraph.Level * 2).Append("- ").AppendLine(paragraph.Text.Trim());
             }
 
             foreach (var element in slide.AllElements())

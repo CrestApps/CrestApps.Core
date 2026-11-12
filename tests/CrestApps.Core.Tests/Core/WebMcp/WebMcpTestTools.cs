@@ -10,7 +10,7 @@ internal sealed class EchoTestTool : AIFunction
 {
     public const string TheName = "echo_tool";
 
-    private static readonly JsonElement _schema = JsonDocument.Parse("""{"type":"object","properties":{"text":{"type":"string"}}}""").RootElement.Clone();
+    private static readonly JsonElement _schema = JsonElement.Parse("""{"type":"object","properties":{"text":{"type":"string"}}}""");
 
     public override string Name => TheName;
 

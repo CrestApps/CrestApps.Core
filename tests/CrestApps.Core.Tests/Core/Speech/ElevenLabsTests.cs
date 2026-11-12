@@ -57,7 +57,7 @@ public sealed class ElevenLabsTests
         }
 
         Assert.StartsWith("https://api.eu.residency.elevenlabs.io/v1/", handler.Last.RequestUri!.AbsoluteUri);
-        Assert.False(JsonDocument.Parse(handler.LastBody).RootElement.TryGetProperty("language_code", out _));
+        Assert.False(JsonElement.Parse(handler.LastBody).TryGetProperty("language_code", out _));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class ElevenLabsTests
         }
 
         Assert.EndsWith("output_format=mp3_44100_128", handler.Last.RequestUri!.AbsoluteUri);
-        Assert.Equal(ElevenLabsConstants.DefaultTextToSpeechModel, JsonDocument.Parse(handler.LastBody).RootElement.GetProperty("model_id").GetString());
+        Assert.Equal(ElevenLabsConstants.DefaultTextToSpeechModel, JsonElement.Parse(handler.LastBody).GetProperty("model_id").GetString());
         Assert.Equal("audio/mpeg", Assert.IsType<DataContent>(updates[0].Contents[0]).MediaType);
     }
 
@@ -118,7 +118,7 @@ public sealed class ElevenLabsTests
 
         await client.GetAudioAsync("Wait<break time=\"500ms\"/>then <spell>AB1</spell>", new TextToSpeechOptions { VoiceId = "v" }, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Wait<break time=\"0.5s\" />then A-B-1", JsonDocument.Parse(handler.LastBody).RootElement.GetProperty("text").GetString());
+        Assert.Equal("Wait<break time=\"0.5s\" />then A-B-1", JsonElement.Parse(handler.LastBody).GetProperty("text").GetString());
     }
 
     [Fact]

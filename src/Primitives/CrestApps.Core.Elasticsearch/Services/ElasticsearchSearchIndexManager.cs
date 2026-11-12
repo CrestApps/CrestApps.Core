@@ -93,6 +93,7 @@ internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
         try
         {
             var properties = new Properties();
+            var propertyCount = 0;
 
             foreach (var field in fields)
             {
@@ -110,9 +111,10 @@ internal sealed class ElasticsearchSearchIndexManager : ISearchIndexManager
                     SearchFieldType.DateTime => new DateProperty(),
                     _ => new KeywordProperty(),
                 };
+                propertyCount++;
             }
 
-            if (!properties.Any())
+            if (propertyCount == 0)
             {
                 return true;
             }

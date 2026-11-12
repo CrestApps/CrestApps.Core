@@ -32,7 +32,7 @@ internal static partial class WebMcpPageToolValidator
     /// </summary>
     public const int MaxFunctionNameLength = 64;
 
-    private static readonly JsonElement _emptySchema = JsonDocument.Parse("""{"type":"object","properties":{}}""").RootElement.Clone();
+    private static readonly JsonElement _emptySchema = JsonElement.Parse("""{"type":"object","properties":{}}""");
 
     /// <summary>
     /// Keeps the valid tools, the first of each function name, up to <see cref="MaxTools"/>.
