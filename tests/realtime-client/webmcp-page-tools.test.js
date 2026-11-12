@@ -489,7 +489,7 @@ describe('page_list_form_fields', () => {
 });
 
 describe('page_set_form_field', () => {
-    it('sets a field found by name and raises input and change', async () => {
+    it('sets a field found by name, raises input and change, and answers the value it had before so it can be undone', async () => {
         const fields = formFields();
         const doc = fakeDocument({ fields: Object.values(fields) });
 
@@ -498,6 +498,12 @@ describe('page_set_form_field', () => {
         assert.strictEqual(fields.title.value, 'New title');
         assert.deepStrictEqual(fields.title.events, ['input', 'change']);
         assert.strictEqual(data.field.value, 'New title');
+        assert.strictEqual(data.previousValue, 'Hello');
+
+        const { data: checked } = await run(tools(doc).page_set_form_field, { field: 'Published', value: true });
+
+        assert.strictEqual(checked.previousValue, false);
+        assert.strictEqual(checked.field.value, true);
     });
 
     it('finds a field by id or by its label', async () => {

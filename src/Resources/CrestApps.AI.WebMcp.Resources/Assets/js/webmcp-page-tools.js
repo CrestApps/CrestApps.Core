@@ -477,7 +477,7 @@
       {
         name: 'page_set_form_field',
         title: 'Set form field',
-        description: 'Puts a value into one form field on the page, found by its name, id or label. It does not save or submit the form: the user reviews the change and saves it.',
+        description: 'Puts a value into one form field on the page, found by its name, id or label. It does not save or submit the form: the user reviews the change and saves it. The result has the field\'s value before the change (previousValue), so the change can be undone by setting it back.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -495,6 +495,7 @@
 
           var type = fieldType(field);
           var value = input.value;
+          var previousValue = describeField(field).value;
 
           if (type === 'checkbox' || type === 'radio') {
             field.checked = value === true || String(value).toLowerCase() === 'true';
@@ -516,7 +517,7 @@
           raise(field, 'input');
           raise(field, 'change');
 
-          return ({ field: describeField(field) });
+          return ({ field: describeField(field), previousValue: previousValue });
         },
       },
     ];
