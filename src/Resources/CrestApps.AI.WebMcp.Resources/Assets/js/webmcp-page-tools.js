@@ -28,9 +28,10 @@
     description: 'meta[name="description"]',
     headings: 'h1, h2',
     main: 'main, [role="main"]',
-    // What page_read_content leaves out of the page's text: scripts, menus, forms (page_list_form_fields reads them),
-    // hidden parts, the chat itself, and anything a page marks with data-webmcp-ignore.
-    ignored: 'script, style, noscript, template, svg, nav, aside, form, dialog:not([open]), [hidden], [aria-hidden="true"], [role="navigation"], [data-webmcp-ignore], [class*="ai-chat-widget"]',
+    // What page_read_content leaves out of the page's text: scripts, menus, the choices and text of form controls
+    // (page_list_form_fields reads them), hidden parts, the chat itself, and anything a page marks with
+    // data-webmcp-ignore. A form's other content is read: admin pages often wrap a whole list in one, for bulk actions.
+    ignored: 'script, style, noscript, template, svg, nav, aside, select, textarea, datalist, dialog:not([open]), [hidden], [aria-hidden="true"], [role="navigation"], [data-webmcp-ignore], [class*="ai-chat-widget"]',
     links: 'nav a[href], header a[href], aside a[href], [role="navigation"] a[href]',
     fields: 'form input, form select, form textarea',
   };

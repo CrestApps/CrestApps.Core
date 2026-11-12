@@ -18,7 +18,7 @@
 			description: "meta[name=\"description\"]",
 			headings: "h1, h2",
 			main: "main, [role=\"main\"]",
-			ignored: "script, style, noscript, template, svg, nav, aside, form, dialog:not([open]), [hidden], [aria-hidden=\"true\"], [role=\"navigation\"], [data-webmcp-ignore], [class*=\"ai-chat-widget\"]",
+			ignored: "script, style, noscript, template, svg, nav, aside, select, textarea, datalist, dialog:not([open]), [hidden], [aria-hidden=\"true\"], [role=\"navigation\"], [data-webmcp-ignore], [class*=\"ai-chat-widget\"]",
 			links: "nav a[href], header a[href], aside a[href], [role=\"navigation\"] a[href]",
 			fields: "form input, form select, form textarea"
 		};
