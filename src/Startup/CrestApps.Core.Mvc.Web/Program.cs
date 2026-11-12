@@ -5,6 +5,7 @@ using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.Azure.AISearch;
 using CrestApps.Core.AI.AzureAIInference;
 using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Chat.AGUI;
 using CrestApps.Core.AI.Claude;
 using CrestApps.Core.AI.Copilot;
 using CrestApps.Core.AI.Documents;
@@ -355,6 +356,10 @@ app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =
 
 app.MapHub<AIChatHub>("/hubs/ai-chat");
 app.MapHub<ChatInteractionHub>("/hubs/chat-interaction");
+
+// AG-UI: any AG-UI client can chat with the AI profiles through the same pipeline as the chat hub (and its
+// authorization), as Server-Sent Events.
+app.MapAGUIChat<AIChatHub>();
 app.MapMcp("mcp");
 app.MapWebMcpTools();
 app.MapA2AHost();

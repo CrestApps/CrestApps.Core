@@ -54,6 +54,23 @@ public sealed class WebMcpPageToolRegistryProviderTests
     }
 
     [Fact]
+    public async Task GetToolsAsync_AsksForApprovalOfConsequentialToolsWhenTheClientCanApprove()
+    {
+        var asking = CreateProvider(allowPageTools: true);
+        var trusting = CreateProvider(allowPageTools: true, allowConsequential: true);
+        var context = CreateContext("connection-1");
+
+        context.AdditionalProperties[AICompletionContextKeys.ToolApprovalSupported] = true;
+
+        var asked = await asking.GetToolsAsync(context, TestContext.Current.CancellationToken);
+        var trusted = await trusting.GetToolsAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.True(Assert.Single(asked, entry => entry.Id == "webmcp:store.place_order").RequiresApproval);
+        Assert.False(Assert.Single(asked, entry => entry.Id == "webmcp:page_get_info").RequiresApproval);
+        Assert.False(Assert.Single(trusted, entry => entry.Id == "webmcp:store.place_order").RequiresApproval);
+    }
+
+    [Fact]
     public async Task GetToolsAsync_AddsNothingWhenTheProfileDoesNotAllowPageTools()
     {
         var provider = CreateProvider(allowPageTools: false);

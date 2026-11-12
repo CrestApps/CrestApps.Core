@@ -77,4 +77,34 @@ public sealed class ChatResponseHandlerContext
     /// </summary>
     /// <param name="OrdinalIgnoreCase">The ordinal ignore case.</param>
     public Dictionary<string, object> Properties { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gets the context the client sent with the message, such as the page the user is on. Handlers pass it to the
+    /// model as data, never as instructions.
+    /// </summary>
+    public IReadOnlyList<ChatClientContextEntry> ClientContext { get; init; } = [];
+
+    /// <summary>
+    /// Gets the state the user and the agent share during this run, or <see langword="null"/> when the client
+    /// shares none.
+    /// </summary>
+    public ChatSharedState SharedState { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the client can approve tool calls. When it is <see langword="true"/>, tools
+    /// that require an approval pause the run for one instead of running at once.
+    /// </summary>
+    public bool SupportsToolApproval { get; init; }
+
+    /// <summary>
+    /// Gets the tools the client runs itself, as declarations the model may call. A call ends the run, and the
+    /// client sends the result with its next run.
+    /// </summary>
+    public IReadOnlyList<AITool> ClientTools { get; init; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether the client picks the run up again on the page a page tool opens. When it is
+    /// <see langword="true"/>, opening another page ends the turn, and the client continues it on the new page.
+    /// </summary>
+    public bool ContinuesOnNextPage { get; init; }
 }

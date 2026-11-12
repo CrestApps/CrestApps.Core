@@ -92,4 +92,45 @@ public static class AICompletionContextKeys
     /// conversation variable or a detected caller language; it overrides the profile's starting language.
     /// </summary>
     public const string ConversationLanguage = "ConversationLanguage";
+
+    /// <summary>
+    /// The key whose <see langword="true"/> value tells the tool pipeline that the caller can ask a person to
+    /// approve a tool call, such as an AG-UI chat run. Tools that require an approval then pause the run for one
+    /// instead of running at once.
+    /// </summary>
+    public const string ToolApprovalSupported = "ToolApprovalSupported";
+
+    /// <summary>
+    /// The key of the context the client sent with the message (an <see cref="IReadOnlyList{T}"/> of
+    /// <see cref="Models.ChatClientContextEntry"/>), such as the page the user is on. It reaches the model as data,
+    /// never as instructions.
+    /// </summary>
+    public const string ClientContext = "ClientContext";
+
+    /// <summary>
+    /// The key of the state the user and the agent share during a chat run (a
+    /// <see cref="Models.ChatSharedState"/>). The agent changes it with the shared state tool, and the client is
+    /// told about each change.
+    /// </summary>
+    public const string SharedState = "SharedState";
+
+    /// <summary>
+    /// The key of the tools the client runs itself (an <see cref="IReadOnlyList{T}"/> of
+    /// <see cref="Microsoft.Extensions.AI.AITool"/> declarations), such as the frontend tools of an AG-UI client. The
+    /// model may call them; a call ends the request, and the client sends the result with its next request.
+    /// </summary>
+    public const string ClientTools = "ClientTools";
+
+    /// <summary>
+    /// The key whose <see langword="true"/> value tells the tools that the client picks a run up again on the page a page
+    /// tool opens. A tool that opens another page then ends the turn (see <see cref="EndTurnAfterToolCalls"/>), and the
+    /// client starts a run that continues on the new page, with its tools.
+    /// </summary>
+    public const string ContinuesOnNextPage = "ContinuesOnNextPage";
+
+    /// <summary>
+    /// The key of the item (in <see cref="Orchestration.AIInvocationContext.Items"/>) a tool sets to end the turn after
+    /// the current round of tool calls, without asking the model again; for example after it opened another page.
+    /// </summary>
+    public const string EndTurnAfterToolCalls = "EndTurnAfterToolCalls";
 }

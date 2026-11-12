@@ -3,8 +3,12 @@ using System.Globalization;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Threading.Channels;
+using AGUI.Abstractions;
+using CrestApps.Core.AI.AGUI;
 using CrestApps.Core.AI.Capabilities;
+using CrestApps.Core.AI.Chat.AGUI;
 using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Chat.Realtime;
 using CrestApps.Core.AI.Clients;
@@ -782,6 +786,245 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         _ = RunStreamInScopeAsync(services => HandleSendMessageAsync(channel.Writer, services, profileId, prompt, sessionId, sessionProfileId, cancellationToken));
 
         return channel.Reader;
+    }
+
+    /// <summary>
+    /// Runs one AG-UI run and streams its events (the AG-UI wire format, one JSON object per event). The input is an
+    /// AG-UI <c>RunAgentInput</c>: the thread id is the chat session id (empty for a new session), the newest user
+    /// message is the prompt, <c>forwardedProps.profileId</c> names the AI profile, and <c>context</c>,
+    /// <c>state</c> and <c>resume</c> carry the page context, the shared state and the answers to tool approvals.
+    /// </summary>
+    /// <remarks>
+    /// The run keeps going for a while when the connection drops (for example when a page tool opened another page),
+    /// so its answer is saved; a stop the user asks for ends it at once.
+    /// </remarks>
+    /// <param name="input">The AG-UI run input.</param>
+    /// <param name="cancellationToken">The cancellation token of the stream.</param>
+    /// <returns>The run's events.</returns>
+    public virtual ChannelReader<JsonElement> RunAgent(JsonElement input, CancellationToken cancellationToken)
+    {
+        var output = Channel.CreateUnbounded<JsonElement>(new UnboundedChannelOptions { SingleReader = true });
+        AGUIChatTurn turn;
+
+        try
+        {
+            turn = CreateAGUITurn(AGUIJson.DeserializeInput(input), output.Writer);
+            turn.ContinuesOnNextPage = true;
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or ArgumentException or InvalidOperationException)
+        {
+            Logger.LogWarning(ex, "The AG-UI run input could not be read.");
+
+            output.Writer.TryWrite(AGUIJson.SerializeEvent(new RunErrorEvent
+            {
+                Message = GetInvalidRunInputMessage(),
+                Code = "invalid_input",
+            }));
+            output.Writer.TryComplete();
+
+            return output.Reader;
+        }
+
+        var runCancellation = CreateRunCancellation(cancellationToken);
+
+        _ = RunStreamInScopeAsync(services => ExecuteAGUIRunAsync(turn, services, output.Writer, runCancellation));
+
+        return output.Reader;
+    }
+
+    /// <summary>
+    /// Runs an AG-UI run without a SignalR connection, for example for the AG-UI HTTP endpoint, and writes its events
+    /// to <paramref name="output"/>. Set the hub's <see cref="Hub.Context"/> to the caller first. It is internal so
+    /// SignalR does not offer it to clients.
+    /// </summary>
+    /// <param name="input">The AG-UI run input.</param>
+    /// <param name="services">The services of the request.</param>
+    /// <param name="output">Receives each event.</param>
+    /// <param name="cancellationToken">The cancellation token of the request.</param>
+    /// <returns>A task that completes when the run ended.</returns>
+    internal async Task RunAgentWithoutConnectionAsync(RunAgentInput input, IServiceProvider services, Func<BaseEvent, CancellationToken, ValueTask> output, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(output);
+
+        var request = AGUIRunRequest.From(input);
+        var events = new AGUIRunEventWriter(
+            request.ThreadId,
+            request.RunId,
+            output,
+            new HashSet<string>(request.ClientTools.Select(tool => tool.Name), StringComparer.Ordinal));
+        var turn = new AGUIChatTurn(request, events);
+
+        await RunAsUserAsync(services, Context?.User, scopedServices => ExecuteAGUIRunAsync(turn, scopedServices, output: null, new AGUIRunCancellation(cancellationToken)));
+    }
+
+    /// <summary>
+    /// Handles one AG-UI run: resumes the previous run when the input answers its approvals or client tool calls,
+    /// and otherwise sends the input's newest user message through the chat pipeline.
+    /// </summary>
+    /// <param name="turn">The run.</param>
+    /// <param name="services">The service provider.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that completes when the run is handled.</returns>
+    protected virtual async Task HandleRunAgentAsync(AGUIChatTurn turn, IServiceProvider services, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(turn);
+
+        var request = turn.Request;
+
+        if (request.IsResume)
+        {
+            await ResumeAGUIRunAsync(turn, services, cancellationToken);
+
+            return;
+        }
+
+        if (request.IsContinuation)
+        {
+            await ContinueAGUIRunAsync(turn, services, cancellationToken);
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ProfileId))
+        {
+            await turn.Events.ErrorAsync(GetRequiredFieldMessage("profileId"), "invalid_input", CancellationToken.None);
+
+            return;
+        }
+
+        await HandleSendMessageAsync(turn, services, request.ProfileId, request.Prompt, request.ThreadId, request.SessionProfileId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the message for a run whose input could not be read.
+    /// </summary>
+    protected virtual string GetInvalidRunInputMessage()
+    {
+        return "The request could not be read.";
+    }
+
+    /// <summary>
+    /// Gets the message the model reads when a run continues, on the page a page tool opened, the turn that opened it.
+    /// </summary>
+    /// <param name="loadedPage">The page that loaded, as the client describes it (its title and address), or
+    /// <see langword="null"/>.</param>
+    protected virtual string GetContinueOnNextPagePrompt(string loadedPage)
+    {
+        var page = string.IsNullOrWhiteSpace(loadedPage) ? "A new page" : $"The page \"{loadedPage}\"";
+
+        return $"{page} has loaded in my browser. Continue with my last request, using this page's tools if you need them. If this is not the page the request needs, open the right one. Do not repeat what you already did.";
+    }
+
+    /// <summary>
+    /// Gets the message for a continuation run that finds no turn waiting to be continued.
+    /// </summary>
+    protected virtual string GetNothingToContinueMessage()
+    {
+        return "There is nothing waiting to be continued in this chat.";
+    }
+
+    /// <summary>
+    /// Gets the message for a resumed run that finds nothing waiting for an answer.
+    /// </summary>
+    protected virtual string GetNothingToResumeMessage()
+    {
+        return "There is nothing waiting for an answer in this chat.";
+    }
+
+    private static AGUIChatTurn CreateAGUITurn(RunAgentInput input, ChannelWriter<JsonElement> output)
+    {
+        var request = AGUIRunRequest.From(input);
+        var events = new AGUIRunEventWriter(
+            request.ThreadId,
+            request.RunId,
+            (evt, _) => output.WriteAsync(AGUIJson.SerializeEvent(evt), CancellationToken.None),
+            new HashSet<string>(request.ClientTools.Select(tool => tool.Name), StringComparer.Ordinal));
+
+        return new AGUIChatTurn(request, events);
+    }
+
+    private AGUIRunCancellation CreateRunCancellation(CancellationToken streamToken)
+    {
+        var connectionAborted = Context?.ConnectionAborted ?? CancellationToken.None;
+        var options = _services.GetService<IOptions<AGUIChatOptions>>()?.Value ?? new AGUIChatOptions();
+
+        return new AGUIRunCancellation(options.DisconnectedRunTimeout, streamToken, connectionAborted);
+    }
+
+    private async Task ExecuteAGUIRunAsync(AGUIChatTurn turn, IServiceProvider services, ChannelWriter<JsonElement> output, AGUIRunCancellation cancellation)
+    {
+        using (cancellation)
+        {
+            // The caller's errors end the run instead of reaching the client separately. A run over HTTP has no
+            // clients at all.
+            Clients = new AGUIHubCallerClients<TClient>(output is null ? null : Clients, turn);
+
+            try
+            {
+                await HandleRunAgentAsync(turn, services, cancellation.Token);
+            }
+            catch (OperationCanceledException) when (cancellation.Token.IsCancellationRequested)
+            {
+                if (Logger.IsEnabled(LogLevel.Debug))
+                {
+                    Logger.LogDebug("The AG-UI run {RunId} was cancelled.", turn.Events.RunId);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "An error occurred while running the AG-UI run {RunId}.", turn.Events.RunId);
+
+                await turn.Events.ErrorAsync(GetFriendlyErrorMessage(ex), code: null, CancellationToken.None);
+            }
+            finally
+            {
+                await turn.Events.FinishAsync(CancellationToken.None);
+                output?.TryComplete();
+            }
+
+            // The page that started the run is gone (a page tool opened another page). The page that took over loaded
+            // the session before the answer was saved, and joined the session's group, so it gets the session again.
+            if (output is not null && cancellation.ConnectionLost && !string.IsNullOrEmpty(turn.Events.ThreadId))
+            {
+                await SendSessionToGroupAsync(services, turn.Events.ThreadId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sends a session, as it is now, to the connections in its group, which loaded it or sent a message to it.
+    /// </summary>
+    /// <param name="services">The service provider.</param>
+    /// <param name="sessionId">The session id.</param>
+    /// <returns>A task that completes when the session is sent.</returns>
+    private async Task SendSessionToGroupAsync(IServiceProvider services, string sessionId)
+    {
+        try
+        {
+            var chatSession = await services.GetRequiredService<IAIChatSessionManager>().FindAsync(sessionId);
+
+            if (chatSession is null)
+            {
+                return;
+            }
+
+            var profile = await services.GetRequiredService<IAIProfileManager>().FindByIdAsync(chatSession.ProfileId);
+
+            if (profile is null)
+            {
+                return;
+            }
+
+            var prompts = await services.GetRequiredService<IAIChatSessionPromptStore>().GetPromptsAsync(chatSession.SessionId);
+
+            await Clients.Group(GetSessionGroupName(chatSession.SessionId)).LoadSession(CreateSessionPayload(chatSession, profile, prompts));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "The session {SessionId} could not be sent to its group after its run ended.", sessionId);
+        }
     }
 
     /// <summary>
@@ -2223,10 +2466,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     /// <param name="cancellationToken">The cancellation token.</param>
     protected virtual async Task ProcessChatPromptAsync(ChannelWriter<CompletionPartialMessage> writer, IServiceProvider services, AIProfile profile, string sessionId, string prompt, CancellationToken cancellationToken)
     {
-        var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
         var promptStore = services.GetRequiredService<IAIChatSessionPromptStore>();
-        var handlerResolver = services.GetRequiredService<IChatResponseHandlerResolver>();
-        var sessionHandlers = services.GetRequiredService<IEnumerable<IAIChatSessionHandler>>();
         AIChatSession chatSession;
         bool isNew;
 
@@ -2255,6 +2495,13 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         // The first message of a new chat arrives before its session exists, so the turn's span gets the id here.
         Activity.Current?.SetTag(AITelemetry.SessionIdAttribute, chatSession.SessionId);
 
+        if (writer is AGUIChatTurn turn)
+        {
+            // The AG-UI run starts once its thread (the session) exists, so a new chat learns its session id.
+            turn.Events.ThreadId = chatSession.SessionId;
+            await turn.Events.StartAsync(CancellationToken.None);
+        }
+
         await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
         var utcNow = GetUtcNow();
         if (IsEndedStatus(chatSession.Status))
@@ -2281,6 +2528,18 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             CreatedUtc = utcNow,
         };
         await promptStore.CreateAsync(userPromptRecord, cancellationToken);
+
+        if (isNew && writer is AGUIChatTurn)
+        {
+            // An AG-UI run can outlive its page (a page tool opened another page), and the page that takes over loads
+            // the session. A new session is saved now, so that page finds it while the run goes on. The session is read
+            // again after the commit, so the save at the end of the turn updates it instead of adding a second one.
+            var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
+
+            await SaveChatSessionAsync(services, sessionManager, chatSession);
+            chatSession = await sessionManager.FindAsync(chatSession.SessionId, cancellationToken) ?? chatSession;
+        }
+
         var existingPrompts = await promptStore.GetPromptsAsync(chatSession.SessionId);
         if (Logger.IsEnabled(LogLevel.Debug))
         {
@@ -2290,6 +2549,40 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         var conversationHistory = ChatConversationHistoryBuilder.Build(
             existingPrompts,
             userPromptRecord);
+
+        await RunAssistantTurnAsync(writer, services, profile, chatSession, prompt, conversationHistory, utcNow, cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs the assistant's side of a turn: resolves the response handler, streams the answer, checks and stores it,
+    /// and saves the session. A turn of an AG-UI run (<see cref="AGUIChatTurn"/>) also streams the tool calls, the
+    /// reasoning and the shared state, and stores the tool calls with the answer.
+    /// </summary>
+    /// <param name="writer">The channel of the turn.</param>
+    /// <param name="services">The service provider.</param>
+    /// <param name="profile">The profile.</param>
+    /// <param name="chatSession">The chat session.</param>
+    /// <param name="prompt">The user's message the turn answers.</param>
+    /// <param name="conversationHistory">The conversation history, ending with what the turn answers.</param>
+    /// <param name="utcNow">The time of the turn.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that completes when the turn is saved.</returns>
+    private async Task RunAssistantTurnAsync(
+        ChannelWriter<CompletionPartialMessage> writer,
+        IServiceProvider services,
+        AIProfile profile,
+        AIChatSession chatSession,
+        string prompt,
+        List<ChatMessage> conversationHistory,
+        DateTime utcNow,
+        CancellationToken cancellationToken)
+    {
+        var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
+        var promptStore = services.GetRequiredService<IAIChatSessionPromptStore>();
+        var handlerResolver = services.GetRequiredService<IChatResponseHandlerResolver>();
+        var sessionHandlers = services.GetRequiredService<IEnumerable<IAIChatSessionHandler>>();
+        var turn = writer as AGUIChatTurn;
+
         // Resolve the chat response handler for this session.
         var chatMode = profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings) ? chatModeSettings.ChatMode : ChatMode.TextInput;
         var handler = handlerResolver.Resolve(chatSession.ResponseHandlerName, chatMode);
@@ -2303,21 +2596,34 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             invocationContext.Items[_responseHandlerItemKey] = handler.Name;
         }
 
+        var sharedState = turn is null
+            ? null
+            : await turn.InitializeSharedStateAsync(CancellationToken.None);
+
         var handlerContext = new ChatResponseHandlerContext
         {
             Prompt = prompt,
-            ConnectionId = Context.ConnectionId,
+            ConnectionId = Context?.ConnectionId,
             SessionId = chatSession.SessionId,
             ChatType = GetChatContextType(),
             ConversationHistory = conversationHistory,
             Services = services,
             Profile = profile,
             ChatSession = chatSession,
+            ClientContext = turn?.Request.Context ?? [],
+            SharedState = sharedState,
+            SupportsToolApproval = turn is not null,
+            ClientTools = turn?.Request.ClientTools ?? [],
+            ContinuesOnNextPage = turn?.ContinuesOnNextPage == true,
         };
         var handlerResult = await handler.HandleAsync(handlerContext, cancellationToken);
         if (handlerResult.IsDeferred)
         {
-            await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
+            if (Groups is not null && Context is not null)
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
+            }
+
             await SaveChatSessionAsync(services, sessionManager, chatSession);
 
             return;
@@ -2337,21 +2643,48 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             assistantMessage.Put(handlerContext.AssistantAppearance);
         }
 
+        if (turn is not null)
+        {
+            await turn.WriteAssistantMessageAsync(assistantMessage.ItemId, assistantMessage.Title, handlerContext.AssistantAppearance, CancellationToken.None);
+        }
+
         using var builder = ZString.CreateStringBuilder();
         var contentItemIds = new HashSet<string>();
         var references = new Dictionary<string, AICompletionReference>();
+        var writtenReferenceCount = 0;
         var stopwatch = Stopwatch.StartNew();
         // Collect preemptive RAG references if available.
         CollectStreamingReferences(services, handlerContext, references, contentItemIds);
         await foreach (var chunk in handlerResult.ResponseStream.WithCancellation(cancellationToken))
         {
+            if (turn is not null)
+            {
+                // An AG-UI run streams every part of the answer: text, reasoning, tool calls and their results.
+                await turn.Events.WriteUpdateAsync(chunk, assistantMessage.ItemId, CancellationToken.None);
+            }
+
             if (string.IsNullOrEmpty(chunk.Text))
             {
+                if (turn is not null && chunk.Contents.Any(content => content is FunctionResultContent))
+                {
+                    // A tool may have added references (a search, a generated file).
+                    CollectStreamingReferences(services, handlerContext, references, contentItemIds);
+                    writtenReferenceCount = await WriteNewReferencesAsync(turn, assistantMessage.ItemId, references, writtenReferenceCount);
+                }
+
                 continue;
             }
 
             builder.Append(chunk.Text);
             CollectStreamingReferences(services, handlerContext, references, contentItemIds);
+
+            if (turn is not null)
+            {
+                writtenReferenceCount = await WriteNewReferencesAsync(turn, assistantMessage.ItemId, references, writtenReferenceCount);
+
+                continue;
+            }
+
             var partialMessage = new CompletionPartialMessage
             {
                 SessionId = chatSession.SessionId,
@@ -2369,6 +2702,37 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         stopwatch.Stop();
 
         AITelemetry.ChatResponseDuration.Record(stopwatch.Elapsed.TotalSeconds, responseHandlerTag);
+
+        // A tool ended the turn because it opened another page: the client continues the turn there.
+        var continuesOnNextPage = turn is not null &&
+            AIInvocationScope.Current?.Items.Remove(AICompletionContextKeys.EndTurnAfterToolCalls) == true;
+
+        if (turn is not null)
+        {
+            await WriteNewReferencesAsync(turn, assistantMessage.ItemId, references, writtenReferenceCount);
+
+            if (turn.Events.ToolCalls.Count > 0)
+            {
+                assistantMessage.Put(new ChatTurnToolActivity
+                {
+                    ToolCalls = turn.Events.ToolCalls.ToList(),
+                    ContinuesOnNextPage = continuesOnNextPage,
+                });
+            }
+
+            if (continuesOnNextPage)
+            {
+                await turn.Events.WriteCustomAsync(AGUIChatTurn.ContinuesOnNextPageEventName, new Dictionary<string, object>
+                {
+                    ["messageId"] = assistantMessage.ItemId,
+                }, CancellationToken.None);
+            }
+        }
+
+        // A turn that paused for an approval or for the client's result, or that continues on the page a tool opened, is
+        // kept even without text, so the run can go on from it.
+        var hasPendingCalls = assistantMessage.TryGet<ChatTurnToolActivity>(out var toolActivity) &&
+            (toolActivity.HasPendingCalls || toolActivity.ContinuesOnNextPage);
 
         // The answer has streamed. A Stop click from here on only ends the stream on the client: the turn
         // must still be checked, completed and saved, so the remaining work ignores the caller's token.
@@ -2405,6 +2769,12 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 ChatLog.AssistantPromptStaged(Logger, assistantMessage.ItemId, chatSession.SessionId);
             }
         }
+        else if (hasPendingCalls)
+        {
+            assistantMessage.ContentItemIds = contentItemIds.ToList();
+            assistantMessage.References = references;
+            await promptStore.CreateAsync(assistantMessage, CancellationToken.None);
+        }
         else
         {
             // The completion produced no content. This commonly happens when the resolved deployment cannot
@@ -2439,6 +2809,260 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         await sessionHandlers.InvokeAsync((h, ctx) => h.MessageCompletedAsync(ctx), context, Logger);
         await OnMessageCompletedAsync(services, context);
         await SaveChatSessionAsync(services, sessionManager, chatSession);
+    }
+
+    /// <summary>
+    /// Writes the references of an AG-UI turn's answer when new ones were collected since the last write.
+    /// </summary>
+    /// <param name="turn">The run.</param>
+    /// <param name="messageId">The id of the assistant message.</param>
+    /// <param name="references">The references collected so far.</param>
+    /// <param name="writtenCount">How many references were written before.</param>
+    /// <returns>How many references are written now.</returns>
+    private static async Task<int> WriteNewReferencesAsync(AGUIChatTurn turn, string messageId, Dictionary<string, AICompletionReference> references, int writtenCount)
+    {
+        if (references.Count == writtenCount)
+        {
+            return writtenCount;
+        }
+
+        await turn.WriteReferencesAsync(messageId, references, CancellationToken.None);
+
+        return references.Count;
+    }
+
+    /// <summary>
+    /// Continues, on the page a page tool opened, the turn that ended when it opened it: the model reads that the page
+    /// has loaded and carries on with the user's last request, with the new page's tools.
+    /// </summary>
+    /// <param name="turn">The run.</param>
+    /// <param name="services">The service provider.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that completes when the run is handled.</returns>
+    protected virtual async Task ContinueAGUIRunAsync(AGUIChatTurn turn, IServiceProvider services, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(turn);
+        ArgumentNullException.ThrowIfNull(services);
+
+        using var invocationScope = AIInvocationScope.Begin();
+        var loaded = await LoadAGUIRunSessionAsync(turn, services, cancellationToken);
+
+        if (loaded is null)
+        {
+            return;
+        }
+
+        var (chatSession, profile, prompts) = loaded.Value;
+        var lastPrompt = prompts.LastOrDefault(prompt => !prompt.IsGeneratedPrompt);
+
+        if (lastPrompt is null ||
+            lastPrompt.Role != ChatRole.Assistant ||
+            !lastPrompt.TryGet<ChatTurnToolActivity>(out var activity) ||
+            !activity.ContinuesOnNextPage)
+        {
+            await Clients.Caller.ReceiveError(GetNothingToContinueMessage());
+
+            return;
+        }
+
+        // Continued once: another tab or a reload of the page does not continue it again.
+        activity.ContinuesOnNextPage = false;
+        lastPrompt.Put(activity);
+        await services.GetRequiredService<IAIChatSessionPromptStore>().UpdateAsync(lastPrompt, CancellationToken.None);
+
+        await StartAGUIRunInSessionAsync(turn, chatSession, cancellationToken);
+
+        var prompt = GetContinueOnNextPagePrompt(turn.Request.ContinuePage);
+        var conversationHistory = ChatConversationHistoryBuilder.Build(prompts, lastPrompt);
+
+        conversationHistory.Add(new ChatMessage(ChatRole.User, prompt));
+        chatSession.LastActivityUtc = GetUtcNow();
+
+        await RunAssistantTurnAsync(turn, services, profile, chatSession, prompt, conversationHistory, GetUtcNow(), cancellationToken);
+    }
+
+    /// <summary>
+    /// Loads and authorizes the session an AG-UI run that goes on from an earlier turn (a resume or a continuation) works
+    /// in, with its profile and prompts. Reports the problem to the caller and returns <see langword="null"/> when it
+    /// cannot.
+    /// </summary>
+    /// <param name="turn">The run.</param>
+    /// <param name="services">The service provider.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The session, its profile and its prompts, or <see langword="null"/>.</returns>
+    private async Task<(AIChatSession ChatSession, AIProfile Profile, IReadOnlyList<AIChatSessionPrompt> Prompts)?> LoadAGUIRunSessionAsync(
+        AGUIChatTurn turn,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(turn.Request.ThreadId))
+        {
+            await Clients.Caller.ReceiveError(GetRequiredFieldMessage("threadId"));
+
+            return null;
+        }
+
+        var sessionManager = services.GetRequiredService<IAIChatSessionManager>();
+        var profileManager = services.GetRequiredService<IAIProfileManager>();
+        var promptStore = services.GetRequiredService<IAIChatSessionPromptStore>();
+        var chatSession = await sessionManager.FindAsync(turn.Request.ThreadId, cancellationToken);
+
+        if (chatSession is null)
+        {
+            await Clients.Caller.ReceiveError(GetSessionNotFoundMessage());
+
+            return null;
+        }
+
+        if (!await AuthorizeSessionAsync(services, chatSession))
+        {
+            await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
+            return null;
+        }
+
+        var profile = await profileManager.FindByIdAsync(chatSession.ProfileId, cancellationToken);
+
+        if (profile is null)
+        {
+            await Clients.Caller.ReceiveError(GetProfileNotFoundMessage());
+
+            return null;
+        }
+
+        if (!await AuthorizeProfileAsync(services, profile))
+        {
+            await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
+            return null;
+        }
+
+        return (chatSession, profile, await promptStore.GetPromptsAsync(chatSession.SessionId));
+    }
+
+    /// <summary>
+    /// Starts an AG-UI run in an existing session, and joins the caller to the session's group.
+    /// </summary>
+    /// <param name="turn">The run.</param>
+    /// <param name="chatSession">The session.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that completes when the run started.</returns>
+    private async Task StartAGUIRunInSessionAsync(AGUIChatTurn turn, AIChatSession chatSession, CancellationToken cancellationToken)
+    {
+        turn.Events.ThreadId = chatSession.SessionId;
+        await turn.Events.StartAsync(CancellationToken.None);
+
+        if (Context is not null && Groups is not null)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, GetSessionGroupName(chatSession.SessionId), cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Resumes an AG-UI run that paused for tool approvals or for the client's tool results: applies the client's
+    /// answers to the paused assistant message, adds them to the history, and runs the assistant's side of the turn
+    /// again from there.
+    /// </summary>
+    /// <param name="turn">The run.</param>
+    /// <param name="services">The service provider.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that completes when the run is handled.</returns>
+    protected virtual async Task ResumeAGUIRunAsync(AGUIChatTurn turn, IServiceProvider services, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(turn);
+        ArgumentNullException.ThrowIfNull(services);
+
+        using var invocationScope = AIInvocationScope.Begin();
+        var request = turn.Request;
+        var loaded = await LoadAGUIRunSessionAsync(turn, services, cancellationToken);
+
+        if (loaded is null)
+        {
+            return;
+        }
+
+        var (chatSession, profile, prompts) = loaded.Value;
+        var promptStore = services.GetRequiredService<IAIChatSessionPromptStore>();
+        var pausedPrompt = prompts
+            .LastOrDefault(prompt => prompt.Role == ChatRole.Assistant &&
+                prompt.TryGet<ChatTurnToolActivity>(out var activity) &&
+                activity.HasPendingCalls);
+
+        if (pausedPrompt is null || !pausedPrompt.TryGet<ChatTurnToolActivity>(out var pausedActivity))
+        {
+            await Clients.Caller.ReceiveError(GetNothingToResumeMessage());
+
+            return;
+        }
+
+        await StartAGUIRunInSessionAsync(turn, chatSession, cancellationToken);
+
+        var conversationHistory = ChatConversationHistoryBuilder.Build(prompts, pausedPrompt);
+        var clientCalls = new List<AIContent>();
+        var clientResults = new List<AIContent>();
+        var approvalRequests = new List<AIContent>();
+        var approvalResponses = new List<AIContent>();
+
+        foreach (var call in pausedActivity.ToolCalls)
+        {
+            var functionCall = new FunctionCallContent(call.CallId, call.Name, ChatConversationHistoryBuilder.ParseArguments(call.Arguments));
+
+            if (call.Status == ChatTurnToolCallStatus.AwaitingClient)
+            {
+                var result = request.ClientToolResults.TryGetValue(call.CallId, out var clientResult)
+                    ? clientResult
+                    : "The client did not return a result for this tool call.";
+
+                call.Result = Truncate(result, AGUIRunEventWriter.MaxToolResultLength);
+                call.Status = ChatTurnToolCallStatus.Completed;
+                clientCalls.Add(functionCall);
+                clientResults.Add(new FunctionResultContent(call.CallId, call.Result));
+            }
+            else if (call.Status == ChatTurnToolCallStatus.AwaitingApproval)
+            {
+                // A call the client did not answer is rejected: the protocol asks the client to answer every interrupt.
+                request.TryGetApproval(call.ApprovalRequestId, out var approved);
+
+                var approvalRequest = new ToolApprovalRequestContent(call.ApprovalRequestId ?? call.CallId, functionCall);
+
+                call.Status = approved ? ChatTurnToolCallStatus.Approved : ChatTurnToolCallStatus.Rejected;
+
+                if (!approved)
+                {
+                    turn.Events.RejectedCallIds.Add(call.CallId);
+                }
+
+                approvalRequests.Add(approvalRequest);
+                approvalResponses.Add(approvalRequest.CreateResponse(approved, reason: null));
+            }
+        }
+
+        if (clientCalls.Count > 0)
+        {
+            conversationHistory.Add(new ChatMessage(ChatRole.Assistant, clientCalls));
+            conversationHistory.Add(new ChatMessage(ChatRole.Tool, clientResults));
+        }
+
+        if (approvalRequests.Count > 0)
+        {
+            conversationHistory.Add(new ChatMessage(ChatRole.Assistant, approvalRequests));
+            conversationHistory.Add(new ChatMessage(ChatRole.User, approvalResponses));
+        }
+
+        pausedPrompt.Put(pausedActivity);
+        await promptStore.UpdateAsync(pausedPrompt, CancellationToken.None);
+
+        await turn.Events.WriteCustomAsync("crestapps.tool_calls_resolved", new Dictionary<string, object>
+        {
+            ["messageId"] = pausedPrompt.ItemId,
+            ["toolCalls"] = pausedActivity.ToolCalls,
+        }, CancellationToken.None);
+
+        var lastUserPrompt = prompts.LastOrDefault(prompt => prompt.Role == ChatRole.User)?.Content;
+
+        chatSession.LastActivityUtc = GetUtcNow();
+
+        await RunAssistantTurnAsync(turn, services, profile, chatSession, lastUserPrompt, conversationHistory, GetUtcNow(), cancellationToken);
     }
 
     /// <summary>
@@ -2717,6 +3341,10 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 UserRating = message.UserRating,
                 References = message.References,
                 Appearance = message.TryGet<AssistantMessageAppearance>(out var appearance) ? appearance : null,
+                ToolCalls = message.TryGet<ChatTurnToolActivity>(out var toolActivity) && toolActivity.ToolCalls.Count > 0
+                    ? toolActivity.ToolCalls
+                    : null,
+                ContinuesOnNextPage = toolActivity?.ContinuesOnNextPage == true,
             })
         };
     }

@@ -86,6 +86,8 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
             {
                 EnforceListableAccess = isChatInteraction,
                 User = isChatInteraction ? _userAccessor.User : null,
+                SupportsToolApproval = context.CompletionContext.AdditionalProperties.TryGetValue(AICompletionContextKeys.ToolApprovalSupported, out var approvalValue) &&
+                    approvalValue is true,
             },
             cancellationToken);
 

@@ -9,6 +9,7 @@ using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
+using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Extensions;
@@ -258,18 +259,29 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
             yield break;
         }
 
+        // The messages may be enumerable only once: the conversion reads them, and the last one is kept for the
+        // approval answers a resumed run ends with.
+        var lastMessage = default(Microsoft.Extensions.AI.ChatMessage);
         var azureMessages = AzureOpenAIChatMessageConverter.Convert(
-            messages,
+            TrackLast(messages, message => lastMessage = message),
             context.PastMessagesCount);
         var connectionName = deployment.ConnectionName;
         var azureClient = GetChatClient(connection);
         var chatClient = azureClient.GetChatClient(deployment.ModelName);
         var functions = requestOptions.Functions;
-        var chatOptions = GetOptions(context, functions, requestOptions.ResolvedOptions);
+        var chatOptions = GetOptions(context, functions, requestOptions.ResolvedOptions, requestOptions.Declarations);
         ChatCompletionOptions subSequenceContext = null;
         var prompts = GetPrompts(context, azureMessages);
         var systemFunctions = await ConfigureOptionsAsync(chatOptions, context, prompts);
         var allFunctions = systemFunctions.Count > 0 ? functions.Concat(systemFunctions) : functions;
+
+        // A run that resumes after a person answered tool approvals runs the approved calls (and records the
+        // rejected ones) first, the way the function-invoking chat client does.
+        foreach (var resumedUpdate in await ProcessApprovalResponsesAsync(lastMessage, prompts, allFunctions))
+        {
+            yield return resumedUpdate;
+        }
+
         var accumulatedToolCalls = new StreamingToolCallAccumulator();
         var iterations = 0;
         var stopwatch = Stopwatch.StartNew();
@@ -322,12 +334,73 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
                 {
                     // Convert accumulated tool call data to ChatToolCall objects.
                     var toolCalls = accumulatedToolCalls.BuildToolCalls();
-                    await ProcessToolCallsAsync(prompts, toolCalls, allFunctions);
+
+                    // The caller sees each call and each result, as with the function-invoking chat client.
+                    yield return new Microsoft.Extensions.AI.ChatResponseUpdate(
+                        Microsoft.Extensions.AI.ChatRole.Assistant,
+                        toolCalls.Select(call => (Microsoft.Extensions.AI.AIContent)ToFunctionCallContent(call)).ToList())
+                    {
+                        ResponseId = update.CompletionId,
+                        ModelId = update.Model,
+                    };
+
+                    // A call to a tool the client runs itself ends the request: the client answers it next time.
+                    if (toolCalls.Any(call => requestOptions.Declarations.Any(declaration => declaration.Name == call.FunctionName)))
+                    {
+                        usage = AzureOpenAIUsage.Add(usage, update.Usage);
+                        while (await updates.MoveNextAsync())
+                        {
+                            usage = AzureOpenAIUsage.Add(usage, updates.Current.Usage);
+                        }
+
+                        responseId ??= update.CompletionId;
+                        modelId ??= update.Model;
+                        hasToolCalls = false;
+                        break;
+                    }
+
+                    // A call to a tool that needs a person's approval pauses the request: the caller gets approval
+                    // requests instead of results and resumes with the answers.
+                    if (RequiresApproval(toolCalls, allFunctions))
+                    {
+                        yield return new Microsoft.Extensions.AI.ChatResponseUpdate(
+                            Microsoft.Extensions.AI.ChatRole.Assistant,
+                            toolCalls.Select(call => (Microsoft.Extensions.AI.AIContent)new Microsoft.Extensions.AI.ToolApprovalRequestContent($"ficc_{call.Id}", ToFunctionCallContent(call))).ToList())
+                        {
+                            ResponseId = update.CompletionId,
+                            ModelId = update.Model,
+                        };
+
+                        usage = AzureOpenAIUsage.Add(usage, update.Usage);
+                        while (await updates.MoveNextAsync())
+                        {
+                            usage = AzureOpenAIUsage.Add(usage, updates.Current.Usage);
+                        }
+
+                        responseId ??= update.CompletionId;
+                        modelId ??= update.Model;
+                        hasToolCalls = false;
+                        break;
+                    }
+
+                    var toolResults = await ProcessToolCallsAsync(prompts, toolCalls, allFunctions);
+
+                    yield return new Microsoft.Extensions.AI.ChatResponseUpdate(
+                        Microsoft.Extensions.AI.ChatRole.Tool,
+                        toolResults.Select(result => (Microsoft.Extensions.AI.AIContent)new Microsoft.Extensions.AI.FunctionResultContent(result.CallId, result.Result)).ToList())
+                    {
+                        ResponseId = update.CompletionId,
+                        ModelId = update.Model,
+                    };
+
                     // Clear accumulated tool calls for the next iteration.
                     accumulatedToolCalls.Clear();
                     // Create a new chat option that excludes references to data sources to address the limitations in Azure OpenAI.
-                    chatOptions = subSequenceContext ??= GetOptions(context, allFunctions, requestOptions.ResolvedOptions);
-                    hasToolCalls = true;
+                    chatOptions = subSequenceContext ??= GetOptions(context, allFunctions, requestOptions.ResolvedOptions, requestOptions.Declarations);
+
+                    // A tool can end the turn after its round, for example after it opened another page; the model is not
+                    // asked again.
+                    hasToolCalls = AIInvocationScope.Current?.Items.ContainsKey(AICompletionContextKeys.EndTurnAfterToolCalls) != true;
 
                     // The round trip that asked for tool calls is a billed request too, and its usage arrives in a
                     // final update after the finish reason, so read the rest of the stream and record it on its own
@@ -426,66 +499,225 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
         return result;
     }
 
-    private async Task ProcessToolCallsAsync(List<ChatMessage> prompts, IEnumerable<ChatToolCall> toolCalls, IEnumerable<Microsoft.Extensions.AI.AIFunction> functions)
+    private async Task<List<(string CallId, string Result)>> ProcessToolCallsAsync(List<ChatMessage> prompts, IEnumerable<ChatToolCall> toolCalls, IEnumerable<Microsoft.Extensions.AI.AIFunction> functions)
     {
+        var results = new List<(string CallId, string Result)>();
+
         if (toolCalls is null || !toolCalls.Any())
         {
-            return;
+            return results;
         }
 
         prompts.Add(ChatMessage.CreateAssistantMessage(toolCalls));
+        var toolMessageStart = prompts.Count;
+
         foreach (var toolCall in toolCalls)
         {
-            var function = functions.FirstOrDefault(x => x.Name == toolCall.FunctionName);
-            if (function is null)
-            {
-                prompts.Add(new ToolChatMessage(toolCall.Id, JsonSerializer.Serialize(new { error = $"Function '{toolCall.FunctionName}' not found." })));
-                continue;
-            }
+            await InvokeToolCallAsync(prompts, toolCall, functions);
+        }
 
-            Microsoft.Extensions.AI.AIFunctionArguments arguments;
-            try
+        for (var index = toolMessageStart; index < prompts.Count; index++)
+        {
+            if (prompts[index] is ToolChatMessage toolMessage)
             {
-                arguments = toolCall.FunctionArguments.ToObjectFromJson<Microsoft.Extensions.AI.AIFunctionArguments>();
+                results.Add((toolMessage.ToolCallId, string.Concat(toolMessage.Content.Select(part => part.Text))));
             }
-            catch (JsonException ex)
-            {
-                _logger.LogWarning(ex, "Failed to parse arguments for tool call '{FunctionName}'. The model may have generated malformed JSON.", toolCall.FunctionName);
-                // Detect truncation: "end of data" in the message indicates the model's output
-                // was cut off (hit the output token limit) rather than being structurally wrong.
-                var errorMessage = ex.Message.Contains("end of data", StringComparison.OrdinalIgnoreCase) ? """
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Runs one tool call and adds its result, or the error, to the prompts as a tool message.
+    /// </summary>
+    /// <param name="prompts">The prompts of the request.</param>
+    /// <param name="toolCall">The tool call.</param>
+    /// <param name="functions">The functions the request offers.</param>
+    /// <returns>A task that completes when the call ran.</returns>
+    private async Task InvokeToolCallAsync(List<ChatMessage> prompts, ChatToolCall toolCall, IEnumerable<Microsoft.Extensions.AI.AIFunction> functions)
+    {
+        var function = functions.FirstOrDefault(x => x.Name == toolCall.FunctionName);
+        if (function is null)
+        {
+            prompts.Add(new ToolChatMessage(toolCall.Id, JsonSerializer.Serialize(new { error = $"Function '{toolCall.FunctionName}' not found." })));
+
+            return;
+        }
+
+        Microsoft.Extensions.AI.AIFunctionArguments arguments;
+        try
+        {
+            arguments = toolCall.FunctionArguments.ToObjectFromJson<Microsoft.Extensions.AI.AIFunctionArguments>();
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse arguments for tool call '{FunctionName}'. The model may have generated malformed JSON.", toolCall.FunctionName);
+            // Detect truncation: "end of data" in the message indicates the model's output
+            // was cut off (hit the output token limit) rather than being structurally wrong.
+            var errorMessage = ex.Message.Contains("end of data", StringComparison.OrdinalIgnoreCase) ? """
 The function arguments were truncated because the response exceeded the output token limit.
 Please significantly reduce the size of the arguments. For content creation, use much shorter text,
 omit optional fields, or split the operation into multiple smaller calls.
 """ : "Invalid JSON in function arguments. Please fix the JSON structure and try again.";
-                prompts.Add(new ToolChatMessage(toolCall.Id, JsonSerializer.Serialize(new { error = errorMessage })));
+            prompts.Add(new ToolChatMessage(toolCall.Id, JsonSerializer.Serialize(new { error = errorMessage })));
+
+            return;
+        }
+
+        arguments.Services = _serviceProvider;
+        try
+        {
+            var result = await AIToolInvocation.InvokeAsync(function, arguments);
+            if (result is string str)
+            {
+                prompts.Add(new ToolChatMessage(toolCall.Id, str));
+            }
+            else if (result is JsonElement element)
+            {
+                prompts.Add(new ToolChatMessage(toolCall.Id, element.ToString()));
+            }
+            else
+            {
+                var resultJson = JsonSerializer.Serialize(result);
+                prompts.Add(new ToolChatMessage(toolCall.Id, resultJson));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error invoking function '{FunctionName}'.", toolCall.FunctionName);
+            prompts.Add(new ToolChatMessage(toolCall.Id, JsonSerializer.Serialize(new { error = "Error invoking function." })));
+        }
+    }
+
+    /// <summary>
+    /// Runs the tool calls a person approved, and records the ones they rejected, when the messages end with the
+    /// answers to tool approvals: adds the calls and their results to the prompts, and returns them as updates.
+    /// </summary>
+    /// <param name="last">The last framework message of the request.</param>
+    /// <param name="prompts">The prompts of the request.</param>
+    /// <param name="functions">The functions the request offers.</param>
+    /// <returns>The updates for the calls and their results, or none.</returns>
+#pragma warning disable MEAI001 // Tool approvals are a preview API of Microsoft.Extensions.AI.
+    private async Task<List<Microsoft.Extensions.AI.ChatResponseUpdate>> ProcessApprovalResponsesAsync(
+        Microsoft.Extensions.AI.ChatMessage last,
+        List<ChatMessage> prompts,
+        IEnumerable<Microsoft.Extensions.AI.AIFunction> functions)
+    {
+        var updates = new List<Microsoft.Extensions.AI.ChatResponseUpdate>();
+
+        if (last is null)
+        {
+            return updates;
+        }
+
+        var responses = last.Contents
+            .OfType<Microsoft.Extensions.AI.ToolApprovalResponseContent>()
+            .Where(response => response.ToolCall is Microsoft.Extensions.AI.FunctionCallContent)
+            .ToList();
+
+        if (responses.Count == 0)
+        {
+            return updates;
+        }
+
+        var toolCalls = responses
+            .Select(response => (Microsoft.Extensions.AI.FunctionCallContent)response.ToolCall)
+            .Select(call => ChatToolCall.CreateFunctionToolCall(
+                call.CallId,
+                call.Name,
+                BinaryData.FromString(JsonSerializer.Serialize(call.Arguments ?? new Dictionary<string, object>(), Microsoft.Extensions.AI.AIJsonUtilities.DefaultOptions))))
+            .ToList();
+
+        prompts.Add(ChatMessage.CreateAssistantMessage(toolCalls));
+
+        var results = new List<Microsoft.Extensions.AI.AIContent>();
+
+        for (var index = 0; index < responses.Count; index++)
+        {
+            var toolCall = toolCalls[index];
+
+            if (!responses[index].Approved)
+            {
+                const string rejected = "Tool call invocation was rejected by the approver and must not be retried.";
+
+                prompts.Add(new ToolChatMessage(toolCall.Id, rejected));
+                results.Add(new Microsoft.Extensions.AI.FunctionResultContent(toolCall.Id, rejected));
+
                 continue;
             }
 
-            arguments.Services = _serviceProvider;
-            try
-            {
-                var result = await AIToolInvocation.InvokeAsync(function, arguments);
-                if (result is string str)
-                {
-                    prompts.Add(new ToolChatMessage(toolCall.Id, str));
-                }
-                else if (result is JsonElement element)
-                {
-                    prompts.Add(new ToolChatMessage(toolCall.Id, element.ToString()));
-                }
-                else
-                {
-                    var resultJson = JsonSerializer.Serialize(result);
-                    prompts.Add(new ToolChatMessage(toolCall.Id, resultJson));
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error invoking function '{FunctionName}'.", toolCall.FunctionName);
-                prompts.Add(new ToolChatMessage(toolCall.Id, JsonSerializer.Serialize(new { error = "Error invoking function." })));
-            }
+            var before = prompts.Count;
+
+            await InvokeToolCallAsync(prompts, toolCall, functions);
+
+            var result = prompts.Count > before && prompts[^1] is ToolChatMessage toolMessage
+                ? string.Concat(toolMessage.Content.Select(part => part.Text))
+                : string.Empty;
+
+            results.Add(new Microsoft.Extensions.AI.FunctionResultContent(toolCall.Id, result));
         }
+
+        updates.Add(new Microsoft.Extensions.AI.ChatResponseUpdate(
+            Microsoft.Extensions.AI.ChatRole.Assistant,
+            responses.Select(response => (Microsoft.Extensions.AI.AIContent)response.ToolCall).ToList()));
+        updates.Add(new Microsoft.Extensions.AI.ChatResponseUpdate(Microsoft.Extensions.AI.ChatRole.Tool, results));
+
+        return updates;
+    }
+
+    /// <summary>
+    /// Passes the messages through, telling <paramref name="onMessage"/> about each, so a sequence that can be read
+    /// only once is still read once.
+    /// </summary>
+    /// <param name="messages">The messages.</param>
+    /// <param name="onMessage">Called with each message as it is read.</param>
+    /// <returns>The same messages.</returns>
+    private static IEnumerable<Microsoft.Extensions.AI.ChatMessage> TrackLast(
+        IEnumerable<Microsoft.Extensions.AI.ChatMessage> messages,
+        Action<Microsoft.Extensions.AI.ChatMessage> onMessage)
+    {
+        foreach (var message in messages)
+        {
+            onMessage(message);
+
+            yield return message;
+        }
+    }
+
+    /// <summary>
+    /// Determines whether one of the tool calls is to a tool that needs a person's approval.
+    /// </summary>
+    /// <param name="toolCalls">The tool calls.</param>
+    /// <param name="functions">The functions the request offers.</param>
+    /// <returns><see langword="true"/> when a call needs an approval.</returns>
+    private static bool RequiresApproval(IEnumerable<ChatToolCall> toolCalls, IEnumerable<Microsoft.Extensions.AI.AIFunction> functions)
+    {
+        return toolCalls.Any(call => functions.FirstOrDefault(function => function.Name == call.FunctionName)
+            ?.GetService<Microsoft.Extensions.AI.ApprovalRequiredAIFunction>() is not null);
+    }
+#pragma warning restore MEAI001
+
+    /// <summary>
+    /// Converts an Azure tool call to the framework's function call content.
+    /// </summary>
+    /// <param name="toolCall">The Azure tool call.</param>
+    /// <returns>The function call content.</returns>
+    internal static Microsoft.Extensions.AI.FunctionCallContent ToFunctionCallContent(ChatToolCall toolCall)
+    {
+        Dictionary<string, object> arguments;
+
+        try
+        {
+            arguments = toolCall.FunctionArguments is null
+                ? []
+                : JsonSerializer.Deserialize<Dictionary<string, object>>(toolCall.FunctionArguments.ToString(), Microsoft.Extensions.AI.AIJsonUtilities.DefaultOptions) ?? [];
+        }
+        catch (JsonException)
+        {
+            arguments = [];
+        }
+
+        return new Microsoft.Extensions.AI.FunctionCallContent(toolCall.Id, toolCall.FunctionName, arguments);
     }
 
     private bool ShouldSuppressStreaming(AIDeployment deployment)
@@ -601,7 +833,7 @@ omit optional fields, or split the operation into multiple smaller calls.
         return optionsContext.SystemFunctions;
     }
 
-    private ChatCompletionOptions GetOptions(AICompletionContext context, IEnumerable<Microsoft.Extensions.AI.AIFunction> functions, Microsoft.Extensions.AI.ChatOptions resolvedOptions = null)
+    private ChatCompletionOptions GetOptions(AICompletionContext context, IEnumerable<Microsoft.Extensions.AI.AIFunction> functions, Microsoft.Extensions.AI.ChatOptions resolvedOptions = null, IEnumerable<Microsoft.Extensions.AI.AIFunctionDeclaration> declarations = null)
     {
         var chatOptions = new ChatCompletionOptions()
         {
@@ -619,6 +851,11 @@ omit optional fields, or split the operation into multiple smaller calls.
             foreach (var function in functions)
             {
                 chatOptions.Tools.Add(function.ToChatTool());
+            }
+
+            foreach (var declaration in declarations ?? [])
+            {
+                chatOptions.Tools.Add(declaration.ToChatTool());
             }
 
             if (chatOptions.Tools.Count > 0)
@@ -697,12 +934,18 @@ omit optional fields, or split the operation into multiple smaller calls.
             ? []
             : chatOptions.Tools.OfType<Microsoft.Extensions.AI.AIFunction>().ToList();
 
-        return new AzureRequestOptions(functions, chatOptions);
+        // Declarations without code are the client's own tools: the model may call them, and the request ends there.
+        var declarations = context.DisableTools || chatOptions.Tools is not { Count: > 0 }
+            ? []
+            : chatOptions.Tools.OfType<Microsoft.Extensions.AI.AIFunctionDeclaration>().Where(tool => tool is not Microsoft.Extensions.AI.AIFunction).ToList();
+
+        return new AzureRequestOptions(functions, chatOptions, declarations);
     }
 
     private sealed record AzureRequestOptions(
         IReadOnlyList<Microsoft.Extensions.AI.AIFunction> Functions,
-        Microsoft.Extensions.AI.ChatOptions ResolvedOptions);
+        Microsoft.Extensions.AI.ChatOptions ResolvedOptions,
+        IReadOnlyList<Microsoft.Extensions.AI.AIFunctionDeclaration> Declarations);
 
     private static List<ChatMessage> GetPrompts(AICompletionContext context, List<ChatMessage> azureMessages)
     {
@@ -716,7 +959,7 @@ omit optional fields, or split the operation into multiple smaller calls.
         if (context.PastMessagesCount > 0)
         {
             var skip = GetTotalMessagesToSkip(azureMessages.Count, context.PastMessagesCount.Value);
-            prompts.AddRange(azureMessages.Skip(skip).Take(context.PastMessagesCount.Value));
+            prompts.AddRange(AzureOpenAIChatMessageConverter.DropOrphanedToolResults(azureMessages.Skip(skip).Take(context.PastMessagesCount.Value).ToList()));
         }
         else
         {
