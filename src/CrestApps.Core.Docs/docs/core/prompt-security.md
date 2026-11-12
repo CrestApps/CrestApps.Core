@@ -170,6 +170,25 @@ What this does and does not give up:
   rather than losing it altogether. Behind a proxy that terminates TLS, forward the scheme (for example
   with `UseForwardedHeaders`) or the option has no effect.
 
+### Remote address behind a reverse proxy
+
+The visitor's remote address (used for the address hash and for rate-limit partitions) is the connection's
+remote address. The raw `X-Forwarded-For` header is **never** read, because any client can send it. A host behind a
+reverse proxy must enable ASP.NET Core's forwarded headers middleware with its trusted proxies or networks, which
+replaces the connection's address with the forwarded one only for requests that came from a trusted proxy:
+
+```csharp
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownProxies.Add(IPAddress.Parse("10.0.0.4"));
+});
+
+app.UseForwardedHeaders();
+```
+
+Without that, every visitor behind the proxy shares the proxy's address.
+
 ### Weighted-scoring thresholds
 
 | Option | Default | Meaning |

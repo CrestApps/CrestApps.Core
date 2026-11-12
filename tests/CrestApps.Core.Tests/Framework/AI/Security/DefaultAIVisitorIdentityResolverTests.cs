@@ -56,6 +56,36 @@ public sealed class DefaultAIVisitorIdentityResolverTests
     }
 
     [Fact]
+    public void Resolve_IgnoresAnXForwardedForHeaderTheCallerSent()
+    {
+        // A header any client can send must never pick the address the rate limiters key on. The forwarded
+        // headers middleware replaces the connection's address when the host trusts its proxy.
+        var httpContext = CreateHttpContext(isHttps: true);
+        httpContext.Request.Headers["X-Forwarded-For"] = "198.51.100.99, 10.0.0.1";
+        var options = new AIVisitorIdentityOptions
+        {
+            RemoteAddressMode = AIVisitorRemoteAddressMode.PlainText,
+        };
+
+        var identity = CreateResolver(options, httpContext).Resolve();
+
+        Assert.Equal("203.0.113.5", identity.RemoteAddress);
+    }
+
+    [Fact]
+    public void Resolve_KeysTheAddressHashOnTheConnectionAddressNotTheHeader()
+    {
+        var spoofed = CreateHttpContext(isHttps: true);
+        spoofed.Request.Headers["X-Forwarded-For"] = "198.51.100.99";
+        var plain = CreateHttpContext(isHttps: true);
+
+        var spoofedHash = CreateResolver(new AIVisitorIdentityOptions(), spoofed).Resolve().RemoteAddressHash;
+        var plainHash = CreateResolver(new AIVisitorIdentityOptions(), plain).Resolve().RemoteAddressHash;
+
+        Assert.Equal(plainHash, spoofedHash);
+    }
+
+    [Fact]
     public void Resolve_ByDefault_WritesTheVisitorCookieAsSameSiteLax()
     {
         // SameSite=Lax is the right default for a chat served from its own site, and turning the new

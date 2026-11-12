@@ -10,7 +10,9 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.AI.Chat.Security;
 
 /// <summary>
-/// Resolves stable visitor identities for AI chat requests.
+/// Resolves stable visitor identities for AI chat requests. The remote address is the connection's address, never the
+/// raw <c>X-Forwarded-For</c> header; a host behind a reverse proxy must enable ASP.NET Core's forwarded headers
+/// middleware with its trusted proxies so the connection carries the client's address.
 /// </summary>
 public sealed class DefaultAIVisitorIdentityResolver : IAIVisitorIdentityResolver
 {
@@ -170,20 +172,12 @@ public sealed class DefaultAIVisitorIdentityResolver : IAIVisitorIdentityResolve
         };
     }
 
+    // The raw X-Forwarded-For header is never read: any client can send it, so trusting it lets a caller pick the
+    // address the rate limiters and the abuse controls key on. A host behind a reverse proxy enables ASP.NET Core's
+    // forwarded headers middleware with its known proxies or networks, which replaces the connection's remote
+    // address with the forwarded one only when the request came from a trusted proxy.
     private static string ResolveRemoteAddress(HttpContext httpContext)
     {
-        var forwardedFor = httpContext.Request.Headers["X-Forwarded-For"].ToString();
-
-        if (!string.IsNullOrWhiteSpace(forwardedFor))
-        {
-            var forwardedAddress = forwardedFor.Split(',')[0].Trim();
-
-            if (!string.IsNullOrWhiteSpace(forwardedAddress))
-            {
-                return forwardedAddress;
-            }
-        }
-
         return httpContext.Connection.RemoteIpAddress?.ToString();
     }
 }
