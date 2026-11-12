@@ -87,6 +87,124 @@ public sealed class AIChatHubCoreTests
         promptStore.Verify(store => store.GetPromptsAsync(It.IsAny<string>()), Times.Never);
     }
 
+    [Fact]
+    public void ResolveVisitorIdentity_IsAvailableToDerivedHubs()
+    {
+        var resolver = new Mock<IAIVisitorIdentityResolver>();
+        resolver.Setup(r => r.Resolve()).Returns(new AIVisitorIdentity { VisitorId = "visitor-1" });
+        var services = new ServiceCollection().AddSingleton(resolver.Object).BuildServiceProvider();
+
+        Assert.Equal("visitor-1", TestAIChatHub.ResolveVisitorIdentityForTest(services).VisitorId);
+    }
+
+    [Fact]
+    public async Task EvaluateMessageRateLimitAsync_WhenThrottled_ReturnsARateLimitBlock()
+    {
+        var limiter = new Mock<IChatRateLimiter>();
+        limiter
+            .Setup(l => l.EvaluateAsync(It.IsAny<PromptSecurityContext>(), It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<RateLimitResult>(RateLimitResult.Throttled(7, 5, 5)));
+        var services = new ServiceCollection().AddSingleton(limiter.Object).BuildServiceProvider();
+        var hub = new TestAIChatHub(services)
+        {
+            Context = CreateCallerContext("user-1"),
+        };
+
+        var result = await hub.EvaluateMessageRateLimitForTestAsync(services, new AIProfile { ItemId = "profile-1" }, "session-1");
+
+        Assert.True(result.IsBlocked);
+        Assert.Equal(PromptSecurityResult.RateLimitDetectionRule, result.DetectionRule);
+    }
+
+    [Fact]
+    public async Task EvaluateMessageRateLimitAsync_WithoutALimiter_AllowsTheMessage()
+    {
+        var services = new ServiceCollection().BuildServiceProvider();
+        var hub = new TestAIChatHub(services)
+        {
+            Context = CreateCallerContext("user-1"),
+        };
+
+        var result = await hub.EvaluateMessageRateLimitForTestAsync(services, new AIProfile { ItemId = "profile-1" }, "session-1");
+
+        Assert.False(result.IsBlocked);
+    }
+
+    [Fact]
+    public async Task HandleSendMessageAsync_ForATemplatePrompt_AuthorizesTheParentProfileBeforeGenerating()
+    {
+        var template = new AIProfile { ItemId = "template-1", Type = AIProfileType.TemplatePrompt };
+        var parent = new AIProfile { ItemId = "parent-1", Type = AIProfileType.Chat };
+        var hub = CreateTemplateHub(template, parent, ["template-1"], out var client, out var services);
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.HandleSendMessageForTestAsync(channel.Writer, services, "template-1", null, null, "parent-1");
+
+        client.Verify(c => c.ReceiveError("You are not authorized to interact with the given profile."), Times.Once);
+        Assert.Equal(0, hub.GeneratedPromptCalls);
+    }
+
+    [Fact]
+    public async Task HandleSendMessageAsync_ForATemplatePrompt_StopsWhenTheMessageRateLimitIsExceeded()
+    {
+        var template = new AIProfile { ItemId = "template-1", Type = AIProfileType.TemplatePrompt };
+        var parent = new AIProfile { ItemId = "parent-1", Type = AIProfileType.Chat };
+        var hub = CreateTemplateHub(template, parent, ["template-1", "parent-1"], out var client, out var services, throttle: true);
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.HandleSendMessageForTestAsync(channel.Writer, services, "template-1", null, null, "parent-1");
+
+        client.Verify(c => c.ReceiveError(It.Is<string>(m => m.Contains("Rate limit"))), Times.Once);
+        Assert.Equal(0, hub.GeneratedPromptCalls);
+    }
+
+    [Fact]
+    public async Task HandleSendMessageAsync_ForAnAuthorizedTemplatePrompt_GeneratesThePrompt()
+    {
+        var template = new AIProfile { ItemId = "template-1", Type = AIProfileType.TemplatePrompt };
+        var parent = new AIProfile { ItemId = "parent-1", Type = AIProfileType.Chat };
+        var hub = CreateTemplateHub(template, parent, ["template-1", "parent-1"], out _, out var services);
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.HandleSendMessageForTestAsync(channel.Writer, services, "template-1", null, null, "parent-1");
+
+        Assert.Equal(1, hub.GeneratedPromptCalls);
+        Assert.Same(parent, hub.GeneratedPromptParent);
+    }
+
+    private static TestAIChatHub CreateTemplateHub(
+        AIProfile template,
+        AIProfile parent,
+        string[] authorizedProfileIds,
+        out Mock<IAIChatHubClient> client,
+        out IServiceProvider services,
+        bool throttle = false)
+    {
+        var profileManager = new Mock<IAIProfileManager>();
+        profileManager
+            .Setup(m => m.FindByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns((string id, CancellationToken _) => new ValueTask<AIProfile>(id == template.ItemId ? template : id == parent.ItemId ? parent : null));
+        var limiter = new Mock<IChatRateLimiter>();
+        limiter
+            .Setup(l => l.EvaluateAsync(It.IsAny<PromptSecurityContext>(), It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<RateLimitResult>(throttle ? RateLimitResult.Throttled(7, 5, 5) : RateLimitResult.Allowed));
+        services = new ServiceCollection()
+            .AddSingleton(profileManager.Object)
+            .AddSingleton(limiter.Object)
+            .BuildServiceProvider();
+        client = new Mock<IAIChatHubClient>();
+        var clients = new Mock<IHubCallerClients<IAIChatHubClient>>();
+        clients.SetupGet(c => c.Caller).Returns(client.Object);
+
+        return new TestAIChatHub(services)
+        {
+            Context = CreateCallerContext("user-1"),
+            Clients = clients.Object,
+            Groups = Mock.Of<IGroupManager>(),
+            AuthorizedProfileIds = new HashSet<string>(authorizedProfileIds),
+        };
+    }
+
     private static HubCallerContext CreateCallerContext(string userId)
     {
         var context = new Mock<HubCallerContext>();
@@ -628,6 +746,40 @@ public sealed class AIChatHubCoreTests
             : base(services, TimeProvider.System, NullLogger.Instance)
         {
             _chatSession = chatSession;
+        }
+
+        public HashSet<string> AuthorizedProfileIds { get; init; }
+
+        public int GeneratedPromptCalls { get; private set; }
+
+        public AIProfile GeneratedPromptParent { get; private set; }
+
+        public static AIVisitorIdentity ResolveVisitorIdentityForTest(IServiceProvider services)
+        {
+            return ResolveVisitorIdentity(services);
+        }
+
+        public Task<PromptSecurityResult> EvaluateMessageRateLimitForTestAsync(IServiceProvider services, AIProfile profile, string sessionId)
+        {
+            return EvaluateMessageRateLimitAsync(services, profile, sessionId, CancellationToken.None);
+        }
+
+        public Task HandleSendMessageForTestAsync(ChannelWriter<CompletionPartialMessage> writer, IServiceProvider services, string profileId, string prompt, string sessionId, string sessionProfileId)
+        {
+            return HandleSendMessageAsync(writer, services, profileId, prompt, sessionId, sessionProfileId, CancellationToken.None);
+        }
+
+        protected override Task<bool> AuthorizeProfileAsync(IServiceProvider services, AIProfile profile)
+        {
+            return Task.FromResult(AuthorizedProfileIds is null || AuthorizedProfileIds.Contains(profile.ItemId));
+        }
+
+        protected override Task ProcessGeneratedPromptAsync(ChannelWriter<CompletionPartialMessage> writer, IServiceProvider services, AIProfile profile, string sessionId, AIProfile parentProfile, CancellationToken cancellationToken)
+        {
+            GeneratedPromptCalls++;
+            GeneratedPromptParent = parentProfile;
+
+            return Task.CompletedTask;
         }
 
         public Task SaveChatSessionForTestAsync(IServiceProvider services, IAIChatSessionManager sessionManager, AIChatSession chatSession)
