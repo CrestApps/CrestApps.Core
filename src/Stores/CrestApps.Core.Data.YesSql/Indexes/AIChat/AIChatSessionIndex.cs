@@ -25,6 +25,11 @@ public sealed class AIChatSessionIndex : MapIndex
     public string UserId { get; set; }
 
     /// <summary>
+    /// Gets or sets the identifier of the anonymous visitor who owns the session, for a session that has no user.
+    /// </summary>
+    public string ClientId { get; set; }
+
+    /// <summary>
     /// Gets or sets the current status of the chat session.
     /// </summary>
     public ChatSessionStatus Status { get; set; }

@@ -296,6 +296,17 @@ await schemaBuilder.CreateAIChatSessionIndexSchemaAsync(storeOptions);
 
 When no `YesSqlStoreOptions` is passed to a schema builder extension, a default instance is used automatically.
 
+A database created before an index gained a column needs a migration that adds it. The chat session index gained
+`ClientId` (the anonymous visitor who owns a session; `AIChatSessionQueryContext.ClientId` filters on it), so run this
+once when upgrading an existing database:
+
+```csharp
+await schemaBuilder.AddAIChatSessionIndexClientIdColumnAsync(storeOptions);
+```
+
+A new database gets the column from `CreateAIChatSessionIndexSchemaAsync`. Rows written before the upgrade have no client
+id until their session is saved again, because YesSql fills an index when it maps a document.
+
 ### Manual Catalog Registration
 
 The built-in per-feature extension methods (e.g., `AddCoreAIServicesStoresYesSql()`) are the recommended way to register YesSql stores because they guarantee that the catalog, index provider, and schema migration all share the same collection name from `YesSqlStoreOptions`.
