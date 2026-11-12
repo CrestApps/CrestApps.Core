@@ -6,7 +6,7 @@ Use these instructions when working on `CrestApps.Core` with Copilot CLI.
 
 `CrestApps.Core` is the standalone framework repository for CrestApps shared .NET libraries. It contains the reusable AI, orchestration, chat, storage, templating, SignalR, and protocol packages plus sample hosts and the docs site.
 
-- **Target framework:** .NET 10
+- **Target frameworks:** .NET 10 and .NET 11 (`net10.0;net11.0`)
 - **Docs project:** `src\CrestApps.Core.Docs`
 - **Tests:** `tests\CrestApps.Core.Tests`
 - **Sample hosts:** `src\Startup\CrestApps.Core.Mvc.Web`, `src\Startup\CrestApps.Core.Aspire.AppHost`

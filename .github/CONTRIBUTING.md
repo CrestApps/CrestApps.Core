@@ -12,7 +12,7 @@ git checkout main
 
 Install:
 
-- .NET 10 SDK
+- .NET 11 SDK, plus the .NET 10 runtime (the libraries target both `net10.0` and `net11.0`)
 - Node.js 20+ for the docs site and asset tooling
 
 Common commands:

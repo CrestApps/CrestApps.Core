@@ -9,7 +9,8 @@
 
     <!-- TFMs used to build the abstractions and modules, by convention the default TFM is at the first position -->
     <!-- In a cross-targeting build, some assets are only copied on the first TFM, by convention the default TFM -->
-    <CommonTargetFrameworks Condition="'$(CommonTargetFrameworks)' == ''">net10.0</CommonTargetFrameworks>
+    <!-- Framework-dependent package versions are selected per TFM in Directory.Packages.props -->
+    <CommonTargetFrameworks Condition="'$(CommonTargetFrameworks)' == ''">net10.0;net11.0</CommonTargetFrameworks>
   </PropertyGroup>
 
   <!-- Detect if the solution is opened in VS to limit the TFMs that are analyzed by Roslyn for performance reasons -->
@@ -134,7 +135,7 @@
     <NoWarn>$(NoWarn);NU1605</NoWarn>
 
     <!-- NU5104: A stable release of a package should not have a prerelease dependency.
-         CrestApps.Core ships against .NET 10 preview ecosystem packages (notably
+         CrestApps.Core ships against .NET 10 and .NET 11 preview ecosystem packages (notably
          Microsoft.Extensions.DataIngestion, A2A.AspNetCore, Lucene.Net.Analysis.Common)
          that are still pre-release at the time of release. Re-enable this warning once
          those upstream packages ship stable releases. -->

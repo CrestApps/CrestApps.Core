@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFrameworks></TargetFrameworks>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>$(DefaultTargetFramework)</TargetFramework>
     <Nullable>annotations</Nullable>
     <RootNamespace>CrestApps.Core.Blazor.Web</RootNamespace>
     <UserSecretsId>CrestApps-Blazor-Web</UserSecretsId>

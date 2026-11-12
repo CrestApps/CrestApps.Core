@@ -9,7 +9,7 @@ first and follow it for build, test, coding, and documentation rules.
 
 `CrestApps.Core` is the standalone framework repository for the CrestApps shared
 libraries (AI, orchestration, chat, templating, document processing, SignalR,
-storage, and sample hosts), targeting .NET 10.
+storage, and sample hosts), targeting .NET 10 and .NET 11.
 
 ## Build and test
 

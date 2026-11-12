@@ -20,7 +20,7 @@ Chat Interactions are the easiest playground-style UI for validating that your c
 
 ## Prerequisites
 
-- .NET 10 SDK
+- .NET 11 SDK (the libraries target both `net10.0` and `net11.0`; install the .NET 10 runtime too to run the tests on `net10.0`)
 - Node.js 20+ for the documentation site
 - At least one AI provider credential or a local Ollama instance when you want to run the sample app with live AI features
 

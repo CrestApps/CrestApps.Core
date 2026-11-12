@@ -4,6 +4,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- End-to-end tests drive the sample hosts, which run on the default TFM only. -->
+    <TargetFrameworks></TargetFrameworks>
+    <TargetFramework>$(DefaultTargetFramework)</TargetFramework>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
