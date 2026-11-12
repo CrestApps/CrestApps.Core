@@ -1,4 +1,7 @@
 using System.Text.Json;
+using CrestApps.Core.AI.Completions;
+using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.WebMcp;
 using CrestApps.Core.AI.WebMcp.Services;
 using Microsoft.Extensions.AI;
@@ -118,5 +121,69 @@ public sealed class WebMcpPageToolFunctionTests
         var result = await function.InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
 
         Assert.Equal("The page tool failed: The page did not answer in time.", result);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_EndsTheTurnAfterOpeningAPageWhenTheClientContinuesThere()
+    {
+        using var scope = AIInvocationScope.Begin();
+        var invocation = AIInvocationScope.Current;
+
+        invocation.CompletionContext = new AICompletionContext();
+        invocation.CompletionContext.AdditionalProperties[AICompletionContextKeys.ContinuesOnNextPage] = true;
+
+        var result = await CreateNavigateFunction(WebMcpPageToolResult.Success("Opening /articles."))
+            .InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
+
+        Assert.Equal("Opening /articles.", result);
+        Assert.True(invocation.Items.ContainsKey(AICompletionContextKeys.EndTurnAfterToolCalls));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_KeepsTheTurnGoingWhenTheClientDoesNotContinueOnTheNextPage()
+    {
+        using var scope = AIInvocationScope.Begin();
+        var invocation = AIInvocationScope.Current;
+
+        invocation.CompletionContext = new AICompletionContext();
+
+        await CreateNavigateFunction(WebMcpPageToolResult.Success("Opening /articles."))
+            .InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
+
+        Assert.False(invocation.Items.ContainsKey(AICompletionContextKeys.EndTurnAfterToolCalls));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_KeepsTheTurnGoingWhenThePageCouldNotBeOpened()
+    {
+        using var scope = AIInvocationScope.Begin();
+        var invocation = AIInvocationScope.Current;
+
+        invocation.CompletionContext = new AICompletionContext();
+        invocation.CompletionContext.AdditionalProperties[AICompletionContextKeys.ContinuesOnNextPage] = true;
+
+        await CreateNavigateFunction(WebMcpPageToolResult.Failure("No such page."))
+            .InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
+
+        Assert.False(invocation.Items.ContainsKey(AICompletionContextKeys.EndTurnAfterToolCalls));
+    }
+
+    private static WebMcpPageToolFunction CreateNavigateFunction(WebMcpPageToolResult result)
+    {
+        var client = new Mock<IWebMcpPageToolClient>();
+
+        client
+            .Setup(c => c.ExecuteAsync(It.IsAny<string>(), WebMcpPageToolFunction.NavigateToolName, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(result);
+
+        var tool = new WebMcpPageTool
+        {
+            Name = WebMcpPageToolFunction.NavigateToolName,
+            FunctionName = WebMcpPageToolFunction.NavigateToolName,
+            Description = "Opens a page.",
+            InputSchema = _tool.InputSchema,
+        };
+
+        return new WebMcpPageToolFunction(tool, "connection-1", client.Object);
     }
 }

@@ -79,6 +79,12 @@ public sealed class AGUIRunRequest
     public IReadOnlyDictionary<string, string> ClientToolResults { get; private init; } = new Dictionary<string, string>();
 
     /// <summary>
+    /// Gets a value indicating whether the run continues, on the page a page tool opened, a turn that ended there
+    /// (<c>forwardedProps.continueRun</c>).
+    /// </summary>
+    public bool IsContinuation { get; private init; }
+
+    /// <summary>
     /// Gets a value indicating whether the run continues a previous run that waited for approvals or for the client.
     /// </summary>
     public bool IsResume => Resume.Count > 0 || (ClientToolResults.Count > 0 && string.IsNullOrWhiteSpace(Prompt));
@@ -103,6 +109,9 @@ public sealed class AGUIRunRequest
             RunId = string.IsNullOrWhiteSpace(input.RunId) ? Guid.NewGuid().ToString("n") : input.RunId,
             ProfileId = GetString(forwarded, "profileId"),
             SessionProfileId = GetString(forwarded, "sessionProfileId"),
+            IsContinuation = forwarded.ValueKind == JsonValueKind.Object &&
+                forwarded.TryGetProperty("continueRun", out var continueRun) &&
+                continueRun.ValueKind == JsonValueKind.True,
             Prompt = GetPrompt(input.Messages),
             Context = GetContext(input.Context),
             State = GetState(input.State),

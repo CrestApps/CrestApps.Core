@@ -120,4 +120,17 @@ public static class AICompletionContextKeys
     /// model may call them; a call ends the request, and the client sends the result with its next request.
     /// </summary>
     public const string ClientTools = "ClientTools";
+
+    /// <summary>
+    /// The key whose <see langword="true"/> value tells the tools that the client picks a run up again on the page a page
+    /// tool opens. A tool that opens another page then ends the turn (see <see cref="EndTurnAfterToolCalls"/>), and the
+    /// client starts a run that continues on the new page, with its tools.
+    /// </summary>
+    public const string ContinuesOnNextPage = "ContinuesOnNextPage";
+
+    /// <summary>
+    /// The key of the item (in <see cref="Orchestration.AIInvocationContext.Items"/>) a tool sets to end the turn after
+    /// the current round of tool calls, without asking the model again; for example after it opened another page.
+    /// </summary>
+    public const string EndTurnAfterToolCalls = "EndTurnAfterToolCalls";
 }

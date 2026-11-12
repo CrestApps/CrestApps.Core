@@ -178,7 +178,7 @@ registration.abort();
 | --- | --- | --- |
 | `page_get_info` | Yes | The page's title, address, description, first 20 `h1` and `h2` headings, and whether it is an admin page (the `isAdmin` setting). |
 | `page_list_links` | Yes | Up to 200 same-origin links in `nav`, `header`, `aside` and `[role="navigation"]`, with their text. An optional `filter` keeps the links whose text contains it. |
-| `page_navigate` | No | Opens a same-origin address. Other origins and script addresses are refused. It answers first and opens the page a moment later (`navigateDelayMs`, 400 ms by default), so a chat that called it gets the result; an [AG-UI run](../core/ag-ui.md#runs-that-outlive-the-page) then finishes on the server and the next page shows its answer. |
+| `page_navigate` | No | Opens a same-origin address. Other origins and script addresses are refused. It answers first and opens the page a moment later (`navigateDelayMs`, 400 ms by default), so a chat that called it gets the result; an [AG-UI run](../core/ag-ui.md#runs-that-continue-on-the-next-page) then ends its turn, and the chat on the next page continues it with that page's tools. |
 | `page_list_form_fields` | Yes | Up to 200 form fields: name, id, label, type, value (cut to 2,000 characters), required and, for lists, the choices. Hidden, password, file, button and disabled fields and the antiforgery token are left out. |
 | `page_set_form_field` | No | Puts a value into one listed field, found by name, id or label, and raises `input` and `change`. For a list, the value is a choice's value or text. It never submits the form. |
 

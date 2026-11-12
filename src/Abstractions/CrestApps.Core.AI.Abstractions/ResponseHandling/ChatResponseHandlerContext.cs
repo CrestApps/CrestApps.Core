@@ -101,4 +101,10 @@ public sealed class ChatResponseHandlerContext
     /// client sends the result with its next run.
     /// </summary>
     public IReadOnlyList<AITool> ClientTools { get; init; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether the client picks the run up again on the page a page tool opens. When it is
+    /// <see langword="true"/>, opening another page ends the turn, and the client continues it on the new page.
+    /// </summary>
+    public bool ContinuesOnNextPage { get; init; }
 }

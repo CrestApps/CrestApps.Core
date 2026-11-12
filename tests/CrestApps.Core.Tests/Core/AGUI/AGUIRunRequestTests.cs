@@ -41,6 +41,17 @@ public sealed class AGUIRunRequestTests
     }
 
     [Fact]
+    public void From_ReadsAContinuationOnTheNextPage()
+    {
+        var continuation = Read("""{ "threadId": "session-1", "messages": [], "tools": [], "context": [], "forwardedProps": { "profileId": "profile-1", "continueRun": true } }""");
+        var normal = Read("""{ "threadId": "session-1", "messages": [], "tools": [], "context": [], "forwardedProps": { "profileId": "profile-1", "continueRun": "yes" } }""");
+
+        Assert.True(continuation.IsContinuation);
+        Assert.False(continuation.IsResume);
+        Assert.False(normal.IsContinuation);
+    }
+
+    [Fact]
     public void From_TreatsAnEmptyThreadAsANewSessionAndMakesARunId()
     {
         var request = Read("""{ "threadId": "", "runId": "", "messages": [], "tools": [], "context": [], "forwardedProps": {} }""");

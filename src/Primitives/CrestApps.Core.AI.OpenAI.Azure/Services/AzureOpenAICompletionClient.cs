@@ -9,6 +9,7 @@ using CrestApps.Core.AI.Connections;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
+using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Extensions;
@@ -396,7 +397,10 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
                     accumulatedToolCalls.Clear();
                     // Create a new chat option that excludes references to data sources to address the limitations in Azure OpenAI.
                     chatOptions = subSequenceContext ??= GetOptions(context, allFunctions, requestOptions.ResolvedOptions, requestOptions.Declarations);
-                    hasToolCalls = true;
+
+                    // A tool can end the turn after its round, for example after it opened another page; the model is not
+                    // asked again.
+                    hasToolCalls = AIInvocationScope.Current?.Items.ContainsKey(AICompletionContextKeys.EndTurnAfterToolCalls) != true;
 
                     // The round trip that asked for tool calls is a billed request too, and its usage arrives in a
                     // final update after the finish reason, so read the rest of the stream and record it on its own

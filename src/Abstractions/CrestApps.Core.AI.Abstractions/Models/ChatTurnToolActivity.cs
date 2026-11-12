@@ -12,6 +12,12 @@ public sealed class ChatTurnToolActivity
     public List<ChatTurnToolCall> ToolCalls { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets a value indicating whether the turn ended because a tool opened another page, and waits for the
+    /// client to continue it on that page. The continuation clears it, so a turn is continued only once.
+    /// </summary>
+    public bool ContinuesOnNextPage { get; set; }
+
+    /// <summary>
     /// Gets a value indicating whether a call waits for an approval or for the client's result.
     /// </summary>
     public bool HasPendingCalls => ToolCalls.Any(call => call.Status is ChatTurnToolCallStatus.AwaitingApproval or ChatTurnToolCallStatus.AwaitingClient);

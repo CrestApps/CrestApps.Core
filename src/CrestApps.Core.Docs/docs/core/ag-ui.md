@@ -139,11 +139,19 @@ An AG-UI client can give the agent tools it runs itself, in `RunAgentInput.tools
 
 The chat UI does not use frontend tools: the page's tools reach the chat through [WebMCP](../mcp/webmcp.md#the-ai-chat-as-a-webmcp-agent), which runs them in the tab during the run.
 
-## Runs that outlive the page
+## Runs that continue on the next page
 
-A page tool can open another page (`page_navigate`). The tool answers first and opens the page a moment later, so the agent gets the result; the run then keeps going on the server after the connection drops, for `AGUIChatOptions.DisconnectedRunTimeout` (two minutes by default), and its answer is saved. A stop the user asks for ends the run at once.
+A page tool can open another page (`page_navigate`). The tool answers first and opens the page a moment later, so the agent gets the result. In a run on the chat hub, opening a page then ends the turn: the rest of the work needs the new page's tools, which only the chat on that page has.
 
-The chat on the next page loads the session, which a new chat's run saves as soon as it starts, and joins its group; when the run ends, the hub sends the session to that group, so the answer appears on the next page as soon as it is saved. The rest of that run cannot use the next page's tools, since they belong to another connection: the next message the user sends can.
+1. The turn is saved with the tool calls it made and marked to continue on the next page (`ChatTurnToolActivity.ContinuesOnNextPage`), and the run sends the `crestapps.continues_on_next_page` event.
+2. The chat on the next page loads the session (a new chat's run saves it as soon as it starts). When the tab that sent the message opened that page, and the session's last message is marked, the chat starts a run with `forwardedProps.continueRun` set to `true`.
+3. `ContinueAGUIRunAsync` clears the mark, so the turn continues only once, and asks the model to carry on with the user's request on the loaded page (`GetContinueOnNextPagePrompt`, which a hub can override). The model calls the new page's tools, and may open another page.
+
+The chat continues at most five pages in a row; the next message the user sends starts a new chain. A run over HTTP (`MapAGUIChat`) has no page to continue on, so its turn goes on as usual.
+
+A run also keeps going on the server after its connection drops, for `AGUIChatOptions.DisconnectedRunTimeout` (two minutes by default), and its answer is saved. A stop the user asks for ends it at once. When it ends, the hub sends the session to its group, so the chat on the next page shows the answer, or continues the turn, as soon as it is saved.
+
+Tools that end a turn this way set `AICompletionContextKeys.EndTurnAfterToolCalls` in `AIInvocationScope.Current.Items` when the completion context carries `AICompletionContextKeys.ContinuesOnNextPage`. The model is not asked again after that round of tool calls.
 
 ```csharp
 services.Configure<AGUIChatOptions>(options => options.DisconnectedRunTimeout = TimeSpan.FromMinutes(1));

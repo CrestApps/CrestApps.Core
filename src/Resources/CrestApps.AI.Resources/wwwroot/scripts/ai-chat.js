@@ -438,6 +438,24 @@
 			if (window.crypto && typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID().replace(/-/g, "");
 			return Date.now().toString(36) + Math.random().toString(36).slice(2);
 		}
+		const PAGE_NAVIGATE_TOOL_NAME = "page_navigate";
+		const CONTINUE_RUN_STORAGE_KEY = "crestapps-agui-continue-run";
+		const CONTINUE_RUN_MAX_WAIT_MS = 12e4;
+		const MAX_CONTINUE_RUN_DEPTH = 5;
+		function readContinueRunMarker() {
+			try {
+				const value = JSON.parse(window.sessionStorage.getItem(CONTINUE_RUN_STORAGE_KEY) || "null");
+				return value && typeof value.sessionId === "string" ? value : null;
+			} catch (e) {
+				return null;
+			}
+		}
+		function writeContinueRunMarker(marker) {
+			try {
+				if (marker) window.sessionStorage.setItem(CONTINUE_RUN_STORAGE_KEY, JSON.stringify(marker));
+				else window.sessionStorage.removeItem(CONTINUE_RUN_STORAGE_KEY);
+			} catch (e) {}
+		}
 		const renderer = new marked.Renderer();
 		renderer.link = function(data) {
 			var href = sanitizeUrl(data.href);
@@ -1051,6 +1069,7 @@
 								role: "assistant",
 								content: config.initialPrompt
 							});
+							this.continueRunOnThisPage(data);
 						});
 						this.connection.on("ReceiveError", (error) => {
 							console.error("SignalR Error: ", error);
@@ -1698,6 +1717,7 @@
 								message.toolCalls.push(call);
 								run.toolCalls[evt.toolCallId] = message.toolCalls[message.toolCalls.length - 1];
 								this.refreshAGUIMessage(run);
+								if (evt.toolCallName === PAGE_NAVIGATE_TOOL_NAME) this.markRunContinuesOnNextPage(run.threadId || this.getSessionId());
 								break;
 							}
 							case "TOOL_CALL_ARGS": {
@@ -1787,7 +1807,9 @@
 						this.stream = null;
 						if (this.aguiRun === run) this.aguiRun = null;
 					},
-					streamAGUIRun(profileId, prompt, sessionProfileId, resume) {
+					streamAGUIRun(profileId, prompt, sessionProfileId, resume, options) {
+						const continueRun = !!(options && options.continueRun);
+						if (prompt) writeContinueRunMarker(null);
 						if (this.stream) {
 							this.stream.dispose();
 							this.stream = null;
@@ -1828,6 +1850,7 @@
 									sessionProfileId: sessionProfileId || null
 								}
 							};
+							if (continueRun) input.forwardedProps.continueRun = true;
 							const state = this.getSharedState();
 							if (state !== void 0) input.state = state;
 							if (resume && resume.length) input.resume = resume;
@@ -1836,7 +1859,7 @@
 								complete: () => this.finishAGUIRun(run),
 								error: (err) => {
 									const errorText = String(err && err.message || err || "");
-									if (!resume && !run.message && errorText.includes("Method does not exist")) {
+									if (!resume && !continueRun && !run.message && errorText.includes("Method does not exist")) {
 										this.aguiDisabled = true;
 										this.stream = null;
 										this.hideTypingIndicator();
@@ -1876,6 +1899,43 @@
 							payload: { approved: c.status === "approved" }
 						}));
 						this.streamAGUIRun(this.getProfileId(), null, null, resume);
+					},
+					markRunContinuesOnNextPage(sessionId) {
+						if (!sessionId) return;
+						const marker = readContinueRunMarker();
+						writeContinueRunMarker({
+							sessionId,
+							depth: (marker && marker.sessionId === sessionId ? marker.depth : 0) + 1,
+							at: Date.now()
+						});
+					},
+					continueRunOnThisPage(data) {
+						const marker = readContinueRunMarker();
+						if (!marker || !data || marker.sessionId !== data.sessionId || this.aguiDisabled) return;
+						if (Date.now() - marker.at > CONTINUE_RUN_MAX_WAIT_MS) {
+							writeContinueRunMarker(null);
+							this.hideTypingIndicator();
+							return;
+						}
+						const messages = data.messages || [];
+						const last = messages.length ? messages[messages.length - 1] : null;
+						if (!last || last.role !== "assistant" || !last.continuesOnNextPage) {
+							if (!last || last.role === "user") this.showTypingIndicator();
+							else writeContinueRunMarker(null);
+							return;
+						}
+						if (marker.depth > MAX_CONTINUE_RUN_DEPTH) {
+							writeContinueRunMarker(null);
+							return;
+						}
+						writeContinueRunMarker({
+							sessionId: marker.sessionId,
+							depth: marker.depth,
+							at: 0
+						});
+						if (this.stream) return;
+						last.continuesOnNextPage = false;
+						this.streamAGUIRun(this.getProfileId(), null, null, null, { continueRun: true });
 					},
 					getServiceDownMessage() {
 						return {

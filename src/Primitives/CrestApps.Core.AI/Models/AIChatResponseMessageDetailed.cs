@@ -40,4 +40,10 @@ public sealed class AIChatResponseMessageDetailed : AIResponseMessage
     /// made none.
     /// </summary>
     public IReadOnlyList<ChatTurnToolCall> ToolCalls { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the message ended its turn because a tool opened another page, and waits
+    /// for the chat on that page to continue it.
+    /// </summary>
+    public bool ContinuesOnNextPage { get; set; }
 }

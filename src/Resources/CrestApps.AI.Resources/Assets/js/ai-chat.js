@@ -690,6 +690,35 @@ window.coreAIChatManager = function () {
         return Date.now().toString(36) + Math.random().toString(36).slice(2);
     }
 
+    // The page tool that opens another page. The run that calls it ends there, and the chat on the new page continues
+    // it with that page's tools.
+    const PAGE_NAVIGATE_TOOL_NAME = 'page_navigate';
+    const CONTINUE_RUN_STORAGE_KEY = 'crestapps-agui-continue-run';
+    const CONTINUE_RUN_MAX_WAIT_MS = 120000;
+    const MAX_CONTINUE_RUN_DEPTH = 5;
+
+    function readContinueRunMarker() {
+        try {
+            const value = JSON.parse(window.sessionStorage.getItem(CONTINUE_RUN_STORAGE_KEY) || 'null');
+
+            return value && typeof value.sessionId === 'string' ? value : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function writeContinueRunMarker(marker) {
+        try {
+            if (marker) {
+                window.sessionStorage.setItem(CONTINUE_RUN_STORAGE_KEY, JSON.stringify(marker));
+            } else {
+                window.sessionStorage.removeItem(CONTINUE_RUN_STORAGE_KEY);
+            }
+        } catch (e) {
+            // Without session storage the chat does not continue on the next page.
+        }
+    }
+
     const renderer = new marked.Renderer();
 
     // Modify the link rendering to open in a new tab
@@ -1612,6 +1641,8 @@ window.coreAIChatManager = function () {
                                 content: config.initialPrompt
                             });
                         }
+
+                        this.continueRunOnThisPage(data);
                     });
 
                     // Realtime lifecycle events (ReceiveRealtimeEvent, and ReceiveError while a voice session is
@@ -2565,6 +2596,12 @@ window.coreAIChatManager = function () {
                             message.toolCalls.push(call);
                             run.toolCalls[evt.toolCallId] = message.toolCalls[message.toolCalls.length - 1];
                             this.refreshAGUIMessage(run);
+
+                            // The page this tool opens continues the run, with its own tools.
+                            if (evt.toolCallName === PAGE_NAVIGATE_TOOL_NAME) {
+                                this.markRunContinuesOnNextPage(run.threadId || this.getSessionId());
+                            }
+
                             break;
                         }
 
@@ -2709,7 +2746,14 @@ window.coreAIChatManager = function () {
                         this.aguiRun = null;
                     }
                 },
-                streamAGUIRun(profileId, prompt, sessionProfileId, resume) {
+                streamAGUIRun(profileId, prompt, sessionProfileId, resume, options) {
+                    const continueRun = !!(options && options.continueRun);
+
+                    // A message the user sends starts a new chain of pages the agent may open.
+                    if (prompt) {
+                        writeContinueRunMarker(null);
+                    }
+
                     if (this.stream) {
                         this.stream.dispose();
                         this.stream = null;
@@ -2749,6 +2793,10 @@ window.coreAIChatManager = function () {
                             forwardedProps: { profileId: profileId, sessionProfileId: sessionProfileId || null },
                         };
 
+                        if (continueRun) {
+                            input.forwardedProps.continueRun = true;
+                        }
+
                         const state = this.getSharedState();
 
                         if (state !== undefined) {
@@ -2767,7 +2815,7 @@ window.coreAIChatManager = function () {
                                     const errorText = String((err && err.message) || err || '');
 
                                     // A hub without RunAgent (an older server): fall back to the text-only stream.
-                                    if (!resume && !run.message && errorText.includes('Method does not exist')) {
+                                    if (!resume && !continueRun && !run.message && errorText.includes('Method does not exist')) {
                                         this.aguiDisabled = true;
                                         this.stream = null;
                                         this.hideTypingIndicator();
@@ -2837,6 +2885,62 @@ window.coreAIChatManager = function () {
                         }));
 
                     this.streamAGUIRun(this.getProfileId(), null, null, resume);
+                },
+                markRunContinuesOnNextPage(sessionId) {
+                    if (!sessionId) {
+                        return;
+                    }
+
+                    const marker = readContinueRunMarker();
+                    const depth = marker && marker.sessionId === sessionId ? marker.depth : 0;
+
+                    writeContinueRunMarker({ sessionId: sessionId, depth: depth + 1, at: Date.now() });
+                },
+                continueRunOnThisPage(data) {
+                    const marker = readContinueRunMarker();
+
+                    if (!marker || !data || marker.sessionId !== data.sessionId || this.aguiDisabled) {
+                        return;
+                    }
+
+                    // The run that opened this page may still be saving its turn: the hub sends the session again
+                    // once it has, and the chat continues then.
+                    if (Date.now() - marker.at > CONTINUE_RUN_MAX_WAIT_MS) {
+                        writeContinueRunMarker(null);
+                        this.hideTypingIndicator();
+
+                        return;
+                    }
+
+                    const messages = data.messages || [];
+                    const last = messages.length ? messages[messages.length - 1] : null;
+
+                    if (!last || last.role !== 'assistant' || !last.continuesOnNextPage) {
+                        if (!last || last.role === 'user') {
+                            this.showTypingIndicator();
+                        } else {
+                            writeContinueRunMarker(null);
+                        }
+
+                        return;
+                    }
+
+                    // A chain of pages the agent opens stops after a few.
+                    if (marker.depth > MAX_CONTINUE_RUN_DEPTH) {
+                        writeContinueRunMarker(null);
+
+                        return;
+                    }
+
+                    // Continued once; the depth is kept for the next page the agent opens.
+                    writeContinueRunMarker({ sessionId: marker.sessionId, depth: marker.depth, at: 0 });
+
+                    if (this.stream) {
+                        return;
+                    }
+
+                    last.continuesOnNextPage = false;
+                    this.streamAGUIRun(this.getProfileId(), null, null, null, { continueRun: true });
                 },
                 getServiceDownMessage() {
                     let newMessage = {

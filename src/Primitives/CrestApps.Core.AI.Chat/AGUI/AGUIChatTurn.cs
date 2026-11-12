@@ -51,6 +51,18 @@ public sealed class AGUIChatTurn : ChannelWriter<CompletionPartialMessage>
     public AGUIRunEventWriter Events { get; }
 
     /// <summary>
+    /// The name of the application event that tells the client the turn ended because a tool opened another page, so the
+    /// client continues it there.
+    /// </summary>
+    public const string ContinuesOnNextPageEventName = "crestapps.continues_on_next_page";
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the client picks the run up again on the page a page tool opens. Runs on
+    /// the chat hub do; runs over HTTP have no page.
+    /// </summary>
+    public bool ContinuesOnNextPage { get; set; }
+
+    /// <summary>
     /// Gets or sets the state the client shares with the agent in this run, once the chat set it up.
     /// </summary>
     public ChatSharedState SharedState { get; set; }

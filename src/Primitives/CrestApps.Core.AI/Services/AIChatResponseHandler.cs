@@ -133,6 +133,11 @@ public sealed class AIChatResponseHandler : IChatResponseHandler
             completionContext.AdditionalProperties[AICompletionContextKeys.ToolApprovalSupported] = true;
         }
 
+        if (context.ContinuesOnNextPage)
+        {
+            completionContext.AdditionalProperties[AICompletionContextKeys.ContinuesOnNextPage] = true;
+        }
+
         if (context.ClientTools is { Count: > 0 })
         {
             completionContext.AdditionalProperties[AICompletionContextKeys.ClientTools] = context.ClientTools;
