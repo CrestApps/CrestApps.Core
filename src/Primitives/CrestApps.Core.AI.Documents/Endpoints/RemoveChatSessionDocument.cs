@@ -2,12 +2,14 @@ using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.AI.Documents.Endpoints;
 
@@ -72,7 +74,7 @@ public static class RemoveChatSessionDocument
             }
 
             var session = await sessionManager.FindAsync(requestModel.ItemId);
-            if (session == null)
+            if (session == null || !ChatSessionOwnership.IsOwner(session, httpContext.User, httpContext.RequestServices.GetService<IAIVisitorIdentityResolver>()))
             {
                 return TypedResults.NotFound();
             }

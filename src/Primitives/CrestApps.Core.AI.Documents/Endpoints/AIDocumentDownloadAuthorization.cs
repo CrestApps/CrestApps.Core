@@ -1,9 +1,11 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.AI.Documents.Endpoints;
 
@@ -61,7 +63,7 @@ internal static class AIDocumentDownloadAuthorization
                 {
                     var session = await sessionManager.FindAsync(document.ReferenceId);
 
-                    if (session is null)
+                    if (session is null || !ChatSessionOwnership.IsOwner(session, httpContext.User, httpContext.RequestServices.GetService<IAIVisitorIdentityResolver>()))
                     {
                         return Results.NotFound();
                     }

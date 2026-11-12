@@ -190,24 +190,7 @@ public abstract class AIChatDocumentEndpointBase
     /// <param name="visitorIdentityResolver">The resolver of the anonymous visitor, if the host registered one.</param>
     protected static bool IsSessionOwner(AIChatSession session, ClaimsPrincipal user, IAIVisitorIdentityResolver visitorIdentityResolver)
     {
-        ArgumentNullException.ThrowIfNull(session);
-
-        if (!string.IsNullOrEmpty(session.UserId))
-        {
-            var userId = user?.Identity?.IsAuthenticated == true
-                ? user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.Identity.Name
-                : null;
-
-            return string.Equals(session.UserId, userId, StringComparison.Ordinal);
-        }
-
-        if (!string.IsNullOrEmpty(session.ClientId))
-        {
-            return string.Equals(session.ClientId, visitorIdentityResolver?.Resolve()?.VisitorId, StringComparison.Ordinal);
-        }
-
-        // A session with no owner belongs to nobody who can prove it.
-        return false;
+        return ChatSessionOwnership.IsOwner(session, user, visitorIdentityResolver);
     }
 
     /// <summary>
