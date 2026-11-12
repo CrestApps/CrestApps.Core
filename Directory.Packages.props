@@ -2,7 +2,7 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
-    <ModelContextProtocolVersion>2.3.1</ModelContextProtocolVersion>
+    <ModelContextProtocolVersion>2.4.0</ModelContextProtocolVersion>
     <GitHubCopilotSdkVersion>1.0.28</GitHubCopilotSdkVersion>
   </PropertyGroup>
   <ItemGroup>
@@ -12,7 +12,7 @@
     <!-- AG-UI .NET SDK (MIT): protocol types and the Server-Sent Events formatter for the AG-UI chat runs. -->
     <PackageVersion Include="AGUI.Abstractions" Version="1.0.1" />
     <PackageVersion Include="AGUI.Formatting" Version="1.0.1" />
-    <PackageVersion Include="AngleSharp" Version="1.9.1" />
+    <PackageVersion Include="AngleSharp" Version="1.10.2" />
     <PackageVersion Include="Anthropic" Version="13.5.0" />
     <PackageVersion Include="DocumentFormat.OpenXml" Version="3.5.1" />
     <PackageVersion Include="Elastic.Clients.Elasticsearch" Version="[8.19.25,9.0.0)" />
@@ -27,22 +27,22 @@
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="Pgvector" Version="0.3.2" />
     <PackageVersion Include="NLog" Version="6.2.2" />
-    <PackageVersion Include="NLog.Web.AspNetCore" Version="6.2.2" />
+    <PackageVersion Include="NLog.Web.AspNetCore" Version="6.3.0" />
     <PackageVersion Include="OllamaSharp" Version="5.5.0" />
     <PackageVersion Include="PdfPig" Version="0.1.16" />
     <PackageVersion Include="SSH.NET" Version="2026.0.0" />
-    <PackageVersion Include="YesSql.Abstractions" Version="6.1.0" />
-    <PackageVersion Include="YesSql.Core" Version="6.1.0" />
-    <PackageVersion Include="YesSql.Provider.Sqlite" Version="6.1.0" />
+    <PackageVersion Include="YesSql.Abstractions" Version="6.3.0" />
+    <PackageVersion Include="YesSql.Core" Version="6.3.0" />
+    <PackageVersion Include="YesSql.Provider.Sqlite" Version="6.3.0" />
     <PackageVersion Include="ZString" Version="2.6.0" />
   </ItemGroup>
   <ItemGroup>
     <!-- OpenTelemetry Packages: only CrestApps.Core.OpenTelemetry and the sample hosts reference these. -->
     <PackageVersion Include="NLog.DiagnosticSource" Version="6.2.2" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.2" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.20.2" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.21.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.21.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.21.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.21.0" />
   </ItemGroup>
   <ItemGroup>
     <!-- Copilot Packages -->
@@ -54,11 +54,11 @@
     <PackageVersion Include="Azure.AI.OpenAI" Version="2.9.0-beta.1" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
     <PackageVersion Include="Azure.Search.Documents" Version="12.0.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="10.0.15" />
     <PackageVersion Include="Microsoft.CognitiveServices.Speech" Version="1.53.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.15" />
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.AzureAIInference" Version="10.0.0-preview.1.25559.3" />
@@ -70,25 +70,25 @@
     <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.9.0" />
     <PackageVersion Include="Microsoft.Extensions.DataIngestion" Version="10.11.0-preview.1.26513.7" />
     <PackageVersion Include="Microsoft.Extensions.DataIngestion.Markdig" Version="10.11.0-preview.1.26513.7" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.FileProviders.Physical" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.FileProviders.Physical" Version="10.0.15" />
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
-    <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.15" />
     <PackageVersion Include="Microsoft.Extensions.Resilience" Version="10.11.0" />
-    <PackageVersion Include="Microsoft.ML.Tokenizers.Data.O200kBase" Version="2.0.1" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.403" />
+    <PackageVersion Include="Microsoft.ML.Tokenizers.Data.O200kBase" Version="3.0.0" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="11.0.100" />
   </ItemGroup>
   <ItemGroup>
     <!-- Testing Packages -->
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
     <PackageVersion Include="Microsoft.Playwright" Version="1.64.1" />
     <PackageVersion Include="Moq" Version="4.21.0" />
     <PackageVersion Include="xunit.runner.inproc" Version="3.2.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
-    <PackageVersion Include="xunit.v3" Version="4.0.2" />
+    <PackageVersion Include="xunit.v3" Version="4.0.3" />
   </ItemGroup>
   <ItemGroup>
     <!-- Benchmark Packages -->
@@ -106,11 +106,11 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Transitive Packages -->
-    <PackageVersion Include="Microsoft.Bcl.Memory" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Bcl.Memory" Version="10.0.15" />
     <PackageVersion Include="Nerdbank.MessagePack" Version="1.4.95" />
     <PackageVersion Include="MessagePack" Version="3.1.12" />
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.14" />
-    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.15" />
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
   </ItemGroup>
 </Project>
