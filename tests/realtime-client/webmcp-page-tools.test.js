@@ -211,7 +211,7 @@ function text(value) {
 
 function node(tagName, children = [], props = {}) {
     const tag = tagName.toUpperCase();
-    const ignoredTags = ['SCRIPT', 'STYLE', 'NAV', 'FORM', 'ASIDE'];
+    const ignoredTags = ['SCRIPT', 'STYLE', 'NAV', 'SELECT', 'TEXTAREA', 'ASIDE'];
 
     return Object.assign({
         nodeType: 1,
@@ -235,7 +235,7 @@ function row(tag, values) {
 }
 
 describe('page_read_content', () => {
-    it('reads the main area as lines of text and its tables as rows, leaving out menus, forms, scripts and the chat', async () => {
+    it('reads the main area as lines of text and its tables as rows, leaving out menus, form controls, scripts and the chat', async () => {
         const table = node('table', [], {
             caption: node('caption', [text('Articles')]),
             rows: [
@@ -248,7 +248,8 @@ describe('page_read_content', () => {
             node('h2', [text('Articles')]),
             node('p', [text('Manage the '), node('strong', [text('sample')]), text(' content.')]),
             node('nav', [text('Dashboard')]),
-            node('form', [text('Search')]),
+            node('select', [node('option', [text('Draft')]), node('option', [text('Published')])]),
+            node('textarea', [text('Typed text')]),
             node('script', [text('var secret = 1;')]),
             node('div', [text('Hidden alert')], { hidden: true }),
             node('div', [text('Chat')], { className: 'ai-chat-widget-container' }),
@@ -268,6 +269,23 @@ describe('page_read_content', () => {
             }],
             truncated: false,
         });
+    });
+
+    it('reads the content of a form, such as an admin list wrapped in one for bulk actions', async () => {
+        const body = node('body', [
+            node('h1', [text('Blog Post')]),
+            node('form', [
+                node('ul', [
+                    node('li', [node('a', [text('Man must explore')]), text(' BlogPost')]),
+                    node('li', [node('a', [text('The day the music died')]), text(' BlogPost')]),
+                ]),
+                node('select', [node('option', [text('Publish now')])]),
+            ]),
+        ]);
+
+        const { data } = await run(tools(fakeDocument({ body })).page_read_content);
+
+        assert.strictEqual(data.text, 'Blog Post\nMan must explore BlogPost\nThe day the music died BlogPost');
     });
 
     it('reads the body when the page has no main area, and caps long text and long tables', async () => {
