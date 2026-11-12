@@ -156,6 +156,90 @@ public sealed class SftpFtpHardeningTests
         Assert.False(new FtpOptions().AllowAnyCertificate);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("None")]
+    [InlineData("Auto")]
+    [InlineData("not-a-mode")]
+    public async Task FtpFactory_RefusesCredentialsOverAnUnencryptedOrAutoConnection(string encryptionMode)
+    {
+        var factory = CreateFtpFactory(allowAnyCertificate: false);
+        var source = new FileSource { ItemId = "source-1" };
+        source.Put(new FtpConnectionMetadata { Host = "127.0.0.1", Port = 1, Username = "user", Password = "x", EncryptionMode = encryptionMode, ConnectTimeout = 2 });
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => factory.CreateAsync(source, TestContext.Current.CancellationToken));
+
+        Assert.Contains("unencrypted", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("Explicit")]
+    [InlineData("Implicit")]
+    [InlineData("explicit")]
+    public async Task FtpFactory_AllowsCredentialsOverAnEncryptedConnection(string encryptionMode)
+    {
+        var factory = CreateFtpFactory(allowAnyCertificate: false);
+        var source = new FileSource { ItemId = "source-1" };
+        source.Put(new FtpConnectionMetadata { Host = "127.0.0.1", Port = 1, Username = "user", Password = "x", EncryptionMode = encryptionMode, ConnectTimeout = 2 });
+
+        // Nothing listens on the port, so the connection fails; the policy must not be what stopped it.
+        var exception = await Record.ExceptionAsync(() => factory.CreateAsync(source, TestContext.Current.CancellationToken));
+
+        Assert.NotNull(exception);
+        Assert.False(exception is InvalidOperationException invalid && invalid.Message.Contains("unencrypted", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task FtpFactory_AllowsUnencryptedCredentialsWhenTheHostAllowedThem()
+    {
+        var factory = new FtpRemoteFileClientFactory(
+            new EphemeralDataProtectionProvider(),
+            Options.Create(new FtpOptions { AllowUnencrypted = true }),
+            NullLogger<FtpRemoteFileClientFactory>.Instance);
+        var source = new FileSource { ItemId = "source-1" };
+        source.Put(new FtpConnectionMetadata { Host = "127.0.0.1", Port = 1, Username = "user", Password = "x", EncryptionMode = "None", ConnectTimeout = 2 });
+
+        var exception = await Record.ExceptionAsync(() => factory.CreateAsync(source, TestContext.Current.CancellationToken));
+
+        Assert.NotNull(exception);
+        Assert.False(exception is InvalidOperationException invalid && invalid.Message.Contains("unencrypted", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task FtpFactory_DoesNotNeedEncryptionForAnAnonymousConnection()
+    {
+        var factory = CreateFtpFactory(allowAnyCertificate: false);
+        var source = new FileSource { ItemId = "source-1" };
+        source.Put(new FtpConnectionMetadata { Host = "127.0.0.1", Port = 1, EncryptionMode = "None", ConnectTimeout = 2 });
+
+        var exception = await Record.ExceptionAsync(() => factory.CreateAsync(source, TestContext.Current.CancellationToken));
+
+        Assert.NotNull(exception);
+        Assert.False(exception is InvalidOperationException invalid && invalid.Message.Contains("unencrypted", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task FtpResourceHandler_RefusesCredentialsOverAnUnencryptedConnection()
+    {
+        var handler = new FtpResourceTypeHandler(
+            new EphemeralDataProtectionProvider(),
+            Options.Create(new FtpOptions()),
+            NullLogger<FtpResourceTypeHandler>.Instance);
+        var resource = CreateResource(new FtpConnectionMetadata { Host = "127.0.0.1", Port = 1, Username = "user", Password = "x" });
+
+        var result = await handler.ReadAsync(resource, new Dictionary<string, string>(), TestContext.Current.CancellationToken);
+
+        var text = Assert.IsType<TextResourceContents>(Assert.Single(result.Contents)).Text;
+        Assert.Contains("unencrypted", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void FtpOptions_DoNotAllowUnencryptedCredentialsByDefault()
+    {
+        Assert.False(new FtpOptions().AllowUnencrypted);
+    }
+
     private static FtpRemoteFileClientFactory CreateFtpFactory(bool allowAnyCertificate)
     {
         return new FtpRemoteFileClientFactory(

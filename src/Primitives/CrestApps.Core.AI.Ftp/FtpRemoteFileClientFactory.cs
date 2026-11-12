@@ -44,11 +44,13 @@ public sealed class FtpRemoteFileClientFactory : IRemoteFileClientFactory
 
         var metadata = source.GetOrCreate<FtpConnectionMetadata>();
 
-        // The setting is stored data that whoever edits the file source controls, so it is only honored when the host
-        // allowed it. Refusing is better than validating anyway: the failure then says why.
-        if (metadata.ValidateAnyCertificate && !_options.Value.AllowAnyCertificate)
+        // The certificate and encryption settings are stored data that whoever edits the file source controls, so they are only
+        // honored when the host allowed them. Refusing is better than going on anyway: the failure then says why.
+        var violation = _options.Value.GetPolicyViolation(metadata);
+
+        if (violation is not null)
         {
-            throw new InvalidOperationException(FtpOptions.AnyCertificateNotAllowedMessage);
+            throw new InvalidOperationException(violation);
         }
 
         var client = new AsyncFtpClient(metadata.Host, metadata.Port ?? 21);

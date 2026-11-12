@@ -57,14 +57,9 @@ public sealed class FtpResourceTypeHandler : RemoteFileResourceHandlerBase<FtpCo
     /// <inheritdoc />
     protected override string ValidateMetadata(FtpConnectionMetadata metadata)
     {
-        // The setting is stored data that whoever edits the resource controls, so it is only honored when the host
-        // allowed it.
-        if (metadata.ValidateAnyCertificate && !_options.Value.AllowAnyCertificate)
-        {
-            return FtpOptions.AnyCertificateNotAllowedMessage;
-        }
-
-        return null;
+        // The certificate and encryption settings are stored data that whoever edits the resource controls, so they are only
+        // honored when the host allowed them.
+        return _options.Value.GetPolicyViolation(metadata);
     }
 
     /// <inheritdoc />
