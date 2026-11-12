@@ -51,6 +51,8 @@ public sealed class McpResourceViewModel
 
     public bool HasPassphrase { get; set; }
 
+    public string HostKeyFingerprint { get; set; }
+
     public string ProxyType { get; set; }
 
     public string ProxyHost { get; set; }

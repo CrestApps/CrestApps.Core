@@ -54,6 +54,13 @@ public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
             return CreateErrorResult(resource.Resource.Uri, "SFTP host is required in the connection metadata.");
         }
 
+        // Fail closed: without a fingerprint to check, SSH.NET would trust whatever key the server presents, and the
+        // credentials would go to anyone who intercepts the connection.
+        if (!SftpHostKeys.IsConfigured(metadata.HostKeyFingerprint))
+        {
+            return CreateErrorResult(resource.Resource.Uri, SftpHostKeys.MissingFingerprintMessage);
+        }
+
         var protector = _dataProtectionProvider.CreateProtector(SftpResourceConstants.DataProtectionPurpose);
         var port = metadata.Port ?? 22;
         var username = metadata.Username;
@@ -98,6 +105,8 @@ public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
         }
 
         using var client = new SftpClient(connectionInfo);
+
+        SftpHostKeys.Require(client, metadata.HostKeyFingerprint);
 
         if (metadata.KeepAliveInterval is > 0)
         {

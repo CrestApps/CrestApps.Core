@@ -5,6 +5,7 @@ using CrestApps.Core.AI.Models;
 using FluentFTP;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Ftp;
 
@@ -14,18 +15,22 @@ namespace CrestApps.Core.AI.Ftp;
 public sealed class FtpRemoteFileClientFactory : IRemoteFileClientFactory
 {
     private readonly IDataProtectionProvider _dataProtectionProvider;
+    private readonly IOptions<FtpOptions> _options;
     private readonly ILogger<FtpRemoteFileClientFactory> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FtpRemoteFileClientFactory"/> class.
     /// </summary>
     /// <param name="dataProtectionProvider">The data protection provider the password was encrypted with.</param>
+    /// <param name="options">The host-level FTP options.</param>
     /// <param name="logger">The logger.</param>
     public FtpRemoteFileClientFactory(
         IDataProtectionProvider dataProtectionProvider,
+        IOptions<FtpOptions> options,
         ILogger<FtpRemoteFileClientFactory> logger)
     {
         _dataProtectionProvider = dataProtectionProvider;
+        _options = options;
         _logger = logger;
     }
 
@@ -38,6 +43,14 @@ public sealed class FtpRemoteFileClientFactory : IRemoteFileClientFactory
         ArgumentNullException.ThrowIfNull(source);
 
         var metadata = source.GetOrCreate<FtpConnectionMetadata>();
+
+        // The setting is stored data that whoever edits the file source controls, so it is only honored when the host
+        // allowed it. Refusing is better than validating anyway: the failure then says why.
+        if (metadata.ValidateAnyCertificate && !_options.Value.AllowAnyCertificate)
+        {
+            throw new InvalidOperationException(FtpOptions.AnyCertificateNotAllowedMessage);
+        }
+
         var client = new AsyncFtpClient(metadata.Host, metadata.Port ?? 21);
 
         if (!string.IsNullOrEmpty(metadata.Username))

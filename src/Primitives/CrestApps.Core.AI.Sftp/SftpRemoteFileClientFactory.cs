@@ -38,6 +38,14 @@ public sealed class SftpRemoteFileClientFactory : IRemoteFileClientFactory
         ArgumentNullException.ThrowIfNull(source);
 
         var metadata = source.GetOrCreate<SftpConnectionMetadata>();
+
+        // Fail closed: without a fingerprint to check, SSH.NET would trust whatever key the server presents, and the
+        // credentials below would go to anyone who intercepts the connection.
+        if (!SftpHostKeys.IsConfigured(metadata.HostKeyFingerprint))
+        {
+            throw new InvalidOperationException(SftpHostKeys.MissingFingerprintMessage);
+        }
+
         var password = Unprotect(metadata.Password, source.ItemId);
         var privateKey = Unprotect(metadata.PrivateKey, source.ItemId);
 
@@ -74,6 +82,8 @@ public sealed class SftpRemoteFileClientFactory : IRemoteFileClientFactory
         }
 
         var client = new SftpClient(connectionInfo);
+
+        SftpHostKeys.Require(client, metadata.HostKeyFingerprint);
 
         try
         {

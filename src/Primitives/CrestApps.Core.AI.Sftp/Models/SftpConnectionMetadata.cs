@@ -36,6 +36,12 @@ public sealed class SftpConnectionMetadata
     public string Passphrase { get; set; }
 
     /// <summary>
+    /// Gets or sets the fingerprint of the server's host key, such as <c>SHA256:...</c> as <c>ssh-keygen -lf</c> prints it, or several
+    /// separated by commas. A connection is only opened when the server presents this key, and is refused when none is configured.
+    /// </summary>
+    public string HostKeyFingerprint { get; set; }
+
+    /// <summary>
     /// Gets or sets the proxy Type.
     /// </summary>
     public string ProxyType { get; set; }

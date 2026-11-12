@@ -214,6 +214,7 @@ public sealed class McpResourceController : Controller
             metadata.Password = ProtectOrReuse(model.Password, existingPassword, protector);
             metadata.PrivateKey = ProtectOrReuse(model.PrivateKey, existingPrivateKey, protector);
             metadata.Passphrase = ProtectOrReuse(model.Passphrase, existingPassphrase, protector);
+            metadata.HostKeyFingerprint = model.HostKeyFingerprint?.Trim();
             metadata.ProxyType = model.ProxyType?.Trim();
             metadata.ProxyHost = model.ProxyHost?.Trim();
             metadata.ProxyPort = model.ProxyPort;
@@ -268,6 +269,7 @@ public sealed class McpResourceController : Controller
                 model.HasPassword = !string.IsNullOrEmpty(sftpMetadata.Password);
                 model.HasPrivateKey = !string.IsNullOrEmpty(sftpMetadata.PrivateKey);
                 model.HasPassphrase = !string.IsNullOrEmpty(sftpMetadata.Passphrase);
+                model.HostKeyFingerprint = sftpMetadata.HostKeyFingerprint;
                 model.ProxyType = sftpMetadata.ProxyType;
                 model.ProxyHost = sftpMetadata.ProxyHost;
                 model.ProxyPort = sftpMetadata.ProxyPort;

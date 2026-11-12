@@ -86,6 +86,8 @@ public sealed class FileSourceViewModel
 
     public bool SftpHasPassphrase { get; set; }
 
+    public string SftpHostKeyFingerprint { get; set; }
+
     public bool IsFileSystem
         => string.Equals(Source, FileSystemIngestionConnector.ConnectorName, StringComparison.OrdinalIgnoreCase);
 
@@ -155,6 +157,7 @@ public sealed class FileSourceViewModel
             model.RemoteHasPassword = !string.IsNullOrEmpty(sftp.Password);
             model.SftpHasPrivateKey = !string.IsNullOrEmpty(sftp.PrivateKey);
             model.SftpHasPassphrase = !string.IsNullOrEmpty(sftp.Passphrase);
+            model.SftpHostKeyFingerprint = sftp.HostKeyFingerprint;
         }
 
         return model;
@@ -241,6 +244,7 @@ public sealed class FileSourceViewModel
             sftp.Password = ProtectOrReuse(RemotePassword, sftp.Password, protector);
             sftp.PrivateKey = ProtectOrReuse(SftpPrivateKey, sftp.PrivateKey, protector);
             sftp.Passphrase = ProtectOrReuse(SftpPassphrase, sftp.Passphrase, protector);
+            sftp.HostKeyFingerprint = Trim(SftpHostKeyFingerprint);
             fileSource.Put(sftp);
         }
         else

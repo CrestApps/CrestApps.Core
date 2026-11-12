@@ -142,8 +142,20 @@ Changing a record from one protocol to the other takes the previous connection w
 never keeps a credential for a server it no longer reads.
 
 Accepting any TLS certificate is offered for FTP because self-signed certificates on internal file
-servers are ordinary, but it turns validation off for that record. Use it only against a server you
-control.
+servers are ordinary, but it turns validation off for that record. The record's setting is stored data, so it is
+only honored when the host allows it with `FtpOptions.AllowAnyCertificate` (default `false`):
+
+```csharp
+services.Configure<FtpOptions>(options => options.AllowAnyCertificate = true); // development servers only
+```
+
+A connection that asks to accept any certificate while the host does not allow it is refused with an error that says
+so, for both the file source connector and the MCP resource handler. Use it only against a server you control.
+
+An SFTP connection needs the server's **host key fingerprint** (`HostKeyFingerprint`, for example
+`SHA256:...` as `ssh-keygen -lf` prints it; several can be separated by commas to rotate a key). The connection is
+refused when none is stored, and when the server presents a different key, so credentials never go to a server that was
+not verified. Both sample hosts have a field for it.
 
 ## What counts as changed
 

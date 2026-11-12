@@ -28,6 +28,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddOptions<FtpOptions>();
         services.TryAddScoped<FtpRemoteFileClientFactory>();
 
         return services.AddCoreIngestionConnector<FtpIngestionConnector>(
@@ -47,6 +48,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddCoreAIFtpMcpResources(this IServiceCollection services, Action<McpResourceTypeEntry> configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        services.AddOptions<FtpOptions>();
 
         return services.AddCoreAIMcpResourceType<FtpResourceTypeHandler>(FtpResourceConstants.Type, entry =>
                 {

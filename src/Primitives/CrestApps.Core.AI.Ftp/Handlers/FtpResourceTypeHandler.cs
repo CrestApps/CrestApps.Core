@@ -6,6 +6,7 @@ using FluentFTP;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ModelContextProtocol.Protocol;
 
 namespace CrestApps.Core.AI.Ftp.Handlers;
@@ -18,19 +19,23 @@ public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
     private static readonly FileExtensionContentTypeProvider _contentTypeProvider = new();
 
     private readonly IDataProtectionProvider _dataProtectionProvider;
+    private readonly IOptions<FtpOptions> _options;
     private readonly ILogger<FtpResourceTypeHandler> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FtpResourceTypeHandler"/> class.
     /// </summary>
     /// <param name="dataProtectionProvider">The data protection provider.</param>
+    /// <param name="options">The host-level FTP options.</param>
     /// <param name="logger">The logger.</param>
     public FtpResourceTypeHandler(
         IDataProtectionProvider dataProtectionProvider,
+        IOptions<FtpOptions> options,
         ILogger<FtpResourceTypeHandler> logger)
         : base(FtpResourceConstants.Type)
     {
         _dataProtectionProvider = dataProtectionProvider;
+        _options = options;
         _logger = logger;
     }
 
@@ -52,6 +57,13 @@ public sealed class FtpResourceTypeHandler : McpResourceTypeHandlerBase
         if (string.IsNullOrEmpty(host))
         {
             return CreateErrorResult(resource.Resource.Uri, "FTP host is required in the connection metadata.");
+        }
+
+        // The setting is stored data that whoever edits the resource controls, so it is only honored when the host
+        // allowed it.
+        if (metadata.ValidateAnyCertificate && !_options.Value.AllowAnyCertificate)
+        {
+            return CreateErrorResult(resource.Resource.Uri, FtpOptions.AnyCertificateNotAllowedMessage);
         }
 
         var port = metadata.Port ?? 21;
