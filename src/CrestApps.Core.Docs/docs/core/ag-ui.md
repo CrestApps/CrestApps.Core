@@ -26,21 +26,53 @@ Both run the same pipeline through the same hub, so the hub's profile and sessio
 | `CrestApps.Core.AI.Chat` | `AIChatHubCore.RunAgent`, the resumable runs, and `MapAGUIChat<THub>()`. |
 | `CrestApps.AI.Resources` (`@crestapps/ai-chat-ui`) | The chat UI's AG-UI client: tool cards, reasoning, approvals, page context and shared state. |
 
-## Quick start
+## Setup
 
-The chat hub has `RunAgent` already. Map the HTTP endpoint next to the hub when other AG-UI clients should reach your profiles:
+AG-UI has no feature of its own to turn on. The services it needs (tool approvals, page context, shared state and frontend tools) come with the AI suite, and every hub that derives from `AIChatHubCore` has `RunAgent`. A host that already runs the AI chat has AG-UI.
+
+**With the builder:**
 
 ```csharp
+builder.Services.AddCrestAppsCore(crestApps => crestApps
+    .AddAISuite(ai => ai
+        .AddOpenAI()
+    )
+);
+
+// Optional: how long a run keeps going after its page closes (two minutes by default).
+builder.Services.Configure<AGUIChatOptions>(options => options.DisconnectedRunTimeout = TimeSpan.FromMinutes(1));
+
+var app = builder.Build();
+
 app.MapHub<AIChatHub>("/hubs/ai-chat");
 
-// POST /api/ai/agui with a RunAgentInput; the answer is the run's events as Server-Sent Events.
+// Optional: POST /api/ai/agui with a RunAgentInput; the answer is the run's events as Server-Sent Events.
 app.MapAGUIChat<AIChatHub>()
     .RequireAuthorization();
 ```
 
+**Without the builder**, the same services come from the extension methods `AddAISuite()` calls:
+
+```csharp
+builder.Services
+    .AddCoreServices()
+    .AddCoreAIServices()
+    .AddCoreAIOrchestration();
+```
+
+Map `MapAGUIChat` only when other AG-UI clients (for example a CopilotKit front end) should reach your profiles over HTTP; the chat UI and the widget use the hub.
+
 A hub whose client contract extends `IAIChatHubClient` uses `MapAGUIChat<THub, TClient>()`. The endpoint reads only JSON (`Content-Type: application/json`), which a cross-site page cannot send without the browser asking your site first, so it needs no antiforgery token. Add authorization and rate limiting to the returned builder as your host needs.
 
 The chat UI uses `RunAgent` by default. Set `protocol: 'legacy'` in the chat configuration to keep the text-only `SendMessage` stream; a hub without `RunAgent` makes the UI fall back to it by itself.
+
+| What you want | What to add |
+| --- | --- |
+| Tool calls, reasoning, citations and shared state in the chat | Nothing: the chat UI and widget use AG-UI by default. |
+| Other AG-UI clients over HTTP | `app.MapAGUIChat<AIChatHub>()`. |
+| A person approves a tool before it runs | `.RequireApproval()` on the tool; see [Tool approvals](#tool-approvals). |
+| The agent reads and works on the page, and keeps going on the pages it opens | WebMCP page tools; see [Runs that continue on the next page](#runs-that-continue-on-the-next-page). |
+| No page context sent to the model | `sendPageContext: false` in the chat configuration. |
 
 ## The run input
 
@@ -140,6 +172,12 @@ An AG-UI client can give the agent tools it runs itself, in `RunAgentInput.tools
 The chat UI does not use frontend tools: the page's tools reach the chat through [WebMCP](../mcp/webmcp.md#the-ai-chat-as-a-webmcp-agent), which runs them in the tab during the run.
 
 ## Runs that continue on the next page
+
+This needs the [WebMCP page tools](../mcp/webmcp.md#page-tools), which give the agent `page_navigate`, `page_read_content` and the other page tools:
+
+1. Register them: `.AddWebMcp(webMcp => webMcp.AddPageTools<AIChatHub>())` on the AI suite builder, or `services.AddCoreAIWebMcp().AddCoreAIWebMcpPageTools<AIChatHub>()` without the builder.
+2. Turn on **Allow page tools** (`WebMcpProfileSettings.AllowPageTools`) on the AI profile the chat uses.
+3. Add the WebMCP scripts to the pages, before the chat scripts, as the [WebMCP quick start](../mcp/webmcp.md#quick-start) shows.
 
 A page tool can open another page (`page_navigate`). The tool answers first and opens the page a moment later, so the agent gets the result. In a run on the chat hub, opening a page then ends the turn: the rest of the work needs the new page's tools, which only the chat on that page has.
 
