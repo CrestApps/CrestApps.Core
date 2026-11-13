@@ -106,6 +106,36 @@ public sealed class YesSqlAIChatSessionIndexClientIdTests
     }
 
     [Fact]
+    public async Task Backfill_ReadsInPages_AndStopsWhenSomeSessionsHaveNoClientIdToIndex()
+    {
+        await using var harness = await Harness.CreateAsync(upgradeFromOldSchema: false);
+        await harness.SaveSessionAsync("anonymous-1", clientId: "visitor-1");
+        await harness.SaveSessionAsync("anonymous-2", clientId: "visitor-2");
+        await harness.SaveSessionAsync("anonymous-3", clientId: "visitor-3");
+        await harness.SaveSessionAsync("orphan-no-client", clientId: null);
+        await harness.ClearIndexedClientIdsAsync();
+
+        // One session per page: each page is saved and committed before the next is read, so a large table is never in memory
+        // at once, and a session with nothing to index does not make the loop read the same page forever.
+        var count = await harness.BackfillAsync(batchSize: 1);
+
+        Assert.Equal(3, count);
+        Assert.Equal("visitor-3", await harness.ReadIndexedClientIdAsync("anonymous-3"));
+        Assert.Null(await harness.ReadIndexedClientIdAsync("orphan-no-client"));
+    }
+
+    [Fact]
+    public async Task UpgradeMethod_AcceptsASchema_WhichASchemalessProviderIgnores()
+    {
+        await using var harness = await Harness.CreateAsync(upgradeFromOldSchema: true);
+
+        await harness.UpgradeAsync(schema: "custom");
+
+        await harness.SaveSessionAsync("session-1", clientId: "visitor-1");
+        Assert.Equal("visitor-1", await harness.ReadIndexedClientIdAsync("session-1"));
+    }
+
+    [Fact]
     public async Task Backfill_LeavesSessionsThatAlreadyHaveAClientIdAlone()
     {
         await using var harness = await Harness.CreateAsync(upgradeFromOldSchema: false);
@@ -222,12 +252,12 @@ public sealed class YesSqlAIChatSessionIndexClientIdTests
             await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         }
 
-        public async Task<int> BackfillAsync()
+        public async Task<int> BackfillAsync(int batchSize = 500)
         {
             await using var scope = _services.CreateAsyncScope();
             var session = scope.ServiceProvider.GetRequiredService<YesSql.ISession>();
             var options = scope.ServiceProvider.GetRequiredService<IOptions<YesSqlStoreOptions>>().Value;
-            var count = await session.BackfillAIChatSessionIndexClientIdAsync(options, TestContext.Current.CancellationToken);
+            var count = await session.BackfillAIChatSessionIndexClientIdAsync(options, batchSize, TestContext.Current.CancellationToken);
 
             await scope.ServiceProvider.GetRequiredService<IStoreCommitter>().CommitAsync(TestContext.Current.CancellationToken);
 
@@ -249,7 +279,7 @@ public sealed class YesSqlAIChatSessionIndexClientIdTests
             return Convert.ToInt64(await command.ExecuteScalarAsync(TestContext.Current.CancellationToken));
         }
 
-        public async Task UpgradeAsync()
+        public async Task UpgradeAsync(string schema = null)
         {
             var store = _services.GetRequiredService<IStore>();
             var options = _services.GetRequiredService<IOptions<YesSqlStoreOptions>>().Value;
@@ -258,7 +288,7 @@ public sealed class YesSqlAIChatSessionIndexClientIdTests
             await connection.OpenAsync(TestContext.Current.CancellationToken);
             await using var transaction = await connection.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
-            await new SchemaBuilder(store.Configuration, transaction).AddAIChatSessionIndexClientIdColumnAsync(options);
+            await new SchemaBuilder(store.Configuration, transaction).AddAIChatSessionIndexClientIdColumnAsync(options, schema);
             await transaction.CommitAsync(TestContext.Current.CancellationToken);
         }
 
