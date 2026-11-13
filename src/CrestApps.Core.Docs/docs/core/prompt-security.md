@@ -170,8 +170,14 @@ What this does and does not give up:
       options.Cookie.SameSite = SameSiteMode.None;
       options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
       options.Cookie.Extensions.Add("Partitioned");
+      options.SuppressXFrameOptionsHeader = true;
   });
   ```
+
+  `SuppressXFrameOptionsHeader` is not optional. Creating a token (`IAntiforgery.GetAndStoreTokens`, which is what puts it
+  on the chat page) writes `X-Frame-Options: SAMEORIGIN` on the response whenever it also writes a new antiforgery cookie,
+  and a browser then refuses to show that page in a frame on another site. It does so only on a visitor's first load, so
+  the embed appears to work on every later one. Without this line, the first time anyone sees the embedded chat it is blank.
 
   The chat page must still put the token where the scripts read it (`antiforgeryToken` in the chat config, or the
   `RequestVerificationToken` meta tag).
