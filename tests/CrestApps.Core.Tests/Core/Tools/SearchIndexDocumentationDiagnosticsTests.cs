@@ -159,6 +159,23 @@ public sealed class SearchIndexDocumentationDiagnosticsTests
         Assert.Contains(logger.Warnings, w => w.Contains("Failed to read search index", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Verifies that an index served with a UTF-8 byte order mark is read; <c>JsonDocument.Parse</c> over bytes throws on one.
+    /// </summary>
+    [Fact]
+    public async Task AnIndexThatStartsWithAByteOrderMark_IsRead()
+    {
+        var logger = new CapturingLogger();
+        var source = CreateSource(logger, "﻿" + """
+            {"config":{},"docs":[{"location":"reference/content-types/","title":"Content Types","text":"A content type is composed of content parts."}]}
+            """);
+
+        var results = await SearchAsync(source, "content type");
+
+        Assert.Single(results);
+        Assert.Empty(logger.Warnings);
+    }
+
     private static async Task<IReadOnlyList<DocumentationSearchResult>> SearchAsync(SearchIndexDocumentationSource source, string query)
         => await source.SearchAsync(new DocumentationSearchRequest(query) { MaxResults = 5 }, TestContext.Current.CancellationToken);
 

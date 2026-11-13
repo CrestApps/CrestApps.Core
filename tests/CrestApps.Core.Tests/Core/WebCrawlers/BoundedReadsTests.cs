@@ -45,6 +45,26 @@ public sealed class BoundedReadsTests
     }
 
     [Fact]
+    public async Task HttpContent_WithAByteOrderMark_IsReadWithoutIt()
+    {
+        // HttpContent.ReadAsStringAsync drops the mark, so a body that starts with one must not start with U+FEFF here, or a
+        // token response or a page that has one stops parsing.
+        var content = new ByteArrayContent([0xEF, 0xBB, 0xBF, 0x7B, 0x7D]);
+
+        Assert.Equal("{}", await BoundedHttpContent.ReadStringAsync(content, 1_000, Ct));
+    }
+
+    [Fact]
+    public async Task HttpContent_WithAUtf16ByteOrderMark_IsReadWithoutIt()
+    {
+        var bytes = new byte[] { 0xFF, 0xFE }.Concat(Encoding.Unicode.GetBytes("{}")).ToArray();
+        var content = new ByteArrayContent(bytes);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/plain") { CharSet = "utf-16" };
+
+        Assert.Equal("{}", await BoundedHttpContent.ReadStringAsync(content, 1_000, Ct));
+    }
+
+    [Fact]
     public async Task HttpContent_CanBeCutAtTheLimitInsteadOfRefused()
     {
         var content = new StringContent(new string('a', 5_000), Encoding.UTF8);

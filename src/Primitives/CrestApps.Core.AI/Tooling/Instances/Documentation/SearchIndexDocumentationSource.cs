@@ -57,7 +57,10 @@ public sealed class SearchIndexDocumentationSource : CachingDocumentationSource
             var client = _httpClientFactory.CreateClient(DocumentationToolConstants.HttpClientName);
 
             var bytes = await BoundedHttpContent.GetBytesAsync(client, indexUrl.ToString(), DocumentationToolConstants.MaxSearchIndexBytes, cancellationToken);
-            using var document = JsonDocument.Parse(bytes);
+
+            // Read as a stream, which skips a byte order mark; Parse over the bytes throws on one.
+            using var stream = new MemoryStream(bytes);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
             var entries = ReadEntries(document.RootElement, indexUrl);
 

@@ -153,6 +153,11 @@ public static class BoundedHttpContent
             }
         }
 
-        return encoding.GetString(bytes);
+        // A byte order mark is not part of the text. HttpContent.ReadAsStringAsync drops it, and a caller that parses what
+        // it reads (JSON, a page) fails on a leading U+FEFF.
+        var preamble = encoding.GetPreamble();
+        var skip = preamble.Length > 0 && bytes.AsSpan().StartsWith(preamble) ? preamble.Length : 0;
+
+        return encoding.GetString(bytes, skip, bytes.Length - skip);
     }
 }
