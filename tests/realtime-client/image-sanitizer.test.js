@@ -127,3 +127,22 @@ test('a relative address is judged against the page, so a same-origin image stay
 
     assert.match(sanitize('<img src="relative/figure.png">'), /<img /);
 });
+
+// What marked writes for "- [ ] todo" and "- [x] done". Forbidding every <input> removed them.
+test('Markdown task-list checkboxes stay', () => {
+    const { sanitize } = createSanitizer();
+    const result = sanitize('<ul><li><input disabled="" type="checkbox"> todo</li><li><input checked="" disabled="" type="checkbox"> done</li></ul>');
+
+    assert.strictEqual((result.match(/<input /g) || []).length, 2);
+    assert.match(result, /type="checkbox"/);
+    assert.match(result, /checked=""/);
+});
+
+test('a checkbox cannot carry an address, and any other input is removed', () => {
+    const { dom, sanitize } = createSanitizer();
+
+    assert.deepStrictEqual(fetchersOf(dom, sanitize(`<input type="checkbox" src="${LEAK}" formaction="${LEAK}">`)), []);
+    assert.ok(!sanitize(`<input type="image" src="${LEAK}">`).includes('<input'));
+    assert.ok(!sanitize('<input type="text" value="x">').includes('<input'));
+    assert.ok(!sanitize('<input>').includes('<input'));
+});

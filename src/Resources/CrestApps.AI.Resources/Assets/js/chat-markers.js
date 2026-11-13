@@ -625,9 +625,10 @@ window.CoreAIImages = window.CoreAIImages || (function () {
 
     const rawImageHook = 'afterSanitizeAttributes';
     // Elements and attributes that make the browser request an address when they are rendered, with no click: media and
-    // its poster, tracks, form image buttons, SVG and MathML images, table backgrounds. DOMPurify keeps them by default.
+    // its poster, tracks, SVG and MathML images, table backgrounds. DOMPurify keeps them by default. A form <input> is not listed
+    // because the task-list checkbox has to stay; the hook below keeps checkboxes and removes every other input.
     // <img> is not listed because an allowed image has to stay; it is handled one by one in the hook below.
-    const fetchingTags = ['style', 'video', 'audio', 'source', 'track', 'input', 'svg', 'math'];
+    const fetchingTags = ['style', 'video', 'audio', 'source', 'track', 'svg', 'math'];
     const fetchingAttributes = ['background', 'poster', 'srcset', 'lowsrc', 'dynsrc'];
 
     // Declarations made of names, plain values, colons and semicolons: no url(), no function at all, no escape, no quote.
@@ -800,6 +801,22 @@ window.CoreAIImages = window.CoreAIImages || (function () {
             // declarations (such as the size the chat gives its own images) are kept.
             if (typeof node.getAttribute === 'function' && node.getAttribute('style') !== null && !safeStyle.test(node.getAttribute('style'))) {
                 node.removeAttribute('style');
+            }
+
+            // The only <input> in an answer is the disabled checkbox Markdown writes for a task list. Every other type (an
+            // image button above all) can fetch or submit, so it is removed, and a checkbox keeps nothing that names an address.
+            if (node.tagName.toUpperCase() === 'INPUT') {
+                if ((node.getAttribute('type') || '').toLowerCase() !== 'checkbox') {
+                    node.remove();
+
+                    return;
+                }
+
+                node.removeAttribute('src');
+                node.removeAttribute('formaction');
+                node.removeAttribute('form');
+
+                return;
             }
 
             if (node.tagName.toUpperCase() !== 'IMG') {

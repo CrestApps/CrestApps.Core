@@ -240,7 +240,6 @@
 			"audio",
 			"source",
 			"track",
-			"input",
 			"svg",
 			"math"
 		];
@@ -330,6 +329,16 @@
 			const hook = function(node) {
 				if (!node || typeof node.tagName !== "string") return;
 				if (typeof node.getAttribute === "function" && node.getAttribute("style") !== null && !safeStyle.test(node.getAttribute("style"))) node.removeAttribute("style");
+				if (node.tagName.toUpperCase() === "INPUT") {
+					if ((node.getAttribute("type") || "").toLowerCase() !== "checkbox") {
+						node.remove();
+						return;
+					}
+					node.removeAttribute("src");
+					node.removeAttribute("formaction");
+					node.removeAttribute("form");
+					return;
+				}
 				if (node.tagName.toUpperCase() !== "IMG") return;
 				node.removeAttribute("srcset");
 				const src = node.getAttribute("src");
