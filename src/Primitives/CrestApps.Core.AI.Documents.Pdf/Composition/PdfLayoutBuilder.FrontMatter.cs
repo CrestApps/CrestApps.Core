@@ -69,7 +69,7 @@ internal sealed partial class PdfLayoutBuilder
 
         var title = section.AddParagraph();
         title.Style = TitleStyle;
-        title.Format.Font.Size = Math.Round(_theme.BaseFontSize * 3, 1);
+        title.Format.Font.Size = PdfTypeScale.Scale(_theme.BaseFontSize, 3);
         title.Format.Font.Color = textColor;
         title.Format.Alignment = alignment;
         title.Format.SpaceAfter = 10;
@@ -84,7 +84,7 @@ internal sealed partial class PdfLayoutBuilder
         if (!string.IsNullOrWhiteSpace(subtitleText))
         {
             var subtitle = section.AddParagraph();
-            subtitle.Format.Font.Size = Math.Round(_theme.BaseFontSize * 1.45, 1);
+            subtitle.Format.Font.Size = PdfTypeScale.Scale(_theme.BaseFontSize, 1.45);
             subtitle.Format.Font.Color = hasBackground ? textColor : _theme.Muted;
             subtitle.Format.Alignment = alignment;
             subtitle.Format.SpaceAfter = 30;
@@ -109,7 +109,7 @@ internal sealed partial class PdfLayoutBuilder
             }
 
             var paragraph = section.AddParagraph();
-            paragraph.Format.Font.Size = Math.Round(_theme.BaseFontSize * 1.15, 1);
+            paragraph.Format.Font.Size = PdfTypeScale.Scale(_theme.BaseFontSize, 1.15);
             paragraph.Format.Font.Color = textColor;
             paragraph.Format.Alignment = alignment;
             paragraph.Format.SpaceAfter = 4;

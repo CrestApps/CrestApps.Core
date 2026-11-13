@@ -54,30 +54,16 @@
     <PackageVersion Include="Azure.AI.OpenAI" Version="2.9.0-beta.1" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
     <PackageVersion Include="Azure.Search.Documents" Version="12.0.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="10.0.15" />
     <PackageVersion Include="Microsoft.CognitiveServices.Speech" Version="1.53.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.0" />
-    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.AzureAIInference" Version="10.0.0-preview.1.25559.3" />
     <!-- Held at 10.9.0 on purpose. 10.10.0 requires OpenAI 2.13.0, and Azure.AI.OpenAI
          (2.8.0-beta.1 and 2.9.0-beta.1) throws a NullReferenceException from
          AzureChatClient.PostfixClearStreamOptions against that version whenever a streaming
          chat request carries an image content part. 10.9.0 keeps OpenAI on 2.12.0, where the
-         path works. Bump once Azure.AI.OpenAI ships a build compatible with OpenAI 2.13.0. -->
+         path works. Bump once Azure.AI.OpenAI ships a build compatible with OpenAI 2.13.0.
+         The hold applies to net11.0 too (11.0.0 requires OpenAI 2.14.0); 10.9.0 only sets a
+         lower bound on Microsoft.Extensions.AI.Abstractions, so it works with the 11.0 line. -->
     <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.9.0" />
-    <PackageVersion Include="Microsoft.Extensions.DataIngestion" Version="10.11.0-preview.1.26513.7" />
-    <PackageVersion Include="Microsoft.Extensions.DataIngestion.Markdig" Version="10.11.0-preview.1.26513.7" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.Extensions.FileProviders.Physical" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
-    <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.Extensions.Resilience" Version="10.11.0" />
     <PackageVersion Include="Microsoft.ML.Tokenizers.Data.O200kBase" Version="3.0.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="11.0.100" />
   </ItemGroup>
@@ -106,11 +92,67 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Transitive Packages -->
-    <PackageVersion Include="Microsoft.Bcl.Memory" Version="10.0.15" />
     <PackageVersion Include="Nerdbank.MessagePack" Version="1.4.95" />
     <PackageVersion Include="MessagePack" Version="3.1.12" />
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.15" />
-    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
+    <!-- Only reached on net10.0 (SQLitePCLRaw 2.x). On net11.0, Microsoft.Data.Sqlite 11 uses SQLitePCLRaw 3.x,
+         which ships the native library through the SQLite package (3.53.4+) instead of this one. -->
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
+  </ItemGroup>
+  <!--
+    Framework-dependent packages.
+
+    CommonTargetFrameworks (see Directory.Build.props) builds the libraries for both net10.0 and
+    net11.0. The packages below ship a major version per .NET release and their newer versions either
+    target net11.0 only (ASP.NET Core, EF Core) or, on net10.0, pull the 11.0 runtime packages in
+    transitively (Microsoft.Extensions.*). Each framework therefore resolves its own set: net11.0 gets
+    the 11.0 line, every other target framework stays on the 10.0 line.
+
+    These are conditioned ItemGroups rather than conditioned properties on purpose: item conditions are
+    evaluated after every property, so they see the TargetFramework that single-target projects set in
+    their own project file. A property condition here would run before that and see it empty.
+
+    Keep the two lists in sync: a package added to one must be added to the other.
+  -->
+  <ItemGroup Label="net10.0 package versions" Condition="'$(TargetFramework)' != 'net11.0'">
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Bcl.Memory" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.DataIngestion" Version="10.11.0-preview.1.26513.7" />
+    <PackageVersion Include="Microsoft.Extensions.DataIngestion.Markdig" Version="10.11.0-preview.1.26513.7" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.FileProviders.Physical" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Resilience" Version="10.11.0" />
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
+  </ItemGroup>
+  <ItemGroup Label="net11.0 package versions" Condition="'$(TargetFramework)' == 'net11.0'">
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Bcl.Memory" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.DataIngestion" Version="11.0.0-preview.1.26560.3" />
+    <PackageVersion Include="Microsoft.Extensions.DataIngestion.Markdig" Version="11.0.0-preview.1.26560.3" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.FileProviders.Physical" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Localization.Abstractions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Resilience" Version="11.0.0" />
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="11.0.0" />
   </ItemGroup>
 </Project>

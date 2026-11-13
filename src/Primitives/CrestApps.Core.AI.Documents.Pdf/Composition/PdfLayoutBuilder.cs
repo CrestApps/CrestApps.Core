@@ -159,7 +159,7 @@ internal sealed partial class PdfLayoutBuilder
         normal.Font.Name = _theme.FontFamily;
         normal.Font.Size = _theme.BaseFontSize;
         normal.Font.Color = _theme.Text;
-        normal.ParagraphFormat.SpaceAfter = Math.Round(_theme.BaseFontSize * 0.6, 1);
+        normal.ParagraphFormat.SpaceAfter = PdfTypeScale.Scale(_theme.BaseFontSize, 0.6);
         normal.ParagraphFormat.LineSpacingRule = PdfLayoutLineSpacing.Multiple;
         normal.ParagraphFormat.LineSpacing = _theme.LineSpacing;
 
@@ -170,7 +170,7 @@ internal sealed partial class PdfLayoutBuilder
         {
             var style = document.Styles[PdfLayoutStyles.Heading(level)];
             style.Font.Name = _theme.HeadingFontFamily;
-            style.Font.Size = Math.Round(_theme.BaseFontSize * sizes[level - 1], 1);
+            style.Font.Size = PdfTypeScale.Scale(_theme.BaseFontSize, sizes[level - 1]);
             style.Font.Bold = true;
             style.Font.Color = _theme.Heading;
             style.ParagraphFormat.SpaceBefore = spaceBefore[level - 1];
@@ -191,7 +191,7 @@ internal sealed partial class PdfLayoutBuilder
 
         var title = document.Styles.AddStyle(TitleStyle, PdfLayoutStyles.Normal);
         title.Font.Name = _theme.HeadingFontFamily;
-        title.Font.Size = Math.Round(_theme.BaseFontSize * 2.3, 1);
+        title.Font.Size = PdfTypeScale.Scale(_theme.BaseFontSize, 2.3);
         title.Font.Bold = true;
         title.Font.Color = _theme.Heading;
         title.ParagraphFormat.SpaceAfter = 14;
@@ -225,7 +225,7 @@ internal sealed partial class PdfLayoutBuilder
 
         var tocTitle = document.Styles.AddStyle(TocTitleStyle, PdfLayoutStyles.Normal);
         tocTitle.Font.Name = _theme.HeadingFontFamily;
-        tocTitle.Font.Size = Math.Round(_theme.BaseFontSize * 1.7, 1);
+        tocTitle.Font.Size = PdfTypeScale.Scale(_theme.BaseFontSize, 1.7);
         tocTitle.Font.Bold = true;
         tocTitle.Font.Color = _theme.Heading;
         tocTitle.ParagraphFormat.SpaceAfter = 14;

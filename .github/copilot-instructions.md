@@ -6,7 +6,7 @@ Use these instructions when working in this repository.
 
 `CrestApps.Core` is the standalone framework repository for CrestApps shared libraries. It contains reusable .NET packages for AI, orchestration, chat, templating, document processing, SignalR, storage, and sample hosts.
 
-- **Target framework:** .NET 10
+- **Target frameworks:** .NET 10 and .NET 11 (`net10.0;net11.0`, from `CommonTargetFrameworks` in `Directory.Build.props`). Sample hosts, the Aspire host, the end-to-end tests and the benchmarks build for `net10.0` only (`DefaultTargetFramework`). Packages that ship a major version per .NET release are versioned per target framework in `Directory.Packages.props`; add a new one to both the `net10.0` and the `net11.0` list.
 - **Docs site:** `src\CrestApps.Core.Docs`
 - **Sample hosts:** `src\Startup\CrestApps.Core.Mvc.Web`, `src\Startup\CrestApps.Core.Aspire.AppHost`
 - **Tests:** `tests\CrestApps.Core.Tests`

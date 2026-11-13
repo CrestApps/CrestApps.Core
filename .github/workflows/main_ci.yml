@@ -27,6 +27,7 @@ jobs:
       with:
         dotnet-version: |
           10.0.x
+          11.0.x
     - name: Audit NuGet packages
       run: |
         dotnet restore ./CrestApps.Core.slnx -warnaserror /p:TreatWarningsAsErrors=true /p:NuGetAudit=true
@@ -48,6 +49,7 @@ jobs:
       with:
         dotnet-version: |
           10.0.x
+          11.0.x
     - name: Build
       # NuGet auditing runs in the dedicated audit job above so dependency issues fail fast in one predictable place.
       run: |
