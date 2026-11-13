@@ -151,6 +151,8 @@ public sealed class UploadChatSessionDocumentEndpointTests
                 new ChatDocumentInfo { DocumentId = "d2", FileName = "b.txt", FileSize = 2 },
             ],
         });
+        harness.StoredDocuments.Add(new AIDocument { ItemId = "d1", ReferenceId = "session-1", ReferenceType = AIReferenceTypes.Document.ChatSession, FileName = "a.txt", FileSize = 1 });
+        harness.StoredDocuments.Add(new AIDocument { ItemId = "d2", ReferenceId = "session-1", ReferenceType = AIReferenceTypes.Document.ChatSession, FileName = "b.txt", FileSize = 2 });
 
         var result = await harness.InvokeAsync(sessionId: "session-1", userId: "owner");
 
@@ -249,6 +251,19 @@ public sealed class UploadChatSessionDocumentEndpointTests
 
         public Mock<IUploadedFileScanner> FileScanner { get; }
 
+        // What the document store holds for the session; the upload reconciles the session list with it.
+        public List<AIDocument> StoredDocuments { get; } = [];
+
+        private Mock<IAIDocumentStore> DocumentStore()
+        {
+            var store = new Mock<IAIDocumentStore>();
+            store
+                .Setup(s => s.GetDocumentsAsync(It.IsAny<string>(), It.IsAny<string>()))
+                .Returns((string referenceId, string referenceType) => Task.FromResult<IReadOnlyCollection<AIDocument>>(StoredDocuments.Where(d => d.ReferenceId == referenceId && d.ReferenceType == referenceType).ToList()));
+
+            return store;
+        }
+
         public void AddSession(AIChatSession session)
         {
             _sessions[session.SessionId] = session;
@@ -297,7 +312,7 @@ public sealed class UploadChatSessionDocumentEndpointTests
                 ProfileManager.Object,
                 Mock.Of<IAIDeploymentManager>(),
                 Mock.Of<IAIClientFactory>(),
-                Mock.Of<IAIDocumentStore>(),
+                DocumentStore().Object,
                 Mock.Of<IAIDocumentChunkStore>(),
                 Mock.Of<IDocumentFileStore>(),
                 Mock.Of<IAIDocumentProcessingService>(),

@@ -106,7 +106,8 @@ public static class UploadChatSessionDocument
 
             // Uploads to one session run one at a time, and the last one commits before the next starts. Each reads the
             // session's document list, adds to it and saves it, so overlapping uploads would each save their own copy. The
-            // session is read again inside the lock, so an upload sees what the one before it saved.
+            // session is read again inside the lock and its list is reconciled with the document store, so an upload sees what
+            // the one before it stored even where the read returns a tracked instance from before the wait (YesSql does).
             using (await ChatSessionLocks.AcquireAsync(existingSession.SessionId, request.HttpContext.RequestAborted))
             {
                 var uploaded = await UploadAsync();
@@ -228,8 +229,9 @@ public static class UploadChatSessionDocument
                 var S = localizerFactory.Create(typeof(AIChatDocumentEndpointBase));
                 if (!isNewSession)
                 {
-                    // Documents the session lost from its list still count toward the cap, and are listed again.
-                    await ChatSessionDocumentList.RelistStoredDocumentsAsync(session, documentStore);
+                    // The list is made to match what is stored for the session: a document an older saved copy dropped is listed
+                    // again and counts toward the cap, and an entry whose document was removed meanwhile is dropped.
+                    await ChatSessionDocumentList.ReconcileWithStoreAsync(session, documentStore);
                 }
 
                 session.Documents ??= [];

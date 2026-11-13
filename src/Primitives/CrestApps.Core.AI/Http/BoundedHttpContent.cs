@@ -138,7 +138,7 @@ public static class BoundedHttpContent
 
     private static string Decode(HttpContent content, byte[] bytes)
     {
-        var encoding = Encoding.UTF8;
+        Encoding encoding = null;
         var charset = content.Headers.ContentType?.CharSet;
 
         if (!string.IsNullOrWhiteSpace(charset))
@@ -149,9 +149,16 @@ public static class BoundedHttpContent
             }
             catch (ArgumentException)
             {
-                // An unknown charset reads as UTF-8, as HttpContent does.
+                // An unknown charset is read as if the response named none.
             }
         }
+
+        // With no usable charset the byte order mark chooses the encoding, as HttpContent.ReadAsStringAsync does, and
+        // without one the body is UTF-8. UTF-32 is tried before UTF-16 because its little-endian mark starts with the same
+        // two bytes.
+        encoding ??= new Encoding[] { new UTF32Encoding(false, true), new UTF32Encoding(true, true), new UnicodeEncoding(false, true), new UnicodeEncoding(true, true), Encoding.UTF8 }
+            .FirstOrDefault(candidate => bytes.AsSpan().StartsWith(candidate.GetPreamble()) && candidate.GetPreamble().Length > 0)
+            ?? Encoding.UTF8;
 
         // A byte order mark is not part of the text. HttpContent.ReadAsStringAsync drops it, and a caller that parses what
         // it reads (JSON, a page) fails on a leading U+FEFF.

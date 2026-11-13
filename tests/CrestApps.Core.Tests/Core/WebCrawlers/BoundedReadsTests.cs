@@ -64,6 +64,25 @@ public sealed class BoundedReadsTests
         Assert.Equal("{}", await BoundedHttpContent.ReadStringAsync(content, 1_000, Ct));
     }
 
+    [Theory]
+    [InlineData("utf-16le")]
+    [InlineData("utf-16be")]
+    [InlineData("utf-32le")]
+    public async Task HttpContent_WithNoCharset_IsDecodedByItsByteOrderMark(string encodingName)
+    {
+        // HttpContent.ReadAsStringAsync picks the encoding from the mark when the response names none.
+        Encoding encoding = encodingName switch
+        {
+            "utf-16le" => new UnicodeEncoding(false, true),
+            "utf-16be" => new UnicodeEncoding(true, true),
+            _ => new UTF32Encoding(false, true),
+        };
+        var bytes = encoding.GetPreamble().Concat(encoding.GetBytes("{\"a\":1}")).ToArray();
+        var content = new ByteArrayContent(bytes);
+
+        Assert.Equal("{\"a\":1}", await BoundedHttpContent.ReadStringAsync(content, 1_000, Ct));
+    }
+
     [Fact]
     public async Task HttpContent_CanBeCutAtTheLimitInsteadOfRefused()
     {

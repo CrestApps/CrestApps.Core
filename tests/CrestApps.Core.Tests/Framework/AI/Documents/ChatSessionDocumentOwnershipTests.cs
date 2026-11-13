@@ -8,6 +8,7 @@ using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Documents;
 using CrestApps.Core.AI.Documents.Endpoints;
+using CrestApps.Core.AI.Documents.Generation;
 using CrestApps.Core.AI.Documents.Models;
 using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Ingestion;
@@ -253,6 +254,56 @@ public sealed class ChatSessionDocumentOwnershipTests
         Assert.Equal(0, Count(result, "uploaded"));
         Assert.Equal(1, Count(result, "failed"));
         Assert.Equal(["d1", "d2"], harness.Sessions["session-1"].Documents.Select(d => d.DocumentId).Order());
+    }
+
+    [Fact]
+    public async Task Upload_NeverListsOrCountsTheFilesTheAssistantGenerated()
+    {
+        // Generated files are stored under the session id and the chat-session type too, flagged so that nothing reads them as
+        // something the user uploaded.
+        var harness = new UploadHarness();
+        harness.Options.MaxDocumentsPerSession = 2;
+        harness.Sessions["session-1"] = new AIChatSession { SessionId = "session-1", ProfileId = "profile-1", UserId = "owner" };
+
+        for (var i = 0; i < 5; i++)
+        {
+            var generated = new AIDocument { ItemId = $"generated-{i}", ReferenceId = "session-1", ReferenceType = AIReferenceTypes.Document.ChatSession, FileName = $"report-{i}.pdf" };
+            generated.Properties[DefaultGeneratedDocumentService.GeneratedPropertyName] = true;
+            harness.StoredDocuments.Add(generated);
+        }
+
+        var result = await harness.InvokeAsync("owner", "session-1", "mine.csv");
+
+        Assert.Equal(1, Count(result, "uploaded"));
+        Assert.Equal(0, Count(result, "failed"));
+        Assert.DoesNotContain(harness.Sessions["session-1"].Documents, d => d.DocumentId.StartsWith("generated-", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Upload_DropsListEntriesThatHaveNoStoredDocument()
+    {
+        // A document removed while this upload waited for the lock must not come back from the older copy it loaded.
+        var harness = new UploadHarness();
+        harness.Options.MaxDocumentsPerSession = 2;
+        harness.Sessions["session-1"] = new AIChatSession
+        {
+            SessionId = "session-1",
+            ProfileId = "profile-1",
+            UserId = "owner",
+            Documents =
+            [
+                new ChatDocumentInfo { DocumentId = "still-there", FileName = "a.csv", FileSize = 1 },
+                new ChatDocumentInfo { DocumentId = "already-removed", FileName = "b.csv", FileSize = 2 },
+            ],
+        };
+        harness.StoredDocuments.Add(new AIDocument { ItemId = "still-there", ReferenceId = "session-1", ReferenceType = AIReferenceTypes.Document.ChatSession, FileName = "a.csv", FileSize = 1 });
+
+        var result = await harness.InvokeAsync("owner", "session-1", "c.csv");
+
+        // The removed one no longer counts, so there was room for the new file.
+        Assert.Equal(1, Count(result, "uploaded"));
+        Assert.DoesNotContain(harness.Sessions["session-1"].Documents, d => d.DocumentId == "already-removed");
+        Assert.Contains(harness.Sessions["session-1"].Documents, d => d.DocumentId == "still-there");
     }
 
     [Fact]

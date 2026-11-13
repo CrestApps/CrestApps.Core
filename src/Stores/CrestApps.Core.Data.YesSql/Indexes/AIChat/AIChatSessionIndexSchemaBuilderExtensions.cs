@@ -87,7 +87,7 @@ public static class AIChatSessionIndexSchemaBuilderExtensions
     /// Indexes the client id of the anonymous chat sessions that were saved before the index had one. YesSql fills an index
     /// when it maps a document, so a session is saved again for its row to get the value. Call it once after
     /// <see cref="AddAIChatSessionIndexClientIdColumnAsync"/>; without it, once a host lists anonymous history by
-    /// <see cref="AIChatSessionIndex.ClientId"/>, a visitor older sessions would be missing.
+    /// <see cref="AIChatSessionIndex.ClientId"/>, a visitor's older sessions would be missing.
     /// </summary>
     /// <remarks>
     /// The sessions are read and saved a page at a time, and each page is committed (<see cref="ISession.SaveChangesAsync"/>)
