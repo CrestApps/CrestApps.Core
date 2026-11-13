@@ -91,21 +91,26 @@ public static class UploadChatSessionDocument
             [FromServices] IUploadedFileScanner fileScanner)
         {
             var form = await request.ReadFormAsync();
-            var lockedSessionId = form["sessionId"].ToString().Trim();
+            var postedSessionId = form["sessionId"].ToString().Trim();
+            var requestServices = request.HttpContext.RequestServices;
 
-            if (string.IsNullOrEmpty(lockedSessionId))
+            // The lock is on the session itself, not on what was posted: the lookup is a database equality, so on a
+            // case-insensitive collation two spellings of an id are one session. And only the session's owner may take it, so
+            // nobody else can hold it up. Anyone else, and an id that is no session, uploads as if no id was posted.
+            var existingSession = string.IsNullOrEmpty(postedSessionId) ? null : await sessionManager.FindAsync(postedSessionId);
+
+            if (existingSession is null || !IsSessionOwner(existingSession, request.HttpContext.User, requestServices.GetService<IAIVisitorIdentityResolver>()))
             {
                 return await UploadAsync();
             }
 
             // Uploads to one session run one at a time, and the last one commits before the next starts. Each reads the
-            // session's document list, adds to it and saves it, so overlapping uploads would each save their own copy:
-            // the document cap would be overshot, and the documents of all but the last would stay stored under the
-            // session without being listed on it.
-            using (await ChatSessionLocks.AcquireAsync(lockedSessionId, request.HttpContext.RequestAborted))
+            // session's document list, adds to it and saves it, so overlapping uploads would each save their own copy. The
+            // session is read again inside the lock, so an upload sees what the one before it saved.
+            using (await ChatSessionLocks.AcquireAsync(existingSession.SessionId, request.HttpContext.RequestAborted))
             {
                 var uploaded = await UploadAsync();
-                var committer = request.HttpContext.RequestServices.GetService<IStoreCommitter>();
+                var committer = requestServices.GetService<IStoreCommitter>();
 
                 if (committer != null)
                 {
@@ -221,6 +226,12 @@ public static class UploadChatSessionDocument
                 var allowVisionImages = sessionDocMetadata?.AllowSessionImageUploads == true && visionDeployment != null;
                 var logger = loggerFactory.CreateLogger("AIChatDocumentEndpoints");
                 var S = localizerFactory.Create(typeof(AIChatDocumentEndpointBase));
+                if (!isNewSession)
+                {
+                    // Documents the session lost from its list still count toward the cap, and are listed again.
+                    await ChatSessionDocumentList.RelistStoredDocumentsAsync(session, documentStore);
+                }
+
                 session.Documents ??= [];
                 var uploadedDocuments = new List<AIChatUploadedDocument>();
                 var failedFiles = new List<object>();

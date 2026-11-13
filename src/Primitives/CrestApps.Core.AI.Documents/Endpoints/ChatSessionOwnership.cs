@@ -13,8 +13,7 @@ internal static class ChatSessionOwnership
 {
     /// <summary>
     /// Determines whether the caller owns the session: the signed-in user who started it, or, for a visitor's session, the
-    /// same visitor. A session started by this endpoint before the owner was the user's name identifier carries the user's
-    /// name instead, so either is accepted for a signed-in caller.
+    /// same visitor. The caller is matched on their name identifier; only a caller who has none is matched on their name.
     /// </summary>
     /// <param name="session">The session.</param>
     /// <param name="user">The caller.</param>
@@ -31,8 +30,11 @@ internal static class ChatSessionOwnership
                 return false;
             }
 
-            return string.Equals(session.UserId, user.FindFirstValue(ClaimTypes.NameIdentifier), StringComparison.Ordinal) ||
-                string.Equals(session.UserId, user.Identity.Name, StringComparison.Ordinal);
+            // The name is only compared for a caller who has no id: where users choose their own names, a user named after another
+            // user's id would otherwise own that user's sessions.
+            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            return string.Equals(session.UserId, userId ?? user.Identity.Name, StringComparison.Ordinal);
         }
 
         if (!string.IsNullOrEmpty(session.ClientId))

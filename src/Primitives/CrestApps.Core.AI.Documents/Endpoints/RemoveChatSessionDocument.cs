@@ -1,5 +1,6 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Documents.Models;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Security;
@@ -95,13 +96,23 @@ public static class RemoveChatSessionDocument
             }
 
             var documentInfo = session.Documents?.FirstOrDefault(document => document.DocumentId == requestModel.DocumentId);
+            var document = await documentStore.FindByIdAsync(requestModel.DocumentId);
+
+            // A document the session no longer lists (an older copy of the session was saved over it) is still stored for it,
+            // and its owner can remove it. A document stored for another session is not theirs.
+            if (documentInfo == null && document != null &&
+                string.Equals(document.ReferenceId, session.SessionId, StringComparison.Ordinal) &&
+                string.Equals(document.ReferenceType, AIReferenceTypes.Document.ChatSession, StringComparison.Ordinal))
+            {
+                documentInfo = new ChatDocumentInfo { DocumentId = document.ItemId, FileName = document.FileName, FileSize = document.FileSize, ContentType = document.ContentType };
+            }
+
             if (documentInfo == null)
             {
                 return TypedResults.NotFound("Document not found.");
             }
 
-            session.Documents.Remove(documentInfo);
-            var document = await documentStore.FindByIdAsync(requestModel.DocumentId);
+            session.Documents?.RemoveAll(listed => listed.DocumentId == documentInfo.DocumentId);
             var chunkIds = new List<string>();
             if (document != null)
             {

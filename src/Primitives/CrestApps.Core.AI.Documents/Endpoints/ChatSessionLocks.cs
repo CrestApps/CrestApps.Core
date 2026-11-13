@@ -12,7 +12,8 @@ namespace CrestApps.Core.AI.Documents.Endpoints;
 /// </remarks>
 internal static class ChatSessionLocks
 {
-    private static readonly Dictionary<string, Entry> _entries = new(StringComparer.Ordinal);
+    // Ignoring case, because the session lookup is a database equality that a case-insensitive collation answers for any spelling.
+    private static readonly Dictionary<string, Entry> _entries = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Waits for the lock of the session and returns what releases it.

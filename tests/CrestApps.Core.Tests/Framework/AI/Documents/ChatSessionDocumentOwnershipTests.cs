@@ -106,11 +106,13 @@ public sealed class ChatSessionDocumentOwnershipTests
     }
 
     [Theory]
-    [InlineData("alice", true)]
     [InlineData("guid-1", true)]
+    [InlineData("alice", false)]
     [InlineData("someone-else", false)]
-    public void IsOwner_AcceptsEitherTheNameIdentifierOrTheNameTheSessionWasStampedWith(string sessionUserId, bool expected)
+    public void IsOwner_ForACallerWithANameIdentifier_ComparesOnlyThatId(string sessionUserId, bool expected)
     {
+        // Where users pick their own user name, a user named after another user's id must not own that user's sessions,
+        // and a session stamped with a name is not matched by the name of a caller who has an id.
         var user = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, "guid-1"), new Claim(ClaimTypes.Name, "alice")],
             "Test",
@@ -119,6 +121,28 @@ public sealed class ChatSessionDocumentOwnershipTests
 
         Assert.Equal(expected, ChatSessionOwnership.IsOwner(new AIChatSession { UserId = sessionUserId }, user, visitorIdentityResolver: null));
     }
+
+    [Fact]
+    public void IsOwner_ForACallerWithNoNameIdentifier_ComparesTheName()
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "alice")], "Test", ClaimTypes.Name, ClaimTypes.Role));
+
+        Assert.True(ChatSessionOwnership.IsOwner(new AIChatSession { UserId = "alice" }, user, visitorIdentityResolver: null));
+        Assert.False(ChatSessionOwnership.IsOwner(new AIChatSession { UserId = "bob" }, user, visitorIdentityResolver: null));
+    }
+
+    [Fact]
+    public void IsOwner_ForAUserNamedAfterAnotherUsersId_DoesNotOwnThatUsersSessions()
+    {
+        var attacker = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "attacker-id"), new Claim(ClaimTypes.Name, "victim-id")],
+            "Test",
+            ClaimTypes.Name,
+            ClaimTypes.Role));
+
+        Assert.False(ChatSessionOwnership.IsOwner(new AIChatSession { UserId = "victim-id" }, attacker, visitorIdentityResolver: null));
+    }
+
 
     [Fact]
     public async Task ParallelUploads_CannotPutASessionPastItsDocumentCap()
@@ -159,6 +183,113 @@ public sealed class ChatSessionDocumentOwnershipTests
         return string.Join("; ", failed.Select(f => f.ToString()));
     }
 
+    [Fact]
+    public async Task ParallelUploads_ThatSpellTheSessionIdInDifferentCases_StillShareOneLock()
+    {
+        // The lookup is a database equality, so on a case-insensitive collation these are one session.
+        var harness = new UploadHarness();
+        harness.Options.MaxDocumentsPerSession = 2;
+        harness.Sessions["session-abc"] = new AIChatSession { SessionId = "session-abc", ProfileId = "profile-1", UserId = "owner" };
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 8).Select(i =>
+            harness.InvokeAsync("owner", i % 2 == 0 ? "SESSION-ABC" : "session-abc", $"file-{i}.csv")));
+
+        Assert.All(results, result => Assert.Equal(StatusCodes.Status200OK, StatusOf(result)));
+        Assert.Equal(2, harness.Sessions["session-abc"].Documents.Count);
+        Assert.Equal(2, harness.StoredDocumentCount);
+    }
+
+    [Fact]
+    public async Task SessionLocks_TreatTheSameIdInDifferentCasesAsOne()
+    {
+        using var held = await ChatSessionLocks.AcquireAsync("Session-1", TestContext.Current.CancellationToken);
+
+        var second = ChatSessionLocks.AcquireAsync("SESSION-1", TestContext.Current.CancellationToken);
+
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        Assert.False(second.IsCompleted);
+
+        held.Dispose();
+        using var acquired = await second;
+    }
+
+    [Fact]
+    public async Task AnUploadToASessionTheCallerDoesNotOwn_NeverWaitsOnThatSessionsLock()
+    {
+        var harness = new UploadHarness();
+        harness.Sessions["session-1"] = new AIChatSession { SessionId = "session-1", ProfileId = "profile-1", UserId = "owner" };
+
+        // Someone holds the session's lock, as a long upload by its owner would.
+        using var held = await ChatSessionLocks.AcquireAsync("session-1", TestContext.Current.CancellationToken);
+
+        // A caller who is not the owner cannot hold it up, or be held up by it: they are treated as having no session.
+        var intruder = harness.InvokeAsync("intruder", "session-1", "a.csv");
+        var finished = await Task.WhenAny(intruder, Task.Delay(2000, TestContext.Current.CancellationToken));
+
+        Assert.Same(intruder, finished);
+
+        // The owner waits for the lock, and goes on when it is released.
+        var owner = harness.InvokeAsync("owner", "session-1", "b.csv");
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        Assert.False(owner.IsCompleted);
+
+        held.Dispose();
+        Assert.Equal(StatusCodes.Status200OK, StatusOf(await owner));
+    }
+
+    [Fact]
+    public async Task Upload_CountsDocumentsTheSessionNoLongerLists_AndListsThemAgain()
+    {
+        // Something saved an older copy of the session (a chat turn that started before an upload does), so the list
+        // lost documents that are still stored under the session. They still count toward the cap.
+        var harness = new UploadHarness();
+        harness.Options.MaxDocumentsPerSession = 2;
+        harness.Sessions["session-1"] = new AIChatSession { SessionId = "session-1", ProfileId = "profile-1", UserId = "owner" };
+        harness.StoredDocuments.Add(new AIDocument { ItemId = "d1", ReferenceId = "session-1", ReferenceType = AIReferenceTypes.Document.ChatSession, FileName = "a.csv", FileSize = 1 });
+        harness.StoredDocuments.Add(new AIDocument { ItemId = "d2", ReferenceId = "session-1", ReferenceType = AIReferenceTypes.Document.ChatSession, FileName = "b.csv", FileSize = 2 });
+
+        var result = await harness.InvokeAsync("owner", "session-1", "c.csv");
+
+        Assert.Equal(0, Count(result, "uploaded"));
+        Assert.Equal(1, Count(result, "failed"));
+        Assert.Equal(["d1", "d2"], harness.Sessions["session-1"].Documents.Select(d => d.DocumentId).Order());
+    }
+
+    [Fact]
+    public async Task Remove_CanReachADocumentTheSessionNoLongerLists()
+    {
+        var harness = new RemoveHarness();
+        harness.Sessions["session-1"] = new AIChatSession { SessionId = "session-1", ProfileId = "profile-1", UserId = "owner" };
+        var orphan = new AIDocument { ItemId = "doc-1", ReferenceId = "session-1", ReferenceType = AIReferenceTypes.Document.ChatSession, FileName = "a.csv" };
+        harness.StoreDocument(orphan);
+
+        var result = await harness.InvokeAsync("owner", "session-1", "doc-1");
+
+        Assert.Equal(StatusCodes.Status200OK, StatusOf(result));
+        harness.DocumentStore.Verify(s => s.DeleteAsync(orphan, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Remove_NeverDeletesADocumentThatBelongsToAnotherSession()
+    {
+        var harness = new RemoveHarness();
+        harness.Sessions["session-1"] = new AIChatSession { SessionId = "session-1", ProfileId = "profile-1", UserId = "owner" };
+        var other = new AIDocument { ItemId = "doc-9", ReferenceId = "session-2", ReferenceType = AIReferenceTypes.Document.ChatSession, FileName = "x.csv" };
+        harness.StoreDocument(other);
+
+        var result = await harness.InvokeAsync("owner", "session-1", "doc-9");
+
+        Assert.Equal(StatusCodes.Status404NotFound, StatusOf(result));
+        harness.DocumentStore.Verify(s => s.DeleteAsync(It.IsAny<AIDocument>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static int Count(object result, string property)
+    {
+        var value = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
+
+        return ((System.Collections.IEnumerable)value.GetType().GetProperty(property).GetValue(value)).Cast<object>().Count();
+    }
+
     private static int StatusOf(object result)
     {
         return Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode ?? StatusCodes.Status200OK;
@@ -175,7 +306,11 @@ public sealed class ChatSessionDocumentOwnershipTests
 
     private abstract class HarnessBase
     {
-        public ConcurrentDictionary<string, AIChatSession> Sessions { get; } = new();
+        // A case-insensitive store, as a database with the default collation of SQL Server or MySQL is.
+        public ConcurrentDictionary<string, AIChatSession> Sessions { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        // What the document store holds, whether or not a session lists it.
+        public ConcurrentBag<AIDocument> StoredDocuments { get; } = [];
 
         public Mock<IAIChatSessionManager> SessionManager { get; } = new();
 
@@ -225,6 +360,22 @@ public sealed class ChatSessionDocumentOwnershipTests
     {
         public Mock<IAIDocumentStore> DocumentStore { get; } = new();
 
+        private static IAIDocumentChunkStore EmptyChunkStore()
+        {
+            var chunks = new Mock<IAIDocumentChunkStore>();
+            chunks.Setup(c => c.GetChunksByAIDocumentIdAsync(It.IsAny<string>())).ReturnsAsync([]);
+
+            return chunks.Object;
+        }
+
+        public void StoreDocument(AIDocument document)
+        {
+            StoredDocuments.Add(document);
+            DocumentStore
+                .Setup(s => s.FindByIdAsync(document.ItemId, It.IsAny<CancellationToken>()))
+                .Returns(new ValueTask<AIDocument>(document));
+        }
+
         public async Task<object> InvokeAsync(string userId, string sessionId, string documentId)
         {
             var httpContext = CreateHttpContext(userId);
@@ -237,7 +388,7 @@ public sealed class ChatSessionDocumentOwnershipTests
                 SessionManager.Object,
                 ProfileManager.Object,
                 DocumentStore.Object,
-                Mock.Of<IAIDocumentChunkStore>(),
+                EmptyChunkStore(),
                 Mock.Of<IDocumentFileStore>(),
                 Authorization.Object,
                 Array.Empty<IAIChatDocumentEventHandler>(),
@@ -276,7 +427,10 @@ public sealed class ChatSessionDocumentOwnershipTests
             var documentStore = new Mock<IAIDocumentStore>();
             documentStore
                 .Setup(s => s.CreateAsync(It.IsAny<AIDocument>(), It.IsAny<CancellationToken>()))
-                .Returns((AIDocument _, CancellationToken _) => new ValueTask(StoreAsync()));
+                .Returns((AIDocument document, CancellationToken _) => new ValueTask(StoreAsync(document)));
+            documentStore
+                .Setup(s => s.GetDocumentsAsync(It.IsAny<string>(), It.IsAny<string>()))
+                .Returns((string referenceId, string referenceType) => Task.FromResult<IReadOnlyCollection<AIDocument>>(StoredDocuments.Where(d => d.ReferenceId == referenceId && d.ReferenceType == referenceType).ToList()));
             var fileStore = new Mock<IDocumentFileStore>();
             fileStore
                 .Setup(s => s.SaveFileAsync(It.IsAny<string>(), It.IsAny<Stream>()))
@@ -325,9 +479,10 @@ public sealed class ChatSessionDocumentOwnershipTests
             return await task;
         }
 
-        private async Task StoreAsync()
+        private async Task StoreAsync(AIDocument document)
         {
             Interlocked.Increment(ref _storedDocuments);
+            StoredDocuments.Add(document);
             await Task.Delay(StoreDelay, TestContext.Current.CancellationToken);
         }
 
