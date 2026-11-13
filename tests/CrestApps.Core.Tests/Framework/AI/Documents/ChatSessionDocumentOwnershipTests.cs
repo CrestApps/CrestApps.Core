@@ -162,18 +162,21 @@ public sealed class ChatSessionDocumentOwnershipTests
     }
 
     [Fact]
-    public async Task ParallelUploads_ToDifferentSessions_DoNotWaitForEachOther()
+    public async Task UploadsToDifferentSessions_DoNotWaitForEachOther()
     {
-        var harness = new UploadHarness { StoreDelay = TimeSpan.FromMilliseconds(100) };
+        var harness = new UploadHarness();
         harness.Sessions["session-1"] = new AIChatSession { SessionId = "session-1", ProfileId = "profile-1", UserId = "owner" };
         harness.Sessions["session-2"] = new AIChatSession { SessionId = "session-2", ProfileId = "profile-1", UserId = "owner" };
 
-        var started = System.Diagnostics.Stopwatch.StartNew();
-        await Task.WhenAll(
-            harness.InvokeAsync("owner", "session-1", "a.csv"),
-            harness.InvokeAsync("owner", "session-2", "b.csv"));
+        // session-1 is locked for as long as this test says; an upload to session-2 must not need it. No clock is involved:
+        // the upload either finishes while the lock is held or it does not.
+        using var held = await ChatSessionLocks.AcquireAsync("session-1", TestContext.Current.CancellationToken);
 
-        Assert.True(started.Elapsed < TimeSpan.FromMilliseconds(380), $"The two sessions were uploaded one after the other ({started.Elapsed}).");
+        var other = harness.InvokeAsync("owner", "session-2", "b.csv");
+        var finished = await Task.WhenAny(other, Task.Delay(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
+
+        Assert.Same(other, finished);
+        Assert.Equal(StatusCodes.Status200OK, StatusOf(await other));
     }
 
     private static string DescribeFailures(object[] results)
@@ -225,7 +228,7 @@ public sealed class ChatSessionDocumentOwnershipTests
 
         // A caller who is not the owner cannot hold it up, or be held up by it: they are treated as having no session.
         var intruder = harness.InvokeAsync("intruder", "session-1", "a.csv");
-        var finished = await Task.WhenAny(intruder, Task.Delay(2000, TestContext.Current.CancellationToken));
+        var finished = await Task.WhenAny(intruder, Task.Delay(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
 
         Assert.Same(intruder, finished);
 
