@@ -12,7 +12,10 @@ public sealed class AntiforgeryEndpointFilterOptions
     /// <c>Authorization</c> header, because Negotiate, NTLM and Basic make the browser attach that header by itself.
     /// </summary>
     /// <remarks>
-    /// The names are the <see cref="System.Security.Principal.IIdentity.AuthenticationType"/> of the identity. Add the one
+    /// The names are the <see cref="System.Security.Principal.IIdentity.AuthenticationType"/> of the identity, which is not the
+    /// name of the scheme. The standard JWT bearer handler creates identities of type <c>AuthenticationTypes.Federation</c>
+    /// (<c>TokenValidationParameters.DefaultAuthenticationType</c>) unless the host sets another, so a JWT API client is
+    /// asked for a token until that value is added here. Add the one
     /// your API authentication scheme produces.
     /// </remarks>
     public ISet<string> NonCookieAuthenticationTypes { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)

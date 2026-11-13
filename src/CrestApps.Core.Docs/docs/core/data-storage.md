@@ -301,7 +301,7 @@ A database created before an index gained a column needs a migration that adds i
 when upgrading an existing database:
 
 ```csharp
-await schemaBuilder.AddAIChatSessionIndexClientIdColumnAsync(storeOptions);
+await schemaBuilder.AddAIChatSessionIndexClientIdColumnAsync(storeOptions, store.Configuration.Schema);
 ```
 
 The method checks for the column and for the index separately (on SQLite, SQL Server, PostgreSQL and MySQL), so it can run

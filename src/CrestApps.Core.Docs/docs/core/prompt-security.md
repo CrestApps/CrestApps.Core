@@ -155,9 +155,26 @@ other sites:
 
 What this does and does not give up:
 
-- **The cookie is an identifier, not an authenticator.** It stays `HttpOnly`, and it grants no privilege
-  of its own, so relaxing `SameSite` on it does not open a CSRF path. This option affects the visitor
-  cookie only; nothing else about how the application writes cookies changes.
+- **The cookie is an identifier, and it owns a visitor's documents.** It stays `HttpOnly`, and it grants no
+  privilege of a signed-in user, but a visitor's chat session and the documents uploaded to it belong to whoever
+  presents it, so the upload and remove endpoints treat a request that carries it like a cookie-authenticated one and
+  validate the antiforgery token (`AntiforgeryEndpointFilterOptions.AmbientCookieNames`). This option affects the
+  visitor cookie only; nothing else about how the application writes cookies changes.
+- **The antiforgery cookie needs the same treatment.** The framework writes it `SameSite=Strict`, which a browser does
+  not keep in a frame on another site, so with this option on every upload and remove from the embedded chat would
+  answer `400`. Write it the way the visitor cookie is written:
+
+  ```csharp
+  builder.Services.AddAntiforgery(options =>
+  {
+      options.Cookie.SameSite = SameSiteMode.None;
+      options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+      options.Cookie.Extensions.Add("Partitioned");
+  });
+  ```
+
+  The chat page must still put the token where the scripts read it (`antiforgeryToken` in the chat config, or the
+  `RequestVerificationToken` meta tag).
 - **`Partitioned` matters more than it first appears.** `SameSite` is not part of a cookie's identity
   key, so without partitioning the cookie written inside a frame replaces the first-party cookie of the
   same name and downgrades that one to `SameSite=None` everywhere. The partition key *is* part of the
