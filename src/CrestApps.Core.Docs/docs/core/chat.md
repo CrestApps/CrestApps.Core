@@ -801,6 +801,21 @@ window.coreAIChatManager().initialize({
 });
 ```
 
+### What an answer cannot carry
+
+The chat scripts start a chat from any element added to the page that carries a chat configuration
+(`data-coreai-chat-config`, `data-coreai-chat-app-element-selector`, `data-chat-interaction-config`), and a chat's Vue
+template is that configuration's `messageTemplate`, which Vue compiles. An answer is text a model wrote from whatever it
+was given, so it must not be able to write such an element. Two guards keep it from starting a chat:
+
+- The sanitizer that cleans an answer (`CoreAIImages.sanitize`) removes every `data-coreai-*` and
+  `data-chat-interaction-*` attribute, and every `id`. The one `id` it keeps is the canvas id the chat writes for a chart
+  (`chat_chart_N`, `ci_chart_N`), which the chart is drawn into by id.
+- The auto-start skips an element that is inside a rendered message, or inside an element a chat is mounted on. The second
+  rule does not depend on the message template, so a host's own template is covered. A custom client that watches the
+  page for chat configurations should ask `window.CoreAIChatSurface.isInsideRenderedMessage(element)` before it starts
+  one, and call `window.CoreAIChatSurface.registerRoot(element)` for the element it mounts a chat on.
+
 ### Interactive Charts
 
 The `GenerateChartTool` returns [Chart.js](https://www.chartjs.org/) configuration objects that the chat UI can render as interactive charts. To enable chart rendering, include the Chart.js library on your page:
