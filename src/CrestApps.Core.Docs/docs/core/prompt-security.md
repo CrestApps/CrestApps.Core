@@ -263,6 +263,21 @@ By default, spam reduction is layered:
 3. Anonymous session starts are throttled separately so attackers cannot reset prompt quotas just by creating new sessions.
 4. Sample hosts also apply an ASP.NET Core endpoint policy to explicit session-start endpoints before the chat pipeline runs.
 
+### What counts as a message
+
+A message that carries a prompt goes through the prompt security service, which applies the per-message limit. The
+hub methods that send the caller's input to a provider without a prompt apply the same limit through
+`EvaluateMessageRateLimitAsync`, after the profile is authorized and before a provider is called: transcribing audio
+(`SendAudioStream`), synthesizing speech (`SynthesizeSpeech`), opening a voice conversation (`StartConversation`,
+`StartRealtimeConversation`, `StartRealtimeWebRtc`), a template prompt, a blank chat message, and resuming or continuing an
+AG-UI run (approving a tool call, returning a client tool result, continuing on the next page). A caller over the limit
+gets the rate-limit message and the provider is not called.
+
+The limiters key on the visitor and the network address the hub finds from the connection's own request, on every
+transport. Over long polling the ambient `IHttpContextAccessor` has no context when a hub method runs, so the hub sets the
+connection's `HttpContext` on it for the invocation when it is empty; a custom `IAIVisitorIdentityResolver` that reads the
+accessor then sees the same request the default one does.
+
 ### Configuration
 
 | Option | Default | What it does |
