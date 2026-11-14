@@ -155,9 +155,32 @@ other sites:
 
 What this does and does not give up:
 
-- **The cookie is an identifier, not an authenticator.** It stays `HttpOnly`, and it grants no privilege
-  of its own, so relaxing `SameSite` on it does not open a CSRF path. This option affects the visitor
-  cookie only; nothing else about how the application writes cookies changes.
+- **The cookie is an identifier, and it owns a visitor's documents.** It stays `HttpOnly`, and it grants no
+  privilege of a signed-in user, but a visitor's chat session and the documents uploaded to it belong to whoever
+  presents it, so the upload and remove endpoints treat a request that carries it like a cookie-authenticated one and
+  validate the antiforgery token (`AntiforgeryEndpointFilterOptions.AmbientCookieNames`). This option affects the
+  visitor cookie only; nothing else about how the application writes cookies changes.
+- **The antiforgery cookie needs the same treatment.** The framework writes it `SameSite=Strict`, which a browser does
+  not keep in a frame on another site, so with this option on every upload and remove from the embedded chat would
+  answer `400`. Write it the way the visitor cookie is written:
+
+  ```csharp
+  builder.Services.AddAntiforgery(options =>
+  {
+      options.Cookie.SameSite = SameSiteMode.None;
+      options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+      options.Cookie.Extensions.Add("Partitioned");
+      options.SuppressXFrameOptionsHeader = true;
+  });
+  ```
+
+  `SuppressXFrameOptionsHeader` is not optional. Creating a token (`IAntiforgery.GetAndStoreTokens`, which is what puts it
+  on the chat page) writes `X-Frame-Options: SAMEORIGIN` on the response whenever it also writes a new antiforgery cookie,
+  and a browser then refuses to show that page in a frame on another site. It does so only on a visitor's first load, so
+  the embed appears to work on every later one. Without this line, the first time anyone sees the embedded chat it is blank.
+
+  The chat page must still put the token where the scripts read it (`antiforgeryToken` in the chat config, or the
+  `RequestVerificationToken` meta tag).
 - **`Partitioned` matters more than it first appears.** `SameSite` is not part of a cookie's identity
   key, so without partitioning the cookie written inside a frame replaces the first-party cookie of the
   same name and downgrades that one to `SameSite=None` everywhere. The partition key *is* part of the
@@ -169,6 +192,25 @@ What this does and does not give up:
   never reaches a plain HTTP page, so a request that did not arrive over HTTPS keeps the `Lax` cookie
   rather than losing it altogether. Behind a proxy that terminates TLS, forward the scheme (for example
   with `UseForwardedHeaders`) or the option has no effect.
+
+### Remote address behind a reverse proxy
+
+The visitor's remote address (used for the address hash and for rate-limit partitions) is the connection's
+remote address. The raw `X-Forwarded-For` header is **never** read, because any client can send it. A host behind a
+reverse proxy must enable ASP.NET Core's forwarded headers middleware with its trusted proxies or networks, which
+replaces the connection's address with the forwarded one only for requests that came from a trusted proxy:
+
+```csharp
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownProxies.Add(IPAddress.Parse("10.0.0.4"));
+});
+
+app.UseForwardedHeaders();
+```
+
+Without that, every visitor behind the proxy shares the proxy's address.
 
 ### Weighted-scoring thresholds
 

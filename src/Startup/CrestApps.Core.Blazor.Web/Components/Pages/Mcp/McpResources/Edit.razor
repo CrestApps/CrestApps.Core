@@ -185,6 +185,11 @@ else
                     }
                 </div>
 
+                <div class="mb-3">
+                    <label class="form-label">Host key fingerprint</label>
+                    <InputText @bind-Value="_model.HostKeyFingerprint" class="form-control font-monospace" placeholder="SHA256:..." />
+                    <div class="form-text">Required. The server's host key fingerprint, as <code>ssh-keygen -lf</code> prints it. The connection is refused unless the server presents this key.</div>
+                </div>
                 <div class="row">
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Proxy type</label>
@@ -382,6 +387,7 @@ else
             metadata.Password = ProtectOrReuse(model.Password, existingPassword, protector);
             metadata.PrivateKey = ProtectOrReuse(model.PrivateKey, existingPrivateKey, protector);
             metadata.Passphrase = ProtectOrReuse(model.Passphrase, existingPassphrase, protector);
+            metadata.HostKeyFingerprint = model.HostKeyFingerprint?.Trim();
             metadata.ProxyType = model.ProxyType?.Trim();
             metadata.ProxyHost = model.ProxyHost?.Trim();
             metadata.ProxyPort = model.ProxyPort;
@@ -459,6 +465,7 @@ else
                 model.HasPassword = !string.IsNullOrEmpty(sftpMetadata.Password);
                 model.HasPrivateKey = !string.IsNullOrEmpty(sftpMetadata.PrivateKey);
                 model.HasPassphrase = !string.IsNullOrEmpty(sftpMetadata.Passphrase);
+                model.HostKeyFingerprint = sftpMetadata.HostKeyFingerprint;
                 model.ProxyType = sftpMetadata.ProxyType;
                 model.ProxyHost = sftpMetadata.ProxyHost;
                 model.ProxyPort = sftpMetadata.ProxyPort;

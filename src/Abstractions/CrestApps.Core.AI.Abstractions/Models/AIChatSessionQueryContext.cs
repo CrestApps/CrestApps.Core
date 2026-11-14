@@ -17,6 +17,12 @@ public sealed class AIChatSessionQueryContext
     public string UserId { get; set; }
 
     /// <summary>
+    /// Gets or sets the identifier of the anonymous visitor whose sessions to return, for sessions that have no user.
+    /// When empty, the filter is not applied.
+    /// </summary>
+    public string ClientId { get; set; }
+
+    /// <summary>
     /// Gets or sets a name substring to filter sessions by their title.
     /// </summary>
     public string Name { get; set; }

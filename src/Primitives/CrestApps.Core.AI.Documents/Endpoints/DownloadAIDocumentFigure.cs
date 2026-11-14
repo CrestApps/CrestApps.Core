@@ -32,7 +32,8 @@ public static class DownloadAIDocumentFigure
     /// </summary>
     /// <param name="builder">The builder.</param>
     /// <param name="routeName">The route name.</param>
-    public static IEndpointRouteBuilder AddDownloadAIDocumentFigureEndpoint(this IEndpointRouteBuilder builder, string routeName = DefaultRouteName)
+    /// <returns>The route handler builder of the endpoint, so a host can add its own endpoint filters or metadata.</returns>
+    public static RouteHandlerBuilder AddDownloadAIDocumentFigureEndpoint(this IEndpointRouteBuilder builder, string routeName = DefaultRouteName)
     {
         var endpoint = builder.MapGet("ai/documents/{documentId}/figures/{figureId}", HandleAsync);
 
@@ -41,7 +42,7 @@ public static class DownloadAIDocumentFigure
             _ = endpoint.WithName(routeName);
         }
 
-        return builder;
+        return endpoint;
     }
 
     private static async Task<IResult> HandleAsync(

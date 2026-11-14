@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Crawling;
+using CrestApps.Core.AI.Http;
 using Microsoft.Extensions.Logging;
 
 namespace CrestApps.Core.AI.Tooling.Instances.Documentation;
@@ -113,7 +114,7 @@ public sealed partial class SitemapDocumentationSource : CachingDocumentationSou
     {
         try
         {
-            var html = await client.GetStringAsync(url, cancellationToken);
+            var html = await BoundedHttpContent.GetStringAsync(client, url, DocumentationToolConstants.MaxPageBytes, cancellationToken);
             var title = ExtractTitle(html);
             var text = ExtractText(html);
 

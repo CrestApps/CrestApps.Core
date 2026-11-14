@@ -2360,6 +2360,53 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 return;
             }
 
+            if (profile.Type == AIProfileType.TemplatePrompt)
+            {
+                // A template prompt runs inside the chat session of the profile the caller is chatting with, which is
+                // the session profile. Authorizing only the template profile would let a caller who may use the
+                // template start sessions of, and spend the model budget of, a profile they may not.
+                if (string.IsNullOrWhiteSpace(sessionProfileId))
+                {
+                    await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(sessionProfileId)));
+
+                    return;
+                }
+
+                // An unknown session profile and one the caller may not use get the same answer, so a caller probing ids
+                // cannot tell which exist.
+                var parentProfile = await profileManager.FindByIdAsync(sessionProfileId, cancellationToken);
+
+                if (parentProfile is null || !await AuthorizeProfileAsync(services, parentProfile))
+                {
+                    await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
+                    return;
+                }
+
+                // Sessions are started under a chat profile, as StartSession requires, never under the template itself.
+                if (parentProfile.Type != AIProfileType.Chat)
+                {
+                    await Clients.Caller.ReceiveError(GetOnlyChatProfilesMessage());
+
+                    return;
+                }
+
+                var rateLimitResult = await EvaluateMessageRateLimitAsync(services, parentProfile, sessionId, cancellationToken);
+
+                if (rateLimitResult.IsBlocked)
+                {
+                    outcome = CrestAppsTelemetry.OutcomeBlocked;
+
+                    await Clients.Caller.ReceiveError(GetBlockedPromptMessage(rateLimitResult));
+
+                    return;
+                }
+
+                await ProcessGeneratedPromptAsync(writer, services, profile, sessionId, parentProfile, cancellationToken);
+
+                return;
+            }
+
             if (profile.Type == AIProfileType.Utility)
             {
                 if (string.IsNullOrWhiteSpace(prompt))
@@ -2402,6 +2449,21 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     outcome = CrestAppsTelemetry.OutcomeBlocked;
 
                     await Clients.Caller.ReceiveError(GetBlockedPromptMessage(securityResult));
+
+                    return;
+                }
+            }
+            else
+            {
+                // A blank message skips the prompt security checks, which is where the rate limit is applied, and still
+                // runs a turn. Without this a loop of blank messages is never counted.
+                var blankMessageLimit = await EvaluateMessageRateLimitAsync(services, profile, sessionId, cancellationToken);
+
+                if (blankMessageLimit.IsBlocked)
+                {
+                    outcome = CrestAppsTelemetry.OutcomeBlocked;
+
+                    await Clients.Caller.ReceiveError(GetBlockedPromptMessage(blankMessageLimit));
 
                     return;
                 }
@@ -3100,6 +3162,13 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             return;
         }
 
+        if (writer is AGUIChatTurn turn)
+        {
+            // An AG-UI run starts once its thread (the session) exists, so a new chat learns its session id.
+            turn.Events.ThreadId = chatSession.SessionId;
+            await turn.Events.StartAsync(CancellationToken.None);
+        }
+
         var generatedPrompt = await aiTemplateEngine.RenderAsync(profile.PromptTemplate, new Dictionary<string, object>() { ["Profile"] = profile, ["Session"] = chatSession, }, cancellationToken);
         var assistantMessage = new AIChatSessionPrompt
         {
@@ -3128,9 +3197,21 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             }
 
             builder.Append(chunk.Text);
+
+            if (writer is AGUIChatTurn aguiTurn)
+            {
+                // An AG-UI turn takes each chunk as the next piece of the message. Written as a partial message it would
+                // be read as a replacement for the whole message after the first chunk, and the page would show only the
+                // last chunk.
+                await aguiTurn.Events.WriteTextAsync(assistantMessage.ItemId, chunk.Text, cancellationToken);
+
+                continue;
+            }
+
             var partialMessage = new CompletionPartialMessage
             {
-                SessionId = sessionId,
+                // The session the answer is saved in, which is not the one the caller sent when this made a new one.
+                SessionId = chatSession.SessionId,
                 MessageId = assistantMessage.ItemId,
                 Content = chunk.Text,
                 References = references,
@@ -3274,7 +3355,14 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         return "You've reached the limit for starting new chats. Please wait a few minutes and try again.";
     }
 
-    private static AIVisitorIdentity ResolveVisitorIdentity(IServiceProvider services)
+    /// <summary>
+    /// Resolves the identity of the visitor behind the current invocation, which the rate limiters and the prompt
+    /// security checks use to tell callers apart. Derived hubs call it to build the same
+    /// <see cref="PromptSecurityContext"/> the base hub builds instead of keeping a copy of this logic.
+    /// </summary>
+    /// <param name="services">The service provider of the invocation.</param>
+    /// <returns>The visitor identity, or an empty identity when no <see cref="IAIVisitorIdentityResolver"/> is registered.</returns>
+    protected static AIVisitorIdentity ResolveVisitorIdentity(IServiceProvider services)
     {
         var visitorIdentityResolver = services.GetService<IAIVisitorIdentityResolver>();
 
@@ -3284,6 +3372,53 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         }
 
         return visitorIdentityResolver.Resolve();
+    }
+
+    /// <summary>
+    /// Applies the per-message rate limit (<see cref="IChatRateLimiter"/>) to a message that does not go through
+    /// <see cref="ValidatePromptSecurityAsync"/>, such as one that only runs a profile's prompt template. Messages
+    /// that carry a prompt are already limited by the prompt security service, so this is not called for them.
+    /// Override to change how such a message is limited.
+    /// </summary>
+    /// <param name="services">The service provider.</param>
+    /// <param name="profile">The profile the message is sent to.</param>
+    /// <param name="sessionId">The session identifier, which may be empty for the first message of a session.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A rate-limit block when the caller sent too many messages, otherwise <see cref="PromptSecurityResult.Safe"/>.</returns>
+    protected virtual async Task<PromptSecurityResult> EvaluateMessageRateLimitAsync(IServiceProvider services, AIProfile profile, string sessionId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var rateLimiter = services.GetService<IChatRateLimiter>();
+
+        if (rateLimiter is null)
+        {
+            return PromptSecurityResult.Safe;
+        }
+
+        var visitorIdentity = ResolveVisitorIdentity(services);
+        var result = await rateLimiter.EvaluateAsync(new PromptSecurityContext
+        {
+            SessionId = sessionId,
+            ProfileId = profile.ItemId,
+            Profile = profile,
+            User = Context.User,
+            ConnectionId = Context.ConnectionId,
+            VisitorId = visitorIdentity.VisitorId,
+            RemoteAddressHash = visitorIdentity.RemoteAddressHash,
+            RemoteAddress = visitorIdentity.RemoteAddress,
+        }, cancellationToken);
+
+        if (!result.IsThrottled)
+        {
+            return PromptSecurityResult.Safe;
+        }
+
+        return PromptSecurityResult.Blocked(
+            $"Rate limit exceeded. Please wait {result.RetryAfterSeconds} second(s) before sending another message.",
+            PromptRiskLevel.High,
+            PromptSecurityResult.RateLimitDetectionRule);
     }
 
     private async Task<RateLimitResult> EvaluateSessionStartRateLimitAsync(IServiceProvider services, AIProfile profile, CancellationToken cancellationToken)

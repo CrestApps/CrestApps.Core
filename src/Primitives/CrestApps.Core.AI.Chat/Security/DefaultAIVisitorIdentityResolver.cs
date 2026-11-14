@@ -10,11 +10,15 @@ using Microsoft.Extensions.Options;
 namespace CrestApps.Core.AI.Chat.Security;
 
 /// <summary>
-/// Resolves stable visitor identities for AI chat requests.
+/// Resolves stable visitor identities for AI chat requests. The remote address is the connection's address, never the
+/// raw <c>X-Forwarded-For</c> header; a host behind a reverse proxy must enable ASP.NET Core's forwarded headers
+/// middleware with its trusted proxies so the connection carries the client's address.
 /// </summary>
 public sealed class DefaultAIVisitorIdentityResolver : IAIVisitorIdentityResolver
 {
     private const string RemoteAddressProtectionPurpose = "CrestApps.Core.AI.VisitorIdentity.RemoteAddress";
+
+    private const string UnknownRemoteAddress = "unknown";
 
     // Chrome only honours this on a cookie that is already SameSite=None and Secure. Every other browser
     // ignores an attribute it does not know.
@@ -70,13 +74,26 @@ public sealed class DefaultAIVisitorIdentityResolver : IAIVisitorIdentityResolve
         };
     }
 
+    // Resolving twice in one request (the session manager stamps the owner, an endpoint checks it) must give one visitor:
+    // a new id is generated and written as a cookie each time none is found, and the second would replace the first.
+    private const string ResolvedVisitorIdItemKey = "CrestApps.Core.AI.VisitorIdentity.VisitorId";
+
+    // The value goes into an indexed column and into a cookie the client chooses, so only something that looks like an id is reused.
+    private const int MaxVisitorIdLength = 64;
+
     private string ResolveAnonymousVisitorId(HttpContext httpContext)
     {
         var options = _options.Value;
 
-        if (httpContext.Request.Cookies.TryGetValue(options.CookieName, out var cookieValue) &&
-            !string.IsNullOrWhiteSpace(cookieValue))
+        if (httpContext.Items.TryGetValue(ResolvedVisitorIdItemKey, out var resolved) && resolved is string resolvedId)
         {
+            return resolvedId;
+        }
+
+        if (httpContext.Request.Cookies.TryGetValue(options.CookieName, out var cookieValue) && IsVisitorId(cookieValue))
+        {
+            httpContext.Items[ResolvedVisitorIdItemKey] = cookieValue;
+
             return cookieValue;
         }
 
@@ -90,7 +107,27 @@ public sealed class DefaultAIVisitorIdentityResolver : IAIVisitorIdentityResolve
                 CreateCookieOptions(httpContext, options));
         }
 
+        httpContext.Items[ResolvedVisitorIdItemKey] = visitorId;
+
         return visitorId;
+    }
+
+    private static bool IsVisitorId(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > MaxVisitorIdLength)
+        {
+            return false;
+        }
+
+        foreach (var character in value)
+        {
+            if (!char.IsAsciiLetterOrDigit(character) && character != '-' && character != '_')
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static CookieOptions CreateCookieOptions(HttpContext httpContext, AIVisitorIdentityOptions options)
@@ -138,7 +175,7 @@ public sealed class DefaultAIVisitorIdentityResolver : IAIVisitorIdentityResolve
             return null;
         }
 
-        var remoteAddress = ResolveRemoteAddress(httpContext);
+        var remoteAddress = ResolveRemoteAddressKey(httpContext);
 
         if (string.IsNullOrWhiteSpace(remoteAddress))
         {
@@ -170,20 +207,40 @@ public sealed class DefaultAIVisitorIdentityResolver : IAIVisitorIdentityResolve
         };
     }
 
+    // The raw X-Forwarded-For header is never read: any client can send it, so trusting it lets a caller pick the
+    // address the rate limiters and the abuse controls key on. A host behind a reverse proxy enables ASP.NET Core's
+    // forwarded headers middleware with its known proxies or networks, which replaces the connection's remote
+    // address with the forwarded one only when the request came from a trusted proxy.
     private static string ResolveRemoteAddress(HttpContext httpContext)
     {
-        var forwardedFor = httpContext.Request.Headers["X-Forwarded-For"].ToString();
+        var address = httpContext.Connection.RemoteIpAddress;
 
-        if (!string.IsNullOrWhiteSpace(forwardedFor))
+        // No connection address (a Unix socket, a named pipe) would leave only keys the client can rotate, so the
+        // limiters would fail open. Every such request shares one bucket instead.
+        if (address is null)
         {
-            var forwardedAddress = forwardedFor.Split(',')[0].Trim();
-
-            if (!string.IsNullOrWhiteSpace(forwardedAddress))
-            {
-                return forwardedAddress;
-            }
+            return UnknownRemoteAddress;
         }
 
-        return httpContext.Connection.RemoteIpAddress?.ToString();
+        // ::ffff:a.b.c.d and a.b.c.d are one client.
+        return (address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address).ToString();
+    }
+
+    // What the limiters key on. An IPv6 client usually holds a whole /64, so a client that rotates inside it would get a
+    // fresh allowance for every address; the key is the /64.
+    private static string ResolveRemoteAddressKey(HttpContext httpContext)
+    {
+        var address = httpContext.Connection.RemoteIpAddress;
+
+        if (address is null || address.IsIPv4MappedToIPv6 || address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetworkV6)
+        {
+            return ResolveRemoteAddress(httpContext);
+        }
+
+        var bytes = address.GetAddressBytes();
+
+        Array.Clear(bytes, 8, 8);
+
+        return new System.Net.IPAddress(bytes) + "/64";
     }
 }

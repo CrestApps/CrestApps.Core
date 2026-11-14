@@ -43,6 +43,7 @@ internal static class SitemapWebCrawlerHelper
             BaseUrl = metadata.BaseUrl,
             SitemapUrl = metadata.SitemapUrl,
             MaxPages = Math.Max(1, metadata.MaxPages ?? options.DefaultMaxPages),
+            MaxResponseBytes = options.MaxResponseBytes > 0 ? options.MaxResponseBytes : new SitemapCrawlRequest().MaxResponseBytes,
         };
     }
 

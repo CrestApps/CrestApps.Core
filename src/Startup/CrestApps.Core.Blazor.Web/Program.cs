@@ -353,14 +353,14 @@ app.MapAGUIChat<AIChatHub>();
 app.MapMcp("mcp");
 app.MapWebMcpTools();
 app.MapA2AHost();
-app.AddChatApiEndpoints()
-    .AddDownloadAIDocumentEndpoint()
-    .AddDownloadKnowledgeFigureEndpoint()
-    .AddDownloadAIDocumentFigureEndpoint()
-    .AddUploadChatInteractionDocumentEndpoint()
-    .AddRemoveChatInteractionDocumentEndpoint()
-    .AddUploadChatSessionDocumentEndpoint()
-    .AddRemoveChatSessionDocumentEndpoint();
+app.AddChatApiEndpoints();
+app.AddDownloadAIDocumentEndpoint();
+app.AddDownloadKnowledgeFigureEndpoint();
+app.AddDownloadAIDocumentFigureEndpoint();
+app.AddUploadChatInteractionDocumentEndpoint();
+app.AddRemoveChatInteractionDocumentEndpoint();
+app.AddUploadChatSessionDocumentEndpoint();
+app.AddRemoveChatSessionDocumentEndpoint();
 
 app.MapAuthEndpoints();
 

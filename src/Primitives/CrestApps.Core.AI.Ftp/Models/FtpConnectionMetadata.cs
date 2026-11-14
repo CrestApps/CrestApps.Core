@@ -54,4 +54,16 @@ public sealed class FtpConnectionMetadata
     /// Gets or sets the retry Attempts.
     /// </summary>
     public int? RetryAttempts { get; set; }
+
+    /// <summary>
+    /// Gets or sets the most bytes an MCP resource read downloads from this server. A file larger than this is refused
+    /// instead of being buffered. When not set, 5 MB applies.
+    /// </summary>
+    public long? MaxResourceBytes { get; set; }
+
+    /// <summary>
+    /// Gets or sets the most bytes of one file that ingestion reads from this server into memory. A larger file is not
+    /// ingested. When not set, 100 MB applies.
+    /// </summary>
+    public long? MaxFileBytes { get; set; }
 }

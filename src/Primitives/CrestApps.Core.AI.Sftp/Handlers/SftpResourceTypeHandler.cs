@@ -1,22 +1,20 @@
 using System.Text;
 using CrestApps.Core.AI.Mcp;
-using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Sftp.Models;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Logging;
-using ModelContextProtocol.Protocol;
 using Renci.SshNet;
 
 namespace CrestApps.Core.AI.Sftp.Handlers;
 
 /// <summary>
-/// Represents the SFTP Resource Type Handler.
+/// Reads one file from an SFTP server for an MCP resource. The download goes through
+/// <see cref="RemoteFileResourceHandlerBase{TMetadata}"/>, which caps how much of the file is buffered
+/// (<see cref="SftpConnectionMetadata.MaxResourceBytes"/>, 5 MB by default), and the connection is only opened against a
+/// server whose host key matches <see cref="SftpConnectionMetadata.HostKeyFingerprint"/>.
 /// </summary>
-public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
+public sealed class SftpResourceTypeHandler : RemoteFileResourceHandlerBase<SftpConnectionMetadata>
 {
-    private static readonly FileExtensionContentTypeProvider _contentTypeProvider = new();
-
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly ILogger<SftpResourceTypeHandler> _logger;
 
@@ -28,41 +26,56 @@ public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
     public SftpResourceTypeHandler(
         IDataProtectionProvider dataProtectionProvider,
         ILogger<SftpResourceTypeHandler> logger)
-        : base(SftpResourceConstants.Type)
+        : base(SftpResourceConstants.Type, logger)
     {
         _dataProtectionProvider = dataProtectionProvider;
         _logger = logger;
     }
 
-    /// <summary>
-    /// Gets result.
-    /// </summary>
-    /// <param name="resource">The resource.</param>
-    /// <param name="variables">The variables.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    protected override async Task<ReadResourceResult> GetResultAsync(McpResource resource, IReadOnlyDictionary<string, string> variables, CancellationToken cancellationToken)
+    /// <inheritdoc />
+    protected override string TransportName => "SFTP";
+
+    /// <inheritdoc />
+    protected override long? GetMaxResourceBytes(SftpConnectionMetadata metadata)
     {
-        if (!resource.TryGet<SftpConnectionMetadata>(out var metadata))
+        return metadata.MaxResourceBytes;
+    }
+
+    /// <inheritdoc />
+    protected override bool TryGetHost(SftpConnectionMetadata metadata, out string host)
+    {
+        host = metadata?.Host;
+
+        return !string.IsNullOrEmpty(host);
+    }
+
+    /// <inheritdoc />
+    protected override string ValidateMetadata(SftpConnectionMetadata metadata)
+    {
+        // Fail closed: without a fingerprint to check, SSH.NET would trust whatever key the server presents, and the
+        // credentials would go to anyone who intercepts the connection.
+        if (!SftpHostKeys.IsConfigured(metadata.HostKeyFingerprint))
         {
-            return CreateErrorResult(resource.Resource.Uri, "SFTP connection metadata is missing.");
+            return SftpHostKeys.MissingFingerprintMessage;
         }
 
-        var host = metadata.Host;
-
-        if (string.IsNullOrEmpty(host))
+        if (string.IsNullOrEmpty(metadata.Password) && string.IsNullOrEmpty(metadata.PrivateKey))
         {
-            return CreateErrorResult(resource.Resource.Uri, "SFTP host is required in the connection metadata.");
+            return "No authentication method provided. Please provide a password or private key.";
         }
 
+        return null;
+    }
+
+    /// <inheritdoc />
+    protected override async Task DownloadAsync(SftpConnectionMetadata metadata, string host, string remotePath, Stream destination, CancellationToken cancellationToken)
+    {
         var protector = _dataProtectionProvider.CreateProtector(SftpResourceConstants.DataProtectionPurpose);
-        var port = metadata.Port ?? 22;
         var username = metadata.Username;
-        var rawPath = variables.TryGetValue("path", out var pathValue) ? pathValue : string.Empty;
-        var remotePath = "/" + SanitizePath(rawPath);
 
-        var password = DataProtectionHelper.Unprotect(protector, metadata.Password, _logger, "Failed to unprotect SFTP {FieldName} for resource {ResourceId}", "password", resource.ItemId);
-        var privateKey = DataProtectionHelper.Unprotect(protector, metadata.PrivateKey, _logger, "Failed to unprotect SFTP {FieldName} for resource {ResourceId}", "private key", resource.ItemId);
-        var passphrase = DataProtectionHelper.Unprotect(protector, metadata.Passphrase, _logger, "Failed to unprotect SFTP {FieldName} for resource {ResourceId}", "passphrase", resource.ItemId);
+        var password = DataProtectionHelper.Unprotect(protector, metadata.Password, _logger, "Failed to unprotect SFTP {FieldName} for host {Host}", "password", host);
+        var privateKey = DataProtectionHelper.Unprotect(protector, metadata.PrivateKey, _logger, "Failed to unprotect SFTP {FieldName} for host {Host}", "private key", host);
+        var passphrase = DataProtectionHelper.Unprotect(protector, metadata.Passphrase, _logger, "Failed to unprotect SFTP {FieldName} for host {Host}", "passphrase", host);
 
         var authMethods = new List<AuthenticationMethod>();
 
@@ -82,10 +95,10 @@ public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
 
         if (authMethods.Count == 0)
         {
-            return CreateErrorResult(resource.Resource.Uri, "No authentication method provided. Please provide a password or private key.");
+            throw new InvalidOperationException("No authentication method could be read from the stored credentials.");
         }
 
-        var connectionInfo = new ConnectionInfo(host, port, username, authMethods.ToArray());
+        var connectionInfo = new ConnectionInfo(host, metadata.Port ?? 22, username, authMethods.ToArray());
 
         if (metadata.ConnectionTimeout is > 0)
         {
@@ -99,6 +112,8 @@ public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
 
         using var client = new SftpClient(connectionInfo);
 
+        SftpHostKeys.Require(client, metadata.HostKeyFingerprint);
+
         if (metadata.KeepAliveInterval is > 0)
         {
             client.KeepAliveInterval = TimeSpan.FromSeconds(metadata.KeepAliveInterval.Value);
@@ -108,31 +123,7 @@ public sealed class SftpResourceTypeHandler : McpResourceTypeHandlerBase
 
         try
         {
-            using var stream = new MemoryStream();
-            client.DownloadFile(remotePath, stream);
-            stream.Position = 0;
-
-            using var reader = new StreamReader(stream);
-            var content = await reader.ReadToEndAsync(cancellationToken);
-
-            var mimeType = resource.Resource?.MimeType;
-            if (string.IsNullOrEmpty(mimeType) && !_contentTypeProvider.TryGetContentType(remotePath, out mimeType))
-            {
-                mimeType = "application/octet-stream";
-            }
-
-            return new ReadResourceResult
-            {
-                Contents =
-                [
-                    new TextResourceContents
-                    {
-                        Uri = resource.Resource.Uri,
-                        MimeType = mimeType,
-                        Text = content,
-                    }
-                ]
-            };
+            client.DownloadFile(remotePath, destination);
         }
         finally
         {

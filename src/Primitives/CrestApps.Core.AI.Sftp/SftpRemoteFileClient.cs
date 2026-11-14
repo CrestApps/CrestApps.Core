@@ -9,14 +9,17 @@ namespace CrestApps.Core.AI.Sftp;
 internal sealed class SftpRemoteFileClient : IRemoteFileClient
 {
     private readonly SftpClient _client;
+    private readonly long _maxFileBytes;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SftpRemoteFileClient"/> class.
     /// </summary>
     /// <param name="client">The connected client.</param>
-    public SftpRemoteFileClient(SftpClient client)
+    /// <param name="maxFileBytes">The most bytes of one file to read into memory.</param>
+    public SftpRemoteFileClient(SftpClient client, long maxFileBytes = RemoteFileLimits.DefaultMaxFileBytes)
     {
         _client = client;
+        _maxFileBytes = maxFileBytes;
     }
 
     /// <inheritdoc />
@@ -32,22 +35,24 @@ internal sealed class SftpRemoteFileClient : IRemoteFileClient
     }
 
     /// <inheritdoc />
-    public Task<Stream> OpenReadAsync(string rootPath, string path, CancellationToken cancellationToken = default)
+    public async Task<Stream> OpenReadAsync(string rootPath, string path, CancellationToken cancellationToken = default)
     {
         var full = Combine(rootPath, path);
 
         if (!_client.Exists(full))
         {
-            return Task.FromResult<Stream>(null);
+            return null;
         }
 
-        var buffer = new MemoryStream();
+        // A file of any size would otherwise be buffered whole.
+        return await BoundedRemoteDownload.OpenAsync(
+            buffer =>
+            {
+                _client.DownloadFile(full, buffer);
 
-        _client.DownloadFile(full, buffer);
-
-        buffer.Position = 0;
-
-        return Task.FromResult<Stream>(buffer);
+                return Task.FromResult(true);
+            },
+            _maxFileBytes);
     }
 
     /// <inheritdoc />

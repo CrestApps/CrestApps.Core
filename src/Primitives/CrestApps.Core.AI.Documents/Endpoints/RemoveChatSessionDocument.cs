@@ -1,13 +1,16 @@
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Documents.Models;
+using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Ingestion;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.AI.Security;
 using CrestApps.Core.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CrestApps.Core.AI.Documents.Endpoints;
 
@@ -21,10 +24,11 @@ public static class RemoveChatSessionDocument
     /// </summary>
     /// <param name="builder">The route builder.</param>
     /// <param name="routeName">An optional route name for URL generation.</param>
-    /// <returns>The route builder.</returns>
-    public static IEndpointRouteBuilder AddRemoveChatSessionDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = null)
+    /// <returns>The route handler builder of the endpoint, so a host can add its own endpoint filters or metadata.</returns>
+    public static RouteHandlerBuilder AddRemoveChatSessionDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = null)
     {
         var endpoint = builder.MapPost("ai/chat-sessions/remove-document", RemoveChatSessionDocumentEndpoint.HandleAsync)
+            .AddEndpointFilter<CookieAuthenticationAntiforgeryEndpointFilter>()
             .AddEndpointFilter<StoreCommitterEndpointFilter>()
             .DisableAntiforgery();
         if (!string.IsNullOrEmpty(routeName))
@@ -32,7 +36,7 @@ public static class RemoveChatSessionDocument
             _ = endpoint.WithName(routeName);
         }
 
-        return builder;
+        return endpoint;
     }
 
     private sealed class RemoveChatSessionDocumentEndpoint : AIChatDocumentEndpointBase
@@ -71,7 +75,7 @@ public static class RemoveChatSessionDocument
             }
 
             var session = await sessionManager.FindAsync(requestModel.ItemId);
-            if (session == null)
+            if (session == null || !ChatSessionOwnership.IsOwner(session, httpContext.User, httpContext.RequestServices.GetService<IAIVisitorIdentityResolver>()))
             {
                 return TypedResults.NotFound();
             }
@@ -92,13 +96,23 @@ public static class RemoveChatSessionDocument
             }
 
             var documentInfo = session.Documents?.FirstOrDefault(document => document.DocumentId == requestModel.DocumentId);
+            var document = await documentStore.FindByIdAsync(requestModel.DocumentId);
+
+            // A document the session no longer lists (an older copy of the session was saved over it) is still stored for it,
+            // and its owner can remove it. A document stored for another session is not theirs.
+            if (documentInfo == null && document != null &&
+                string.Equals(document.ReferenceId, session.SessionId, StringComparison.Ordinal) &&
+                string.Equals(document.ReferenceType, AIReferenceTypes.Document.ChatSession, StringComparison.Ordinal))
+            {
+                documentInfo = new ChatDocumentInfo { DocumentId = document.ItemId, FileName = document.FileName, FileSize = document.FileSize, ContentType = document.ContentType };
+            }
+
             if (documentInfo == null)
             {
                 return TypedResults.NotFound("Document not found.");
             }
 
-            session.Documents.Remove(documentInfo);
-            var document = await documentStore.FindByIdAsync(requestModel.DocumentId);
+            session.Documents?.RemoveAll(listed => listed.DocumentId == documentInfo.DocumentId);
             var chunkIds = new List<string>();
             if (document != null)
             {

@@ -56,6 +56,36 @@ public sealed class DefaultAIVisitorIdentityResolverTests
     }
 
     [Fact]
+    public void Resolve_IgnoresAnXForwardedForHeaderTheCallerSent()
+    {
+        // A header any client can send must never pick the address the rate limiters key on. The forwarded
+        // headers middleware replaces the connection's address when the host trusts its proxy.
+        var httpContext = CreateHttpContext(isHttps: true);
+        httpContext.Request.Headers["X-Forwarded-For"] = "198.51.100.99, 10.0.0.1";
+        var options = new AIVisitorIdentityOptions
+        {
+            RemoteAddressMode = AIVisitorRemoteAddressMode.PlainText,
+        };
+
+        var identity = CreateResolver(options, httpContext).Resolve();
+
+        Assert.Equal("203.0.113.5", identity.RemoteAddress);
+    }
+
+    [Fact]
+    public void Resolve_KeysTheAddressHashOnTheConnectionAddressNotTheHeader()
+    {
+        var spoofed = CreateHttpContext(isHttps: true);
+        spoofed.Request.Headers["X-Forwarded-For"] = "198.51.100.99";
+        var plain = CreateHttpContext(isHttps: true);
+
+        var spoofedHash = CreateResolver(new AIVisitorIdentityOptions(), spoofed).Resolve().RemoteAddressHash;
+        var plainHash = CreateResolver(new AIVisitorIdentityOptions(), plain).Resolve().RemoteAddressHash;
+
+        Assert.Equal(plainHash, spoofedHash);
+    }
+
+    [Fact]
     public void Resolve_ByDefault_WritesTheVisitorCookieAsSameSiteLax()
     {
         // SameSite=Lax is the right default for a chat served from its own site, and turning the new
@@ -137,6 +167,103 @@ public sealed class DefaultAIVisitorIdentityResolverTests
         Assert.Equal("existing-visitor", identity.VisitorId);
         Assert.False(identity.IsAuthenticated);
         Assert.Equal(0, httpContext.Response.Headers.SetCookie.Count);
+    }
+
+    [Fact]
+    public void Resolve_WithNoConnectionAddress_UsesOneSharedBucketInsteadOfNoKey()
+    {
+        // A null address (a Unix socket, a named pipe) would leave only keys the client can rotate, so the limiters would
+        // fail open. Every such request lands in one bucket instead.
+        var first = CreateResolverFor(null).Resolve();
+        var second = CreateResolverFor(null).Resolve();
+
+        Assert.False(string.IsNullOrWhiteSpace(first.RemoteAddressHash));
+        Assert.Equal(first.RemoteAddressHash, second.RemoteAddressHash);
+    }
+
+    [Fact]
+    public void Resolve_TreatsAnIPv4MappedAddressAsTheIPv4Address()
+    {
+        var mapped = CreateResolverFor(System.Net.IPAddress.Parse("::ffff:203.0.113.5"), AIVisitorRemoteAddressMode.PlainText).Resolve();
+        var plain = CreateResolverFor(System.Net.IPAddress.Parse("203.0.113.5"), AIVisitorRemoteAddressMode.PlainText).Resolve();
+
+        Assert.Equal("203.0.113.5", mapped.RemoteAddress);
+        Assert.Equal(plain.RemoteAddress, mapped.RemoteAddress);
+        Assert.Equal(
+            CreateResolverFor(System.Net.IPAddress.Parse("::ffff:203.0.113.5")).Resolve().RemoteAddressHash,
+            CreateResolverFor(System.Net.IPAddress.Parse("203.0.113.5")).Resolve().RemoteAddressHash);
+    }
+
+    [Fact]
+    public void Resolve_KeysAnIPv6AddressOnItsSlash64SoRotatingWithinItDoesNotBuyANewAllowance()
+    {
+        var one = CreateResolverFor(System.Net.IPAddress.Parse("2001:db8:1:2::1")).Resolve();
+        var other = CreateResolverFor(System.Net.IPAddress.Parse("2001:db8:1:2:aaaa:bbbb:cccc:dddd")).Resolve();
+        var elsewhere = CreateResolverFor(System.Net.IPAddress.Parse("2001:db8:1:3::1")).Resolve();
+
+        Assert.Equal(one.RemoteAddressHash, other.RemoteAddressHash);
+        Assert.NotEqual(one.RemoteAddressHash, elsewhere.RemoteAddressHash);
+    }
+
+    [Fact]
+    public void Resolve_KeepsTheFullIPv6AddressWhereItIsStoredInPlainText()
+    {
+        var identity = CreateResolverFor(System.Net.IPAddress.Parse("2001:db8:1:2:aaaa:bbbb:cccc:dddd"), AIVisitorRemoteAddressMode.PlainText).Resolve();
+
+        Assert.Equal("2001:db8:1:2:aaaa:bbbb:cccc:dddd", identity.RemoteAddress);
+    }
+
+    [Fact]
+    public void Resolve_CalledTwiceInOneRequest_GivesTheSameNewVisitorAndWritesOneCookie()
+    {
+        // Two services resolving the visitor in one request, as the session manager and an endpoint do, must agree: the
+        // session is stamped with the first id and the browser keeps the cookie of the second.
+        var httpContext = CreateHttpContext(isHttps: true);
+        var resolver = CreateResolver(new AIVisitorIdentityOptions(), httpContext);
+
+        var first = resolver.Resolve();
+        var second = resolver.Resolve();
+
+        Assert.Equal(first.VisitorId, second.VisitorId);
+        Assert.Single(httpContext.Response.Headers.SetCookie);
+    }
+
+    [Theory]
+    [InlineData("0123456789ABCDEFGHJKMNPQRS", true)]
+    [InlineData("existing-visitor_1", true)]
+    [InlineData("has space", false)]
+    [InlineData("<script>", false)]
+    [InlineData("quote'quote", false)]
+    public void Resolve_OnlyReusesAVisitorCookieThatLooksLikeAnId(string cookieValue, bool reused)
+    {
+        var httpContext = CreateHttpContext(isHttps: true);
+        httpContext.Request.Headers.Cookie = $"crestapps-ai-visitor={cookieValue}";
+
+        var identity = CreateResolver(new AIVisitorIdentityOptions(), httpContext).Resolve();
+
+        Assert.Equal(reused, identity.VisitorId == cookieValue);
+        Assert.Equal(reused ? 0 : 1, httpContext.Response.Headers.SetCookie.Count);
+    }
+
+    [Fact]
+    public void Resolve_ReplacesAVisitorCookieTooLongForTheIndexedColumn()
+    {
+        // The value goes into a 255-character indexed column on the session, and the client chooses it.
+        var httpContext = CreateHttpContext(isHttps: true);
+        httpContext.Request.Headers.Cookie = $"crestapps-ai-visitor={new string('a', 300)}";
+
+        var identity = CreateResolver(new AIVisitorIdentityOptions(), httpContext).Resolve();
+
+        Assert.True(identity.VisitorId.Length <= 64);
+        Assert.Single(httpContext.Response.Headers.SetCookie);
+    }
+
+    private static DefaultAIVisitorIdentityResolver CreateResolverFor(System.Net.IPAddress address, AIVisitorRemoteAddressMode mode = AIVisitorRemoteAddressMode.Hashed)
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Connection.RemoteIpAddress = address;
+
+        return CreateResolver(new AIVisitorIdentityOptions { RemoteAddressMode = mode, RemoteAddressHashSalt = "test-salt" }, httpContext);
     }
 
     private static string ResolveAndReadSetCookieHeader(AIVisitorIdentityOptions options, bool isHttps = true)

@@ -23,6 +23,10 @@ window.chatInteractionManager = function () {
         // UI defaults for generated media
         generatedImageAltText: 'Generated Image',
         generatedImageMaxWidth: 400,
+        // Hosts a Markdown image in an answer may be loaded from (for example 'images.example.com' or
+        // '*.example.com'). Empty means same-origin only; an image from anywhere else is shown as a plain link,
+        // because the browser would send whatever the model put in its address as soon as the answer appeared.
+        allowedImageHosts: [],
         downloadImageTitle: 'Download image',
         downloadChartTitle: 'Download chart as image',
         downloadChartButtonText: 'Download',
@@ -407,6 +411,12 @@ window.chatInteractionManager = function () {
     renderer.image = function (data) {
         const src = sanitizeUrl(data.href);
         if (!src) return '';
+        // An image from a host the page does not trust is never drawn: it is a request the model chose the address
+        // of. It is shown as a link instead, and the visitor decides whether to follow it.
+        if (!window.CoreAIImages.isAllowedSource(src, { allowedHosts: defaultConfig.allowedImageHosts })) {
+            return window.CoreAIImages.linkHtml(src, data.text);
+        }
+
         const alt = data.text || defaultConfig.generatedImageAltText;
         const maxWidth = defaultConfig.generatedImageMaxWidth;
         // Spans, not divs. A figure marker is often written mid-sentence -- "Figures [fig:1], [fig:2] and
@@ -632,7 +642,7 @@ window.chatInteractionManager = function () {
         _pendingCharts = [];
         const html = styleMarkdownTables(marked.parse(content, { renderer }));
         message._pendingCharts = _pendingCharts.length > 0 ? [..._pendingCharts] : [];
-        const sanitizedHtml = DOMPurify.sanitize(html, { ADD_TAGS: ['canvas'], ADD_ATTR: ['target'] });
+        const sanitizedHtml = window.CoreAIImages.sanitize(DOMPurify, html, { ADD_TAGS: ['canvas'], ADD_ATTR: ['target'] }, { allowedHosts: defaultConfig.allowedImageHosts });
 
         // Optional, shared with every chat surface: a run of pictures becomes one stacked carousel.
         return window.CoreAIChatImageCarousel ? window.CoreAIChatImageCarousel.stackAdjacentImages(sanitizedHtml) : sanitizedHtml;
@@ -3201,6 +3211,7 @@ window.chatInteractionDocumentManager = function () {
 
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', config.uploadDocumentUrl, true);
+                window.CoreAIAntiforgery.apply(xhr, config, config.uploadDocumentUrl);
 
                 xhr.upload.addEventListener('progress', event => {
                     if (!event.lengthComputable) {
@@ -3388,9 +3399,9 @@ window.chatInteractionDocumentManager = function () {
             try {
                 const response = await fetch(config.removeDocumentUrl, {
                     method: 'POST',
-                    headers: {
+                    headers: window.CoreAIAntiforgery.headers(config, {
                         'Content-Type': 'application/json'
-                    },
+                    }, config.removeDocumentUrl),
                     body: JSON.stringify({
                         itemId: config.itemId,
                         documentId: documentId

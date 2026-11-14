@@ -97,6 +97,11 @@
                 <div class="form-text">Leave blank to keep the existing passphrase.</div>
             }
         </div>
+        <div class="mb-3">
+            <label asp-for="SftpHostKeyFingerprint" class="form-label">Host key fingerprint</label>
+            <input asp-for="SftpHostKeyFingerprint" class="form-control font-monospace" autocomplete="off" placeholder="SHA256:..." />
+            <div class="form-text">Required. The server's host key fingerprint, as <code>ssh-keygen -lf</code> prints it. The connection is refused unless the server presents this key.</div>
+        </div>
     </div>
 </div>
 

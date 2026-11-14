@@ -80,6 +80,8 @@ public sealed class FileSourceViewModel
 
     public bool SftpHasPassphrase { get; set; }
 
+    public string SftpHostKeyFingerprint { get; set; }
+
     [BindNever]
     public FileSourceRunSummary LastRun { get; set; }
 
@@ -164,6 +166,7 @@ public sealed class FileSourceViewModel
             model.RemoteHasPassword = !string.IsNullOrEmpty(sftp.Password);
             model.SftpHasPrivateKey = !string.IsNullOrEmpty(sftp.PrivateKey);
             model.SftpHasPassphrase = !string.IsNullOrEmpty(sftp.Passphrase);
+            model.SftpHostKeyFingerprint = sftp.HostKeyFingerprint;
         }
 
         if (fileSource.TryGet<FileSourceRunSummary>(out var lastRun))
@@ -255,6 +258,7 @@ public sealed class FileSourceViewModel
             sftp.Password = ProtectOrReuse(RemotePassword, sftp.Password, protector);
             sftp.PrivateKey = ProtectOrReuse(SftpPrivateKey, sftp.PrivateKey, protector);
             sftp.Passphrase = ProtectOrReuse(SftpPassphrase, sftp.Passphrase, protector);
+            sftp.HostKeyFingerprint = Trim(SftpHostKeyFingerprint);
             fileSource.Put(sftp);
         }
         else

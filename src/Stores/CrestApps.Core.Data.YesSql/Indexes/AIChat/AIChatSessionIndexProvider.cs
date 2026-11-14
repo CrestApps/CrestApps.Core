@@ -31,6 +31,7 @@ public sealed class AIChatSessionIndexProvider : IndexProvider<AIChatSession>
                 SessionId = session.SessionId,
                 ProfileId = session.ProfileId,
                 UserId = session.UserId,
+                ClientId = session.ClientId,
                 Status = session.Status,
                 LastActivityUtc = session.LastActivityUtc,
             });

@@ -92,6 +92,12 @@ public sealed class YesSqlAIChatSessionManager : IAIChatSessionManager
             query = query.Where(x => x.UserId == userId);
         }
 
+        if (!string.IsNullOrEmpty(context?.ClientId))
+        {
+            var clientId = context.ClientId;
+            query = query.Where(x => x.ClientId == clientId);
+        }
+
         var skip = (page - 1) * pageSize;
         var total = await query.CountAsync(cancellationToken);
         var items = await query

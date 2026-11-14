@@ -24,7 +24,8 @@ public static class DownloadAIDocument
     /// </summary>
     /// <param name="builder">The builder.</param>
     /// <param name="routeName">The route name.</param>
-    public static IEndpointRouteBuilder AddDownloadAIDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = DefaultRouteName)
+    /// <returns>The route handler builder of the endpoint, so a host can add its own endpoint filters or metadata.</returns>
+    public static RouteHandlerBuilder AddDownloadAIDocumentEndpoint(this IEndpointRouteBuilder builder, string routeName = DefaultRouteName)
     {
         var endpoint = builder.MapGet("ai/documents/{documentId}/download", HandleAsync);
 
@@ -33,7 +34,7 @@ public static class DownloadAIDocument
             _ = endpoint.WithName(routeName);
         }
 
-        return builder;
+        return endpoint;
     }
 
     private static async Task<IResult> HandleAsync(

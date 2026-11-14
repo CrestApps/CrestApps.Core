@@ -159,6 +159,11 @@
                 <label class="form-label">Passphrase</label>
                 <input type="password" class="form-control" @bind="_model.Passphrase" autocomplete="new-password" />
             </div>
+            <div class="mb-3">
+                <label class="form-label">Host key fingerprint</label>
+                <InputText @bind-Value="_model.HostKeyFingerprint" class="form-control font-monospace" placeholder="SHA256:..." />
+                <div class="form-text">Required. The server's host key fingerprint, as <code>ssh-keygen -lf</code> prints it. The connection is refused unless the server presents this key.</div>
+            </div>
 
             <div class="row">
                 <div class="col-md-4 mb-3">
@@ -329,6 +334,7 @@
             metadata.Password = !string.IsNullOrWhiteSpace(model.Password) ? protector.Protect(model.Password) : null;
             metadata.PrivateKey = !string.IsNullOrWhiteSpace(model.PrivateKey) ? protector.Protect(model.PrivateKey) : null;
             metadata.Passphrase = !string.IsNullOrWhiteSpace(model.Passphrase) ? protector.Protect(model.Passphrase) : null;
+            metadata.HostKeyFingerprint = model.HostKeyFingerprint?.Trim();
             metadata.ProxyType = model.ProxyType?.Trim();
             metadata.ProxyHost = model.ProxyHost?.Trim();
             metadata.ProxyPort = model.ProxyPort;

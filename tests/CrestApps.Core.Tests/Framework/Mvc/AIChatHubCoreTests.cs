@@ -2,7 +2,9 @@ using System.Net;
 using System.Security.Claims;
 using System.Threading.Channels;
 using CrestApps.Core.AI;
+using CrestApps.Core.AI.AGUI;
 using CrestApps.Core.AI.Chat;
+using CrestApps.Core.AI.Chat.AGUI;
 using CrestApps.Core.AI.Chat.Hubs;
 using CrestApps.Core.AI.Chat.Models;
 using CrestApps.Core.AI.Exceptions;
@@ -85,6 +87,326 @@ public sealed class AIChatHubCoreTests
         client.Verify(c => c.ReceiveError(It.IsAny<string>()), Times.Once);
         client.Verify(c => c.LoadSession(It.IsAny<object>()), Times.Never);
         promptStore.Verify(store => store.GetPromptsAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void ResolveVisitorIdentity_IsAvailableToDerivedHubs()
+    {
+        var resolver = new Mock<IAIVisitorIdentityResolver>();
+        resolver.Setup(r => r.Resolve()).Returns(new AIVisitorIdentity { VisitorId = "visitor-1" });
+        var services = new ServiceCollection().AddSingleton(resolver.Object).BuildServiceProvider();
+
+        Assert.Equal("visitor-1", TestAIChatHub.ResolveVisitorIdentityForTest(services).VisitorId);
+    }
+
+    [Fact]
+    public async Task EvaluateMessageRateLimitAsync_WhenThrottled_ReturnsARateLimitBlock()
+    {
+        var limiter = new Mock<IChatRateLimiter>();
+        limiter
+            .Setup(l => l.EvaluateAsync(It.IsAny<PromptSecurityContext>(), It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<RateLimitResult>(RateLimitResult.Throttled(7, 5, 5)));
+        var services = new ServiceCollection().AddSingleton(limiter.Object).BuildServiceProvider();
+        var hub = new TestAIChatHub(services)
+        {
+            Context = CreateCallerContext("user-1"),
+        };
+
+        var result = await hub.EvaluateMessageRateLimitForTestAsync(services, new AIProfile { ItemId = "profile-1" }, "session-1");
+
+        Assert.True(result.IsBlocked);
+        Assert.Equal(PromptSecurityResult.RateLimitDetectionRule, result.DetectionRule);
+    }
+
+    [Fact]
+    public async Task EvaluateMessageRateLimitAsync_WithoutALimiter_AllowsTheMessage()
+    {
+        var services = new ServiceCollection().BuildServiceProvider();
+        var hub = new TestAIChatHub(services)
+        {
+            Context = CreateCallerContext("user-1"),
+        };
+
+        var result = await hub.EvaluateMessageRateLimitForTestAsync(services, new AIProfile { ItemId = "profile-1" }, "session-1");
+
+        Assert.False(result.IsBlocked);
+    }
+
+    [Fact]
+    public async Task HandleSendMessageAsync_ForATemplatePrompt_AuthorizesTheParentProfileBeforeGenerating()
+    {
+        var template = new AIProfile { ItemId = "template-1", Type = AIProfileType.TemplatePrompt };
+        var parent = new AIProfile { ItemId = "parent-1", Type = AIProfileType.Chat };
+        var hub = CreateTemplateHub(template, parent, ["template-1"], out var client, out var services);
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.HandleSendMessageForTestAsync(channel.Writer, services, "template-1", null, null, "parent-1");
+
+        client.Verify(c => c.ReceiveError("You are not authorized to interact with the given profile."), Times.Once);
+        Assert.Equal(0, hub.GeneratedPromptCalls);
+    }
+
+    [Fact]
+    public async Task HandleSendMessageAsync_ForATemplatePrompt_StopsWhenTheMessageRateLimitIsExceeded()
+    {
+        var template = new AIProfile { ItemId = "template-1", Type = AIProfileType.TemplatePrompt };
+        var parent = new AIProfile { ItemId = "parent-1", Type = AIProfileType.Chat };
+        var hub = CreateTemplateHub(template, parent, ["template-1", "parent-1"], out var client, out var services, throttle: true);
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.HandleSendMessageForTestAsync(channel.Writer, services, "template-1", null, null, "parent-1");
+
+        client.Verify(c => c.ReceiveError(It.Is<string>(m => m.Contains("Rate limit"))), Times.Once);
+        Assert.Equal(0, hub.GeneratedPromptCalls);
+    }
+
+    [Fact]
+    public async Task HandleSendMessageAsync_ForAnAuthorizedTemplatePrompt_GeneratesThePrompt()
+    {
+        var template = new AIProfile { ItemId = "template-1", Type = AIProfileType.TemplatePrompt };
+        var parent = new AIProfile { ItemId = "parent-1", Type = AIProfileType.Chat };
+        var hub = CreateTemplateHub(template, parent, ["template-1", "parent-1"], out _, out var services);
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.HandleSendMessageForTestAsync(channel.Writer, services, "template-1", null, null, "parent-1");
+
+        Assert.Equal(1, hub.GeneratedPromptCalls);
+        Assert.Same(parent, hub.GeneratedPromptParent);
+    }
+
+    [Fact]
+    public async Task HandleSendMessageAsync_ForATemplatePrompt_RequiresASessionProfile()
+    {
+        var template = new AIProfile { ItemId = "template-1", Type = AIProfileType.TemplatePrompt };
+        var parent = new AIProfile { ItemId = "parent-1", Type = AIProfileType.Chat };
+        var hub = CreateTemplateHub(template, parent, ["template-1", "parent-1"], out var client, out var services);
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.HandleSendMessageForTestAsync(channel.Writer, services, "template-1", null, null, sessionProfileId: null);
+
+        client.Verify(c => c.ReceiveError("sessionProfileId is required."), Times.Once);
+        Assert.Equal(0, hub.GeneratedPromptCalls);
+    }
+
+    [Fact]
+    public async Task HandleSendMessageAsync_ForATemplatePrompt_NeverUsesTheTemplateItselfAsTheSessionProfile()
+    {
+        var template = new AIProfile { ItemId = "template-1", Type = AIProfileType.TemplatePrompt };
+        var parent = new AIProfile { ItemId = "parent-1", Type = AIProfileType.Chat };
+        var hub = CreateTemplateHub(template, parent, ["template-1", "parent-1"], out var client, out var services);
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.HandleSendMessageForTestAsync(channel.Writer, services, "template-1", null, null, sessionProfileId: "template-1");
+
+        client.Verify(c => c.ReceiveError("Only chat profiles can start chat sessions."), Times.Once);
+        Assert.Equal(0, hub.GeneratedPromptCalls);
+    }
+
+    [Fact]
+    public async Task HandleSendMessageAsync_ForATemplatePrompt_RequiresAChatSessionProfile()
+    {
+        var template = new AIProfile { ItemId = "template-1", Type = AIProfileType.TemplatePrompt };
+        var parent = new AIProfile { ItemId = "parent-1", Type = AIProfileType.Utility };
+        var hub = CreateTemplateHub(template, parent, ["template-1", "parent-1"], out var client, out var services);
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.HandleSendMessageForTestAsync(channel.Writer, services, "template-1", null, null, "parent-1");
+
+        client.Verify(c => c.ReceiveError("Only chat profiles can start chat sessions."), Times.Once);
+        Assert.Equal(0, hub.GeneratedPromptCalls);
+    }
+
+    [Fact]
+    public async Task HandleSendMessageAsync_ForATemplatePrompt_WhenOnlyTheSessionProfileIsAuthorized_Stops()
+    {
+        // The template is not the caller to use even though the profile it would run in is.
+        var template = new AIProfile { ItemId = "template-1", Type = AIProfileType.TemplatePrompt };
+        var parent = new AIProfile { ItemId = "parent-1", Type = AIProfileType.Chat };
+        var hub = CreateTemplateHub(template, parent, ["parent-1"], out var client, out var services);
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.HandleSendMessageForTestAsync(channel.Writer, services, "template-1", null, null, "parent-1");
+
+        client.Verify(c => c.ReceiveError("You are not authorized to interact with the given profile."), Times.Once);
+        Assert.Equal(0, hub.GeneratedPromptCalls);
+    }
+
+    [Fact]
+    public async Task HandleSendMessageAsync_ForATemplatePrompt_AnswersAnUnknownAndAForbiddenSessionProfileTheSameWay()
+    {
+        var template = new AIProfile { ItemId = "template-1", Type = AIProfileType.TemplatePrompt };
+        var parent = new AIProfile { ItemId = "parent-1", Type = AIProfileType.Chat };
+        var hub = CreateTemplateHub(template, parent, ["template-1"], out var client, out var services);
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.HandleSendMessageForTestAsync(channel.Writer, services, "template-1", null, null, "parent-1");
+        await hub.HandleSendMessageForTestAsync(Channel.CreateUnbounded<CompletionPartialMessage>().Writer, services, "template-1", null, null, "does-not-exist");
+
+        // A caller probing ids cannot tell which ones exist.
+        client.Verify(c => c.ReceiveError("You are not authorized to interact with the given profile."), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task HandleSendMessageAsync_ForABlankChatPrompt_IsStillRateLimited()
+    {
+        var chat = new AIProfile { ItemId = "chat-1", Type = AIProfileType.Chat };
+        var hub = CreateTemplateHub(chat, chat, ["chat-1"], out var client, out var services, throttle: true, skipChatPrompt: true);
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.HandleSendMessageForTestAsync(channel.Writer, services, "chat-1", prompt: "   ", sessionId: "session-1", sessionProfileId: null);
+
+        client.Verify(c => c.ReceiveError(It.Is<string>(m => m.Contains("Rate limit"))), Times.Once);
+        Assert.Equal(0, hub.ChatPromptCalls);
+    }
+
+    [Fact]
+    public async Task HandleSendMessageAsync_ForABlankChatPrompt_WithinTheLimit_StillRunsTheTurn()
+    {
+        var chat = new AIProfile { ItemId = "chat-1", Type = AIProfileType.Chat };
+        var hub = CreateTemplateHub(chat, chat, ["chat-1"], out _, out var services, skipChatPrompt: true);
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.HandleSendMessageForTestAsync(channel.Writer, services, "chat-1", prompt: "", sessionId: "session-1", sessionProfileId: null);
+
+        Assert.Equal(1, hub.ChatPromptCalls);
+    }
+
+    [Fact]
+    public async Task ProcessGeneratedPromptAsync_ReportsTheSessionTheAnswerWasSavedIn()
+    {
+        var template = new AIProfile { ItemId = "template-1", Type = AIProfileType.TemplatePrompt, PromptTemplate = "Write something" };
+        var parent = new AIProfile { ItemId = "parent-1", Type = AIProfileType.Chat };
+        var hub = CreateTemplateHub(template, parent, ["template-1", "parent-1"], out _, out var services, useBaseGeneratedPrompt: true, configure: ConfigureGeneration(["Hel", "lo"]));
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        // A first message: the caller sends no session id, and the session is made here.
+        await hub.HandleSendMessageForTestAsync(channel.Writer, services, "template-1", null, sessionId: null, "parent-1");
+
+        var messages = new List<CompletionPartialMessage>();
+        await foreach (var message in channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        {
+            messages.Add(message);
+        }
+
+        Assert.Equal(2, messages.Count);
+        Assert.All(messages, message => Assert.Equal("new-session", message.SessionId));
+        Assert.Equal("Hello", string.Concat(messages.Select(m => m.Content)));
+    }
+
+    [Fact]
+    public async Task ProcessGeneratedPromptAsync_OnAnAGUIRun_StreamsEachChunkAsText()
+    {
+        var template = new AIProfile { ItemId = "template-1", Type = AIProfileType.TemplatePrompt, PromptTemplate = "Write something" };
+        var parent = new AIProfile { ItemId = "parent-1", Type = AIProfileType.Chat };
+        var hub = CreateTemplateHub(template, parent, ["template-1", "parent-1"], out _, out var services, useBaseGeneratedPrompt: true, configure: ConfigureGeneration(["Hel", "lo", " there"]));
+        var events = new List<AGUI.Abstractions.BaseEvent>();
+        var turn = CreateAGUITurn(events);
+
+        await hub.HandleSendMessageForTestAsync(turn, services, "template-1", null, sessionId: null, "parent-1");
+
+        // Each chunk is its own piece of the one message. A second write for a message that already has text is how the
+        // chat replaces a message, and the client would then show only the last chunk.
+        var deltas = events.OfType<AGUI.Abstractions.TextMessageContentEvent>().Select(e => e.Delta).ToList();
+        Assert.Equal(["Hel", "lo", " there"], deltas);
+        Assert.DoesNotContain(events, e => e is AGUI.Abstractions.CustomEvent custom && custom.Name == AGUIChatTurn.MessageReplacedEventName);
+    }
+
+    private static Action<IServiceCollection> ConfigureGeneration(string[] chunks)
+    {
+        return collection =>
+        {
+            var sessionManager = new Mock<IAIChatSessionManager>();
+            sessionManager
+                .Setup(m => m.NewAsync(It.IsAny<AIProfile>(), It.IsAny<NewAIChatSessionContext>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new AIChatSession { SessionId = "new-session", ProfileId = "parent-1" });
+            var templateEngine = new Mock<CrestApps.Core.Templates.Rendering.ITemplateEngine>();
+            templateEngine
+                .Setup(e => e.RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync("rendered prompt");
+            var contextBuilder = new Mock<CrestApps.Core.AI.Completions.IAICompletionContextBuilder>();
+            contextBuilder
+                .Setup(b => b.BuildAsync(It.IsAny<object>(), It.IsAny<Action<AICompletionContext>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new AICompletionContext());
+            var deployments = new Mock<CrestApps.Core.AI.Deployments.IAIDeploymentManager>();
+            deployments
+                .Setup(m => m.ResolveSlotAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<CancellationToken>()))
+                .Returns(new ValueTask<AIDeployment>(new AIDeployment { Name = "chat" }));
+            var completions = new Mock<CrestApps.Core.AI.Completions.IAICompletionService>();
+            completions
+                .Setup(s => s.CompleteStreamingAsync(It.IsAny<AIDeployment>(), It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>()))
+                .Returns(() => ToAsyncEnumerable(chunks));
+
+            collection.AddSingleton(sessionManager.Object);
+            collection.AddSingleton(Mock.Of<IAIChatSessionPromptStore>());
+            collection.AddSingleton(templateEngine.Object);
+            collection.AddSingleton(contextBuilder.Object);
+            collection.AddSingleton(deployments.Object);
+            collection.AddSingleton(completions.Object);
+            collection.AddSingleton(Mock.Of<IStoreCommitter>());
+        };
+    }
+
+    private static async IAsyncEnumerable<ChatResponseUpdate> ToAsyncEnumerable(string[] chunks)
+    {
+        foreach (var chunk in chunks)
+        {
+            await Task.Yield();
+
+            yield return new ChatResponseUpdate(ChatRole.Assistant, chunk);
+        }
+    }
+
+    private static AGUIChatTurn CreateAGUITurn(List<AGUI.Abstractions.BaseEvent> events)
+    {
+        var request = AGUIRunRequest.From(AGUIJson.DeserializeInput(System.Text.Json.JsonElement.Parse(
+            "{ \"threadId\": \"\", \"runId\": \"r\", \"messages\": [], \"tools\": [], \"context\": [], \"forwardedProps\": {} }")));
+        var writer = new AGUIRunEventWriter(request.ThreadId, request.RunId, (evt, _) =>
+        {
+            events.Add(evt);
+
+            return ValueTask.CompletedTask;
+        });
+
+        return new AGUIChatTurn(request, writer);
+    }
+
+    private static TestAIChatHub CreateTemplateHub(
+        AIProfile template,
+        AIProfile parent,
+        string[] authorizedProfileIds,
+        out Mock<IAIChatHubClient> client,
+        out IServiceProvider services,
+        bool throttle = false,
+        bool useBaseGeneratedPrompt = false,
+        bool skipChatPrompt = false,
+        Action<IServiceCollection> configure = null)
+    {
+        var profileManager = new Mock<IAIProfileManager>();
+        profileManager
+            .Setup(m => m.FindByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns((string id, CancellationToken _) => new ValueTask<AIProfile>(id == template.ItemId ? template : id == parent.ItemId ? parent : null));
+        var limiter = new Mock<IChatRateLimiter>();
+        limiter
+            .Setup(l => l.EvaluateAsync(It.IsAny<PromptSecurityContext>(), It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<RateLimitResult>(throttle ? RateLimitResult.Throttled(7, 5, 5) : RateLimitResult.Allowed));
+        var collection = new ServiceCollection()
+            .AddSingleton(profileManager.Object)
+            .AddSingleton(limiter.Object);
+        configure?.Invoke(collection);
+        services = collection.BuildServiceProvider();
+        client = new Mock<IAIChatHubClient>();
+        var clients = new Mock<IHubCallerClients<IAIChatHubClient>>();
+        clients.SetupGet(c => c.Caller).Returns(client.Object);
+
+        return new TestAIChatHub(services)
+        {
+            Context = CreateCallerContext("user-1"),
+            Clients = clients.Object,
+            Groups = Mock.Of<IGroupManager>(),
+            AuthorizedProfileIds = new HashSet<string>(authorizedProfileIds),
+            UseBaseGeneratedPrompt = useBaseGeneratedPrompt,
+            SkipChatPrompt = skipChatPrompt,
+        };
     }
 
     private static HubCallerContext CreateCallerContext(string userId)
@@ -628,6 +950,58 @@ public sealed class AIChatHubCoreTests
             : base(services, TimeProvider.System, NullLogger.Instance)
         {
             _chatSession = chatSession;
+        }
+
+        public HashSet<string> AuthorizedProfileIds { get; init; }
+
+        public int GeneratedPromptCalls { get; private set; }
+
+        public AIProfile GeneratedPromptParent { get; private set; }
+
+        public static AIVisitorIdentity ResolveVisitorIdentityForTest(IServiceProvider services)
+        {
+            return ResolveVisitorIdentity(services);
+        }
+
+        public Task<PromptSecurityResult> EvaluateMessageRateLimitForTestAsync(IServiceProvider services, AIProfile profile, string sessionId)
+        {
+            return EvaluateMessageRateLimitAsync(services, profile, sessionId, CancellationToken.None);
+        }
+
+        public Task HandleSendMessageForTestAsync(ChannelWriter<CompletionPartialMessage> writer, IServiceProvider services, string profileId, string prompt, string sessionId, string sessionProfileId)
+        {
+            return HandleSendMessageAsync(writer, services, profileId, prompt, sessionId, sessionProfileId, CancellationToken.None);
+        }
+
+        protected override Task<bool> AuthorizeProfileAsync(IServiceProvider services, AIProfile profile)
+        {
+            return Task.FromResult(AuthorizedProfileIds is null || AuthorizedProfileIds.Contains(profile.ItemId));
+        }
+
+        public bool UseBaseGeneratedPrompt { get; init; }
+
+        public bool SkipChatPrompt { get; init; }
+
+        public int ChatPromptCalls { get; private set; }
+
+        protected override Task ProcessChatPromptAsync(ChannelWriter<CompletionPartialMessage> writer, IServiceProvider services, AIProfile profile, string sessionId, string prompt, CancellationToken cancellationToken)
+        {
+            ChatPromptCalls++;
+
+            return SkipChatPrompt ? Task.CompletedTask : base.ProcessChatPromptAsync(writer, services, profile, sessionId, prompt, cancellationToken);
+        }
+
+        protected override Task ProcessGeneratedPromptAsync(ChannelWriter<CompletionPartialMessage> writer, IServiceProvider services, AIProfile profile, string sessionId, AIProfile parentProfile, CancellationToken cancellationToken)
+        {
+            if (UseBaseGeneratedPrompt)
+            {
+                return base.ProcessGeneratedPromptAsync(writer, services, profile, sessionId, parentProfile, cancellationToken);
+            }
+
+            GeneratedPromptCalls++;
+            GeneratedPromptParent = parentProfile;
+
+            return Task.CompletedTask;
         }
 
         public Task SaveChatSessionForTestAsync(IServiceProvider services, IAIChatSessionManager sessionManager, AIChatSession chatSession)

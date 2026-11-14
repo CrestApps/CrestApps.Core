@@ -142,8 +142,33 @@ Changing a record from one protocol to the other takes the previous connection w
 never keeps a credential for a server it no longer reads.
 
 Accepting any TLS certificate is offered for FTP because self-signed certificates on internal file
-servers are ordinary, but it turns validation off for that record. Use it only against a server you
-control.
+servers are ordinary, but it turns validation off for that record. The record's setting is stored data, so it is
+only honored when the host allows it with `FtpOptions.AllowAnyCertificate` (default `false`):
+
+```csharp
+services.Configure<FtpOptions>(options => options.AllowAnyCertificate = true); // development servers only
+```
+
+A connection that asks to accept any certificate while the host does not allow it is refused with an error that says
+so, for both the file source connector and the MCP resource handler. Use it only against a server you control.
+
+An FTP connection with a user name must also say how it is encrypted: its encryption mode has to be `Explicit` or
+`Implicit`. Left unset, or set to `None` or `Auto`, a connection can run in plain text, where there is no certificate
+to validate and the user name and password cross the network readable, so it is refused unless the host allows it with
+`FtpOptions.AllowUnencrypted` (default `false`). An anonymous connection has no credentials to protect and is not
+affected.
+
+```csharp
+services.Configure<FtpOptions>(options => options.AllowUnencrypted = true); // a server on a network you control, with no TLS
+```
+
+What ingestion reads from an FTP or SFTP server is bounded too: a file larger than the connection's `MaxFileBytes`
+(100 MB when not set) is not ingested, instead of being buffered whole.
+
+An SFTP connection needs the server's **host key fingerprint** (`HostKeyFingerprint`, for example
+`SHA256:...` as `ssh-keygen -lf` prints it; several can be separated by commas to rotate a key). The connection is
+refused when none is stored, and when the server presents a different key, so credentials never go to a server that was
+not verified. Both sample hosts have a field for it.
 
 ## What counts as changed
 
