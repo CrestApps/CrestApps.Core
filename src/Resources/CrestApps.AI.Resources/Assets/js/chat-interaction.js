@@ -711,6 +711,10 @@ window.chatInteractionManager = function () {
             return;
         }
 
+        // Nothing inside this element is the page's own markup from here on: it is the chat's output, so the auto-start
+        // never reads a chat configuration from it (see CoreAIChatSurface).
+        window.CoreAIChatSurface.registerRoot(document.querySelector(config.appElementSelector));
+
         const app = Vue.createApp({
             data() {
                 return {
@@ -2891,11 +2895,19 @@ window.chatInteractionManager = function () {
             return;
         }
 
-        if (typeof root.matches === 'function' && root.matches(autoInitializeSelector)) {
+        // A message is written by a model: an element in one that carries a chat configuration is the answer's, not the
+        // page's, and starting a chat from it would compile the template the answer chose.
+        const isPageMarkup = element => !window.CoreAIChatSurface.isInsideRenderedMessage(element);
+
+        if (typeof root.matches === 'function' && root.matches(autoInitializeSelector) && isPageMarkup(root)) {
             initializeFromElement(root);
         }
 
-        root.querySelectorAll(autoInitializeSelector).forEach(initializeFromElement);
+        root.querySelectorAll(autoInitializeSelector).forEach(element => {
+            if (isPageMarkup(element)) {
+                initializeFromElement(element);
+            }
+        });
     }
 
     function startAutoInitialization() {

