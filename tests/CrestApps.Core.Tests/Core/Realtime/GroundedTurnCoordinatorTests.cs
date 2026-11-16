@@ -1,4 +1,5 @@
 #nullable enable
+using System.Diagnostics;
 using CrestApps.Core.AI.Chat.Realtime;
 using CrestApps.Core.AI.Realtime;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -11,7 +12,9 @@ namespace CrestApps.Core.Tests.Core.Realtime;
 /// </summary>
 public sealed class GroundedTurnCoordinatorTests
 {
-    private static readonly TimeSpan _wait = TimeSpan.FromSeconds(5);
+    // Spent only when a test fails. A shared CI runner can stall a test's continuations for seconds, so a short
+    // budget turns a stall into a failure.
+    private static readonly TimeSpan _wait = TimeSpan.FromSeconds(30);
 
     [Fact]
     public async Task BeginTurn_WithFastRetrieval_GroundsThenAnswersWithoutSpeakingAnAcknowledgement()
@@ -196,21 +199,21 @@ public sealed class GroundedTurnCoordinatorTests
             NullLogger.Instance);
     }
 
+    // Checks the condition after the last wait too: a wait that wakes past the deadline after a stall still sees
+    // what happened during it, rather than failing on what it never looked at.
     private static async Task WaitForAsync(Func<bool> condition)
     {
-        var deadline = DateTime.UtcNow + _wait;
+        var elapsed = Stopwatch.StartNew();
 
-        while (DateTime.UtcNow < deadline)
+        while (!condition())
         {
-            if (condition())
+            if (elapsed.Elapsed >= _wait)
             {
-                return;
+                Assert.Fail("The expected condition was not reached in time.");
             }
 
-            await Task.Delay(10);
+            await Task.Delay(10, TestContext.Current.CancellationToken);
         }
-
-        Assert.Fail("The expected condition was not reached in time.");
     }
 
     /// <summary>
@@ -219,6 +222,8 @@ public sealed class GroundedTurnCoordinatorTests
     /// </summary>
     private sealed class ControllableConversation : IRealtimeConversation
     {
+        private int _responseRequests;
+
         public bool RespondsAutomatically => false;
 
         public TaskCompletionSource<bool>? RetrievalGate { get; init; }
@@ -229,7 +234,8 @@ public sealed class GroundedTurnCoordinatorTests
 
         public List<string> Acknowledgements { get; } = [];
 
-        public int ResponseRequests { get; private set; }
+        // Requested from the coordinator's background tasks and read by the test's thread.
+        public int ResponseRequests => Volatile.Read(ref _responseRequests);
 
         public async Task<bool> GroundTurnAsync(string utterance, CancellationToken cancellationToken = default)
         {
@@ -263,7 +269,7 @@ public sealed class GroundedTurnCoordinatorTests
 
         public Task RequestResponseAsync(CancellationToken cancellationToken = default)
         {
-            ResponseRequests++;
+            Interlocked.Increment(ref _responseRequests);
 
             return Task.CompletedTask;
         }
