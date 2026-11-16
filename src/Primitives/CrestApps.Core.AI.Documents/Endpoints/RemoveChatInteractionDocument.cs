@@ -84,8 +84,20 @@ public static class RemoveChatInteractionDocument
             }
 
             var document = await documentStore.FindByIdAsync(requestModel.DocumentId);
-            var documentInfo = interaction.Documents?.FirstOrDefault(document => document.DocumentId == requestModel.DocumentId);
+            var documentInfo = interaction.Documents?.FirstOrDefault(listed => listed.DocumentId == requestModel.DocumentId);
 
+            // A document is stored under its own id whatever it belongs to, and the id here comes from the request body, so the
+            // stored document is only this interaction's to remove when it is stored for it. Without that check, anyone who may
+            // manage one interaction could delete any document, chunks and file, by id.
+            if (document != null &&
+                !(string.Equals(document.ReferenceId, interaction.ItemId, StringComparison.Ordinal) &&
+                  string.Equals(document.ReferenceType, AIReferenceTypes.Document.ChatInteraction, StringComparison.Ordinal)))
+            {
+                document = null;
+            }
+
+            // A document the interaction no longer lists (an older copy of the interaction was saved over it) is still stored
+            // for it, and can be removed.
             if (documentInfo == null && document != null)
             {
                 documentInfo = new ChatDocumentInfo

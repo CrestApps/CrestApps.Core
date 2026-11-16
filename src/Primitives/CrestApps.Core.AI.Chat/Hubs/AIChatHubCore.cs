@@ -30,6 +30,8 @@ using CrestApps.Core.Services;
 using CrestApps.Core.Templates.Rendering;
 using CrestApps.Core.Templates.Services;
 using Cysharp.Text;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Connections.Features;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -103,8 +105,9 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         // available once the invocation returns, which matters for the streaming path that does
         // not await the scope.
         var user = Context?.User;
+        var connectionContext = GetConnectionHttpContext();
 
-        await ExecuteInScopeAsync(services => RunAsUserAsync(services, user, action));
+        await ExecuteInScopeAsync(services => RunAsUserAsync(services, user, connectionContext, action));
     }
 
     /// <summary>
@@ -118,23 +121,34 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     private async Task RunStreamInScopeAsync(Func<IServiceProvider, Task> action)
     {
         var user = Context?.User;
+        var connectionContext = GetConnectionHttpContext();
 
         await ExecuteInScopeAsync(async services =>
         {
             if (!ReferenceEquals(services, _services))
             {
-                await RunAsUserAsync(services, user, action);
+                await RunAsUserAsync(services, user, connectionContext, action);
 
                 return;
             }
 
             await using var scope = services.GetRequiredService<IServiceScopeFactory>().CreateAsyncScope();
 
-            await RunAsUserAsync(scope.ServiceProvider, user, action);
+            await RunAsUserAsync(scope.ServiceProvider, user, connectionContext, action);
         });
     }
 
-    private static async Task RunAsUserAsync(IServiceProvider services, ClaimsPrincipal user, Func<IServiceProvider, Task> action)
+    /// <summary>
+    /// The request the connection was made with. SignalR hands it to every invocation on every transport, which is not
+    /// true of <see cref="IHttpContextAccessor"/>: over long polling each invocation is answered on a request of its own,
+    /// and the accessor has no context when the hub method runs.
+    /// </summary>
+    private HttpContext GetConnectionHttpContext()
+    {
+        return Context?.Features?.Get<IHttpContextFeature>()?.HttpContext;
+    }
+
+    private static async Task RunAsUserAsync(IServiceProvider services, ClaimsPrincipal user, HttpContext connectionContext, Func<IServiceProvider, Task> action)
     {
         var userAccessor = services.GetService<IUserAccessor>();
 
@@ -145,7 +159,30 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             userAccessor.User = user;
         }
 
-        await action(services);
+        // Services that find out who is calling from the request (the visitor identity, and with it the keys every rate
+        // limiter uses) read it from the accessor. Where the transport left it empty, the connection's own request is the
+        // one to use, or the caller has no identity at all and the limiters have nothing to key on. Where the transport did
+        // set one (WebSockets), it is left alone. The accessor is shared and tracks its value with an AsyncLocal, so what is
+        // set here is taken back when the invocation ends.
+        var httpContextAccessor = services.GetService<IHttpContextAccessor>();
+        var setConnectionContext = httpContextAccessor is not null && httpContextAccessor.HttpContext is null && connectionContext is not null;
+
+        if (setConnectionContext)
+        {
+            httpContextAccessor.HttpContext = connectionContext;
+        }
+
+        try
+        {
+            await action(services);
+        }
+        finally
+        {
+            if (setConnectionContext)
+            {
+                httpContextAccessor.HttpContext = null;
+            }
+        }
     }
 
     /// <summary>
@@ -856,7 +893,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             new HashSet<string>(request.ClientTools.Select(tool => tool.Name), StringComparer.Ordinal));
         var turn = new AGUIChatTurn(request, events);
 
-        await RunAsUserAsync(services, Context?.User, scopedServices => ExecuteAGUIRunAsync(turn, scopedServices, output: null, new AGUIRunCancellation(cancellationToken)));
+        await RunAsUserAsync(services, Context?.User, GetConnectionHttpContext(), scopedServices => ExecuteAGUIRunAsync(turn, scopedServices, output: null, new AGUIRunCancellation(cancellationToken)));
     }
 
     /// <summary>
@@ -1410,6 +1447,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     return;
                 }
 
+                if (await IsOverMessageRateLimitAsync(services, profile, sessionId, cancellationToken))
+                {
+                    return;
+                }
+
                 if (!profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings) || chatModeSettings.ChatMode != ChatMode.Conversation)
                 {
                     await Clients.Caller.ReceiveError(GetConversationNotEnabledMessage());
@@ -1539,6 +1581,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 {
                     await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
 
+                    return;
+                }
+
+                if (await IsOverMessageRateLimitAsync(services, profile, sessionId, cancellationToken))
+                {
                     return;
                 }
 
@@ -1722,6 +1769,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 {
                     await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
 
+                    return;
+                }
+
+                if (await IsOverMessageRateLimitAsync(services, profile, sessionId, cancellationToken))
+                {
                     return;
                 }
 
@@ -2152,6 +2204,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                     return;
                 }
 
+                if (await IsOverMessageRateLimitAsync(services, profile, sessionId, cancellationToken))
+                {
+                    return;
+                }
+
                 var deploymentSettings = await GetDeploymentSettingsAsync(services);
                 if (string.IsNullOrEmpty(deploymentSettings.DefaultSpeechToTextDeploymentName))
                 {
@@ -2242,6 +2299,11 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 {
                     await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
 
+                    return;
+                }
+
+                if (await IsOverMessageRateLimitAsync(services, profile, sessionId, cancellationToken))
+                {
                     return;
                 }
 
@@ -2927,6 +2989,13 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             return;
         }
 
+        // Continuing runs the model again, so it counts as a message. It is checked before the turn is consumed below, so a
+        // caller who is told to wait can continue once the limit has passed.
+        if (await IsOverMessageRateLimitAsync(services, profile, chatSession.SessionId, cancellationToken))
+        {
+            return;
+        }
+
         // Continued once: another tab or a reload of the page does not continue it again.
         activity.ContinuesOnNextPage = false;
         lastPrompt.Put(activity);
@@ -3054,6 +3123,12 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         {
             await Clients.Caller.ReceiveError(GetNothingToResumeMessage());
 
+            return;
+        }
+
+        // Resuming runs the model again with what the client answered, so it counts as a message.
+        if (await IsOverMessageRateLimitAsync(services, profile, chatSession.SessionId, cancellationToken))
+        {
             return;
         }
 
@@ -3419,6 +3494,26 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             $"Rate limit exceeded. Please wait {result.RetryAfterSeconds} second(s) before sending another message.",
             PromptRiskLevel.High,
             PromptSecurityResult.RateLimitDetectionRule);
+    }
+
+    /// <summary>
+    /// Applies the per-message limit to a hub method that sends the caller's input to a provider without going through
+    /// <see cref="ValidatePromptSecurityAsync"/>: transcribing audio, synthesizing speech, opening a voice conversation, or
+    /// carrying on an AG-UI run. Reports the limit to the caller when it is exceeded.
+    /// </summary>
+    /// <returns><see langword="true"/> when the caller is over the limit and has been told so.</returns>
+    private async Task<bool> IsOverMessageRateLimitAsync(IServiceProvider services, AIProfile profile, string sessionId, CancellationToken cancellationToken)
+    {
+        var result = await EvaluateMessageRateLimitAsync(services, profile, sessionId, cancellationToken);
+
+        if (!result.IsBlocked)
+        {
+            return false;
+        }
+
+        await Clients.Caller.ReceiveError(GetBlockedPromptMessage(result));
+
+        return true;
     }
 
     private async Task<RateLimitResult> EvaluateSessionStartRateLimitAsync(IServiceProvider services, AIProfile profile, CancellationToken cancellationToken)

@@ -631,6 +631,10 @@ window.CoreAIImages = window.CoreAIImages || (function () {
     const fetchingTags = ['style', 'video', 'audio', 'source', 'track', 'svg', 'math'];
     const fetchingAttributes = ['background', 'poster', 'srcset', 'lowsrc', 'dynsrc'];
 
+    // The ids the chat gives the canvas of a chart it renders (ai-chat.js and chat-interaction.js: chat_chart_N, the MVC
+    // chat-interaction view: ci_chart_N).
+    const chartCanvasId = /^(?:chat|ci)_chart_\d+$/;
+
     // Declarations made of names, plain values, colons and semicolons: no url(), no function at all, no escape, no quote.
     const safeStyle = /^[\w\s:;.%#,-]*$/;
 
@@ -832,12 +836,44 @@ window.CoreAIImages = window.CoreAIImages || (function () {
             }
         };
 
+        // What an answer may not carry as an attribute. The chat scripts start a chat from any element that has a chat
+        // configuration, and compile the configuration's messageTemplate, so an answer that wrote such an element would
+        // run script on the page. The attributes are removed here, and the id the configuration's selectors point at
+        // with them: a chat is mounted on an element found by its id, and an id of the answer's making would also shadow
+        // the ids the page's own scripts look up. The one id kept is the canvas the chat itself writes for a chart,
+        // which it finds again by that id.
+        const attributeHook = function (node, data) {
+            const name = data && data.attrName;
+
+            if (typeof name !== 'string') {
+                return;
+            }
+
+            if (name === 'id') {
+                const isChartCanvas = node && typeof node.tagName === 'string'
+                    && node.tagName.toUpperCase() === 'CANVAS'
+                    && chartCanvasId.test(data.attrValue);
+
+                if (!isChartCanvas) {
+                    data.keepAttr = false;
+                }
+
+                return;
+            }
+
+            if (name.startsWith('data-coreai-') || name.startsWith('data-chat-interaction-')) {
+                data.keepAttr = false;
+            }
+        };
+
         purify.addHook(rawImageHook, hook);
+        purify.addHook('uponSanitizeAttribute', attributeHook);
 
         try {
             return purify.sanitize(html, withFetcherLimits(purifyConfig));
         } finally {
             purify.removeHook(rawImageHook, hook);
+            purify.removeHook('uponSanitizeAttribute', attributeHook);
         }
     }
 
@@ -845,5 +881,48 @@ window.CoreAIImages = window.CoreAIImages || (function () {
         isAllowedSource: isAllowedSource,
         linkHtml: linkHtml,
         sanitize: sanitize
+    };
+})();
+
+/*
+ * Where a chat's own output is. The chat scripts start a chat from any element that is added to the page and carries a
+ * chat configuration, which is right for the page's own markup and wrong for anything inside a message: an answer is
+ * written by a model, and whatever it wrote must not be able to start a chat or choose its template. The sanitizer
+ * removes the configuration from an answer; this is the second guard, so a configuration that got through (a host's own
+ * sanitizer, a template that renders text some other way) still is not read.
+ *
+ * An element is inside a rendered message when it is inside one of the elements every message template renders, or inside
+ * an element a chat is already mounted on. The second rule does not depend on a host's template, which may use none of
+ * the default class names.
+ */
+window.CoreAIChatSurface = window.CoreAIChatSurface || (function () {
+    'use strict';
+
+    const renderedMessageSelector = '.ai-chat-messages, .ai-chat-message-item, .ai-chat-message-body';
+    const mountedRoots = [];
+
+    function registerRoot(element) {
+        if (element && typeof element.contains === 'function' && mountedRoots.indexOf(element) < 0) {
+            mountedRoots.push(element);
+        }
+    }
+
+    function isInsideRenderedMessage(element) {
+        if (!element) {
+            return false;
+        }
+
+        if (typeof element.closest === 'function' && element.closest(renderedMessageSelector)) {
+            return true;
+        }
+
+        return mountedRoots.some(function (root) {
+            return root !== element && root.contains(element);
+        });
+    }
+
+    return {
+        registerRoot: registerRoot,
+        isInsideRenderedMessage: isInsideRenderedMessage
     };
 })();
