@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Models;
@@ -54,4 +55,11 @@ public sealed class ToolRegistryEntry
     /// tool as before.
     /// </summary>
     public bool RequiresApproval { get; set; }
+
+    /// <summary>
+    /// Gets or sets what the tool does to the application's data and to the outside world, when its registration
+    /// says so. Tools from sources that carry no kind, such as MCP servers and agents, keep
+    /// <see cref="AIToolKind.Unspecified"/>.
+    /// </summary>
+    public AIToolKind Kind { get; set; }
 }

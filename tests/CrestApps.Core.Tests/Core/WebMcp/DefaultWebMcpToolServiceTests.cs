@@ -235,6 +235,72 @@ public sealed class DefaultWebMcpToolServiceTests
         await Assert.ThrowsAsync<ArgumentNullException>(() => service.GetToolsAsync(null, TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task GetToolsAsync_ExposingAllTools_LeavesOutDestructiveAndSecurityToolsUnlessNamed()
+    {
+        var service = CreateService(
+            new WebMcpOptions
+            {
+                ExposeAllTools = true,
+                Tools = [SecurityKindTestTool.TheName],
+            },
+            configure: services =>
+            {
+                services.AddCoreAITool<DestructiveKindTestTool>(DestructiveKindTestTool.TheName).AsDestructive().Selectable();
+                services.AddCoreAITool<SecurityKindTestTool>(SecurityKindTestTool.TheName).AsSecurity().Selectable();
+                services.AddCoreAITool<ReadKindTestTool>(ReadKindTestTool.TheName).AsRead().Selectable();
+            });
+
+        var tools = await service.GetToolsAsync(_user, TestContext.Current.CancellationToken);
+        var names = tools.Select(tool => tool.Name).ToList();
+
+        Assert.DoesNotContain(DestructiveKindTestTool.TheName, names);
+        Assert.Contains(SecurityKindTestTool.TheName, names);
+        Assert.Contains(ReadKindTestTool.TheName, names);
+        Assert.Contains(EchoTestTool.TheName, names);
+
+        var notGiven = await service.InvokeAsync(_user, DestructiveKindTestTool.TheName, null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(WebMcpToolInvocationStatus.NotFound, notGiven.Status);
+    }
+
+    [Fact]
+    public async Task GetToolsAsync_DescribesTheKindOfATool()
+    {
+        var service = CreateService(
+            new WebMcpOptions
+            {
+                Tools = [EchoTestTool.TheName, DestructiveKindTestTool.TheName, ReadKindTestTool.TheName],
+            },
+            configure: services =>
+            {
+                services.AddCoreAITool<DestructiveKindTestTool>(DestructiveKindTestTool.TheName).AsDestructive().Selectable();
+                services.AddCoreAITool<ReadKindTestTool>(ReadKindTestTool.TheName).AsRead().Selectable();
+            });
+
+        var tools = (await service.GetToolsAsync(_user, TestContext.Current.CancellationToken)).ToDictionary(tool => tool.Name);
+
+        Assert.Null(tools[EchoTestTool.TheName].Kind);
+        Assert.Equal("destructive", tools[DestructiveKindTestTool.TheName].Kind);
+        Assert.Equal("read", tools[ReadKindTestTool.TheName].Kind);
+    }
+
+    [Fact]
+    public async Task GetToolsAsync_GivesARenamedToolWhenTheSettingsAndThePermissionStillUseItsEarlierName()
+    {
+        var service = CreateService(
+            new WebMcpOptions
+            {
+                Tools = ["old_read_tool"],
+            },
+            configure: services => services.AddCoreAITool<ReadKindTestTool>(ReadKindTestTool.TheName).WithAlias("old_read_tool").Selectable(),
+            authorize: name => name == "old_read_tool");
+
+        var tool = Assert.Single(await service.GetToolsAsync(_user, TestContext.Current.CancellationToken));
+
+        Assert.Equal(ReadKindTestTool.TheName, tool.Name);
+    }
+
     private static AIToolInstance CreateInstance()
     {
         return new AIToolInstance

@@ -81,8 +81,8 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
         foreach (var entry in orderedEntries)
         {
             if (enforceAccess &&
-                IsListable(entry) &&
-                !await _toolAccessEvaluator.IsAuthorizedAsync(options.User, entry.Name))
+                TryGetListableDefinition(entry, out var definition) &&
+                !await _toolAccessEvaluator.IsAuthorizedAsync(options.User, entry.Name, definition))
             {
                 (deniedToolNames ??= []).Add(entry.Name);
 
@@ -167,12 +167,16 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
 #pragma warning restore MEAI001
 
     /// <summary>
-    /// Determines whether an entry represents a listable (user-selectable) tool. Only listable tools are
+    /// Gets the definition of an entry that represents a listable (user-selectable) tool. Only listable tools are
     /// subject to the per-user access check; system tools are auto-injected and hidden tools are
-    /// dependency-only, so both bypass it.
+    /// dependency-only, so both bypass it. The access check accepts the tool's name or one of its aliases, so
+    /// access granted for an earlier name of a renamed tool still applies.
     /// </summary>
-    private bool IsListable(ToolRegistryEntry entry)
+    /// <param name="entry">The registry entry.</param>
+    /// <param name="definition">The definition of the listable tool.</param>
+    /// <returns><see langword="true"/> when the entry is a listable tool.</returns>
+    private bool TryGetListableDefinition(ToolRegistryEntry entry, out AIToolDefinitionEntry definition)
     {
-        return _toolDefinitions.Value.Tools.TryGetValue(entry.Name, out var definition) && definition.IsSelectable();
+        return _toolDefinitions.Value.TryGetTool(entry.Name, out definition) && definition.IsSelectable();
     }
 }

@@ -110,6 +110,7 @@ internal sealed class SystemToolRegistryProvider : IToolRegistryProvider
                 ? ToolRegistryEntrySource.System
                 : ToolRegistryEntrySource.Local,
             RequiresApproval = definition.RequiresApproval,
+            Kind = definition.Kind,
             CreateAsync = (sp) => ValueTask.FromResult(sp.GetKeyedService<AITool>(toolName)),
         };
     }

@@ -40,7 +40,8 @@ public static class SelectableToolAccessFilter
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (await accessEvaluator.IsAuthorizedAsync(user, tool.Key))
+            // Access granted for an earlier name of a renamed tool (one of its aliases) still applies.
+            if (await accessEvaluator.IsAuthorizedAsync(user, tool.Key, tool.Value))
             {
                 authorized.Add(tool.Key, tool.Value);
             }

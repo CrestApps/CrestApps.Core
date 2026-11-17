@@ -69,7 +69,7 @@ public static class McpServerBuilderExtensions
             {
                 var serverOptions = request.Services.GetRequiredService<IOptionsMonitor<McpServerOptions>>().CurrentValue;
                 var exposeAll = serverOptions.ExposeAllTools;
-                var allowList = exposeAll ? null : BuildAllowList(serverOptions.Tools);
+                var allowList = BuildAllowList(serverOptions.Tools);
                 var toolDefinitions = request.Services.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value;
                 ILogger logger = null;
                 var tools = new List<Tool>();
@@ -77,7 +77,7 @@ public static class McpServerBuilderExtensions
 
                 foreach (var (name, definition) in toolDefinitions.Tools)
                 {
-                    if (!definition.IsSelectable() || !IsAllowed(exposeAll, allowList, name, definition.Name))
+                    if (!definition.IsSelectable() || !IsToolExposed(exposeAll, allowList, name, definition))
                     {
                         continue;
                     }
@@ -91,6 +91,7 @@ public static class McpServerBuilderExtensions
                                 Name = aiFunction.Name,
                                 Description = aiFunction.Description,
                                 InputSchema = aiFunction.JsonSchema,
+                                Annotations = CreateAnnotations(definition.Kind),
                             });
                         }
                     }
@@ -185,7 +186,7 @@ public static class McpServerBuilderExtensions
 
                 var serverOptions = request.Services.GetRequiredService<IOptionsMonitor<McpServerOptions>>().CurrentValue;
                 var exposeAll = serverOptions.ExposeAllTools;
-                var allowList = exposeAll ? null : BuildAllowList(serverOptions.Tools);
+                var allowList = BuildAllowList(serverOptions.Tools);
                 var toolDefinitions = request.Services.GetRequiredService<IOptions<AIToolDefinitionOptions>>().Value;
 
                 var logger = request.Services.GetService<ILogger<IMcpServerPromptService>>();
@@ -360,6 +361,43 @@ public static class McpServerBuilderExtensions
         return false;
     }
 
+    /// <summary>
+    /// Determines whether a code-registered tool is exposed: when the allow-list names it (by its name or by one
+    /// of its aliases), or when every tool is exposed and the tool is not a destructive or security tool.
+    /// </summary>
+    /// <param name="exposeAll">Whether the server exposes every tool.</param>
+    /// <param name="allowList">The names the server's settings list.</param>
+    /// <param name="name">The name the tool is registered under.</param>
+    /// <param name="definition">The definition of the tool.</param>
+    /// <returns><see langword="true"/> when the tool is listed and callable.</returns>
+    internal static bool IsToolExposed(bool exposeAll, HashSet<string> allowList, string name, AIToolDefinitionEntry definition)
+    {
+        if (allowList.Contains(name) || definition.IsNamedIn(allowList))
+        {
+            return true;
+        }
+
+        return exposeAll && definition.Kind.IsExposedWithAllTools();
+    }
+
+    /// <summary>
+    /// Creates the MCP annotations that tell a client what a tool of the given kind does.
+    /// </summary>
+    /// <param name="kind">The kind of the tool.</param>
+    /// <returns>The annotations, or <see langword="null"/> for a tool without a kind.</returns>
+    internal static ToolAnnotations CreateAnnotations(AIToolKind kind)
+    {
+        return kind switch
+        {
+            AIToolKind.Read => new ToolAnnotations { ReadOnlyHint = true },
+            AIToolKind.Write => new ToolAnnotations { ReadOnlyHint = false, DestructiveHint = false },
+            AIToolKind.Destructive => new ToolAnnotations { ReadOnlyHint = false, DestructiveHint = true },
+            AIToolKind.External => new ToolAnnotations { ReadOnlyHint = false, OpenWorldHint = true },
+            AIToolKind.Security => new ToolAnnotations { ReadOnlyHint = false },
+            _ => null,
+        };
+    }
+
     private static AIFunction ResolveAllowedCodeTool(
         IServiceProvider services,
         AIToolDefinitionOptions toolDefinitions,
@@ -370,7 +408,7 @@ public static class McpServerBuilderExtensions
     {
         if (toolDefinitions.Tools.TryGetValue(protocolName, out var direct) &&
             direct.IsSelectable() &&
-            IsAllowed(exposeAll, allowList, protocolName, direct.Name) &&
+            IsToolExposed(exposeAll, allowList, protocolName, direct) &&
             TryCreateFunction(services, protocolName, logger) is { } directFunction &&
             string.Equals(directFunction.Name, protocolName, StringComparison.Ordinal))
         {
@@ -379,7 +417,7 @@ public static class McpServerBuilderExtensions
 
         foreach (var (name, definition) in toolDefinitions.Tools)
         {
-            if (!definition.IsSelectable() || !IsAllowed(exposeAll, allowList, name, definition.Name))
+            if (!definition.IsSelectable() || !IsToolExposed(exposeAll, allowList, name, definition))
             {
                 continue;
             }

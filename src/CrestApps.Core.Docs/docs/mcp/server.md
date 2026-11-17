@@ -308,17 +308,35 @@ services.Configure<McpServerOptions>(options =>
     options.Tools = ["crestapps-docs", "weather"];
 
     // Or expose every tool and tool instance.
-    // When set to true, the Tools allow-list above is ignored.
+    // The Tools list above then only decides which destructive and security tools are exposed.
     options.ExposeAllTools = true;
 });
 ```
 
 | Property | Effect |
 |----------|--------|
-| `Tools` | An allow-list of tool and tool instance names to expose. Matching is case-insensitive. |
-| `ExposeAllTools` | When `true`, every **selectable** tool and tool instance is exposed and the allow-list is ignored. |
+| `Tools` | An allow-list of tool and tool instance names to expose. Matching is case-insensitive, and a tool is also matched by one of its [aliases](../core/tools.md#renaming-a-tool). |
+| `ExposeAllTools` | When `true`, every **selectable** tool and tool instance is exposed, except the tools registered as destructive or security tools. Those are exposed only when `Tools` names them. |
 
 Only selectable tools are ever exposed over MCP. System tools (those marked `IsSystemTool`, which agents auto-include based on context) and hidden tools are never listed or callable — not even when `ExposeAllTools` is `true`.
+
+### Destructive and security tools
+
+A tool registered with `.AsDestructive()` or `.AsSecurity()` (see [Tool Kinds](../core/tools.md#tool-kinds)) deletes data, cannot be undone, or changes access, secrets or what the application runs. `ExposeAllTools` leaves these tools out, so turning the switch on never hands them to every MCP client. To expose one, add its name to `Tools`:
+
+```csharp
+services.Configure<McpServerOptions>(options =>
+{
+    options.ExposeAllTools = true;
+
+    // deleteOrder is registered with .AsDestructive(), so it is exposed only because it is named here.
+    options.Tools = ["deleteOrder"];
+});
+```
+
+Tools registered without a kind, and tool instances, are exposed by `ExposeAllTools` as before. An MCP client cannot be asked to approve a call, so a tool that requires an approval runs without one when a client calls it directly; expose such a tool only to clients you trust with it.
+
+The server tells its clients the kind of each tool through the MCP tool annotations: `readOnlyHint` for a read tool, `destructiveHint` for a destructive tool, and `openWorldHint` for an external tool. A tool without a kind has no annotations.
 
 Because `McpServerOptions` is backed by site settings, an operator can choose which tools to expose from the admin **Settings → MCP server** page without redeploying. The allow-list is enforced by **both** the list and call handlers, so a tool that is not exposed can neither be discovered nor invoked.
 

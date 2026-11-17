@@ -117,17 +117,18 @@ public sealed class DefaultWebMcpToolService : IWebMcpToolService
         CancellationToken cancellationToken)
     {
         var options = _options.CurrentValue;
+        var namedTools = BuildAllowList(options.Tools);
         var allowList = options.ExposeAllTools
             ? null
-            : BuildAllowList(options.Tools);
+            : namedTools;
         var tools = new List<(WebMcpToolDescriptor Descriptor, AIFunction Function)>();
         var seenNames = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var (key, definition) in _toolDefinitions.Tools)
         {
             if (!definition.IsSelectable() ||
-                !IsAllowed(allowList, key, definition.Name) ||
-                !await _toolAccessEvaluator.IsAuthorizedAsync(user, key))
+                !IsToolGiven(options.ExposeAllTools, namedTools, key, definition) ||
+                !await _toolAccessEvaluator.IsAuthorizedAsync(user, key, definition))
             {
                 continue;
             }
@@ -139,7 +140,13 @@ public sealed class DefaultWebMcpToolService : IWebMcpToolService
                 continue;
             }
 
-            tools.Add((CreateDescriptor(function, definition.Title, definition.Description), function));
+            var descriptor = CreateDescriptor(function, definition.Title, definition.Description);
+
+            descriptor.Kind = definition.Kind == AIToolKind.Unspecified
+                ? null
+                : definition.Kind.ToString().ToLowerInvariant();
+
+            tools.Add((descriptor, function));
         }
 
         var instanceCatalog = _serviceProvider.GetService<INamedCatalog<AIToolInstance>>();
@@ -235,6 +242,25 @@ public sealed class DefaultWebMcpToolService : IWebMcpToolService
         }
 
         return allowList;
+    }
+
+    /// <summary>
+    /// Determines whether a code-registered tool is given to browser agents: when the settings name it (by its name
+    /// or by one of its aliases), or when every tool is given and the tool is not a destructive or security tool.
+    /// </summary>
+    /// <param name="exposeAll">Whether every tool is given.</param>
+    /// <param name="namedTools">The names the settings list.</param>
+    /// <param name="name">The name the tool is registered under.</param>
+    /// <param name="definition">The definition of the tool.</param>
+    /// <returns><see langword="true"/> when the tool is given.</returns>
+    private static bool IsToolGiven(bool exposeAll, HashSet<string> namedTools, string name, AIToolDefinitionEntry definition)
+    {
+        if (namedTools.Contains(name) || definition.IsNamedIn(namedTools))
+        {
+            return true;
+        }
+
+        return exposeAll && definition.Kind.IsExposedWithAllTools();
     }
 
     private static bool IsAllowed(HashSet<string> allowList, params string[] candidates)

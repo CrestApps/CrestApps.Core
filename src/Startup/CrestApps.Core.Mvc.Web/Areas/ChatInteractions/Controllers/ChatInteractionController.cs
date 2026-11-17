@@ -431,7 +431,7 @@ public sealed class ChatInteractionController : Controller
                 Title = kvp.Value.Title ?? kvp.Key,
                 Description = kvp.Value.Description,
                 Category = kvp.Value.Category ?? "Miscellaneous",
-                IsSelected = selectedNames.Contains(kvp.Key),
+                IsSelected = selectedNames.Contains(kvp.Key) || kvp.Value.IsNamedIn(selectedNames),
             })
 
         .OrderBy(t => t.Category)
@@ -597,7 +597,7 @@ public sealed class ChatInteractionController : Controller
                 Title = kvp.Value.Title ?? kvp.Key,
                 Description = kvp.Value.Description,
                 Category = kvp.Value.Category ?? "Miscellaneous",
-                IsSelected = selectedNames.Contains(kvp.Key),
+                IsSelected = selectedNames.Contains(kvp.Key) || kvp.Value.IsNamedIn(selectedNames),
             })
 
         .OrderBy(t => t.Category)
