@@ -153,7 +153,26 @@ In a chat run that can ask for approvals (an AG-UI run), the tool is wrapped in 
 
 The resumed run makes the approved calls, tells the model about the rejected ones (which never run), and lets the model carry on. An interrupt the client did not answer counts as rejected. When the model calls several tools at once and one needs an approval, every call of that batch waits for one.
 
-Approvals happen only where someone can answer them: other callers (the text-only chat stream, background tasks, other channels) run the tool as before. A tool registry provider sets `ToolRegistryEntry.RequiresApproval` for its own tools. WebMCP tools marked `consequentialHint` need an approval in an AG-UI run unless the profile allows consequential page tools; see [WebMCP](../mcp/webmcp.md#annotations).
+A tool registered as a destructive, external or security tool requires an approval without `.RequireApproval()`; see [Tool Kinds](./tools.md#tool-kinds).
+
+Approvals happen only where someone can answer them: other callers (the text-only chat stream, background tasks, other channels) run a tool of the assistant's own profile as before. A tool registry provider sets `ToolRegistryEntry.RequiresApproval` for its own tools. WebMCP tools marked `consequentialHint` need an approval in an AG-UI run unless the profile allows consequential page tools; see [WebMCP](../mcp/webmcp.md#annotations).
+
+### Tools inside an agent
+
+An [agent](./agents.md) runs inside one tool call of the assistant, with tools of its own. A tool of the agent that requires an approval asks the same person, through the assistant's run:
+
+1. The agent's run pauses on the tool call. What the agent did so far is kept.
+2. The assistant's run ends with an `interrupt` outcome, as it does for one of its own tools. The interrupt's `message` names the agent and the tool, and its `metadata` has `agentName`, `agentToolCallId` (the assistant's call to the agent), `toolName` and `arguments`. The run also streams the agent's tool call (`TOOL_CALL_START` / `ARGS` / `END`) so a client can show it, and the call to the agent has no result yet.
+3. The answer starts a run with `resume`, exactly as above. The assistant's call to the agent is made again, and the agent continues where it stopped: the calls it made before the pause are not made again, an approved call runs, and a rejected call is reported to the agent as rejected, so the agent can say so.
+4. When the agent then calls another tool that requires an approval, the run pauses again in the same way.
+
+The chat UI shows the agent's tool call with its input and **Allow** and **Deny**, names the agent in the question (the `aguiAgentApprovalPrompt` text of the chat configuration, `Allow {0} to do this?` by default), and shows the call to the agent as waiting.
+
+The paused message stores the assistant's call to the agent and the agent's tool call as waiting (`ChatTurnToolCall.AgentName` and `AgentCallId` mark the agent's call), and the agent's paused run in `ChatTurnToolActivity.AgentRuns`, which is not sent to clients. A tool result of the agent is kept there up to 16,000 characters; the agent reads the kept results when it resumes.
+
+**When nobody can be asked, the tool does not run.** Inside an agent a tool that requires an approval never runs unasked. When the assistant's run cannot ask a person (the text-only chat stream, a chat interaction, a realtime conversation, an agent an MCP client calls as a tool, a background task), the agent's model gets a result that says the tool was not run because it needs an approval this conversation cannot ask for, and the agent reports that. This differs from a tool on the assistant's own profile, which such callers still run without asking, as described above; that behavior is unchanged.
+
+The default orchestrator pauses agents this way. An agent that itself runs on the Claude orchestrator gets the "was not run" result for such tools, and one that runs on the Copilot orchestrator is not offered them, because those orchestrators cannot pause a run for an approval. An assistant that runs on one of them cannot ask on behalf of its agents either.
 
 ## Frontend tools
 

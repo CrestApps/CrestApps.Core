@@ -227,6 +227,11 @@ public sealed class ClaudeOrchestrator : IOrchestrator
             {
                 EnforceListableAccess = isChatInteraction,
                 User = isChatInteraction ? _userAccessor.User : null,
+
+                // This orchestrator cannot pause for an approval. When it runs an agent, a tool that requires an
+                // approval is replaced with one that does not run and tells the model why.
+                EnforceToolApproval = completionContext.AdditionalProperties.TryGetValue(AICompletionContextKeys.ToolApprovalEnforced, out var enforcedValue) &&
+                    enforcedValue is true,
             },
             cancellationToken);
 

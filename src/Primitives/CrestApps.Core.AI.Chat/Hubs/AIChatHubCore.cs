@@ -2841,6 +2841,9 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 {
                     ToolCalls = turn.Events.ToolCalls.ToList(),
                     ContinuesOnNextPage = continuesOnNextPage,
+
+                    // The runs of agents that paused for an approval, so the resumed run continues them.
+                    AgentRuns = turn.Events.AgentRuns.ToList(),
                 });
             }
 
@@ -3135,56 +3138,10 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         await StartAGUIRunInSessionAsync(turn, chatSession, cancellationToken);
 
         var conversationHistory = ChatConversationHistoryBuilder.Build(prompts, pausedPrompt);
-        var clientCalls = new List<AIContent>();
-        var clientResults = new List<AIContent>();
-        var approvalRequests = new List<AIContent>();
-        var approvalResponses = new List<AIContent>();
 
-        foreach (var call in pausedActivity.ToolCalls)
-        {
-            var functionCall = new FunctionCallContent(call.CallId, call.Name, ChatConversationHistoryBuilder.ParseArguments(call.Arguments));
-
-            if (call.Status == ChatTurnToolCallStatus.AwaitingClient)
-            {
-                var result = request.ClientToolResults.TryGetValue(call.CallId, out var clientResult)
-                    ? clientResult
-                    : "The client did not return a result for this tool call.";
-
-                call.Result = Truncate(result, AGUIRunEventWriter.MaxToolResultLength);
-                call.Status = ChatTurnToolCallStatus.Completed;
-                clientCalls.Add(functionCall);
-                clientResults.Add(new FunctionResultContent(call.CallId, call.Result));
-            }
-            else if (call.Status == ChatTurnToolCallStatus.AwaitingApproval)
-            {
-                // A call the client did not answer is rejected: the protocol asks the client to answer every interrupt.
-                request.TryGetApproval(call.ApprovalRequestId, out var approved);
-
-                var approvalRequest = new ToolApprovalRequestContent(call.ApprovalRequestId ?? call.CallId, functionCall);
-
-                call.Status = approved ? ChatTurnToolCallStatus.Approved : ChatTurnToolCallStatus.Rejected;
-
-                if (!approved)
-                {
-                    turn.Events.RejectedCallIds.Add(call.CallId);
-                }
-
-                approvalRequests.Add(approvalRequest);
-                approvalResponses.Add(approvalRequest.CreateResponse(approved, reason: null));
-            }
-        }
-
-        if (clientCalls.Count > 0)
-        {
-            conversationHistory.Add(new ChatMessage(ChatRole.Assistant, clientCalls));
-            conversationHistory.Add(new ChatMessage(ChatRole.Tool, clientResults));
-        }
-
-        if (approvalRequests.Count > 0)
-        {
-            conversationHistory.Add(new ChatMessage(ChatRole.Assistant, approvalRequests));
-            conversationHistory.Add(new ChatMessage(ChatRole.User, approvalResponses));
-        }
+        // The answers go to the assistant's own calls and, for an agent that paused, back to the agent: its call is
+        // made again and it continues from its paused run.
+        ChatTurnResume.Apply(pausedActivity, request, conversationHistory, turn.Events.RejectedCallIds, invocationScope.Context);
 
         pausedPrompt.Put(pausedActivity);
         await promptStore.UpdateAsync(pausedPrompt, CancellationToken.None);

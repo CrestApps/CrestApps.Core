@@ -101,6 +101,14 @@ public static class AICompletionContextKeys
     public const string ToolApprovalSupported = "ToolApprovalSupported";
 
     /// <summary>
+    /// The key whose <see langword="true"/> value tells the tool pipeline that a tool that requires an approval
+    /// must never run without one. When the caller cannot ask a person (<see cref="ToolApprovalSupported"/> is not
+    /// set), such a tool is replaced with one that does not run and tells the model why. The run of an agent sets
+    /// it, so a tool inside an agent never runs unasked.
+    /// </summary>
+    public const string ToolApprovalEnforced = "ToolApprovalEnforced";
+
+    /// <summary>
     /// The key of the context the client sent with the message (an <see cref="IReadOnlyList{T}"/> of
     /// <see cref="Models.ChatClientContextEntry"/>), such as the page the user is on. It reaches the model as data,
     /// never as instructions.

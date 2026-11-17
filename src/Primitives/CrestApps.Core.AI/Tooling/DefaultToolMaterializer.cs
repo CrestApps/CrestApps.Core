@@ -145,7 +145,9 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
 
     /// <summary>
     /// Wraps a tool that requires an approval in <see cref="ApprovalRequiredAIFunction"/> when the caller can ask a
-    /// person for one, so the function invocation pauses for the approval instead of running it.
+    /// person for one, so the function invocation pauses for the approval instead of running it. When the caller
+    /// cannot ask and the approval is enforced (<see cref="ToolMaterializationOptions.EnforceToolApproval"/>), the
+    /// tool is replaced with one that does not run and tells the model why.
     /// </summary>
     /// <param name="tool">The materialized tool.</param>
     /// <param name="entry">The registry entry the tool came from.</param>
@@ -154,15 +156,25 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
 #pragma warning disable MEAI001 // ApprovalRequiredAIFunction is a preview API of Microsoft.Extensions.AI.
     internal static AITool WrapForApproval(AITool tool, ToolRegistryEntry entry, ToolMaterializationOptions options)
     {
-        if (!options.SupportsToolApproval ||
-            !entry.RequiresApproval ||
+        if (!entry.RequiresApproval ||
             tool is not AIFunction function ||
-            tool is ApprovalRequiredAIFunction)
+            tool is ApprovalRequiredAIFunction ||
+            tool is ApprovalUnavailableAIFunction)
         {
             return tool;
         }
 
-        return new ApprovalRequiredAIFunction(function);
+        if (options.SupportsToolApproval)
+        {
+            return new ApprovalRequiredAIFunction(function);
+        }
+
+        if (options.EnforceToolApproval)
+        {
+            return new ApprovalUnavailableAIFunction(function);
+        }
+
+        return tool;
     }
 #pragma warning restore MEAI001
 

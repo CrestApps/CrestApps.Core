@@ -35,4 +35,13 @@ public sealed class ToolMaterializationOptions
     /// pauses for an approval instead of running them.
     /// </summary>
     public bool SupportsToolApproval { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether a tool that requires an approval must never run without one. When it is
+    /// <see langword="true"/> and <see cref="SupportsToolApproval"/> is <see langword="false"/>, such a tool is
+    /// replaced with a function of the same name and schema that does not run the tool and tells the model that
+    /// this conversation cannot ask a person for the approval. The run of an agent uses it. When it is
+    /// <see langword="false"/> (the default), a caller that cannot ask runs the tool as before.
+    /// </summary>
+    public bool EnforceToolApproval { get; init; }
 }

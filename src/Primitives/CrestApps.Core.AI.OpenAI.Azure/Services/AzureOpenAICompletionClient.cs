@@ -282,6 +282,13 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
             yield return resumedUpdate;
         }
 
+        // An agent that was called again with a person's answer can pause for another approval. The turn then ends
+        // with that request; the model is not asked before the person answers.
+        if (AgentToolApprovals.IsTurnPaused(AIInvocationScope.Current))
+        {
+            yield break;
+        }
+
         var accumulatedToolCalls = new StreamingToolCallAccumulator();
         var iterations = 0;
         var stopwatch = Stopwatch.StartNew();
@@ -398,9 +405,10 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
                     // Create a new chat option that excludes references to data sources to address the limitations in Azure OpenAI.
                     chatOptions = subSequenceContext ??= GetOptions(context, allFunctions, requestOptions.ResolvedOptions, requestOptions.Declarations);
 
-                    // A tool can end the turn after its round, for example after it opened another page; the model is not
-                    // asked again.
-                    hasToolCalls = AIInvocationScope.Current?.Items.ContainsKey(AICompletionContextKeys.EndTurnAfterToolCalls) != true;
+                    // A tool can end the turn after its round, for example after it opened another page, or an agent that
+                    // paused because a tool call it made waits for a person's approval; the model is not asked again.
+                    hasToolCalls = AIInvocationScope.Current?.Items.ContainsKey(AICompletionContextKeys.EndTurnAfterToolCalls) != true &&
+                        !AgentToolApprovals.IsTurnPaused(AIInvocationScope.Current);
 
                     // The round trip that asked for tool calls is a billed request too, and its usage arrives in a
                     // final update after the finish reason, so read the rest of the stream and record it on its own
@@ -565,6 +573,14 @@ omit optional fields, or split the operation into multiple smaller calls.
         }
 
         arguments.Services = _serviceProvider;
+
+        // This loop has no function invocation context, so a tool that must know which call it answers (an agent
+        // that can pause for an approval) reads the id from here.
+        arguments.Context = new Dictionary<object, object>
+        {
+            [AIToolInvocation.CallIdContextKey] = toolCall.Id,
+        };
+
         try
         {
             var result = await AIToolInvocation.InvokeAsync(function, arguments);

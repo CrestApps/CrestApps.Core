@@ -13,8 +13,36 @@ namespace CrestApps.Core.AI.Tooling;
 /// </summary>
 public static class AIToolInvocation
 {
+    /// <summary>
+    /// The key under which a tool-calling loop that does not use <see cref="FunctionInvokingChatClient"/> puts the
+    /// id of the tool call (a <see cref="string"/>) in <see cref="AIFunctionArguments.Context"/>, so the tool can
+    /// read it with <see cref="GetCallId"/>.
+    /// </summary>
+    public const string CallIdContextKey = "CrestApps.Core.AI.ToolCallId";
+
     // Set for the duration of each invocation; a tool that turns its failure into a result marks it here.
     private static readonly AsyncLocal<StrongBox<bool>> _failure = new();
+
+    /// <summary>
+    /// Gets the id the model gave the tool call that is running, when the tool-calling loop makes it known: from
+    /// <see cref="AIFunctionArguments.Context"/> (see <see cref="CallIdContextKey"/>), or from the function
+    /// invocation of <see cref="FunctionInvokingChatClient"/>. Call it at the start of the tool, before the tool
+    /// starts a completion of its own.
+    /// </summary>
+    /// <param name="arguments">The arguments the tool was invoked with.</param>
+    /// <returns>The id of the tool call, or <see langword="null"/> when it is not known.</returns>
+    public static string GetCallId(AIFunctionArguments arguments)
+    {
+        if (arguments?.Context is { } context &&
+            context.TryGetValue(CallIdContextKey, out var value) &&
+            value is string callId &&
+            callId.Length > 0)
+        {
+            return callId;
+        }
+
+        return FunctionInvokingChatClient.CurrentContext?.CallContent?.CallId;
+    }
 
     /// <summary>
     /// Invokes a tool in a <c>crestapps.tool.invoke</c> span and records its duration, source and outcome on

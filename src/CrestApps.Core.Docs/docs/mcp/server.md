@@ -384,6 +384,7 @@ Intersecting the two would be backwards. An operator wanting a working agent wou
 
 - **Its own tools run only if the agent opted in.** `AgentMetadata.AllowToolInvocation` must be `true`, exactly as when the model invokes that agent as a tool in a chat completion. It defaults to `false`, so an agent that answers suspiciously generically over MCP is usually missing this flag rather than hitting a server problem.
 - **Nested agents stay suppressed.** An agent reached over MCP can use its tools but cannot delegate to other agents; that bound is what makes running with tools safe.
+- **Its tools that require an approval do not run.** An MCP client cannot be asked to approve a call, so an agent reached over MCP gets a "was not run" result for a tool that requires one, and reports that. See [Tools of an agent that require an approval](../core/agents.md#tools-of-an-agent-that-require-an-approval).
 - **Availability is irrelevant.** `AgentAvailability.AlwaysAvailable` versus `OnDemand` governs a completion's token budget, not who may reach an agent from outside. The allow-list is the only gate.
 - **A name shared with a tool resolves to the tool.** Agents are enumerated last, and one whose name is already taken is skipped from the listing with a warning, so what is listed is always what a call will reach.
 

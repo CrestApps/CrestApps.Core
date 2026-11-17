@@ -175,12 +175,63 @@ public sealed class DefaultOrchestrator : IOrchestrator
         // Execute the completion with the scoped tool set.
         var chatDeployment = await ResolveChatDeploymentAsync(context);
         var executionMessages = GetExecutionMessages(context);
+        var agentApprovals = BeginAgentApprovals(context.CompletionContext);
 
         await foreach (var chunk in _completionService.CompleteStreamingAsync(
             chatDeployment, executionMessages, context.CompletionContext, cancellationToken))
         {
-            yield return chunk;
+            if (agentApprovals is null)
+            {
+                yield return chunk;
+
+                continue;
+            }
+
+            // A call to an agent that paused for an approval has no result yet: the agent answers it when it resumes.
+            var update = agentApprovals.RemovePausedResults(chunk);
+
+            if (update is not null)
+            {
+                yield return update;
+            }
         }
+
+        if (agentApprovals is null)
+        {
+            yield break;
+        }
+
+        // An agent whose tool call needs a person's approval paused inside its tool call. The turn ends with the
+        // approval requests, the way it does when one of the assistant's own tool calls needs an approval.
+        foreach (var approvalRequest in agentApprovals.TakeApprovalRequests())
+        {
+            yield return approvalRequest;
+        }
+    }
+
+    /// <summary>
+    /// Lets the agents this turn calls ask a person to approve a tool call, when the turn can show the request: the
+    /// turn is the assistant's own and not an agent's, it runs in an invocation scope, and its caller can ask.
+    /// </summary>
+    /// <param name="completionContext">The completion context of the turn.</param>
+    /// <returns>The approvals of the invocation, or <see langword="null"/> when the turn cannot ask.</returns>
+    private static AgentToolApprovals BeginAgentApprovals(AICompletionContext completionContext)
+    {
+        var invocation = AIInvocationScope.Current;
+
+        if (invocation is null ||
+            invocation.AgentInvocationDepth > 0 ||
+            !completionContext.AdditionalProperties.TryGetValue(AICompletionContextKeys.ToolApprovalSupported, out var approvalValue) ||
+            approvalValue is not true)
+        {
+            return null;
+        }
+
+        var approvals = AgentToolApprovals.GetOrAdd(invocation);
+
+        approvals.AllowAsking();
+
+        return approvals;
     }
 
     internal static void MergeDependencyToolNames(OrchestrationContext context)

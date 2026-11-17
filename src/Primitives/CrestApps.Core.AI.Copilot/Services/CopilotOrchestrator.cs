@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Mcp;
@@ -94,10 +95,25 @@ public sealed class CopilotOrchestrator : IOrchestrator
         // Build AIFunction instances from non-MCP registry entries only.
         // MCP tools are excluded because Copilot manages MCP connections natively.
         var tools = new List<AIFunction>();
+
+        // This orchestrator cannot pause for an approval. When it runs an agent, a tool that requires an approval
+        // is not offered, so it never runs unasked.
+        var enforceToolApproval = context.CompletionContext.AdditionalProperties.TryGetValue(AICompletionContextKeys.ToolApprovalEnforced, out var enforcedValue) &&
+            enforcedValue is true;
+
         foreach (var entry in allTools)
         {
             if (entry.Source == ToolRegistryEntrySource.McpServer || entry.CreateAsync is null)
             {
+                continue;
+            }
+
+            if (enforceToolApproval && entry.RequiresApproval)
+            {
+                _logger.LogWarning(
+                    "The tool '{ToolName}' requires an approval and is not offered to the agent, because the Copilot orchestrator cannot ask a person for one.",
+                    entry.Name);
+
                 continue;
             }
 

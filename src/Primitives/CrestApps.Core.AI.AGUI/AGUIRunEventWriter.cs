@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using AGUI.Abstractions;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Orchestration;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.AGUI;
@@ -45,6 +46,7 @@ public sealed class AGUIRunEventWriter
     private readonly List<ChatTurnToolCall> _toolCalls = [];
     private readonly Dictionary<string, ChatTurnToolCall> _toolCallsById = new(StringComparer.Ordinal);
     private readonly List<AGUIInterrupt> _interrupts = [];
+    private readonly List<ChatTurnAgentRun> _agentRuns = [];
     private readonly HashSet<string> _textMessageIds = new(StringComparer.Ordinal);
 
     private string _openTextMessageId;
@@ -107,6 +109,12 @@ public sealed class AGUIRunEventWriter
     /// Gets the interrupts the run ends with: the tool calls that wait for an approval.
     /// </summary>
     public IReadOnlyList<AGUIInterrupt> Interrupts => _interrupts;
+
+    /// <summary>
+    /// Gets the runs of the agents that paused in this run because a tool call of theirs waits for an approval.
+    /// The chat stores them with the assistant message, so the run that resumes continues each agent from them.
+    /// </summary>
+    public IReadOnlyList<ChatTurnAgentRun> AgentRuns => _agentRuns;
 
     /// <summary>
     /// Determines whether text was written for an assistant message.
@@ -383,10 +391,31 @@ public sealed class AGUIRunEventWriter
 
 #pragma warning disable MEAI001 // Tool approvals are a preview API of Microsoft.Extensions.AI.
             case ToolApprovalRequestContent approval when approval.ToolCall is FunctionCallContent approvalCall:
-                await WriteApprovalRequestAsync(approval.RequestId, approvalCall, messageId, cancellationToken);
+                await WriteApprovalRequestAsync(
+                    approval.RequestId,
+                    approvalCall,
+                    GetAdditionalProperty<FunctionCallContent>(approval, AgentToolApprovalProperties.AgentCall),
+                    GetAdditionalProperty<ChatTurnAgentRun>(approval, AgentToolApprovalProperties.AgentRun),
+                    messageId,
+                    cancellationToken);
                 break;
 #pragma warning restore MEAI001
         }
+    }
+
+    /// <summary>
+    /// Gets an additional property of a content item, when it has one of the given type under the key.
+    /// </summary>
+    /// <typeparam name="T">The type of the property.</typeparam>
+    /// <param name="content">The content item.</param>
+    /// <param name="key">The key of the property.</param>
+    /// <returns>The property, or <see langword="null"/>.</returns>
+    private static T GetAdditionalProperty<T>(AIContent content, string key)
+        where T : class
+    {
+        return content.AdditionalProperties is not null && content.AdditionalProperties.TryGetValue(key, out var value)
+            ? value as T
+            : null;
     }
 
     private async ValueTask WriteTextCoreAsync(string messageId, string text, CancellationToken cancellationToken)
@@ -473,8 +502,48 @@ public sealed class AGUIRunEventWriter
         await StartToolCallAsync(call, messageId, status, approvalRequestId: null, cancellationToken);
     }
 
-    private async ValueTask WriteApprovalRequestAsync(string requestId, FunctionCallContent call, string messageId, CancellationToken cancellationToken)
+    /// <summary>
+    /// Writes a tool call that waits for a person's approval, and the interrupt that asks for it. When an agent the
+    /// assistant delegated to made the call, the assistant's call to the agent waits too, the agent's paused run is
+    /// kept for the resume, and the interrupt names the agent.
+    /// </summary>
+    /// <param name="requestId">The id of the approval request, which becomes the id of the interrupt.</param>
+    /// <param name="call">The tool call that waits.</param>
+    /// <param name="agentCall">The assistant's call to the agent that made the tool call, or <see langword="null"/> when the assistant made it.</param>
+    /// <param name="agentRun">The agent's paused run, or <see langword="null"/>.</param>
+    /// <param name="messageId">The id of the assistant message.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that completes when the events are written.</returns>
+    private async ValueTask WriteApprovalRequestAsync(
+        string requestId,
+        FunctionCallContent call,
+        FunctionCallContent agentCall,
+        ChatTurnAgentRun agentRun,
+        string messageId,
+        CancellationToken cancellationToken)
     {
+        if (string.IsNullOrEmpty(agentCall?.CallId))
+        {
+            agentCall = null;
+        }
+
+        if (agentCall is not null)
+        {
+            // The call to the agent has no result while the agent waits; it is answered when the agent resumes.
+            if (!_toolCallsById.TryGetValue(agentCall.CallId, out var agentRecord))
+            {
+                agentRecord = await StartToolCallAsync(agentCall, messageId, ChatTurnToolCallStatus.AwaitingApproval, approvalRequestId: null, cancellationToken);
+            }
+
+            agentRecord.Status = ChatTurnToolCallStatus.AwaitingApproval;
+            agentRecord.Result = null;
+
+            if (agentRun is not null && !_agentRuns.Contains(agentRun))
+            {
+                _agentRuns.Add(agentRun);
+            }
+        }
+
         if (!_toolCallsById.TryGetValue(call.CallId, out var record))
         {
             record = await StartToolCallAsync(call, messageId, ChatTurnToolCallStatus.AwaitingApproval, requestId, cancellationToken);
@@ -485,18 +554,31 @@ public sealed class AGUIRunEventWriter
             record.ApprovalRequestId = requestId;
         }
 
+        record.AgentName = agentCall?.Name;
+        record.AgentCallId = agentCall?.CallId;
+
+        var metadata = new Dictionary<string, object>
+        {
+            ["toolName"] = call.Name,
+            ["arguments"] = JsonElement.Parse(record.Arguments ?? "{}"),
+        };
+
+        if (agentCall is not null)
+        {
+            metadata["agentName"] = agentCall.Name;
+            metadata["agentToolCallId"] = agentCall.CallId;
+        }
+
         _interrupts.Add(new AGUIInterrupt
         {
             Id = requestId,
             Reason = InterruptReasons.ToolCall,
             ToolCallId = call.CallId,
-            Message = $"Allow the assistant to run '{call.Name}'?",
+            Message = agentCall is null
+                ? $"Allow the assistant to run '{call.Name}'?"
+                : $"Allow the agent '{agentCall.Name}' to run '{call.Name}'?",
             ResponseSchema = _approvalResponseSchema,
-            Metadata = JsonSerializer.SerializeToElement(new Dictionary<string, object>
-            {
-                ["toolName"] = call.Name,
-                ["arguments"] = JsonElement.Parse(record.Arguments ?? "{}"),
-            }, AIJsonUtilities.DefaultOptions),
+            Metadata = JsonSerializer.SerializeToElement(metadata, AIJsonUtilities.DefaultOptions),
         });
     }
 

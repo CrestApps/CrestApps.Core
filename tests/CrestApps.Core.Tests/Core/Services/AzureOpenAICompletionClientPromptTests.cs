@@ -16,7 +16,9 @@ using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Services;
+using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Templates.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
@@ -715,6 +717,120 @@ public sealed class AzureOpenAICompletionClientPromptTests
     }
 
     /// <summary>
+    /// Verifies a Responses API request that resumes after a person answered tool approvals keeps the tool calls the
+    /// paused turn made before it paused, with their results, so the model sees what the turn already did. The calls
+    /// of earlier turns are still left out.
+    /// </summary>
+    /// <param name="streaming">Whether to invoke the streaming path.</param>
+    /// <param name="pastMessagesCount">The limit on past messages, or <see langword="null"/> for none.</param>
+    /// <param name="expectedMessages">How many messages the request has after the system message.</param>
+    [Theory]
+    [InlineData(false, null, 7)]
+    [InlineData(true, null, 7)]
+    [InlineData(true, 4, 4)]
+    [InlineData(true, 3, 2)]
+#pragma warning disable MEAI001 // Tool approvals are a preview API of Microsoft.Extensions.AI.
+    public async Task Completion_WithResponsesApi_ResumingAfterAnApproval_KeepsTheCallsOfThePausedTurn(bool streaming, int? pastMessagesCount, int expectedMessages)
+    {
+        var responsesClient = new CapturingChatClient();
+        var clientFactory = new Mock<IAIClientFactory>(MockBehavior.Strict);
+        clientFactory
+            .Setup(factory => factory.CreateChatClientAsync(It.IsAny<AIDeployment>(), It.IsAny<Action<Microsoft.Extensions.AI.ChatClientBuilder>>()))
+            .ReturnsAsync(responsesClient);
+        using var clientContext = CreateCompletionClient(streaming, [new ToolsAndReasoningHandler(Microsoft.Extensions.AI.ReasoningEffort.Medium)], clientFactory.Object);
+        var approval = new Microsoft.Extensions.AI.ToolApprovalRequestContent("ficc_delete-1", new Microsoft.Extensions.AI.FunctionCallContent("delete-1", "delete_item"));
+
+        await InvokeCompletionAsync(
+            clientContext.Client,
+            [
+                new AIChatMessage(AIChatRole.User, "Which items are there?"),
+                new AIChatMessage(AIChatRole.Assistant, [new Microsoft.Extensions.AI.FunctionCallContent("earlier-1", "list_items")]),
+                new AIChatMessage(AIChatRole.Tool, [new Microsoft.Extensions.AI.FunctionResultContent("earlier-1", "Items: 7, 8")]),
+                new AIChatMessage(AIChatRole.Assistant, "There are items 7 and 8."),
+                new AIChatMessage(AIChatRole.User, "Create item 9 and delete item 7."),
+                new AIChatMessage(AIChatRole.Assistant, [new Microsoft.Extensions.AI.FunctionCallContent("create-1", "create_item")]),
+                new AIChatMessage(AIChatRole.Tool, [new Microsoft.Extensions.AI.FunctionResultContent("create-1", "Created item 9.")]),
+                new AIChatMessage(AIChatRole.Assistant, [new Microsoft.Extensions.AI.FunctionCallContent("unanswered-1", "list_items")]),
+                new AIChatMessage(AIChatRole.Assistant, [approval]),
+                new AIChatMessage(AIChatRole.User, [approval.CreateResponse(approved: true, reason: null)]),
+            ],
+            new AICompletionContext
+            {
+                ChatDeploymentName = DeploymentName,
+                SystemMessage = "You are helpful.",
+                PastMessagesCount = pastMessagesCount,
+            },
+            streaming,
+            TestContext.Current.CancellationToken);
+
+        var messages = responsesClient.LastMessages;
+
+        Assert.Equal(AIChatRole.System, messages[0].Role);
+        Assert.Equal(expectedMessages, messages.Count - 1);
+
+        // The request always ends with the approval request and the person's answer.
+        Assert.IsType<Microsoft.Extensions.AI.ToolApprovalRequestContent>(Assert.Single(messages[^2].Contents));
+        Assert.IsType<Microsoft.Extensions.AI.ToolApprovalResponseContent>(Assert.Single(messages[^1].Contents));
+
+        var calls = messages.SelectMany(message => message.Contents).OfType<Microsoft.Extensions.AI.FunctionCallContent>().Select(call => call.CallId).ToList();
+        var results = messages.SelectMany(message => message.Contents).OfType<Microsoft.Extensions.AI.FunctionResultContent>().Select(result => result.CallId).ToList();
+
+        // A call of an earlier turn and a call without a result are never sent, and a result is never sent
+        // without its call.
+        Assert.DoesNotContain("earlier-1", calls);
+        Assert.DoesNotContain("unanswered-1", calls);
+        Assert.Equal(calls, results);
+
+        if (expectedMessages >= 4)
+        {
+            Assert.Equal(["create-1"], calls);
+        }
+        else
+        {
+            // The limit cut the call off, so its result is dropped with it.
+            Assert.Empty(calls);
+        }
+    }
+#pragma warning restore MEAI001
+
+    /// <summary>
+    /// Verifies the Chat Completions tool-calling loop tells a tool the id of the call it answers, and ends the turn
+    /// without asking the model again when the tool is an agent that paused for a person's approval. Without a pause
+    /// the loop asks the model again after the tool call.
+    /// </summary>
+    /// <param name="pauses">Whether the called agent pauses for an approval.</param>
+    /// <param name="expectedRequests">How many requests the model receives.</param>
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 2)]
+    public async Task Streaming_WhenACalledAgentPausedForAnApproval_EndsTheTurnWithoutAskingTheModelAgain(bool pauses, int expectedRequests)
+    {
+        var agent = new PausingAgentProbe { Pauses = pauses };
+        using var clientContext = CreateCompletionClient(
+            streaming: true,
+            [new SingleToolHandler(agent)],
+            new Mock<IAIClientFactory>(MockBehavior.Strict).Object,
+            streamingResponse: CreateStreamingToolCallResponse());
+        using var scope = AIInvocationScope.Begin();
+
+        await InvokeCompletionAsync(
+            clientContext.Client,
+            [new AIChatMessage(AIChatRole.User, "Delete item 7.")],
+            new AICompletionContext
+            {
+                ChatDeploymentName = DeploymentName,
+            },
+            streaming: true,
+            TestContext.Current.CancellationToken);
+
+        // The fixture allows one more round of tool calls after the first, so a turn that goes on asks twice.
+        Assert.Equal(expectedRequests, clientContext.Handler.RequestCount);
+        Assert.Equal(expectedRequests, agent.CallIds.Count);
+        Assert.All(agent.CallIds, callId => Assert.Equal("call-agent-1", callId));
+        Assert.Equal(pauses, AgentToolApprovals.IsTurnPaused(scope.Context));
+    }
+
+    /// <summary>
     /// Verifies a request that carries function tools without a reasoning effort stays on Chat Completions.
     /// </summary>
     /// <param name="streaming">Whether to invoke the streaming path.</param>
@@ -874,18 +990,20 @@ public sealed class AzureOpenAICompletionClientPromptTests
     /// <param name="completionServiceHandlers">The handlers that configure each request, or none.</param>
     /// <param name="clientFactory">The AI client factory that serves Responses API requests, or a default mock.</param>
     /// <param name="chatApi">The connection's <c>ChatApi</c> setting, or <see langword="null"/> to leave it unset.</param>
+    /// <param name="streamingResponse">The server-sent events every streaming request is answered with, or <see langword="null"/> for a text answer.</param>
     /// <returns>The disposable client context.</returns>
     private static CompletionClientContext CreateCompletionClient(
         bool streaming,
         IEnumerable<IAICompletionServiceHandler> completionServiceHandlers = null,
         IAIClientFactory clientFactory = null,
-        string chatApi = null)
+        string chatApi = null,
+        string streamingResponse = null)
     {
         AzureOpenAIClientFactory.ClearCache();
 
         var endpoint = new Uri("https://unit.test/");
         var handler = new RecordingHttpMessageHandler(
-            streaming ? CreateStreamingResponse() : CreateCompletionResponse(),
+            streaming ? streamingResponse ?? CreateStreamingResponse() : CreateCompletionResponse(),
             streaming ? "text/event-stream" : "application/json");
         var httpClient = new HttpClient(handler);
         var azureOptions = new AzureClientOptions
@@ -1020,6 +1138,22 @@ public sealed class AzureOpenAICompletionClientPromptTests
             data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":"done"},"finish_reason":null}]}
 
             data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}
+
+            data: [DONE]
+
+            """;
+    }
+
+    /// <summary>
+    /// Creates a streaming response in which the model calls the <c>content-agent</c> tool.
+    /// </summary>
+    /// <returns>The server-sent event response payload.</returns>
+    private static string CreateStreamingToolCallResponse()
+    {
+        return """
+            data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call-agent-1","type":"function","function":{"name":"content-agent","arguments":"{\"prompt\":\"Delete item 7\"}"}}]},"finish_reason":null}]}
+
+            data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}
 
             data: [DONE]
 
@@ -1345,6 +1479,85 @@ public sealed class AzureOpenAICompletionClientPromptTests
     }
 
     /// <summary>
+    /// Gives every request one tool.
+    /// </summary>
+    private sealed class SingleToolHandler : IAICompletionServiceHandler
+    {
+        private readonly Microsoft.Extensions.AI.AITool _tool;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SingleToolHandler"/> class.
+        /// </summary>
+        /// <param name="tool">The tool to offer.</param>
+        public SingleToolHandler(Microsoft.Extensions.AI.AITool tool)
+        {
+            _tool = tool;
+        }
+
+        /// <summary>
+        /// Adds the tool to the request options.
+        /// </summary>
+        /// <param name="context">The configure context.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A completed task.</returns>
+        public Task ConfigureAsync(CompletionServiceConfigureContext context, CancellationToken cancellationToken = default)
+        {
+            context.ChatOptions.Tools = [_tool];
+
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// Stands in for an agent: keeps the id of each call it answers and, when asked to, pauses for an approval the
+    /// way an agent does.
+    /// </summary>
+    private sealed class PausingAgentProbe : Microsoft.Extensions.AI.AIFunction
+    {
+        /// <summary>
+        /// Gets or sets a value indicating whether a call pauses for an approval.
+        /// </summary>
+        public bool Pauses { get; set; }
+
+        /// <summary>
+        /// Gets the id of each call, as the tool-calling loop made it known.
+        /// </summary>
+        public List<string> CallIds { get; } = [];
+
+        /// <summary>
+        /// Gets the name of the tool.
+        /// </summary>
+        public override string Name => "content-agent";
+
+        /// <summary>
+        /// Gets the description of the tool.
+        /// </summary>
+        public override string Description => "Lists and deletes items.";
+
+        /// <summary>
+        /// Keeps the id of the call and pauses when asked to.
+        /// </summary>
+        /// <param name="arguments">The arguments of the call.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>The result of the call.</returns>
+        protected override ValueTask<object> InvokeCoreAsync(Microsoft.Extensions.AI.AIFunctionArguments arguments, CancellationToken cancellationToken)
+        {
+            var callId = AIToolInvocation.GetCallId(arguments);
+
+            CallIds.Add(callId);
+
+            if (Pauses)
+            {
+                AgentToolApprovals.GetOrAdd(AIInvocationScope.Current).Pause(
+                    new Microsoft.Extensions.AI.FunctionCallContent(callId, Name),
+                    new ChatTurnAgentRun { CallId = callId, AgentName = Name });
+            }
+
+            return ValueTask.FromResult<object>(Pauses ? "paused" : "done");
+        }
+    }
+
+    /// <summary>
     /// Captures the options of the last request and answers it with fixed text.
     /// </summary>
     private sealed class CapturingChatClient : Microsoft.Extensions.AI.IChatClient
@@ -1445,6 +1658,11 @@ public sealed class AzureOpenAICompletionClientPromptTests
         public CancellationToken CancellationToken { get; private set; }
 
         /// <summary>
+        /// Gets how many requests the handler answered.
+        /// </summary>
+        public int RequestCount { get; private set; }
+
+        /// <summary>
         /// Captures the request and returns the configured response.
         /// </summary>
         /// <param name="request">The HTTP request.</param>
@@ -1457,6 +1675,7 @@ public sealed class AzureOpenAICompletionClientPromptTests
             RequestBody = await request.Content.ReadAsStringAsync(cancellationToken);
             RequestUri = request.RequestUri;
             CancellationToken = cancellationToken;
+            RequestCount++;
 
             return new HttpResponseMessage(HttpStatusCode.OK)
             {

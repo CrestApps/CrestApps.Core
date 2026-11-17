@@ -88,6 +88,11 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
                 User = isChatInteraction ? _userAccessor.User : null,
                 SupportsToolApproval = context.CompletionContext.AdditionalProperties.TryGetValue(AICompletionContextKeys.ToolApprovalSupported, out var approvalValue) &&
                     approvalValue is true,
+
+                // Inside an agent a tool that requires an approval never runs without one: when the agent's caller
+                // cannot ask a person, the tool is replaced with one that tells the model why it was not run.
+                EnforceToolApproval = context.CompletionContext.AdditionalProperties.TryGetValue(AICompletionContextKeys.ToolApprovalEnforced, out var enforcedValue) &&
+                    enforcedValue is true,
             },
             cancellationToken);
 

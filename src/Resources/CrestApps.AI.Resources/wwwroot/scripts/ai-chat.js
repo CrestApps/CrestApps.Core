@@ -31,6 +31,7 @@
 			aguiInputLabel: "Input",
 			aguiResultLabel: "Result",
 			aguiApprovalPrompt: "Allow this action?",
+			aguiAgentApprovalPrompt: "Allow {0} to do this?",
 			aguiAllowLabel: "Allow",
 			aguiDenyLabel: "Deny",
 			aguiAllowedLabel: "Allowed",
@@ -351,7 +352,8 @@
 				arguments: call.arguments || "",
 				result: call.result || "",
 				status: normalizeToolCallStatus(call.status),
-				interruptId: call.interruptId || call.approvalRequestId || null
+				interruptId: call.interruptId || call.approvalRequestId || null,
+				agentName: call.agentName || ""
 			}));
 		}
 		function parseToolArguments(text) {
@@ -403,7 +405,10 @@
 				const summary = "<i class=\"" + icon + "\" aria-hidden=\"true\"></i> <span class=\"ai-chat-agui-tool-name\">" + escapeHtmlText(describeToolCall(call)) + "</span>" + (state ? " <span class=\"ai-chat-agui-tool-state\">" + escapeHtmlText(state) + "</span>" : "");
 				let html = "<div class=\"ai-chat-agui-tool ai-chat-agui-tool-" + escapeHtmlText(status) + "\" data-agui-tool-call=\"" + escapeHtmlText(call.id) + "\">";
 				html += details ? "<details><summary>" + summary + "</summary>" + details + "</details>" : "<div class=\"ai-chat-agui-tool-summary\">" + summary + "</div>";
-				if (status === "awaitingApproval" && call.interruptId) html += "<div class=\"ai-chat-agui-approval\"><span>" + escapeHtmlText(defaultConfig.aguiApprovalPrompt) + "</span><button type=\"button\" class=\"btn btn-sm btn-primary\" data-agui-interrupt=\"" + escapeHtmlText(call.interruptId) + "\" data-agui-approved=\"true\">" + escapeHtmlText(defaultConfig.aguiAllowLabel) + "</button><button type=\"button\" class=\"btn btn-sm btn-outline-secondary\" data-agui-interrupt=\"" + escapeHtmlText(call.interruptId) + "\" data-agui-approved=\"false\">" + escapeHtmlText(defaultConfig.aguiDenyLabel) + "</button></div>";
+				if (status === "awaitingApproval" && call.interruptId) {
+					const approvalPrompt = call.agentName ? String(defaultConfig.aguiAgentApprovalPrompt).replace("{0}", describeToolCall({ name: call.agentName })) : defaultConfig.aguiApprovalPrompt;
+					html += "<div class=\"ai-chat-agui-approval\"><span>" + escapeHtmlText(approvalPrompt) + "</span><button type=\"button\" class=\"btn btn-sm btn-primary\" data-agui-interrupt=\"" + escapeHtmlText(call.interruptId) + "\" data-agui-approved=\"true\">" + escapeHtmlText(defaultConfig.aguiAllowLabel) + "</button><button type=\"button\" class=\"btn btn-sm btn-outline-secondary\" data-agui-interrupt=\"" + escapeHtmlText(call.interruptId) + "\" data-agui-approved=\"false\">" + escapeHtmlText(defaultConfig.aguiDenyLabel) + "</button></div>";
+				}
 				html += "</div>";
 				parts.push(html);
 			}
@@ -1715,7 +1720,8 @@
 									arguments: "",
 									result: "",
 									status: "requested",
-									interruptId: null
+									interruptId: null,
+									agentName: ""
 								};
 								message.toolCalls = message.toolCalls || [];
 								message.toolCalls.push(call);
@@ -1753,6 +1759,12 @@
 										if (call) {
 											call.status = "awaitingApproval";
 											call.interruptId = interrupt.id;
+											const metadata = interrupt.metadata || {};
+											if (metadata.agentName) {
+												const agentCall = run.toolCalls[metadata.agentToolCallId];
+												call.agentName = metadata.agentName;
+												if (agentCall) agentCall.status = "awaitingApproval";
+											}
 										}
 									}
 									this.refreshAGUIMessage(run);
