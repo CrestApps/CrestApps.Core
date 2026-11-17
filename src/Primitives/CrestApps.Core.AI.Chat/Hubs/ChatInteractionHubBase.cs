@@ -322,6 +322,21 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
     }
 
     /// <summary>
+    /// Gets the message sent when the text of a <see cref="SynthesizeSpeech"/> call is longer than
+    /// <see cref="MaxSpeechTextLength"/>.
+    /// </summary>
+    protected virtual string GetSpeechTextTooLongMessage()
+    {
+        return "The text is too long to read aloud.";
+    }
+
+    /// <summary>
+    /// Gets the most characters one <see cref="SynthesizeSpeech"/> call may carry, so one call cannot carry text up to
+    /// the hub's maximum message size.
+    /// </summary>
+    protected virtual int MaxSpeechTextLength => 10_000;
+
+    /// <summary>
     /// Gets conversation error message.
     /// </summary>
     protected virtual string GetConversationErrorMessage()
@@ -1599,6 +1614,13 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         if (string.IsNullOrWhiteSpace(text))
         {
             await Clients.Caller.ReceiveError(GetRequiredFieldMessage(nameof(text)));
+
+            return;
+        }
+
+        if (text.Length > MaxSpeechTextLength)
+        {
+            await Clients.Caller.ReceiveError(GetSpeechTextTooLongMessage());
 
             return;
         }

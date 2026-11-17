@@ -799,7 +799,9 @@ window.coreAIChatManager = function () {
     window.__chartConfigs = window.__chartConfigs || {};
 
     function createChartHtml(chartId) {
-        return `<div class="chart-container" style="position: relative; width: 100%; max-width: 560px; min-height: 420px;">`
+        // No position here: the sanitizer keeps none in a message's style. The container is made relative when the chart
+        // is drawn, which is when Chart.js needs it.
+        return `<div class="chart-container" style="width: 100%; max-width: 560px; min-height: 420px;">`
             + `<canvas id="${chartId}"></canvas>`
             + `</div>`
             + `<div class="mt-2">`
@@ -974,6 +976,12 @@ window.coreAIChatManager = function () {
             cfg.options.responsive = true;
             cfg.options.maintainAspectRatio = true;
             cfg.options.aspectRatio ??= 4 / 3;
+
+            // Chart.js sizes a responsive chart from its container, which has to be positioned. A message's style keeps no
+            // position, so it is set here, on the container the chat rendered around this canvas.
+            if (canvas.parentElement) {
+                canvas.parentElement.style.position = 'relative';
+            }
 
             canvas._chartInstance = new Chart(canvas, cfg);
             delete window.__chartConfigs[chartId];
@@ -2859,6 +2867,36 @@ window.coreAIChatManager = function () {
                         .then(() => this.syncPageTools())
                         .then(openStream, openStream);
                 },
+                /*
+                 * Whether the button is one the chat rendered to answer this interrupt: a <button> in the approval row of
+                 * the tool call the interrupt belongs to, inside the activity block the chat writes ahead of a message.
+                 * The sanitizer removes data-agui-* from an answer, so an answer cannot write such a button; this is the
+                 * second guard, for a host whose own sanitizer or template lets the attributes through.
+                 */
+                isRenderedApprovalButton(button, interruptId) {
+                    if (!button || button.tagName !== 'BUTTON' || !interruptId) {
+                        return false;
+                    }
+
+                    const approval = button.parentElement;
+                    const toolCall = approval ? approval.parentElement : null;
+
+                    if (!approval || !approval.classList.contains('ai-chat-agui-approval') ||
+                        !toolCall || !toolCall.classList.contains('ai-chat-agui-tool') ||
+                        !toolCall.parentElement || !toolCall.parentElement.classList.contains('ai-chat-agui-activity')) {
+                        return false;
+                    }
+
+                    for (const message of this.messages) {
+                        const call = (message.toolCalls || []).find(c => c.interruptId === interruptId);
+
+                        if (call) {
+                            return call.status === 'awaitingApproval' && toolCall.getAttribute('data-agui-tool-call') === String(call.id ?? '');
+                        }
+                    }
+
+                    return false;
+                },
                 answerApproval(interruptId, approved) {
                     let target = null;
                     let targetCall = null;
@@ -3797,7 +3835,14 @@ window.coreAIChatManager = function () {
                         }
 
                         event.preventDefault();
-                        this.answerApproval(button.getAttribute('data-agui-interrupt'), button.getAttribute('data-agui-approved') === 'true');
+
+                        const interruptId = button.getAttribute('data-agui-interrupt');
+
+                        if (!this.isRenderedApprovalButton(button, interruptId)) {
+                            return;
+                        }
+
+                        this.answerApproval(interruptId, button.getAttribute('data-agui-approved') === 'true');
                     });
 
                     document.addEventListener('selectionchange', () => this.trackPageSelection());

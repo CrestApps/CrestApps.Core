@@ -1020,7 +1020,8 @@
                     },
                     renderer: function (token) {
                         _chartConfigs[token.chartId] = token.json;
-                        return '<div class="chart-container" style="position: relative; width: 100%; max-width: 600px; margin: 0 auto; height: 480px;">'
+                        // No position here: the sanitizer keeps none in a message's style, so it is set when the chart is drawn.
+                        return '<div class="chart-container" style="width: 100%; max-width: 600px; margin: 0 auto; height: 480px;">'
                             + '<canvas id="' + token.chartId + '" class="img-thumbnail" width="600" height="480" style="width: 100%; height: 480px;"></canvas>'
                             + '</div>'
                             + '<div class="mt-2">'
@@ -1051,6 +1052,8 @@
                             cfg.options = cfg.options || {};
                             cfg.options.responsive = true;
                             cfg.options.maintainAspectRatio = false;
+                            // Chart.js sizes a responsive chart from its container, which has to be positioned.
+                            if (canvas.parentElement) canvas.parentElement.style.position = 'relative';
                             canvas._chartInstance = new Chart(canvas, cfg);
                             delete _chartConfigs[cid];
                         } catch (e) {
@@ -2283,6 +2286,11 @@
                     '</div>'
             });
 
+            // Everything the app renders is the chat's output, not the page's own markup (see isPageMarkup below).
+            if (window.CoreAIChatSurface) {
+                window.CoreAIChatSurface.registerRoot(document.getElementById('chat-app'));
+            }
+
             var vm = app.mount('#chat-app');
 
             // --- SignalR connection ---
@@ -3160,10 +3168,21 @@
                 return isValid;
             }
 
+            // An answer is written by a model and the settings are read from the whole document, so a checked tool checkbox
+            // or a setting input the answer wrote would otherwise be saved as the user's choice. Only the page's own
+            // controls count: CoreAIChatSurface (chat-markers.js) knows which elements are inside a rendered message.
+            function isPageMarkup(element) {
+                return !(window.CoreAIChatSurface && window.CoreAIChatSurface.isInsideRenderedMessage(element));
+            }
+
+            function pageElements(selector) {
+                return Array.prototype.filter.call(document.querySelectorAll(selector), isPageMarkup);
+            }
+
             function hasInvalidSettings() {
                 var isValid = true;
 
-                document.querySelectorAll('.setting-input[type="number"]').forEach(function (input) {
+                pageElements('.setting-input[type="number"]').forEach(function (input) {
                     if (!validateSettingInput(input)) {
                         isValid = false;
                     }
@@ -3176,7 +3195,7 @@
                 var settings = {};
 
                 // Scalar settings from inputs
-                document.querySelectorAll('.setting-input').forEach(function (el) {
+                pageElements('.setting-input').forEach(function (el) {
                     var key = el.dataset.setting;
                     if (!key) return;
                     if (el.type === 'checkbox') {
@@ -3194,7 +3213,7 @@
 
                 // Capability checkboxes grouped by data-group
                 var groups = {};
-                document.querySelectorAll('.capability-checkbox').forEach(function (cb) {
+                pageElements('.capability-checkbox').forEach(function (cb) {
                     var group = cb.dataset.group;
                     if (!groups[group]) groups[group] = [];
                     if (cb.checked) groups[group].push(cb.value);
@@ -3205,7 +3224,7 @@
 
                 // Prompt templates with parameters
                 var promptTemplates = [];
-                document.querySelectorAll('#chatPromptTemplatesContainer .chat-prompt-card').forEach(function (card) {
+                pageElements('#chatPromptTemplatesContainer .chat-prompt-card').forEach(function (card) {
                     var tid = card.dataset.templateId;
                     if (!tid) return;
                     var paramsInput = card.querySelector('.chat-prompt-params-input');
@@ -3242,7 +3261,7 @@
             }
 
             // Bind setting-input changes
-            document.querySelectorAll('.setting-input').forEach(function (el) {
+            pageElements('.setting-input').forEach(function (el) {
                 if (el.type === 'number') {
                     validateSettingInput(el);
                 }
@@ -3251,7 +3270,7 @@
             });
 
             // Bind capability checkbox changes
-            document.querySelectorAll('.capability-checkbox').forEach(function (cb) {
+            pageElements('.capability-checkbox').forEach(function (cb) {
                 cb.addEventListener('change', debounceSave);
             });
 
@@ -3260,13 +3279,13 @@
             var deselectAllToolsBtn = document.getElementById('chat-deselect-all-tools');
             if (selectAllToolsBtn) {
                 selectAllToolsBtn.addEventListener('click', function () {
-                    document.querySelectorAll('.chat-tool-checkbox').forEach(function (cb) { cb.checked = true; });
+                    pageElements('.chat-tool-checkbox').forEach(function (cb) { cb.checked = true; });
                     debounceSave();
                 });
             }
             if (deselectAllToolsBtn) {
                 deselectAllToolsBtn.addEventListener('click', function () {
-                    document.querySelectorAll('.chat-tool-checkbox').forEach(function (cb) { cb.checked = false; });
+                    pageElements('.chat-tool-checkbox').forEach(function (cb) { cb.checked = false; });
                     debounceSave();
                 });
             }
@@ -3277,6 +3296,15 @@
                 var searchInput = document.getElementById('chatPromptTemplateSearch');
                 if (!container) return;
 
+                function escapeHtml(value) {
+                    return String(value == null ? '' : value)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#39;');
+                }
+
                 function createTemplateCard(templateId, title, description, params) {
                     var card = document.createElement('div');
                     card.className = 'card mb-2 chat-prompt-card';
@@ -3284,19 +3312,19 @@
 
                     var headerHtml = '<div class="card-body p-2">' +
                         '<div class="d-flex justify-content-between align-items-center">' +
-                        '<span class="fw-bold small">' + (title || templateId) + '</span>' +
+                        '<span class="fw-bold small">' + escapeHtml(title || templateId) + '</span>' +
                         '<button type="button" class="btn btn-sm btn-outline-danger border-0 p-0 ms-2" aria-label="Remove">' +
                         '<i class="fa-solid fa-trash"></i></button></div>';
 
                     if (description) {
-                        headerHtml += '<div class="text-muted small">' + description + '</div>';
+                        headerHtml += '<div class="text-muted small">' + escapeHtml(description) + '</div>';
                     }
 
                     var paramsHtml = '';
                     if (params && params.length > 0) {
                         paramsHtml += '<div class="mt-1"><small class="text-muted d-block mb-1">Expected parameters:</small><ul class="mb-0 small text-muted">';
                         params.forEach(function (p) {
-                            paramsHtml += '<li><strong>' + p.Name + '</strong>' + (p.Description ? ': ' + p.Description : '') + '</li>';
+                            paramsHtml += '<li><strong>' + escapeHtml(p.Name) + '</strong>' + (p.Description ? ': ' + escapeHtml(p.Description) : '') + '</li>';
                         });
                         paramsHtml += '</ul></div>';
                     }
@@ -3321,7 +3349,8 @@
 
                 document.addEventListener('click', function (e) {
                     var btn = e.target.closest('.chat-prompt-add-btn');
-                    if (!btn) return;
+                    // A link an answer wrote with this class is not the page's menu: it must not add a template.
+                    if (!btn || !isPageMarkup(btn)) return;
                     e.preventDefault();
                     var params = [];
                     try { params = JSON.parse(btn.dataset.templateParams || '[]'); } catch (ex) { }

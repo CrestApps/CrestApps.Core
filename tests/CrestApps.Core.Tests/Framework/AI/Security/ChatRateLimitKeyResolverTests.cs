@@ -150,6 +150,49 @@ public sealed class ChatRateLimitKeyResolverTests
         Assert.Null(ChatRateLimitKeyResolver.ResolveNetworkAddressKey(new AIVisitorIdentity()));
     }
 
+    // The plain-text visitor mode stores the full address and computes no hash, so the limiter would key on the full
+    // address and a client rotating inside its /64 would get a fresh allowance for every address.
+    [Theory]
+    [InlineData("2001:db8:1:2::1")]
+    [InlineData("2001:db8:1:2:aaaa:bbbb:cccc:dddd")]
+    [InlineData("2001:0db8:0001:0002:ffff:ffff:ffff:ffff")]
+    public void ResolveNetworkAddressKey_KeysAPlainIPv6AddressOnItsSlash64(string remoteAddress)
+    {
+        var key = ChatRateLimitKeyResolver.ResolveNetworkAddressKey(new AIVisitorIdentity { RemoteAddress = remoteAddress });
+
+        Assert.Equal("ip:2001:db8:1:2::/64", key);
+    }
+
+    [Fact]
+    public void ResolveNetworkAddressKey_KeysAnotherSlash64Apart()
+    {
+        var one = ChatRateLimitKeyResolver.ResolveNetworkAddressKey(new AIVisitorIdentity { RemoteAddress = "2001:db8:1:2::1" });
+        var other = ChatRateLimitKeyResolver.ResolveNetworkAddressKey(new AIVisitorIdentity { RemoteAddress = "2001:db8:1:3::1" });
+
+        Assert.NotEqual(one, other);
+    }
+
+    [Theory]
+    [InlineData("::ffff:203.0.113.5", "ip:203.0.113.5")]
+    [InlineData("203.0.113.5", "ip:203.0.113.5")]
+    [InlineData(" 203.0.113.5 ", "ip:203.0.113.5")]
+    [InlineData("unknown", "ip:unknown")]
+    [InlineData("CfDJ8-encrypted-value", "ip:CfDJ8-encrypted-value")]
+    public void ResolveNetworkAddressKey_KeepsAnythingThatIsNotAnIPv6AddressAsItIs(string remoteAddress, string expected)
+    {
+        Assert.Equal(expected, ChatRateLimitKeyResolver.ResolveNetworkAddressKey(new AIVisitorIdentity { RemoteAddress = remoteAddress }));
+    }
+
+    [Fact]
+    public void ResolveMessageKeys_ForAPlainIPv6Address_KeysTheSlash64()
+    {
+        var one = ChatRateLimitKeyResolver.ResolveMessageKeys(CreateContext(remoteAddress: "2001:db8:1:2::1"), new AIChatRateLimitingOptions());
+        var other = ChatRateLimitKeyResolver.ResolveMessageKeys(CreateContext(remoteAddress: "2001:db8:1:2:aaaa:bbbb:cccc:dddd"), new AIChatRateLimitingOptions());
+
+        Assert.Contains("ip:2001:db8:1:2::/64", one);
+        Assert.Equal(one, other);
+    }
+
     private static ClaimsPrincipal UserWithNameIdentifier(string userId)
         => new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId)], "Test"));
 
@@ -158,13 +201,15 @@ public sealed class ChatRateLimitKeyResolverTests
         string visitorId = null,
         string remoteAddressHash = null,
         string sessionId = null,
-        string connectionId = null)
+        string connectionId = null,
+        string remoteAddress = null)
     {
         return new PromptSecurityContext
         {
             User = user,
             VisitorId = visitorId,
             RemoteAddressHash = remoteAddressHash,
+            RemoteAddress = remoteAddress,
             SessionId = sessionId,
             ConnectionId = connectionId,
         };

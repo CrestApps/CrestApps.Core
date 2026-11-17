@@ -13,6 +13,18 @@
 (function () {
     'use strict';
 
+    // The page's own controls, never a look-alike inside a rendered answer. An answer is written by a model, and the
+    // settings are read from the whole document, so a checked tool checkbox, a setting input or a prompt template card
+    // the answer wrote would otherwise be saved as the user's choice. CoreAIChatSurface (chat-markers.js) knows which
+    // elements are inside a rendered message; without it, nothing is filtered, as before.
+    function isPageMarkup(element) {
+        return !(window.CoreAIChatSurface && window.CoreAIChatSurface.isInsideRenderedMessage(element));
+    }
+
+    function pageElements(selector) {
+        return Array.prototype.filter.call(document.querySelectorAll(selector), isPageMarkup);
+    }
+
     function getStatusElement(id) {
         return id ? document.getElementById(id) : null;
     }
@@ -85,7 +97,7 @@
 
     function hasInvalidSettings() {
         var isValid = true;
-        document.querySelectorAll('.setting-input[type="number"]').forEach(function (input) {
+        pageElements('.setting-input[type="number"]').forEach(function (input) {
             if (!validateSettingInput(input)) {
                 isValid = false;
             }
@@ -97,7 +109,7 @@
     function collectSettings() {
         var settings = {};
 
-        document.querySelectorAll('.setting-input').forEach(function (el) {
+        pageElements('.setting-input').forEach(function (el) {
             var key = el.dataset.setting;
             if (!key) {
                 return;
@@ -117,7 +129,7 @@
         });
 
         var groups = {};
-        document.querySelectorAll('.capability-checkbox').forEach(function (cb) {
+        pageElements('.capability-checkbox').forEach(function (cb) {
             var group = cb.dataset.group;
             if (!group) {
                 return;
@@ -138,7 +150,7 @@
 
         // Prompt template cards
         var promptTemplates = [];
-        document.querySelectorAll('.prompt-template-card').forEach(function (card) {
+        pageElements('.prompt-template-card').forEach(function (card) {
             var idEl = card.querySelector('.prompt-template-id-input');
             var paramsEl = card.querySelector('.prompt-template-parameters-input');
             var tid = idEl ? idEl.value : (card.dataset.templateId || '');
@@ -178,7 +190,7 @@
         var statusEl = getStatusElement(config.statusElementId || 'chat-settings-save-status');
         var dataSourceSelect = config.dataSourceSelectId
             ? document.getElementById(config.dataSourceSelectId)
-            : document.querySelector('.setting-input[data-setting="dataSourceId"]');
+            : pageElements('.setting-input[data-setting="dataSourceId"]')[0] || null;
 
         // Source-dependent visibility (Filter field shows only when a data source is selected).
         function toggleDataSourceDependentFields() {
@@ -260,7 +272,7 @@
             }, 500);
         }
 
-        document.querySelectorAll('.setting-input').forEach(function (el) {
+        pageElements('.setting-input').forEach(function (el) {
             if (el.type === 'number') {
                 validateSettingInput(el);
             }
@@ -270,7 +282,7 @@
             el.addEventListener('blur', debounceSave);
         });
 
-        document.querySelectorAll('.capability-checkbox').forEach(function (cb) {
+        pageElements('.capability-checkbox').forEach(function (cb) {
             cb.addEventListener('change', debounceSave);
         });
 
@@ -322,11 +334,16 @@
             return;
         }
 
-        if (typeof root.matches === 'function' && root.matches('[data-chat-interaction-settings-config]')) {
+        // A configuration inside a rendered message is the answer's, not the page's.
+        if (typeof root.matches === 'function' && root.matches('[data-chat-interaction-settings-config]') && isPageMarkup(root)) {
             initializeFromElement(root);
         }
 
-        root.querySelectorAll('[data-chat-interaction-settings-config]').forEach(initializeFromElement);
+        root.querySelectorAll('[data-chat-interaction-settings-config]').forEach(function (element) {
+            if (isPageMarkup(element)) {
+                initializeFromElement(element);
+            }
+        });
     }
 
     function startAutoInitialization() {
