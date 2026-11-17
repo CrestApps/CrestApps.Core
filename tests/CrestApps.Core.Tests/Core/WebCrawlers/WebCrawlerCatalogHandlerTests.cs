@@ -1,8 +1,10 @@
+using System.Text.Json.Nodes;
 using CrestApps.Core.AI.DataSources;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.WebCrawlers.Handlers;
 using CrestApps.Core.AI.WebCrawlers.Strategies;
+using CrestApps.Core.AI.WebCrawlers.Strategies.Sitemap;
 using CrestApps.Core.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -63,6 +65,78 @@ public sealed class WebCrawlerCatalogHandlerTests
 
         Assert.False(context.Result.Succeeded);
         Assert.Contains(context.Result.Errors, error => error.MemberNames.Contains(nameof(WebCrawler.AIDataSourceId)));
+    }
+
+    /// <summary>
+    /// Verifies that a crawler created from JSON, as a recipe or a deployment import creates one, gets the
+    /// strategy settings the JSON carries in <c>Properties</c>.
+    /// </summary>
+    [Fact]
+    public async Task Initializing_WithProperties_AppliesTheStrategySettings()
+    {
+        var crawler = new WebCrawler();
+        var data = JsonNode.Parse("""
+            {
+              "DisplayText": "Docs",
+              "Source": "Sitemap",
+              "Properties": {
+                "SitemapWebCrawlerMetadata": {
+                  "BaseUrl": "https://example.com",
+                  "SitemapUrl": "https://example.com/sitemap.xml",
+                  "MaxPages": 50
+                }
+              }
+            }
+            """);
+
+        await CreateHandler().InitializingAsync(new InitializingContext<WebCrawler>(crawler, data), TestContext.Current.CancellationToken);
+
+        Assert.True(crawler.TryGet<SitemapWebCrawlerMetadata>(out var metadata));
+        Assert.Equal("https://example.com", metadata.BaseUrl);
+        Assert.Equal("https://example.com/sitemap.xml", metadata.SitemapUrl);
+        Assert.Equal(50, metadata.MaxPages);
+    }
+
+    /// <summary>
+    /// Verifies that an update applies the settings it names and keeps the ones it leaves out, so a partial
+    /// update does not erase the rest of the crawler's settings.
+    /// </summary>
+    [Fact]
+    public async Task Updating_WithPartialProperties_MergesOverTheStoredSettings()
+    {
+        var crawler = new WebCrawler
+        {
+            ItemId = "crawler-1",
+            DisplayText = "Docs",
+            Source = "Sitemap",
+        };
+
+        crawler.Put(new SitemapWebCrawlerMetadata
+        {
+            BaseUrl = "https://old.example.com",
+            SitemapUrl = "https://old.example.com/sitemap.xml",
+            MaxPages = 50,
+            IncludeUrlPatterns = ["/docs/*"],
+        });
+
+        var data = JsonNode.Parse("""
+            {
+              "Properties": {
+                "SitemapWebCrawlerMetadata": {
+                  "BaseUrl": "https://new.example.com",
+                  "SitemapUrl": "https://new.example.com/sitemap.xml"
+                }
+              }
+            }
+            """);
+
+        await CreateHandler().UpdatingAsync(new UpdatingContext<WebCrawler>(crawler, data), TestContext.Current.CancellationToken);
+
+        Assert.True(crawler.TryGet<SitemapWebCrawlerMetadata>(out var metadata));
+        Assert.Equal("https://new.example.com", metadata.BaseUrl);
+        Assert.Equal("https://new.example.com/sitemap.xml", metadata.SitemapUrl);
+        Assert.Equal(50, metadata.MaxPages);
+        Assert.Equal(["/docs/*"], metadata.IncludeUrlPatterns);
     }
 
     private static ValidatingContext<WebCrawler> CreateContext(string source, string dataSourceId)
