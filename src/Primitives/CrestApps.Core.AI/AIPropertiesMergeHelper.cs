@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using CrestApps.Core.Support;
 
@@ -5,6 +6,93 @@ namespace CrestApps.Core.AI;
 
 internal static class AIPropertiesMergeHelper
 {
+    /// <summary>
+    /// Applies the <c>Properties</c> object of an incoming payload over an entity's stored properties, for the
+    /// catalog handlers that map recipe, deployment and API JSON onto a record.
+    /// </summary>
+    /// <param name="entity">The entity whose stored properties are updated.</param>
+    /// <param name="json">The incoming payload.</param>
+    /// <remarks>
+    /// An entry the payload leaves out keeps its stored value, at every level, so a partial update never erases
+    /// a connection or a secret it did not mention. Keys match without regard to case, like the
+    /// <see cref="ExtensibleEntity.Properties"/> dictionary itself. A top-level entry sent as <see langword="null"/>
+    /// is removed; a nested field sent as <see langword="null"/> is cleared.
+    /// </remarks>
+    public static void MergeProperties(ExtensibleEntity entity, JsonObject json)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+
+        if (!json.TryGetObjectValue(nameof(ExtensibleEntity.Properties), out var incoming) || incoming is null)
+        {
+            return;
+        }
+
+        var options = ExtensibleEntityExtensions.JsonSerializerOptions;
+        var current = JsonExtensions.FromObject(entity.Properties ?? new Dictionary<string, object>(), options);
+
+        foreach (var (incomingKey, value) in incoming)
+        {
+            var key = FindKeyIgnoringCase(current, incomingKey) ?? incomingKey;
+
+            if (value is null)
+            {
+                current.Remove(key);
+
+                continue;
+            }
+
+            if (value is JsonObject incomingObject && current[key] is JsonObject currentObject)
+            {
+                MergeIgnoringCase(currentObject, incomingObject);
+
+                continue;
+            }
+
+            current[key] = value.DeepClone();
+        }
+
+        var merged = JsonSerializer.Deserialize<Dictionary<string, object>>(current, options);
+
+        entity.Properties = merged is null
+            ? new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, object>(merged, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static void MergeIgnoringCase(JsonObject target, JsonObject source)
+    {
+        foreach (var (sourceKey, value) in source)
+        {
+            var key = FindKeyIgnoringCase(target, sourceKey) ?? sourceKey;
+
+            if (value is JsonObject sourceObject && target[key] is JsonObject targetObject)
+            {
+                MergeIgnoringCase(targetObject, sourceObject);
+
+                continue;
+            }
+
+            target[key] = value?.DeepClone();
+        }
+    }
+
+    private static string FindKeyIgnoringCase(JsonObject target, string key)
+    {
+        if (target.ContainsKey(key))
+        {
+            return key;
+        }
+
+        foreach (var (existingKey, _) in target)
+        {
+            if (string.Equals(existingKey, key, StringComparison.OrdinalIgnoreCase))
+            {
+                return existingKey;
+            }
+        }
+
+        return null;
+    }
+
     public static void Merge(JsonObject target, JsonObject source)
     {
         ArgumentNullException.ThrowIfNull(target);

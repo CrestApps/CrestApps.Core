@@ -463,6 +463,8 @@ public sealed class AIToolInstanceTests
             RefreshToken = "refresh-1",
             TokenType = "Bearer",
             ExpiresAtUtc = time.GetUtcNow().AddMinutes(-5),
+            BaseUrl = settings.BaseUrl,
+            TokenEndpoint = tokenEndpoint,
         });
 
         var function = new HttpApiRequestToolFunction("oauth_tool", "Calls an OAuth2 API.", settings, instance);
@@ -517,6 +519,264 @@ public sealed class AIToolInstanceTests
         Assert.Equal("tok3", handler.ApiRequests[0].Headers.Authorization!.Parameter);
     }
 
+    [Fact]
+    public async Task HttpApiRequestToolFunction_OAuth2_RecordsTheAddressesTheTokenWasIssuedFor()
+    {
+        const string tokenEndpoint = "https://login.example.com/token";
+        var handler = new OAuthRoutingHandler(tokenEndpoint, "{\"access_token\":\"tok1\",\"expires_in\":3600}");
+        var time = new FixedTimeProvider(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var provider = BuildOAuthProvider(handler, time);
+        var settings = CreateOAuthSettings("https://api.example.com", tokenEndpoint);
+        var instance = CreateOAuthInstance("oauth-addr", settings);
+
+        var function = new HttpApiRequestToolFunction("oauth_tool", "Calls an OAuth2 API.", settings, instance);
+
+        await function.InvokeAsync(new AIFunctionArguments { Services = provider }, TestContext.Current.CancellationToken);
+
+        Assert.True(instance.TryGet<HttpApiRequestTokenState>(out var state));
+        Assert.Equal("https://api.example.com", state.BaseUrl);
+        Assert.Equal(tokenEndpoint, state.TokenEndpoint);
+    }
+
+    [Fact]
+    public async Task HttpApiRequestToolFunction_OAuth2_IgnoresCachedTokenIssuedForAnotherBaseUrl()
+    {
+        const string tokenEndpoint = "https://login.example.com/token";
+        var handler = new OAuthRoutingHandler(tokenEndpoint, "{\"access_token\":\"new-token\",\"expires_in\":3600}");
+        var time = new FixedTimeProvider(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var provider = BuildOAuthProvider(handler, time);
+        var settings = CreateOAuthSettings("https://other-api.example.net", tokenEndpoint);
+        var instance = CreateOAuthInstance("oauth-moved", settings);
+        instance.Put(new HttpApiRequestTokenState
+        {
+            AccessToken = "old-host-token",
+            RefreshToken = "old-refresh",
+            ExpiresAtUtc = time.GetUtcNow().AddHours(1),
+            BaseUrl = "https://api.example.com",
+            TokenEndpoint = tokenEndpoint,
+        });
+
+        var function = new HttpApiRequestToolFunction("oauth_tool", "Calls an OAuth2 API.", settings, instance);
+
+        await function.InvokeAsync(new AIFunctionArguments { Services = provider }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, handler.TokenRequestCount);
+        Assert.DoesNotContain("refresh_token", handler.TokenRequestBodies[0]);
+        Assert.Contains("grant_type=client_credentials", handler.TokenRequestBodies[0]);
+        Assert.Single(handler.ApiRequests);
+        Assert.Equal("other-api.example.net", handler.ApiRequests[0].RequestUri!.Host);
+        Assert.Equal("new-token", handler.ApiRequests[0].Headers.Authorization!.Parameter);
+    }
+
+    [Fact]
+    public async Task HttpApiRequestToolFunction_OAuth2_DoesNotPostRefreshTokenToAnotherTokenEndpoint()
+    {
+        const string oldTokenEndpoint = "https://login.example.com/token";
+        const string newTokenEndpoint = "https://login.example.net/token";
+        var handler = new OAuthRoutingHandler(newTokenEndpoint, "{\"access_token\":\"new-token\",\"expires_in\":3600}");
+        var time = new FixedTimeProvider(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var provider = BuildOAuthProvider(handler, time);
+        var settings = CreateOAuthSettings("https://api.example.com", newTokenEndpoint);
+        var instance = CreateOAuthInstance("oauth-endpoint", settings);
+        instance.Put(new HttpApiRequestTokenState
+        {
+            AccessToken = "expired-token",
+            RefreshToken = "old-refresh",
+            ExpiresAtUtc = time.GetUtcNow().AddMinutes(-5),
+            BaseUrl = "https://api.example.com",
+            TokenEndpoint = oldTokenEndpoint,
+        });
+
+        var function = new HttpApiRequestToolFunction("oauth_tool", "Calls an OAuth2 API.", settings, instance);
+
+        await function.InvokeAsync(new AIFunctionArguments { Services = provider }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, handler.TokenRequestCount);
+        Assert.DoesNotContain("old-refresh", handler.TokenRequestBodies[0]);
+        Assert.Contains("grant_type=client_credentials", handler.TokenRequestBodies[0]);
+        Assert.Equal("new-token", handler.ApiRequests[0].Headers.Authorization!.Parameter);
+    }
+
+    [Fact]
+    public async Task HttpApiRequestToolFunction_OAuth2_IgnoresCachedTokenWithoutRecordedAddresses()
+    {
+        const string tokenEndpoint = "https://login.example.com/token";
+        var handler = new OAuthRoutingHandler(tokenEndpoint, "{\"access_token\":\"new-token\",\"expires_in\":3600}");
+        var time = new FixedTimeProvider(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var provider = BuildOAuthProvider(handler, time);
+        var settings = CreateOAuthSettings("https://api.example.com", tokenEndpoint);
+        var instance = CreateOAuthInstance("oauth-legacy", settings);
+        instance.Put(new HttpApiRequestTokenState
+        {
+            AccessToken = "legacy-token",
+            RefreshToken = "legacy-refresh",
+            ExpiresAtUtc = time.GetUtcNow().AddHours(1),
+        });
+
+        var function = new HttpApiRequestToolFunction("oauth_tool", "Calls an OAuth2 API.", settings, instance);
+
+        await function.InvokeAsync(new AIFunctionArguments { Services = provider }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, handler.TokenRequestCount);
+        Assert.DoesNotContain("legacy-refresh", handler.TokenRequestBodies[0]);
+        Assert.Equal("new-token", handler.ApiRequests[0].Headers.Authorization!.Parameter);
+    }
+
+    [Fact]
+    public async Task HttpApiRequestToolFunction_OAuth2_DoesNotSendExpiredTokenWhenTokenRequestFails()
+    {
+        const string tokenEndpoint = "https://login.example.com/token";
+        var handler = new OAuthRoutingHandler(tokenEndpoint, "{\"error\":\"invalid_grant\"}")
+        {
+            TokenStatusCode = HttpStatusCode.BadRequest,
+        };
+        var time = new FixedTimeProvider(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var provider = BuildOAuthProvider(handler, time);
+        var settings = CreateOAuthSettings("https://api.example.com", tokenEndpoint);
+        var instance = CreateOAuthInstance("oauth-expired", settings);
+        instance.Put(new HttpApiRequestTokenState
+        {
+            AccessToken = "expired-token",
+            RefreshToken = "refresh-1",
+            ExpiresAtUtc = time.GetUtcNow().AddMinutes(-5),
+            BaseUrl = settings.BaseUrl,
+            TokenEndpoint = tokenEndpoint,
+        });
+
+        var function = new HttpApiRequestToolFunction("oauth_tool", "Calls an OAuth2 API.", settings, instance);
+
+        await function.InvokeAsync(new AIFunctionArguments { Services = provider }, TestContext.Current.CancellationToken);
+
+        Assert.Single(handler.ApiRequests);
+        Assert.Null(handler.ApiRequests[0].Headers.Authorization);
+    }
+
+    [Fact]
+    public async Task HttpApiRequestToolFunction_OAuth2_PersistsTokenStateOntoTheStoredInstance()
+    {
+        const string tokenEndpoint = "https://login.example.com/token";
+        var handler = new OAuthRoutingHandler(tokenEndpoint, "{\"access_token\":\"tok1\",\"expires_in\":3600}");
+        var time = new FixedTimeProvider(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var settings = CreateOAuthSettings("https://api.example.com", tokenEndpoint);
+        var instance = CreateOAuthInstance("oauth-persist", settings);
+
+        // The stored copy differs only in a setting the token does not depend on.
+        var stored = instance.Clone();
+        stored.Description = "Edited while the call ran.";
+
+        AIToolInstance updated = null;
+        var catalog = new Mock<ICatalog<AIToolInstance>>();
+        catalog
+            .Setup(c => c.FindByIdAsync("oauth-persist", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(stored);
+        catalog
+            .Setup(c => c.UpdateAsync(It.IsAny<AIToolInstance>(), It.IsAny<CancellationToken>()))
+            .Callback((AIToolInstance entry, CancellationToken _) => updated = entry)
+            .Returns(ValueTask.CompletedTask);
+
+        var provider = BuildOAuthProvider(handler, time, catalog: catalog.Object);
+        var function = new HttpApiRequestToolFunction("oauth_tool", "Calls an OAuth2 API.", settings, instance);
+
+        await function.InvokeAsync(new AIFunctionArguments { Services = provider }, TestContext.Current.CancellationToken);
+
+        Assert.Same(stored, updated);
+        Assert.Equal("Edited while the call ran.", updated.Description);
+        Assert.True(updated.TryGet<HttpApiRequestTokenState>(out var state));
+        Assert.Equal("tok1", state.AccessToken);
+        Assert.Equal(tokenEndpoint, state.TokenEndpoint);
+    }
+
+    [Theory]
+    [InlineData("BaseUrl")]
+    [InlineData("TokenEndpoint")]
+    [InlineData("AuthenticationType")]
+    [InlineData("ClientId")]
+    [InlineData("Deleted")]
+    public async Task HttpApiRequestToolFunction_OAuth2_DoesNotPersistTokenStateWhenSettingsChangedDuringTheCall(string change)
+    {
+        const string tokenEndpoint = "https://login.example.com/token";
+        var handler = new OAuthRoutingHandler(tokenEndpoint, "{\"access_token\":\"tok1\",\"expires_in\":3600}");
+        var time = new FixedTimeProvider(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var settings = CreateOAuthSettings("https://api.example.com", tokenEndpoint);
+        var instance = CreateOAuthInstance("oauth-race", settings);
+
+        AIToolInstance stored = null;
+
+        if (change != "Deleted")
+        {
+            var edited = CreateOAuthSettings("https://api.example.com", tokenEndpoint);
+
+            switch (change)
+            {
+                case "BaseUrl":
+                    edited.BaseUrl = "https://other-api.example.net";
+                    break;
+                case "TokenEndpoint":
+                    edited.TokenEndpoint = "https://login.example.net/token";
+                    break;
+                case "AuthenticationType":
+                    edited.AuthenticationType = HttpApiRequestAuthenticationType.Bearer;
+                    break;
+                case "ClientId":
+                    edited.ClientId = "other-client";
+                    break;
+            }
+
+            stored = instance.Clone();
+            stored.Put(edited);
+        }
+
+        var catalog = new Mock<ICatalog<AIToolInstance>>();
+        catalog
+            .Setup(c => c.FindByIdAsync("oauth-race", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(stored);
+
+        var provider = BuildOAuthProvider(handler, time, catalog: catalog.Object);
+        var function = new HttpApiRequestToolFunction("oauth_tool", "Calls an OAuth2 API.", settings, instance);
+
+        await function.InvokeAsync(new AIFunctionArguments { Services = provider }, TestContext.Current.CancellationToken);
+
+        // The call itself still used the token it obtained for the settings it started with.
+        Assert.Equal("tok1", handler.ApiRequests[0].Headers.Authorization!.Parameter);
+        catalog.Verify(c => c.UpdateAsync(It.IsAny<AIToolInstance>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.False(instance.TryGet<HttpApiRequestTokenState>(out _));
+
+        if (stored is not null)
+        {
+            Assert.False(stored.TryGet<HttpApiRequestTokenState>(out _));
+        }
+    }
+
+    private static HttpApiRequestToolSettings CreateOAuthSettings(string baseUrl, string tokenEndpoint)
+    {
+        return new HttpApiRequestToolSettings
+        {
+            BaseUrl = baseUrl,
+            HttpMethod = "GET",
+            AuthenticationType = HttpApiRequestAuthenticationType.OAuth2,
+            TokenEndpoint = tokenEndpoint,
+            ClientId = "client",
+            ClientSecret = "secret",
+            AllowModelProvidedPath = false,
+            AllowModelProvidedQuery = false,
+            AllowModelProvidedBody = false,
+        };
+    }
+
+    private static AIToolInstance CreateOAuthInstance(string itemId, HttpApiRequestToolSettings settings)
+    {
+        var instance = new AIToolInstance
+        {
+            ItemId = itemId,
+            Source = HttpApiRequestToolConstants.SourceName,
+            Name = "oauth_tool",
+        };
+
+        instance.Put(settings);
+
+        return instance;
+    }
+
     private static AIToolInstance CreateWeatherInstance(string itemId, string name, string description)
     {
         var instance = new AIToolInstance
@@ -562,7 +822,11 @@ public sealed class AIToolInstanceTests
         return services.BuildServiceProvider();
     }
 
-    private static ServiceProvider BuildOAuthProvider(HttpMessageHandler handler, TimeProvider timeProvider, bool withDataProtection = false)
+    private static ServiceProvider BuildOAuthProvider(
+        HttpMessageHandler handler,
+        TimeProvider timeProvider,
+        bool withDataProtection = false,
+        ICatalog<AIToolInstance> catalog = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -572,6 +836,11 @@ public sealed class AIToolInstanceTests
         if (withDataProtection)
         {
             services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
+        }
+
+        if (catalog is not null)
+        {
+            services.AddSingleton(catalog);
         }
 
         return services.BuildServiceProvider();
@@ -636,6 +905,8 @@ public sealed class AIToolInstanceTests
 
         public int TokenRequestCount { get; private set; }
 
+        public HttpStatusCode TokenStatusCode { get; init; } = HttpStatusCode.OK;
+
         public List<string> TokenRequestBodies { get; } = [];
 
         public List<HttpRequestMessage> ApiRequests { get; } = [];
@@ -655,7 +926,7 @@ public sealed class AIToolInstanceTests
                     ? _tokenResponses.Dequeue()
                     : _tokenResponses.Peek();
 
-                return new HttpResponseMessage(HttpStatusCode.OK)
+                return new HttpResponseMessage(TokenStatusCode)
                 {
                     Content = new StringContent(body),
                 };

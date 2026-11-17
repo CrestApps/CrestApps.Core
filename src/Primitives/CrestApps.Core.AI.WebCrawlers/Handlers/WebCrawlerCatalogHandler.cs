@@ -265,6 +265,11 @@ internal sealed class WebCrawlerCatalogHandler : CatalogEntryHandlerBase<WebCraw
             crawler.ReindexIntervalMinutes = reindexIntervalMinutes;
         }
 
+        // The connection settings (host, port, user name, host key, protected secrets) and the connector's or
+        // strategy's other settings live in Properties, so a recipe, a deployment import or an API update that
+        // left them out would create a record with no connection and could never change one.
+        AIPropertiesMergeHelper.MergeProperties(crawler, json);
+
         return Task.CompletedTask;
     }
 }
