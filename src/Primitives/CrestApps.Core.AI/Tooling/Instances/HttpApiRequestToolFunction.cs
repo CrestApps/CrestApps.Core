@@ -361,7 +361,19 @@ public sealed class HttpApiRequestToolFunction : AIFunction
 
         if (_instance is not null && _instance.TryGet<HttpApiRequestTokenState>(out var cached))
         {
-            state = cached;
+            // A token is only good for the addresses it was issued for. A state left from before the base URL
+            // or the token endpoint changed (or one stored before the addresses were recorded) is ignored, so
+            // its access token is not sent to the new host and its refresh token is not posted to the new endpoint.
+            if (IsIssuedFor(cached, _settings))
+            {
+                state = cached;
+            }
+            else if (logger?.IsEnabled(LogLevel.Debug) == true)
+            {
+                logger.LogDebug(
+                    "AI tool '{ToolName}' ignored a cached OAuth2 token state issued for other addresses.",
+                    _name);
+            }
         }
 
         if (state is not null &&
@@ -380,8 +392,12 @@ public sealed class HttpApiRequestToolFunction : AIFunction
 
         if (result is null || string.IsNullOrEmpty(result.AccessToken))
         {
-            // Fall back to any previously cached token, even if it may be expired.
-            return state is not null
+            // Only a cached token that has not expired yet (one inside the renewal margin) is still usable. An
+            // expired token is never sent: the request goes out without credentials and the API answers for itself.
+            return state is not null &&
+                !string.IsNullOrEmpty(state.AccessToken) &&
+                state.ExpiresAtUtc is { } cachedExpiresAt &&
+                cachedExpiresAt > now
                 ? Unprotect(services, state.AccessToken)
                 : null;
         }
@@ -398,6 +414,8 @@ public sealed class HttpApiRequestToolFunction : AIFunction
                 : Protect(services, result.RefreshToken),
             TokenType = result.TokenType,
             ExpiresAtUtc = expiresAtUtc,
+            BaseUrl = NormalizeAddress(_settings.BaseUrl),
+            TokenEndpoint = NormalizeAddress(_settings.TokenEndpoint),
         };
 
         await PersistTokenStateAsync(services, newState, logger, cancellationToken);
@@ -569,24 +587,98 @@ public sealed class HttpApiRequestToolFunction : AIFunction
             return;
         }
 
-        // Cache in-memory so a subsequent tool call within the same request reuses the token.
-        _instance.Put(state);
-
         var catalog = services?.GetService<ICatalog<AIToolInstance>>();
 
         if (catalog is null)
         {
+            // Cache in-memory so a subsequent tool call within the same request reuses the token.
+            _instance.Put(state);
+
             return;
         }
 
         try
         {
-            await catalog.UpdateAsync(_instance, cancellationToken);
+            // The token request can take a while, and the instance may have been edited meanwhile. The stored
+            // instance is read again so the state is written onto the current settings (saving this call's copy
+            // would undo the edit), and it is not written at all when the settings the token depends on changed:
+            // the token was issued for the old ones.
+            var current = string.IsNullOrEmpty(_instance.ItemId)
+                ? null
+                : await catalog.FindByIdAsync(_instance.ItemId, cancellationToken);
+
+            if (current is null)
+            {
+                if (logger?.IsEnabled(LogLevel.Debug) == true)
+                {
+                    logger.LogDebug(
+                        "AI tool '{ToolName}' did not cache the OAuth2 token state because the instance no longer exists.",
+                        _name);
+                }
+
+                return;
+            }
+
+            if (!current.TryGet<HttpApiRequestToolSettings>(out var currentSettings) ||
+                !HasSameTokenSettings(currentSettings, _settings))
+            {
+                if (logger?.IsEnabled(LogLevel.Debug) == true)
+                {
+                    logger.LogDebug(
+                        "AI tool '{ToolName}' did not cache the OAuth2 token state because the instance's settings changed during the call.",
+                        _name);
+                }
+
+                return;
+            }
+
+            _instance.Put(state);
+
+            if (!ReferenceEquals(current, _instance))
+            {
+                current.Put(state);
+            }
+
+            await catalog.UpdateAsync(current, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
             logger?.LogWarning(ex, "AI tool '{ToolName}' could not persist the cached OAuth2 token state.", _name);
         }
+    }
+
+    private static bool IsIssuedFor(HttpApiRequestTokenState state, HttpApiRequestToolSettings settings)
+    {
+        return state.BaseUrl is not null &&
+            state.TokenEndpoint is not null &&
+            string.Equals(state.BaseUrl, NormalizeAddress(settings.BaseUrl), StringComparison.Ordinal) &&
+            string.Equals(state.TokenEndpoint, NormalizeAddress(settings.TokenEndpoint), StringComparison.Ordinal);
+    }
+
+    private static bool HasSameTokenSettings(HttpApiRequestToolSettings current, HttpApiRequestToolSettings original)
+    {
+        // Every setting the access token depends on: where it is used, where it comes from, and the credentials
+        // and scope it was requested with. The secrets are compared as stored (protected), which only changes
+        // when one is entered again.
+        return current.AuthenticationType == original.AuthenticationType &&
+            string.Equals(NormalizeAddress(current.BaseUrl), NormalizeAddress(original.BaseUrl), StringComparison.Ordinal) &&
+            string.Equals(NormalizeAddress(current.TokenEndpoint), NormalizeAddress(original.TokenEndpoint), StringComparison.Ordinal) &&
+            string.Equals(current.ClientId?.Trim(), original.ClientId?.Trim(), StringComparison.Ordinal) &&
+            string.Equals(current.ClientSecret, original.ClientSecret, StringComparison.Ordinal) &&
+            string.Equals(current.Username?.Trim(), original.Username?.Trim(), StringComparison.Ordinal) &&
+            string.Equals(current.Password, original.Password, StringComparison.Ordinal) &&
+            string.Equals(current.Scope?.Trim(), original.Scope?.Trim(), StringComparison.Ordinal);
+    }
+
+    private static string NormalizeAddress(string address)
+    {
+        return string.IsNullOrWhiteSpace(address)
+            ? string.Empty
+            : address.Trim();
     }
 
     private void ApplyDefaultHeaders(HttpRequestMessage request, AIToolParameterResolution resolution, ILogger logger)
