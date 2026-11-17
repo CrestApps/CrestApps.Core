@@ -278,6 +278,14 @@ transport. Over long polling the ambient `IHttpContextAccessor` has no context w
 connection's `HttpContext` on it for the invocation when it is empty; a custom `IAIVisitorIdentityResolver` that reads the
 accessor then sees the same request the default one does.
 
+An IPv6 client usually holds a whole /64, so the network-address key is the /64 in every visitor address mode: the Hashed
+and Encrypted modes hash the /64, and `ChatRateLimitKeyResolver` reduces a plain IPv6 `RemoteAddress` (PlainText mode) to
+`ip:{prefix}::/64`. The address stored on the session stays the full address.
+
+`SynthesizeSpeech` refuses text longer than `MaxSpeechTextLength` (10,000 characters by default) on both hubs, since the
+limit counts calls and not characters. The AI chat hub also refuses a profile that neither shows text-to-speech playback
+nor runs in Conversation mode; override `IsSpeechSynthesisEnabledAsync` to decide otherwise.
+
 ### Configuration
 
 | Option | Default | What it does |

@@ -358,6 +358,27 @@ public sealed class ChatInteractionHubTests
     }
 
     [Fact]
+    public async Task SynthesizeSpeech_WithTextOverTheCap_IsRefusedBeforeAnythingIsLoaded()
+    {
+        var managerMock = new Mock<ICatalogManager<ChatInteraction>>();
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton(managerMock.Object)
+            .BuildServiceProvider();
+        var callerMock = new Mock<IChatInteractionHubClient>();
+        var clientsMock = new Mock<IHubCallerClients<IChatInteractionHubClient>>();
+        clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
+        var hub = new TestChatInteractionHub(serviceProvider)
+        {
+            Clients = clientsMock.Object,
+        };
+
+        await hub.SynthesizeSpeech("chat-1", new string('a', 10_001));
+
+        callerMock.Verify(client => client.ReceiveError("The text is too long to read aloud."), Times.Once);
+        managerMock.Verify(manager => manager.FindByIdAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ClearHistory_DeletesPromptsAndInvokesHistoryHandlers()
     {
         // Arrange

@@ -172,6 +172,10 @@ test('both chat scripts register what they mount and skip rendered messages when
 
         const scan = source.slice(source.indexOf('function scanForAutoInitialization'), source.indexOf('function startAutoInitialization'));
 
-        assert.match(scan, /isInsideRenderedMessage/, `${name} auto-starts a chat from an element inside a rendered message`);
+        // chat-interaction.js shares one isPageMarkup with its settings collectors; it is the same question.
+        const asksSurface = /isInsideRenderedMessage/.test(scan)
+            || (/isPageMarkup\(/.test(scan) && /const isPageMarkup = element => !window\.CoreAIChatSurface\.isInsideRenderedMessage\(element\)/.test(source));
+
+        assert.ok(asksSurface, `${name} auto-starts a chat from an element inside a rendered message`);
     }
 });

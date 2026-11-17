@@ -816,6 +816,24 @@ was given, so it must not be able to write such an element. Two guards keep it f
   page for chat configurations should ask `window.CoreAIChatSurface.isInsideRenderedMessage(element)` before it starts
   one, and call `window.CoreAIChatSurface.registerRoot(element)` for the element it mounts a chat on.
 
+An answer is also kept away from the page's own controls:
+
+- Its `style` keeps only size, spacing, text and color properties (`width`, `height` and their `min-`/`max-` forms,
+  `margin` and `padding` without negative values, `display`, `text-align`, `vertical-align`, `white-space`, `word-break`,
+  `overflow-wrap`, `color`, `background-color`, `font-size`, `font-weight`, `font-style`, `line-height`,
+  `text-decoration`). Nothing that positions, moves, hides or stacks an element survives, so an answer cannot lay an
+  invisible element over the page to take the user's next click. The chat sets `position: relative` on a chart container
+  itself, when it draws the chart.
+- It cannot point at another element by id (`for`, `form`, `formaction`, `list`, `popovertarget`,
+  `popovertargetaction`, `commandfor`, `command` are removed), its form controls carry no `name`, its buttons are
+  `type="button"` and a task-list checkbox stays disabled, so it cannot press, submit or join a form of the page.
+- It cannot forge the approval buttons of a tool call (`data-agui-*` is removed), and the chat answers an approval only
+  from the `<button>` it rendered in that tool call's approval row.
+- A script that reads the page's own controls (settings inputs, tool checkboxes, prompt template cards) should read them
+  through `window.CoreAIChatSurface.queryPageElements(selector)` (or `queryPageElement`), which leaves out anything inside
+  a rendered message. The chat-interaction scripts and the shared settings pane do, so a look-alike control in an answer
+  is never saved as the user's setting.
+
 ### Interactive Charts
 
 The `GenerateChartTool` returns [Chart.js](https://www.chartjs.org/) configuration objects that the chat UI can render as interactive charts. To enable chart rendering, include the Chart.js library on your page:

@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Security.Claims;
 
 namespace CrestApps.Core.AI.Security;
@@ -88,17 +90,7 @@ public static class ChatRateLimitKeyResolver
     {
         ArgumentNullException.ThrowIfNull(visitorIdentity);
 
-        if (!string.IsNullOrWhiteSpace(visitorIdentity.RemoteAddressHash))
-        {
-            return $"ip-hash:{visitorIdentity.RemoteAddressHash}";
-        }
-
-        if (!string.IsNullOrWhiteSpace(visitorIdentity.RemoteAddress))
-        {
-            return $"ip:{visitorIdentity.RemoteAddress}";
-        }
-
-        return null;
+        return ResolveNetworkAddressKey(visitorIdentity.RemoteAddressHash, visitorIdentity.RemoteAddress);
     }
 
     private static List<string> ResolveAuthenticatedKeys(PromptSecurityContext context, ChatRateLimitPartition partitions)
@@ -172,16 +164,46 @@ public static class ChatRateLimitKeyResolver
 
     private static string ResolveNetworkAddressKey(PromptSecurityContext context)
     {
-        if (!string.IsNullOrWhiteSpace(context.RemoteAddressHash))
+        return ResolveNetworkAddressKey(context.RemoteAddressHash, context.RemoteAddress);
+    }
+
+    private static string ResolveNetworkAddressKey(string remoteAddressHash, string remoteAddress)
+    {
+        if (!string.IsNullOrWhiteSpace(remoteAddressHash))
         {
-            return $"ip-hash:{context.RemoteAddressHash}";
+            return $"ip-hash:{remoteAddressHash}";
         }
 
-        if (!string.IsNullOrWhiteSpace(context.RemoteAddress))
+        if (!string.IsNullOrWhiteSpace(remoteAddress))
         {
-            return $"ip:{context.RemoteAddress}";
+            return $"ip:{ToNetworkKey(remoteAddress.Trim())}";
         }
 
         return null;
+    }
+
+    // An IPv6 client usually holds a whole /64, so a client that rotates inside it would get a fresh allowance for every
+    // address. The hashed and encrypted visitor modes already hash the /64; a plain address (the plain-text mode, or a
+    // host that fills RemoteAddress itself) is reduced here, so every mode keys on the same network. The stored address
+    // is not changed. Anything that is not an IPv6 address (IPv4, "unknown", an encrypted value) is kept as it is.
+    private static string ToNetworkKey(string remoteAddress)
+    {
+        if (!IPAddress.TryParse(remoteAddress, out var address) ||
+            address.AddressFamily != AddressFamily.InterNetworkV6)
+        {
+            return remoteAddress;
+        }
+
+        // ::ffff:a.b.c.d and a.b.c.d are one client.
+        if (address.IsIPv4MappedToIPv6)
+        {
+            return address.MapToIPv4().ToString();
+        }
+
+        var bytes = address.GetAddressBytes();
+
+        Array.Clear(bytes, 8, 8);
+
+        return new IPAddress(bytes) + "/64";
     }
 }

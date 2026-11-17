@@ -18,6 +18,13 @@
 
 window.chatInteractionManager = function () {
 
+    // The page's own controls, never a look-alike inside a rendered answer. An answer is written by a model, and the
+    // settings below are read from the whole document, so a forged prompt template card, tool checkbox or setting input
+    // in an answer would otherwise be saved as the user's choice. See CoreAIChatSurface in chat-markers.js.
+    const isPageMarkup = element => !window.CoreAIChatSurface.isInsideRenderedMessage(element);
+    const queryPageElements = selector => window.CoreAIChatSurface.queryPageElements(selector);
+    const queryPageElement = selector => window.CoreAIChatSurface.queryPageElement(selector);
+
     // Defaults (can be overridden by instanceConfig)
     var defaultConfig = {
         // UI defaults for generated media
@@ -446,7 +453,9 @@ window.chatInteractionManager = function () {
     window.__chartConfigs = window.__chartConfigs || {};
 
     function createChartHtml(chartId) {
-        return `<div class="chart-container" style="position: relative; width: 100%; max-width: 560px; min-height: 420px;">`
+        // No position here: the sanitizer keeps none in a message's style. The container is made relative when the chart
+        // is drawn, which is when Chart.js needs it.
+        return `<div class="chart-container" style="width: 100%; max-width: 560px; min-height: 420px;">`
             + `<canvas id="${chartId}"></canvas>`
             + `</div>`
             + `<div class="mt-2">`
@@ -614,6 +623,12 @@ window.chatInteractionManager = function () {
                     cfg.options.responsive = true;
                     cfg.options.maintainAspectRatio = true;
                     cfg.options.aspectRatio ??= 4 / 3;
+
+                    // Chart.js sizes a responsive chart from its container, which has to be positioned. A message's style keeps no
+                    // position, so it is set here, on the container the chat rendered around this canvas.
+                    if (canvas.parentElement) {
+                        canvas.parentElement.style.position = 'relative';
+                    }
 
                     canvas._chartInstance = new Chart(canvas, cfg);
                 } catch (e) {
@@ -797,7 +812,7 @@ window.chatInteractionManager = function () {
                     this.connection.on("LoadInteraction", (data) => {
                         this.initializeInteraction(data.itemId, true);
                         this.messages = [];// Update the title field if it exists
-                        const titleInput = document.querySelector('[data-chat-interaction-title], .setting-input[data-setting="title"], input[name="ChatInteraction.Title"], input[name="Title"]');
+                        const titleInput = queryPageElement('[data-chat-interaction-title], .setting-input[data-setting="title"], input[name="ChatInteraction.Title"], input[name="Title"]');
                         if (titleInput && data.title) {
                             titleInput.value = data.title;
                         }
@@ -814,12 +829,12 @@ window.chatInteractionManager = function () {
                     this.connection.on("SettingsSaved", (itemId, title) => {
                         // Update the history list item if it exists
                         // Use a more specific selector to only target history list items, not other elements like the Clear History button
-                        const historyItem = document.querySelector(`.chat-interaction-history-item[data-interaction-id="${itemId}"]`);
+                        const historyItem = queryPageElement(`.chat-interaction-history-item[data-interaction-id="${CSS.escape(String(itemId))}"]`);
                         if (historyItem) {
                             historyItem.textContent = title || config.untitledText;
                         }
 
-                        const titleInput = document.querySelector('[data-chat-interaction-title], .setting-input[data-setting="title"], input[name="ChatInteraction.Title"], input[name="Title"]');
+                        const titleInput = queryPageElement('[data-chat-interaction-title], .setting-input[data-setting="title"], input[name="ChatInteraction.Title"], input[name="Title"]');
                         if (titleInput && title) {
                             titleInput.value = title;
                         }
@@ -1976,19 +1991,19 @@ window.chatInteractionManager = function () {
                     this.debouncedSaveSettings();
                 },
                 getSettingInputs() {
-                    const explicitInputs = document.querySelectorAll('.setting-input[data-setting]');
+                    const explicitInputs = queryPageElements('.setting-input[data-setting]');
                     if (explicitInputs.length > 0) {
                         return explicitInputs;
                     }
 
-                    return document.querySelectorAll(
+                    return queryPageElements(
                         'input[name^="ChatInteraction."]:not([name*=".Tools["]):not([name*=".Connections["]):not([name*=".Instances["]), ' +
                         'select[name^="ChatInteraction."]:not([name*=".Tools["]):not([name*=".Connections["]):not([name*=".Instances["]), ' +
                         'textarea[name^="ChatInteraction."]:not([name*=".Tools["]):not([name*=".Connections["]):not([name*=".Instances["])'
                     );
                 },
                 getSelectedGroupValues(groupName, fallbackSelector) {
-                    const explicitSelections = document.querySelectorAll(`.capability-checkbox[data-save-group="${groupName}"]:checked, .capability-checkbox[data-group="${groupName}"]:checked`);
+                    const explicitSelections = queryPageElements(`.capability-checkbox[data-save-group="${groupName}"]:checked, .capability-checkbox[data-group="${groupName}"]:checked`);
                     if (explicitSelections.length > 0) {
                         const values = [];
 
@@ -2007,11 +2022,11 @@ window.chatInteractionManager = function () {
                     }
 
                     const values = [];
-                    const checkboxes = document.querySelectorAll(fallbackSelector);
+                    const checkboxes = queryPageElements(fallbackSelector);
 
                     checkboxes.forEach(checkbox => {
                         const baseName = checkbox.name.replace('.IsSelected', '.ItemId');
-                        const hiddenInput = document.querySelector(`input[type="hidden"][name="${baseName}"]`);
+                        const hiddenInput = queryPageElement(`input[type="hidden"][name="${CSS.escape(baseName)}"]`);
 
                         if (hiddenInput && hiddenInput.value) {
                             values.push(hiddenInput.value);
@@ -2023,7 +2038,7 @@ window.chatInteractionManager = function () {
                 getPromptTemplateSelections() {
                     const promptTemplates = [];
 
-                    document.querySelectorAll('.prompt-template-card').forEach(card => {
+                    queryPageElements('.prompt-template-card').forEach(card => {
                         const templateIdInput = card.querySelector('.prompt-template-id-input');
                         const promptParametersInput = card.querySelector('.prompt-template-parameters-input');
                         const templateId = templateIdInput ? templateIdInput.value : card.getAttribute('data-template-id');
@@ -2233,7 +2248,13 @@ window.chatInteractionManager = function () {
                         });
                     }
 
+                    // The settings listeners are delegated from the document, so each one first makes sure the element is
+                    // the page's own and not a look-alike inside a rendered answer.
                     document.addEventListener('input', event => {
+                        if (!isPageMarkup(event.target)) {
+                            return;
+                        }
+
                         if (event.target.matches('.setting-input[data-setting]')) {
                             this.validateSettingInput(event.target);
                             this.queueSettingsSave();
@@ -2241,6 +2262,10 @@ window.chatInteractionManager = function () {
                     });
 
                     document.addEventListener('change', event => {
+                        if (!isPageMarkup(event.target)) {
+                            return;
+                        }
+
                         if (event.target.matches('.setting-input[data-setting], .capability-checkbox[data-save-group], .capability-checkbox[data-group], .group-toggle, .ci-agent-global-toggle')) {
                             if (event.target.matches('.setting-input[data-setting]')) {
                                 this.validateSettingInput(event.target);
@@ -2256,7 +2281,9 @@ window.chatInteractionManager = function () {
                     });
 
                     document.addEventListener('click', event => {
-                        if (!event.target.closest('.prompt-template-add-btn, .remove-prompt-template-btn')) {
+                        const button = event.target.closest('.prompt-template-add-btn, .remove-prompt-template-btn');
+
+                        if (!button || !isPageMarkup(button)) {
                             return;
                         }
 
@@ -2581,7 +2608,7 @@ window.chatInteractionManager = function () {
                     );
                 },
                 hasToolInstanceSelector() {
-                    return document.querySelector('.capability-checkbox[data-save-group="toolInstanceNames"], .capability-checkbox[data-group="toolInstanceNames"]') !== null;
+                    return queryPageElement('.capability-checkbox[data-save-group="toolInstanceNames"], .capability-checkbox[data-group="toolInstanceNames"]') !== null;
                 },
                 getSelectedToolInstanceNames() {
                     return this.getSelectedGroupValues('toolInstanceNames');
@@ -2897,8 +2924,6 @@ window.chatInteractionManager = function () {
 
         // A message is written by a model: an element in one that carries a chat configuration is the answer's, not the
         // page's, and starting a chat from it would compile the template the answer chose.
-        const isPageMarkup = element => !window.CoreAIChatSurface.isInsideRenderedMessage(element);
-
         if (typeof root.matches === 'function' && root.matches(autoInitializeSelector) && isPageMarkup(root)) {
             initializeFromElement(root);
         }

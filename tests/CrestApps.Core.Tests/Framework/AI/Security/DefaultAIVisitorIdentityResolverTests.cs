@@ -213,6 +213,21 @@ public sealed class DefaultAIVisitorIdentityResolverTests
         Assert.Equal("2001:db8:1:2:aaaa:bbbb:cccc:dddd", identity.RemoteAddress);
     }
 
+    [Theory]
+    [InlineData(AIVisitorRemoteAddressMode.PlainText)]
+    [InlineData(AIVisitorRemoteAddressMode.Hashed)]
+    [InlineData(AIVisitorRemoteAddressMode.Encrypted)]
+    public void Resolve_InEveryMode_TheLimiterKeysAnIPv6ClientOnItsSlash64(AIVisitorRemoteAddressMode mode)
+    {
+        var one = ChatRateLimitKeyResolver.ResolveNetworkAddressKey(CreateResolverFor(System.Net.IPAddress.Parse("2001:db8:1:2::1"), mode).Resolve());
+        var other = ChatRateLimitKeyResolver.ResolveNetworkAddressKey(CreateResolverFor(System.Net.IPAddress.Parse("2001:db8:1:2:aaaa:bbbb:cccc:dddd"), mode).Resolve());
+        var elsewhere = ChatRateLimitKeyResolver.ResolveNetworkAddressKey(CreateResolverFor(System.Net.IPAddress.Parse("2001:db8:1:3::1"), mode).Resolve());
+
+        Assert.NotNull(one);
+        Assert.Equal(one, other);
+        Assert.NotEqual(one, elsewhere);
+    }
+
     [Fact]
     public void Resolve_CalledTwiceInOneRequest_GivesTheSameNewVisitorAndWritesOneCookie()
     {

@@ -6,6 +6,12 @@
 	//#region src/Resources/CrestApps.AI.Resources/Assets/js/chat-interaction-settings.js
 	(function() {
 		"use strict";
+		function isPageMarkup(element) {
+			return !(window.CoreAIChatSurface && window.CoreAIChatSurface.isInsideRenderedMessage(element));
+		}
+		function pageElements(selector) {
+			return Array.prototype.filter.call(document.querySelectorAll(selector), isPageMarkup);
+		}
 		function getStatusElement(id) {
 			return id ? document.getElementById(id) : null;
 		}
@@ -56,14 +62,14 @@
 		}
 		function hasInvalidSettings() {
 			var isValid = true;
-			document.querySelectorAll(".setting-input[type=\"number\"]").forEach(function(input) {
+			pageElements(".setting-input[type=\"number\"]").forEach(function(input) {
 				if (!validateSettingInput(input)) isValid = false;
 			});
 			return !isValid;
 		}
 		function collectSettings() {
 			var settings = {};
-			document.querySelectorAll(".setting-input").forEach(function(el) {
+			pageElements(".setting-input").forEach(function(el) {
 				var key = el.dataset.setting;
 				if (!key) return;
 				if (el.type === "checkbox") {
@@ -75,7 +81,7 @@
 				else settings[key] = val || null;
 			});
 			var groups = {};
-			document.querySelectorAll(".capability-checkbox").forEach(function(cb) {
+			pageElements(".capability-checkbox").forEach(function(cb) {
 				var group = cb.dataset.group;
 				if (!group) return;
 				if (!groups[group]) groups[group] = [];
@@ -83,7 +89,7 @@
 			});
 			for (var g in groups) settings[g] = groups[g];
 			var promptTemplates = [];
-			document.querySelectorAll(".prompt-template-card").forEach(function(card) {
+			pageElements(".prompt-template-card").forEach(function(card) {
 				var idEl = card.querySelector(".prompt-template-id-input");
 				var paramsEl = card.querySelector(".prompt-template-parameters-input");
 				var tid = idEl ? idEl.value : card.dataset.templateId || "";
@@ -114,7 +120,7 @@
 			}
 			var hubUrl = config.hubUrl || "/hubs/chat-interaction";
 			var statusEl = getStatusElement(config.statusElementId || "chat-settings-save-status");
-			var dataSourceSelect = config.dataSourceSelectId ? document.getElementById(config.dataSourceSelectId) : document.querySelector(".setting-input[data-setting=\"dataSourceId\"]");
+			var dataSourceSelect = config.dataSourceSelectId ? document.getElementById(config.dataSourceSelectId) : pageElements(".setting-input[data-setting=\"dataSourceId\"]")[0] || null;
 			function toggleDataSourceDependentFields() {
 				var hasDataSource = !!(dataSourceSelect && dataSourceSelect.value && dataSourceSelect.value.trim() !== "");
 				document.querySelectorAll(".rag-data-source-filter-dependent").forEach(function(element) {
@@ -164,13 +170,13 @@
 					});
 				}, 500);
 			}
-			document.querySelectorAll(".setting-input").forEach(function(el) {
+			pageElements(".setting-input").forEach(function(el) {
 				if (el.type === "number") validateSettingInput(el);
 				el.addEventListener("input", debounceSave);
 				el.addEventListener("change", debounceSave);
 				el.addEventListener("blur", debounceSave);
 			});
-			document.querySelectorAll(".capability-checkbox").forEach(function(cb) {
+			pageElements(".capability-checkbox").forEach(function(cb) {
 				cb.addEventListener("change", debounceSave);
 			});
 			return {
@@ -200,8 +206,10 @@
 		}
 		function scanForAutoInitialization(root) {
 			if (!root || typeof root.querySelectorAll !== "function") return;
-			if (typeof root.matches === "function" && root.matches("[data-chat-interaction-settings-config]")) initializeFromElement(root);
-			root.querySelectorAll("[data-chat-interaction-settings-config]").forEach(initializeFromElement);
+			if (typeof root.matches === "function" && root.matches("[data-chat-interaction-settings-config]") && isPageMarkup(root)) initializeFromElement(root);
+			root.querySelectorAll("[data-chat-interaction-settings-config]").forEach(function(element) {
+				if (isPageMarkup(element)) initializeFromElement(element);
+			});
 		}
 		function startAutoInitialization() {
 			scanForAutoInitialization(document);

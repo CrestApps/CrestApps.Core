@@ -638,6 +638,67 @@ window.CoreAIImages = window.CoreAIImages || (function () {
     // Declarations made of names, plain values, colons and semicolons: no url(), no function at all, no escape, no quote.
     const safeStyle = /^[\w\s:;.%#,-]*$/;
 
+    // The only properties an answer's style keeps: size, spacing, text and color. Everything that takes an element out of
+    // the flow, moves it from where the flow put it, hides it or stacks it over something else (position, top, left,
+    // right, bottom, inset, transform, translate, opacity, z-index, float, margin below zero...) is dropped, because an
+    // answer that stretched an invisible element over the page would take the user's next click. A <label> of the
+    // answer's making would then press a real control of the page, and a link would open the answer's address.
+    const allowedStyleProperties = new Set([
+        'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height',
+        'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+        'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+        'display', 'text-align', 'vertical-align', 'white-space', 'word-break', 'overflow-wrap',
+        'color', 'background-color', 'font-size', 'font-weight', 'font-style', 'line-height', 'text-decoration'
+    ]);
+
+    // A negative margin pulls an element over its neighbours, so margins (and paddings, which cannot be negative
+    // anyway) keep only values with no minus sign.
+    const spacingProperty = /^(?:margin|padding)(?:-(?:top|right|bottom|left))?$/;
+
+    /*
+     * The declarations of an answer's style attribute that it may keep, written back as a style, or '' when none may.
+     * Nothing is kept from a style that does not pass safeStyle, since a style that can fetch is not trusted at all.
+     */
+    function safeStyleOf(style) {
+        if (typeof style !== 'string' || !safeStyle.test(style)) {
+            return '';
+        }
+
+        const kept = [];
+
+        for (const declaration of style.split(';')) {
+            const colon = declaration.indexOf(':');
+
+            if (colon < 0) {
+                continue;
+            }
+
+            const name = declaration.slice(0, colon).trim().toLowerCase();
+            const value = declaration.slice(colon + 1).trim();
+
+            if (!value || !allowedStyleProperties.has(name)) {
+                continue;
+            }
+
+            if (spacingProperty.test(name) && value.indexOf('-') >= 0) {
+                continue;
+            }
+
+            kept.push(name + ': ' + value + ';');
+        }
+
+        return kept.join(' ');
+    }
+
+    // Attributes that point at another element of the document by its id. An answer keeps no id of its own (see the
+    // attribute hook below), so each of these could only name a control of the page: a <label for> of the answer's
+    // making would press the page's own button or tick its own checkbox, a button's form would submit the page's form.
+    const pageReferenceAttributes = ['for', 'form', 'formaction', 'list', 'popovertarget', 'popovertargetaction', 'commandfor', 'command'];
+
+    // Form controls an answer may still contain. None may carry a name, so none can join a page form that the chat
+    // happens to sit inside, or pass for one of the page's own settings.
+    const formControlTags = ['INPUT', 'BUTTON', 'SELECT', 'TEXTAREA'];
+
     function withFetcherLimits(config) {
         const limited = Object.assign({}, config);
 
@@ -801,15 +862,40 @@ window.CoreAIImages = window.CoreAIImages || (function () {
                 return;
             }
 
-            // A style can fetch with url(), image-set() and friends, and a CSS escape can spell any of them. Only plain
-            // declarations (such as the size the chat gives its own images) are kept.
-            if (typeof node.getAttribute === 'function' && node.getAttribute('style') !== null && !safeStyle.test(node.getAttribute('style'))) {
-                node.removeAttribute('style');
+            const tagName = node.tagName.toUpperCase();
+
+            // A style can fetch with url(), image-set() and friends, and a CSS escape can spell any of them, and it can
+            // lay an invisible element over the page. Only plain declarations of the allowed properties (such as the size
+            // the chat gives its own images) are kept.
+            if (typeof node.getAttribute === 'function' && node.getAttribute('style') !== null) {
+                const style = safeStyleOf(node.getAttribute('style'));
+
+                if (style) {
+                    node.setAttribute('style', style);
+                } else {
+                    node.removeAttribute('style');
+                }
+            }
+
+            if (typeof node.removeAttribute === 'function') {
+                pageReferenceAttributes.forEach(function (name) {
+                    node.removeAttribute(name);
+                });
+            }
+
+            if (formControlTags.indexOf(tagName) >= 0) {
+                node.removeAttribute('name');
+            }
+
+            // A button submits the form it sits in unless told otherwise, and the chat may sit inside a page form.
+            if (tagName === 'BUTTON') {
+                node.setAttribute('type', 'button');
             }
 
             // The only <input> in an answer is the disabled checkbox Markdown writes for a task list. Every other type (an
-            // image button above all) can fetch or submit, so it is removed, and a checkbox keeps nothing that names an address.
-            if (node.tagName.toUpperCase() === 'INPUT') {
+            // image button above all) can fetch or submit, so it is removed, and a checkbox keeps nothing that names an
+            // address. It stays disabled, so it cannot be ticked into something a page form or a settings collector reads.
+            if (tagName === 'INPUT') {
                 if ((node.getAttribute('type') || '').toLowerCase() !== 'checkbox') {
                     node.remove();
 
@@ -817,13 +903,12 @@ window.CoreAIImages = window.CoreAIImages || (function () {
                 }
 
                 node.removeAttribute('src');
-                node.removeAttribute('formaction');
-                node.removeAttribute('form');
+                node.setAttribute('disabled', '');
 
                 return;
             }
 
-            if (node.tagName.toUpperCase() !== 'IMG') {
+            if (tagName !== 'IMG') {
                 return;
             }
 
@@ -861,7 +946,8 @@ window.CoreAIImages = window.CoreAIImages || (function () {
                 return;
             }
 
-            if (name.startsWith('data-coreai-') || name.startsWith('data-chat-interaction-')) {
+            // data-agui-* marks the approval buttons the chat renders for a tool call; an answer may not forge one.
+            if (name.startsWith('data-coreai-') || name.startsWith('data-chat-interaction-') || name.startsWith('data-agui-')) {
                 data.keepAttr = false;
             }
         };
@@ -921,8 +1007,28 @@ window.CoreAIChatSurface = window.CoreAIChatSurface || (function () {
         });
     }
 
+    /*
+     * The elements matching the selector that belong to the page itself, never to a rendered message. A script that
+     * reads the page's own controls (settings, tool checkboxes, prompt templates) must use this rather than
+     * document.querySelectorAll, or an answer that wrote a look-alike control would be read as one of the page's.
+     */
+    function queryPageElements(selector, scope) {
+        const root = scope || document;
+
+        return Array.prototype.filter.call(root.querySelectorAll(selector), function (element) {
+            return !isInsideRenderedMessage(element);
+        });
+    }
+
+    // The first element matching the selector that belongs to the page itself, or null.
+    function queryPageElement(selector, scope) {
+        return queryPageElements(selector, scope)[0] || null;
+    }
+
     return {
         registerRoot: registerRoot,
-        isInsideRenderedMessage: isInsideRenderedMessage
+        isInsideRenderedMessage: isInsideRenderedMessage,
+        queryPageElements: queryPageElements,
+        queryPageElement: queryPageElement
     };
 })();
