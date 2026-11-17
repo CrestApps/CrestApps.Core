@@ -98,6 +98,23 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
                 continue;
             }
 
+            // A tool that needs a person's approval is only offered when the caller can ask for one. Agents run
+            // inside a tool call, and realtime, background and other non-interactive requests have nobody to ask,
+            // so offering it there would run it unasked.
+            if (entry.RequiresApproval && !options.SupportsToolApproval)
+            {
+                AITelemetry.ToolDenials.Add(1, new KeyValuePair<string, object>(AITelemetry.ReasonTag, "approval"));
+
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Tool '{ToolName}' from {Source} ({Id}) requires approval and the caller cannot ask for one. Skipping.",
+                        entry.Name, entry.Source, entry.Id);
+                }
+
+                continue;
+            }
+
             if (entry.CreateAsync is null)
             {
                 _logger.LogWarning("Tool entry '{ToolName}' ({Id}) has no ToolFactory. Skipping.", entry.Name, entry.Id);

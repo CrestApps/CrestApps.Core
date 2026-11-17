@@ -122,6 +122,42 @@ public sealed class DefaultToolMaterializerTests
         Assert.Equal([tool], result.Tools);
     }
 
+    [Fact]
+    public async Task MaterializeAsync_WithoutApprovalSupport_LeavesOutToolsThatRequireApproval()
+    {
+        var read = new TestAIFunction("read-tool");
+        var delete = CreateEntry("delete", "delete", ToolRegistryEntrySource.Local, new TestAIFunction("delete-tool"));
+        delete.RequiresApproval = true;
+        IReadOnlyList<ToolRegistryEntry> entries =
+        [
+            delete,
+            CreateEntry("read", "read", ToolRegistryEntrySource.Local, read),
+        ];
+
+        // Agents, realtime sessions and background requests have nobody to ask; running the tool unasked would
+        // bypass the approval it requires.
+        var result = await CreateMaterializer().MaterializeAsync(entries, ToolMaterializationOptions.Default, TestContext.Current.CancellationToken);
+
+        Assert.Equal([read], result.Tools);
+        Assert.Empty(result.DeniedToolNames);
+    }
+
+    [Fact]
+    public async Task MaterializeAsync_WithApprovalSupport_WrapsToolsThatRequireApproval()
+    {
+        var delete = CreateEntry("delete", "delete", ToolRegistryEntrySource.Local, new TestAIFunction("delete-tool"));
+        delete.RequiresApproval = true;
+
+        var result = await CreateMaterializer().MaterializeAsync(
+            [delete],
+            new ToolMaterializationOptions { SupportsToolApproval = true },
+            TestContext.Current.CancellationToken);
+
+#pragma warning disable MEAI001 // ApprovalRequiredAIFunction is a preview API of Microsoft.Extensions.AI.
+        Assert.IsType<ApprovalRequiredAIFunction>(Assert.Single(result.Tools));
+#pragma warning restore MEAI001
+    }
+
     private static DefaultToolMaterializer CreateMaterializer(
         IAIToolAccessEvaluator evaluator = null,
         IOptions<AIToolDefinitionOptions> toolDefinitions = null)

@@ -32,7 +32,8 @@ public sealed class ToolMaterializationOptions
     /// Gets a value indicating whether the caller can ask a person to approve a tool call. When it is
     /// <see langword="true"/>, the tools whose entry sets <see cref="Models.ToolRegistryEntry.RequiresApproval"/>
     /// are wrapped in <see cref="Microsoft.Extensions.AI.ApprovalRequiredAIFunction"/>, so the function invocation
-    /// pauses for an approval instead of running them.
+    /// pauses for an approval instead of running them. When it is <see langword="false"/>, those tools are left out,
+    /// so they never run without the approval they require.
     /// </summary>
     public bool SupportsToolApproval { get; init; }
 }
