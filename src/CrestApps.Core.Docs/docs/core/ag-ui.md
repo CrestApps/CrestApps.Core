@@ -153,7 +153,7 @@ In a chat run that can ask for approvals (an AG-UI run), the tool is wrapped in 
 
 The resumed run makes the approved calls, tells the model about the rejected ones (which never run), and lets the model carry on. An interrupt the client did not answer counts as rejected. When the model calls several tools at once and one needs an approval, every call of that batch waits for one.
 
-Approvals happen only where someone can answer them: other callers (the text-only chat stream, background tasks, other channels) run the tool as before. A tool registry provider sets `ToolRegistryEntry.RequiresApproval` for its own tools. WebMCP tools marked `consequentialHint` need an approval in an AG-UI run unless the profile allows consequential page tools; see [WebMCP](../mcp/webmcp.md#annotations).
+Approvals happen only where someone can answer them. Other callers (the text-only chat stream, agents running inside a tool call, realtime sessions, background tasks, other channels) are not offered the tool at all, so the model never sees it there and it can never run without the approval it requires. A tool registry provider sets `ToolRegistryEntry.RequiresApproval` for its own tools. WebMCP tools marked `consequentialHint` need an approval in an AG-UI run unless the profile allows consequential page tools; see [WebMCP](../mcp/webmcp.md#annotations).
 
 ## Frontend tools
 
