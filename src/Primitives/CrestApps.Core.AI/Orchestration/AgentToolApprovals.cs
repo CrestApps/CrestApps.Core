@@ -105,16 +105,14 @@ internal sealed class AgentToolApprovals
     }
 
     /// <summary>
-    /// Marks the completion context of an agent's run: a tool that requires an approval never runs without one,
-    /// and the agent can ask for one only when its caller can.
+    /// Marks the completion context of an agent's run: the agent can ask for an approval only when its caller can.
+    /// Otherwise a tool of the agent that requires an approval does not run, as in any request that cannot ask.
     /// </summary>
     /// <param name="agentContext">The completion context of the agent's run.</param>
     /// <param name="canAsk">Whether the agent's caller can ask a person for an approval.</param>
     public static void ConfigureAgentContext(AICompletionContext agentContext, bool canAsk)
     {
         ArgumentNullException.ThrowIfNull(agentContext);
-
-        agentContext.AdditionalProperties[AICompletionContextKeys.ToolApprovalEnforced] = true;
 
         if (canAsk)
         {

@@ -96,17 +96,10 @@ public static class AICompletionContextKeys
     /// <summary>
     /// The key whose <see langword="true"/> value tells the tool pipeline that the caller can ask a person to
     /// approve a tool call, such as an AG-UI chat run. Tools that require an approval then pause the run for one
-    /// instead of running at once.
+    /// instead of running at once. When it is not set, such tools never run: each is replaced with one that does not
+    /// run and tells the model why.
     /// </summary>
     public const string ToolApprovalSupported = "ToolApprovalSupported";
-
-    /// <summary>
-    /// The key whose <see langword="true"/> value tells the tool pipeline that a tool that requires an approval
-    /// must never run without one. When the caller cannot ask a person (<see cref="ToolApprovalSupported"/> is not
-    /// set), such a tool is replaced with one that does not run and tells the model why. The run of an agent sets
-    /// it, so a tool inside an agent never runs unasked.
-    /// </summary>
-    public const string ToolApprovalEnforced = "ToolApprovalEnforced";
 
     /// <summary>
     /// The key of the context the client sent with the message (an <see cref="IReadOnlyList{T}"/> of

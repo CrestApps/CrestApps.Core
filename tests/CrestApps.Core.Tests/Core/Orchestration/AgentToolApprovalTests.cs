@@ -46,10 +46,9 @@ public sealed class AgentToolApprovalTests
         using var harness = new AgentApprovalTestHarness();
         var paused = await RunFirstTurnAsync(harness);
 
-        // The agent's run inherited that its caller can ask, and never runs such a tool unasked.
+        // The agent's run inherited that its caller can ask.
         var agentContext = Assert.Single(harness.AgentContexts.Built).CompletionContext;
         Assert.Equal(true, agentContext.AdditionalProperties[AICompletionContextKeys.ToolApprovalSupported]);
-        Assert.Equal(true, agentContext.AdditionalProperties[AICompletionContextKeys.ToolApprovalEnforced]);
 
         // The turn ended after the agent paused: the assistant's model was asked once, and wrote no answer.
         Assert.Single(harness.Model.AssistantRequests);
@@ -225,7 +224,6 @@ public sealed class AgentToolApprovalTests
 
         var agentContext = Assert.Single(harness.AgentContexts.Built).CompletionContext;
         Assert.False(agentContext.AdditionalProperties.ContainsKey(AICompletionContextKeys.ToolApprovalSupported));
-        Assert.Equal(true, agentContext.AdditionalProperties[AICompletionContextKeys.ToolApprovalEnforced]);
 
         // The agent's model read why the tool did not run, and the assistant got the agent's report.
         var told = FindResult(harness.Model.AgentRequests[^1], AgentApprovalTestHarness.DeleteCallId);
@@ -252,22 +250,22 @@ public sealed class AgentToolApprovalTests
     }
 
     [Fact]
-    public async Task TheMaterializer_ReplacesAToolThatRequiresApproval_OnlyWhenTheApprovalIsEnforcedAndCannotBeAsked()
+    public async Task TheMaterializer_ReplacesAToolThatRequiresApproval_WhenTheApprovalCannotBeAsked()
     {
         var calls = 0;
         var function = AIFunctionFactory.Create(() => ++calls, "delete_item");
         var entry = new ToolRegistryEntry { Name = "delete_item", RequiresApproval = true };
 
-        // A caller that cannot ask runs the tool as before, unless the approval is enforced (inside an agent).
-        Assert.Same(function, DefaultToolMaterializer.WrapForApproval(function, entry, new ToolMaterializationOptions()));
-        Assert.IsType<ApprovalRequiredAIFunction>(DefaultToolMaterializer.WrapForApproval(function, entry, new ToolMaterializationOptions { SupportsToolApproval = true, EnforceToolApproval = true }));
-        Assert.Same(function, DefaultToolMaterializer.WrapForApproval(function, new ToolRegistryEntry { Name = "read" }, new ToolMaterializationOptions { EnforceToolApproval = true }));
+        // A caller that can ask pauses for the approval; a tool that requires none is offered as it is.
+        Assert.IsType<ApprovalRequiredAIFunction>(DefaultToolMaterializer.WrapForApproval(function, entry, new ToolMaterializationOptions { SupportsToolApproval = true }));
+        Assert.Same(function, DefaultToolMaterializer.WrapForApproval(function, new ToolRegistryEntry { Name = "read" }, new ToolMaterializationOptions()));
 
-        var refusing = Assert.IsType<ApprovalUnavailableAIFunction>(DefaultToolMaterializer.WrapForApproval(function, entry, new ToolMaterializationOptions { EnforceToolApproval = true }));
+        // A caller that cannot ask, inside an agent or not, never runs it.
+        var refusing = Assert.IsType<ApprovalUnavailableAIFunction>(DefaultToolMaterializer.WrapForApproval(function, entry, new ToolMaterializationOptions()));
 
         Assert.Equal("delete_item", refusing.Name);
         Assert.Equal(function.JsonSchema.GetRawText(), refusing.JsonSchema.GetRawText());
-        Assert.Same(refusing, DefaultToolMaterializer.WrapForApproval(refusing, entry, new ToolMaterializationOptions { EnforceToolApproval = true }));
+        Assert.Same(refusing, DefaultToolMaterializer.WrapForApproval(refusing, entry, new ToolMaterializationOptions()));
 
         var result = await refusing.InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
 

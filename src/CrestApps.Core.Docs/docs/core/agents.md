@@ -134,7 +134,7 @@ A tool registered with `.RequireApproval()`, or as a destructive, external or se
 | Can ask a person (an AG-UI chat run on the default orchestrator) | The agent pauses, and the assistant's run ends with an approval request that names the agent, the tool and its arguments. **Allow** continues the agent where it stopped, and the tool runs. **Deny** continues the agent with a refusal it can report. Nothing the agent did before the pause is done again. |
 | Cannot ask (the text-only chat stream, a chat interaction, a realtime conversation, an MCP client that calls the agent, a background task) | The tool does not run. The agent's model gets a result that says the tool needs an approval this conversation cannot ask for, and the agent reports that. |
 
-See [Tools inside an agent](./ag-ui.md#tools-inside-an-agent) for the events, the stored state and the limits. Give an agent a tool that requires an approval only when the assistants that use the agent run in a chat that can ask; in other chats the agent can do everything except that tool.
+This is the same rule as for a tool on the assistant's own profile: where nobody can be asked, a tool that requires an approval does not run. See [Tools inside an agent](./ag-ui.md#tools-inside-an-agent) for the events, the stored state and the limits. Give an agent a tool that requires an approval only when the assistants that use the agent run in a chat that can ask; in other chats the agent can do everything except that tool.
 
 ### Code-defined profiles and system agents
 

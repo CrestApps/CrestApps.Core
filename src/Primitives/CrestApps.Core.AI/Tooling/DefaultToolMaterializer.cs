@@ -98,24 +98,6 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
                 continue;
             }
 
-            // A tool that needs a person's approval is only offered when the caller can ask for one. Realtime,
-            // background and other non-interactive requests have nobody to ask, so offering it there would run it
-            // unasked. Where the approval is enforced (the run of an agent), the tool is offered instead as one that
-            // does not run and tells the model why; see WrapForApproval.
-            if (entry.RequiresApproval && !options.SupportsToolApproval && !options.EnforceToolApproval)
-            {
-                AITelemetry.ToolDenials.Add(1, new KeyValuePair<string, object>(AITelemetry.ReasonTag, "approval"));
-
-                if (_logger.IsEnabled(LogLevel.Debug))
-                {
-                    _logger.LogDebug(
-                        "Tool '{ToolName}' from {Source} ({Id}) requires approval and the caller cannot ask for one. Skipping.",
-                        entry.Name, entry.Source, entry.Id);
-                }
-
-                continue;
-            }
-
             if (entry.CreateAsync is null)
             {
                 _logger.LogWarning("Tool entry '{ToolName}' ({Id}) has no ToolFactory. Skipping.", entry.Name, entry.Id);
@@ -139,13 +121,34 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
             {
                 var tool = await entry.CreateAsync(_serviceProvider);
 
-                if (tool is not null)
+                if (tool is null)
                 {
-                    tools.Add(WrapForApproval(tool, entry, options));
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug("ToolFactory returned null for '{ToolName}' ({Id}).", entry.Name, entry.Id);
+                    }
+
+                    continue;
                 }
-                else if (_logger.IsEnabled(LogLevel.Debug))
+
+                var offered = WrapForApproval(tool, entry, options);
+
+                if (offered is null || offered is ApprovalUnavailableAIFunction)
                 {
-                    _logger.LogDebug("ToolFactory returned null for '{ToolName}' ({Id}).", entry.Name, entry.Id);
+                    // The tool requires a person's approval and this request cannot ask for one, so it never runs.
+                    AITelemetry.ToolDenials.Add(1, new KeyValuePair<string, object>(AITelemetry.ReasonTag, "approval"));
+
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug(
+                            "Tool '{ToolName}' from {Source} ({Id}) requires approval and the caller cannot ask for one. It is offered as a tool that does not run.",
+                            entry.Name, entry.Source, entry.Id);
+                    }
+                }
+
+                if (offered is not null)
+                {
+                    tools.Add(offered);
                 }
             }
             catch (Exception ex)
@@ -162,24 +165,38 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
     }
 
     /// <summary>
-    /// Wraps a tool that requires an approval in <see cref="ApprovalRequiredAIFunction"/> when the caller can ask a
-    /// person for one, so the function invocation pauses for the approval instead of running it. When the caller
-    /// cannot ask and the approval is enforced (<see cref="ToolMaterializationOptions.EnforceToolApproval"/>), the
-    /// tool is replaced with one that does not run and tells the model why.
+    /// Prepares a tool that requires an approval for the request. When the caller can ask a person, the tool is
+    /// wrapped in <see cref="ApprovalRequiredAIFunction"/>, so the function invocation pauses for the approval instead
+    /// of running it. When the caller cannot ask, the tool never runs: it is replaced with a function of the same
+    /// name and schema that does not run it and tells the model why, so the model can tell the user. A tool that does
+    /// not require an approval is returned as it is.
     /// </summary>
     /// <param name="tool">The materialized tool.</param>
     /// <param name="entry">The registry entry the tool came from.</param>
     /// <param name="options">The materialization options.</param>
-    /// <returns>The tool to offer.</returns>
+    /// <returns>
+    /// The tool to offer, or <see langword="null"/> when the tool requires an approval, the caller cannot ask, and the
+    /// tool is not a function that can be replaced, so it is left out.
+    /// </returns>
 #pragma warning disable MEAI001 // ApprovalRequiredAIFunction is a preview API of Microsoft.Extensions.AI.
     internal static AITool WrapForApproval(AITool tool, ToolRegistryEntry entry, ToolMaterializationOptions options)
     {
+        ArgumentNullException.ThrowIfNull(tool);
+        ArgumentNullException.ThrowIfNull(entry);
+        options ??= ToolMaterializationOptions.Default;
+
         if (!entry.RequiresApproval ||
-            tool is not AIFunction function ||
             tool is ApprovalRequiredAIFunction ||
             tool is ApprovalUnavailableAIFunction)
         {
             return tool;
+        }
+
+        if (tool is not AIFunction function)
+        {
+            return options.SupportsToolApproval
+                ? tool
+                : null;
         }
 
         if (options.SupportsToolApproval)
@@ -187,12 +204,7 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
             return new ApprovalRequiredAIFunction(function);
         }
 
-        if (options.EnforceToolApproval)
-        {
-            return new ApprovalUnavailableAIFunction(function);
-        }
-
-        return tool;
+        return new ApprovalUnavailableAIFunction(function);
     }
 #pragma warning restore MEAI001
 

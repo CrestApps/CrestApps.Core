@@ -221,17 +221,14 @@ public sealed class ClaudeOrchestrator : IOrchestrator
         // anonymous, so no session-time tool gate is applied.
         var isChatInteraction = completionContext.AdditionalProperties.ContainsKey(AICompletionContextKeys.Interaction);
 
+        // This orchestrator cannot pause for an approval, so SupportsToolApproval stays false: a tool that requires an
+        // approval is replaced with one that does not run and tells the model why.
         var result = await _toolMaterializer.MaterializeAsync(
             scopedEntries,
             new ToolMaterializationOptions
             {
                 EnforceListableAccess = isChatInteraction,
                 User = isChatInteraction ? _userAccessor.User : null,
-
-                // This orchestrator cannot pause for an approval. When it runs an agent, a tool that requires an
-                // approval is replaced with one that does not run and tells the model why.
-                EnforceToolApproval = completionContext.AdditionalProperties.TryGetValue(AICompletionContextKeys.ToolApprovalEnforced, out var enforcedValue) &&
-                    enforcedValue is true,
             },
             cancellationToken);
 

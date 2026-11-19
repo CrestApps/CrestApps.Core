@@ -155,7 +155,7 @@ The resumed run makes the approved calls, tells the model about the rejected one
 
 A tool registered as a destructive, external or security tool requires an approval without `.RequireApproval()`; see [Tool Kinds](./tools.md#tool-kinds).
 
-Approvals happen only where someone can answer them. Other callers (the text-only chat stream, realtime sessions, background tasks, other channels) are not offered a tool of the assistant's own profile that requires an approval at all, so the model never sees it there and it can never run without the approval it requires. A tool registry provider sets `ToolRegistryEntry.RequiresApproval` for its own tools. WebMCP tools marked `consequentialHint` need an approval in an AG-UI run unless the profile allows consequential page tools; see [WebMCP](../mcp/webmcp.md#annotations).
+Approvals happen only where someone can answer them. A tool that requires an approval never runs where nobody can be asked: the text-only chat stream, a chat interaction, a realtime conversation, a workflow, a channel such as SMS or voice, post-session processing, an agent an MCP client calls as a tool, and background work. There the model still sees the tool, but a call does not run it: the model gets a result that says the tool was not run because it needs a person's approval, which this conversation cannot ask for, and that it should tell the user. The `ToolDenials` metric counts each such tool with the reason `approval`. To run a tool without asking in those places, register it with `.RequireApproval(false)`. A tool the [MCP server](../mcp/server.md#destructive-and-security-tools) exposes is called by the MCP client directly, outside a chat, and is not covered by this rule. A tool registry provider sets `ToolRegistryEntry.RequiresApproval` for its own tools. WebMCP tools marked `consequentialHint` need an approval in an AG-UI run unless the profile allows consequential page tools; see [WebMCP](../mcp/webmcp.md#annotations).
 
 ### Tools inside an agent
 
@@ -170,9 +170,9 @@ The chat UI shows the agent's tool call with its input and **Allow** and **Deny*
 
 The paused message stores the assistant's call to the agent and the agent's tool call as waiting (`ChatTurnToolCall.AgentName` and `AgentCallId` mark the agent's call), and the agent's paused run in `ChatTurnToolActivity.AgentRuns`, which is not sent to clients. A tool result of the agent is kept there up to 16,000 characters; the agent reads the kept results when it resumes.
 
-**When nobody can be asked, the tool does not run.** Inside an agent a tool that requires an approval never runs unasked. When the assistant's run cannot ask a person (the text-only chat stream, a chat interaction, a realtime conversation, an agent an MCP client calls as a tool, a background task), the agent's model gets a result that says the tool was not run because it needs an approval this conversation cannot ask for, and the agent reports that. A tool on the assistant's own profile is instead left out of such a run, as described above.
+**When nobody can be asked, the tool does not run.** When the assistant's run cannot ask a person, a tool of the agent that requires an approval is treated as one of the assistant's own: the agent's model gets the result that says the tool was not run, and the agent reports that.
 
-The default orchestrator pauses agents this way. An agent that itself runs on the Claude orchestrator gets the "was not run" result for such tools, and one that runs on the Copilot orchestrator is not offered them, because those orchestrators cannot pause a run for an approval. An assistant that runs on one of them cannot ask on behalf of its agents either.
+The default orchestrator pauses agents this way. The Claude and Copilot orchestrators cannot pause a run for an approval, so an assistant or an agent that runs on one of them gets the "was not run" result for such tools, and an assistant that runs on one of them cannot ask on behalf of its agents either.
 
 ## Frontend tools
 

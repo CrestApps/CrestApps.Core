@@ -3,9 +3,10 @@ using Microsoft.Extensions.AI;
 namespace CrestApps.Core.AI.Tooling;
 
 /// <summary>
-/// Stands in for a tool that requires a person's approval where no person can be asked, such as inside an agent
-/// whose caller cannot ask. It has the tool's name, description and schema, so the model sees the same tool, but a
-/// call does not run the tool: it returns a message that says why, which the model can pass on.
+/// Stands in for a tool that requires a person's approval where no person can be asked: any request that does not
+/// support tool approvals, such as the text-only chat stream, a chat interaction, a realtime conversation, background
+/// work, or an agent whose caller cannot ask. It has the tool's name, description and schema, so the model sees the
+/// same tool, but a call does not run the tool: it returns a message that says why, which the model can pass on.
 /// </summary>
 internal sealed class ApprovalUnavailableAIFunction : DelegatingAIFunction
 {

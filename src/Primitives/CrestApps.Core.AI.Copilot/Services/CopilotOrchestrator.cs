@@ -96,11 +96,6 @@ public sealed class CopilotOrchestrator : IOrchestrator
         // MCP tools are excluded because Copilot manages MCP connections natively.
         var tools = new List<AIFunction>();
 
-        // This orchestrator cannot pause for an approval. When it runs an agent, a tool that requires an approval
-        // is not offered, so it never runs unasked.
-        var enforceToolApproval = context.CompletionContext.AdditionalProperties.TryGetValue(AICompletionContextKeys.ToolApprovalEnforced, out var enforcedValue) &&
-            enforcedValue is true;
-
         foreach (var entry in allTools)
         {
             if (entry.Source == ToolRegistryEntrySource.McpServer || entry.CreateAsync is null)
@@ -108,18 +103,24 @@ public sealed class CopilotOrchestrator : IOrchestrator
                 continue;
             }
 
-            if (enforceToolApproval && entry.RequiresApproval)
-            {
-                _logger.LogWarning(
-                    "The tool '{ToolName}' requires an approval and is not offered to the agent, because the Copilot orchestrator cannot ask a person for one.",
-                    entry.Name);
-
-                continue;
-            }
-
             try
             {
                 var aiTool = context.ServiceProvider is not null ? await entry.CreateAsync(context.ServiceProvider) : null;
+
+                // This orchestrator cannot pause for an approval. A tool that requires one is replaced with a tool
+                // that does not run it and tells the model why, so it never runs unasked.
+                if (aiTool is not null && entry.RequiresApproval)
+                {
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug(
+                            "The tool '{ToolName}' requires an approval, which the Copilot orchestrator cannot ask for. It is offered as a tool that does not run.",
+                            entry.Name);
+                    }
+
+                    aiTool = DefaultToolMaterializer.WrapForApproval(aiTool, entry, ToolMaterializationOptions.Default);
+                }
+
                 if (aiTool is AIFunction function)
                 {
                     // Wrap the function so that arguments.Services is always set when
