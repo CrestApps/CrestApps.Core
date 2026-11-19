@@ -7,6 +7,8 @@ using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Chat.AGUI;
 using CrestApps.Core.AI.Chat.Hubs;
 using CrestApps.Core.AI.Chat.Models;
+using CrestApps.Core.AI.Clients;
+using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
@@ -116,6 +118,91 @@ public sealed class AIChatHubCoreTests
 
         Assert.True(result.IsBlocked);
         Assert.Equal(PromptSecurityResult.RateLimitDetectionRule, result.DetectionRule);
+    }
+
+    [Fact]
+    public async Task SynthesizeSpeech_WithTextOverTheCap_IsRefusedBeforeAnythingIsLoaded()
+    {
+        var profileManager = new Mock<IAIProfileManager>();
+        var (hub, client) = CreateSpeechHub(profileManager, new AIProfile { ItemId = "profile-1" });
+
+        await hub.SynthesizeSpeech("profile-1", "session-1", new string('a', 10_001));
+
+        client.Verify(c => c.ReceiveError("The text is too long to read aloud."), Times.Once);
+        profileManager.Verify(m => m.FindByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SynthesizeSpeech_ForAProfileThatNeverSpeaks_IsRefusedBeforeTheLimitOrAProvider()
+    {
+        var profileManager = new Mock<IAIProfileManager>();
+        var limiter = new Mock<IChatRateLimiter>();
+        var (hub, client) = CreateSpeechHub(profileManager, new AIProfile { ItemId = "profile-1" }, limiter);
+
+        await hub.SynthesizeSpeech("profile-1", "session-1", "hello");
+
+        client.Verify(c => c.ReceiveError("Text-to-speech is not enabled for this profile."), Times.Once);
+        limiter.Verify(l => l.EvaluateAsync(It.IsAny<PromptSecurityContext>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Equal(0, hub.DeploymentSettingsCalls);
+    }
+
+    [Theory]
+    [InlineData(true, ChatMode.TextInput)]
+    [InlineData(false, ChatMode.Conversation)]
+    public async Task SynthesizeSpeech_ForAProfileThatSpeaks_GoesOnToTheLimitAndTheDeployment(bool playback, ChatMode chatMode)
+    {
+        var profile = new AIProfile { ItemId = "profile-1" };
+        profile.AlterSettings<ChatModeProfileSettings>(settings =>
+        {
+            settings.EnableTextToSpeechPlayback = playback;
+            settings.ChatMode = chatMode;
+        });
+        var limiter = new Mock<IChatRateLimiter>();
+        limiter
+            .Setup(l => l.EvaluateAsync(It.IsAny<PromptSecurityContext>(), It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<RateLimitResult>(RateLimitResult.Allowed));
+        var (hub, client) = CreateSpeechHub(new Mock<IAIProfileManager>(), profile, limiter);
+
+        await hub.SynthesizeSpeech("profile-1", "session-1", new string('a', 10_000));
+
+        client.Verify(c => c.ReceiveError("Text-to-speech is not enabled for this profile."), Times.Never);
+        client.Verify(c => c.ReceiveError("The text is too long to read aloud."), Times.Never);
+        limiter.Verify(l => l.EvaluateAsync(It.IsAny<PromptSecurityContext>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(1, hub.DeploymentSettingsCalls);
+
+        // No text-to-speech deployment is configured in the test, so the call stops there.
+        client.Verify(c => c.ReceiveError("No text-to-speech deployment is configured."), Times.Once);
+    }
+
+    private static (TestAIChatHub Hub, Mock<IAIChatHubClient> Client) CreateSpeechHub(
+        Mock<IAIProfileManager> profileManager,
+        AIProfile profile,
+        Mock<IChatRateLimiter> limiter = null)
+    {
+        profileManager
+            .Setup(manager => manager.FindByIdAsync(profile.ItemId, It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<AIProfile>(profile));
+        var collection = new ServiceCollection()
+            .AddSingleton(profileManager.Object)
+            .AddSingleton(Mock.Of<IAIDeploymentManager>())
+            .AddSingleton(Mock.Of<IAIClientFactory>());
+
+        if (limiter is not null)
+        {
+            collection.AddSingleton(limiter.Object);
+        }
+
+        var services = collection.BuildServiceProvider();
+        var client = new Mock<IAIChatHubClient>();
+        var clients = new Mock<IHubCallerClients<IAIChatHubClient>>();
+        clients.SetupGet(c => c.Caller).Returns(client.Object);
+        var hub = new TestAIChatHub(services)
+        {
+            Context = CreateCallerContext("user-1"),
+            Clients = clients.Object,
+        };
+
+        return (hub, client);
     }
 
     [Fact]
@@ -955,6 +1042,15 @@ public sealed class AIChatHubCoreTests
         public HashSet<string> AuthorizedProfileIds { get; init; }
 
         public int GeneratedPromptCalls { get; private set; }
+
+        public int DeploymentSettingsCalls { get; private set; }
+
+        protected override Task<DefaultAIDeploymentSettings> GetDeploymentSettingsAsync(IServiceProvider services)
+        {
+            DeploymentSettingsCalls++;
+
+            return Task.FromResult(new DefaultAIDeploymentSettings());
+        }
 
         public AIProfile GeneratedPromptParent { get; private set; }
 

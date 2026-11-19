@@ -342,6 +342,35 @@ public class AIChatHubCore<TClient> : Hub<TClient>
     }
 
     /// <summary>
+    /// Gets the message sent when the text of a <see cref="SynthesizeSpeech"/> call is longer than
+    /// <see cref="MaxSpeechTextLength"/>.
+    /// </summary>
+    protected virtual string GetSpeechTextTooLongMessage()
+    {
+        return "The text is too long to read aloud.";
+    }
+
+    /// <summary>
+    /// Gets the most characters one <see cref="SynthesizeSpeech"/> call may carry. The message rate limit counts calls,
+    /// not characters, so without a cap one call could carry text up to the hub's maximum message size.
+    /// </summary>
+    protected virtual int MaxSpeechTextLength => 10_000;
+
+    /// <summary>
+    /// Returns whether <see cref="SynthesizeSpeech"/> may speak for the given profile. By default a profile speaks only
+    /// when it shows text-to-speech playback on its answers or runs in <see cref="ChatMode.Conversation"/>.
+    /// </summary>
+    /// <param name="services">The scoped service provider.</param>
+    /// <param name="profile">The profile.</param>
+    protected virtual Task<bool> IsSpeechSynthesisEnabledAsync(IServiceProvider services, AIProfile profile)
+    {
+        var isEnabled = profile.TryGetSettings<ChatModeProfileSettings>(out var chatModeSettings)
+            && (chatModeSettings.EnableTextToSpeechPlayback || chatModeSettings.ChatMode == ChatMode.Conversation);
+
+        return Task.FromResult(isEnabled);
+    }
+
+    /// <summary>
     /// Gets conversation error message.
     /// </summary>
     protected virtual string GetConversationErrorMessage()
@@ -2279,6 +2308,13 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             return;
         }
 
+        if (text.Length > MaxSpeechTextLength)
+        {
+            await Clients.Caller.ReceiveError(GetSpeechTextTooLongMessage());
+
+            return;
+        }
+
         var cancellationToken = Context.ConnectionAborted;
         try
         {
@@ -2298,6 +2334,15 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 if (!await AuthorizeProfileAsync(services, profile))
                 {
                     await Clients.Caller.ReceiveError(GetNotAuthorizedMessage());
+
+                    return;
+                }
+
+                // A profile that never speaks has no reason to synthesize, so the call is refused before it counts
+                // against the limit or reaches a provider.
+                if (!await IsSpeechSynthesisEnabledAsync(services, profile))
+                {
+                    await Clients.Caller.ReceiveError(GetTtsNotEnabledMessage());
 
                     return;
                 }

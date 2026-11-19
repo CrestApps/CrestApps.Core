@@ -33,7 +33,9 @@ namespace CrestApps.Core.Tests.Framework.Mvc;
 /// </summary>
 public sealed class AIChatHubLimitsTests
 {
-    private static readonly AIProfile ChatProfile = new() { ItemId = "profile-1", Type = AIProfileType.Chat };
+    // Text-to-speech playback is on: SynthesizeSpeech refuses a profile that never speaks before it reaches the limit.
+    private static readonly AIProfile ChatProfile = new AIProfile { ItemId = "profile-1", Type = AIProfileType.Chat }
+        .AlterSettings<ChatModeProfileSettings>(settings => settings.EnableTextToSpeechPlayback = true);
 
     [Fact]
     public async Task StartSession_WhenTheTransportGivesTheInvocationNoHttpContext_StillKeysTheLimiterOnTheVisitor()
