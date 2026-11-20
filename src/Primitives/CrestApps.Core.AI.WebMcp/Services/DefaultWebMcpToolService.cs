@@ -246,7 +246,9 @@ public sealed class DefaultWebMcpToolService : IWebMcpToolService
 
     /// <summary>
     /// Determines whether a code-registered tool is given to browser agents: when the settings name it (by its name
-    /// or by one of its aliases), or when every tool is given and the tool is not a destructive or security tool.
+    /// or by one of its aliases), or when every tool is given and the tool is not a destructive or security tool and
+    /// does not require an approval. A browser agent calls the tool directly and cannot be asked for an approval, so a
+    /// tool that requires one is given only when the settings name it.
     /// </summary>
     /// <param name="exposeAll">Whether every tool is given.</param>
     /// <param name="namedTools">The names the settings list.</param>
@@ -260,7 +262,9 @@ public sealed class DefaultWebMcpToolService : IWebMcpToolService
             return true;
         }
 
-        return exposeAll && definition.Kind.IsExposedWithAllTools();
+        return exposeAll &&
+            definition.Kind.IsExposedWithAllTools() &&
+            !definition.RequiresApproval;
     }
 
     private static bool IsAllowed(HashSet<string> allowList, params string[] candidates)

@@ -109,10 +109,10 @@ The MVC sample host does this in `Views/Shared/_WebMcp.cshtml`, and the Blazor s
 
 | Property | Default | What it does |
 | --- | --- | --- |
-| `ExposeAllTools` | `false` | Gives every selectable tool and tool instance, except the tools registered as destructive or security tools. System tools and hidden tools are never given. |
-| `Tools` | empty | The tool and tool instance names given, matched without regard to case. A tool is also matched by one of its [aliases](../core/tools.md#renaming-a-tool). When `ExposeAllTools` is `true`, the list only decides which destructive and security tools are given. |
+| `ExposeAllTools` | `false` | Gives every selectable tool and tool instance, except the tools registered as destructive or security tools and the tools that require an approval. System tools and hidden tools are never given. |
+| `Tools` | empty | The tool and tool instance names given, matched without regard to case. A tool is also matched by one of its [aliases](../core/tools.md#renaming-a-tool). When `ExposeAllTools` is `true`, the list only decides which destructive and security tools, and which tools that require an approval, are given. |
 
-A tool registered with `.AsDestructive()` or `.AsSecurity()` (see [Tool Kinds](../core/tools.md#tool-kinds)) is given only when `Tools` names it, so `ExposeAllTools` never hands such a tool to every browser agent. Tools registered without a kind are given by `ExposeAllTools` as before. Each tool in the list the endpoint returns has a `kind` value (`read`, `write`, `destructive`, `external` or `security`) when its registration sets one.
+A tool registered with `.AsDestructive()` or `.AsSecurity()` (see [Tool Kinds](../core/tools.md#tool-kinds)) is given only when `Tools` names it, so `ExposeAllTools` never hands such a tool to every browser agent. A browser agent cannot be asked to approve a call either, so the same holds for a tool that requires an approval (`.RequireApproval()`, or `.AsExternal()` without `.RequireApproval(false)`); once named, it runs without one. Tools registered without a kind and without `.RequireApproval()` are given by `ExposeAllTools` as before. Each tool in the list the endpoint returns has a `kind` value (`read`, `write`, `destructive`, `external` or `security`) when its registration sets one.
 
 The sample hosts edit these on their settings page, in the **WebMCP** card, and store them with `SiteSettingsConfigureStoredOptions<WebMcpOptions>`. That page stores an empty `Tools` list while **Give all tools** is ticked; to give a destructive or security tool from it, untick the box and pick the tools by name.
 

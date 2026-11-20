@@ -363,7 +363,9 @@ public static class McpServerBuilderExtensions
 
     /// <summary>
     /// Determines whether a code-registered tool is exposed: when the allow-list names it (by its name or by one
-    /// of its aliases), or when every tool is exposed and the tool is not a destructive or security tool.
+    /// of its aliases), or when every tool is exposed and the tool is not a destructive or security tool and does not
+    /// require an approval. An MCP client calls the tool directly and cannot be asked for an approval, so a tool that
+    /// requires one is exposed only when the settings name it.
     /// </summary>
     /// <param name="exposeAll">Whether the server exposes every tool.</param>
     /// <param name="allowList">The names the server's settings list.</param>
@@ -377,7 +379,9 @@ public static class McpServerBuilderExtensions
             return true;
         }
 
-        return exposeAll && definition.Kind.IsExposedWithAllTools();
+        return exposeAll &&
+            definition.Kind.IsExposedWithAllTools() &&
+            !definition.RequiresApproval;
     }
 
     /// <summary>

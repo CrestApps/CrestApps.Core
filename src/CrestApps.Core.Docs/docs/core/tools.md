@@ -89,11 +89,11 @@ builder.Services
 The kind does these things:
 
 - A `Destructive`, `External` or `Security` tool requires an approval, as if its registration called `.RequireApproval()`. Call `.RequireApproval()` for the exceptions: on a tool of another kind that should ask, or as `.RequireApproval(false)` on a tool of one of these kinds that should not ask. The explicit call wins, whichever is called first.
-- `ExposeAllTools` of the [MCP server](../mcp/server.md) and of [WebMCP](../mcp/webmcp.md) leaves out the `Destructive` and `Security` tools. Name such a tool in the `Tools` list to expose it.
+- `ExposeAllTools` of the [MCP server](../mcp/server.md) and of [WebMCP](../mcp/webmcp.md) leaves out the `Destructive` and `Security` tools, and every tool that requires an approval (so `External` tools too, unless they call `.RequireApproval(false)`), because their clients call a tool directly and cannot be asked. Name such a tool in the `Tools` list to expose it.
 - The MCP server tells its clients the kind through the MCP tool annotations (`readOnlyHint`, `destructiveHint`, `openWorldHint`), and the WebMCP tool list has a `kind` value for each tool.
 - `AIToolDefinitionEntry.Kind` and `ToolRegistryEntry.Kind` carry the kind, so a tool picker or a custom tool pipeline can read it.
 
-A tool registered without a kind has `AIToolKind.Unspecified` and behaves as before: it asks for an approval only when its registration calls `.RequireApproval()`, and `ExposeAllTools` includes it. An approval is a confirmation for the person in the chat, not an access check. Callers that cannot ask for an approval are described in [AG-UI tool approvals](./ag-ui.md#tool-approvals).
+A tool registered without a kind has `AIToolKind.Unspecified` and behaves as before: it asks for an approval only when its registration calls `.RequireApproval()`, and `ExposeAllTools` includes it unless it does. An approval is a confirmation for the person in the chat, not an access check. Callers that cannot ask for an approval are described in [AG-UI tool approvals](./ag-ui.md#tool-approvals).
 
 ### Renaming a Tool
 

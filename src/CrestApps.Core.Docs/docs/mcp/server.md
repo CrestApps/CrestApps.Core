@@ -308,7 +308,8 @@ services.Configure<McpServerOptions>(options =>
     options.Tools = ["crestapps-docs", "weather"];
 
     // Or expose every tool and tool instance.
-    // The Tools list above then only decides which destructive and security tools are exposed.
+    // The Tools list above then only decides which destructive and security tools, and which tools that
+    // require an approval, are exposed.
     options.ExposeAllTools = true;
 });
 ```
@@ -316,7 +317,7 @@ services.Configure<McpServerOptions>(options =>
 | Property | Effect |
 |----------|--------|
 | `Tools` | An allow-list of tool and tool instance names to expose. Matching is case-insensitive, and a tool is also matched by one of its [aliases](../core/tools.md#renaming-a-tool). |
-| `ExposeAllTools` | When `true`, every **selectable** tool and tool instance is exposed, except the tools registered as destructive or security tools. Those are exposed only when `Tools` names them. |
+| `ExposeAllTools` | When `true`, every **selectable** tool and tool instance is exposed, except the tools registered as destructive or security tools and the tools that require an approval. Those are exposed only when `Tools` names them. |
 
 Only selectable tools are ever exposed over MCP. System tools (those marked `IsSystemTool`, which agents auto-include based on context) and hidden tools are never listed or callable — not even when `ExposeAllTools` is `true`.
 
@@ -334,7 +335,7 @@ services.Configure<McpServerOptions>(options =>
 });
 ```
 
-Tools registered without a kind, and tool instances, are exposed by `ExposeAllTools` as before. An MCP client cannot be asked to approve a call, so a tool that requires an approval runs without one when a client calls it directly; expose such a tool only to clients you trust with it.
+An MCP client calls a tool directly and cannot be asked to approve the call. `ExposeAllTools` therefore also leaves out every tool that requires an approval: one registered with `.RequireApproval()`, and an external tool (`.AsExternal()`) unless it calls `.RequireApproval(false)`. Naming such a tool in `Tools` exposes it, and a client then runs it without an approval, so name it only for clients you trust with it. Tools registered without a kind and without `.RequireApproval()`, and tool instances, are exposed by `ExposeAllTools` as before.
 
 The server tells its clients the kind of each tool through the MCP tool annotations: `readOnlyHint` for a read tool, `destructiveHint` for a destructive tool, and `openWorldHint` for an external tool. A tool without a kind has no annotations.
 

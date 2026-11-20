@@ -265,6 +265,37 @@ public sealed class DefaultWebMcpToolServiceTests
     }
 
     [Fact]
+    public async Task GetToolsAsync_ExposingAllTools_LeavesOutAToolThatRequiresApprovalUnlessNamed()
+    {
+        // A browser agent calls the tool directly and cannot be asked for an approval.
+        var service = CreateService(
+            new WebMcpOptions
+            {
+                ExposeAllTools = true,
+            },
+            configure: services =>
+            {
+                services.AddCoreAITool<ReadKindTestTool>(ReadKindTestTool.TheName).RequireApproval().Selectable();
+                services.AddCoreAITool<SecurityKindTestTool>(SecurityKindTestTool.TheName).Selectable();
+            });
+
+        var names = (await service.GetToolsAsync(_user, TestContext.Current.CancellationToken)).Select(tool => tool.Name).ToList();
+
+        Assert.DoesNotContain(ReadKindTestTool.TheName, names);
+        Assert.Contains(SecurityKindTestTool.TheName, names);
+
+        var named = CreateService(
+            new WebMcpOptions
+            {
+                ExposeAllTools = true,
+                Tools = [ReadKindTestTool.TheName],
+            },
+            configure: services => services.AddCoreAITool<ReadKindTestTool>(ReadKindTestTool.TheName).RequireApproval().Selectable());
+
+        Assert.Contains(ReadKindTestTool.TheName, (await named.GetToolsAsync(_user, TestContext.Current.CancellationToken)).Select(tool => tool.Name));
+    }
+
+    [Fact]
     public async Task GetToolsAsync_DescribesTheKindOfATool()
     {
         var service = CreateService(

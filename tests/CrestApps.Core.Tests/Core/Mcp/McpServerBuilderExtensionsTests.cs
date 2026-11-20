@@ -224,11 +224,11 @@ public sealed class McpServerBuilderExtensionsTests
     }
 
     /// <summary>
-    /// Verifies that exposing every tool leaves out the destructive and security tools, and that naming one in the
-    /// allow-list still exposes it.
+    /// Verifies that exposing every tool leaves out the destructive and security tools and every tool that requires an
+    /// approval, and that naming one in the allow-list still exposes it.
     /// </summary>
     [Fact]
-    public async Task ListToolsHandler_ExposeAllTools_LeavesOutDestructiveAndSecurityToolsUnlessNamed()
+    public async Task ListToolsHandler_ExposeAllTools_LeavesOutDestructiveSecurityAndApprovalToolsUnlessNamed()
     {
         var services = CreateServices(configureOptions: options =>
         {
@@ -243,6 +243,12 @@ public sealed class McpServerBuilderExtensionsTests
         AddLocalTool(services, "delete-key", new TestAIFunction("delete"), configure: entry => entry.Kind = AIToolKind.Destructive);
         AddLocalTool(services, "grant-key", new TestAIFunction("grant"), configure: entry => entry.Kind = AIToolKind.Security);
         AddLocalTool(services, "purge-key", new TestAIFunction("purge"), configure: entry => entry.Kind = AIToolKind.Destructive);
+        AddLocalTool(services, "asks-key", new TestAIFunction("asks"), configure: entry => entry.RequiresApproval = true);
+        AddLocalTool(services, "notify-key", new TestAIFunction("notify"), configure: entry =>
+        {
+            entry.Kind = AIToolKind.External;
+            entry.RequiresApproval = false;
+        });
 
         using var serviceProvider = services.BuildServiceProvider();
 
@@ -250,7 +256,9 @@ public sealed class McpServerBuilderExtensionsTests
             serviceProvider,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal(["plain", "list", "save", "send", "purge"], result.Tools.Select(tool => tool.Name));
+        // An MCP client cannot be asked for an approval: "send" (external) and "asks" require one, so only naming them
+        // exposes them. "notify" is external but opted out of the approval, so it is exposed with every tool.
+        Assert.Equal(["plain", "list", "save", "purge", "notify"], result.Tools.Select(tool => tool.Name));
     }
 
     /// <summary>
