@@ -353,7 +353,8 @@
 				result: call.result || "",
 				status: normalizeToolCallStatus(call.status),
 				interruptId: call.interruptId || call.approvalRequestId || null,
-				agentName: call.agentName || ""
+				agentName: call.agentName || "",
+				agentDisplayText: call.agentDisplayText || ""
 			}));
 		}
 		function parseToolArguments(text) {
@@ -406,7 +407,8 @@
 				let html = "<div class=\"ai-chat-agui-tool ai-chat-agui-tool-" + escapeHtmlText(status) + "\" data-agui-tool-call=\"" + escapeHtmlText(call.id) + "\">";
 				html += details ? "<details><summary>" + summary + "</summary>" + details + "</details>" : "<div class=\"ai-chat-agui-tool-summary\">" + summary + "</div>";
 				if (status === "awaitingApproval" && call.interruptId) {
-					const approvalPrompt = call.agentName ? String(defaultConfig.aguiAgentApprovalPrompt).replace("{0}", describeToolCall({ name: call.agentName })) : defaultConfig.aguiApprovalPrompt;
+					const agentLabel = call.agentDisplayText || describeToolCall({ name: call.agentName });
+					const approvalPrompt = call.agentName ? String(defaultConfig.aguiAgentApprovalPrompt).replace("{0}", () => agentLabel) : defaultConfig.aguiApprovalPrompt;
 					html += "<div class=\"ai-chat-agui-approval\"><span>" + escapeHtmlText(approvalPrompt) + "</span><button type=\"button\" class=\"btn btn-sm btn-primary\" data-agui-interrupt=\"" + escapeHtmlText(call.interruptId) + "\" data-agui-approved=\"true\">" + escapeHtmlText(defaultConfig.aguiAllowLabel) + "</button><button type=\"button\" class=\"btn btn-sm btn-outline-secondary\" data-agui-interrupt=\"" + escapeHtmlText(call.interruptId) + "\" data-agui-approved=\"false\">" + escapeHtmlText(defaultConfig.aguiDenyLabel) + "</button></div>";
 				}
 				html += "</div>";
@@ -1722,7 +1724,8 @@
 									result: "",
 									status: "requested",
 									interruptId: null,
-									agentName: ""
+									agentName: "",
+									agentDisplayText: ""
 								};
 								message.toolCalls = message.toolCalls || [];
 								message.toolCalls.push(call);
@@ -1764,6 +1767,7 @@
 											if (metadata.agentName) {
 												const agentCall = run.toolCalls[metadata.agentToolCallId];
 												call.agentName = metadata.agentName;
+												call.agentDisplayText = metadata.agentDisplayText || "";
 												if (agentCall) agentCall.status = "awaitingApproval";
 											}
 										}

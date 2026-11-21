@@ -164,7 +164,7 @@ Approvals happen only where someone can answer them. A tool that requires an app
 An [agent](./agents.md) runs inside one tool call of the assistant, with tools of its own. A tool of the agent that requires an approval asks the same person, through the assistant's run:
 
 1. The agent's run pauses on the tool call. What the agent did so far is kept.
-2. The assistant's run ends with an `interrupt` outcome, as it does for one of its own tools. The interrupt's `message` names the agent and the tool, and its `metadata` has `agentName`, `agentToolCallId` (the assistant's call to the agent), `toolName` and `arguments`. The run also streams the agent's tool call (`TOOL_CALL_START` / `ARGS` / `END`) so a client can show it, and the call to the agent has no result yet.
+2. The assistant's run ends with an `interrupt` outcome, as it does for one of its own tools. The interrupt's `message` names the agent (by its title, the profile's `DisplayText`, when it has one) and the tool, and its `metadata` has `agentName` (the agent's technical name), `agentDisplayText` (its title, when it has one), `agentToolCallId` (the assistant's call to the agent), `toolName` and `arguments`. The run also streams the agent's tool call (`TOOL_CALL_START` / `ARGS` / `END`) so a client can show it, and the call to the agent has no result yet.
 3. The answer starts a run with `resume`, exactly as above. The assistant's call to the agent is made again, and the agent continues where it stopped: the calls it made before the pause are not made again, an approved call runs, and a rejected call is reported to the agent as rejected, so the agent can say so.
 4. When the agent then calls another tool that requires an approval, the run pauses again in the same way.
 

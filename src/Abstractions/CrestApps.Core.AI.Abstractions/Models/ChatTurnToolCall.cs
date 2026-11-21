@@ -44,6 +44,12 @@ public sealed class ChatTurnToolCall
     public string AgentName { get; set; }
 
     /// <summary>
+    /// Gets or sets the display title of the agent named by <see cref="AgentName"/>, which the approval request shows
+    /// to the person. <see langword="null"/> when the agent has none, or for a call the assistant made itself.
+    /// </summary>
+    public string AgentDisplayText { get; set; }
+
+    /// <summary>
     /// Gets or sets the id of the assistant's call to the agent named by <see cref="AgentName"/>.
     /// </summary>
     public string AgentCallId { get; set; }

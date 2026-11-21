@@ -26,6 +26,15 @@ internal static class ChatTurnResume
     /// assistant's call to the agent is made again, and the agent's paused run is handed back with the answers
     /// (see <see cref="AgentToolApprovals"/>), so the agent continues where it stopped: the calls it made before
     /// are not made again, an approved call runs, and a rejected call is reported to the agent as rejected.
+    /// <para>
+    /// Security: both tool-calling loops (<c>FunctionInvokingChatClient</c> and the Azure OpenAI client's own) run an
+    /// approved <see cref="ToolApprovalResponseContent"/> they find in the history, whether or not the tool is wrapped
+    /// for an approval. Anything that reaches the history as an approval response therefore runs the tool. The
+    /// approval requests and responses are built here only, from the calls the server stored as waiting, with the
+    /// stored name and arguments; the client contributes nothing but allow or deny for an interrupt id the server
+    /// issued (and the results of its own frontend tools, for calls stored as waiting for the client). Never let a
+    /// message, a content item or a call the client sends reach the resumed run's history.
+    /// </para>
     /// </remarks>
     /// <param name="pausedActivity">The tool calls of the paused assistant message. Their statuses are updated, and the paused agent runs are taken from it.</param>
     /// <param name="request">The run request with the client's answers.</param>

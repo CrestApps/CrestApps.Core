@@ -24,6 +24,12 @@ public sealed class ChatTurnAgentRun
     public string AgentName { get; set; }
 
     /// <summary>
+    /// Gets or sets the display title of the agent (its profile's <c>DisplayText</c>), shown to the person who
+    /// answers the agent's approval requests. <see langword="null"/> when the agent has none.
+    /// </summary>
+    public string AgentDisplayText { get; set; }
+
+    /// <summary>
     /// Gets or sets the tool calls the agent made, in order: the calls that ran, with their results, and the calls
     /// that wait for an approval. A call that ran is never made again when the agent resumes.
     /// </summary>

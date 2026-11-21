@@ -554,7 +554,13 @@ public sealed class AGUIRunEventWriter
             record.ApprovalRequestId = requestId;
         }
 
+        // The person sees the agent's title; the technical name stays the agent's id in the protocol.
+        var agentDisplayText = agentCall is null || string.IsNullOrWhiteSpace(agentRun?.AgentDisplayText)
+            ? null
+            : agentRun.AgentDisplayText;
+
         record.AgentName = agentCall?.Name;
+        record.AgentDisplayText = agentDisplayText;
         record.AgentCallId = agentCall?.CallId;
 
         var metadata = new Dictionary<string, object>
@@ -567,6 +573,11 @@ public sealed class AGUIRunEventWriter
         {
             metadata["agentName"] = agentCall.Name;
             metadata["agentToolCallId"] = agentCall.CallId;
+
+            if (agentDisplayText is not null)
+            {
+                metadata["agentDisplayText"] = agentDisplayText;
+            }
         }
 
         _interrupts.Add(new AGUIInterrupt
@@ -576,7 +587,7 @@ public sealed class AGUIRunEventWriter
             ToolCallId = call.CallId,
             Message = agentCall is null
                 ? $"Allow the assistant to run '{call.Name}'?"
-                : $"Allow the agent '{agentCall.Name}' to run '{call.Name}'?",
+                : $"Allow the agent '{agentDisplayText ?? agentCall.Name}' to run '{call.Name}'?",
             ResponseSchema = _approvalResponseSchema,
             Metadata = JsonSerializer.SerializeToElement(metadata, AIJsonUtilities.DefaultOptions),
         });

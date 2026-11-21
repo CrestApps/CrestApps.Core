@@ -216,6 +216,9 @@ internal sealed class AgentProxyTool : AIFunction
             AgentName = agentProfile.Name,
         };
 
+        // The title the person sees on the agent's approval requests. A run kept before the title existed gets it now.
+        run.AgentDisplayText ??= string.IsNullOrWhiteSpace(agentProfile.DisplayText) ? null : agentProfile.DisplayText;
+
         // Enter the sub-agent scope before building the context so that agent enrichment and
         // agent tools are suppressed for the agent's own orchestration.
         invocationContext.AgentInvocationDepth++;

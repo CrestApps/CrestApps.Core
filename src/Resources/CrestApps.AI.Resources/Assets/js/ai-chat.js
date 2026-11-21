@@ -530,6 +530,8 @@ window.coreAIChatManager = function () {
                 interruptId: call.interruptId || call.approvalRequestId || null,
                 // The agent that made the call, when an agent the assistant delegated to made it.
                 agentName: call.agentName || '',
+                // The agent's title, which the person sees; the name is its id.
+                agentDisplayText: call.agentDisplayText || '',
             }));
     }
 
@@ -623,8 +625,9 @@ window.coreAIChatManager = function () {
 
             if (status === 'awaitingApproval' && call.interruptId) {
                 // A call an agent made names the agent, so the user knows who asks.
+                const agentLabel = call.agentDisplayText || describeToolCall({ name: call.agentName });
                 const approvalPrompt = call.agentName
-                    ? String(defaultConfig.aguiAgentApprovalPrompt).replace('{0}', describeToolCall({ name: call.agentName }))
+                    ? String(defaultConfig.aguiAgentApprovalPrompt).replace('{0}', () => agentLabel)
                     : defaultConfig.aguiApprovalPrompt;
 
                 html += '<div class="ai-chat-agui-approval"><span>' + escapeHtmlText(approvalPrompt) + '</span>' +
@@ -2619,7 +2622,7 @@ window.coreAIChatManager = function () {
 
                         case 'TOOL_CALL_START': {
                             const message = this.ensureAGUIMessage(run, evt.parentMessageId);
-                            const call = { id: evt.toolCallId, name: evt.toolCallName, arguments: '', result: '', status: 'requested', interruptId: null, agentName: '' };
+                            const call = { id: evt.toolCallId, name: evt.toolCallName, arguments: '', result: '', status: 'requested', interruptId: null, agentName: '', agentDisplayText: '' };
 
                             message.toolCalls = message.toolCalls || [];
                             message.toolCalls.push(call);
@@ -2685,6 +2688,7 @@ window.coreAIChatManager = function () {
                                             const agentCall = run.toolCalls[metadata.agentToolCallId];
 
                                             call.agentName = metadata.agentName;
+                                            call.agentDisplayText = metadata.agentDisplayText || '';
 
                                             if (agentCall) {
                                                 agentCall.status = 'awaitingApproval';

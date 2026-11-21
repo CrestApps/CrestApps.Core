@@ -50,9 +50,10 @@ public sealed class ToolRegistryEntry
     public Func<IServiceProvider, ValueTask<AITool>> CreateAsync { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether a person must approve each call of this tool before it runs.
-    /// It applies only to callers that can ask for an approval, such as an AG-UI chat run; other callers run the
-    /// tool as before.
+    /// Gets or sets a value indicating whether a person must approve each call of this tool before it runs. A caller
+    /// that can ask for an approval, such as an AG-UI chat run, pauses for one before the call. Any other caller never
+    /// runs the tool: it gets a stand-in with the same name and schema that does not run it and tells the model why
+    /// (a tool that is not an <see cref="AIFunction"/> is left out instead).
     /// </summary>
     public bool RequiresApproval { get; set; }
 
