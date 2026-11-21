@@ -9,8 +9,9 @@ public static class AIToolAccessEvaluatorExtensions
 {
     /// <summary>
     /// Determines whether the specified user is allowed to use a registered tool: when the evaluator authorizes
-    /// the tool's name, or one of its aliases. Access that was granted for an earlier name of the tool therefore
-    /// keeps granting access after the tool is renamed.
+    /// the tool's name, or one of its aliases that carries access (<see cref="AIToolDefinitionEntry.AccessAliases"/>).
+    /// Access that was granted for the earlier name of a renamed tool therefore keeps granting access, while the
+    /// grants of a narrower tool merged into a broader one do not reach the broader one.
     /// </summary>
     /// <param name="evaluator">The tool access evaluator.</param>
     /// <param name="user">The current user principal. May be <c>null</c> for anonymous requests.</param>
@@ -35,7 +36,8 @@ public static class AIToolAccessEvaluatorExtensions
             return false;
         }
 
-        foreach (var alias in definition.Aliases)
+        // Only an alias that carries access counts: a narrower tool merged into this one must not pass its grants on.
+        foreach (var alias in definition.AccessAliases)
         {
             if (await evaluator.IsAuthorizedAsync(user, alias))
             {

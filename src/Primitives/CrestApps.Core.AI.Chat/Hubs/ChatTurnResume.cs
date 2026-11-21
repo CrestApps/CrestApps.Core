@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
 using CrestApps.Core.AI.AGUI;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
@@ -11,6 +13,9 @@ namespace CrestApps.Core.AI.Chat.Hubs;
 /// </summary>
 internal static class ChatTurnResume
 {
+    // The sessions a resume runs for in this process. Ignoring case, like the session lookup.
+    private static readonly ConcurrentDictionary<string, byte> _claims = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Applies the client's answers to the calls of a paused assistant message and adds to the conversation
     /// history what the resumed run needs: the client's tool results, and the approval requests with the person's
@@ -56,7 +61,7 @@ internal static class ChatTurnResume
 
         foreach (var call in pausedActivity.ToolCalls)
         {
-            var functionCall = new FunctionCallContent(call.CallId, call.Name, ChatConversationHistoryBuilder.ParseArguments(call.Arguments));
+            var functionCall = new FunctionCallContent(call.CallId, call.Name, AgentRunHistory.ParseArguments(call.Arguments));
 
             if (call.Status == ChatTurnToolCallStatus.AwaitingClient)
             {
@@ -64,7 +69,7 @@ internal static class ChatTurnResume
                     ? clientResult
                     : "The client did not return a result for this tool call.";
 
-                call.Result = Truncate(result, AGUIRunEventWriter.MaxToolResultLength);
+                call.Result = ChatText.Truncate(result, AGUIRunEventWriter.MaxToolResultLength);
                 call.Status = ChatTurnToolCallStatus.Completed;
                 clientCalls.Add(functionCall);
                 clientResults.Add(new FunctionResultContent(call.CallId, call.Result));
@@ -129,8 +134,13 @@ internal static class ChatTurnResume
             }
         }
 
-        // Each paused run is continued once: the resumed run keeps a run of its own if the agent pauses again.
-        pausedActivity.AgentRuns = [];
+        // Each paused run is continued once: the resumed run keeps a run of its own if the agent pauses again. Runs
+        // are cleared only once they were handed back; the caller restores them when the resume fails before any
+        // approved call ran (see HaveApprovedCallsStarted).
+        if (invocation is not null)
+        {
+            pausedActivity.AgentRuns = [];
+        }
 
         if (clientCalls.Count > 0)
         {
@@ -147,15 +157,100 @@ internal static class ChatTurnResume
 #pragma warning restore MEAI001
 
     /// <summary>
-    /// Cuts a value to a length.
+    /// Claims the resume of a chat session for this process, so two resumes of one paused message never overlap: two
+    /// that did (two tabs, a client that retries after a dropped connection) would both find the calls waiting and
+    /// both run the approved ones.
     /// </summary>
-    /// <param name="value">The value.</param>
-    /// <param name="maxLength">The most characters to keep.</param>
-    /// <returns>The value, cut when it is longer.</returns>
-    private static string Truncate(string value, int maxLength)
+    /// <remarks>
+    /// The claim is per process. A host that runs several instances behind a load balancer also needs sticky routing
+    /// for a session, or a store that checks concurrency, for the claim to hold across them.
+    /// </remarks>
+    /// <param name="sessionId">The id of the chat session.</param>
+    /// <returns>The claim, to dispose when the resume is done; <see langword="null"/> when another resume of the session runs.</returns>
+    public static IDisposable TryClaim(string sessionId)
     {
-        return string.IsNullOrEmpty(value) || value.Length <= maxLength
-            ? value
-            : value[..maxLength];
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            // Nothing can be resumed without a session; the caller reports that.
+            return Claim.None;
+        }
+
+        var key = sessionId.Trim();
+
+        return _claims.TryAdd(key, 0)
+            ? new Claim(key)
+            : null;
+    }
+
+    /// <summary>
+    /// Copies the tool calls of a paused message, so they can be put back when the resume fails.
+    /// </summary>
+    /// <param name="activity">The tool calls of the paused message.</param>
+    /// <returns>A copy that shares nothing with <paramref name="activity"/>.</returns>
+    public static ChatTurnToolActivity Copy(ChatTurnToolActivity activity)
+    {
+        ArgumentNullException.ThrowIfNull(activity);
+
+        return JsonSerializer.Deserialize<ChatTurnToolActivity>(JsonSerializer.SerializeToUtf8Bytes(activity));
+    }
+
+    /// <summary>
+    /// Determines whether anything the person approved started to run in a resumed run: an approved call of the
+    /// assistant has a result, or an agent took its paused run back. Until then a failed resume can put the paused
+    /// message back as it was and let the person answer again; after that, answering again could run an approved
+    /// call twice, so the answers stand.
+    /// </summary>
+    /// <param name="appliedActivity">The tool calls of the paused message, with the answers applied.</param>
+    /// <param name="resumedCalls">The tool calls the resumed run wrote so far.</param>
+    /// <param name="invocation">The invocation context of the resumed run.</param>
+    /// <returns><see langword="true"/> when an approved call may have run.</returns>
+    public static bool HaveApprovedCallsStarted(
+        ChatTurnToolActivity appliedActivity,
+        IReadOnlyList<ChatTurnToolCall> resumedCalls,
+        AIInvocationContext invocation)
+    {
+        ArgumentNullException.ThrowIfNull(appliedActivity);
+
+        if (AgentToolApprovals.Get(invocation)?.HasTakenResumptions == true)
+        {
+            return true;
+        }
+
+        var approvedCallIds = appliedActivity.ToolCalls
+            .Where(call => call.Status == ChatTurnToolCallStatus.Approved &&
+                string.IsNullOrEmpty(call.AgentCallId) &&
+                !string.IsNullOrEmpty(call.CallId))
+            .Select(call => call.CallId)
+            .ToHashSet(StringComparer.Ordinal);
+
+        return approvedCallIds.Count > 0 &&
+            (resumedCalls ?? []).Any(call => call.CallId is not null &&
+                approvedCallIds.Contains(call.CallId) &&
+                (call.Status == ChatTurnToolCallStatus.Completed || call.Result is not null));
+    }
+
+    /// <summary>
+    /// A claim on the resume of a session, released when disposed.
+    /// </summary>
+    private sealed class Claim : IDisposable
+    {
+        public static readonly Claim None = new(key: null);
+
+        private string _key;
+
+        public Claim(string key)
+        {
+            _key = key;
+        }
+
+        public void Dispose()
+        {
+            var key = Interlocked.Exchange(ref _key, null);
+
+            if (key is not null)
+            {
+                _claims.TryRemove(key, out _);
+            }
+        }
     }
 }

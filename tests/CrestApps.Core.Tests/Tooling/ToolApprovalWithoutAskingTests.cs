@@ -99,13 +99,17 @@ public sealed class ToolApprovalWithoutAskingTests
     }
 
     [Fact]
-    public void AToolThatIsNotAFunction_IsLeftOutWhereNobodyCanBeAsked()
+    public void AToolThatRequiresApprovalButIsNotAFunction_IsLeftOut_EvenWhereAPersonCanBeAsked()
     {
         var tool = new HostedTool();
         var entry = new ToolRegistryEntry { Name = tool.Name, RequiresApproval = true };
 
+        // No approval can be asked for a tool the function invocation does not run, so it is never offered.
         Assert.Null(DefaultToolMaterializer.WrapForApproval(tool, entry, ToolMaterializationOptions.Default));
-        Assert.Same(tool, DefaultToolMaterializer.WrapForApproval(tool, entry, new ToolMaterializationOptions { SupportsToolApproval = true }));
+        Assert.Null(DefaultToolMaterializer.WrapForApproval(tool, entry, new ToolMaterializationOptions { SupportsToolApproval = true }));
+
+        // Without an approval to ask for, it is offered as before.
+        Assert.Same(tool, DefaultToolMaterializer.WrapForApproval(tool, new ToolRegistryEntry { Name = tool.Name }, new ToolMaterializationOptions { SupportsToolApproval = true }));
     }
 
     /// <summary>

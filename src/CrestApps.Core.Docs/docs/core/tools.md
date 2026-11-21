@@ -60,7 +60,7 @@ Returns an `AIToolBuilder<TTool>` for fluent configuration:
 | `.RequireApproval()` | Asks the user to approve each call before it runs, in chat runs that can ask (AG-UI runs). Where nobody can be asked (other chats, realtime, workflows, background work), the tool does not run, and the model is told why. `.RequireApproval(false)` lets a tool run without asking. See [AG-UI tool approvals](./ag-ui.md#tool-approvals) |
 | `.AsRead()` / `.AsWrite()` / `.AsDestructive()` / `.AsExternal()` / `.AsSecurity()` | Says what the tool does (its kind). See [Tool Kinds](#tool-kinds) |
 | `.WithKind(AIToolKind)` | Sets the kind from a value |
-| `.WithAlias(string)` / `.WithAliases(params string[])` | Adds an earlier name of the tool, so stored references keep working. See [Renaming a Tool](#renaming-a-tool) |
+| `.WithAlias(string, bool grantsAccess = false)` / `.WithAliases(params string[])` | Adds an earlier name of the tool, so stored references keep working; `grantsAccess: true` also carries the earlier name's access (for a rename). See [Renaming a Tool](#renaming-a-tool) |
 
 ### Tool Kinds
 
@@ -102,17 +102,19 @@ Tool names are stored: on AI profiles and templates, on chat interactions, in th
 ```csharp
 builder.Services
     .AddCoreAITool<ListUsersTool>("listUsers")
-        .WithAlias("searchForUsers")
+        .WithAlias("searchForUsers", grantsAccess: true)
         .Selectable();
 ```
 
 - A profile, template or chat interaction that still stores `searchForUsers` gets the `listUsers` tool. The model sees the tool under its current name.
 - A `Tools` list of the MCP server or WebMCP settings that still names `searchForUsers` still exposes the tool.
 - A dependency declared with the earlier name (`.WithDependency("searchForUsers")`) still resolves.
-- The access check accepts the earlier name: when `IAIToolAccessEvaluator` authorizes the tool's name or one of its aliases, the user may use the tool. A host that grants access by tool name therefore does not have to grant it again after a rename.
+- With `grantsAccess: true`, the access check accepts the earlier name: when `IAIToolAccessEvaluator` authorizes the tool's name or that alias, the user may use the tool. A host that grants access by tool name therefore does not have to grant it again after a rename.
 - Listings show the tool once, under its current name. `AIToolDefinitionOptions.Tools` and `GetSelectableTools()` do not list aliases.
 
-To look a tool up by a name that may be an alias, use `AIToolDefinitionOptions.TryGetTool(nameOrAlias, out definition)`. `ResolveToolName` and `ResolveToolNames` return the current names for stored names.
+Pass `grantsAccess: true` only for a rename, where the tool does what the earlier name did. When a narrower tool is merged into a broader one (a read-only `getOrder` into a `manageOrder` that can also cancel orders), add the earlier name with `.WithAlias("getOrder")` alone: stored names still resolve, but a role granted only `getOrder` does not get `manageOrder`. `.WithAliases(...)` adds aliases without access. `AIToolDefinitionEntry.AccessAliases` lists the aliases that carry access.
+
+To look a tool up by a name that may be an alias, use `AIToolDefinitionOptions.TryGetTool(nameOrAlias, out definition)`. `ResolveToolName` and `ResolveToolNames` return the current names for stored names. `IAIToolsService.GetByNameAsync` also accepts an alias. A tool is registered as a keyed `AITool` under its current name only, so code that resolves `GetKeyedService<AITool>(name)` itself resolves the name with `ResolveToolName` first.
 
 An alias must not be the name or an alias of another tool. When it is, the tool definitions fail to build with an `InvalidOperationException` that names both tools. This happens the first time the application reads `AIToolDefinitionOptions`, which is at startup or on the first request that uses AI tools. Call `.WithAlias(...)` once for each earlier name. When no stored data uses an earlier name anymore, remove the alias.
 

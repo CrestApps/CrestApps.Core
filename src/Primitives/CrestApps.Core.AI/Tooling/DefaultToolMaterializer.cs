@@ -133,7 +133,16 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
 
                 var offered = WrapForApproval(tool, entry, options);
 
-                if (offered is null || offered is ApprovalUnavailableAIFunction)
+                if (offered is null)
+                {
+                    // The tool requires a person's approval and cannot be wrapped for one, so it is never offered.
+                    AITelemetry.ToolDenials.Add(1, new KeyValuePair<string, object>(AITelemetry.ReasonTag, "approval"));
+
+                    _logger.LogWarning(
+                        "Tool '{ToolName}' from {Source} ({Id}) requires approval but is not an AIFunction, so no approval can be asked for it. It is left out.",
+                        entry.Name, entry.Source, entry.Id);
+                }
+                else if (offered is ApprovalUnavailableAIFunction)
                 {
                     // The tool requires a person's approval and this request cannot ask for one, so it never runs.
                     AITelemetry.ToolDenials.Add(1, new KeyValuePair<string, object>(AITelemetry.ReasonTag, "approval"));
@@ -175,8 +184,9 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
     /// <param name="entry">The registry entry the tool came from.</param>
     /// <param name="options">The materialization options.</param>
     /// <returns>
-    /// The tool to offer, or <see langword="null"/> when the tool requires an approval, the caller cannot ask, and the
-    /// tool is not a function that can be replaced, so it is left out.
+    /// The tool to offer, or <see langword="null"/> when the tool requires an approval and is not an
+    /// <see cref="AIFunction"/>: such a tool can be neither wrapped for an approval nor replaced, so it is left out,
+    /// whether the caller can ask or not.
     /// </returns>
 #pragma warning disable MEAI001 // ApprovalRequiredAIFunction is a preview API of Microsoft.Extensions.AI.
     internal static AITool WrapForApproval(AITool tool, ToolRegistryEntry entry, ToolMaterializationOptions options)
@@ -192,11 +202,11 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
             return tool;
         }
 
+        // A tool that is not a function (a provider-hosted tool, for example) is not run by the function invocation,
+        // so an approval cannot be asked for it: offering it would let it run unasked.
         if (tool is not AIFunction function)
         {
-            return options.SupportsToolApproval
-                ? tool
-                : null;
+            return null;
         }
 
         if (options.SupportsToolApproval)

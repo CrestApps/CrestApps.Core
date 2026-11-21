@@ -199,9 +199,13 @@ internal sealed class AgentProxyTool : AIFunction
         // The agent can ask only when its caller can show the request to a person and can come back to this very
         // call with the answer.
         var canAsk = approvals?.CanAsk == true && !string.IsNullOrEmpty(callId);
+
+        // A kept run is continued whether or not this run can ask again: starting the agent over would repeat the
+        // calls it made before it paused. A tool the person approved then gets the "not run" result if nobody can
+        // be asked now, and the agent reports that.
         AgentRunResumption resumption = null;
 
-        if (canAsk)
+        if (approvals is not null && !string.IsNullOrEmpty(callId))
         {
             approvals.TryTakeResumption(callId, out resumption);
         }

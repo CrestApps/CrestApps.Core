@@ -7,6 +7,7 @@ public sealed class AIToolDefinitionEntry
 {
     private readonly HashSet<string> _dependencies = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _aliases = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _accessAliases = new(StringComparer.OrdinalIgnoreCase);
     private bool? _requiresApproval;
 
     /// <summary>
@@ -107,12 +108,24 @@ public sealed class AIToolDefinitionEntry
     public IReadOnlyCollection<string> Aliases => _aliases;
 
     /// <summary>
+    /// Gets the aliases that also carry access: a user the access check authorizes for one of these names may use
+    /// this tool. Only an alias added with <c>grantsAccess</c> is here, because only a rename keeps what the tool
+    /// does; a narrower tool merged into a broader one must not hand its grants to the broader one.
+    /// </summary>
+    public IReadOnlyCollection<string> AccessAliases => _accessAliases;
+
+    /// <summary>
     /// Adds a name this tool was registered under before, so stored references to that name keep resolving to it.
     /// An alias that equals <see cref="Name"/> is ignored.
     /// </summary>
     /// <param name="alias">The other name of the tool.</param>
+    /// <param name="grantsAccess">
+    /// Whether access granted for the alias also grants access to this tool. Pass <see langword="true"/> for a
+    /// rename, where the tool does what the earlier name did. Leave it <see langword="false"/> when a narrower tool
+    /// was merged into this one, so the earlier tool's grants do not reach what this tool can also do.
+    /// </param>
     /// <returns><see langword="true"/> when the alias was added; otherwise <see langword="false"/>.</returns>
-    public bool AddAlias(string alias)
+    public bool AddAlias(string alias, bool grantsAccess = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(alias);
 
@@ -121,6 +134,11 @@ public sealed class AIToolDefinitionEntry
         if (string.Equals(alias, Name, StringComparison.OrdinalIgnoreCase))
         {
             return false;
+        }
+
+        if (grantsAccess)
+        {
+            _accessAliases.Add(alias);
         }
 
         return _aliases.Add(alias);

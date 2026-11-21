@@ -222,18 +222,24 @@ public sealed class AIToolBuilder<TTool>
     /// </summary>
     /// <remarks>
     /// An alias must not be the name or an alias of another tool: the tool definitions then fail to build, with a
-    /// message that names both tools.
+    /// message that names both tools. Access granted for the earlier name grants access to this tool only when
+    /// <paramref name="grantsAccess"/> is <see langword="true"/>.
     /// </remarks>
     /// <param name="alias">The earlier name of the tool.</param>
-    public AIToolBuilder<TTool> WithAlias(string alias)
+    /// <param name="grantsAccess">
+    /// Whether access granted for the earlier name also grants access to this tool. Pass <see langword="true"/> for
+    /// a rename. Leave it <see langword="false"/> when a narrower tool was merged into this one, so its grants do not
+    /// reach what this tool can also do.
+    /// </param>
+    public AIToolBuilder<TTool> WithAlias(string alias, bool grantsAccess = false)
     {
-        _entry.AddAlias(alias);
+        _entry.AddAlias(alias, grantsAccess);
 
         return this;
     }
 
     /// <summary>
-    /// Adds names this tool was registered under before. See <see cref="WithAlias"/>.
+    /// Adds names this tool was registered under before, without carrying their access. See <see cref="WithAlias"/>.
     /// </summary>
     /// <param name="aliases">The earlier names of the tool.</param>
     public AIToolBuilder<TTool> WithAliases(params string[] aliases)

@@ -2950,6 +2950,21 @@ window.coreAIChatManager = function () {
                         return;
                     }
 
+                    // A call to an agent waits while the agent's own calls do; it has no interrupt of its own. Every
+                    // answer is in, so it no longer waits: the resumed run makes it again, as the server records.
+                    let agentCallsAnswered = false;
+
+                    for (const call of target.toolCalls) {
+                        if (!call.interruptId && call.status === 'awaitingApproval') {
+                            call.status = 'approved';
+                            agentCallsAnswered = true;
+                        }
+                    }
+
+                    if (agentCallsAnswered) {
+                        updateMessagePresentation(target, target.references);
+                    }
+
                     const resume = calls
                         .filter(c => c.decided)
                         .map(c => ({

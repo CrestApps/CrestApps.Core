@@ -318,6 +318,26 @@ public sealed class McpServerBuilderExtensionsTests
         Assert.False(tools["delete"].Annotations.ReadOnlyHint);
         Assert.True(tools["delete"].Annotations.DestructiveHint);
         Assert.True(tools["send"].Annotations.OpenWorldHint);
+
+        // Hints left out take the MCP defaults (open world, and destructive when not read-only), so each is set.
+        Assert.False(tools["list"].Annotations.OpenWorldHint);
+        Assert.False(tools["delete"].Annotations.OpenWorldHint);
+        Assert.False(tools["send"].Annotations.DestructiveHint);
+    }
+
+    [Theory]
+    [InlineData(AIToolKind.Read, true, null, false)]
+    [InlineData(AIToolKind.Write, false, false, false)]
+    [InlineData(AIToolKind.Destructive, false, true, false)]
+    [InlineData(AIToolKind.External, false, false, true)]
+    [InlineData(AIToolKind.Security, false, true, false)]
+    public void CreateAnnotations_SetsEveryHintTheKindDecides(AIToolKind kind, bool readOnly, bool? destructive, bool openWorld)
+    {
+        var annotations = CrestApps.Core.AI.Mcp.McpServerBuilderExtensions.CreateAnnotations(kind);
+
+        Assert.Equal(readOnly, annotations.ReadOnlyHint);
+        Assert.Equal(destructive, annotations.DestructiveHint);
+        Assert.Equal(openWorld, annotations.OpenWorldHint);
     }
 
     /// <summary>

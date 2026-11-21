@@ -124,8 +124,11 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
             return await CompleteWithResponsesApiAsync(messages, context, deployment, connectionProperties, requestOptions, cancellationToken);
         }
 
+        // The messages may be enumerable only once: the conversion reads them, and the last one is kept for the
+        // approval answers a resumed run ends with.
+        var lastMessage = default(Microsoft.Extensions.AI.ChatMessage);
         var azureMessages = AzureOpenAIChatMessageConverter.Convert(
-            messages,
+            TrackLast(messages, message => lastMessage = message),
             context.PastMessagesCount);
         var prompts = GetPrompts(context, azureMessages);
         var connectionName = deployment.ConnectionName;
@@ -137,6 +140,22 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
         var allFunctions = systemFunctions.Count > 0 ? functions.Concat(systemFunctions) : functions;
         try
         {
+            // This loop follows the streaming one, which a streaming request falls back to when the deployment cannot
+            // stream: a run that resumes after a person answered tool approvals runs the approved calls first, a call
+            // to a tool that needs an approval pauses the request instead of running, and a round of tool calls can end
+            // the turn. The calls and results of those rounds are returned, so the caller sees them.
+            var toolMessages = new List<Microsoft.Extensions.AI.ChatMessage>();
+
+            foreach (var resumedUpdate in await ProcessApprovalResponsesAsync(lastMessage, prompts, allFunctions))
+            {
+                toolMessages.Add(new Microsoft.Extensions.AI.ChatMessage(resumedUpdate.Role ?? Microsoft.Extensions.AI.ChatRole.Assistant, resumedUpdate.Contents));
+            }
+
+            if (AIToolLoop.ShouldEndTurn(AIInvocationScope.Current))
+            {
+                return new Microsoft.Extensions.AI.ChatResponse(toolMessages);
+            }
+
             var stopwatch = Stopwatch.StartNew();
             var data = await chatClient.CompleteChatAsync(prompts, chatOptions, cancellationToken);
             if (data is null)
@@ -153,7 +172,31 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
             var iterations = 0;
             while (data.Value.FinishReason == ChatFinishReason.ToolCalls && iterations < _defaultOptions.MaximumIterationsPerRequest)
             {
-                await ProcessToolCallsAsync(prompts, data.Value.ToolCalls, allFunctions);
+                // A call to a tool that needs a person's approval pauses the request: the caller gets approval
+                // requests instead of results and resumes with the answers. The tool does not run.
+                if (RequiresApproval(data.Value.ToolCalls, allFunctions))
+                {
+                    toolMessages.Add(CreateApprovalRequestMessage(data.Value.ToolCalls));
+
+                    return CreateToolTurnResponse(toolMessages, data.Value, usage);
+                }
+
+                var toolResults = await ProcessToolCallsAsync(prompts, data.Value.ToolCalls, allFunctions);
+
+                // A tool can end the turn after its round, for example an agent that paused for an approval; the model
+                // is not asked again.
+                if (AIToolLoop.ShouldEndTurn(AIInvocationScope.Current))
+                {
+                    toolMessages.Add(new Microsoft.Extensions.AI.ChatMessage(
+                        Microsoft.Extensions.AI.ChatRole.Assistant,
+                        data.Value.ToolCalls.Select(call => (Microsoft.Extensions.AI.AIContent)ToFunctionCallContent(call)).ToList()));
+                    toolMessages.Add(new Microsoft.Extensions.AI.ChatMessage(
+                        Microsoft.Extensions.AI.ChatRole.Tool,
+                        toolResults.Select(result => (Microsoft.Extensions.AI.AIContent)new Microsoft.Extensions.AI.FunctionResultContent(result.CallId, result.Result)).ToList()));
+
+                    return CreateToolTurnResponse(toolMessages, data.Value, usage);
+                }
+
                 // Create a new chat option that excludes references to data sources to address the limitations in Azure OpenAI.
                 stopwatch.Restart();
                 data = await chatClient.CompleteChatAsync(prompts, GetOptions(context, allFunctions, requestOptions.ResolvedOptions), cancellationToken);
@@ -164,7 +207,9 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
             }
 
             var role = new Microsoft.Extensions.AI.ChatRole(data.Value.Role.ToString().ToLowerInvariant());
-            var choices = new List<Microsoft.Extensions.AI.ChatMessage>();
+
+            // The calls of a resumed run come first, so the caller sees them before the answer.
+            var choices = new List<Microsoft.Extensions.AI.ChatMessage>(toolMessages);
             foreach (var choice in data.Value.Content)
             {
                 choices.Add(new Microsoft.Extensions.AI.ChatMessage(role, choice.Text));
@@ -282,9 +327,9 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
             yield return resumedUpdate;
         }
 
-        // An agent that was called again with a person's answer can pause for another approval. The turn then ends
-        // with that request; the model is not asked before the person answers.
-        if (AgentToolApprovals.IsTurnPaused(AIInvocationScope.Current))
+        // An approved call can end the turn: an agent that was called again with a person's answer can pause for
+        // another approval, or a tool can open another page. The model is not asked again.
+        if (AIToolLoop.ShouldEndTurn(AIInvocationScope.Current))
         {
             yield break;
         }
@@ -372,7 +417,7 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
                     {
                         yield return new Microsoft.Extensions.AI.ChatResponseUpdate(
                             Microsoft.Extensions.AI.ChatRole.Assistant,
-                            toolCalls.Select(call => (Microsoft.Extensions.AI.AIContent)new Microsoft.Extensions.AI.ToolApprovalRequestContent($"ficc_{call.Id}", ToFunctionCallContent(call))).ToList())
+                            CreateApprovalRequests(toolCalls))
                         {
                             ResponseId = update.CompletionId,
                             ModelId = update.Model,
@@ -407,8 +452,7 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
 
                     // A tool can end the turn after its round, for example after it opened another page, or an agent that
                     // paused because a tool call it made waits for a person's approval; the model is not asked again.
-                    hasToolCalls = AIInvocationScope.Current?.Items.ContainsKey(AICompletionContextKeys.EndTurnAfterToolCalls) != true &&
-                        !AgentToolApprovals.IsTurnPaused(AIInvocationScope.Current);
+                    hasToolCalls = !AIToolLoop.ShouldEndTurn(AIInvocationScope.Current);
 
                     // The round trip that asked for tool calls is a billed request too, and its usage arrives in a
                     // final update after the finish reason, so read the rest of the stream and record it on its own
@@ -710,6 +754,52 @@ omit optional fields, or split the operation into multiple smaller calls.
     {
         return toolCalls.Any(call => functions.FirstOrDefault(function => function.Name == call.FunctionName)
             ?.GetService<Microsoft.Extensions.AI.ApprovalRequiredAIFunction>() is not null);
+    }
+
+    /// <summary>
+    /// Creates the approval requests for a round of tool calls that waits for a person: one for each call, as the
+    /// function-invoking chat client asks for them, so a resumed run answers them the same way.
+    /// </summary>
+    /// <param name="toolCalls">The tool calls.</param>
+    /// <returns>The approval requests.</returns>
+    private static List<Microsoft.Extensions.AI.AIContent> CreateApprovalRequests(IEnumerable<ChatToolCall> toolCalls)
+    {
+        return toolCalls
+            .Select(call => (Microsoft.Extensions.AI.AIContent)new Microsoft.Extensions.AI.ToolApprovalRequestContent($"ficc_{call.Id}", ToFunctionCallContent(call)))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Creates the assistant message that asks for a person's approval of each call of a round of tool calls.
+    /// </summary>
+    /// <param name="toolCalls">The tool calls.</param>
+    /// <returns>The message.</returns>
+    private static Microsoft.Extensions.AI.ChatMessage CreateApprovalRequestMessage(IEnumerable<ChatToolCall> toolCalls)
+    {
+        return new Microsoft.Extensions.AI.ChatMessage(Microsoft.Extensions.AI.ChatRole.Assistant, CreateApprovalRequests(toolCalls));
+    }
+
+    /// <summary>
+    /// Creates the response of a non-streaming request that ended after a round of tool calls without asking the model
+    /// again: because a call waits for an approval, or because the round ended the turn.
+    /// </summary>
+    /// <param name="messages">The messages of the tool calls, their results and the approval requests.</param>
+    /// <param name="completion">The completion that asked for the tool calls.</param>
+    /// <param name="usage">The usage of the request's round trips.</param>
+    /// <returns>The response.</returns>
+    private static Microsoft.Extensions.AI.ChatResponse CreateToolTurnResponse(
+        List<Microsoft.Extensions.AI.ChatMessage> messages,
+        ChatCompletion completion,
+        Microsoft.Extensions.AI.UsageDetails usage)
+    {
+        return new Microsoft.Extensions.AI.ChatResponse(messages)
+        {
+            ResponseId = completion.Id,
+            CreatedAt = completion.CreatedAt,
+            ModelId = completion.Model,
+            FinishReason = Microsoft.Extensions.AI.ChatFinishReason.ToolCalls,
+            Usage = usage,
+        };
     }
 #pragma warning restore MEAI001
 

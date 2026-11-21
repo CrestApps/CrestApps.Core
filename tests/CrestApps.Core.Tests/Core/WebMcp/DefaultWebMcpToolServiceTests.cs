@@ -324,12 +324,27 @@ public sealed class DefaultWebMcpToolServiceTests
             {
                 Tools = ["old_read_tool"],
             },
-            configure: services => services.AddCoreAITool<ReadKindTestTool>(ReadKindTestTool.TheName).WithAlias("old_read_tool").Selectable(),
+            configure: services => services.AddCoreAITool<ReadKindTestTool>(ReadKindTestTool.TheName).WithAlias("old_read_tool", grantsAccess: true).Selectable(),
             authorize: name => name == "old_read_tool");
 
         var tool = Assert.Single(await service.GetToolsAsync(_user, TestContext.Current.CancellationToken));
 
         Assert.Equal(ReadKindTestTool.TheName, tool.Name);
+    }
+
+    [Fact]
+    public async Task GetToolsAsync_DoesNotGiveAToolOnThePermissionOfANarrowerToolMergedIntoIt()
+    {
+        // The settings still name the earlier tool, but its permission does not reach the tool it was merged into.
+        var service = CreateService(
+            new WebMcpOptions
+            {
+                Tools = ["old_read_tool"],
+            },
+            configure: services => services.AddCoreAITool<ReadKindTestTool>(ReadKindTestTool.TheName).WithAlias("old_read_tool").Selectable(),
+            authorize: name => name == "old_read_tool");
+
+        Assert.Empty(await service.GetToolsAsync(_user, TestContext.Current.CancellationToken));
     }
 
     private static AIToolInstance CreateInstance()

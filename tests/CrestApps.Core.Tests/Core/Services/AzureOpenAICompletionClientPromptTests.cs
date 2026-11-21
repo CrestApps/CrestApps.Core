@@ -831,6 +831,116 @@ public sealed class AzureOpenAICompletionClientPromptTests
     }
 
     /// <summary>
+    /// Verifies the non-streaming loop, which a streaming request falls back to when the deployment cannot stream,
+    /// ends the turn after an agent paused for an approval, as the streaming loop does, and returns the calls.
+    /// </summary>
+    /// <param name="pauses">Whether the called agent pauses for an approval.</param>
+    /// <param name="expectedRequests">How many requests the model receives.</param>
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 2)]
+    public async Task NonStreaming_WhenACalledAgentPausedForAnApproval_EndsTheTurnWithoutAskingTheModelAgain(bool pauses, int expectedRequests)
+    {
+        var agent = new PausingAgentProbe { Pauses = pauses };
+        using var clientContext = CreateCompletionClient(
+            streaming: false,
+            [new SingleToolHandler(agent)],
+            new Mock<IAIClientFactory>(MockBehavior.Strict).Object,
+            completionResponse: CreateToolCallCompletionResponse());
+        using var scope = AIInvocationScope.Begin();
+
+        var response = await clientContext.Client.CompleteAsync(
+            [new AIChatMessage(AIChatRole.User, "Delete item 7.")],
+            new AICompletionContext
+            {
+                ChatDeploymentName = DeploymentName,
+            },
+            TestContext.Current.CancellationToken);
+
+        // The fixture allows one round of tool calls, after which a turn that goes on asks the model once more.
+        Assert.Equal(expectedRequests, clientContext.Handler.RequestCount);
+        Assert.Equal("call-agent-1", Assert.Single(agent.CallIds));
+
+        if (pauses)
+        {
+            // The caller gets the call and its result, as the streaming loop gives them.
+            var contents = response.Messages.SelectMany(message => message.Contents).ToList();
+
+            Assert.Equal("call-agent-1", Assert.Single(contents.OfType<Microsoft.Extensions.AI.FunctionCallContent>()).CallId);
+            Assert.Equal("call-agent-1", Assert.Single(contents.OfType<Microsoft.Extensions.AI.FunctionResultContent>()).CallId);
+        }
+    }
+
+#pragma warning disable MEAI001 // Tool approvals are a preview API of Microsoft.Extensions.AI.
+    /// <summary>
+    /// Verifies the non-streaming loop never runs a tool that requires an approval: the request pauses with an
+    /// approval request, as the streaming loop does, and the model is not asked again.
+    /// </summary>
+    [Fact]
+    public async Task NonStreaming_AToolThatRequiresApproval_DoesNotRun_AndTheResponseAsksForTheApproval()
+    {
+        var tool = new PausingAgentProbe();
+        using var clientContext = CreateCompletionClient(
+            streaming: false,
+            [new SingleToolHandler(new Microsoft.Extensions.AI.ApprovalRequiredAIFunction(tool))],
+            new Mock<IAIClientFactory>(MockBehavior.Strict).Object,
+            completionResponse: CreateToolCallCompletionResponse());
+        using var scope = AIInvocationScope.Begin();
+
+        var response = await clientContext.Client.CompleteAsync(
+            [new AIChatMessage(AIChatRole.User, "Delete item 7.")],
+            new AICompletionContext
+            {
+                ChatDeploymentName = DeploymentName,
+            },
+            TestContext.Current.CancellationToken);
+
+        var request = Assert.Single(response.Messages.SelectMany(message => message.Contents).OfType<Microsoft.Extensions.AI.ToolApprovalRequestContent>());
+
+        Assert.Empty(tool.CallIds);
+        Assert.Equal(1, clientContext.Handler.RequestCount);
+        Assert.Equal("ficc_call-agent-1", request.RequestId);
+        Assert.Equal("content-agent", Assert.IsType<Microsoft.Extensions.AI.FunctionCallContent>(request.ToolCall).Name);
+    }
+
+    /// <summary>
+    /// Verifies a non-streaming request that resumes after a person approved a call runs that call first, then asks
+    /// the model, and returns the call with its result before the answer.
+    /// </summary>
+    [Fact]
+    public async Task NonStreaming_ResumingAfterAnApproval_RunsTheApprovedCallFirst()
+    {
+        var tool = new PausingAgentProbe();
+        using var clientContext = CreateCompletionClient(
+            streaming: false,
+            [new SingleToolHandler(tool)],
+            new Mock<IAIClientFactory>(MockBehavior.Strict).Object);
+        using var scope = AIInvocationScope.Begin();
+        var approval = new Microsoft.Extensions.AI.ToolApprovalRequestContent(
+            "ficc_call-agent-1",
+            new Microsoft.Extensions.AI.FunctionCallContent("call-agent-1", "content-agent", new Dictionary<string, object> { ["prompt"] = "Delete item 7" }));
+
+        var response = await clientContext.Client.CompleteAsync(
+            [
+                new AIChatMessage(AIChatRole.User, "Delete item 7."),
+                new AIChatMessage(AIChatRole.Assistant, [approval]),
+                new AIChatMessage(AIChatRole.User, [approval.CreateResponse(approved: true, reason: null)]),
+            ],
+            new AICompletionContext
+            {
+                ChatDeploymentName = DeploymentName,
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(["call-agent-1"], tool.CallIds);
+        Assert.Equal(1, clientContext.Handler.RequestCount);
+        Assert.Equal("call-agent-1", Assert.Single(response.Messages[0].Contents.OfType<Microsoft.Extensions.AI.FunctionCallContent>()).CallId);
+        Assert.Equal("done", Assert.Single(response.Messages[1].Contents.OfType<Microsoft.Extensions.AI.FunctionResultContent>()).Result);
+        Assert.Equal("done", response.Messages[^1].Text);
+    }
+#pragma warning restore MEAI001
+
+    /// <summary>
     /// Verifies a request that carries function tools without a reasoning effort stays on Chat Completions.
     /// </summary>
     /// <param name="streaming">Whether to invoke the streaming path.</param>
@@ -991,19 +1101,21 @@ public sealed class AzureOpenAICompletionClientPromptTests
     /// <param name="clientFactory">The AI client factory that serves Responses API requests, or a default mock.</param>
     /// <param name="chatApi">The connection's <c>ChatApi</c> setting, or <see langword="null"/> to leave it unset.</param>
     /// <param name="streamingResponse">The server-sent events every streaming request is answered with, or <see langword="null"/> for a text answer.</param>
+    /// <param name="completionResponse">The JSON every non-streaming request is answered with, or <see langword="null"/> for a text answer.</param>
     /// <returns>The disposable client context.</returns>
     private static CompletionClientContext CreateCompletionClient(
         bool streaming,
         IEnumerable<IAICompletionServiceHandler> completionServiceHandlers = null,
         IAIClientFactory clientFactory = null,
         string chatApi = null,
-        string streamingResponse = null)
+        string streamingResponse = null,
+        string completionResponse = null)
     {
         AzureOpenAIClientFactory.ClearCache();
 
         var endpoint = new Uri("https://unit.test/");
         var handler = new RecordingHttpMessageHandler(
-            streaming ? streamingResponse ?? CreateStreamingResponse() : CreateCompletionResponse(),
+            streaming ? streamingResponse ?? CreateStreamingResponse() : completionResponse ?? CreateCompletionResponse(),
             streaming ? "text/event-stream" : "application/json");
         var httpClient = new HttpClient(handler);
         var azureOptions = new AzureClientOptions
@@ -1141,6 +1253,49 @@ public sealed class AzureOpenAICompletionClientPromptTests
 
             data: [DONE]
 
+            """;
+    }
+
+    /// <summary>
+    /// Creates a non-streaming response in which the model calls the <c>content-agent</c> tool.
+    /// </summary>
+    /// <returns>The JSON response payload.</returns>
+    private static string CreateToolCallCompletionResponse()
+    {
+        return """
+            {
+              "id": "chatcmpl-test",
+              "object": "chat.completion",
+              "created": 1710000000,
+              "model": "test-model",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "refusal": null,
+                    "tool_calls": [
+                      {
+                        "id": "call-agent-1",
+                        "type": "function",
+                        "function": {
+                          "name": "content-agent",
+                          "arguments": "{\"prompt\":\"Delete item 7\"}"
+                        }
+                      }
+                    ]
+                  },
+                  "finish_reason": "tool_calls",
+                  "logprobs": null
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 1,
+                "completion_tokens": 1,
+                "total_tokens": 2
+              }
+            }
             """;
     }
 

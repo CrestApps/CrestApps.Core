@@ -4,6 +4,7 @@ using CrestApps.Core.AI;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -173,7 +174,7 @@ public sealed class AIToolAliasTests
     {
         var options = CreateOptions(services =>
         {
-            services.AddCoreAITool<TestFunction>("listUsers").WithAlias("searchForUsers").Selectable();
+            services.AddCoreAITool<TestFunction>("listUsers").WithAlias("searchForUsers", grantsAccess: true).Selectable();
             services.AddCoreAITool<TestFunction>("getUser").Selectable();
         });
         var evaluator = new NamedToolAccessEvaluator("searchForUsers");
@@ -204,9 +205,25 @@ public sealed class AIToolAliasTests
     }
 
     [Fact]
-    public async Task TheAccessEvaluatorExtension_ChecksTheNameFirst_AndOnlyThenTheAliases()
+    public async Task AnAliasWithoutAccess_ResolvesTheName_ButDoesNotGrantTheEarlierToolsAccess()
     {
-        var options = CreateOptions(services => services.AddCoreAITool<TestTool>("listUsers").WithAlias("searchForUsers"));
+        // A read-only tool merged into one that can also cancel orders: its grants must not reach the broader tool.
+        var options = CreateOptions(services => services.AddCoreAITool<TestTool>("manageOrder").WithAlias("getOrder"));
+        var definition = options.Tools["manageOrder"];
+        var readOnlyGrant = new NamedToolAccessEvaluator("getOrder");
+
+        Assert.Equal("manageOrder", options.ResolveToolName("getOrder"));
+        Assert.Empty(definition.AccessAliases);
+        Assert.False(await readOnlyGrant.IsAuthorizedAsync(user: null, "manageOrder", definition));
+        Assert.Equal(["manageOrder"], readOnlyGrant.CheckedNames);
+    }
+
+    [Fact]
+    public async Task TheAccessEvaluatorExtension_ChecksTheNameFirst_AndOnlyThenTheAliasesThatGrantAccess()
+    {
+        var options = CreateOptions(services => services.AddCoreAITool<TestTool>("listUsers")
+            .WithAlias("searchForUsers", grantsAccess: true)
+            .WithAlias("findUsers"));
         var definition = options.Tools["listUsers"];
         var byName = new NamedToolAccessEvaluator("listUsers");
         var byNothing = new NamedToolAccessEvaluator();
@@ -216,6 +233,22 @@ public sealed class AIToolAliasTests
         Assert.False(await byNothing.IsAuthorizedAsync(user: null, "listUsers", definition));
         Assert.Equal(["listUsers", "searchForUsers"], byNothing.CheckedNames);
         Assert.False(await byNothing.IsAuthorizedAsync(user: null, "other", definition: null));
+    }
+
+    [Fact]
+    public async Task TheToolsService_GetsARenamedToolByItsEarlierName()
+    {
+        var services = new ServiceCollection();
+
+        services.AddOptions();
+        services.AddCoreAITool<TestFunction>("listUsers").WithAlias("searchForUsers");
+
+        await using var serviceProvider = services.BuildServiceProvider();
+        var toolsService = new DefaultAIToolsService(serviceProvider, serviceProvider.GetRequiredService<IOptions<AIToolDefinitionOptions>>());
+
+        Assert.Same(serviceProvider.GetRequiredService<TestFunction>(), await toolsService.GetByNameAsync("searchForUsers"));
+        Assert.Same(serviceProvider.GetRequiredService<TestFunction>(), await toolsService.GetByNameAsync("listUsers"));
+        Assert.Null(await toolsService.GetByNameAsync("unknownTool"));
     }
 
     private static AIToolDefinitionOptions CreateOptions(Action<IServiceCollection> configureServices)

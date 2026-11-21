@@ -410,6 +410,149 @@ public sealed class AgentToolApprovalTests
         Assert.Equal($"{AgentCallId}:delete-1", Assert.IsType<FunctionCallContent>(request.ToolCall).CallId);
         Assert.Same(run, request.AdditionalProperties[AgentToolApprovalProperties.AgentRun]);
         Assert.Empty(approvals.TakeApprovalRequests());
+
+        // Once the turn's requests are taken, the pause is over: a later completion in the same invocation is neither
+        // ended early nor stripped of its results.
+        Assert.False(AgentToolApprovals.IsTurnPaused(scope.Context));
+
+        var later = new ChatResponseUpdate(ChatRole.Tool, [new FunctionResultContent(AgentCallId, "a later result")]);
+        Assert.Same(later, approvals.RemovePausedResults(later));
+    }
+
+    [Fact]
+    public void TheToolLoop_EndsOnlyTheAssistantsTurn_WhenAToolAsksOrAnAgentPaused()
+    {
+        Assert.False(AIToolLoop.ShouldEndTurn(null));
+
+        using var scope = AIInvocationScope.Begin();
+
+        Assert.False(AIToolLoop.ShouldEndTurn(scope.Context));
+
+        // A tool ended the turn, for example one that opened another page.
+        scope.Context.Items[AICompletionContextKeys.EndTurnAfterToolCalls] = true;
+        Assert.True(AIToolLoop.ShouldEndTurn(scope.Context));
+
+        // An agent that the same round of tool calls started is not cut short.
+        scope.Context.AgentInvocationDepth = 1;
+        Assert.False(AIToolLoop.ShouldEndTurn(scope.Context));
+        scope.Context.AgentInvocationDepth = 0;
+        scope.Context.Items.Remove(AICompletionContextKeys.EndTurnAfterToolCalls);
+
+        // An agent paused for an approval, until the turn's approval requests are taken.
+        var approvals = AgentToolApprovals.GetOrAdd(scope.Context);
+
+        approvals.Pause(
+            new FunctionCallContent(AgentCallId, AgentName),
+            new ChatTurnAgentRun { CallId = AgentCallId, AgentName = AgentName });
+
+        Assert.True(AIToolLoop.ShouldEndTurn(scope.Context));
+
+        approvals.TakeApprovalRequests();
+
+        Assert.False(AIToolLoop.ShouldEndTurn(scope.Context));
+    }
+
+    [Fact]
+    public async Task AResumeThatCannotAskAgain_ContinuesTheKeptRun_InsteadOfStartingTheAgentOver()
+    {
+        using var harness = new AgentApprovalTestHarness();
+        var paused = await RunFirstTurnAsync(harness);
+
+        await ResumeAsync(harness, paused, approved: true, supportsApproval: false);
+
+        // The call the agent made before the pause was not made again, and the approved tool, which nobody can be
+        // asked for now, did not run.
+        Assert.Equal(1, harness.ListTool.CallCount);
+        Assert.Equal(0, harness.DeleteTool.CallCount);
+
+        // The agent's model read its earlier call from the kept run, and why the approved tool was not run.
+        var agentMessages = harness.Model.AgentRequests[^1];
+
+        Assert.Equal(3, harness.Model.AgentRequests.Count);
+        Assert.Equal("Items: 7, 8", FindResult(agentMessages, AgentApprovalTestHarness.ListCallId));
+        Assert.Equal(ApprovalUnavailableAIFunction.GetMessage(DeleteToolName), FindResult(agentMessages, AgentApprovalTestHarness.DeleteCallId));
+    }
+
+    [Fact]
+    public void AResumeOfAChat_IsClaimedOnce_UntilItIsDone()
+    {
+        using (var claim = ChatTurnResume.TryClaim("session-claim-1"))
+        {
+            Assert.NotNull(claim);
+
+            // A second resume of the same chat, however its id is cased, waits for nothing and is turned away.
+            Assert.Null(ChatTurnResume.TryClaim("SESSION-CLAIM-1"));
+
+            using var other = ChatTurnResume.TryClaim("session-claim-2");
+            Assert.NotNull(other);
+        }
+
+        using var again = ChatTurnResume.TryClaim("session-claim-1");
+        Assert.NotNull(again);
+
+        // Without a session there is nothing to claim; the caller reports the missing session.
+        using var none = ChatTurnResume.TryClaim(null);
+        Assert.NotNull(none);
+    }
+
+    [Fact]
+    public void AFailedResume_PutsThePausedMessageBack_OnlyUntilAnApprovedCallStarted()
+    {
+        var activity = new ChatTurnToolActivity
+        {
+            ToolCalls =
+            [
+                new ChatTurnToolCall { CallId = "c1", Name = "delete_item", Arguments = "{}", Status = ChatTurnToolCallStatus.AwaitingApproval, ApprovalRequestId = "r1" },
+                new ChatTurnToolCall { CallId = "c2", Name = "send_mail", Arguments = "{}", Status = ChatTurnToolCallStatus.AwaitingApproval, ApprovalRequestId = "r2" },
+            ],
+        };
+        var waiting = ChatTurnResume.Copy(activity);
+        using var scope = AIInvocationScope.Begin();
+
+        ChatTurnResume.Apply(activity, CreateResumeRequest(new Dictionary<string, bool> { ["r1"] = true, ["r2"] = false }), [], new HashSet<string>(), scope.Context);
+
+        // The copy still waits for the answers, and shares nothing with the message the answers were applied to.
+        Assert.True(waiting.HasPendingCalls);
+        Assert.All(waiting.ToolCalls, call => Assert.Equal(ChatTurnToolCallStatus.AwaitingApproval, call.Status));
+        Assert.False(activity.HasPendingCalls);
+
+        // Nothing ran yet, or only the rejected call got its refusal: the message can wait for the answers again.
+        Assert.False(ChatTurnResume.HaveApprovedCallsStarted(activity, [], scope.Context));
+        Assert.False(ChatTurnResume.HaveApprovedCallsStarted(activity, [new ChatTurnToolCall { CallId = "c2", Status = ChatTurnToolCallStatus.Completed, Result = "Rejected." }], scope.Context));
+
+        // The approved call ran: answering again could run it twice, so the answers stand.
+        Assert.True(ChatTurnResume.HaveApprovedCallsStarted(activity, [new ChatTurnToolCall { CallId = "c1", Status = ChatTurnToolCallStatus.Completed, Result = "Deleted." }], scope.Context));
+    }
+
+    [Fact]
+    public void AnAgentThatTookItsRunBack_CountsAsStarted()
+    {
+        var activity = new ChatTurnToolActivity
+        {
+            ToolCalls =
+            [
+                new ChatTurnToolCall { CallId = AgentCallId, Name = AgentName, Arguments = "{}", Status = ChatTurnToolCallStatus.AwaitingApproval },
+                new ChatTurnToolCall { CallId = $"{AgentCallId}:delete-1", Name = DeleteToolName, Arguments = "{}", Status = ChatTurnToolCallStatus.AwaitingApproval, ApprovalRequestId = $"{AgentCallId}:ficc_delete-1", AgentName = AgentName, AgentCallId = AgentCallId },
+            ],
+            AgentRuns =
+            [
+                new ChatTurnAgentRun
+                {
+                    CallId = AgentCallId,
+                    AgentName = AgentName,
+                    ToolCalls = [new ChatTurnToolCall { CallId = "delete-1", Name = DeleteToolName, Arguments = "{}", Status = ChatTurnToolCallStatus.AwaitingApproval, ApprovalRequestId = "ficc_delete-1" }],
+                },
+            ],
+        };
+        using var scope = AIInvocationScope.Begin();
+
+        ChatTurnResume.Apply(activity, CreateResumeRequest(new Dictionary<string, bool> { [$"{AgentCallId}:ficc_delete-1"] = true }), [], new HashSet<string>(), scope.Context);
+
+        Assert.False(ChatTurnResume.HaveApprovedCallsStarted(activity, [], scope.Context));
+
+        // The agent took its run back, so it may have run the approved call.
+        Assert.True(AgentToolApprovals.Get(scope.Context).TryTakeResumption(AgentCallId, out _));
+        Assert.True(ChatTurnResume.HaveApprovedCallsStarted(activity, [], scope.Context));
     }
 
     private static async Task<ChatTurn> RunFirstTurnAsync(AgentApprovalTestHarness harness)
@@ -427,7 +570,7 @@ public sealed class AgentToolApprovalTests
     /// Resumes a paused turn the way the chat hub does: reads the stored message back, applies the answer, and runs
     /// the assistant's side of the turn again from the history up to the paused message.
     /// </summary>
-    private static async Task<ChatTurn> ResumeAsync(AgentApprovalTestHarness harness, ChatTurn paused, bool? approved, List<ChatMessage> history = null)
+    private static async Task<ChatTurn> ResumeAsync(AgentApprovalTestHarness harness, ChatTurn paused, bool? approved, List<ChatMessage> history = null, bool supportsApproval = true)
     {
         using var scope = AIInvocationScope.Begin();
 
@@ -449,7 +592,7 @@ public sealed class AgentToolApprovalTests
         ChatConversationHistoryBuilder.AddToolCallMessages(resumeHistory, paused.Activity);
         ChatTurnResume.Apply(paused.Activity, CreateResumeRequest(answers), resumeHistory, writer.RejectedCallIds, scope.Context);
 
-        return await RunTurnAsync(harness, scope.Context, resumeHistory, history ?? paused.History, writer, events, "message-2");
+        return await RunTurnAsync(harness, scope.Context, resumeHistory, history ?? paused.History, writer, events, "message-2", supportsApproval);
     }
 
     private static async Task<ChatTurn> RunTurnAsync(
@@ -459,12 +602,13 @@ public sealed class AgentToolApprovalTests
         List<ChatMessage> historyBeforeTheTurn,
         AGUIRunEventWriter writer,
         List<BaseEvent> events,
-        string messageId)
+        string messageId,
+        bool supportsApproval = true)
     {
         var updates = await harness.RunAssistantAsync(
             invocation,
             history,
-            supportsApproval: true,
+            supportsApproval,
             update => writer.WriteUpdateAsync(update, messageId, TestContext.Current.CancellationToken));
 
         await writer.FinishAsync(TestContext.Current.CancellationToken);

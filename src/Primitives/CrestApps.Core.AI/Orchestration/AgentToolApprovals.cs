@@ -22,6 +22,22 @@ internal sealed class AgentToolApprovals
     private readonly Dictionary<string, AgentRunResumption> _resumptions = new(StringComparer.Ordinal);
     private readonly List<(FunctionCallContent AgentCall, ChatTurnAgentRun Run)> _pauses = [];
     private readonly HashSet<string> _pausedCallIds = new(StringComparer.Ordinal);
+    private bool _tookResumption;
+
+    /// <summary>
+    /// Gets a value indicating whether an agent took its paused run back in this invocation (see
+    /// <see cref="TryTakeResumption"/>), so a call the person approved may have run.
+    /// </summary>
+    public bool HasTakenResumptions
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _tookResumption;
+            }
+        }
+    }
 
     /// <summary>
     /// Gets a value indicating whether the run that calls the agents can show an approval request to a person and
@@ -30,8 +46,9 @@ internal sealed class AgentToolApprovals
     public bool CanAsk { get; private set; }
 
     /// <summary>
-    /// Gets a value indicating whether an agent paused in this invocation, which ends the assistant's turn after
-    /// the current round of tool calls.
+    /// Gets a value indicating whether an agent paused in the assistant's current turn, which ends the turn after
+    /// the current round of tool calls. It is cleared when the turn's approval requests are taken
+    /// (<see cref="TakeApprovalRequests"/>), so a later completion in the same invocation is not cut short.
     /// </summary>
     public bool HasPausedRuns
     {
@@ -77,10 +94,10 @@ internal sealed class AgentToolApprovals
     }
 
     /// <summary>
-    /// Determines whether the assistant's turn waits for an approval inside an agent. A tool-calling loop that
-    /// does not stop on its own when a tool asks it to checks this after each round of tool calls, and ends the
-    /// turn without asking the model again. It is <see langword="false"/> while an agent runs, so the pause of
-    /// one agent never cuts short another agent that the same round of tool calls started.
+    /// Determines whether the assistant's turn waits for an approval inside an agent. It is <see langword="false"/>
+    /// while an agent runs, so the pause of one agent never cuts short another agent that the same round of tool
+    /// calls started. A tool-calling loop does not call this: it calls <see cref="AIToolLoop.ShouldEndTurn"/>,
+    /// which covers this and every other reason to end the turn after a round of tool calls.
     /// </summary>
     /// <param name="invocation">The invocation context.</param>
     /// <returns><see langword="true"/> when the assistant's turn waits for an approval inside an agent.</returns>
@@ -170,7 +187,14 @@ internal sealed class AgentToolApprovals
 
         lock (_lock)
         {
-            return _resumptions.Remove(agentCallId, out resumption);
+            if (!_resumptions.Remove(agentCallId, out resumption))
+            {
+                return false;
+            }
+
+            _tookResumption = true;
+
+            return true;
         }
     }
 
@@ -239,6 +263,10 @@ internal sealed class AgentToolApprovals
 
         lock (_lock)
         {
+            // The turn ends with these requests, so the pause is over for this invocation: a later completion in the
+            // same scope is neither ended early nor stripped of its results.
+            _pausedCallIds.Clear();
+
             if (_pauses.Count == 0)
             {
                 return [];

@@ -385,7 +385,10 @@ public static class McpServerBuilderExtensions
     }
 
     /// <summary>
-    /// Creates the MCP annotations that tell a client what a tool of the given kind does.
+    /// Creates the MCP annotations that tell a client what a tool of the given kind does. Each hint is set
+    /// explicitly, because the MCP defaults are <c>openWorldHint: true</c> and, for a tool that is not read-only,
+    /// <c>destructiveHint: true</c>: a hint left out would tell a client that every tool reaches the outside world
+    /// and that an external tool destroys data.
     /// </summary>
     /// <param name="kind">The kind of the tool.</param>
     /// <returns>The annotations, or <see langword="null"/> for a tool without a kind.</returns>
@@ -393,11 +396,11 @@ public static class McpServerBuilderExtensions
     {
         return kind switch
         {
-            AIToolKind.Read => new ToolAnnotations { ReadOnlyHint = true },
-            AIToolKind.Write => new ToolAnnotations { ReadOnlyHint = false, DestructiveHint = false },
-            AIToolKind.Destructive => new ToolAnnotations { ReadOnlyHint = false, DestructiveHint = true },
-            AIToolKind.External => new ToolAnnotations { ReadOnlyHint = false, OpenWorldHint = true },
-            AIToolKind.Security => new ToolAnnotations { ReadOnlyHint = false },
+            AIToolKind.Read => new ToolAnnotations { ReadOnlyHint = true, OpenWorldHint = false },
+            AIToolKind.Write => new ToolAnnotations { ReadOnlyHint = false, DestructiveHint = false, OpenWorldHint = false },
+            AIToolKind.Destructive => new ToolAnnotations { ReadOnlyHint = false, DestructiveHint = true, OpenWorldHint = false },
+            AIToolKind.External => new ToolAnnotations { ReadOnlyHint = false, DestructiveHint = false, OpenWorldHint = true },
+            AIToolKind.Security => new ToolAnnotations { ReadOnlyHint = false, DestructiveHint = true, OpenWorldHint = false },
             _ => null,
         };
     }

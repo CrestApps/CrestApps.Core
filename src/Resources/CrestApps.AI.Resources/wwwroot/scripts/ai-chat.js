@@ -1924,6 +1924,12 @@
 						updateMessagePresentation(target, target.references);
 						const calls = target.toolCalls.filter((c) => c.interruptId);
 						if (calls.some((c) => c.status === "awaitingApproval")) return;
+						let agentCallsAnswered = false;
+						for (const call of target.toolCalls) if (!call.interruptId && call.status === "awaitingApproval") {
+							call.status = "approved";
+							agentCallsAnswered = true;
+						}
+						if (agentCallsAnswered) updateMessagePresentation(target, target.references);
 						const resume = calls.filter((c) => c.decided).map((c) => ({
 							interruptId: c.interruptId,
 							status: "resolved",
